@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pump & Fan Curve Builder — Triple E Technology</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --bg:#f4f6f9;--bg2:#fff;--bg3:#f0f2f5;
+  --text:#1a2035;--text2:#5a6480;--text3:#9ba3b8;
+  --blue:#1d5fcc;--blue2:#1a4fa8;
+  --green:#16a34a;--amber:#b45309;--red:#dc2626;--purple:#7c3aed;
+  --r:10px;--r2:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100vh;}
+.hdr{background:var(--blue);padding:12px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+.logo{width:32px;height:32px;background:rgba(255,255,255,.2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;border:1px solid rgba(255,255,255,.3);flex-shrink:0;}
+.hdr-t{font-size:15px;font-weight:600;color:#fff;}
+.hdr-s{font-size:11px;color:rgba(255,255,255,.65);margin-top:1px;}
+.hdr-r{margin-left:auto;display:flex;gap:6px;}
+.hbtn{padding:5px 12px;border-radius:5px;font-size:12px;cursor:pointer;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;}
+.hbtn:hover{background:rgba(255,255,255,.28);}
+.tabs{background:var(--bg2);border-bottom:2px solid #e2e6ef;display:flex;padding:0 20px;}
+.tab{padding:10px 16px;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;}
+.tab:hover{color:var(--text);}
+.tab.on{color:var(--blue);border-bottom-color:var(--blue);font-weight:600;}
+.main{display:flex;height:calc(100vh - 103px);}
+.sidebar{width:310px;flex-shrink:0;background:var(--bg2);border-right:1px solid #e2e6ef;overflow-y:auto;}
+.content{flex:1;overflow-y:auto;}
+
+/* TABS: simple display:none/block — charts drawn AFTER tab is visible via setTimeout */
+.panel{display:none;}
+.panel.on{display:block;padding:15px 17px;}
+
+.ss{border-bottom:1px solid #eaecf4;padding:12px 14px;}
+.ss:last-child{border-bottom:none;}
+.st{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;}
+label{display:block;font-size:12px;color:var(--text2);margin-bottom:3px;margin-top:8px;}
+label:first-child{margin-top:0;}
+input[type=text],input[type=number],select{width:100%;background:var(--bg3);border:1px solid #d1d9ea;border-radius:var(--r2);color:var(--text);padding:6px 8px;font-size:13px;outline:none;}
+input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,95,204,.1);}
+select option{background:#fff;}
+.tt{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:3px;}
+.tb{padding:7px;border:1.5px solid #d1d9ea;border-radius:var(--r2);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;text-align:center;}
+.tb:hover{border-color:var(--blue);color:var(--blue);}
+.tb.on{border-color:var(--blue);background:#eef3fc;color:var(--blue);font-weight:600;}
+.tw{overflow-x:auto;border:1px solid #e2e6ef;border-radius:var(--r);}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{background:#f0f4fb;color:var(--text2);font-weight:600;text-align:center;padding:7px 3px;border-bottom:1px solid #dde3f0;white-space:nowrap;font-size:11px;}
+td{padding:2px 1px;border-bottom:1px solid #f0f2f8;text-align:center;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#f5f7ff;}
+td input[type=number]{width:100%;background:transparent;border:1px solid transparent;color:var(--text);padding:3px;font-size:12px;text-align:center;border-radius:4px;}
+td input[type=number]:focus{border-color:var(--blue);background:#eef3fc;}
+td input[type=text]{width:100%;background:transparent;border:1px solid transparent;color:var(--text2);padding:3px;font-size:11px;border-radius:4px;}
+.rn{color:var(--text3);font-size:11px;padding:4px 6px;min-width:24px;}
+.rs{width:7px;height:7px;border-radius:50%;background:#d1d9ea;display:inline-block;margin:auto;}
+.rs.ok{background:var(--green);}
+.rs.w{background:#f59e0b;}
+.xb{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 5px;border-radius:4px;}
+.xb:hover{color:var(--red);background:#fef2f2;}
+.btn{padding:6px 11px;border-radius:var(--r2);font-size:12px;cursor:pointer;border:1px solid #d1d9ea;background:#fff;color:var(--text2);display:inline-flex;align-items:center;gap:4px;}
+.btn:hover{color:var(--text);border-color:#9ba3b8;background:var(--bg3);}
+.btn-p{background:var(--blue);border-color:var(--blue);color:#fff;font-size:13px;padding:7px 15px;}
+.btn-p:hover{background:var(--blue2);}
+.btn-g{background:#f0fdf4;border-color:#86efac;color:var(--green);font-size:13px;padding:7px 15px;}
+.btn-g:hover{background:#dcfce7;}
+.btn-o{background:#fff7ed;border-color:#fdba74;color:#c2410c;}
+.btn-o:hover{background:#ffedd5;}
+.btn-d{background:#fff;border-color:#fca5a5;color:var(--red);}
+.btn-d:hover{background:#fef2f2;}
+.brow{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center;}
+.card{background:var(--bg2);border:1px solid #e2e6ef;border-radius:var(--r);padding:14px;margin-bottom:13px;}
+.card:last-child{margin-bottom:0;}
+.ct{font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.cs{font-size:11px;color:var(--text2);margin-bottom:10px;}
+/* Chart wrapper: fixed pixel height, never collapses */
+.ch{position:relative;width:100%;height:360px;}
+.ch-sm{position:relative;width:100%;height:300px;}
+.sr{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:13px;}
+.sc{background:var(--bg2);border:1px solid #e2e6ef;border-radius:var(--r2);padding:9px 10px;}
+.sl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;}
+.sv{font-size:20px;font-weight:700;color:var(--blue);}
+.su{font-size:10px;color:var(--text2);margin-left:2px;font-weight:400;}
+.badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;}
+.bb{background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe;}
+.bo{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;}
+.leg{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:7px;}
+.li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);}
+.bep-box{background:#f0fdf4;border:1px solid #86efac;border-radius:var(--r2);padding:9px 13px;margin-bottom:13px;}
+.bep-l{font-size:10px;color:#15803d;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+.bep-v{font-size:14px;font-weight:700;color:var(--green);}
+.op-box{background:#eff6ff;border:1px solid #93c5fd;border-radius:var(--r2);padding:9px 13px;margin-bottom:13px;}
+.op-l{font-size:10px;color:#1d4ed8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+.op-v{font-size:14px;font-weight:700;color:var(--blue);}
+.ag{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:11px;}
+.ar{background:var(--bg3);border:1px solid #e2e6ef;border-radius:var(--r2);padding:11px;text-align:center;}
+.ar .v{font-size:20px;font-weight:700;color:var(--purple);}
+.ar .l{font-size:11px;color:var(--text2);margin-top:2px;}
+.ar .f{font-size:10px;color:var(--text3);margin-top:4px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.guide{background:#f8faff;border-left:3px solid var(--blue);border-radius:0 var(--r2) var(--r2) 0;padding:10px 12px;font-size:12px;color:var(--text2);line-height:1.85;margin-top:7px;}
+.tip{background:#fffbeb;border:1px solid #fde68a;border-radius:var(--r2);padding:10px 13px;font-size:12px;color:#78350f;line-height:1.85;}
+.rt{width:100%;border-collapse:collapse;font-size:12px;}
+.rt th{background:#f0f4fb;color:var(--text2);padding:7px 9px;text-align:left;font-weight:600;border-bottom:1px solid #e2e6ef;}
+.rt td{padding:6px 9px;border-bottom:1px solid #f0f2f8;}
+.rt tr:last-child td{border-bottom:none;}
+.rt tr:hover td{background:#f5f7ff;}
+hr{border:none;border-top:1px solid #e8ecf4;margin:9px 0;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:#d1d9ea;border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="logo">3E</div>
+  <div>
+    <div class="hdr-t">Pump &amp; Fan Curve Builder</div>
+    <div class="hdr-s">Triple E Technology Co., Ltd. — Field Data &amp; Performance Analysis</div>
+  </div>
+  <div class="hdr-r">
+    <button class="hbtn" onclick="exportCSV()">⬇ Export CSV</button>
+    <button class="hbtn" onclick="window.print()">🖨 Print</button>
+  </div>
+</div>
+<div class="tabs">
+  <div class="tab on"  onclick="goTab('input')">📋 กรอกข้อมูล</div>
+  <div class="tab" onclick="goTab('curves')">📈 Pump/Fan Curve</div>
+  <div class="tab" onclick="goTab('system')">🔁 System Curve</div>
+  <div class="tab" onclick="goTab('affinity')">⚡ Affinity Laws</div>
+  <div class="tab" onclick="goTab('report')">📄 รายงาน</div>
+</div>
+<div class="main">
+<div class="sidebar">
+  <div class="ss">
+    <div class="st">ประเภทเครื่องจักร</div>
+    <div class="tt">
+      <button class="tb on" id="btnPump" onclick="setType('pump')">💧 ปั้มน้ำ</button>
+      <button class="tb"    id="btnFan"  onclick="setType('fan')">💨 พัดลม</button>
+    </div>
+  </div>
+  <div class="ss">
+    <div class="st">ข้อมูลทั่วไป</div>
+    <label>ชื่อโครงการ / สถานที่</label><input type="text" id="projName" value="โรงงาน A — ปั้มน้ำหล่อเย็น CW-P01">
+    <label>ผู้ทดสอบ</label><input type="text" id="testerName" value="อ.หนึ่ง กลับทวี">
+    <label>วันที่ทดสอบ</label><input type="text" id="testDate">
+    <label>หมายเลขเครื่อง / Tag</label><input type="text" id="machineTag" value="P-101">
+  </div>
+  <div class="ss">
+    <div class="st">พารามิเตอร์เครื่องจักร</div>
+    <label>ความเร็วรอบ (RPM)</label><input type="number" id="testRPM" value="1450">
+    <label>กำลังมอเตอร์ (kW)</label><input type="number" id="motorKW" value="22">
+    <div id="pumpP">
+      <label>ของเหลว</label>
+      <select id="fluidType">
+        <option value="1000" selected>น้ำ (ρ=1000 kg/m³)</option>
+        <option value="850">น้ำมัน (ρ≈850)</option>
+        <option value="1200">สารเคมี (ρ≈1200)</option>
+        <option value="custom">กำหนดเอง</option>
+      </select>
+      <div id="cRhoDiv" style="display:none"><label>ρ (kg/m³)</label><input type="number" id="customRho" value="1000"></div>
+      <label>ΔZ Static (m)</label><input type="number" id="staticZ" value="3" step="0.1">
+    </div>
+    <div id="fanP" style="display:none">
+      <label>ชนิดแรงดัน</label>
+      <select id="presType"><option>Static Pressure</option><option>Total Pressure</option></select>
+      <label>ความหนาแน่นอากาศ ρ (kg/m³)</label><input type="number" id="airDensity" value="1.2" step="0.01">
+    </div>
+  </div>
+  <div class="ss">
+    <div class="st">System Curve Parameters</div>
+    <label>ΔP_static (m หรือ Pa)</label><input type="number" id="staticHead" value="12" step="0.1">
+    <label>Q_ref จุดอ้างอิง</label><input type="number" id="qRef" value="60">
+    <label>ΔP_ref ที่วัดจริง</label><input type="number" id="dpRef" value="28.5">
+    <div class="brow" style="margin-top:6px"><button class="btn" style="width:100%;justify-content:center" onclick="calcK()">⟳ คำนวณ K</button></div>
+    <div id="kResult" style="margin-top:6px;font-size:11px;color:var(--text2);background:var(--bg3);padding:6px 8px;border-radius:5px;white-space:pre-line"></div>
+  </div>
+</div>
+
+<div class="content">
+
+  <div id="tab-input" class="panel on">
+    <div class="card">
+      <div class="ct">📋 บันทึกข้อมูลภาคสนาม <span class="badge bb" id="dataCount">0 จุด</span> <span class="badge bo" id="sampleBadge" style="display:none">📊 ข้อมูลตัวอย่าง</span></div>
+      <div class="cs">ปรับวาล์ว/Damper ทีละขั้น บันทึกอย่างน้อย 5–7 จุด</div>
+      <div class="tw"><table>
+        <thead><tr>
+          <th>#</th><th>✓</th>
+          <th id="hQ">Q (m³/h)</th><th id="hP1">P₁ (m)</th><th id="hP2">P₂ (m)</th>
+          <th id="hH" style="color:var(--amber)">Head (m)</th>
+          <th>Power (kW)</th><th>RPM</th>
+          <th style="color:var(--green)">Eff (%)</th><th>หมายเหตุ</th><th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table></div>
+      <div class="brow">
+        <button class="btn btn-p" onclick="addRow()">＋ เพิ่มจุด</button>
+        <button class="btn" onclick="addBlank()">📄 แม่แบบ 7 จุด</button>
+        <button class="btn btn-o" id="spBtn" onclick="loadP()">🔵 ตัวอย่างปั้มน้ำ</button>
+        <button class="btn btn-o" id="sfBtn" onclick="loadF()" style="display:none">🟠 ตัวอย่างพัดลม</button>
+        <button class="btn btn-d" onclick="clearAll()">🗑 ล้าง</button>
+      </div>
+      <hr>
+      <button class="btn btn-g" onclick="doDrawAll()">📈 วาดกราฟทั้งหมด →</button>
+    </div>
+    <div class="card"><div class="ct">📌 คำแนะนำการวัด</div><div id="guide" class="guide"></div></div>
+  </div>
+
+  <div id="tab-curves" class="panel">
+    <div class="sr">
+      <div class="sc"><div class="sl">จุดข้อมูล</div><div class="sv" id="stp">—</div></div>
+      <div class="sc"><div class="sl">Shutoff Head</div><div class="sv" id="stsh">—<span class="su" id="su1">m</span></div></div>
+      <div class="sc"><div class="sl">Max Flow</div><div class="sv" id="stmq">—<span class="su" id="su2">m³/h</span></div></div>
+      <div class="sc"><div class="sl">Peak Efficiency</div><div class="sv" id="stbep">—<span class="su">%</span></div></div>
+    </div>
+    <div class="card">
+      <div class="ct">📈 <span id="curveTitle">Pump Performance Curve</span> <span class="badge bb" id="rpmBadge"></span></div>
+      <div class="cs" id="curveSub">H-Q Curve · Efficiency Curve · Power Curve</div>
+      <div class="leg" id="leg1"></div>
+      <div class="ch"><canvas id="chartMain"></canvas></div>
+    </div>
+    <div id="bepBox" class="bep-box" style="display:none">
+      <div class="bep-l">⭐ Best Efficiency Point (BEP)</div>
+      <div class="bep-v" id="bepTxt">—</div>
+    </div>
+  </div>
+
+  <div id="tab-system" class="panel">
+    <div class="card">
+      <div class="ct">🔁 System Curve &amp; Operating Point</div>
+      <div class="cs">จุดตัดของ Equipment Curve กับ System Curve = Operating Point จริง</div>
+      <div class="leg" id="leg2"></div>
+      <div class="ch"><canvas id="chartSys"></canvas></div>
+    </div>
+    <div id="opBox" class="op-box" style="display:none"><div class="op-l">⭕ Operating Point</div><div class="op-v" id="opTxt">—</div></div>
+    <div class="card" id="sysInfo">
+      <div class="ct">ℹ️ วิธีใช้งาน</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.9">1. กรอก ΔP_static, Q_ref, ΔP_ref ที่ Sidebar<br>2. กด คำนวณ K<br>3. กด วาดกราฟทั้งหมด อีกครั้ง</div>
+    </div>
+  </div>
+
+  <div id="tab-affinity" class="panel">
+    <div class="card">
+      <div class="ct">⚡ Affinity Laws — กฎความคล้ายคลึง</div>
+      <div class="cs">คำนวณสมรรถนะที่ RPM ใหม่ — สำหรับ VFD หรือการตัดใบพัด</div>
+      <div class="g2" style="margin-top:8px">
+        <div><label>RPM เดิม (N₁)</label><input type="number" id="an1" value="1450"></div>
+        <div><label>RPM ใหม่ (N₂)</label><input type="number" id="an2" value="1160"></div>
+        <div><label>Q₁ ที่ BEP</label><input type="number" id="aq1" value="55"></div>
+        <div><label>H₁/ΔP₁ ที่ BEP</label><input type="number" id="ah1" value="33.5"></div>
+        <div><label>P_shaft₁ (kW)</label><input type="number" id="ap1" value="8.2"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn btn-p" style="width:100%;justify-content:center" onclick="calcAff()">คำนวณ →</button></div>
+      </div>
+      <div class="ag">
+        <div class="ar"><div class="v" id="aq2">—</div><div class="l">Q₂ (m³/h)</div><div class="f">Q₂=Q₁×(N₂/N₁)</div></div>
+        <div class="ar"><div class="v" id="ah2">—</div><div class="l">H₂/ΔP₂</div><div class="f">H₂=H₁×(N₂/N₁)²</div></div>
+        <div class="ar"><div class="v" id="ap2">—</div><div class="l">P_shaft₂ (kW)</div><div class="f">P₂=P₁×(N₂/N₁)³</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">📈 Q–H Curve เปรียบเทียบ N₁ vs N₂</div>
+      <div class="leg" id="leg3"></div>
+      <div class="ch-sm"><canvas id="chartAff"></canvas></div>
+    </div>
+    <div class="tip">💡 ลด RPM 20% → Flow ลด 20%, Head ลด 36%, <b>Power ลดถึง 49%!</b><br>VFD ดีกว่า Throttle วาล์วเสมอ | ตัดใบพัด: D-ratio แทน N-ratio</div>
+  </div>
+
+  <div id="tab-report" class="panel">
+    <div class="card">
+      <div class="ct">📄 รายงานสรุปผล</div>
+      <div id="repHdr" style="font-size:12px;color:var(--text2);margin:4px 0 9px"></div>
+      <hr>
+      <div style="overflow-x:auto"><table class="rt">
+        <thead><tr><th>จุด</th><th>Q</th><th>P₁</th><th>P₂</th><th>Head/ΔP</th><th>Power kW</th><th>RPM</th><th>Eff %</th><th>หมายเหตุ</th></tr></thead>
+        <tbody id="repBody"></tbody>
+      </table></div>
+      <div class="brow"><button class="btn" onclick="exportCSV()">⬇ Export CSV</button></div>
+    </div>
+  </div>
+
+</div></div>
+
+<script>
+// ══ STATE ══════════════════════════════════════════════════════
+let MT='pump', rows=[], rid=0, CH={}, SK=0;
+let GQs=[],GHs=[],GPs=[],GEs=[],GSorted=[];
+let drawnMain=false, drawnSys=false;
+const TABS=['input','curves','system','affinity','report'];
+
+// ══ SAMPLE DATA ════════════════════════════════════════════════
+const SP={proj:'โรงงาน A — ปั้มน้ำหล่อเย็น CW-P01',tester:'อ.หนึ่ง กลับทวี',tag:'P-101',rpm:1450,kw:22,dz:3,sh:12,qr:60,dpr:28.5,
+  rows:[{q:0,p1:0,p2:46,kw:4.2,n:'Shutoff (วาล์วปิดสนิท)'},{q:18,p1:1.2,p2:44.5,kw:5.1,n:'วาล์ว 25%'},
+    {q:36,p1:1.8,p2:42.2,kw:6.8,n:'วาล์ว 50%'},{q:55,p1:2.0,p2:38.5,kw:8.2,n:'BEP — วาล์ว 65%'},
+    {q:72,p1:2.3,p2:32.0,kw:9.5,n:'วาล์ว 75%'},{q:85,p1:2.5,p2:24.0,kw:10.8,n:'วาล์ว 90%'},
+    {q:100,p1:2.8,p2:13.5,kw:12.1,n:'Runout (วาล์วเปิดสนิท)'}]};
+const SF={proj:'โรงงาน B — พัดลมระบายความร้อน CT-F01',tester:'อ.หนึ่ง กลับทวี',tag:'F-201',rpm:960,kw:11,rho:1.2,sh:50,qr:18000,dpr:380,
+  rows:[{q:0,p1:0,p2:520,kw:1.8,n:'Shutoff (Damper ปิด)'},{q:5000,p1:10,p2:502,kw:2.6,n:'Damper 25%'},
+    {q:10000,p1:20,p2:472,kw:4.1,n:'Damper 50%'},{q:16000,p1:30,p2:430,kw:6.0,n:'BEP — Damper 70%'},
+    {q:20000,p1:35,p2:390,kw:7.8,n:'Damper 85%'},{q:24000,p1:40,p2:320,kw:9.2,n:'Damper 95%'},
+    {q:28000,p1:45,p2:220,kw:10.5,n:'Runout (Damper เปิดสนิท)'}]};
+
+// ══ INIT ══════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',()=>{
+  const d=new Date();
+  document.getElementById('testDate').value=pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear();
+  document.getElementById('fluidType').addEventListener('change',function(){
+    document.getElementById('cRhoDiv').style.display=this.value==='custom'?'block':'none';
+  });
+  updGuide(); loadP();
+});
+const pad=n=>String(n).padStart(2,'0');
+
+// ══ TABS ══════════════════════════════════════════════════════
+// Uses display:none/block. Charts are drawn lazily when their
+// tab becomes visible. goTab draws pending charts after a
+// 10ms timeout — enough for browser to paint the tab.
+function goTab(n){
+  TABS.forEach(x=>document.getElementById('tab-'+x).classList.remove('on'));
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',TABS[i]===n));
+  document.getElementById('tab-'+n).classList.add('on');
+  // draw pending charts after browser paints the now-visible tab
+  if(n==='curves' && GQs.length && !drawnMain){
+    setTimeout(()=>{ drawMain(GQs,GHs,GPs,GEs); drawnMain=true; },10);
+  }
+  if(n==='system' && GQs.length && !drawnSys){
+    setTimeout(()=>{ drawSys(GQs,GHs); drawnSys=true; },10);
+  }
+  // resize already-drawn charts
+  setTimeout(()=>Object.values(CH).forEach(c=>{try{c.resize();}catch(e){}}),50);
+}
+
+// ══ TYPE ══════════════════════════════════════════════════════
+function setType(t){
+  MT=t;
+  document.getElementById('btnPump').classList.toggle('on',t==='pump');
+  document.getElementById('btnFan').classList.toggle('on',t==='fan');
+  document.getElementById('pumpP').style.display=t==='pump'?'block':'none';
+  document.getElementById('fanP').style.display=t==='fan'?'block':'none';
+  document.getElementById('spBtn').style.display=t==='pump'?'':'none';
+  document.getElementById('sfBtn').style.display=t==='fan'?'':'none';
+  updHeaders(); updGuide();
+}
+function updHeaders(){
+  const p=MT==='pump';
+  document.getElementById('hQ').textContent=p?'Q (m³/h)':'Q (CMH)';
+  document.getElementById('hP1').textContent=p?'P₁ (m)':'P₁ (Pa)';
+  document.getElementById('hP2').textContent=p?'P₂ (m)':'P₂ (Pa)';
+  document.getElementById('hH').textContent=p?'Head (m)':'ΔP (Pa)';
+  document.getElementById('curveTitle').textContent=p?'Pump Performance Curve':'Fan Performance Curve';
+  document.getElementById('curveSub').textContent=p?'H-Q Curve · Efficiency Curve · Power Curve':'ΔP-Q Curve · Efficiency Curve · Power Curve';
+}
+function updGuide(){
+  const p=MT==='pump';
+  document.getElementById('guide').innerHTML=p
+    ?`<b style="color:var(--blue)">เครื่องมือ:</b> Ultrasonic Flow Meter, Pressure Gauge, Power Meter, Tachometer<br><br><b style="color:var(--amber)">ขั้นตอน:</b><br>1. ปิดวาล์ว Discharge สนิท → บันทึก Shutoff (Q=0)<br>2. เปิดวาล์ว 25%→50%→BEP→75%→90%→100% (Runout)<br>3. รอ 2–3 นาทีให้ระบบ Stabilize ก่อนบันทึก<br><br><b style="color:var(--green)">สูตร Head (Auto):</b> H = (P₂−P₁) + ΔZ (m)`
+    :`<b style="color:var(--blue)">เครื่องมือ:</b> Pitot Tube, Magnehelic Gauge, Power Meter, Tachometer<br><br><b style="color:var(--amber)">ขั้นตอน:</b><br>1. ปิด Damper สนิท → บันทึก Shutoff (Q=0)<br>2. เปิด Damper 25%→50%→BEP→85%→95%→100%<br>3. Pitot Traverse 9 จุด บน Cross Section<br><br><b style="color:var(--green)">สูตร Eff:</b> η=(Q×ΔP)/P_shaft×100%`;
+}
+
+// ══ SAMPLE LOADERS ════════════════════════════════════════════
+function applyS(s,t,aq,ah,ap){
+  setType(t);
+  ['projName','testerName','machineTag'].forEach((id,i)=>document.getElementById(id).value=[s.proj,s.tester,s.tag][i]);
+  document.getElementById('testRPM').value=s.rpm; document.getElementById('motorKW').value=s.kw;
+  document.getElementById('staticHead').value=s.sh; document.getElementById('qRef').value=s.qr; document.getElementById('dpRef').value=s.dpr;
+  document.getElementById('an1').value=s.rpm; document.getElementById('an2').value=Math.round(s.rpm*.8);
+  document.getElementById('aq1').value=aq; document.getElementById('ah1').value=ah; document.getElementById('ap1').value=ap;
+  if(t==='pump') document.getElementById('staticZ').value=s.dz||0;
+  else document.getElementById('airDensity').value=s.rho||1.2;
+  rows=[];rid=0;
+  const dz=t==='pump'?(s.dz||0):0, rho=t==='pump'?1000:(s.rho||1.2);
+  s.rows.forEach(d=>{
+    rid++;
+    const head=parseFloat((d.p2-d.p1+(t==='pump'?dz:0)).toFixed(2));
+    let eff='';
+    if(d.q>0&&d.kw>0){const e=t==='pump'?(d.q/3600*head*rho*9.81)/(d.kw*1000)*100:(d.q/3600*head)/(d.kw*1000)*100; if(e>0&&e<=100)eff=e.toFixed(1);}
+    rows.push({id:rid,q:String(d.q),p1:String(d.p1),p2:String(d.p2),head:String(head),kw:String(d.kw),rpm:String(s.rpm),eff,note:d.n});
+  });
+  document.getElementById('sampleBadge').style.display='';
+  calcK(); renderTbl();
+}
+function loadP(){applyS(SP,'pump',55,33.5,8.2);}
+function loadF(){applyS(SF,'fan',16000,400,6.0);}
+
+// ══ ROWS ══════════════════════════════════════════════════════
+function addRow(){rid++;rows.push({id:rid,q:'',p1:'',p2:'',head:'',kw:'',rpm:document.getElementById('testRPM').value||'',eff:'',note:''});renderTbl();}
+function addBlank(){
+  rows=[];rid=0;document.getElementById('sampleBadge').style.display='none';
+  ['Shutoff (วาล์วปิด)','วาล์ว 25%','วาล์ว 50%','BEP (จุดทำงาน)','วาล์ว 75%','วาล์ว 90%','Runout (วาล์วเปิดสนิท)'].forEach(note=>{
+    rid++;rows.push({id:rid,q:'',p1:'',p2:'',head:'',kw:'',rpm:document.getElementById('testRPM').value||'',eff:'',note});
+  });
+  renderTbl();
+}
+function clearAll(){if(confirm('ล้างข้อมูล?')){rows=[];document.getElementById('sampleBadge').style.display='none';renderTbl();}}
+function delRow(id){rows=rows.filter(r=>r.id!==id);renderTbl();}
+function renderTbl(){
+  const tb=document.getElementById('tbody'); tb.innerHTML='';
+  rows.forEach((r,i)=>{
+    const ok=r.q!==''&&r.head!=='', sc=ok?'ok':(r.q!==''?'w':'');
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="rn">${i+1}</td><td><span class="rs ${sc}"></span></td>
+      <td><input type=number step=.01 value="${r.q}" onchange="ur(${r.id},'q',this.value)" placeholder="0.00"></td>
+      <td><input type=number step=.01 value="${r.p1}" onchange="ur(${r.id},'p1',this.value)" placeholder="0.00"></td>
+      <td><input type=number step=.01 value="${r.p2}" onchange="ur(${r.id},'p2',this.value)" placeholder="0.00"></td>
+      <td><input type=number step=.01 value="${r.head}" onchange="ur(${r.id},'head',this.value)" placeholder="Auto" style="color:var(--amber);font-weight:600"></td>
+      <td><input type=number step=.01 value="${r.kw}" onchange="ur(${r.id},'kw',this.value)" placeholder="0.00"></td>
+      <td><input type=number step=1 value="${r.rpm}" onchange="ur(${r.id},'rpm',this.value)" placeholder="RPM" style="width:56px"></td>
+      <td><input type=number step=.1 value="${r.eff}" readonly placeholder="Auto" style="color:var(--green);font-weight:600;background:#f0fdf4"></td>
+      <td><input type=text value="${r.note}" onchange="ur(${r.id},'note',this.value)" placeholder="หมายเหตุ"></td>
+      <td><button class="xb" onclick="delRow(${r.id})">✕</button></td>`;
+    tb.appendChild(tr);
+  });
+  document.getElementById('dataCount').textContent=rows.filter(r=>r.q!=='').length+' จุด';
+}
+function ur(id,f,v){
+  const r=rows.find(x=>x.id===id); if(!r)return; r[f]=v;
+  if(['p1','p2'].includes(f)&&r.p1!==''&&r.p2!==''){
+    const dz=parseFloat(document.getElementById('staticZ')?.value)||0;
+    r.head=MT==='pump'?(parseFloat(r.p2)-parseFloat(r.p1)+dz).toFixed(2):(parseFloat(r.p2)-parseFloat(r.p1)).toFixed(2);
+  }
+  if(r.q!==''&&r.head!==''&&r.kw!==''&&parseFloat(r.kw)>0){
+    const q=parseFloat(r.q),h=parseFloat(r.head),kw=parseFloat(r.kw),rho=getRho();
+    const e=MT==='pump'?(q/3600*h*rho*9.81)/(kw*1000)*100:(q/3600*h)/(kw*1000)*100;
+    r.eff=(e>0&&e<=100)?e.toFixed(1):'';
+  }
+  renderTbl();
+}
+function getRho(){
+  if(MT==='fan')return parseFloat(document.getElementById('airDensity').value)||1.2;
+  const s=document.getElementById('fluidType').value;
+  return s==='custom'?(parseFloat(document.getElementById('customRho').value)||1000):parseFloat(s);
+}
+
+// ══ SYSTEM K ══════════════════════════════════════════════════
+function calcK(){
+  const qr=parseFloat(document.getElementById('qRef').value);
+  const dr=parseFloat(document.getElementById('dpRef').value);
+  const ds=parseFloat(document.getElementById('staticHead').value)||0;
+  if(!qr||!dr){document.getElementById('kResult').textContent='กรุณากรอก Q_ref และ ΔP_ref';return;}
+  SK=(dr-ds)/(qr*qr);
+  document.getElementById('kResult').textContent=`K = ${SK.toFixed(6)}\nΔP = ${ds.toFixed(1)} + K × Q²`;
+}
+
+// ══ DRAW ALL ══════════════════════════════════════════════════
+function doDrawAll(){
+  const valid=rows.filter(r=>r.q!==''&&r.head!=='');
+  if(valid.length<2){alert('กรุณากรอกข้อมูลอย่างน้อย 2 จุด');return;}
+  GSorted=[...valid].sort((a,b)=>parseFloat(a.q)-parseFloat(b.q));
+  GQs=GSorted.map(r=>parseFloat(r.q)); GHs=GSorted.map(r=>parseFloat(r.head));
+  GPs=GSorted.map(r=>r.kw!==''?parseFloat(r.kw):null);
+  GEs=GSorted.map(r=>r.eff!==''?parseFloat(r.eff):null);
+  // Reset drawn flags so charts redraw fresh
+  drawnMain=false; drawnSys=false;
+  // Destroy old charts
+  ['chartMain','chartSys'].forEach(id=>{if(CH[id]){CH[id].destroy();delete CH[id];}});
+  // Stats
+  const rpm=document.getElementById('testRPM').value||'—';
+  document.getElementById('rpmBadge').textContent=rpm+' RPM';
+  document.getElementById('stp').textContent=valid.length;
+  document.getElementById('stsh').textContent=GHs[0].toFixed(1);
+  document.getElementById('su1').textContent=MT==='pump'?'m':'Pa';
+  document.getElementById('stmq').textContent=Math.max(...GQs).toFixed(1);
+  document.getElementById('su2').textContent=MT==='pump'?'m³/h':'CMH';
+  const vE=GEs.filter(e=>e!==null),mE=vE.length?Math.max(...vE):null;
+  document.getElementById('stbep').textContent=mE?mE.toFixed(1):'—';
+  if(mE){const bi=GEs.indexOf(mE);document.getElementById('bepBox').style.display='block';
+    document.getElementById('bepTxt').textContent=`Q=${GQs[bi].toFixed(1)} ${MT==='pump'?'m³/h':'CMH'}  ·  H=${GHs[bi].toFixed(1)} ${MT==='pump'?'m':'Pa'}  ·  η=${mE.toFixed(1)}%`;}
+  buildReport(GSorted);
+  // Switch to curves tab — goTab will setTimeout(draw,10) after tab is visible
+  goTab('curves');
+}
+
+// ══ CHART HELPERS ═════════════════════════════════════════════
+function mkChart(id,cfg){
+  if(CH[id]){CH[id].destroy();delete CH[id];}
+  CH[id]=new Chart(document.getElementById(id),cfg);
+  return CH[id];
+}
+
+// BEP zone highlight plugin — draws shaded band around peak efficiency
+const bepZonePlugin={
+  id:'bepZone',
+  beforeDraw(chart,args,opts){
+    if(!opts||!opts.qBep||!opts.show) return;
+    const {ctx,scales:{x,y}}=chart;
+    if(!x||!y) return;
+    const xL=x.getPixelForValue(opts.qBep*0.82);
+    const xR=x.getPixelForValue(opts.qBep*1.18);
+    const yT=y.top, yB=y.bottom;
+    ctx.save();
+    ctx.fillStyle='rgba(251,191,36,0.18)';
+    ctx.fillRect(xL,yT,xR-xL,yB-yT);
+    // BEP label
+    ctx.fillStyle='rgba(180,130,0,0.85)';
+    ctx.font='bold 10px Segoe UI,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('BEP',( xL+xR)/2, yT+14);
+    ctx.restore();
+  }
+};
+Chart.register(bepZonePlugin);
+
+// Crosshair annotation plugin for operating point
+const crosshairPlugin={
+  id:'crosshair',
+  beforeDraw(chart,args,opts){
+    if(!opts||!opts.qOp||!opts.show) return;
+    const {ctx,scales:{x,y}}=chart;
+    if(!x||!y) return;
+    const cx=x.getPixelForValue(opts.qOp);
+    const cy=y.getPixelForValue(opts.hOp);
+    ctx.save();
+    ctx.setLineDash([4,4]);
+    ctx.strokeStyle='rgba(22,163,74,0.5)';
+    ctx.lineWidth=1.2;
+    // vertical
+    ctx.beginPath();ctx.moveTo(cx,y.bottom);ctx.lineTo(cx,cy);ctx.stroke();
+    // horizontal
+    ctx.beginPath();ctx.moveTo(x.left,cy);ctx.lineTo(cx,cy);ctx.stroke();
+    ctx.restore();
+  }
+};
+Chart.register(crosshairPlugin);
+
+function drawMain(Qs,Hs,Ps,Es){
+  // Find BEP index
+  const vE=Es.filter(e=>e!==null), mE=vE.length?Math.max(...vE):null;
+  const bepIdx=mE?Es.indexOf(mE):-1;
+  const qBep=bepIdx>=0?Qs[bepIdx]:null;
+
+  const lc='#1e40af',pc='#b45309',ec='#15803d';
+
+  // Smooth curves with more interpolated points
+  const ds=[{
+    label:MT==='pump'?'Head H (m)':'Static Pressure ΔP (Pa)',
+    data:Qs.map((q,i)=>({x:q,y:Hs[i]})),
+    borderColor:lc,backgroundColor:'rgba(30,64,175,0.07)',
+    tension:.45,fill:true,showLine:true,
+    pointRadius:5,pointBackgroundColor:'#fff',pointBorderColor:lc,pointBorderWidth:2,
+    yAxisID:'y',borderWidth:3
+  }];
+  if(Ps.some(p=>p!==null)) ds.push({
+    label:'Power (kW)',
+    data:Qs.map((q,i)=>({x:q,y:Ps[i]})),
+    borderColor:pc,backgroundColor:'transparent',
+    tension:.4,fill:false,showLine:true,
+    pointRadius:4,pointBackgroundColor:'#fff',pointBorderColor:pc,pointBorderWidth:2,
+    yAxisID:'y2',borderWidth:2.5,borderDash:[7,4]
+  });
+  if(Es.some(e=>e!==null)) ds.push({
+    label:'Efficiency η (%)',
+    data:Qs.map((q,i)=>({x:q,y:Es[i]})),
+    borderColor:ec,backgroundColor:'transparent',
+    tension:.45,fill:false,showLine:true,
+    pointRadius:4,pointBackgroundColor:'#fff',pointBorderColor:ec,pointBorderWidth:2,
+    yAxisID:'y3',borderWidth:2.5,borderDash:[3,3]
+  });
+
+  const gridCol='rgba(0,0,0,0.07)';
+  mkChart('chartMain',{
+    type:'scatter',data:{datasets:ds},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      animation:{duration:600,easing:'easeInOutQuart'},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'rgba(15,23,42,0.92)',
+          titleFont:{size:12,weight:'600'},
+          bodyFont:{size:12},
+          padding:10,cornerRadius:6,
+          callbacks:{
+            title:items=>{const i=items[0]; return `Q = ${i.parsed.x.toFixed(1)} ${MT==='pump'?'m³/h':'CMH'}`;},
+            label:c=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)}`
+          }
+        },
+        bepZone:{show:!!qBep, qBep},
+      },
+      scales:{
+        x:{
+          type:'linear',
+          title:{display:true,text:MT==='pump'?'Flow Rate  Q  (m³/h)':'Air Flow  Q  (CMH)',color:'#374151',font:{size:12,weight:'600'}},
+          ticks:{color:'#6b7280',font:{size:11}},
+          grid:{color:gridCol,lineWidth:1},
+          border:{color:'#9ca3af',width:1.5}
+        },
+        y:{
+          position:'left',
+          title:{display:true,text:MT==='pump'?'Head  H  (m)':'Static Pressure  ΔP  (Pa)',color:lc,font:{size:12,weight:'600'}},
+          ticks:{color:lc,font:{size:11}},
+          grid:{color:gridCol,lineWidth:1},
+          border:{color:lc,width:2}
+        },
+        y2:{
+          position:'right',
+          title:{display:true,text:'Power  P  (kW)',color:pc,font:{size:11,weight:'600'}},
+          ticks:{color:pc,font:{size:11}},
+          grid:{display:false},
+          border:{color:pc,width:1.5}
+        },
+        y3:{
+          position:'right',
+          title:{display:true,text:'Efficiency  η  (%)',color:ec,font:{size:11,weight:'600'}},
+          ticks:{color:ec,font:{size:11},callback:v=>v+'%'},
+          grid:{display:false},
+          border:{color:ec,width:1.5},
+          min:0,max:100
+        }
+      }
+    }
+  });
+  buildLeg('leg1',ds);
+}
+
+function drawSys(Qs,Hs){
+  calcK();
+  const dps=parseFloat(document.getElementById('staticHead').value)||0;
+  const qMax=Math.max(...Qs)*1.3;
+  const sys=[];
+  for(let i=0;i<=80;i++){const q=(qMax/80)*i;sys.push({x:q,y:dps+SK*q*q});}
+
+  let opQ=null,opH=null;
+  for(let i=0;i<sys.length-1;i++){
+    const h1=interp(sys[i].x,Qs,Hs),h2=interp(sys[i+1].x,Qs,Hs);
+    if(h1!==null&&h2!==null&&(h1-sys[i].y)*(h2-sys[i+1].y)<=0){
+      opQ=(sys[i].x+sys[i+1].x)/2; opH=(h1+h2)/2; break;
+    }
+  }
+  document.getElementById('opBox').style.display=opQ?'block':'none';
+  document.getElementById('sysInfo').style.display=opQ?'none':'';
+  if(opQ) document.getElementById('opTxt').textContent=
+    `Q = ${opQ.toFixed(1)} ${MT==='pump'?'m³/h':'CMH'}  ·  H = ${opH.toFixed(1)} ${MT==='pump'?'m':'Pa'}`;
+
+  const gridCol='rgba(0,0,0,0.07)';
+  const ds2=[
+    {
+      label:MT==='pump'?'Pump Curve H-Q':'Fan Curve ΔP-Q',
+      data:Qs.map((q,i)=>({x:q,y:Hs[i]})),
+      showLine:true,borderColor:'#1e40af',backgroundColor:'rgba(30,64,175,0.07)',
+      tension:.45,fill:true,
+      pointRadius:5,pointBackgroundColor:'#fff',pointBorderColor:'#1e40af',pointBorderWidth:2,
+      borderWidth:3,borderDash:[]
+    },
+    {
+      label:'System Curve',
+      data:sys,showLine:true,
+      borderColor:'#dc2626',backgroundColor:'transparent',
+      tension:.1,fill:false,pointRadius:0,borderWidth:2.5,borderDash:[8,5]
+    }
+  ];
+  if(opQ) ds2.push({
+    label:'Operating Point',
+    data:[{x:opQ,y:opH}],showLine:false,
+    borderColor:'#16a34a',backgroundColor:'#16a34a',
+    pointRadius:11,pointStyle:'circle',
+    pointBorderColor:'#fff',pointBorderWidth:2.5,borderWidth:0
+  });
+
+  mkChart('chartSys',{
+    type:'scatter',data:{datasets:ds2},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      animation:{duration:600,easing:'easeInOutQuart'},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'rgba(15,23,42,0.92)',
+          titleFont:{size:12,weight:'600'},
+          bodyFont:{size:12},padding:10,cornerRadius:6,
+          callbacks:{
+            title:items=>{const i=items[0];return `Q = ${i.parsed.x.toFixed(1)} ${MT==='pump'?'m³/h':'CMH'}`;},
+            label:c=>`${c.dataset.label}: H = ${c.parsed.y.toFixed(1)} ${MT==='pump'?'m':'Pa'}`
+          }
+        },
+        crosshair:{show:!!opQ,qOp:opQ,hOp:opH}
+      },
+      scales:{
+        x:{
+          type:'linear',min:0,
+          title:{display:true,text:MT==='pump'?'Flow Rate  Q  (m³/h)':'Air Flow  Q  (CMH)',color:'#374151',font:{size:12,weight:'600'}},
+          ticks:{color:'#6b7280',font:{size:11}},
+          grid:{color:gridCol,lineWidth:1},
+          border:{color:'#9ca3af',width:1.5}
+        },
+        y:{
+          min:0,
+          title:{display:true,text:MT==='pump'?'Head  H  (m)':'Pressure  ΔP  (Pa)',color:'#374151',font:{size:12,weight:'600'}},
+          ticks:{color:'#6b7280',font:{size:11}},
+          grid:{color:gridCol,lineWidth:1},
+          border:{color:'#9ca3af',width:1.5}
+        }
+      }
+    }
+  });
+  buildLeg('leg2',ds2);
+}
+function interp(q,Qs,Hs){
+  if(q<Qs[0]||q>Qs[Qs.length-1])return null;
+  for(let i=0;i<Qs.length-1;i++)if(q>=Qs[i]&&q<=Qs[i+1]){const t=(q-Qs[i])/(Qs[i+1]-Qs[i]);return Hs[i]+t*(Hs[i+1]-Hs[i]);}
+  return null;
+}
+function calcAff(){
+  const n1=parseFloat(document.getElementById('an1').value),n2=parseFloat(document.getElementById('an2').value);
+  const q1=parseFloat(document.getElementById('aq1').value),h1=parseFloat(document.getElementById('ah1').value),p1=parseFloat(document.getElementById('ap1').value);
+  if(!n1||!n2||!q1||!h1||!p1){alert('กรุณากรอกข้อมูลให้ครบ');return;}
+  const r=n2/n1;
+  document.getElementById('aq2').textContent=(q1*r).toFixed(2);
+  document.getElementById('ah2').textContent=(h1*r*r).toFixed(2);
+  document.getElementById('ap2').textContent=(p1*r*r*r).toFixed(2);
+  const v=rows.filter(x=>x.q!==''&&x.head!=='').sort((a,b)=>parseFloat(a.q)-parseFloat(b.q));
+  if(v.length<2)return;
+  const Qs=v.map(x=>parseFloat(x.q)),Hs=v.map(x=>parseFloat(x.head));
+  mkChart('chartAff',{type:'scatter',
+    data:{datasets:[
+      {label:`N₁=${n1}`,data:Qs.map((q,i)=>({x:q,y:Hs[i]})),showLine:true,borderColor:'#1d5fcc',backgroundColor:'rgba(29,95,204,0.07)',tension:.4,fill:true,pointRadius:4,borderWidth:2.5},
+      {label:`N₂=${n2}`,data:Qs.map((q,i)=>({x:+(q*r).toFixed(2),y:+(Hs[i]*r*r).toFixed(2)})),showLine:true,borderColor:'#7c3aed',backgroundColor:'rgba(124,58,237,0.06)',tension:.4,fill:true,pointRadius:4,borderWidth:2,borderDash:[5,3]},
+      {label:'Affinity Pt',data:[{x:+(q1*r).toFixed(2),y:+(h1*r*r).toFixed(2)}],showLine:false,borderColor:'#16a34a',backgroundColor:'#16a34a',pointRadius:9}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: (${c.parsed.x.toFixed(1)},${c.parsed.y.toFixed(1)})`}}},
+      scales:{
+        x:{type:'linear',title:{display:true,text:'Q (m³/h)',color:'#5a6480',font:{size:11}},ticks:{color:'#9ba3b8'},grid:{color:'rgba(0,0,0,0.04)'}},
+        y:{title:{display:true,text:MT==='pump'?'Head H (m)':'ΔP (Pa)',color:'#5a6480',font:{size:11}},ticks:{color:'#9ba3b8'},grid:{color:'rgba(0,0,0,0.04)'}}}
+    }});
+  buildLeg('leg3',[{label:`N₁=${n1} RPM`,borderColor:'#1d5fcc',borderDash:[]},{label:`N₂=${n2} RPM`,borderColor:'#7c3aed',borderDash:[5,3]},{label:'Affinity Point',borderColor:'#16a34a',borderDash:[]}]);
+}
+function buildLeg(id,ds){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML=ds.map(d=>`<span class="li"><span style="display:inline-block;width:20px;height:0;border-top:2.5px ${d.borderDash&&d.borderDash.length?'dashed':'solid'} ${d.borderColor}"></span>${d.label}</span>`).join('');
+}
+function buildReport(s){
+  document.getElementById('repHdr').textContent=`โครงการ: ${document.getElementById('projName').value||'—'} | Tag: ${document.getElementById('machineTag').value||'—'} | ผู้ทดสอบ: ${document.getElementById('testerName').value||'—'} | วันที่: ${document.getElementById('testDate').value||'—'}`;
+  document.getElementById('repBody').innerHTML=s.map((r,i)=>`<tr><td>${i+1}</td><td>${parseFloat(r.q).toFixed(2)}</td><td>${r.p1!==''?parseFloat(r.p1).toFixed(2):'—'}</td><td>${r.p2!==''?parseFloat(r.p2).toFixed(2):'—'}</td><td><b>${parseFloat(r.head).toFixed(2)}</b></td><td>${r.kw!==''?parseFloat(r.kw).toFixed(2):'—'}</td><td>${r.rpm||'—'}</td><td style="color:var(--green);font-weight:600">${r.eff!==''?parseFloat(r.eff).toFixed(1):'—'}</td><td style="color:var(--text2)">${r.note||'—'}</td></tr>`).join('');
+}
+function exportCSV(){
+  const body=rows.filter(r=>r.q!=='').map((r,i)=>[i+1,r.q,r.p1,r.p2,r.head,r.kw,r.rpm,r.eff,`"${r.note}"`].join(','));
+  const blob=new Blob([['No,Q,P1,P2,Head,Power_kW,RPM,Eff,Note',...body].join('\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`${(document.getElementById('projName').value||'data').replace(/\s+/g,'_')}_curve.csv`;a.click();
+}
+</script>
+</body>
+</html>
