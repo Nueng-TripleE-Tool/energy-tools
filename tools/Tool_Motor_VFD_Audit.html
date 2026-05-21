@@ -1,0 +1,1980 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motor & VFD Energy Audit Tool — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<script>
+window.MathJax = {
+  tex: { inlineMath:[['$','$'],['\\(','\\)']], displayMath:[['$$','$$'],['\\[','\\]']] },
+  svg: { fontCache:'global' }
+};
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+:root {
+  --bg:#f0f4fb; --bg2:#e4eaf6; --bg3:#d5dff2;
+  --panel:#ffffff; --panel2:#f4f7fd;
+  --border:#c4d0e8; --border2:#9eb4d4;
+  --blue:#1a4fa0; --blue2:#134082; --blue3:#2e6fd4; --blue-lt:#dce9ff;
+  --teal:#0d7a6b; --teal-lt:#d0f0eb;
+  --amber:#b06a00; --amber-lt:#fef0d0;
+  --red:#c0292b; --red-lt:#fde8e8;
+  --green:#176b3c; --green-lt:#d4f5e2;
+  --purple:#5c35a0; --purple-lt:#ede8ff;
+  --text:#192340; --text2:#3a4f72; --text3:#7a8faa;
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'IBM Plex Sans Thai',sans-serif;
+  --display:'Barlow Condensed',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(30,80,200,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(30,80,200,0.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+/* HEADER */
+.header{position:relative;z-index:10;background:linear-gradient(135deg,#0f2a6e 0%,#1a4fa0 55%,#176b3c 100%);padding:0 32px;height:64px;display:flex;align-items:center;gap:16px;box-shadow:0 3px 20px rgba(10,30,100,0.3);}
+.hdr-logo{width:42px;height:42px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:14px;font-weight:800;color:#fff;letter-spacing:1.5px;flex-shrink:0;}
+.hdr-text h1{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:2px;color:#fff;line-height:1;}
+.hdr-text p{font-size:11px;color:rgba(255,255,255,0.65);letter-spacing:1px;margin-top:2px;}
+.hdr-badge{margin-left:auto;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.25);padding:4px 10px;border-radius:4px;letter-spacing:1px;}
+
+/* TABS */
+.tab-bar{position:relative;z-index:10;display:flex;gap:2px;padding:12px 32px 0;border-bottom:2px solid var(--border);background:var(--bg2);overflow-x:auto;}
+.tab{padding:10px 20px;font-size:13px;font-weight:600;color:var(--text3);cursor:pointer;border-radius:8px 8px 0 0;border:1px solid transparent;border-bottom:none;white-space:nowrap;transition:all 0.2s;display:flex;align-items:center;gap:8px;user-select:none;}
+.tab:hover{color:var(--text2);background:var(--bg3);}
+.tab.active{color:var(--blue);background:var(--panel);border-color:var(--border);border-bottom-color:var(--panel);position:relative;bottom:-2px;box-shadow:0 -2px 8px rgba(30,80,200,0.08);}
+
+/* CONTENT */
+.content{position:relative;z-index:5;padding:28px 32px;max-width:1440px;margin:0 auto;}
+.section{display:none;}
+.section.active{display:block;animation:fadeUp 0.3s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+/* PANEL */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;box-shadow:0 2px 12px rgba(0,40,120,0.06);}
+.panel-title{font-family:var(--mono);font-size:11px;color:var(--blue);letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+.panel-title::before{content:'';width:3px;height:14px;background:var(--blue);border-radius:2px;}
+
+/* GRID */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
+@media(max-width:1100px){.grid-2{grid-template-columns:1fr;}.grid-3{grid-template-columns:1fr 1fr;}.grid-4{grid-template-columns:1fr 1fr;}.grid-5{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:700px){.grid-3,.grid-4,.grid-5{grid-template-columns:1fr 1fr;}}
+
+/* FORM */
+.form-group{margin-bottom:14px;}
+.form-group label{display:block;font-size:11px;color:var(--text2);margin-bottom:5px;font-family:var(--mono);letter-spacing:0.5px;}
+.form-group input,.form-group select{width:100%;background:#f8faff;border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:7px;font-size:13px;font-family:var(--mono);outline:none;transition:border-color 0.2s,box-shadow 0.2s;}
+.form-group input:focus,.form-group select:focus{border-color:var(--blue3);box-shadow:0 0 0 3px rgba(30,100,210,0.12);}
+.form-group .unit{font-size:10px;color:var(--text3);margin-top:3px;}
+.form-group .hint{font-size:10px;color:var(--amber);margin-top:2px;}
+
+/* BUTTONS */
+.btn{padding:10px 22px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:0.5px;transition:all 0.2s;font-family:var(--sans);display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--blue3));color:#fff;box-shadow:0 2px 12px rgba(30,100,200,0.25);}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(30,100,200,0.35);}
+.btn-secondary{background:transparent;border:1px solid var(--border2);color:var(--text2);}
+.btn-secondary:hover{border-color:var(--blue);color:var(--blue);}
+.btn-success{background:linear-gradient(135deg,var(--green),#1fa050);color:#fff;}
+.btn-success:hover{transform:translateY(-1px);}
+.btn-amber{background:linear-gradient(135deg,var(--amber),#8a5000);color:#fff;}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;}
+
+/* KPI CARDS */
+.kpi-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 16px;text-align:center;position:relative;overflow:hidden;box-shadow:0 1px 6px rgba(0,40,120,0.06);}
+.kpi-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.kpi-card.blue::after{background:var(--blue);}
+.kpi-card.teal::after{background:var(--teal);}
+.kpi-card.amber::after{background:var(--amber);}
+.kpi-card.green::after{background:var(--green);}
+.kpi-card.red::after{background:var(--red);}
+.kpi-card.purple::after{background:var(--purple);}
+.kpi-label{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+.kpi-value{font-family:var(--display);font-size:36px;letter-spacing:1px;line-height:1;}
+.kpi-unit{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:4px;}
+.kpi-status{font-size:11px;margin-top:8px;padding:2px 8px;border-radius:20px;display:inline-block;font-weight:600;}
+.s-good{background:rgba(23,107,60,0.1);color:var(--green);}
+.s-warn{background:rgba(176,106,0,0.1);color:var(--amber);}
+.s-bad{background:rgba(192,41,43,0.1);color:var(--red);}
+.s-na{background:rgba(100,120,160,0.1);color:var(--text3);}
+
+/* TABLE */
+.data-table{width:100%;border-collapse:collapse;font-size:13px;}
+.data-table th{background:var(--bg3);color:var(--blue);font-family:var(--mono);font-size:11px;letter-spacing:1px;padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);}
+.data-table td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--text2);font-family:var(--mono);}
+.data-table tr:hover td{background:rgba(30,80,200,0.04);}
+.data-table .hi{color:var(--text);font-weight:600;}
+.data-table .good{color:var(--green);}
+.data-table .warn{color:var(--amber);}
+.data-table .bad{color:var(--red);}
+.tbl-wrap{overflow-x:auto;max-height:540px;overflow-y:auto;border-radius:8px;border:1px solid var(--border);}
+
+/* ALERT */
+.alert{padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-start;}
+.alert-info{background:rgba(26,79,160,0.07);border:1px solid rgba(26,79,160,0.2);color:var(--blue);}
+.alert-warn{background:rgba(176,106,0,0.07);border:1px solid rgba(176,106,0,0.25);color:var(--amber);}
+.alert-danger{background:rgba(192,41,43,0.07);border:1px solid rgba(192,41,43,0.25);color:var(--red);}
+.alert-success{background:rgba(23,107,60,0.07);border:1px solid rgba(23,107,60,0.25);color:var(--green);}
+
+/* DIVIDER */
+hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
+
+/* EXPORT BAR */
+.export-bar{display:flex;gap:10px;justify-content:flex-end;margin-bottom:20px;}
+
+/* LOSS BREAKDOWN BAR */
+.loss-bar-wrap{background:var(--border);border-radius:6px;height:20px;overflow:hidden;display:flex;margin-top:6px;}
+.loss-seg{height:100%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;color:#fff;font-weight:700;transition:width 0.5s;}
+
+/* GAUGE */
+.gauge-wrap{position:relative;width:140px;height:80px;margin:0 auto;}
+.gauge-bg{fill:none;stroke:var(--border);stroke-width:12;}
+.gauge-fg{fill:none;stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset 0.8s;}
+
+/* CHECK ITEM */
+.check-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:6px;margin-bottom:4px;cursor:pointer;transition:background 0.15s;}
+.check-item:hover{background:rgba(26,79,160,0.05);}
+.check-item input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue);cursor:pointer;flex-shrink:0;}
+.check-item label{font-size:13px;color:var(--text2);cursor:pointer;}
+.check-item.checked label{color:var(--text3);text-decoration:line-through;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="hdr-logo">3E</div>
+  <div class="hdr-text">
+    <h1>MOTOR & VFD ENERGY AUDIT</h1>
+    <p>IEC 60034-2-1 METHOD B · AFFINITY LAWS · IE CLASS · M&V IPMVP</p>
+  </div>
+  <div class="hdr-badge">v1.0 · Triple E Technology</div>
+</div>
+
+<!-- TABS -->
+<div class="tab-bar">
+  <div class="tab active" onclick="switchTab('eff')" id="tab-eff">
+    <span>⚡</span> Motor Efficiency
+  </div>
+  <div class="tab" onclick="switchTab('vfd')" id="tab-vfd">
+    <span>🔄</span> VFD Savings
+  </div>
+  <div class="tab" onclick="switchTab('diag')" id="tab-diag">
+    <span>🔍</span> Fault Diagnosis
+  </div>
+  <div class="tab" onclick="switchTab('audit')" id="tab-audit">
+    <span>📋</span> Inspection Checklist
+  </div>
+</div>
+
+<div class="content">
+
+<!-- ═══ TAB 1: MOTOR EFFICIENCY ═══ -->
+<div class="section active" id="section-eff">
+
+  <!-- ── MODE SWITCHER ── -->
+  <div style="display:flex;gap:0;border:2px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,40,120,0.08);">
+    <div id="modeBtn-lab" onclick="switchMode('lab')"
+      style="flex:1;padding:14px 10px;text-align:center;cursor:pointer;background:var(--blue);color:#fff;transition:all 0.2s;border-right:1px solid rgba(255,255,255,0.2);">
+      <div style="font-family:var(--display);font-size:17px;font-weight:700;letter-spacing:1px;">🔬 LAB METHOD</div>
+      <div style="font-size:10px;font-family:var(--mono);margin-top:3px;opacity:0.85;">IEC 60034-2-1 Method B</div>
+      <div style="font-size:10px;margin-top:2px;opacity:0.75;">แม่นยำสูงสุด · ต้องหยุดเครื่อง</div>
+    </div>
+    <div id="modeBtn-m1" onclick="switchMode('m1')"
+      style="flex:1;padding:14px 10px;text-align:center;cursor:pointer;background:var(--panel2);color:var(--text2);transition:all 0.2s;border-right:1px solid var(--border);">
+      <div style="font-family:var(--display);font-size:17px;font-weight:700;letter-spacing:1px;">⚡ FIELD MODE 1</div>
+      <div style="font-size:10px;font-family:var(--mono);margin-top:3px;">Current Ratio Method</div>
+      <div style="font-size:10px;margin-top:2px;color:var(--green);font-weight:600;">✅ ไม่ต้องหยุดเครื่อง</div>
+    </div>
+    <div id="modeBtn-m2" onclick="switchMode('m2')"
+      style="flex:1;padding:14px 10px;text-align:center;cursor:pointer;background:var(--panel2);color:var(--text2);transition:all 0.2s;">
+      <div style="font-family:var(--display);font-size:17px;font-weight:700;letter-spacing:1px;">🔄 FIELD MODE 2</div>
+      <div style="font-size:10px;font-family:var(--mono);margin-top:3px;">Slip Method</div>
+      <div style="font-size:10px;margin-top:2px;color:var(--green);font-weight:600;">✅ Tachometer เท่านั้น</div>
+    </div>
+  </div>
+
+  <!-- Accuracy Banner -->
+  <div id="modeBanner"></div>
+
+  <!-- ══════════════════════════════════════
+       MODE: LAB (IEC 60034-2-1 Method B)
+  ══════════════════════════════════════ -->
+  <div id="mode-lab">
+  <div class="grid-2">
+    <div>
+      <div class="panel">
+        <div class="panel-title">1. Nameplate Data</div>
+        <div class="grid-2">
+          <div class="form-group"><label>Rated Power (P_rated)</label><input type="number" id="p_rated" value="75" step="0.1"><div class="unit">kW</div></div>
+          <div class="form-group"><label>Rated Voltage (V_rated)</label><input type="number" id="v_rated" value="400" step="1"><div class="unit">V (3-phase)</div></div>
+          <div class="form-group"><label>Rated Current (I_rated)</label><input type="number" id="i_rated" value="132" step="0.1"><div class="unit">A (nameplate FLA)</div></div>
+          <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="n_rated" value="1485" step="1"><div class="unit">RPM</div></div>
+          <div class="form-group"><label>Frequency (f)</label><input type="number" id="freq" value="50" step="1"><div class="unit">Hz</div></div>
+          <div class="form-group"><label>Nameplate Efficiency</label><input type="number" id="eta_plate" value="94.0" step="0.1"><div class="unit">%</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">2. No-Load Test Data
+          <span style="margin-left:8px;font-size:10px;background:var(--amber-lt);color:var(--amber);padding:2px 8px;border-radius:10px;font-family:var(--sans);">⚠️ ต้องหยุดเครื่อง + ถอดโหลด</span>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>No-Load Power (P_nl)</label><input type="number" id="p_nl" value="2150" step="1"><div class="unit">W (Power Meter, 3-phase)</div></div>
+          <div class="form-group"><label>No-Load Current (I_nl)</label><input type="number" id="i_nl" value="38.5" step="0.1"><div class="unit">A (Clamp Meter, per phase)</div></div>
+          <div class="form-group"><label>Stator Resistance (R_cold)</label><input type="number" id="r_cold" value="0.024" step="0.0001"><div class="unit">Ω (Micro-ohmmeter, per phase)</div></div>
+          <div class="form-group"><label>Winding Temp (T_cold)</label><input type="number" id="t_cold" value="20" step="1"><div class="unit">°C (ก่อนสตาร์ท)</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">3. Operating Data</div>
+        <div class="grid-2">
+          <div class="form-group"><label>Input Power (P_in)</label><input type="number" id="p_in" value="68.5" step="0.01"><div class="unit">kW (Power Meter)</div></div>
+          <div class="form-group"><label>Load Current (I_load)</label><input type="number" id="i_load" value="112.0" step="0.1"><div class="unit">A (Clamp Meter)</div></div>
+          <div class="form-group"><label>Load Speed (N_load)</label><input type="number" id="n_load" value="1488" step="1"><div class="unit">RPM (Tachometer)</div></div>
+          <div class="form-group"><label>Winding Temp (T_hot)</label><input type="number" id="t_hot" value="75" step="1"><div class="unit">°C (ขณะรับโหลด)</div></div>
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-primary" onclick="calcMotorEff()">⟳ Calculate (Method B)</button>
+          <button class="btn btn-secondary" onclick="loadSample()">📋 Sample 75kW</button>
+          <button class="btn btn-secondary" onclick="clearMotor()">✕ Clear</button>
+        </div>
+      </div>
+    </div>
+    <!-- RIGHT: Results (shared) -->
+    <div id="resultColLab">
+      <div class="panel" id="motorResult" style="display:none;">
+        <div class="panel-title">ผลการคำนวณ — IEC 60034-2-1 Method B</div>
+        <div style="text-align:center;margin-bottom:20px;">
+          <svg width="200" height="120" viewBox="0 0 200 120">
+            <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--border)" stroke-width="16" stroke-linecap="round"/>
+            <path id="gaugePath" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--green)" stroke-width="16" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="251.2"/>
+            <text x="100" y="88" text-anchor="middle" font-family="var(--display)" font-size="36" id="gaugeText" fill="var(--text)">—</text>
+            <text x="100" y="105" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--text3)">EFFICIENCY</text>
+          </svg>
+        </div>
+        <div class="grid-3" id="motorKpi" style="margin-bottom:20px;"></div>
+        <div style="margin-bottom:16px;">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;">LOSS BREAKDOWN</div>
+          <div class="loss-bar-wrap" id="lossBar"></div>
+          <div id="lossLegend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:10px;font-family:var(--mono);"></div>
+        </div>
+        <table class="data-table" id="lossTable">
+          <thead><tr><th>Loss Component</th><th>Value (W)</th><th>% of P_in</th><th>Description</th></tr></thead>
+          <tbody id="lossBody"></tbody>
+        </table>
+        <hr class="divider">
+        <div id="formulaSteps" style="font-size:12px;line-height:2;"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">IE Class Reference Table (IEC 60034-30-1 · 4-pole, 50Hz)</div>
+        <div class="tbl-wrap">
+          <table class="data-table" id="ieTableLab">
+            <thead><tr><th>kW</th><th>IE1</th><th>IE2</th><th>IE3 ✓</th><th>IE4</th><th>ค่าวัดได้</th><th>Class</th></tr></thead>
+            <tbody id="ieBodyLab"></tbody>
+          </table>
+        </div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:8px;">IE3 = Premium Efficiency (EU บังคับ 2017+) · IE4 = Super Premium</div>
+      </div>
+    </div>
+  </div>
+  </div><!-- end mode-lab -->
+
+  <!-- ══════════════════════════════════════
+       MODE 1: Current Ratio (Simplified)
+  ══════════════════════════════════════ -->
+  <div id="mode-m1" style="display:none;">
+  <div class="alert alert-success" style="margin-bottom:16px;">
+    <span>✅</span>
+    <div style="font-size:12px;line-height:1.8;">
+      <strong>Current Ratio Method (DOE MotorMaster / IPMVP Simplified):</strong><br>
+      ใช้ได้ขณะเดินเครื่องปกติ — ต้องการแค่ <strong>Clamp Meter + Power Meter</strong> · ความแม่นยำ ±3–5%<br>
+      Load Factor ≈ (I_load / I_rated) × 100% &nbsp;·&nbsp; η_op ≈ η_FL × f(LF)
+    </div>
+  </div>
+  <div class="grid-2">
+    <div>
+      <div class="panel">
+        <div class="panel-title">📋 Nameplate (อ่านจากป้าย)</div>
+        <div class="grid-2">
+          <div class="form-group"><label>Rated Power (P_rated)</label><input type="number" id="m1_prated" value="75" step="0.5"><div class="unit">kW</div></div>
+          <div class="form-group"><label>Rated Current (I_rated)</label><input type="number" id="m1_irated" value="132" step="0.1"><div class="unit">A (FLA)</div></div>
+          <div class="form-group"><label>Nameplate Efficiency (η_FL)</label><input type="number" id="m1_etafl" value="94.0" step="0.1"><div class="unit">% (จาก Nameplate หรือ IE Class)</div></div>
+          <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="m1_nrated" value="1485" step="1"><div class="unit">RPM</div></div>
+          <div class="form-group"><label>Frequency (f)</label><input type="number" id="m1_freq" value="50" step="1"><div class="unit">Hz</div></div>
+          <div class="form-group"><label>Rated Voltage</label><input type="number" id="m1_vrated" value="400" step="1"><div class="unit">V</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">⚡ Field Measurement (ขณะเดินเครื่อง)
+          <span style="margin-left:8px;font-size:10px;background:var(--green-lt);color:var(--green);padding:2px 8px;border-radius:10px;font-family:var(--sans);">✅ ไม่ต้องหยุดเครื่อง</span>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Load Current L1 (I_L1)</label>
+            <input type="number" id="m1_il1" value="112" step="0.1">
+            <div class="unit">A (Clamp Meter)</div>
+          </div>
+          <div class="form-group">
+            <label>Load Current L2 (I_L2)</label>
+            <input type="number" id="m1_il2" value="113" step="0.1">
+            <div class="unit">A</div>
+          </div>
+          <div class="form-group">
+            <label>Load Current L3 (I_L3)</label>
+            <input type="number" id="m1_il3" value="111" step="0.1">
+            <div class="unit">A</div>
+          </div>
+          <div class="form-group">
+            <label>Input Power (P_in)</label>
+            <input type="number" id="m1_pin" value="68.5" step="0.1">
+            <div class="unit">kW (Power Meter — ถ้ามี)</div>
+            <div class="hint">💡 ถ้าไม่มี Power Meter ระบบจะประมาณจาก Current</div>
+          </div>
+          <div class="form-group">
+            <label>Power Factor (PF)</label>
+            <input type="number" id="m1_pf" value="0.85" step="0.01">
+            <div class="unit">— (จาก Power Meter หรือประมาณ 0.80–0.90)</div>
+          </div>
+          <div class="form-group">
+            <label>Supply Voltage (V_meas)</label>
+            <input type="number" id="m1_vmeas" value="400" step="1">
+            <div class="unit">V (Voltmeter)</div>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-success" onclick="calcFieldM1()">⟳ Calculate (Current Ratio)</button>
+          <button class="btn btn-secondary" onclick="loadSampleM1()">📋 Sample 75kW</button>
+          <button class="btn btn-secondary" onclick="clearM1()">✕ Clear</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="panel" id="m1Result" style="display:none;">
+        <div class="panel-title">📊 ผลการประเมิน — Current Ratio Method</div>
+        <div class="grid-3" id="m1Kpi" style="margin-bottom:16px;"></div>
+        <div id="m1Detail"></div>
+        <hr class="divider">
+        <div id="m1IERow"></div>
+      </div>
+      <!-- Method Comparison Info -->
+      <div class="panel">
+        <div class="panel-title">📐 สูตรและหลักการ — Current Ratio Method</div>
+        <div style="font-family:var(--mono);font-size:12px;line-height:2.2;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);">
+          <strong style="color:var(--blue);">Step 1: Load Factor (LF)</strong><br>
+          LF = I_avg / I_rated × 100%<br>
+          <span style="color:var(--text3);font-size:11px;">I_avg = (I_L1+I_L2+I_L3)/3 · เปรียบกับ I_rated บน Nameplate</span><br><br>
+          <strong style="color:var(--blue);">Step 2: Efficiency Correction</strong><br>
+          η_op ≈ η_FL × [1 − k × (1−LF/100)²]<br>
+          <span style="color:var(--text3);font-size:11px;">k ≈ 0.2 (สัมประสิทธิ์ empirical จาก DOE MotorMaster+)</span><br>
+          <span style="color:var(--text3);font-size:11px;">ที่ LF=100%: η_op=η_FL · ที่ LF=50%: η_op≈η_FL×0.95</span><br><br>
+          <strong style="color:var(--blue);">Step 3: Output Power</strong><br>
+          P_out = P_in × η_op / 100<br>
+          <span style="color:var(--text3);font-size:11px;">ถ้าไม่มี Power Meter: P_in ≈ √3 × V × I_avg × PF / 1000</span><br><br>
+          <strong style="color:var(--amber);">⚠️ ความแม่นยำ ±3–5%</strong> — เหมาะสำหรับ Quick Screening<br>
+          ถ้า LF &lt; 40% หรือ &gt; 105% ผลลัพธ์อาจคลาดเคลื่อนมากขึ้น
+        </div>
+        <div class="alert alert-warn" style="margin-top:12px;font-size:11px;margin-bottom:0;">
+          <span>📌</span>
+          <div><strong>เมื่อไหร่ควรใช้ Method นี้:</strong><br>
+          ✓ สำรวจเบื้องต้นหลายเครื่องพร้อมกัน · ✓ โรงงานที่ไม่อนุญาตหยุดเครื่อง<br>
+          ✗ ไม่แนะนำสำหรับ IPMVP Option B M&V อย่างเป็นทางการ</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div><!-- end mode-m1 -->
+
+  <!-- ══════════════════════════════════════
+       MODE 2: Slip Method
+  ══════════════════════════════════════ -->
+  <div id="mode-m2" style="display:none;">
+  <div class="alert alert-success" style="margin-bottom:16px;">
+    <span>✅</span>
+    <div style="font-size:12px;line-height:1.8;">
+      <strong>Slip Method (IEEE 112 Simplified / ผชพ แนวทาง):</strong><br>
+      ใช้ได้ขณะเดินเครื่องปกติ — ต้องการแค่ <strong>Tachometer (วัดความเร็ว)</strong> + Nameplate · ความแม่นยำ ±5–8%<br>
+      LF ≈ slip_actual / slip_rated &nbsp;·&nbsp; ต้องระมัดระวังการเข้าถึงเพลาเพื่อความปลอดภัย
+    </div>
+  </div>
+  <div class="grid-2">
+    <div>
+      <div class="panel">
+        <div class="panel-title">📋 Nameplate (อ่านจากป้าย)</div>
+        <div class="grid-2">
+          <div class="form-group"><label>Rated Power (P_rated)</label><input type="number" id="m2_prated" value="75" step="0.5"><div class="unit">kW</div></div>
+          <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="m2_nrated" value="1485" step="1"><div class="unit">RPM (บน Nameplate)</div></div>
+          <div class="form-group"><label>Frequency (f)</label><input type="number" id="m2_freq" value="50" step="1"><div class="unit">Hz</div></div>
+          <div class="form-group"><label>Nameplate Efficiency (η_FL)</label><input type="number" id="m2_etafl" value="94.0" step="0.1"><div class="unit">% (Full-load)</div></div>
+          <div class="form-group"><label>Rated Current (I_rated)</label><input type="number" id="m2_irated" value="132" step="0.1"><div class="unit">A</div></div>
+          <div class="form-group"><label>Rated Voltage</label><input type="number" id="m2_vrated" value="400" step="1"><div class="unit">V</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">🔄 Field Measurement (ขณะเดินเครื่อง)
+          <span style="margin-left:8px;font-size:10px;background:var(--green-lt);color:var(--green);padding:2px 8px;border-radius:10px;font-family:var(--sans);">✅ Tachometer เท่านั้น</span>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Actual Speed (N_actual)</label>
+            <input type="number" id="m2_nactual" value="1488" step="1">
+            <div class="unit">RPM (Laser/Strobe Tachometer)</div>
+            <div class="hint">💡 วัดจากเพลา, Coupling หรือ Reflective Tape — ระวังชิ้นส่วนหมุน</div>
+          </div>
+          <div class="form-group">
+            <label>Input Power (P_in)</label>
+            <input type="number" id="m2_pin" value="68.5" step="0.1">
+            <div class="unit">kW (Power Meter — ถ้ามี)</div>
+            <div class="hint">💡 ถ้าไม่มี ระบบจะประมาณจาก LF และ η_FL</div>
+          </div>
+          <div class="form-group">
+            <label>Load Current (I_load)</label>
+            <input type="number" id="m2_iload" value="112" step="0.1">
+            <div class="unit">A (เสริม — ใช้ Cross-check)</div>
+          </div>
+          <div class="form-group">
+            <label>Power Factor (PF)</label>
+            <input type="number" id="m2_pf" value="0.85" step="0.01">
+            <div class="unit">— (เสริม)</div>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-success" onclick="calcFieldM2()">⟳ Calculate (Slip Method)</button>
+          <button class="btn btn-secondary" onclick="loadSampleM2()">📋 Sample 75kW</button>
+          <button class="btn btn-secondary" onclick="clearM2()">✕ Clear</button>
+        </div>
+      </div>
+
+      <!-- Safety Warning for Tachometer -->
+      <div class="panel" style="border-left:4px solid var(--red);">
+        <div class="panel-title" style="color:var(--red);">⚠️ ข้อควรระวังการใช้ Tachometer ในภาคสนาม</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.9;">
+          🔴 <strong>ไม่สัมผัสเพลาหมุนโดยตรง</strong> — ใช้ Non-contact Laser Tachometer เท่านั้น<br>
+          🟡 ติด Reflective Tape บนเพลาหรือ Coupling ก่อนสตาร์ท<br>
+          🟡 ระยะวัดที่แนะนำ: 5–30 cm จากผิวชิ้นส่วนหมุน<br>
+          🟢 ถ้ามี VFD: อ่านความเร็วจาก Display ของ VFD ได้โดยตรง<br>
+          🟢 ถ้ามี PLC/SCADA: ดึงค่า RPM จากระบบ — ไม่ต้องวัดเพิ่ม
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel" id="m2Result" style="display:none;">
+        <div class="panel-title">📊 ผลการประเมิน — Slip Method</div>
+        <div class="grid-3" id="m2Kpi" style="margin-bottom:16px;"></div>
+        <div id="m2Detail"></div>
+        <hr class="divider">
+        <div id="m2CrossCheck"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">📐 สูตรและหลักการ — Slip Method</div>
+        <div style="font-family:var(--mono);font-size:12px;line-height:2.2;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);">
+          <strong style="color:var(--blue);">Step 1: Synchronous Speed</strong><br>
+          N_sync = 120 × f / poles<br>
+          <span style="color:var(--text3);font-size:11px;">poles ≈ 2 (N&gt;2800) · 4 (N&gt;1400) · 6 (N&gt;900) · 8 (N≤900)</span><br><br>
+          <strong style="color:var(--blue);">Step 2: Actual Slip</strong><br>
+          s_actual = (N_sync − N_actual) / N_sync<br><br>
+          <strong style="color:var(--blue);">Step 3: Rated Slip</strong><br>
+          s_rated = (N_sync − N_rated) / N_sync<br><br>
+          <strong style="color:var(--blue);">Step 4: Load Factor</strong><br>
+          LF ≈ s_actual / s_rated × 100%<br>
+          <span style="color:var(--text3);font-size:11px;">สมมติว่า Torque ∝ Slip (Valid ที่ LF = 50–110%)</span><br><br>
+          <strong style="color:var(--blue);">Step 5: Output Power & Efficiency</strong><br>
+          P_out = P_rated × LF / 100<br>
+          η_op = P_out / P_in × 100 (ถ้ามี P_in)<br>
+          <span style="color:var(--text3);font-size:11px;">ถ้าไม่มี P_in: η_op ≈ η_FL × f(LF)</span><br><br>
+          <strong style="color:var(--amber);">⚠️ ความแม่นยำ ±5–8%</strong> — Slip ต่างกัน 1 rpm → LF เปลี่ยน ~5–10%<br>
+          วัด RPM ให้ได้ ±1 rpm จะทำให้ผลแม่นยำขึ้นมาก
+        </div>
+        <div class="alert alert-warn" style="margin-top:12px;font-size:11px;margin-bottom:0;">
+          <span>📌</span>
+          <div><strong>ข้อจำกัด Slip Method:</strong><br>
+          ✗ ไม่แม่นยำถ้าแรงดันไฟฟ้าผิดพิกัด (&gt;±5%)<br>
+          ✗ ไม่แม่นยำถ้าอุณหภูมิ Winding ต่างจาก 75°C มาก<br>
+          ✓ เหมาะมากเมื่อต้องการ Quick Scan หลายเครื่องในเวลาสั้น</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div><!-- end mode-m2 -->
+
+  <!-- Shared Right column (IE Table) stays after mode panels -->
+  <div class="panel" id="ieTablePanel" style="margin-top:4px;">
+    <div class="panel-title">IE Class Reference Table (IEC 60034-30-1 · 4-pole, 50Hz)</div>
+    <div class="tbl-wrap">
+      <table class="data-table" id="ieTable">
+        <thead><tr><th>kW</th><th>IE1</th><th>IE2</th><th>IE3 ✓</th><th>IE4</th><th>ค่าวัดได้</th><th>Class</th></tr></thead>
+        <tbody id="ieBody"></tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:8px;">IE3 = Premium Efficiency (EU บังคับ 2017+) · IE4 = Super Premium</div>
+  </div>
+
+</div><!-- end section-eff -->
+
+
+<!-- ═══ TAB 2: VFD SAVINGS ═══ -->
+<div class="section" id="section-vfd">
+
+  <div class="alert alert-info">
+    <span>💡</span>
+    <div style="font-size:12px;line-height:1.8;">
+      <strong>Affinity Laws (Fan & Pump Laws):</strong>
+      Q ∝ N · H ∝ N² · P ∝ N³ — ลดรอบ 20% → Power ลด ~49% (0.8³=0.512)
+      ใช้ได้กับ Centrifugal Pump, Centrifugal Fan, Compressor แบบ Variable Flow
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <div class="panel">
+        <div class="panel-title">⚙️ System Parameters</div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Motor Rated Power</label>
+            <input type="number" id="vfd_prated" value="75" step="0.5">
+            <div class="unit">kW</div>
+          </div>
+          <div class="form-group">
+            <label>Motor Efficiency (η_motor)</label>
+            <input type="number" id="vfd_eta" value="94.0" step="0.1">
+            <div class="unit">%</div>
+          </div>
+          <div class="form-group">
+            <label>Base Speed (N₁)</label>
+            <input type="number" id="vfd_n1" value="1485" step="1">
+            <div class="unit">RPM (ปัจจุบัน)</div>
+          </div>
+          <div class="form-group">
+            <label>Target Speed (N₂)</label>
+            <input type="number" id="vfd_n2" value="1188" step="1">
+            <div class="unit">RPM (หลังติด VFD)</div>
+          </div>
+          <div class="form-group">
+            <label>Base Input Power (P₁)</label>
+            <input type="number" id="vfd_p1" value="68.5" step="0.5">
+            <div class="unit">kW (วัดจริงก่อนติด VFD)</div>
+          </div>
+          <div class="form-group">
+            <label>Operation Hours/Year</label>
+            <input type="number" id="vfd_hrs" value="6000" step="100">
+            <div class="unit">h/year</div>
+          </div>
+          <div class="form-group">
+            <label>Electricity Rate</label>
+            <input type="number" id="vfd_rate" value="4.20" step="0.01">
+            <div class="unit">บาท/kWh (MEA/PEA)</div>
+          </div>
+          <div class="form-group">
+            <label>VFD Investment Cost</label>
+            <input type="number" id="vfd_cost" value="180000" step="1000">
+            <div class="unit">บาท (ราคา VFD + ติดตั้ง)</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Load Profile</label>
+          <select id="vfd_profile">
+            <option value="constant">Constant Speed (ไม่มี VFD ปัจจุบัน)</option>
+            <option value="throttle">Throttle Control (Valve/Damper ปัจจุบัน)</option>
+            <option value="onoff">On-Off Control (ปัจจุบัน)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Load Type</label>
+          <select id="vfd_loadtype">
+            <option value="centrifugal">Centrifugal Pump/Fan (P∝N³)</option>
+            <option value="positive">Positive Displacement (P∝N)</option>
+            <option value="constant_torque">Constant Torque (Conveyor)</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="calcVFD()">⟳ Calculate VFD Savings</button>
+      </div>
+
+      <!-- Rewinding vs Replacement Analysis (from ผชพ Manual 2.5, 2.11) -->
+      <div class="panel">
+        <div class="panel-title">🔧 Rewinding vs. Motor Replacement Analysis</div>
+        <div class="alert alert-info" style="font-size:11px;margin-bottom:12px;">
+          <span>📖</span>
+          <div>จากตำรา ผชพ: การพันขดลวดใหม → ประสิทธิภาพลด 1–3% · มอเตอร &gt;15 ปี หรือพัน &gt;2 ครั้ง ควรเปลี่ยนใหม</div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Motor Rated Power</label>
+            <input type="number" id="rw_kw" value="22" step="0.5">
+            <div class="unit">kW</div>
+          </div>
+          <div class="form-group">
+            <label>Hours/Year</label>
+            <input type="number" id="rw_hrs" value="5840" step="100">
+            <div class="unit">h/year (16h/d × 365d)</div>
+          </div>
+          <div class="form-group">
+            <label>Rewound Efficiency</label>
+            <input type="number" id="rw_eff_old" value="84" step="0.1">
+            <div class="unit">% (หลังพันใหม่ ≈ ลด 1–3%)</div>
+          </div>
+          <div class="form-group">
+            <label>New Motor Efficiency (IE3)</label>
+            <input type="number" id="rw_eff_new" value="92" step="0.1">
+            <div class="unit">%</div>
+          </div>
+          <div class="form-group">
+            <label>Load Factor</label>
+            <input type="number" id="rw_lf" value="80" step="5">
+            <div class="unit">%</div>
+          </div>
+          <div class="form-group">
+            <label>Electricity Rate</label>
+            <input type="number" id="rw_rate" value="4.20" step="0.01">
+            <div class="unit">บาท/kWh</div>
+          </div>
+          <div class="form-group">
+            <label>Rewinding Cost</label>
+            <input type="number" id="rw_cost_rewind" value="13000" step="1000">
+            <div class="unit">บาท</div>
+          </div>
+          <div class="form-group">
+            <label>New IE3 Motor Price</label>
+            <input type="number" id="rw_cost_new" value="43000" step="1000">
+            <div class="unit">บาท</div>
+          </div>
+        </div>
+        <button class="btn btn-amber" style="width:100%;margin-top:4px;" onclick="calcRewinding()">🔄 วิเคราะห์ Rewinding vs Replace</button>
+        <div id="rwResult" style="display:none;margin-top:14px;"></div>
+      </div>
+
+      <!-- Motor Sizing (from ผชพ 2.6) -->
+      <div class="panel">
+        <div class="panel-title">📐 Motor Sizing & Core/Copper Loss Analysis</div>
+        <div class="alert alert-warn" style="font-size:11px;margin-bottom:12px;">
+          <span>⚠️</span>
+          <div>ผชพ 2.6: Motor ที่ Oversized จะมี Core Loss สูงโดยไม่ได้ประโยชน์ เป้าหมาย Load Factor = 80–100%</div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Rated kW (Nameplate)</label>
+            <input type="number" id="ms_kw" value="37" step="0.5">
+            <div class="unit">kW</div>
+          </div>
+          <div class="form-group">
+            <label>Full-Load Efficiency</label>
+            <input type="number" id="ms_eff" value="90.5" step="0.1">
+            <div class="unit">% (Nameplate)</div>
+          </div>
+          <div class="form-group">
+            <label>Full-Load PF</label>
+            <input type="number" id="ms_pf_fl" value="0.87" step="0.01">
+            <div class="unit">— (Nameplate)</div>
+          </div>
+          <div class="form-group">
+            <label>Measured Power (kW)</label>
+            <input type="number" id="ms_pin" value="9.9" step="0.1">
+            <div class="unit">kW (วัดจริง)</div>
+          </div>
+          <div class="form-group">
+            <label>Measured PF</label>
+            <input type="number" id="ms_pf_op" value="0.54" step="0.01">
+            <div class="unit">—</div>
+          </div>
+          <div class="form-group">
+            <label>Core Loss %</label>
+            <input type="number" id="ms_core_pct" value="30" step="5">
+            <div class="unit">% ของ Total Loss (ทั่วไป 25–35%)</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:4px;" onclick="calcMotorSizing()">📊 วิเคราะห์ Motor Sizing</button>
+        <div id="msResult" style="display:none;margin-top:14px;"></div>
+      </div>
+
+      <!-- Demand Charge -->
+      <div class="panel">
+        <div class="panel-title">💰 Peak Demand Reduction</div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Demand Charge</label>
+            <input type="number" id="vfd_demand" value="220" step="10">
+            <div class="unit">บาท/kW-month (MEA TOU)</div>
+          </div>
+          <div class="form-group">
+            <label>Power Factor (PF)</label>
+            <input type="number" id="vfd_pf" value="0.85" step="0.01">
+            <div class="unit">— (ก่อนติด VFD)</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono);padding:8px 12px;background:var(--bg2);border-radius:6px;line-height:1.8;">
+          VFD ช่วยลด Peak kW และปรับปรุง PF → ลด Demand Charge ได้<br>
+          (คำนวณอัตโนมัติจากค่า N₁→N₂ ที่กรอก)
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel" id="vfdResult" style="display:none;">
+        <div class="panel-title">📊 ผลการวิเคราะห์ VFD</div>
+        <div class="grid-2" id="vfdKpi" style="margin-bottom:20px;"></div>
+        <hr class="divider">
+        <div id="vfdDetail"></div>
+        <hr class="divider">
+        <canvas id="vfdChart" width="480" height="260" style="width:100%;"></canvas>
+      </div>
+
+      <!-- Affinity Laws Reference -->
+      <div class="panel">
+        <div class="panel-title">📐 Affinity Laws — Speed Reduction Table</div>
+        <div class="tbl-wrap">
+          <table class="data-table" id="affinityTable">
+            <thead><tr><th>Speed %</th><th>N (rpm)</th><th>Flow %</th><th>Head %</th><th>Power %</th><th>Saving %</th></tr></thead>
+            <tbody id="affinityBody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px; padding:10px 14px; background:var(--amber-lt); border:1px solid rgba(176,106,0,0.3); border-radius:8px; font-size:11px; font-family:var(--mono); color:var(--amber); line-height:1.8;">
+          ⚠️ <strong>ข้อจำกัด:</strong> Affinity Laws ใช้ได้กับ Centrifugal (Pump/Fan) เท่านั้น<br>
+          · Positive Displacement Pump: P ∝ N (linear)<br>
+          · ต้องคำนึง System Curve — ถ้า Static Head สูง ผลประหยัดจะน้อยกว่า N³<br>
+          · VFD มี Power Loss ~3–5% ของ Rated Power ต้องหักออก
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 3: FAULT DIAGNOSIS ═══ -->
+<div class="section" id="section-diag">
+  <div class="grid-2">
+    <div>
+      <div class="panel">
+        <div class="panel-title">📥 ค่าวัดหน้างาน</div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Input Power (P_in)</label>
+            <input type="number" id="d_pin" value="68.5" step="0.1">
+            <div class="unit">kW</div>
+          </div>
+          <div class="form-group">
+            <label>Load Current (I_load)</label>
+            <input type="number" id="d_iload" value="112" step="0.1">
+            <div class="unit">A</div>
+          </div>
+          <div class="form-group">
+            <label>Rated Current (I_rated)</label>
+            <input type="number" id="d_irated" value="132" step="0.1">
+            <div class="unit">A (Nameplate)</div>
+          </div>
+          <div class="form-group">
+            <label>Supply Voltage (V_meas)</label>
+            <input type="number" id="d_vmeas" value="400" step="1">
+            <div class="unit">V (Line-to-Line)</div>
+          </div>
+          <div class="form-group">
+            <label>Rated Voltage (V_rated)</label>
+            <input type="number" id="d_vrated" value="400" step="1">
+            <div class="unit">V</div>
+          </div>
+          <div class="form-group">
+            <label>Voltage Unbalance</label>
+            <input type="number" id="d_vunbal" value="1.2" step="0.1">
+            <div class="unit">% (NEMA limit: &lt;1%)</div>
+          </div>
+          <div class="form-group">
+            <label>Power Factor (PF)</label>
+            <input type="number" id="d_pf" value="0.85" step="0.01">
+            <div class="unit">— (target: &gt;0.85)</div>
+          </div>
+          <div class="form-group">
+            <label>Winding Temperature</label>
+            <input type="number" id="d_temp" value="85" step="1">
+            <div class="unit">°C (limit: Class F = 155°C)</div>
+          </div>
+          <div class="form-group">
+            <label>Vibration Level</label>
+            <input type="number" id="d_vib" value="2.5" step="0.1">
+            <div class="unit">mm/s RMS (limit: &lt;4.5 ISO 10816)</div>
+          </div>
+          <div class="form-group">
+            <label>Rated Power (kW)</label>
+            <input type="number" id="d_prated" value="75" step="0.5">
+            <div class="unit">kW</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:4px;" onclick="runMotorDiag()">🔬 วิเคราะห์ปัญหา</button>
+      </div>
+
+      <!-- Insulation Guide -->
+      <div class="panel">
+        <div class="panel-title">🌡️ Temperature Class Reference</div>
+        <table class="data-table">
+          <thead><tr><th>Class</th><th>Max Winding Temp</th><th>Rise Limit</th><th>Common Use</th></tr></thead>
+          <tbody>
+            <tr><td>Class B</td><td>130°C</td><td>80K</td><td>General purpose (older)</td></tr>
+            <tr><td class="hi">Class F</td><td class="hi">155°C</td><td class="hi">105K</td><td class="hi">Standard modern motor</td></tr>
+            <tr><td>Class H</td><td>180°C</td><td>125K</td><td>High ambient / heavy duty</td></tr>
+          </tbody>
+        </table>
+        <hr class="divider">
+        <div class="panel-title" style="margin-bottom:10px;">⚡ Voltage Unbalance Effect</div>
+        <table class="data-table">
+          <thead><tr><th>Unbalance %</th><th>Temp Rise %</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td class="good">&lt;1%</td><td class="good">Normal</td><td>✓ OK</td></tr>
+            <tr><td class="warn">1–2%</td><td class="warn">+10–15%</td><td>Monitor closely</td></tr>
+            <tr><td class="bad">&gt;2%</td><td class="bad">&gt;25%</td><td>Derate หรือแก้ไข</td></tr>
+            <tr><td class="bad">&gt;5%</td><td class="bad">&gt;50%</td><td>หยุดใช้งาน</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel" id="diagResult" style="display:none;">
+        <div class="panel-title">🩺 ผลการวิเคราะห์</div>
+        <div class="grid-3" id="diagKpi" style="margin-bottom:16px;"></div>
+        <div id="diagAlerts"></div>
+      </div>
+
+      <!-- Fault Tree -->
+      <div class="panel">
+        <div class="panel-title">🌲 Fault Tree — คลิกเพื่อดูสาเหตุ & วิธีแก้</div>
+
+        <div style="font-size:10px;color:var(--red);font-family:var(--mono);letter-spacing:1px;margin-bottom:8px;">OVERHEATING</div>
+
+        <div class="fault-node" onclick="toggleFault(this)">
+          <div class="fault-title">🌡️ Winding Temperature สูงเกิน Class Limit</div>
+          <div class="fault-detail">ความร้อนสะสมในขดลวด — ลดอายุ Insulation อย่างรวดเร็ว (rule: +10°C → อายุลด 50%)</div>
+          <div class="fault-remedy">
+            <strong style="color:var(--red);">สาเหตุที่พบบ่อย:</strong><br>
+            • Overload — Load เกินพิกัด (I_load &gt; I_rated)<br>
+            • Voltage Unbalance &gt;2% → กระแสไม่สมดุล → ความร้อนเพิ่ม<br>
+            • ระบายอากาศอุดตัน — Fan, Filter, Louver ตัน<br>
+            • Rewound Motor — Rewinding ลด Efficiency → ความร้อนเพิ่ม<br>
+            • Ambient สูงเกิน 40°C (Standard Design Limit)<br>
+            <strong style="color:var(--green);margin-top:6px;display:block;">แนวทางแก้ไข:</strong>
+            ✓ ตรวจ Load Factor — ถ้าเกิน 90% พิจารณาเปลี่ยน Motor ขนาดใหญ่ขึ้น<br>
+            ✓ วัด 3-phase Voltage Balance ทุก Phase<br>
+            ✓ ทำความสะอาด Fan Cover, Filter ทุก 3 เดือน<br>
+            ✓ ติด PT100/Thermistor วัดอุณหภูมิ Winding
+          </div>
+        </div>
+
+        <div style="font-size:10px;color:var(--amber);font-family:var(--mono);letter-spacing:1px;margin:12px 0 8px;">LOW EFFICIENCY / HIGH POWER</div>
+
+        <div class="fault-node" onclick="toggleFault(this)">
+          <div class="fault-title">⬆️ Load Factor ต่ำมาก (&lt;40%)</div>
+          <div class="fault-detail">Motor Oversized — ใช้กำลังน้อย แต่ Iron Loss คงที่ → Efficiency ต่ำ</div>
+          <div class="fault-remedy">
+            <strong style="color:var(--red);">ผลกระทบ:</strong><br>
+            • Efficiency ต่ำกว่า Nameplate มาก (ที่ 25% load → Eff ลด 15–20%)<br>
+            • Power Factor ต่ำ (&lt;0.7) → ค่าปรับ PF Penalty<br>
+            • สูญเสีย Fixed Losses (Iron Loss) โดยไม่ได้ประโยชน์<br>
+            <strong style="color:var(--green);margin-top:6px;display:block;">แนวทางแก้ไข:</strong>
+            ✓ เปลี่ยน Motor ขนาดเล็กลง — Load Factor เป้าหมาย 70–90%<br>
+            ✓ ติด VFD ลด Speed (Centrifugal load) → ลด Power อย่างมีประสิทธิภาพ<br>
+            ✓ ติด Capacitor Bank แก้ Power Factor
+          </div>
+        </div>
+
+        <div class="fault-node" onclick="toggleFault(this)">
+          <div class="fault-title">📉 Efficiency ต่ำกว่า Nameplate &gt;3%</div>
+          <div class="fault-detail">ประสิทธิภาพตกมากกว่าปกติ — อาจเกิดจากการเสื่อมสภาพหรือ Rewinding</div>
+          <div class="fault-remedy">
+            <strong style="color:var(--red);">สาเหตุ:</strong><br>
+            • Rewound Motor — การพัน Winding ใหม่ลด Efficiency 1–3% ต่อครั้ง<br>
+            • Bearing Wear → Friction Loss เพิ่ม<br>
+            • Rotor Bar Broken → Rotor Copper Loss เพิ่ม<br>
+            • Stator Winding Partial Short<br>
+            <strong style="color:var(--green);margin-top:6px;display:block;">แนวทางแก้ไข:</strong>
+            ✓ วัด Vibration Spectrum — Rotor Bar Break มี Sideband ที่ f±2sf<br>
+            ✓ Insulation Resistance Test ≥ 100 MΩ ที่ 1000V DC<br>
+            ✓ เปรียบ Rewinding Cost vs ราคา Motor IE3 ใหม่ (มักคุ้มค่าเปลี่ยนใหม่)
+          </div>
+        </div>
+
+        <div style="font-size:10px;color:var(--blue);font-family:var(--mono);letter-spacing:1px;margin:12px 0 8px;">VIBRATION & MECHANICAL</div>
+
+        <div class="fault-node" onclick="toggleFault(this)">
+          <div class="fault-title">📳 Vibration สูงเกิน 4.5 mm/s RMS</div>
+          <div class="fault-detail">ISO 10816-3: Class I (&lt;15kW) &lt;2.8 · Class II (15–75kW) &lt;4.5 · Class III (&gt;75kW) &lt;7.1 mm/s</div>
+          <div class="fault-remedy">
+            <strong style="color:var(--red);">สาเหตุ/วิเคราะห์จาก Spectrum:</strong><br>
+            • 1× RPM → Unbalance (Rotor ไม่สมดุล)<br>
+            • 2× RPM → Misalignment (เพลาไม่ตรงกัน)<br>
+            • สูง Frequency → Bearing Defect (BPFO/BPFI)<br>
+            • 2× Line Freq (100Hz) → Electrical Origin (Eccentric Air Gap)<br>
+            <strong style="color:var(--green);margin-top:6px;display:block;">แนวทางแก้ไข:</strong>
+            ✓ Dynamic Balancing ที่ Rotor<br>
+            ✓ Laser Alignment ระหว่าง Motor – Load<br>
+            ✓ เปลี่ยน Bearing (ตรวจ SPM หรือ Vibration Analyst)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 4: INSPECTION CHECKLIST ═══ -->
+<div class="section" id="section-audit">
+  <div class="export-bar">
+    <button class="btn btn-secondary" onclick="clearAudit()">↺ Clear</button>
+    <button class="btn btn-primary" onclick="genReport()">📄 Generate Report</button>
+    <button class="btn btn-secondary" onclick="window.print()">🖨️ Print</button>
+  </div>
+
+  <div class="grid-2">
+    <!-- LEFT: Info + Measurements -->
+    <div>
+      <div class="panel">
+        <div class="panel-title">📋 ข้อมูลการตรวจสอบ</div>
+        <div class="grid-2">
+          <div class="form-group"><label>ชื่อโรงงาน</label><input type="text" id="a_plant" placeholder="e.g. ABC Manufacturing"></div>
+          <div class="form-group"><label>วันที่ตรวจ</label><input type="date" id="a_date"></div>
+          <div class="form-group"><label>Equipment Tag</label><input type="text" id="a_tag" placeholder="e.g. MTR-P101"></div>
+          <div class="form-group"><label>ผู้ตรวจสอบ</label><input type="text" id="a_auditor" value="อ.หนึ่ง กลับทวี"></div>
+          <div class="form-group"><label>ยี่ห้อ / Brand</label><input type="text" id="a_brand" placeholder="e.g. ABB, Siemens, WEG"></div>
+          <div class="form-group"><label>Model / Frame</label><input type="text" id="a_model" placeholder="e.g. M3BP 315 SMB"></div>
+          <div class="form-group"><label>Rated kW / IE Class</label><input type="text" id="a_kw" placeholder="e.g. 75 kW / IE3"></div>
+          <div class="form-group"><label>Application</label><input type="text" id="a_app" placeholder="e.g. Cooling Water Pump"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">🔌 Electrical Measurements</div>
+        <div class="grid-2">
+          <div class="form-group"><label>Voltage L1-L2</label><input type="number" id="m_v12" placeholder="400" step="1"><div class="unit">V</div></div>
+          <div class="form-group"><label>Voltage L2-L3</label><input type="number" id="m_v23" placeholder="401" step="1"><div class="unit">V</div></div>
+          <div class="form-group"><label>Voltage L3-L1</label><input type="number" id="m_v31" placeholder="399" step="1"><div class="unit">V</div></div>
+          <div class="form-group"><label>Current L1</label><input type="number" id="m_i1" placeholder="112" step="0.1"><div class="unit">A</div></div>
+          <div class="form-group"><label>Current L2</label><input type="number" id="m_i2" placeholder="113" step="0.1"><div class="unit">A</div></div>
+          <div class="form-group"><label>Current L3</label><input type="number" id="m_i3" placeholder="111" step="0.1"><div class="unit">A</div></div>
+          <div class="form-group"><label>Power Input (P_in)</label><input type="number" id="m_pin" placeholder="68.5" step="0.1"><div class="unit">kW</div></div>
+          <div class="form-group"><label>Power Factor (PF)</label><input type="number" id="m_pf" placeholder="0.85" step="0.01"><div class="unit">—</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">🔧 Mechanical Measurements</div>
+        <div class="grid-2">
+          <div class="form-group"><label>Speed (Tachometer)</label><input type="number" id="m_rpm" placeholder="1488" step="1"><div class="unit">RPM</div></div>
+          <div class="form-group"><label>Vibration (Overall)</label><input type="number" id="m_vib" placeholder="2.5" step="0.1"><div class="unit">mm/s RMS</div></div>
+          <div class="form-group"><label>Bearing Temp (DE)</label><input type="number" id="m_tde" placeholder="55" step="1"><div class="unit">°C (limit: &lt;80°C)</div></div>
+          <div class="form-group"><label>Bearing Temp (NDE)</label><input type="number" id="m_tnde" placeholder="52" step="1"><div class="unit">°C</div></div>
+          <div class="form-group"><label>Winding Temp</label><input type="number" id="m_twin" placeholder="85" step="1"><div class="unit">°C</div></div>
+          <div class="form-group"><label>Insulation Resistance</label><input type="number" id="m_ir" placeholder="1000" step="1"><div class="unit">MΩ @ 1000V DC (ดี: &gt;100)</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">📝 หมายเหตุ</div>
+        <textarea id="a_notes" rows="4" placeholder="บันทึกอาการผิดปกติ, ข้อเสนอแนะ..."
+          style="width:100%;background:#f8faff;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:12px;font-family:var(--sans);font-size:13px;resize:vertical;outline:none;"></textarea>
+      </div>
+    </div>
+
+    <!-- RIGHT: Checklist -->
+    <div>
+      <div class="panel">
+        <div class="panel-title">✅ Visual Inspection Checklist</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div id="chkProgress" style="font-family:var(--mono);font-size:12px;color:var(--text3);">0/0 completed</div>
+          <div id="chkScore" style="font-family:var(--display);font-size:28px;color:var(--blue);">—%</div>
+        </div>
+        <div style="background:var(--border);border-radius:4px;height:6px;margin-bottom:16px;overflow:hidden;">
+          <div id="chkBar" style="height:100%;background:var(--blue);width:0%;border-radius:4px;transition:width 0.4s;"></div>
+        </div>
+
+        <div style="font-size:10px;color:var(--blue);font-family:var(--mono);letter-spacing:1px;margin-bottom:8px;">NAMEPLATE & IDENTIFICATION</div>
+        <div id="cl_id"></div>
+
+        <hr class="divider">
+        <div style="font-size:10px;color:var(--green);font-family:var(--mono);letter-spacing:1px;margin-bottom:8px;">ELECTRICAL SYSTEM</div>
+        <div id="cl_elec"></div>
+
+        <hr class="divider">
+        <div style="font-size:10px;color:var(--amber);font-family:var(--mono);letter-spacing:1px;margin-bottom:8px;">MECHANICAL & COOLING</div>
+        <div id="cl_mech"></div>
+
+        <hr class="divider">
+        <div style="font-size:10px;color:var(--purple);font-family:var(--mono);letter-spacing:1px;margin-bottom:8px;">VFD / STARTER (ถ้ามี)</div>
+        <div id="cl_vfd"></div>
+
+        <hr class="divider">
+        <div style="font-size:10px;color:var(--red);font-family:var(--mono);letter-spacing:1px;margin-bottom:8px;">⚠️ SAFETY</div>
+        <div id="cl_safe"></div>
+      </div>
+
+      <div id="auditReport" style="display:none;">
+        <div class="panel">
+          <div class="panel-title">📄 Audit Report</div>
+          <div id="reportContent"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .content -->
+
+<div style="text-align:center;padding:24px 32px 36px;color:var(--text3);font-size:12px;font-family:var(--mono);border-top:1px solid var(--border);margin-top:20px;position:relative;z-index:5;">
+  <strong style="color:var(--text2);">พัฒนาโดย อ.หนึ่ง กลับทวี</strong> · บริษัท ทริปเปิ้ล อี เทคโนโลยี จำกัด<br>
+  <span style="font-size:10px;opacity:0.6;">Motor & VFD Energy Audit Tool v1.0 · Reference: IEC 60034-2-1 / IEEE 112-B / IEC 60034-30-1 / IPMVP Option B</span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  IE CLASS DATA (IEC 60034-30-1:2014, 4-pole, 50Hz)
+// ═══════════════════════════════════════════════
+const IE_DATA = [
+  [0.75, 77.4, 80.7, 82.5, 85.7],
+  [1.1,  79.6, 82.7, 84.1, 87.0],
+  [1.5,  81.0, 84.1, 85.6, 88.0],
+  [2.2,  83.2, 85.9, 87.4, 89.5],
+  [3.0,  84.6, 87.1, 88.7, 90.6],
+  [4.0,  85.8, 88.1, 89.8, 91.5],
+  [5.5,  87.0, 89.2, 90.8, 92.3],
+  [7.5,  88.1, 90.1, 91.7, 93.1],
+  [11,   89.4, 91.2, 92.7, 93.9],
+  [15,   90.3, 91.9, 93.3, 94.4],
+  [18.5, 90.9, 92.4, 93.7, 94.8],
+  [22,   91.3, 92.7, 94.0, 95.1],
+  [30,   92.0, 93.2, 94.5, 95.5],
+  [37,   92.5, 93.6, 94.8, 95.7],
+  [45,   92.9, 94.0, 95.1, 95.9],
+  [55,   93.2, 94.3, 95.4, 96.1],
+  [75,   93.8, 94.7, 95.8, 96.5],
+  [90,   94.1, 95.0, 96.1, 96.7],
+  [110,  94.3, 95.2, 96.2, 96.9],
+  [132,  94.6, 95.4, 96.4, 97.0],
+  [160,  94.8, 95.6, 96.5, 97.2],
+  [200,  95.0, 95.8, 96.7, 97.3],
+  [250,  95.2, 96.0, 96.9, 97.5],
+  [315,  95.4, 96.1, 97.0, 97.6],
+];
+
+function getIEBenchmark(kW) {
+  let lo = IE_DATA[0], hi = IE_DATA[IE_DATA.length-1];
+  if (kW <= lo[0]) return lo;
+  if (kW >= hi[0]) return hi;
+  for (let i=0; i<IE_DATA.length-1; i++) {
+    if (kW >= IE_DATA[i][0] && kW <= IE_DATA[i+1][0]) {
+      const f = (kW - IE_DATA[i][0]) / (IE_DATA[i+1][0] - IE_DATA[i][0]);
+      return IE_DATA[i].map((v,j) => v + f*(IE_DATA[i+1][j]-v));
+    }
+  }
+  return lo;
+}
+
+// ═══════════════════════════════════════════════
+//  TAB SWITCHING
+// ═══════════════════════════════════════════════
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  document.getElementById('section-'+id).classList.add('active');
+  if (id === 'eff') buildIETable();
+  if (id === 'vfd') buildAffinityTable();
+  if (id === 'audit') { buildChecklist(); if(window.MathJax) MathJax.typesetPromise(); }
+}
+
+// ═══════════════════════════════════════════════
+//  MODE SWITCHER
+// ═══════════════════════════════════════════════
+const MODES = ['lab','m1','m2'];
+const MODE_BANNERS = {
+  lab: `<div class="alert alert-info" style="margin-bottom:16px;">
+    <span>🔬</span>
+    <div style="font-size:12px;line-height:1.8;">
+      <strong>Lab Method — IEC 60034-2-1 Method B:</strong>
+      แม่นยำที่สุด (±1%) · ต้องการ No-Load Test + R_cold วัดตอนเย็น · <strong>ต้องหยุดเครื่องและถอดโหลด</strong><br>
+      เหมาะสำหรับ: M&V IPMVP Option B อย่างเป็นทางการ · รับรองผลประหยัดพลังงาน · Motor Acceptance Test
+    </div></div>`,
+  m1: `<div class="alert alert-success" style="margin-bottom:16px;">
+    <span>✅</span>
+    <div style="font-size:12px;line-height:1.8;">
+      <strong>Field Mode 1 — Current Ratio Method (DOE MotorMaster):</strong>
+      ความแม่นยำ ±3–5% · <strong>ไม่ต้องหยุดเครื่อง</strong> · ต้องการ Clamp Meter + Power Meter (ถ้ามี)<br>
+      เหมาะสำหรับ: สำรวจเบื้องต้นหลายเครื่อง · โรงงานที่ไม่อนุญาตหยุดเครื่อง · ประเมิน Baseline ก่อน VFD
+    </div></div>`,
+  m2: `<div class="alert alert-success" style="margin-bottom:16px;">
+    <span>✅</span>
+    <div style="font-size:12px;line-height:1.8;">
+      <strong>Field Mode 2 — Slip Method (IEEE 112 Simplified):</strong>
+      ความแม่นยำ ±5–8% · <strong>ต้องการแค่ Tachometer</strong> · ไม่ต้องหยุดเครื่อง<br>
+      เหมาะสำหรับ: Quick Scan ความเร็วรอบ · ไม่มี Power Meter · ตรวจสอบ Load Factor เบื้องต้น
+    </div></div>`,
+};
+
+function switchMode(mode) {
+  // Update buttons
+  MODES.forEach(m => {
+    const btn = document.getElementById('modeBtn-'+m);
+    if (!btn) return;
+    const isActive = m === mode;
+    btn.style.background = isActive ? 'var(--blue)' : 'var(--panel2)';
+    btn.style.color = isActive ? '#fff' : 'var(--text2)';
+    const titleEl = btn.querySelector('div');
+    if (titleEl) titleEl.style.color = isActive ? '#fff' : 'var(--text)';
+  });
+  // Show/hide panels
+  MODES.forEach(m => {
+    const el = document.getElementById('mode-'+m);
+    if (el) el.style.display = m === mode ? 'block' : 'none';
+  });
+  // Show banner
+  document.getElementById('modeBanner').innerHTML = MODE_BANNERS[mode] || '';
+  // Show/hide shared IE table
+  const iePanel = document.getElementById('ieTablePanel');
+  if (iePanel) iePanel.style.display = mode === 'lab' ? 'none' : 'block';
+}
+
+// ═══════════════════════════════════════════════
+//  FIELD MODE 1: Current Ratio Method
+// ═══════════════════════════════════════════════
+function loadSampleM1() {
+  const vals = {m1_prated:75,m1_irated:132,m1_etafl:94.0,m1_nrated:1485,m1_freq:50,m1_vrated:400,
+                m1_il1:112,m1_il2:113,m1_il3:111,m1_pin:68.5,m1_pf:0.85,m1_vmeas:400};
+  Object.entries(vals).forEach(([k,v])=>{ const el=document.getElementById(k); if(el) el.value=v; });
+}
+function clearM1() {
+  ['m1_prated','m1_irated','m1_etafl','m1_nrated','m1_freq','m1_vrated',
+   'm1_il1','m1_il2','m1_il3','m1_pin','m1_pf','m1_vmeas']
+    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('m1Result').style.display='none';
+}
+
+function calcFieldM1() {
+  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
+  const Prated=g('m1_prated'), Irated=g('m1_irated'), etaFL=g('m1_etafl');
+  const Nrated=g('m1_nrated'), freq=g('m1_freq'), Vrated=g('m1_vrated');
+  const IL1=g('m1_il1'), IL2=g('m1_il2'), IL3=g('m1_il3');
+  const Pin_input=g('m1_pin'), PF=g('m1_pf'), Vmeas=g('m1_vmeas');
+
+  if (!Prated||!Irated||!etaFL) { alert('กรุณากรอก Nameplate ให้ครบ'); return; }
+
+  // Average current
+  const Iavg = (IL1+IL2+IL3) / (IL1&&IL2&&IL3 ? 3 : IL1 ? 1 : 1);
+  const IavgSingle = IL1 || Irated * 0.85;
+  const Iuse = (IL1&&IL2&&IL3) ? (IL1+IL2+IL3)/3 : IL1 || g('m1_irated')*0.85;
+
+  // Voltage unbalance (if all 3 phases given)
+  let vUnbal = 0;
+  if (IL1&&IL2&&IL3) {
+    const Imax = Math.max(Math.abs(Iuse-IL1), Math.abs(Iuse-IL2), Math.abs(Iuse-IL3));
+    vUnbal = Iuse > 0 ? Imax/Iuse*100 : 0;
+  }
+
+  // Load Factor by Current Ratio
+  const LF = Irated > 0 ? Iuse / Irated * 100 : 0;
+
+  // Input Power: use measured if available, else estimate
+  const Pin_est = (Vmeas > 0 && PF > 0) ? Math.sqrt(3)*Vmeas*Iuse*PF/1000 : Prated/(etaFL/100);
+  const Pin = Pin_input > 0 ? Pin_input : Pin_est;
+  const usedEstimate = Pin_input <= 0;
+
+  // Efficiency correction (DOE MotorMaster quadratic correction)
+  // η_op ≈ η_FL × [1 − 0.2 × (1 − LF/100)²]
+  const k = 0.2;
+  const eta_op = etaFL * (1 - k * Math.pow(1 - LF/100, 2));
+
+  // Output power
+  const Pout = Pin * eta_op / 100;
+
+  // IE Class
+  const IE_ref = getIEBenchmark(Prated);
+  const ieClass = eta_op>=IE_ref[4]?'IE4':eta_op>=IE_ref[3]?'IE3':eta_op>=IE_ref[2]?'IE2':'IE1';
+  const ieColor = eta_op>=IE_ref[3]?'var(--green)':eta_op>=IE_ref[2]?'var(--amber)':'var(--red)';
+  const lfClass = LF>100?'s-bad':LF>70?'s-good':LF>40?'s-warn':'s-bad';
+
+  // KPIs
+  document.getElementById('m1Kpi').innerHTML = `
+    <div class="kpi-card ${LF>100?'red':LF>70?'green':'amber'}">
+      <div class="kpi-label">Load Factor (I)</div>
+      <div class="kpi-value" style="font-size:28px;color:${LF>100?'var(--red)':LF>70?'var(--green)':'var(--amber)'}">${LF.toFixed(1)}</div>
+      <div class="kpi-unit">% (I_avg=${Iuse.toFixed(1)} / I_rated=${Irated} A)</div>
+      <div class="kpi-status ${lfClass}">${LF>100?'🔴 Overload':LF>90?'✅ Full Load':LF>70?'✅ Normal':LF>40?'⚠ Low':'✗ Very Low'}</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">η Operating</div>
+      <div class="kpi-value" style="font-size:26px;color:${ieColor}">${eta_op.toFixed(2)}</div>
+      <div class="kpi-unit">% (η_FL=${etaFL}%)</div>
+      <div class="kpi-status ${eta_op>=IE_ref[3]?'s-good':eta_op>=IE_ref[2]?'s-warn':'s-bad'}">${ieClass} · ${eta_op>=IE_ref[3]?'✓ Premium':'⚠ Check'}</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">P_output</div>
+      <div class="kpi-value" style="font-size:28px;color:var(--green)">${Pout.toFixed(2)}</div>
+      <div class="kpi-unit">kW</div>
+      <div class="kpi-status s-na">P_in=${Pin.toFixed(2)} kW</div>
+    </div>`;
+
+  // Detail calculation steps
+  document.getElementById('m1Detail').innerHTML = `
+    <div style="font-family:var(--mono);font-size:12px;line-height:2.2;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;">
+      <strong style="color:var(--blue);">การคำนวณ — Current Ratio Method:</strong><br>
+      I_avg = (${IL1}+${IL2}+${IL3})/3 = <strong>${Iuse.toFixed(2)} A</strong><br>
+      <strong style="color:var(--blue);">LF</strong> = I_avg/I_rated = ${Iuse.toFixed(2)}/${Irated} = <strong>${LF.toFixed(1)}%</strong><br>
+      ${usedEstimate ? `P_in (ประมาณ) = √3×${Vmeas}×${Iuse.toFixed(1)}×${PF} = <strong>${Pin_est.toFixed(2)} kW</strong> ⚠️ ประมาณการ<br>` :
+        `P_in (วัดจริง) = <strong>${Pin.toFixed(2)} kW</strong> ✅<br>`}
+      <strong style="color:var(--blue);">η_op</strong> = η_FL × [1 − 0.2×(1−LF/100)²]<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;= ${etaFL} × [1 − 0.2×(1−${(LF/100).toFixed(3)})²] = <strong>${eta_op.toFixed(2)}%</strong><br>
+      P_out = ${Pin.toFixed(2)} × ${eta_op.toFixed(2)}/100 = <strong>${Pout.toFixed(2)} kW</strong><br>
+      ${vUnbal>0?`Current Unbalance = <span style="color:${vUnbal>5?'var(--red)':vUnbal>2?'var(--amber)':'var(--green)'}"><strong>${vUnbal.toFixed(2)}%</strong></span> ${vUnbal>5?'🔴 ต้องแก้ไขด่วน':vUnbal>2?'⚠️ Monitor':'✅ OK'}<br>`:''} 
+    </div>
+    <div class="alert ${usedEstimate?'alert-warn':'alert-info'}" style="font-size:11px;">
+      <span>${usedEstimate?'⚠️':'ℹ️'}</span>
+      <div>${usedEstimate
+        ? '<strong>P_in ไม่ได้วัดโดยตรง</strong> — ค่าถูกประมาณจาก V, I, PF · ความแม่นยำ ±5–10% · แนะนำใช้ Power Meter สำหรับผลที่น่าเชื่อถือ'
+        : '<strong>P_in วัดโดยตรงจาก Power Meter</strong> — ผลลัพธ์มีความแม่นยำสูงกว่า (±3%)'
+      }</div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">
+      ⚠️ <strong>ความแม่นยำโดยรวม: ±3–5%</strong> — เหมาะสำหรับ Quick Screening ไม่ใช่ M&V อย่างเป็นทางการ
+    </div>`;
+
+  // IE highlight
+  buildIETable(Prated, eta_op);
+  document.getElementById('m1IERow').innerHTML = `<div style="font-size:12px;font-family:var(--mono);padding:8px 12px;background:var(--blue-lt);border-radius:6px;border:1px solid var(--border);">
+    ประสิทธิภาพที่ประเมินได้ <strong>${eta_op.toFixed(2)}%</strong> → เทียบกับ IE Benchmark: 
+    IE1=${IE_ref[1].toFixed(1)}% · IE2=${IE_ref[2].toFixed(1)}% · <span style="color:var(--green)">IE3=${IE_ref[3].toFixed(1)}%</span> · IE4=${IE_ref[4].toFixed(1)}%
+    → <strong style="color:${ieColor};">Class: ${ieClass}</strong>
+  </div>`;
+
+  document.getElementById('m1Result').style.display='block';
+  document.getElementById('m1Result').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ═══════════════════════════════════════════════
+//  FIELD MODE 2: Slip Method
+// ═══════════════════════════════════════════════
+function loadSampleM2() {
+  const vals = {m2_prated:75,m2_nrated:1485,m2_freq:50,m2_etafl:94.0,
+                m2_irated:132,m2_vrated:400,m2_nactual:1488,m2_pin:68.5,m2_iload:112,m2_pf:0.85};
+  Object.entries(vals).forEach(([k,v])=>{ const el=document.getElementById(k); if(el) el.value=v; });
+}
+function clearM2() {
+  ['m2_prated','m2_nrated','m2_freq','m2_etafl','m2_irated','m2_vrated',
+   'm2_nactual','m2_pin','m2_iload','m2_pf']
+    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('m2Result').style.display='none';
+}
+
+function calcFieldM2() {
+  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
+  const Prated=g('m2_prated'), Nrated=g('m2_nrated'), freq=g('m2_freq');
+  const etaFL=g('m2_etafl'), Irated=g('m2_irated'), Vrated=g('m2_vrated');
+  const Nactual=g('m2_nactual'), Pin_input=g('m2_pin');
+  const Iload=g('m2_iload'), PF=g('m2_pf');
+
+  if (!Prated||!Nrated||!Nactual||!freq) { alert('กรุณากรอกอย่างน้อย Nameplate + N_actual'); return; }
+
+  // Determine poles and Nsync
+  let poles = 4;
+  if (Nrated > 2800) poles=2;
+  else if (Nrated > 1400) poles=4;
+  else if (Nrated > 900) poles=6;
+  else if (Nrated > 700) poles=8;
+  else poles=10;
+  const Nsync = 120 * freq / poles;
+
+  // Slips
+  const s_rated  = Nsync > 0 ? (Nsync - Nrated)  / Nsync : 0;
+  const s_actual = Nsync > 0 ? (Nsync - Nactual) / Nsync : 0;
+
+  // Load Factor
+  const LF = s_rated > 0 ? (s_actual / s_rated) * 100 : 0;
+
+  // Output power = Prated × LF/100
+  const Pout = Prated * LF / 100;
+
+  // Input power: use measured if available, else estimate
+  const Pin_est = etaFL > 0 ? Pout / (etaFL/100) : Pout;
+  const Pin = Pin_input > 0 ? Pin_input : Pin_est;
+  const usedEstimate = Pin_input <= 0;
+
+  // Operating efficiency
+  const eta_op = Pin > 0 ? Pout / Pin * 100 : etaFL;
+
+  // Cross-check: LF from current if available
+  const LF_current = (Iload>0&&Irated>0) ? Iload/Irated*100 : 0;
+  const deviation = LF_current > 0 ? Math.abs(LF-LF_current) : 0;
+
+  const IE_ref = getIEBenchmark(Prated);
+  const ieClass = eta_op>=IE_ref[4]?'IE4':eta_op>=IE_ref[3]?'IE3':eta_op>=IE_ref[2]?'IE2':'IE1';
+  const ieColor = eta_op>=IE_ref[3]?'var(--green)':eta_op>=IE_ref[2]?'var(--amber)':'var(--red)';
+  const lfClass = LF>100?'s-bad':LF>70?'s-good':LF>40?'s-warn':'s-bad';
+
+  // KPIs
+  document.getElementById('m2Kpi').innerHTML = `
+    <div class="kpi-card ${LF>100?'red':LF>70?'green':'amber'}">
+      <div class="kpi-label">Load Factor (Slip)</div>
+      <div class="kpi-value" style="font-size:28px;color:${LF>100?'var(--red)':LF>70?'var(--green)':'var(--amber)'}">${LF.toFixed(1)}</div>
+      <div class="kpi-unit">% (s_act/s_rated)</div>
+      <div class="kpi-status ${lfClass}">${LF>100?'🔴 Overload':LF>90?'✅ Full':LF>70?'✅ Normal':LF>40?'⚠ Low':'✗ Very Low'}</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">P_output</div>
+      <div class="kpi-value" style="font-size:28px;color:var(--blue)">${Pout.toFixed(2)}</div>
+      <div class="kpi-unit">kW = P_rated × LF%</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">η Operating</div>
+      <div class="kpi-value" style="font-size:26px;color:${ieColor}">${eta_op.toFixed(2)}</div>
+      <div class="kpi-unit">%</div>
+      <div class="kpi-status ${eta_op>=IE_ref[3]?'s-good':eta_op>=IE_ref[2]?'s-warn':'s-bad'}">${ieClass}</div>
+    </div>`;
+
+  // Detail
+  document.getElementById('m2Detail').innerHTML = `
+    <div style="font-family:var(--mono);font-size:12px;line-height:2.2;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;">
+      <strong style="color:var(--blue);">การคำนวณ — Slip Method:</strong><br>
+      N_sync = 120×${freq}/${poles} = <strong>${Nsync} rpm</strong> (${poles} poles)<br>
+      s_rated = (${Nsync}−${Nrated})/${Nsync} = <strong>${(s_rated*100).toFixed(3)}%</strong> (= ${Nsync-Nrated} rpm)<br>
+      s_actual = (${Nsync}−${Nactual})/${Nsync} = <strong>${(s_actual*100).toFixed(3)}%</strong> (= ${Nsync-Nactual} rpm)<br>
+      <strong style="color:var(--blue);">LF</strong> = s_actual/s_rated = ${(s_actual*100).toFixed(4)}/${(s_rated*100).toFixed(4)} = <strong>${LF.toFixed(1)}%</strong><br>
+      P_out = ${Prated} × ${LF.toFixed(1)}/100 = <strong>${Pout.toFixed(2)} kW</strong><br>
+      ${Pin_input>0
+        ? `η_op = ${Pout.toFixed(2)}/${Pin.toFixed(2)} = <strong>${eta_op.toFixed(2)}%</strong> (P_in วัดจริง ✅)<br>`
+        : `P_in ≈ P_out/η_FL = ${Pout.toFixed(2)}/${(etaFL/100).toFixed(4)} = <strong>${Pin_est.toFixed(2)} kW</strong> ⚠️ ประมาณการ<br>`}
+    </div>
+    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">
+      ⚠️ <strong>ความแม่นยำ ±5–8%</strong> · Slip ต่างกัน 1 rpm → LF เปลี่ยน ~${(100/(Nsync-Nrated)||10).toFixed(0)}% · วัด RPM ให้แม่นยำที่สุด
+    </div>`;
+
+  // Cross-check with Current
+  let crossHtml = '';
+  if (LF_current > 0) {
+    const devColor = deviation > 15 ? 'var(--red)' : deviation > 8 ? 'var(--amber)' : 'var(--green)';
+    crossHtml = `
+      <div style="margin-top:12px;padding:12px 14px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;line-height:2;">
+        <strong style="color:var(--blue);">🔁 Cross-Check กับ Current Method:</strong><br>
+        LF (Slip Method) = <strong>${LF.toFixed(1)}%</strong><br>
+        LF (Current Method) = <strong>${LF_current.toFixed(1)}%</strong> &nbsp;(I_load/I_rated = ${Iload}/${Irated})<br>
+        ส่วนต่าง = <span style="color:${devColor};font-weight:600;">${deviation.toFixed(1)}%</span>
+        ${deviation<=8 ? ' ✅ <span style="color:var(--green)">สอดคล้องกัน — ผลน่าเชื่อถือ</span>' :
+          deviation<=15 ? ' ⚠️ <span style="color:var(--amber)">ต่างพอสมควร — ตรวจสอบ RPM และ Current อีกครั้ง</span>' :
+          ' 🔴 <span style="color:var(--red)">ต่างมาก — อาจมีปัญหา Slip หรือ V Unbalance</span>'}
+      </div>`;
+  }
+  document.getElementById('m2CrossCheck').innerHTML = crossHtml;
+
+  buildIETable(Prated, eta_op);
+  document.getElementById('m2Result').style.display='block';
+  document.getElementById('m2Result').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ═══════════════════════════════════════════════
+//  TAB 1: MOTOR EFFICIENCY (IEC 60034-2-1 Method B)
+// ═══════════════════════════════════════════════
+function loadSample() {
+  const vals = {p_rated:75,v_rated:400,i_rated:132,n_rated:1485,freq:50,eta_plate:94.0,
+                p_nl:2150,i_nl:38.5,r_cold:0.024,t_cold:20,
+                p_in:68.5,i_load:112.0,n_load:1488,t_hot:75};
+  Object.entries(vals).forEach(([k,v]) => { const el=document.getElementById(k); if(el) el.value=v; });
+}
+function clearMotor() {
+  ['p_rated','v_rated','i_rated','n_rated','eta_plate','p_nl','i_nl','r_cold','t_cold','p_in','i_load','n_load','t_hot']
+    .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('motorResult').style.display='none';
+}
+
+function calcMotorEff() {
+  const g = id => parseFloat(document.getElementById(id).value) || 0;
+  const Prated=g('p_rated'), Nrated=g('n_rated'), f=g('freq');
+  const Pnl=g('p_nl'), Inl=g('i_nl'), Rcold=g('r_cold');
+  const T_cold=g('t_cold')||20, T_hot=g('t_hot')||75;
+  const Pin_kW=g('p_in'), Iload=g('i_load'), Nload=g('n_load');
+  const Irated=g('i_rated'), eta_plate=g('eta_plate');
+
+  if (!Prated || !Pin_kW || !Pnl) { alert('กรุณากรอก Nameplate, No-Load Test และ Operating Data'); return; }
+
+  const Pin_W = Pin_kW * 1000;
+
+  // Temperature correction for R: R_hot = R_cold × (235 + T_hot)/(235 + T_cold) [IEC standard]
+  const Rhot = Rcold > 0 ? Rcold * (235 + T_hot) / (235 + T_cold) : Rcold * 1.25;
+
+  // Poles and synchronous speed
+  let poles = 4;
+  if (Nrated > 2800) poles=2;
+  else if (Nrated > 1400) poles=4;
+  else if (Nrated > 900) poles=6;
+  else if (Nrated > 700) poles=8;
+  else poles=10;
+  const Nsync = 120 * f / poles;
+  const slip = Nsync > 0 ? (Nsync - Nload) / Nsync : 0;
+
+  // Losses
+  const Pcu_nl = Rcold > 0 ? 3 * Inl * Inl * Rcold : 0;   // No-load stator copper loss
+  const Pk = Math.max(0, Pnl - Pcu_nl);                    // Core + F&W (constant loss)
+  const Pcu_st = Rhot > 0 ? 3 * Iload * Iload * Rhot : 0; // Load stator copper loss
+  // Air gap power → Rotor copper loss
+  const Pfe_est = Pk * 0.55;   // ~55% of Pk = Iron loss (remainder = F&W)
+  const Pgap = Math.max(0, Pin_W - Pcu_st - Pfe_est);
+  const Pcu_rot = Pgap * slip;                              // Rotor copper loss = Pgap × slip
+  const Pstray = Pin_W * 0.005;                             // Stray load loss (IEC: 0.5% of Pin)
+  const TotalLoss = Pcu_st + Pcu_rot + Pk + Pstray;
+  const Pout = Math.max(0, Pin_W - TotalLoss);
+  let Eff = Pout / Pin_W * 100;
+  if (Eff > 99.5) Eff = 99.5;
+
+  const LF = Prated > 0 ? (Pout/1000) / Prated * 100 : 0;
+  const IE_ref = getIEBenchmark(Prated);
+  const ieClass = Eff >= IE_ref[4] ? 'IE4' : Eff >= IE_ref[3] ? 'IE3' : Eff >= IE_ref[2] ? 'IE2' : 'IE1';
+  const ieColor = Eff >= IE_ref[3] ? 'var(--green)' : Eff >= IE_ref[2] ? 'var(--amber)' : 'var(--red)';
+
+  // Gauge
+  const pct = Math.min(Math.max((Eff-70)/30, 0), 1);
+  const pathLen = 251.2;
+  const offset = pathLen * (1 - pct);
+  const gColor = Eff >= IE_ref[3] ? 'var(--green)' : Eff >= IE_ref[2] ? 'var(--amber)' : 'var(--red)';
+  document.getElementById('gaugePath').style.stroke = gColor;
+  document.getElementById('gaugePath').style.strokeDashoffset = offset;
+  document.getElementById('gaugeText').textContent = Eff.toFixed(1) + '%';
+  document.getElementById('gaugeText').style.fill = gColor;
+
+  // KPIs
+  const lfClass = LF>90?'s-bad':LF>70?'s-good':LF>40?'s-warn':'s-bad';
+  document.getElementById('motorKpi').innerHTML = `
+    <div class="kpi-card green">
+      <div class="kpi-label">P_output</div>
+      <div class="kpi-value" style="color:var(--green);font-size:28px;">${(Pout/1000).toFixed(2)}</div>
+      <div class="kpi-unit">kW (${TotalLoss.toFixed(0)} W loss)</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">Load Factor</div>
+      <div class="kpi-value" style="color:var(--amber);font-size:28px;">${LF.toFixed(1)}</div>
+      <div class="kpi-unit">% (target 70–90%)</div>
+      <div class="kpi-status ${lfClass}">${LF>90?'🔴 Overload':LF>70?'✓ Normal':LF>40?'⚠ Low':'✗ Very Low'}</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">IE Class</div>
+      <div class="kpi-value" style="color:${ieColor};font-size:28px;">${ieClass}</div>
+      <div class="kpi-unit">η = ${Eff.toFixed(2)}%</div>
+      <div class="kpi-status ${Eff>=IE_ref[3]?'s-good':Eff>=IE_ref[2]?'s-warn':'s-bad'}">${Eff>=IE_ref[3]?'✓ Premium':Eff>=IE_ref[2]?'⚠ Standard':'✗ Low'}</div>
+    </div>`;
+
+  // Loss bar
+  const losses = [
+    {name:'Cu Stator', val:Pcu_st, color:'#1a4fa0'},
+    {name:'Cu Rotor',  val:Pcu_rot, color:'#2e6fd4'},
+    {name:'Core+F&W',  val:Pk, color:'#b06a00'},
+    {name:'Stray',     val:Pstray, color:'#5c35a0'},
+    {name:'Output',    val:Pout, color:'#176b3c'},
+  ];
+  const lossBar = document.getElementById('lossBar');
+  const lossLeg = document.getElementById('lossLegend');
+  lossBar.innerHTML = '';
+  lossLeg.innerHTML = '';
+  losses.forEach(({name,val,color}) => {
+    const pctSeg = val/Pin_W*100;
+    lossBar.insertAdjacentHTML('beforeend', `<div class="loss-seg" style="width:${pctSeg}%;background:${color};" title="${name}: ${pctSeg.toFixed(1)}%">${pctSeg>5?pctSeg.toFixed(0)+'%':''}</div>`);
+    lossLeg.insertAdjacentHTML('beforeend', `<span style="color:${color};font-family:var(--mono);font-size:10px;">■ ${name} ${pctSeg.toFixed(1)}%</span>`);
+  });
+
+  // Loss detail table
+  const tbody = document.getElementById('lossBody');
+  const rows = [
+    ['P_cu,st — Stator Copper Loss', Pcu_st, 3*Iload*Iload*Rhot, 'I²R ที่ Stator (Hot Resistance)'],
+    ['P_cu,rot — Rotor Copper Loss', Pcu_rot, 0, `P_gap × slip = ${Pgap.toFixed(0)}×${slip.toFixed(4)}`],
+    ['P_k — Core + F&W (Constant)', Pk, 0, `P_nl − P_cu,nl = ${Pnl}−${Pcu_nl.toFixed(0)}`],
+    ['P_stray — Stray Load Loss', Pstray, 0, 'IEC default: 0.5% × P_in'],
+    ['Σ Total Losses', TotalLoss, 0, ''],
+    ['P_output', Pout, 0, `Pin − ΣLoss`],
+  ];
+  tbody.innerHTML = rows.map(([n,v,,d]) => `
+    <tr>
+      <td class="${n.includes('Total')||n.includes('output')?'hi':''}">${n}</td>
+      <td class="${n.includes('Total')||n.includes('output')?'hi':''}">${v.toFixed(1)}</td>
+      <td>${(v/Pin_W*100).toFixed(2)}</td>
+      <td style="font-size:11px;">${d}</td>
+    </tr>`).join('');
+
+  // Formula steps
+  document.getElementById('formulaSteps').innerHTML = `
+    <div style="background:var(--bg2);border-radius:8px;padding:14px;font-family:var(--mono);font-size:12px;line-height:2;border:1px solid var(--border);">
+      <strong style="color:var(--blue);">Key Calculation Steps (IEC 60034-2-1 Method B):</strong><br>
+      R_hot = R_cold × (235+T_hot)/(235+T_cold) = ${Rcold}×(235+${T_hot})/(235+${T_cold}) = <strong>${Rhot.toFixed(5)} Ω</strong><br>
+      P_cu,nl = 3×I_nl²×R_cold = 3×${Inl}²×${Rcold} = <strong>${Pcu_nl.toFixed(1)} W</strong><br>
+      P_k = P_nl − P_cu,nl = ${Pnl} − ${Pcu_nl.toFixed(1)} = <strong>${Pk.toFixed(1)} W</strong><br>
+      N_sync = 120f/p = 120×${f}/${poles} = <strong>${Nsync} rpm</strong> → slip = <strong>${(slip*100).toFixed(2)}%</strong><br>
+      P_cu,st = 3×I_load²×R_hot = 3×${Iload}²×${Rhot.toFixed(5)} = <strong>${Pcu_st.toFixed(1)} W</strong><br>
+      P_cu,rot = P_gap×slip = ${Pgap.toFixed(1)}×${slip.toFixed(4)} = <strong>${Pcu_rot.toFixed(1)} W</strong><br>
+      η = (P_in−ΣLoss)/P_in = (${Pin_W}−${TotalLoss.toFixed(1)})/${Pin_W} × 100 = <strong style="color:${gColor};">${Eff.toFixed(2)}%</strong>
+    </div>`;
+
+  document.getElementById('motorResult').style.display = 'block';
+  buildIETable(Prated, Eff);
+  document.getElementById('motorResult').scrollIntoView({behavior:'smooth',block:'start'});
+  if (window.MathJax) MathJax.typesetPromise();
+}
+
+function buildIETable(highlightKW, measuredEff) {
+  const rows = IE_DATA.slice(0,16);
+  // Build HTML rows (same for both tables)
+  const makeRows = (tbodyId) => {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    tbody.innerHTML = rows.map(([kw,ie1,ie2,ie3,ie4]) => {
+      const isMeasured = highlightKW && Math.abs(kw-highlightKW)<1;
+      const measCell = isMeasured && measuredEff
+        ? `<td class="${measuredEff>=ie3?'good':measuredEff>=ie2?'warn':'bad'}">${measuredEff.toFixed(1)}%</td>
+           <td class="${measuredEff>=ie3?'good':measuredEff>=ie2?'warn':'bad'}">${measuredEff>=ie4?'IE4':measuredEff>=ie3?'IE3':measuredEff>=ie2?'IE2':'IE1'}</td>`
+        : '<td>—</td><td>—</td>';
+      return `<tr style="${isMeasured?'background:var(--blue-lt);':''}">
+        <td class="${isMeasured?'hi':''}">${kw}</td>
+        <td>${ie1.toFixed(1)}</td><td>${ie2.toFixed(1)}</td>
+        <td class="good">${ie3.toFixed(1)}</td><td class="good">${ie4.toFixed(1)}</td>
+        ${measCell}
+      </tr>`;
+    }).join('');
+  };
+  makeRows('ieBodyLab');  // inside Lab mode
+  makeRows('ieBody');     // shared table (M1, M2, initial)
+}
+
+// ═══════════════════════════════════════════════
+//  TAB 2: VFD SAVINGS
+// ═══════════════════════════════════════════════
+function buildAffinityTable() {
+  const N1 = parseFloat(document.getElementById('vfd_n1')?.value) || 1485;
+  const tbody = document.getElementById('affinityBody');
+  [100,90,80,70,60,50,40].forEach(pct => {
+    const N2 = N1 * pct/100;
+    const qPct = pct, hPct = pct**2/100, pPct = pct**3/10000;
+    const save = 100 - pPct;
+    const pClass = save>50?'good':save>25?'warn':'';
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td>${pct}%</td><td>${N2.toFixed(0)}</td>
+        <td>${qPct.toFixed(1)}%</td><td>${hPct.toFixed(1)}%</td>
+        <td class="${pClass}">${pPct.toFixed(1)}%</td>
+        <td class="${pClass}">${save.toFixed(1)}%</td>
+      </tr>`);
+  });
+}
+
+function calcVFD() {
+  const g = id => parseFloat(document.getElementById(id).value) || 0;
+  const Prated=g('vfd_prated'), eta=g('vfd_eta')/100||0.94;
+  const N1=g('vfd_n1'), N2=g('vfd_n2'), P1=g('vfd_p1');
+  const hrs=g('vfd_hrs'), rate=g('vfd_rate'), cost=g('vfd_cost');
+  const demandRate=g('vfd_demand');
+  const loadType = document.getElementById('vfd_loadtype').value;
+
+  if (!N1||!N2||!P1) { alert('กรอก N1, N2 และ P1 ก่อน'); return; }
+
+  const speedRatio = N2/N1;
+  let P2;
+  if (loadType === 'centrifugal') P2 = P1 * Math.pow(speedRatio, 3);
+  else if (loadType === 'positive') P2 = P1 * speedRatio;
+  else P2 = P1; // constant torque
+
+  // VFD loss ~3.5%
+  const VFD_LOSS = 0.035;
+  const P2_actual = P2 * (1 + VFD_LOSS);  // add VFD loss
+
+  const saving_kW = P1 - P2_actual;
+  const saving_kWh = saving_kW * hrs;
+  const saving_thb = saving_kWh * rate;
+  const demand_save = saving_kW * demandRate * 12;  // annual
+  const total_save = saving_thb + demand_save;
+  const payback = cost > 0 && total_save > 0 ? cost / total_save : 0;
+  const co2 = saving_kWh * 0.4999;  // kg CO2 (TGO grid EF 2024)
+
+  // KPIs
+  const pbClass = payback < 2 ? 's-good' : payback < 4 ? 's-warn' : 's-bad';
+  document.getElementById('vfdKpi').innerHTML = `
+    <div class="kpi-card green">
+      <div class="kpi-label">Power Saving</div>
+      <div class="kpi-value" style="color:var(--green);font-size:28px;">${saving_kW.toFixed(1)}</div>
+      <div class="kpi-unit">kW (${((1-P2_actual/P1)*100).toFixed(1)}% reduction)</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">Energy Saving</div>
+      <div class="kpi-value" style="color:var(--blue);font-size:28px;">${(saving_kWh/1000).toFixed(0)}</div>
+      <div class="kpi-unit">MWh/year</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">Cost Saving</div>
+      <div class="kpi-value" style="color:var(--amber);font-size:24px;">${(total_save/1000).toFixed(0)}k</div>
+      <div class="kpi-unit">บาท/year (Energy+Demand)</div>
+    </div>
+    <div class="kpi-card ${payback<2?'green':payback<4?'amber':'red'}">
+      <div class="kpi-label">Simple Payback</div>
+      <div class="kpi-value" style="font-size:28px;">${payback.toFixed(1)}</div>
+      <div class="kpi-unit">ปี</div>
+      <div class="kpi-status ${pbClass}">${payback<2?'✓ ดีมาก':payback<4?'⚠ ยอมรับได้':'✗ นาน'}</div>
+    </div>`;
+
+  document.getElementById('vfdDetail').innerHTML = `
+    <div style="font-family:var(--mono);font-size:12px;line-height:2;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);">
+      <strong>Speed Ratio:</strong> N₂/N₁ = ${N2}/${N1} = ${speedRatio.toFixed(4)} (${(speedRatio*100).toFixed(1)}%)<br>
+      <strong>P₂ (Affinity, N³):</strong> ${P1} × ${speedRatio.toFixed(4)}³ = <strong>${P2.toFixed(2)} kW</strong><br>
+      <strong>P₂ actual (+VFD loss 3.5%):</strong> <strong>${P2_actual.toFixed(2)} kW</strong><br>
+      <strong>Energy saving:</strong> ${saving_kW.toFixed(2)} kW × ${hrs} h = <strong>${saving_kWh.toFixed(0)} kWh/year</strong><br>
+      <strong>Energy cost saving:</strong> ${saving_kWh.toFixed(0)} × ฿${rate} = <strong>฿${saving_thb.toLocaleString('th-TH',{maximumFractionDigits:0})}/year</strong><br>
+      <strong>Demand saving:</strong> ${saving_kW.toFixed(2)} kW × ฿${demandRate}×12 = <strong>฿${demand_save.toLocaleString('th-TH',{maximumFractionDigits:0})}/year</strong><br>
+      <strong>CO₂ Reduction:</strong> ${(co2/1000).toFixed(2)} tCO₂/year (Grid EF 0.4999 kg/kWh)<br>
+      <strong>Simple Payback:</strong> ฿${cost.toLocaleString()} ÷ ฿${total_save.toLocaleString('th-TH',{maximumFractionDigits:0})} = <strong>${payback.toFixed(2)} ปี</strong>
+    </div>`;
+
+  drawVFDChart(N1, P1, speedRatio, loadType);
+  document.getElementById('vfdResult').style.display = 'block';
+}
+
+function drawVFDChart(N1, P1, ratio, loadType) {
+  const canvas = document.getElementById('vfdChart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth||480, H = 260;
+  canvas.width = W; canvas.height = H;
+  const pad = {t:30,r:20,b:45,l:60};
+  const cw = W-pad.l-pad.r, ch = H-pad.t-pad.b;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#f0f5fc'; ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle='rgba(160,185,215,0.5)'; ctx.lineWidth=0.5;
+  [0,0.25,0.5,0.75,1.0].forEach(v => {
+    const y=pad.t+ch-v*ch;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cw,y); ctx.stroke();
+    ctx.fillStyle='rgba(80,100,140,0.7)'; ctx.font='10px monospace'; ctx.textAlign='right';
+    ctx.fillText((v*P1).toFixed(0)+' kW', pad.l-6, y+4);
+  });
+  [0,0.25,0.5,0.75,1.0].forEach(v => {
+    const x=pad.l+v*cw;
+    ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,pad.t+ch); ctx.stroke();
+    ctx.fillStyle='rgba(80,100,140,0.7)'; ctx.font='9px monospace'; ctx.textAlign='center';
+    ctx.fillText((v*100).toFixed(0)+'%', x, H-pad.b+16);
+  });
+
+  // Curves
+  function plotCurve(exponent, color, label, dash=[]) {
+    ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.setLineDash(dash);
+    ctx.beginPath();
+    for (let i=0;i<=40;i++) {
+      const spd=i/40, p=P1*Math.pow(spd,exponent)/P1;
+      const x=pad.l+spd*cw, y=pad.t+ch-p*ch;
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=color; ctx.font='11px monospace'; ctx.textAlign='left';
+  }
+
+  plotCurve(3,'var(--blue)','Centrifugal P∝N³');
+  plotCurve(1,'var(--amber)','Const Torque P∝N',[5,3]);
+
+  // Current operating point
+  const curX=pad.l+ratio*cw, curY=pad.t+ch-(loadType==='centrifugal'?Math.pow(ratio,3):ratio)*ch;
+  ctx.beginPath(); ctx.arc(curX,curY,6,0,Math.PI*2); ctx.fillStyle='var(--red)'; ctx.fill();
+  ctx.fillStyle='var(--red)'; ctx.font='11px monospace'; ctx.textAlign='left';
+  ctx.fillText(`Target: ${(ratio*100).toFixed(0)}% speed`, curX+8, curY+4);
+
+  // Labels
+  ctx.fillStyle='rgba(60,80,140,0.7)'; ctx.font='11px monospace'; ctx.textAlign='center';
+  ctx.fillText('Speed Ratio (%)', pad.l+cw/2, H-4);
+  ctx.save(); ctx.translate(14,pad.t+ch/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('Power (kW)', 0, 0); ctx.restore();
+  ctx.fillStyle='rgba(0,60,140,0.5)'; ctx.font='12px monospace';
+  ctx.fillText('Power vs Speed Profile', pad.l+cw/2, pad.t-10);
+
+  ctx.fillStyle='var(--blue)'; ctx.fillRect(pad.l,14,18,3);
+  ctx.fillStyle='rgba(30,80,200,0.9)'; ctx.font='11px monospace'; ctx.textAlign='left'; ctx.fillText('Centrifugal (N³)',pad.l+24,19);
+  ctx.fillStyle='var(--amber)'; ctx.fillRect(pad.l+160,14,18,3);
+  ctx.fillStyle='rgba(176,106,0,0.9)'; ctx.fillText('Const Torque (N)',pad.l+184,19);
+}
+
+// ═══════════════════════════════════════════════
+//  TAB 3: FAULT DIAGNOSIS
+// ═══════════════════════════════════════════════
+function toggleFault(node) { node.classList.toggle('open'); }
+
+// Inline fault node style
+document.addEventListener('DOMContentLoaded', () => {
+  const style = document.createElement('style');
+  style.textContent = `.fault-node{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin:6px 0;cursor:pointer;transition:all 0.2s;border-left:4px solid var(--border2);}.fault-node:hover{border-left-color:var(--amber);background:rgba(176,106,0,0.04);}.fault-title{font-weight:600;color:var(--text);font-size:13px;}.fault-detail{font-size:12px;color:var(--text3);margin-top:4px;font-family:var(--mono);}.fault-remedy{display:none;margin-top:10px;padding:10px;background:var(--panel);border-radius:6px;border:1px solid var(--border);font-size:12px;line-height:1.8;color:var(--text2);}.fault-node.open .fault-remedy{display:block;}`;
+  document.head.appendChild(style);
+});
+
+function runMotorDiag() {
+  const g = id => parseFloat(document.getElementById(id).value) || 0;
+  const Pin=g('d_pin'), Iload=g('d_iload'), Irated=g('d_irated');
+  const Vmeas=g('d_vmeas'), Vrated=g('d_vrated');
+  const Vunbal=g('d_vunbal'), PF=g('d_pf');
+  const Temp=g('d_temp'), Vib=g('d_vib'), Prated=g('d_prated');
+
+  const LF = Irated>0 ? Iload/Irated*100 : 0;
+  const Vdev = Vrated>0 ? Math.abs(Vmeas-Vrated)/Vrated*100 : 0;
+  const pfClass = PF>0.9?'s-good':PF>0.8?'s-warn':'s-bad';
+  const lfClass = LF>100?'s-bad':LF>70?'s-good':LF>40?'s-warn':'s-bad';
+
+  document.getElementById('diagKpi').innerHTML = `
+    <div class="kpi-card blue"><div class="kpi-label">Load Factor (I)</div><div class="kpi-value" style="color:var(--blue);font-size:28px;">${LF.toFixed(1)}</div><div class="kpi-unit">% of Rated Current</div><div class="kpi-status ${lfClass}">${LF>100?'🔴 Overload':LF>70?'✓ Normal':LF>40?'⚠ Low':'✗ Very Low'}</div></div>
+    <div class="kpi-card teal"><div class="kpi-label">Power Factor</div><div class="kpi-value" style="color:var(--teal);font-size:28px;">${PF.toFixed(3)}</div><div class="kpi-unit">—</div><div class="kpi-status ${pfClass}">${PF>0.9?'✓ Good':PF>0.8?'⚠ Fair':'✗ Poor — ติด Capacitor'}</div></div>
+    <div class="kpi-card ${Vib>7?'red':Vib>4.5?'amber':'green'}"><div class="kpi-label">Vibration</div><div class="kpi-value" style="font-size:28px;">${Vib.toFixed(1)}</div><div class="kpi-unit">mm/s RMS</div><div class="kpi-status ${Vib>7?'s-bad':Vib>4.5?'s-warn':'s-good'}">${Vib>7?'🚨 Critical':Vib>4.5?'⚠ High':'✓ Normal'}</div></div>`;
+
+  let alerts = '';
+  if (LF > 100) alerts += `<div class="alert alert-danger">⚡ <div><strong>Overload (${LF.toFixed(1)}%)</strong> — กระแสเกินพิกัด อาจทำให้ Winding ไหม้ ตรวจ Thermal Relay</div></div>`;
+  if (LF < 40 && LF > 0) alerts += `<div class="alert alert-warn">📉 <div><strong>Underload (${LF.toFixed(1)}%)</strong> — Motor Oversized → Efficiency ต่ำ, PF ต่ำ พิจารณาเปลี่ยน Motor ขนาดเล็กหรือติด VFD</div></div>`;
+  if (Vunbal > 2) alerts += `<div class="alert alert-danger">⚠️ <div><strong>Voltage Unbalance สูง (${Vunbal.toFixed(1)}%)</strong> — กระแสไม่สมดุล → ความร้อนเพิ่ม +${(Vunbal*Vunbal*2).toFixed(0)}% พิจารณา Derate</div></div>`;
+  else if (Vunbal > 1) alerts += `<div class="alert alert-warn">⚠️ <div><strong>Voltage Unbalance (${Vunbal.toFixed(1)}%)</strong> — ตรวจ Fuse, Connection, Load Balance บน 3 Phase</div></div>`;
+  if (Vdev > 5) alerts += `<div class="alert alert-warn">🔌 <div><strong>Supply Voltage ผิดปกติ (${Vmeas}V vs ${Vrated}V)</strong> — ตรวจ Transformer Tap, Cable Voltage Drop</div></div>`;
+  if (PF < 0.8 && PF > 0) alerts += `<div class="alert alert-warn">⚡ <div><strong>Power Factor ต่ำ (${PF.toFixed(3)})</strong> — ค่าปรับ PF Penalty จาก MEA/PEA ติด Capacitor Bank</div></div>`;
+  if (Temp > 130) alerts += `<div class="alert alert-danger">🌡️ <div><strong>Winding Temp สูงมาก (${Temp}°C)</strong> — เกิน Class B (130°C) หยุดเครื่องตรวจ Cooling</div></div>`;
+  else if (Temp > 105) alerts += `<div class="alert alert-warn">🌡️ <div><strong>Winding Temp สูง (${Temp}°C)</strong> — ตรวจ Fan, Filter, Ambient Temp</div></div>`;
+  if (Vib > 7) alerts += `<div class="alert alert-danger">📳 <div><strong>Vibration Critical (${Vib} mm/s)</strong> — หยุดเครื่องทันที ตรวจ Bearing, Alignment, Unbalance</div></div>`;
+  else if (Vib > 4.5) alerts += `<div class="alert alert-warn">📳 <div><strong>Vibration สูง (${Vib} mm/s)</strong> — ISO 10816-3: เกิน Limit วางแผน Maintenance</div></div>`;
+  if (!alerts) alerts = `<div class="alert alert-success">✅ <div><strong>ค่าวัดอยู่ในเกณฑ์ปกติ</strong> — ไม่พบความผิดปกติที่ชัดเจน</div></div>`;
+
+  document.getElementById('diagAlerts').innerHTML = alerts;
+  document.getElementById('diagResult').style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════
+//  TAB 4: INSPECTION CHECKLIST
+// ═══════════════════════════════════════════════
+const CHECKLISTS = {
+  id: [
+    'Nameplate อ่านชัดเจน — kW, V, A, RPM, IE Class, Frame',
+    'ตรวจ Serial Number และ Manufacture Date',
+    'ตรวจ Thermal Class Insulation (B/F/H)',
+    'ตรวจ IP Rating ตรงกับสภาพแวดล้อม (IP54/IP55/IP65)',
+    'ตรวจ P&ID / Equipment List ตรงกับที่ติดตั้ง',
+  ],
+  elec: [
+    'วัด Supply Voltage ทั้ง 3 Phase — Unbalance &lt;1%',
+    'วัด Load Current ทั้ง 3 Phase — เปรียบกับ I_rated',
+    'วัด Power Factor — target &gt;0.85',
+    'ตรวจ Terminal Box — Connection ไม่หลวม, ไม่ร้อน',
+    'ตรวจ Cable Insulation — ไม่แตก, ไม่เสียดสี',
+    'ตรวจ Grounding / Earthing ครบ',
+    'ตรวจ Overload Relay ตั้งค่าถูก (95–105% I_rated)',
+    'วัด Insulation Resistance ≥ 100 MΩ @ 1000V DC (ปีละครั้ง)',
+  ],
+  mech: [
+    'ตรวจ Bearing Noise — ไม่มีเสียงดัง, ครูด, สั่น',
+    'วัด Bearing Temperature (DE&NDE) &lt;80°C',
+    'วัด Vibration ≤ ISO 10816-3 Limit',
+    'ตรวจ Coupling / Belt — ไม่สึกหรอ, Alignment ถูกต้อง',
+    'ตรวจ Fan Cover ไม่อุดตัน, ปีกพัดลมไม่หัก',
+    'ตรวจ Air Inlet / Outlet ไม่มีสิ่งกีดขวาง',
+    'ตรวจ Foundation Bolt แน่น ไม่สั่น',
+    'ตรวจสอบ Oil/Grease Lubrication ตาม Schedule',
+  ],
+  vfd: [
+    'ตรวจ VFD Output Frequency ตรงกับ Set Point',
+    'ตรวจ VFD Cooling Fan ทำงาน',
+    'ตรวจ VFD Display — Alarm/Fault Code',
+    'ตรวจ Input/Output Filter (ถ้ามี)',
+    'ตรวจ VFD Cabinet Temperature &lt;40°C',
+    'ตรวจ Parameter Setting ตรงกับ Motor Nameplate',
+    'ตรวจ Soft Starter (ถ้ามี) — ไม่ร้อน',
+  ],
+  safe: [
+    'ตรวจ Emergency Stop ทำงาน',
+    'ตรวจ Safety Guard ครบ — Coupling Cover, Belt Guard',
+    'ตรวจ Warning Label / Rotating Equipment Sign',
+    'ตรวจ Lock-out/Tag-out Procedure พร้อมใช้',
+    'ตรวจ Log Sheet / PM Record ครบ',
+  ],
+};
+
+function buildChecklist() {
+  Object.entries(CHECKLISTS).forEach(([key, items]) => {
+    const container = document.getElementById('cl_'+key);
+    if (!container || container.children.length > 0) return;
+    items.forEach((txt, j) => {
+      const id = `chk_${key}_${j}`;
+      const div = document.createElement('div');
+      div.className = 'check-item';
+      div.id = 'ci_'+id;
+      div.innerHTML = `<input type="checkbox" id="${id}" onchange="updateCheck();this.closest('.check-item').classList.toggle('checked',this.checked)"><label for="${id}">${txt}</label>`;
+      container.appendChild(div);
+    });
+  });
+  updateCheck();
+}
+
+function updateCheck() {
+  const all = document.querySelectorAll('[id^="chk_"]');
+  const done = document.querySelectorAll('[id^="chk_"]:checked');
+  const pct = all.length > 0 ? Math.round(done.length/all.length*100) : 0;
+  document.getElementById('chkProgress').textContent = `${done.length}/${all.length} completed`;
+  document.getElementById('chkScore').textContent = pct+'%';
+  document.getElementById('chkScore').style.color = pct>=80?'var(--green)':pct>=60?'var(--amber)':'var(--red)';
+  document.getElementById('chkBar').style.width = pct+'%';
+  document.getElementById('chkBar').style.background = pct>=80?'var(--green)':pct>=60?'var(--amber)':'var(--red)';
+}
+
+function clearAudit() {
+  document.querySelectorAll('[id^="chk_"]').forEach(el => { el.checked=false; el.closest('.check-item').classList.remove('checked'); });
+  ['a_plant','a_date','a_tag','a_brand','a_model','a_kw','a_app','a_notes',
+   'm_v12','m_v23','m_v31','m_i1','m_i2','m_i3','m_pin','m_pf',
+   'm_rpm','m_vib','m_tde','m_tnde','m_twin','m_ir'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('auditReport').style.display = 'none';
+  updateCheck();
+}
+
+function genReport() {
+  const v = id => document.getElementById(id)?.value || '—';
+  const all = document.querySelectorAll('[id^="chk_"]');
+  const done = document.querySelectorAll('[id^="chk_"]:checked');
+  const pct = all.length>0 ? Math.round(done.length/all.length*100) : 0;
+  const pcolor = pct>=80?'var(--green)':pct>=60?'var(--amber)':'var(--red)';
+
+  // Compute unbalance from 3-phase voltage
+  const v12=parseFloat(v('m_v12'))||0, v23=parseFloat(v('m_v23'))||0, v31=parseFloat(v('m_v31'))||0;
+  let vUnbalLine='';
+  if (v12&&v23&&v31) {
+    const vavg=(v12+v23+v31)/3;
+    const vmax=Math.max(Math.abs(v12-vavg),Math.abs(v23-vavg),Math.abs(v31-vavg));
+    const unbal = vmax/vavg*100;
+    vUnbalLine=`<tr><td style="color:var(--text3)">Voltage Unbalance</td><td class="${unbal>2?'bad':unbal>1?'warn':'good'}">${unbal.toFixed(2)}%</td></tr>`;
+  }
+
+  document.getElementById('reportContent').innerHTML = `
+    <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+      <div style="background:var(--bg3);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-family:var(--display);font-size:22px;color:var(--blue);letter-spacing:2px;">MOTOR AUDIT REPORT</div>
+          <div style="font-size:11px;color:var(--text3);font-family:var(--mono);">${v('a_plant')} · ${v('a_date')}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:10px;color:var(--text3);">ผู้ตรวจ</div>
+          <div style="font-family:var(--mono);font-weight:600;">${v('a_auditor')}</div>
+        </div>
+      </div>
+      <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <table class="data-table">
+          <tr><td style="color:var(--text3)">Tag</td><td class="hi">${v('a_tag')}</td></tr>
+          <tr><td style="color:var(--text3)">Brand / Model</td><td>${v('a_brand')} / ${v('a_model')}</td></tr>
+          <tr><td style="color:var(--text3)">Rating / IE</td><td>${v('a_kw')}</td></tr>
+          <tr><td style="color:var(--text3)">Application</td><td>${v('a_app')}</td></tr>
+          <tr><td style="color:var(--text3)">Power Input</td><td>${v('m_pin')} kW</td></tr>
+          <tr><td style="color:var(--text3)">Power Factor</td><td>${v('m_pf')}</td></tr>
+          <tr><td style="color:var(--text3)">Speed</td><td>${v('m_rpm')} RPM</td></tr>
+          <tr><td style="color:var(--text3)">Vibration</td><td>${v('m_vib')} mm/s</td></tr>
+          <tr><td style="color:var(--text3)">Winding Temp</td><td>${v('m_twin')} °C</td></tr>
+          <tr><td style="color:var(--text3)">Insulation R</td><td>${v('m_ir')} MΩ</td></tr>
+          ${vUnbalLine}
+        </table>
+        <div>
+          <div style="text-align:center;padding:20px;background:var(--bg);border-radius:8px;margin-bottom:12px;">
+            <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:4px;letter-spacing:1px;">CHECKLIST SCORE</div>
+            <div style="font-family:var(--display);font-size:52px;color:${pcolor};line-height:1;">${pct}%</div>
+            <div style="font-size:11px;color:var(--text3);font-family:var(--mono);">${done.length}/${all.length} passed</div>
+          </div>
+          <div class="alert ${pct>=80?'alert-success':pct>=60?'alert-warn':'alert-danger'}">
+            <span>${pct>=80?'✅':pct>=60?'⚠️':'🚨'}</span>
+            <div style="font-size:12px;">${pct>=80?'สภาพดี พร้อมใช้งาน':pct>=60?'ต้องการแก้ไขบางส่วน':'ต้องการบำรุงรักษาเร่งด่วน'}</div>
+          </div>
+          <div style="font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:8px;color:var(--text2);">
+            <strong style="font-family:var(--mono);font-size:10px;color:var(--text3);">NOTES:</strong><br>${v('a_notes')}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('auditReport').style.display = 'block';
+  document.getElementById('auditReport').scrollIntoView({behavior:'smooth'});
+}
+
+// ═══════════════════════════════════════════════
+//  REWINDING vs REPLACEMENT (ผชพ Manual 2.5, 2.11)
+// ═══════════════════════════════════════════════
+function calcRewinding() {
+  const g = id => parseFloat(document.getElementById(id).value) || 0;
+  const kW=g('rw_kw'), hrs=g('rw_hrs'), lf=g('rw_lf')/100;
+  const eff_old=g('rw_eff_old')/100, eff_new=g('rw_eff_new')/100;
+  const rate=g('rw_rate');
+  const cost_rewind=g('rw_cost_rewind'), cost_new=g('rw_cost_new');
+
+  if (!kW||!eff_old||!eff_new) { alert('กรอกข้อมูลให้ครบ'); return; }
+
+  // Energy consumed per year (from ผชพ formula)
+  // E = (kW_rated / eff) × LF × hrs  [kWh/year]
+  const E_rewind = (kW / eff_old) * lf * hrs;
+  const E_new    = (kW / eff_new) * lf * hrs;
+  const E_save   = E_rewind - E_new;
+  const cost_save = E_save * rate;
+
+  // Additional cost = New Motor - Rewinding
+  const add_cost = cost_new - cost_rewind;
+  const payback  = cost_save > 0 ? add_cost / cost_save : Infinity;
+
+  const pbColor = payback < 2 ? 'var(--green)' : payback < 4 ? 'var(--amber)' : 'var(--red)';
+  const verdict = payback < 3 ? '✅ แนะนำ: เปลี่ยน Motor ใหม่ IE3 — คุ้มค่ากว่า' : '⚠️ พิจารณาตามอายุ Motor และจำนวนครั้งที่พันแล้ว';
+
+  document.getElementById('rwResult').innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:var(--mono);font-size:12px;line-height:2.2;">
+      <strong style="color:var(--text);">📊 ผลการวิเคราะห์ (จากสูตร ผชพ ส่วน 2.5 & 2.11)</strong><br>
+      <span style="color:var(--text3);">E_rewind</span> = ${kW}/${eff_old.toFixed(2)} × ${lf} × ${hrs} = <strong>${E_rewind.toFixed(0)} kWh/year</strong><br>
+      <span style="color:var(--text3);">E_new (IE3)</span> = ${kW}/${eff_new.toFixed(2)} × ${lf} × ${hrs} = <strong>${E_new.toFixed(0)} kWh/year</strong><br>
+      <span style="color:var(--green);">Energy Saving</span> = ${E_save.toFixed(0)} kWh/year × ฿${rate} = <strong style="color:var(--green);">฿${cost_save.toFixed(0)}/year</strong><br>
+      <span style="color:var(--text3);">Additional Investment</span> = ฿${cost_new.toLocaleString()} − ฿${cost_rewind.toLocaleString()} = <strong>฿${add_cost.toLocaleString()}</strong><br>
+      <span style="color:var(--text3);">Simple Payback</span> = ฿${add_cost.toLocaleString()} ÷ ฿${cost_save.toFixed(0)} = <strong style="color:${pbColor};">${payback.toFixed(2)} ปี</strong><br>
+      <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
+      <span style="color:${pbColor};font-size:13px;">${verdict}</span>
+    </div>`;
+  document.getElementById('rwResult').style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════
+//  MOTOR SIZING — Core & Copper Loss (ผชพ 2.6)
+// ═══════════════════════════════════════════════
+function calcMotorSizing() {
+  const g = id => parseFloat(document.getElementById(id).value) || 0;
+  const kW=g('ms_kw'), eff=g('ms_eff')/100, pf_fl=g('ms_pf_fl');
+  const P_meas=g('ms_pin'), pf_op=g('ms_pf_op');
+  const core_pct=g('ms_core_pct')/100, cu_pct=1-core_pct;
+
+  if (!kW||!eff||!P_meas) { alert('กรอกข้อมูลให้ครบ'); return; }
+
+  // kVA operating vs kVA rated
+  const kVA_rated = kW / (eff * pf_fl);   // approximate kVA at full load
+  const kVA_op    = P_meas / pf_op;
+
+  // Loss components (ผชพ 2.6 formula)
+  // Core loss: P_rated × ((1/eff)−1) × core_pct  [constant]
+  // Copper loss: P_rated × ((1/eff)−1) × cu_pct × (kVA_op/kVA_rated)²  [variable]
+  const total_loss_fl = kW * (1/eff - 1);
+  const core_loss  = kW * (1/eff - 1) * core_pct;
+  const ratio_sq   = Math.pow(kVA_op / kVA_rated, 2);
+  const cu_loss    = kW * (1/eff - 1) * cu_pct * ratio_sq;
+  const total_loss = core_loss + cu_loss;
+
+  const LF = P_meas / kW * 100;
+  const lfColor = LF > 80 ? 'var(--green)' : LF > 50 ? 'var(--amber)' : 'var(--red)';
+
+  // Suggested motor size
+  const P_out_est = P_meas * eff;  // rough shaft output
+  const suggest = P_out_est / 0.85;  // target 85% load factor
+
+  document.getElementById('msResult').innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:var(--mono);font-size:12px;line-height:2.2;">
+      <strong style="color:var(--text);">📊 Motor Sizing Analysis (ผชพ 2.6)</strong><br>
+      <span style="color:var(--text3);">kVA_rated</span> ≈ ${kVA_rated.toFixed(2)} kVA · <span style="color:var(--text3);">kVA_op</span> = ${kVA_op.toFixed(2)} kVA<br>
+      <span style="color:var(--text3);">Load Factor</span> = ${LF.toFixed(1)}% <span style="color:${lfColor};">${LF>80?'✅ เหมาะสม':LF>50?'⚠️ ต่ำกว่า Optimum':'❌ Oversized มาก'}</span><br>
+      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
+      <strong style="color:var(--blue);">Loss Breakdown ขณะทำงาน:</strong><br>
+      Core Loss (คงที่) = ${kW}×(1/${eff.toFixed(3)}−1)×${(core_pct*100).toFixed(0)}% = <strong>${core_loss.toFixed(3)} kW</strong><br>
+      Cu Loss (variable) = ${kW}×(1/${eff.toFixed(3)}−1)×${(cu_pct*100).toFixed(0)}%×(${kVA_op.toFixed(2)}/${kVA_rated.toFixed(2)})² = <strong>${cu_loss.toFixed(3)} kW</strong><br>
+      Total Loss ขณะทำงาน = <strong>${total_loss.toFixed(3)} kW</strong> (Full-load loss = ${total_loss_fl.toFixed(3)} kW)<br>
+      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
+      <span style="color:var(--purple);">💡 แนะนำ Motor ขนาดประมาณ <strong>${suggest.toFixed(1)} kW</strong> เพื่อ Load Factor ≈ 85%</span>
+    </div>`;
+  document.getElementById('msResult').style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  switchMode('lab');
+  buildIETable();
+  buildAffinityTable();
+  buildChecklist();
+  document.getElementById('a_date').value = new Date().toISOString().split('T')[0];
+});
+document.getElementById('tab-vfd').addEventListener('click', buildAffinityTable);
+</script>
+</body>
+</html>
