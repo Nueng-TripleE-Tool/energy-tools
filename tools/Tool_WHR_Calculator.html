@@ -1,0 +1,3155 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waste Heat Recovery Calculator — Triple E Technology</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Bebas+Neue&display=swap');
+
+  :root {
+    --bg:         #f5f7fa;
+    --surface:    #ffffff;
+    --surface2:   #eef1f5;
+    --border:     #d0d7de;
+    --border2:    #adb5bd;
+    --text:       #1c2128;
+    --text2:      #57606a;
+    --text3:      #8c959f;
+    --accent:     #cf4f2a;   /* heat / fire tone */
+    --accent2:    #0969da;   /* cool / water */
+    --accent3:    #1a7f37;   /* efficiency / green */
+    --accent4:    #9a6700;   /* gold / metal */
+    --red:        #cf222e;
+    --purple:     #8250df;
+    --glow:       rgba(207,79,42,0.10);
+    --r:          8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    background: linear-gradient(135deg, #fff3ee 0%, #ffffff 60%);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo-block { display:flex; align-items:center; gap:10px; }
+  .logo-flame {
+    width: 36px; height: 36px;
+    background: linear-gradient(145deg, #ff6a00, #ee0979);
+    border-radius: 50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px;
+    box-shadow: 0 0 16px rgba(238,9,121,0.4);
+  }
+  .logo-text { line-height:1.1; }
+  .logo-text .title {
+    font-family:'Bebas Neue',sans-serif;
+    font-size:22px; letter-spacing:2px;
+    color: var(--accent);
+  }
+  .logo-text .sub { font-size:11px; color: var(--text3); letter-spacing:1px; }
+  .header-right { margin-left:auto; display:flex; gap:8px; align-items:center; }
+  .badge {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 3px 10px;
+    font-size: 11px; color: var(--text2); font-family:'IBM Plex Mono',monospace;
+  }
+  .badge.active { background: rgba(86,211,100,0.1); border-color: var(--accent3); color: var(--accent3); }
+
+  /* ─── NAV TABS ─── */
+  .nav-tabs {
+    display:flex; gap:2px; padding:12px 24px 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    padding: 10px 18px; border:none; cursor:pointer;
+    background:transparent; color: var(--text2);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-size:13px; border-radius: 6px 6px 0 0;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+    display:flex; align-items:center; gap:7px;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--surface2); }
+  .tab-btn.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+    background: var(--bg);
+  }
+  .tab-btn .tab-icon { font-size:16px; }
+
+  /* ─── MAIN LAYOUT ─── */
+  .main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+
+  /* ─── SECTION CARDS ─── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 12px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display:flex; align-items:center; gap:8px;
+    font-weight:600; font-size:13px;
+  }
+  .card-header .dot {
+    width:8px; height:8px; border-radius:50%;
+    background: var(--accent); flex-shrink:0;
+  }
+  .card-header .dot.blue { background: var(--accent2); }
+  .card-header .dot.green { background: var(--accent3); }
+  .card-header .dot.gold { background: var(--accent4); }
+  .card-body { padding: 16px; }
+
+  /* ─── GRID ─── */
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+  .grid-4 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:16px; }
+  @media(max-width:900px) { .grid-3,.grid-4 { grid-template-columns:1fr 1fr; } }
+  @media(max-width:600px) { .grid-2,.grid-3,.grid-4 { grid-template-columns:1fr; } }
+
+  /* ─── FORM ELEMENTS ─── */
+  .field { margin-bottom:12px; }
+  .field label {
+    display:block; font-size:12px; color:var(--text2);
+    margin-bottom:4px; font-weight:500;
+  }
+  .field label span { color:var(--text3); font-weight:400; }
+  input[type=number], select, input[type=text] {
+    width:100%; padding:8px 10px;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius:5px;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size:13px;
+    outline:none;
+    transition: border 0.2s;
+  }
+  input[type=number]:focus, select:focus, input[type=text]:focus {
+    border-color: var(--accent2);
+  }
+  select option { background: var(--surface2); }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    padding: 9px 20px; border:none; cursor:pointer;
+    border-radius:6px; font-family:'IBM Plex Sans Thai',sans-serif;
+    font-size:13px; font-weight:600;
+    transition: all 0.2s; display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #e05a44);
+    color:#fff;
+  }
+  .btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
+  .btn-secondary {
+    background: var(--surface2); border:1px solid var(--border2);
+    color: var(--text2);
+  }
+  .btn-secondary:hover { border-color: var(--accent2); color: var(--text); }
+  .btn-group { display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
+
+  /* ─── RESULT DISPLAY ─── */
+  .result-panel {
+    background: #f5f7fa;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 16px;
+    margin-top: 12px;
+  }
+  .result-panel.hidden { display:none; }
+  .result-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; }
+  .result-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius:6px; padding:12px;
+    text-align:center;
+  }
+  .result-item .r-label { font-size:11px; color:var(--text3); margin-bottom:4px; }
+  .result-item .r-value {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:20px; font-weight:600;
+    color: var(--accent);
+  }
+  .result-item .r-unit { font-size:11px; color:var(--text3); }
+  .result-item.highlight { border-color: var(--accent3); }
+  .result-item.highlight .r-value { color: var(--accent3); }
+  .result-item.blue { border-color: var(--accent2); }
+  .result-item.blue .r-value { color: var(--accent2); }
+  .result-item.gold { border-color: var(--accent4); }
+  .result-item.gold .r-value { color: var(--accent4); }
+
+  /* ─── SANKEY / FLOW VISUAL ─── */
+  .sankey-wrap { margin-top:12px; }
+  .sankey-bar { display:flex; align-items:stretch; height:50px; border-radius:6px; overflow:hidden; margin-bottom:6px; }
+  .sankey-seg {
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:600; color:#fff;
+    transition: width 0.5s ease; min-width:0; overflow:hidden;
+  }
+  .sankey-label { display:flex; gap:2px; flex-wrap:wrap; margin-top:4px; }
+  .sankey-legend { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text2); }
+  .sankey-legend span { width:12px;height:12px; border-radius:2px; display:inline-block; }
+
+  /* ─── INFO BOX ─── */
+  .info-box {
+    background: rgba(9,105,218,0.05);
+    border: 1px solid rgba(9,105,218,0.2);
+    border-radius:6px; padding:12px;
+    font-size:12px; color: var(--text2);
+    line-height:1.6; margin-top:12px;
+  }
+  .info-box strong { color: var(--accent2); }
+
+  /* ─── FORMULA BOX ─── */
+  .formula-box {
+    background: #f0f2f5;
+    border-left: 3px solid var(--purple);
+    padding: 10px 14px; margin: 8px 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size:12px; color: var(--text2);
+    border-radius:0 4px 4px 0;
+    white-space:pre-wrap;
+  }
+
+  /* ─── TABLE ─── */
+  .data-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .data-table th {
+    background: var(--surface2); color: var(--text2);
+    padding:8px 10px; text-align:left; font-weight:600;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td {
+    padding:7px 10px; border-bottom:1px solid var(--border);
+    font-family:'IBM Plex Mono',monospace; color:var(--text);
+  }
+  .data-table tr:hover td { background: var(--surface2); }
+  .data-table tr:last-child td { border-bottom: none; }
+
+  /* ─── MODE SELECTOR ─── */
+  .mode-selector { display:flex; gap:0; margin-bottom:16px; }
+  .mode-btn {
+    flex:1; padding:10px; border:1px solid var(--border);
+    background:var(--surface2); color:var(--text2);
+    cursor:pointer; font-family:'IBM Plex Sans Thai',sans-serif;
+    font-size:13px; transition:all 0.2s;
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+  }
+  .mode-btn:first-child { border-radius:6px 0 0 6px; }
+  .mode-btn:last-child { border-radius:0 6px 6px 0; }
+  .mode-btn:not(:last-child) { border-right:none; }
+  .mode-btn .mode-icon { font-size:22px; }
+  .mode-btn.active { background:var(--bg); color:var(--text); border-color:var(--accent); z-index:1; }
+
+  /* ─── SCHEMATIC SVG ─── */
+  .schematic-wrap { background:#f5f7fa; border-radius:6px; padding:12px; overflow:auto; }
+
+  /* ─── DIVIDER ─── */
+  .divider { border:none; border-top:1px solid var(--border); margin:16px 0; }
+
+  /* ─── STEP INDICATOR ─── */
+  .step { display:flex; gap:10px; margin-bottom:8px; }
+  .step-num {
+    width:24px; height:24px; border-radius:50%;
+    background:var(--accent); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:700; flex-shrink:0;
+  }
+  .step-content { padding-top:3px; }
+
+  /* ─── EFFICIENCY GAUGE ─── */
+  .gauge-wrap { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  .gauge {
+    width:120px; height:120px; position:relative;
+    flex-shrink:0;
+  }
+  .gauge svg { width:100%; height:100%; }
+
+  /* ─── TOOLTIP ─── */
+  [title] { cursor:help; border-bottom:1px dashed var(--border2); }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:#f5f7fa; }
+  ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+
+  .section-title {
+    font-family:'Bebas Neue',sans-serif;
+    font-size:18px; letter-spacing:2px;
+    color:var(--accent); margin-bottom:16px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-title::after {
+    content:''; flex:1; height:1px; background:var(--border);
+  }
+
+  .warn { color:var(--accent); font-size:12px; }
+  .ok   { color:var(--accent3); font-size:12px; }
+
+  /* summary report */
+  .summary-row {
+    display:flex; justify-content:space-between;
+    padding:6px 0; border-bottom:1px solid var(--border);
+    font-size:13px;
+  }
+  .summary-row:last-child { border-bottom:none; }
+  .summary-row .s-label { color:var(--text2); }
+  .summary-row .s-val { font-family:'IBM Plex Mono',monospace; color:var(--text); }
+
+  .print-btn {
+    background:var(--surface2); border:1px solid var(--border2);
+    color:var(--text2); padding:8px 16px; border-radius:6px;
+    cursor:pointer; font-size:13px;
+  }
+  .print-btn:hover { border-color:var(--accent4); color:var(--accent4); }
+
+  /* ─── HX TYPE CARD ─── */
+  .hx-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px; margin: 12px 0;
+  }
+  .hx-type-btn {
+    border: 2px solid var(--border); border-radius: 8px;
+    background: var(--surface2); cursor: pointer;
+    padding: 10px 8px; text-align: center;
+    transition: all 0.2s; display: flex; flex-direction: column;
+    align-items: center; gap: 4px;
+  }
+  .hx-type-btn:hover { border-color: var(--accent2); background: rgba(9,105,218,0.05); }
+  .hx-type-btn.selected { border-color: var(--accent2); background: rgba(9,105,218,0.08); }
+  .hx-type-btn .hx-icon { font-size: 22px; }
+  .hx-type-btn .hx-name { font-size: 12px; font-weight: 700; color: var(--text); }
+  .hx-type-btn .hx-u    { font-size: 11px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; }
+  .hx-type-btn .hx-eta  { font-size: 11px; color: var(--accent3); font-weight: 600; }
+
+  /* approach temp bar */
+  .approach-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 14px; margin: 10px 0;
+  }
+  .approach-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 20px; font-weight: 700; min-width: 60px;
+  }
+  .approach-val.ok   { color: var(--accent3); }
+  .approach-val.warn { color: var(--accent4); }
+  .approach-val.bad  { color: var(--red); }
+  .approach-label { font-size: 12px; color: var(--text2); }
+
+  /* HX result panel */
+  .hx-result-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px; margin-top: 10px;
+  }
+  .hx-kpi {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; text-align: center;
+  }
+  .hx-kpi .kpi-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px; font-weight: 700; color: var(--accent2);
+  }
+  .hx-kpi .kpi-lbl { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .hx-kpi.green .kpi-val { color: var(--accent3); }
+  .hx-kpi.gold  .kpi-val { color: var(--accent4); }
+
+  /* recommendation pills */
+  .rec-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    border-radius: 20px; padding: 4px 12px; font-size: 11px;
+    font-weight: 600; margin: 3px;
+  }
+  .rec-pill.best  { background: rgba(26,127,55,0.12); color: var(--accent3); border:1px solid var(--accent3); }
+  .rec-pill.good  { background: rgba(9,105,218,0.08); color: var(--accent2); border:1px solid var(--accent2); }
+  .rec-pill.avoid { background: rgba(207,34,46,0.08); color: var(--red);     border:1px solid var(--red); }
+
+  /* ─── CALCULATION TRACE ─── */
+  .calc-trace {
+    margin-top: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    overflow: hidden;
+  }
+  .calc-trace-header {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface2); padding: 10px 14px;
+    cursor: pointer; user-select: none;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px; font-weight: 600; color: var(--text2);
+    gap: 8px;
+  }
+  .calc-trace-header:hover { color: var(--text); }
+  .calc-trace-header .trace-icon { font-size: 15px; }
+  .calc-trace-header .chevron {
+    margin-left: auto; font-size: 12px; transition: transform 0.2s;
+  }
+  .calc-trace-header.open .chevron { transform: rotate(180deg); }
+  .calc-trace-body {
+    display: none; padding: 14px 16px;
+    background: var(--surface);
+  }
+  .calc-trace-body.open { display: block; }
+
+  /* equation step rows */
+  .eq-step {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 6px 10px;
+    align-items: start;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .eq-step:last-child { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+  .eq-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+  }
+  .eq-num.blue   { background: var(--accent2); }
+  .eq-num.green  { background: var(--accent3); }
+  .eq-num.gold   { background: var(--accent4); }
+  .eq-content { font-size: 12px; }
+  .eq-title { font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .eq-formula {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; color: var(--purple);
+    background: #f0f0ff; border-radius: 4px;
+    padding: 4px 8px; margin: 3px 0;
+    display: block; white-space: pre-wrap;
+  }
+  .eq-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; color: var(--accent2);
+    background: rgba(9,105,218,0.05);
+    border-radius: 4px; padding: 3px 8px; margin: 3px 0;
+    display: block; white-space: pre-wrap;
+  }
+  .eq-result {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px; font-weight: 700; color: var(--accent3);
+    background: rgba(26,127,55,0.07);
+    border-radius: 4px; padding: 4px 10px; margin-top: 4px;
+    display: inline-block;
+  }
+  .eq-note { font-size: 11px; color: var(--text3); margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════ HEADER -->
+<header>
+  <div class="logo-block">
+    <div class="logo-flame">🔥</div>
+    <div class="logo-text">
+      <div class="title">WHR CALCULATOR</div>
+      <div class="sub">WASTE HEAT RECOVERY · TRIPLE E TECHNOLOGY</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="badge active">v1.0</span>
+    <span class="badge">KMUTT WHR Guide / JIS B8222</span>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════ NAV -->
+<div class="nav-tabs">
+  <button class="tab-btn active" onclick="switchTab('intro',this)">
+    <span class="tab-icon">📋</span>ภาพรวม
+  </button>
+  <button class="tab-btn" onclick="switchTab('air',this)">
+    <span class="tab-icon">💨</span>1. อุ่นอากาศ (Air Preheating)
+  </button>
+  <button class="tab-btn" onclick="switchTab('water',this)">
+    <span class="tab-icon">💧</span>2. อุ่นน้ำ / Economizer
+  </button>
+  <button class="tab-btn" onclick="switchTab('metal',this)">
+    <span class="tab-icon">⚙️</span>3. อุ่นวัตถุดิบโลหะ
+  </button>
+  <button class="tab-btn" onclick="switchTab('drying',this)">
+    <span class="tab-icon">🌿</span>4. อบแห้งชีวมวล (WHR Drying)
+  </button>
+  <button class="tab-btn" onclick="switchTab('combined',this)">
+    <span class="tab-icon">📊</span>สรุปรวม
+  </button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ MAIN -->
+<div class="main">
+
+<!-- ─────────────────── TAB: INTRO ─────────────────── -->
+<div id="tab-intro" class="tab-content active">
+  <div class="section-title">🔥 หลักการนำความร้อนทิ้งจากไอเสียกลับมาใช้</div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:16px">
+    <div class="card" style="border-top:3px solid var(--accent)">
+      <div class="card-header"><div class="dot"></div>Mode 1: Air Preheating</div>
+      <div class="card-body">
+        <div style="font-size:32px;text-align:center;margin:8px 0">💨</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.6">นำไอเสียร้อนผ่าน <strong>Recuperator / Regenerator</strong> เพื่ออุ่นอากาศก่อนเข้าหัวเผา ลดการสูญเสียพลังงานใน Flue Gas และลดการใช้เชื้อเพลิง</p>
+        <div class="formula-box">Q_air = ṁ_fg × Cp_fg × (Tfg_in − Tfg_out)
+= ṁ_air × Cp_air × (Tair_out − Tair_in)</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">อ้างอิง: JIS B8222, KMUTT WHR Guide บทที่ 2</div>
+      </div>
+    </div>
+
+    <div class="card" style="border-top:3px solid var(--accent2)">
+      <div class="card-header"><div class="dot blue"></div>Mode 2: Economizer / Water Heating</div>
+      <div class="card-body">
+        <div style="font-size:32px;text-align:center;margin:8px 0">💧</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.6">นำไอเสียอุ่นน้ำป้อน (Feedwater) หรือน้ำกระบวนการผลิต ด้วย <strong>Economizer</strong> ต่อท้าย Boiler / เตาเผา ลดการใช้พลังงานในการต้มน้ำ</p>
+        <div class="formula-box">Q_water = ṁ_w × Cp_w × (Tw_out − Tw_in)
+Cp_water ≈ 4.187 kJ/(kg·K)</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">อ้างอิง: KMUTT WHR Guide บทที่ 5.1–5.3</div>
+      </div>
+    </div>
+
+    <div class="card" style="border-top:3px solid var(--accent4)">
+      <div class="card-header"><div class="dot gold"></div>Mode 3: Metal Load Preheating</div>
+      <div class="card-body">
+        <div style="font-size:32px;text-align:center;margin:8px 0">⚙️</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.6">นำไอเสียอุ่น <strong>วัตถุดิบโลหะ</strong> (เหล็กแท่ง/อะลูมิเนียมก้อน) ก่อนเข้าเตาเผาหรือเตาหลอม ลดระยะเวลาและพลังงานในกระบวนการ</p>
+        <div class="formula-box">Q_metal = m × Cp_metal × (Tmetal_out − Tmetal_in)
+Steel: Cp ≈ 0.49 kJ/(kg·K)  Al: Cp ≈ 0.90 kJ/(kg·K)</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">อ้างอิง: KMUTT WHR Guide บทที่ 2.3.3, 3.4</div>
+      </div>
+    </div>
+    <div class="card" style="border-top:3px solid #2d9a4e">
+      <div class="card-header"><div class="dot" style="background:#2d9a4e"></div>Mode 4: WHR Biomass Drying</div>
+      <div class="card-body">
+        <div style="font-size:32px;text-align:center;margin:8px 0">🌿</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.6">นำความร้อนทิ้งจากไอเสียมา<strong>อบแห้งวัสดุชีวมวลสด</strong> เช่น ไม้สับสด ทะลายปาล์ม ใยปาล์ม เพื่อลดความชื้นและเพิ่ม NCV ก่อนเข้าเตาเผา</p>
+        <div class="formula-box">Q_dry = m_wet × (MC_in − MC_out)/(1−MC_out) × h_fg
+h_fg (water evap.) ≈ 2,260 kJ/kg @ 100°C</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">อ้างอิง: ASHRAE Drying Fundamentals / FAO Biomass Handbook</div>
+      </div>
+    </div>
+  </div><!-- end mode cards grid -->
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-header"><div class="dot"></div>⚡ ข้อมูลไอเสีย (Flue Gas) — ใช้ร่วมกันทุก Mode</div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">กรอกข้อมูลไอเสียจากการวัดภาคสนาม (Testo 330/335 หรือแผงควบคุม) ระบบจะแชร์ค่าเหล่านี้ไปยังทุก Mode การคำนวณ</p>
+      <div style="display:grid;grid-template-columns:1fr 160px;gap:20px;align-items:start">
+        <!-- Input fields -->
+        <div class="grid-3">
+          <div class="field">
+            <label>เชื้อเพลิง <span>(Fuel Type)</span></label>
+            <select id="g_fuel" onchange="updateFuelProps()">
+              <optgroup label="⛽ Gas Fuels (หน่วย Nm³/hr)">
+                <option value="ng_methane">Natural Gas / CNG (CH₄ ~95%)</option>
+                <option value="biogas_60">Biogas (CH₄ 60%, CO₂ 40%)</option>
+                <option value="hydrogen">Hydrogen H₂ (100%)</option>
+              </optgroup>
+              <optgroup label="🛢️ Liquid Fuels (หน่วย kg/hr)">
+                <option value="lpg_6040">LPG (C₃H₈:C₄H₁₀ = 60:40) — อุตสาหกรรมไทย</option>
+                <option value="lpg_propane">LPG Pure Propane C₃H₈</option>
+                <option value="lpg_butane">LPG Pure Butane C₄H₁₀</option>
+                <option value="diesel">Diesel / Gas Oil (B0)</option>
+                <option value="fuel_oil_a">Fuel Oil A (FO-A)</option>
+                <option value="fuel_oil_c">Fuel Oil C (FO-C, Bunker)</option>
+                <option value="kerosene">Kerosene / Jet A-1</option>
+                <option value="palm_oil">Palm Oil / Biodiesel (B100)</option>
+              </optgroup>
+              <optgroup label="🪵 Solid Fuels (หน่วย kg/hr)">
+                <option value="coal_24m">Bituminous Coal M=24%</option>
+                <option value="coal_28m">Bituminous Coal M=28%</option>
+                <option value="wood_8m">Wood / Biomass M=8%</option>
+                <option value="wood_16m">Wood / Biomass M=16%</option>
+                <option value="wood_pellet">Wood Pellet M=8%</option>
+                <option value="bagasse">Bagasse ชานอ้อย M=50%</option>
+                <option value="rice_husk">Rice Husk แกลบ M=12%</option>
+              </optgroup>
+              <optgroup label="⚙️ Custom">
+                <option value="custom">Custom (กรอกเอง)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="field">
+            <label id="g_flow_label">อัตราการไหลเชื้อเพลิง <span>(Nm³/hr)</span></label>
+            <input type="number" id="g_fuel_flow" value="3.0" step="0.1" onchange="syncGlobal()">
+          </div>
+          <div class="field">
+            <label>หน่วยเชื้อเพลิง &nbsp;
+              <span id="g_phase_badge" style="font-weight:700;font-size:12px;color:var(--accent2)">⛽ Gas</span>
+            </label>
+            <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:13px;">
+              <span id="g_fuel_unit_display" style="font-weight:600;color:var(--text)">Nm³/hr</span>
+              <span style="font-size:11px;color:var(--text3);margin-left:8px" id="g_fuel_note">เชื้อเพลิงก๊าซหลักในภาคอุตสาหกรรมไทย</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>%O₂ ในไอเสีย <span>(%vol dry)</span></label>
+            <input type="number" id="g_o2" value="4.5" step="0.1" min="0" max="20" onchange="syncGlobal()">
+          </div>
+          <div class="field">
+            <label>อุณหภูมิไอเสียออกจากเตา Tfg₁ <span>(°C)</span></label>
+            <input type="number" id="g_tfg_in" value="745" step="1" onchange="syncGlobal()">
+          </div>
+          <div class="field">
+            <label>อุณหภูมิอากาศ/ห้อง Ta <span>(°C)</span></label>
+            <input type="number" id="g_tamb" value="33" step="0.5" onchange="syncGlobal()">
+          </div>
+        </div>
+        <!-- Computed results column -->
+        <div style="display:flex;flex-direction:column;gap:8px;min-width:150px;align-self:start">
+          <div class="result-item" style="padding:10px 12px">
+            <div class="r-label">Excess Air</div>
+            <div class="r-value" id="g_ea" style="font-size:16px">—</div>
+            <div class="r-unit">%</div>
+          </div>
+          <div class="result-item" style="padding:10px 12px">
+            <div class="r-label">Flue Gas Flow (ṁ_fg)</div>
+            <div class="r-value" id="g_mfg" style="font-size:16px">—</div>
+            <div class="r-unit">Nm³/hr</div>
+          </div>
+          <div class="result-item" style="padding:10px 12px">
+            <div class="r-label">Cp_fg (est.)</div>
+            <div class="r-value" id="g_cpfg" style="font-size:16px">—</div>
+            <div class="r-unit">kJ/(Nm³·K)</div>
+          </div>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="calcGlobal()">🔄 คำนวณ / อัพเดตทุก Mode</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>วิธีใช้:</strong> (1) กรอกข้อมูลไอเสียในส่วน "ข้อมูลร่วม" แล้วกด คำนวณ → (2) เลือก Tab ที่ต้องการ → (3) กรอกข้อมูลเฉพาะ Mode → กด คำนวณอีกครั้ง → ดูผลสรุปใน Tab "สรุปรวม"
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <div class="card-header"><div class="dot"></div>📋 ตารางคุณสมบัติเชื้อเพลิงอ้างอิง (อ้างอิง: EnPI TripleE v51)</div>
+    <div class="card-body" style="overflow-x:auto">
+      <table class="data-table" style="min-width:700px">
+        <thead>
+          <tr>
+            <th>เชื้อเพลิง</th>
+            <th>สถานะ</th>
+            <th>NCV (LHV)</th>
+            <th>HHV</th>
+            <th>หน่วย</th>
+            <th>EF (kgCO₂)</th>
+            <th>Cp_fg est.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:rgba(9,105,218,0.05)"><td colspan="7" style="font-weight:700;color:var(--accent2);padding:6px 10px">⛽ Gas Fuels</td></tr>
+          <tr><td>Natural Gas / CNG</td><td>Gas</td><td>35.8</td><td>39.9</td><td>MJ/Nm³</td><td>2.035</td><td>1.38</td></tr>
+          <tr><td>Biogas (CH₄ 60%)</td><td>Gas</td><td>21.5</td><td>23.9</td><td>MJ/Nm³</td><td>0.0*</td><td>1.52</td></tr>
+          <tr><td>Hydrogen H₂</td><td>Gas</td><td>10.8</td><td>12.75</td><td>MJ/Nm³</td><td>0.0</td><td>1.29</td></tr>
+          <tr style="background:rgba(154,103,0,0.05)"><td colspan="7" style="font-weight:700;color:var(--accent4);padding:6px 10px">🛢️ Liquid Fuels</td></tr>
+          <tr><td>LPG (C₃H₈:C₄H₁₀ = 60:40)</td><td>Liquid</td><td>46.1</td><td>50.2</td><td>MJ/kg</td><td>2.99</td><td>1.42</td></tr>
+          <tr><td>LPG Pure Propane C₃H₈</td><td>Liquid</td><td>46.4</td><td>50.4</td><td>MJ/kg</td><td>2.99</td><td>1.43</td></tr>
+          <tr><td>LPG Pure Butane C₄H₁₀</td><td>Liquid</td><td>45.7</td><td>49.5</td><td>MJ/kg</td><td>2.99</td><td>1.44</td></tr>
+          <tr><td>Diesel / Gas Oil</td><td>Liquid</td><td>42.7</td><td>45.5</td><td>MJ/kg</td><td>2.675</td><td>1.36</td></tr>
+          <tr><td>Fuel Oil A (FO-A)</td><td>Liquid</td><td>40.2</td><td>42.4</td><td>MJ/kg</td><td>3.096</td><td>1.35</td></tr>
+          <tr><td>Fuel Oil C (Bunker)</td><td>Liquid</td><td>39.8</td><td>42.0</td><td>MJ/kg</td><td>3.180</td><td>1.35</td></tr>
+          <tr><td>Palm Oil / B100</td><td>Liquid</td><td>34.5</td><td>37.2</td><td>MJ/kg</td><td>0.0*</td><td>1.38</td></tr>
+          <tr style="background:rgba(26,127,55,0.05)"><td colspan="7" style="font-weight:700;color:var(--accent3);padding:6px 10px">🪵 Solid Fuels</td></tr>
+          <tr><td>Bituminous Coal M=24%</td><td>Solid</td><td>18.5</td><td>20.1</td><td>MJ/kg</td><td>2.470</td><td>1.35</td></tr>
+          <tr><td>Bituminous Coal M=28%</td><td>Solid</td><td>16.8</td><td>18.3</td><td>MJ/kg</td><td>2.340</td><td>1.35</td></tr>
+          <tr><td>Wood / Biomass M=8%</td><td>Solid</td><td>16.0</td><td>17.3</td><td>MJ/kg</td><td>0.0*</td><td>1.40</td></tr>
+          <tr><td>Wood Pellet M=8%</td><td>Solid</td><td>16.5</td><td>17.8</td><td>MJ/kg</td><td>0.0*</td><td>1.40</td></tr>
+          <tr><td>Bagasse ชานอ้อย M=50%</td><td>Solid</td><td>7.5</td><td>9.0</td><td>MJ/kg</td><td>0.0*</td><td>1.45</td></tr>
+          <tr><td>Rice Husk แกลบ M=12%</td><td>Solid</td><td>12.5</td><td>13.5</td><td>MJ/kg</td><td>0.0*</td><td>1.42</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:11px;color:var(--text3);margin-top:6px">* EF = 0 สำหรับ Renewable / Carbon-neutral fuels ตามหลัก IPCC / T-VER</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────── TAB: AIR PREHEATING ─────────────────── -->
+<div id="tab-air" class="tab-content">
+  <div class="section-title">💨 Mode 1: Air Preheating — เครื่องอุ่นอากาศไอเสีย (Recuperator)</div>
+
+  <div class="grid-2">
+    <!-- INPUT -->
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="dot"></div>ข้อมูล Recuperator (จากภาคสนาม)</div>
+        <div class="card-body">
+          <div class="step"><div class="step-num">1</div><div class="step-content">
+            <strong>จำนวนชั้น Recuperator</strong>
+            <div class="mode-selector" style="margin-top:8px">
+              <button class="mode-btn active" id="recup1_btn" onclick="setRecupStage(1)">
+                <span class="mode-icon">🔧</span>1 ชั้น
+              </button>
+              <button class="mode-btn" id="recup2_btn" onclick="setRecupStage(2)">
+                <span class="mode-icon">🔧🔧</span>2 ชั้น
+              </button>
+            </div>
+          </div></div>
+
+          <div class="step"><div class="step-num">2</div><div class="step-content">
+            <strong>อุณหภูมิ Flue Gas (°C)</strong>
+          </div></div>
+          <div class="grid-3">
+            <div class="field">
+              <label>Tfg₁ — ออกจากเตา <span title="ก่อนเข้า Recuperator ชั้น 1">(°C)</span></label>
+              <input type="number" id="a_tfg1" value="745" step="1">
+            </div>
+            <div class="field">
+              <label>Tfg₂ — ออก Recup.1 <span>(°C)</span></label>
+              <input type="number" id="a_tfg2" value="527" step="1">
+            </div>
+            <div id="tfg3_wrap" class="field">
+              <label>Tfg₃ — ออก Recup.2 <span>(°C)</span></label>
+              <input type="number" id="a_tfg3" value="330" step="1">
+            </div>
+          </div>
+
+          <div class="step"><div class="step-num">3</div><div class="step-content">
+            <strong>อุณหภูมิ อากาศ (°C)</strong>
+          </div></div>
+          <div class="grid-3">
+            <div class="field">
+              <label>Tair₁ — อากาศเข้า <span>(°C)</span></label>
+              <input type="number" id="a_tair1" value="33" step="1">
+            </div>
+            <div class="field">
+              <label>Tair₂ — ออก Recup.1 <span>(°C)</span></label>
+              <input type="number" id="a_tair2" value="275" step="1">
+            </div>
+            <div id="tair3_wrap" class="field">
+              <label>Tair₃ — ออก Recup.2 / เข้าหัวเผา <span>(°C)</span></label>
+              <input type="number" id="a_tair3" value="463" step="1">
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label>อัตราการไหลอากาศ ṁ_air <span>(Nm³/hr)</span></label>
+              <input type="number" id="a_mair" value="115" step="1">
+            </div>
+            <div class="field">
+              <label>Cp อากาศ (เฉลี่ย) <span>(kJ/Nm³·K)</span></label>
+              <input type="number" id="a_cpair" value="1.30" step="0.01">
+            </div>
+            <div class="field">
+              <label>Cp ไอเสีย (เฉลี่ย) <span>(kJ/Nm³·K)</span></label>
+              <input type="number" id="a_cpfg" value="1.42" step="0.01">
+            </div>
+            <div class="field">
+              <label>ṁ_fg (คำนวณจากด้านบน) <span>(Nm³/hr)</span></label>
+              <input type="number" id="a_mfg" value="128" step="1">
+            </div>
+          </div>
+
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="calcAir()">⚡ คำนวณ Air Preheating</button>
+            <button class="btn btn-secondary" onclick="loadSampleAir()">📂 ตัวอย่าง (Sample Data)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCHEMATIC + RESULT -->
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="dot"></div>Schematic — Recuperator</div>
+        <div class="card-body">
+          <div class="schematic-wrap">
+            <svg id="recup_svg" viewBox="0 0 520 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;min-width:300px">
+              <!-- Furnace -->
+              <rect x="20" y="70" width="80" height="80" rx="6" fill="#fff3ee" stroke="#cf4f2a" stroke-width="2"/>
+              <text x="60" y="115" text-anchor="middle" fill="#cf4f2a" font-size="11" font-family="IBM Plex Mono">FURNACE</text>
+              <!-- Flue gas pipe top -->
+              <path d="M100 90 L200 90" stroke="#ff6a00" stroke-width="8" fill="none" stroke-linecap="round"/>
+              <text x="140" y="78" text-anchor="middle" fill="#ff6a00" font-size="10" font-family="IBM Plex Mono">FG_in (Tfg₁)</text>
+              <!-- Recuperator 1 -->
+              <rect x="200" y="60" width="70" height="100" rx="6" fill="#eef1f5" stroke="#adb5bd" stroke-width="1.5"/>
+              <text x="235" y="108" text-anchor="middle" fill="#57606a" font-size="10" font-family="IBM Plex Mono">RECUP</text>
+              <text x="235" y="120" text-anchor="middle" fill="#57606a" font-size="10" font-family="IBM Plex Mono">  1  </text>
+              <!-- FG out 1 -->
+              <path d="M270 90 L360 90" stroke="#e05a44" stroke-width="5" fill="none" stroke-linecap="round" id="fg_pipe2"/>
+              <text x="315" y="78" text-anchor="middle" fill="#e05a44" font-size="10" font-family="IBM Plex Mono" id="fg2_lbl">FG (Tfg₂)</text>
+              <!-- Recuperator 2 (hidden initially) -->
+              <rect x="360" y="60" width="70" height="100" rx="6" fill="#eef1f5" stroke="#adb5bd" stroke-width="1.5" id="recup2_box" opacity="0.3"/>
+              <text x="395" y="108" text-anchor="middle" fill="#57606a" font-size="10" font-family="IBM Plex Mono" id="recup2_lbl1">RECUP</text>
+              <text x="395" y="120" text-anchor="middle" fill="#57606a" font-size="10" font-family="IBM Plex Mono" id="recup2_lbl2">  2  </text>
+              <!-- FG exit -->
+              <path d="M430 90 L490 90" stroke="#6e7681" stroke-width="3" fill="none" stroke-linecap="round" id="fg_exit"/>
+              <text x="460" y="78" text-anchor="middle" fill="#6e7681" font-size="10" font-family="IBM Plex Mono" id="fg_exit_lbl">Stack</text>
+              <!-- Air in bottom -->
+              <path d="M490 150 L270 150" stroke="#79c0ff" stroke-width="5" fill="none" stroke-linecap="round" id="air_pipe1"/>
+              <text x="380" y="168" text-anchor="middle" fill="#79c0ff" font-size="10" font-family="IBM Plex Mono" id="air1_lbl">Air in (Tair₁)</text>
+              <!-- Air middle -->
+              <path d="M200 150 L20 150" stroke="#56d364" stroke-width="8" fill="none" stroke-linecap="round"/>
+              <text x="100" y="168" text-anchor="middle" fill="#56d364" font-size="10" font-family="IBM Plex Mono">Hot Air → Burner</text>
+              <!-- Legend -->
+              <circle cx="30" cy="195" r="4" fill="#ff6a00"/>
+              <text x="38" y="199" fill="#8b949e" font-size="9">Hot FG</text>
+              <circle cx="90" cy="195" r="4" fill="#79c0ff"/>
+              <text x="98" y="199" fill="#8b949e" font-size="9">Cold Air</text>
+              <circle cx="155" cy="195" r="4" fill="#56d364"/>
+              <text x="163" y="199" fill="#8b949e" font-size="9">Preheated Air</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="card-header"><div class="dot green"></div>ผลการคำนวณ Air Preheating</div>
+        <div class="card-body" id="air_result_body">
+          <div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">กดคำนวณเพื่อดูผลลัพธ์</div>
+        </div>
+      </div>
+      <!-- HX Selection Panel -->
+      <div id="hx_panel_air"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="dot"></div>สมการและหลักการ</div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <p style="font-size:12px;color:var(--text2);margin-bottom:8px"><strong>ความร้อนที่ถ่ายเทจากไอเสีย:</strong></p>
+          <div class="formula-box">Q_recovered [kW] = (ṁ_fg [Nm³/hr] × Cp_fg [kJ/Nm³·K]
+             × ΔT_fg [K]) / 3600</div>
+          <p style="font-size:12px;color:var(--text2);margin:8px 0"><strong>Cp ไอเสียเฉลี่ย (LPG/gas fuel) ~ 1.38–1.45 kJ/Nm³·K</strong></p>
+          <div class="formula-box">Cp_fg ≈ rO2×Cp_O2 + rCO2×Cp_CO2 + rH2O×Cp_H2O + rN2×Cp_N2</div>
+        </div>
+        <div>
+          <p style="font-size:12px;color:var(--text2);margin-bottom:8px"><strong>Effectiveness ของ HX:</strong></p>
+          <div class="formula-box">ε = Q_actual / Q_max
+Q_max = C_min × (Tfg_in − Tair_in)
+C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
+          <p style="font-size:12px;color:var(--text2);margin:8px 0"><strong>ประโยชน์จากอากาศอุ่น:</strong></p>
+          <div class="formula-box">Fuel Saving ≈ Q_air_absorbed / NCV_fuel [Nm³/hr หรือ kg/hr]</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────── TAB: WATER HEATING ─────────────────── -->
+<div id="tab-water" class="tab-content">
+  <div class="section-title">💧 Mode 2: Water/Economizer Heating — อุ่นน้ำด้วยไอเสีย</div>
+
+  <div class="grid-2">
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="dot blue"></div>ข้อมูลฝั่งไอเสีย (Flue Gas Side)</div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="field">
+              <label>Tfg_in — ไอเสียเข้า Economizer <span>(°C)</span></label>
+              <input type="number" id="w_tfg_in" value="280" step="1">
+            </div>
+            <div class="field">
+              <label>Tfg_out — ไอเสียออก <span>(°C)</span></label>
+              <input type="number" id="w_tfg_out" value="180" step="1">
+            </div>
+            <div class="field">
+              <label>ṁ_fg — อัตราไหลไอเสีย <span>(Nm³/hr)</span></label>
+              <input type="number" id="w_mfg" value="128" step="1">
+            </div>
+            <div class="field">
+              <label>Cp_fg ค่าเฉลี่ย <span>(kJ/Nm³·K)</span></label>
+              <input type="number" id="w_cpfg" value="1.40" step="0.01">
+            </div>
+          </div>
+          <div class="info-box" style="margin-top:8px">
+            <strong>⚠️ จุดน้ำค้าง (Dew Point):</strong> ระวัง Tfg_out ต่ำกว่า Acid Dew Point (~130–150°C สำหรับ LPG/NG, ~150–170°C สำหรับ Coal ที่มี S)
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="card-header"><div class="dot blue"></div>ข้อมูลฝั่งน้ำ (Water Side)</div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="field">
+              <label>ประเภทน้ำ</label>
+              <select id="w_type" onchange="setWaterType()">
+                <option value="fw">น้ำป้อนหม้อไอน้ำ (Feedwater)</option>
+                <option value="proc">น้ำกระบวนการผลิต</option>
+                <option value="hw">น้ำร้อนสำหรับใช้งาน</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Cp น้ำ <span>(kJ/kg·K, auto f(T))</span></label>
+              <input type="number" id="w_cp" value="4.181" step="0.001" readonly style="background:#eef1f5">
+            </div>
+            <div class="field">
+              <label>Tw_in — น้ำเข้า <span>(°C)</span></label>
+              <input type="number" id="w_tw_in" value="25" step="1">
+            </div>
+            <div class="field">
+              <label>Tw_out — น้ำออก (เป้าหมาย) <span>(°C)</span></label>
+              <input type="number" id="w_tw_out" value="80" step="1">
+            </div>
+            <div class="field">
+              <label>ṁ_water ที่ต้องการ <span>(kg/hr)</span></label>
+              <input type="number" id="w_mwater" value="0" step="10" placeholder="0 = คำนวณให้">
+            </div>
+            <div class="field">
+              <label>ชั่วโมงทำงานต่อปี <span>(hr/yr)</span></label>
+              <input type="number" id="w_hrs" value="8000" step="100">
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="calcWater()">⚡ คำนวณ Economizer</button>
+            <button class="btn btn-secondary" onclick="loadSampleWater()">📂 ตัวอย่าง Boiler Economizer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <!-- Schematic -->
+      <div class="card">
+        <div class="card-header"><div class="dot blue"></div>Schematic — Economizer</div>
+        <div class="card-body">
+          <div class="schematic-wrap">
+            <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;min-width:280px">
+              <!-- Boiler/Furnace box -->
+              <rect x="10" y="60" width="80" height="80" rx="6" fill="#fff3ee" stroke="#cf4f2a" stroke-width="2"/>
+              <text x="50" y="105" text-anchor="middle" fill="#cf4f2a" font-size="10" font-family="IBM Plex Mono">BOILER</text>
+              <text x="50" y="118" text-anchor="middle" fill="#cf4f2a" font-size="10" font-family="IBM Plex Mono">/ FURNACE</text>
+              <!-- Stack -->
+              <path d="M90 90 L220 90" stroke="#ff6a00" stroke-width="7" fill="none"/>
+              <text x="155" y="79" text-anchor="middle" fill="#ff6a00" font-size="10" font-family="IBM Plex Mono">FG_in</text>
+              <!-- Economizer box -->
+              <rect x="220" y="50" width="120" height="110" rx="8" fill="#e8f4fd" stroke="#0969da" stroke-width="2"/>
+              <text x="280" y="100" text-anchor="middle" fill="#0969da" font-size="11" font-family="IBM Plex Mono">ECONOMIZER</text>
+              <text x="280" y="114" text-anchor="middle" fill="#0969da" font-size="9" font-family="IBM Plex Mono">HX Unit</text>
+              <!-- FG out -->
+              <path d="M340 90 L430 90" stroke="#e05a44" stroke-width="4" fill="none"/>
+              <text x="385" y="79" text-anchor="middle" fill="#e05a44" font-size="10" font-family="IBM Plex Mono">FG_out</text>
+              <!-- Stack symbol -->
+              <rect x="430" y="60" width="20" height="80" rx="3" fill="#eef1f5" stroke="#8c959f" stroke-width="1"/>
+              <text x="440" y="175" text-anchor="middle" fill="#8c959f" font-size="9" font-family="IBM Plex Mono">Stack</text>
+              <!-- Water in -->
+              <path d="M280 160 L280 190 L70 190 L70 165" stroke="#56d364" stroke-width="5" fill="none"/>
+              <text x="160" y="185" text-anchor="middle" fill="#56d364" font-size="9" font-family="IBM Plex Mono">Cold Water In</text>
+              <!-- Water out -->
+              <path d="M280 50 L280 20 L70 20 L70 60" stroke="#79c0ff" stroke-width="5" fill="none"/>
+              <text x="175" y="14" text-anchor="middle" fill="#79c0ff" font-size="9" font-family="IBM Plex Mono">Heated Water Out → Boiler/Process</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="card-header"><div class="dot blue"></div>ผลการคำนวณ Economizer</div>
+        <div class="card-body" id="water_result_body">
+          <div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">กดคำนวณเพื่อดูผลลัพธ์</div>
+        </div>
+      </div>
+      <!-- HX Selection Panel -->
+      <div id="hx_panel_water"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────── TAB: METAL PREHEATING ─────────────────── -->
+<div id="tab-metal" class="tab-content">
+  <div class="section-title">⚙️ Mode 3: Metal Load Preheating — อุ่นวัตถุดิบโลหะ</div>
+
+  <div class="grid-2">
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="dot gold"></div>ชนิดและข้อมูลโลหะ</div>
+        <div class="card-body">
+          <div class="field">
+            <label>ชนิดโลหะ</label>
+            <select id="m_type" onchange="setMetalProps()">
+              <option value="steel">เหล็กแท่ง / Billet (Carbon Steel)</option>
+              <option value="alloy">เหล็กกล้าผสม (Alloy Steel)</option>
+              <option value="al">อะลูมิเนียมก้อน (Aluminium Ingot)</option>
+              <option value="cu">ทองแดง (Copper)</option>
+              <option value="cast_iron">เหล็กหล่อ (Cast Iron)</option>
+              <option value="custom">Custom (กรอกเอง)</option>
+            </select>
+          </div>
+          <div class="grid-2">
+            <div class="result-item gold" style="margin-bottom:12px">
+              <div class="r-label">Cp โลหะ</div>
+              <div class="r-value" id="m_cp_disp">0.49</div>
+              <div class="r-unit">kJ/(kg·K)</div>
+            </div>
+            <div class="result-item gold" style="margin-bottom:12px">
+              <div class="r-label">ความหนาแน่น</div>
+              <div class="r-value" id="m_rho_disp">7850</div>
+              <div class="r-unit">kg/m³</div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label>Cp โลหะ <span>(kJ/kg·K)</span></label>
+              <input type="number" id="m_cp" value="0.49" step="0.01">
+            </div>
+            <div class="field">
+              <label>อัตราป้อนโลหะ <span>(kg/hr)</span></label>
+              <input type="number" id="m_rate" value="500" step="10">
+            </div>
+            <div class="field">
+              <label>Tmetal_in — อุณหภูมิก่อนอุ่น <span>(°C)</span></label>
+              <input type="number" id="m_tin" value="25" step="1">
+            </div>
+            <div class="field">
+              <label>Tmetal_out — อุณหภูมิหลังอุ่น <span title="ก่อนเข้าเตาหลัก">(°C)</span></label>
+              <input type="number" id="m_tout" value="250" step="1">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="card-header"><div class="dot gold"></div>ข้อมูลไอเสียที่ใช้อุ่น</div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="field">
+              <label>Tfg_in เข้า Load Preheater <span>(°C)</span></label>
+              <input type="number" id="m_tfg_in" value="400" step="1">
+            </div>
+            <div class="field">
+              <label>Tfg_out ออก Load Preheater <span>(°C)</span></label>
+              <input type="number" id="m_tfg_out" value="200" step="1">
+            </div>
+            <div class="field">
+              <label>ṁ_fg <span>(Nm³/hr)</span></label>
+              <input type="number" id="m_mfg" value="128" step="1">
+            </div>
+            <div class="field">
+              <label>ชั่วโมงต่อปี <span>(hr/yr)</span></label>
+              <input type="number" id="m_hrs" value="6000" step="100">
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="calcMetal()">⚡ คำนวณ Metal Preheating</button>
+            <button class="btn btn-secondary" onclick="loadSampleMetal('steel')">📂 ตัวอย่าง เหล็กแท่ง</button>
+            <button class="btn btn-secondary" onclick="loadSampleMetal('al')">📂 ตัวอย่าง อะลูมิเนียม</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="dot gold"></div>Schematic — Load Preheating</div>
+        <div class="card-body">
+          <div class="schematic-wrap">
+            <svg viewBox="0 0 520 210" xmlns="http://www.w3.org/2000/svg" style="width:100%;min-width:280px">
+              <!-- Furnace -->
+              <rect x="380" y="60" width="100" height="80" rx="6" fill="#fff3ee" stroke="#cf4f2a" stroke-width="2"/>
+              <text x="430" y="105" text-anchor="middle" fill="#cf4f2a" font-size="10" font-family="IBM Plex Mono">MAIN</text>
+              <text x="430" y="118" text-anchor="middle" fill="#cf4f2a" font-size="10" font-family="IBM Plex Mono">FURNACE</text>
+              <!-- FG from furnace -->
+              <path d="M380 90 L260 90" stroke="#ff6a00" stroke-width="7" fill="none"/>
+              <text x="320" y="79" text-anchor="middle" fill="#ff6a00" font-size="10" font-family="IBM Plex Mono">FG_in</text>
+              <!-- Preheater box -->
+              <rect x="130" y="50" width="130" height="120" rx="8" fill="#fffbea" stroke="#9a6700" stroke-width="2"/>
+              <text x="195" y="100" text-anchor="middle" fill="#9a6700" font-size="11" font-family="IBM Plex Mono">LOAD</text>
+              <text x="195" y="114" text-anchor="middle" fill="#9a6700" font-size="11" font-family="IBM Plex Mono">PREHEATER</text>
+              <!-- FG out -->
+              <path d="M130 90 L40 90" stroke="#6e7681" stroke-width="4" fill="none"/>
+              <text x="85" y="79" text-anchor="middle" fill="#6e7681" font-size="10" font-family="IBM Plex Mono">FG_out</text>
+              <rect x="10" y="60" width="30" height="80" rx="3" fill="#eef1f5" stroke="#8c959f"/>
+              <text x="25" y="175" text-anchor="middle" fill="#8c959f" font-size="9" font-family="IBM Plex Mono">Stack</text>
+              <!-- Metal flow -->
+              <path d="M195 170 L195 195 L430 195 L430 140" stroke="#e3b341" stroke-width="5" fill="none" stroke-dasharray="8,4"/>
+              <text x="310" y="192" text-anchor="middle" fill="#e3b341" font-size="9" font-family="IBM Plex Mono">Preheated Metal → Main Furnace</text>
+              <!-- Metal in -->
+              <path d="M195 50 L195 20 L430 20 L430 60" stroke="#8b949e" stroke-width="3" fill="none" stroke-dasharray="6,3"/>
+              <text x="310" y="14" text-anchor="middle" fill="#8b949e" font-size="9" font-family="IBM Plex Mono">Cold Metal In</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="card-header"><div class="dot gold"></div>ผลการคำนวณ Metal Preheating</div>
+        <div class="card-body" id="metal_result_body">
+          <div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">กดคำนวณเพื่อดูผลลัพธ์</div>
+        </div>
+      </div>
+      <!-- HX Selection Panel -->
+      <div id="hx_panel_metal"></div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="card-header"><div class="dot gold"></div>ตารางค่า Cp โลหะอ้างอิง</div>
+        <div class="card-body">
+          <table class="data-table">
+            <thead><tr><th>วัสดุ</th><th>Cp (kJ/kg·K)</th><th>ρ (kg/m³)</th><th>ช่วงอุณหภูมิ</th></tr></thead>
+            <tbody>
+              <tr><td>Carbon Steel</td><td>0.49</td><td>7,850</td><td>25–600°C</td></tr>
+              <tr><td>Alloy Steel</td><td>0.50</td><td>7,800</td><td>25–600°C</td></tr>
+              <tr><td>Aluminium</td><td>0.90</td><td>2,700</td><td>25–500°C</td></tr>
+              <tr><td>Copper</td><td>0.385</td><td>8,960</td><td>25–400°C</td></tr>
+              <tr><td>Cast Iron</td><td>0.46</td><td>7,200</td><td>25–600°C</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────── TAB: WHR DRYING ─────────────────── -->
+<div id="tab-drying" class="tab-content">
+  <div class="section-title">🌿 Mode 4: Waste Heat Drying — อบแห้งชีวมวลด้วยความร้อนทิ้ง</div>
+
+  <div class="grid-2">
+    <!-- LEFT: INPUT -->
+    <div>
+      <!-- Material selector -->
+      <div class="card">
+        <div class="card-header"><div class="dot" style="background:#2d9a4e"></div>ชนิดวัสดุ (Material Type)</div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text2);margin-bottom:10px">เลือกวัสดุเพื่อโหลดค่าความชื้นและ NCV อ้างอิง หรือกรอกค่าเองได้</p>
+          <div class="hx-card-grid" id="drying_mat_grid">
+            <button class="hx-type-btn selected" onclick="selectDryMat(this,'wood_chip')" data-mat="wood_chip">
+              <span class="hx-icon">🪵</span>
+              <span class="hx-name">ไม้สับสด</span>
+              <span class="hx-u">MC สด: 45–55%</span>
+              <span class="hx-eta" style="color:#2d9a4e">NCV dry: 16–17 MJ/kg</span>
+            </button>
+            <button class="hx-type-btn" onclick="selectDryMat(this,'palm_bunch')" data-mat="palm_bunch">
+              <span class="hx-icon">🌴</span>
+              <span class="hx-name">ทะลายปาล์มสด (EFB)</span>
+              <span class="hx-u">MC สด: 60–70%</span>
+              <span class="hx-eta" style="color:#2d9a4e">NCV dry: 15–17 MJ/kg</span>
+            </button>
+            <button class="hx-type-btn" onclick="selectDryMat(this,'palm_fiber')" data-mat="palm_fiber">
+              <span class="hx-icon">🌾</span>
+              <span class="hx-name">ใยปาล์มสด (Fiber)</span>
+              <span class="hx-u">MC สด: 35–45%</span>
+              <span class="hx-eta" style="color:#2d9a4e">NCV dry: 16–18 MJ/kg</span>
+            </button>
+            <button class="hx-type-btn" onclick="selectDryMat(this,'bagasse')" data-mat="bagasse">
+              <span class="hx-icon">🎋</span>
+              <span class="hx-name">ชานอ้อยสด</span>
+              <span class="hx-u">MC สด: 45–55%</span>
+              <span class="hx-eta" style="color:#2d9a4e">NCV dry: 16–18 MJ/kg</span>
+            </button>
+            <button class="hx-type-btn" onclick="selectDryMat(this,'rice_husk')" data-mat="rice_husk">
+              <span class="hx-icon">🌾</span>
+              <span class="hx-name">แกลบ (Rice Husk)</span>
+              <span class="hx-u">MC สด: 10–14%</span>
+              <span class="hx-eta" style="color:#2d9a4e">NCV dry: 12–14 MJ/kg</span>
+            </button>
+            <button class="hx-type-btn" onclick="selectDryMat(this,'custom')" data-mat="custom">
+              <span class="hx-icon">⚙️</span>
+              <span class="hx-name">กำหนดเอง</span>
+              <span class="hx-u">Custom Material</span>
+              <span class="hx-eta" style="color:var(--text3)">กรอกค่าเอง</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Moisture & throughput inputs -->
+      <div class="card">
+        <div class="card-header"><div class="dot" style="background:#2d9a4e"></div>ข้อมูลความชื้นและปริมาณวัสดุ</div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="field">
+              <label>ความชื้นเริ่มต้น MC_in <span>(% wet basis)</span></label>
+              <input type="number" id="d_mc_in" value="50" step="0.5" min="1" max="90" onchange="dryCalcAuto()">
+            </div>
+            <div class="field">
+              <label>ความชื้นเป้าหมาย MC_out <span>(% wet basis)</span></label>
+              <input type="number" id="d_mc_out" value="15" step="0.5" min="1" max="89" onchange="dryCalcAuto()">
+            </div>
+            <div class="field">
+              <label>อัตราวัสดุสดเข้า ṁ_wet <span>(kg/hr)</span></label>
+              <input type="number" id="d_m_wet" value="1000" step="50" min="1" onchange="dryCalcAuto()">
+            </div>
+            <div class="field">
+              <label>อุณหภูมิอากาศแห้ง T_dry <span>(°C) — อากาศในตู้อบ</span></label>
+              <input type="number" id="d_tdry" value="80" step="1" min="30" max="250" onchange="dryCalcAuto()">
+            </div>
+            <div class="field">
+              <label>อุณหภูมิอากาศเข้า T_air_in <span>(°C)</span></label>
+              <input type="number" id="d_tair_in" value="33" step="0.5" onchange="dryCalcAuto()">
+            </div>
+            <div class="field">
+              <label>ชั่วโมงทำงานต่อปี <span>(hr/yr)</span></label>
+              <input type="number" id="d_hrs" value="6000" step="100" onchange="dryCalcAuto()">
+            </div>
+          </div>
+          <div class="grid-2" style="margin-top:10px">
+            <div class="field">
+              <label>NCV วัสดุ (dry basis) <span>(MJ/kg_dry)</span></label>
+              <input type="number" id="d_ncv_dry" value="16.0" step="0.1" onchange="dryCalcAuto()">
+            </div>
+            <div class="field">
+              <label>ค่าไฟหรือเชื้อเพลิงทดแทน <span>(บาท/GJ)</span></label>
+              <input type="number" id="d_fuel_price_gj" value="350" step="10" onchange="dryCalcAuto()">
+            </div>
+          </div>
+
+          <!-- Dryer efficiency -->
+          <div style="margin:12px 0 8px">
+            <label style="font-size:12px;color:var(--text2);font-weight:500;display:block;margin-bottom:6px">
+              ประสิทธิภาพตู้อบ (Dryer Efficiency η_dryer)
+              <span id="d_eta_val" style="font-family:'IBM Plex Mono';font-weight:700;color:#2d9a4e;margin-left:8px">70%</span>
+            </label>
+            <input type="range" id="d_eta" min="40" max="95" value="70" step="1"
+              oninput="document.getElementById('d_eta_val').textContent=this.value+'%'; dryCalcAuto()"
+              style="width:100%;accent-color:#2d9a4e">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)">
+              <span>40% (Low)</span><span>65–75% (Typical)</span><span>95% (High)</span>
+            </div>
+          </div>
+
+          <div class="btn-group">
+            <button class="btn btn-primary" style="background:linear-gradient(135deg,#2d9a4e,#1a7f37)" onclick="calcDrying()">🌿 คำนวณการอบแห้ง</button>
+            <button class="btn btn-secondary" onclick="resetDrying()">↺ ล้างค่า</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Material property reference table -->
+      <div class="card">
+        <div class="card-header"><div class="dot" style="background:#2d9a4e"></div>ตารางคุณสมบัติวัสดุชีวมวลอ้างอิง (Wet Basis)</div>
+        <div class="card-body" style="overflow-x:auto">
+          <table class="data-table" style="min-width:560px">
+            <thead>
+              <tr>
+                <th>วัสดุ</th>
+                <th>MC สด (%wb)</th>
+                <th>MC หลังอบ (%wb)</th>
+                <th>NCV dry (MJ/kg)</th>
+                <th>Bulk density (kg/m³)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>🪵 ไม้สับสด (Wood chip)</td><td>45–55</td><td>10–15</td><td>16.0–17.5</td><td>200–350</td></tr>
+              <tr><td>🌴 ทะลายปาล์มสด (EFB)</td><td>60–70</td><td>10–15</td><td>15.0–17.0</td><td>130–180</td></tr>
+              <tr><td>🌾 ใยปาล์มสด (Fiber)</td><td>35–45</td><td>10–15</td><td>16.0–18.0</td><td>150–250</td></tr>
+              <tr><td>🎋 ชานอ้อยสด (Bagasse)</td><td>45–55</td><td>10–15</td><td>16.0–18.0</td><td>150–200</td></tr>
+              <tr><td>🌾 แกลบ (Rice Husk)</td><td>10–14</td><td>8–10</td><td>12.5–14.0</td><td>110–150</td></tr>
+              <tr><td>🪵 ขี้เลื่อย (Sawdust)</td><td>40–60</td><td>8–12</td><td>16.5–18.5</td><td>180–280</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:11px;color:var(--text3);margin-top:6px">อ้างอิง: FAO Bioenergy Handbook / DEDE Thailand Biomass Database</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: OUTPUT -->
+    <div>
+      <!-- Process schematic -->
+      <div class="card">
+        <div class="card-header"><div class="dot" style="background:#2d9a4e"></div>แผนผังกระบวนการอบแห้ง (WHR Dryer Schematic)</div>
+        <div class="card-body">
+          <div class="schematic-wrap">
+            <svg viewBox="0 0 560 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;min-width:280px">
+              <!-- Flue Gas source -->
+              <rect x="440" y="70" width="100" height="80" rx="6" fill="#fff3ee" stroke="#cf4f2a" stroke-width="2"/>
+              <text x="490" y="107" text-anchor="middle" fill="#cf4f2a" font-size="10" font-family="IBM Plex Mono">KILN /</text>
+              <text x="490" y="120" text-anchor="middle" fill="#cf4f2a" font-size="10" font-family="IBM Plex Mono">FURNACE</text>
+
+              <!-- FG hot pipe -->
+              <path d="M440 100 L330 100" stroke="#ff6a00" stroke-width="7" fill="none" marker-end="url(#arrowOr)"/>
+              <text x="385" y="88" text-anchor="middle" fill="#ff6a00" font-size="10" font-family="IBM Plex Mono">Hot FG (Tfg)</text>
+
+              <!-- Heat Exchanger box -->
+              <rect x="230" y="55" width="100" height="80" rx="8" fill="#fff8ec" stroke="#9a6700" stroke-width="2"/>
+              <text x="280" y="91" text-anchor="middle" fill="#9a6700" font-size="10" font-family="IBM Plex Mono">AIR / FG</text>
+              <text x="280" y="105" text-anchor="middle" fill="#9a6700" font-size="10" font-family="IBM Plex Mono">HEAT EX.</text>
+              <text x="280" y="119" text-anchor="middle" fill="#9a6700" font-size="9" font-family="IBM Plex Mono">η_HX</text>
+
+              <!-- FG out from HX -->
+              <path d="M230 100 L160 100" stroke="#8c959f" stroke-width="3" fill="none"/>
+              <text x="195" y="88" text-anchor="middle" fill="#8c959f" font-size="9" font-family="IBM Plex Mono">FG_out</text>
+              <rect x="120" y="75" width="40" height="50" rx="3" fill="#eef1f5" stroke="#8c959f"/>
+              <text x="140" y="138" text-anchor="middle" fill="#8c959f" font-size="9" font-family="IBM Plex Mono">Stack</text>
+
+              <!-- Hot air to dryer -->
+              <path d="M280 135 L280 160 L80 160 L80 135" stroke="#2d9a4e" stroke-width="5" fill="none" marker-end="url(#arrowGr)"/>
+              <text x="180" y="175" text-anchor="middle" fill="#2d9a4e" font-size="10" font-family="IBM Plex Mono">Hot Air / FG → Dryer (T_dry)</text>
+
+              <!-- Dryer box -->
+              <rect x="10" y="55" width="110" height="80" rx="8" fill="#edfbf0" stroke="#2d9a4e" stroke-width="2.5"/>
+              <text x="65" y="91" text-anchor="middle" fill="#2d9a4e" font-size="11" font-family="IBM Plex Mono" font-weight="600">WHR</text>
+              <text x="65" y="105" text-anchor="middle" fill="#2d9a4e" font-size="11" font-family="IBM Plex Mono" font-weight="600">DRYER</text>
+              <text x="65" y="119" text-anchor="middle" fill="#2d9a4e" font-size="9" font-family="IBM Plex Mono">η_dry</text>
+
+              <!-- Wet material in -->
+              <path d="M65 55 L65 20" stroke="#6e7681" stroke-width="3" fill="none" marker-end="url(#arrowGy)"/>
+              <text x="65" y="14" text-anchor="middle" fill="#6e7681" font-size="9" font-family="IBM Plex Mono">วัสดุสด MC_in</text>
+
+              <!-- Dry material out -->
+              <path d="M120 95 L160 95 L160 55 L175 55" stroke="#1a7f37" stroke-width="4" fill="none" stroke-dasharray="7,3" marker-end="url(#arrowGr2)"/>
+              <text x="175" y="46" text-anchor="start" fill="#1a7f37" font-size="9" font-family="IBM Plex Mono">วัสดุแห้ง MC_out ↑NCV</text>
+
+              <!-- Water vapor out -->
+              <path d="M65 135 L65 200" stroke="#79c0ff" stroke-width="3" fill="none" stroke-dasharray="5,3"/>
+              <text x="65" y="212" text-anchor="middle" fill="#79c0ff" font-size="9" font-family="IBM Plex Mono">ไอน้ำออก (ṁ_evap)</text>
+
+              <!-- Arrows defs -->
+              <defs>
+                <marker id="arrowOr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="#ff6a00"/>
+                </marker>
+                <marker id="arrowGr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="#2d9a4e"/>
+                </marker>
+                <marker id="arrowGr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="#1a7f37"/>
+                </marker>
+                <marker id="arrowGy" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="#6e7681"/>
+                </marker>
+              </defs>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result panel -->
+      <div class="card result-panel" id="drying_result_panel" style="display:none;padding:0;margin-top:12px">
+        <div class="card-header"><div class="dot" style="background:#2d9a4e"></div>ผลการคำนวณอบแห้ง</div>
+        <div class="card-body" id="drying_result_body"></div>
+      </div>
+
+      <!-- Moisture reduction visual -->
+      <div class="card" style="margin-top:12px" id="drying_visual_card" style="display:none">
+        <div class="card-header"><div class="dot" style="background:#2d9a4e"></div>ภาพแสดงการลดความชื้นและ NCV ที่เพิ่มขึ้น</div>
+        <div class="card-body" id="drying_visual_body">
+          <div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">คำนวณเพื่อดูกราฟ</div>
+        </div>
+      </div>
+
+      <!-- Calculation trace -->
+      <div id="drying_trace_wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────── TAB: COMBINED SUMMARY ─────────────────── -->
+<div id="tab-combined" class="tab-content">
+  <div class="section-title">📊 สรุปรวมทุก Mode — Waste Heat Recovery Summary</div>
+
+  <div class="grid-3">
+    <div class="result-item highlight">
+      <div class="r-label">พลังงานที่กู้คืนรวม</div>
+      <div class="r-value" id="s_total_kw">—</div>
+      <div class="r-unit">kW</div>
+    </div>
+    <div class="result-item highlight">
+      <div class="r-label">พลังงานรวมต่อปี</div>
+      <div class="r-value" id="s_total_gj">—</div>
+      <div class="r-unit">GJ/yr</div>
+    </div>
+    <div class="result-item highlight">
+      <div class="r-label">เชื้อเพลิงที่ประหยัดได้</div>
+      <div class="r-value" id="s_fuel_save">—</div>
+      <div class="r-unit" id="s_fuel_unit">Nm³/yr</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-header"><div class="dot green"></div>Energy Balance — Sankey แบบง่าย</div>
+    <div class="card-body">
+      <div id="sankey_area" style="padding:8px">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">คำนวณแต่ละ Mode ก่อน แล้วดูภาพรวมที่นี่</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="dot green"></div>ตารางสรุปผลประหยัด</div>
+    <div class="card-body">
+      <table class="data-table" id="summary_table">
+        <thead>
+          <tr>
+            <th>Mode</th>
+            <th>ความร้อนที่กู้คืน (kW)</th>
+            <th>พลังงาน/ปี (GJ)</th>
+            <th>เชื้อเพลิงประหยัด/ปี</th>
+            <th>CO₂ ลดได้ (tCO₂/yr)</th>
+          </tr>
+        </thead>
+        <tbody id="summary_tbody">
+          <tr><td colspan="5" style="text-align:center;color:var(--text3)">— ยังไม่มีข้อมูล —</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Fuel saving parameters -->
+  <div class="card">
+    <div class="card-header"><div class="dot"></div>พารามิเตอร์คำนวณมูลค่า</div>
+    <div class="card-body">
+      <div class="info-box" style="margin-bottom:12px">
+        ⚠️ <strong>ตรวจสอบหน่วย:</strong> ค่าเชื้อเพลิง และ NCV ต้องมีหน่วยตรงกับเชื้อเพลิงที่ใช้ในการคำนวณ
+        (Gas → บาท/Nm³, MJ/Nm³ | Liquid/Solid → บาท/kg, MJ/kg)
+        กด <strong>สร้างสรุปรวม</strong> แล้วระบบจะอัปเดต label หน่วยให้อัตโนมัติ
+      </div>
+      <div class="grid-4">
+        <div class="field">
+          <label id="p_fuel_price_label">ค่าเชื้อเพลิง <span>(บาท/Nm³ หรือ บาท/kg)</span></label>
+          <input type="number" id="p_fuel_price" value="18.5" step="0.5">
+        </div>
+        <div class="field">
+          <label id="p_ncv_label">NCV เชื้อเพลิง <span>(MJ/Nm³ หรือ MJ/kg)</span></label>
+          <input type="number" id="p_ncv" value="93.6" step="0.1">
+        </div>
+        <div class="field">
+          <label>Emission Factor <span>(kgCO₂/Nm³ หรือ kgCO₂/kg)</span></label>
+          <input type="number" id="p_ef" value="1.695" step="0.001">
+        </div>
+        <div class="field">
+          <label>ต้นทุน HX (ประมาณ) <span>(บาท)</span></label>
+          <input type="number" id="p_capex" value="500000" step="10000">
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="buildSummary()">📊 สร้างสรุปรวม</button>
+        <button class="btn btn-secondary print-btn" onclick="window.print()">🖨️ พิมพ์รายงาน</button>
+      </div>
+      <div id="valuation_result" style="margin-top:16px"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .main -->
+
+<script>
+// ════════════════════════════════════════════════════════════
+// GLOBAL STATE
+// ════════════════════════════════════════════════════════════
+const R = {
+  air:    { q_kw: 0, q_gj: 0, fuel_save: 0, hrs: 8000, done: false },
+  water:  { q_kw: 0, q_gj: 0, fuel_save: 0, hrs: 8000, done: false },
+  metal:  { q_kw: 0, q_gj: 0, fuel_save: 0, hrs: 6000, done: false },
+  drying: { q_kw: 0, q_gj: 0, fuel_save: 0, hrs: 6000, done: false,
+            evap_kg_hr: 0, m_dry_out: 0, ncv_gain_gj: 0 },
+};
+let recupStage = 1;
+
+// ─── Number formatter with comma separator ───────────────────
+// fmtN(12345.678, 2) → "12,345.68"
+// fmtN(12345.678, 0) → "12,346"
+function fmtN(val, dec = 2) {
+  if (!isFinite(val)) return '—';
+  return Number(val).toLocaleString('en-US', {
+    minimumFractionDigits: dec,
+    maximumFractionDigits: dec
+  });
+}
+
+// ─── HX TYPE DATABASE ─────────────────────────────────────────
+// U = Overall Heat Transfer Coefficient [W/(m²·K)]
+// η = Thermal efficiency range [%]
+// ΔT_min = Minimum approach temperature [°C]
+// suitable = mode keys it works for
+const HX_TYPES = {
+  tubular_metallic: {
+    name: 'Metallic Recuperator',
+    icon: '🔩',
+    desc: 'ท่อโลหะ Counterflow — มาตรฐานสำหรับ Furnace / Kiln',
+    U_low: 20, U_high: 80, U_mid: 45,
+    eta_low: 55, eta_high: 75,
+    dt_min: 50,
+    dP_gas: 225,   // typical gas-side pressure drop added (Pa)
+    tmax: 1000,
+    suitable: ['air','metal'],
+    pros: 'ทนอุณหภูมิสูง, บำรุงรักษาง่าย, มีจำหน่ายทั่วไป',
+    cons: 'ขนาดใหญ่, pressure drop สูง',
+    ref: 'KMUTT WHR Guide §2.3.2'
+  },
+  radiation_recup: {
+    name: 'Radiation Recuperator',
+    icon: '☀️',
+    desc: 'สำหรับ FG อุณหภูมิสูงมาก > 900°C',
+    U_low: 40, U_high: 120, U_mid: 75,
+    eta_low: 40, eta_high: 65,
+    dt_min: 80,
+    dP_gas: 100,   // typical gas-side pressure drop added (Pa)
+    tmax: 1400,
+    suitable: ['air'],
+    pros: 'รับ FG ร้อนจัดได้, compact',
+    cons: 'ราคาสูง, ต้องดูแลพิเศษ',
+    ref: 'KMUTT WHR Guide §2.3.2'
+  },
+  plate_fin: {
+    name: 'Plate-Fin HX',
+    icon: '📋',
+    desc: 'Compact, ประสิทธิภาพสูง — Gas-to-Gas หรือ Gas-to-Liquid',
+    U_low: 50, U_high: 200, U_mid: 110,
+    eta_low: 65, eta_high: 85,
+    dt_min: 30,
+    dP_gas: 350,   // typical gas-side pressure drop added (Pa)
+    tmax: 650,
+    suitable: ['air','water'],
+    pros: 'Compact, ε สูง, pressure drop ต่ำ',
+    cons: 'อุดตันง่าย, ราคาสูง, ไม่เหมาะ FG สกปรก',
+    ref: 'KMUTT WHR Guide §2.3.2'
+  },
+  shell_tube: {
+    name: 'Shell & Tube HX',
+    icon: '🏭',
+    desc: 'มาตรฐานอุตสาหกรรม — Gas-to-Liquid (Economizer)',
+    U_low: 30, U_high: 100, U_mid: 60,
+    eta_low: 60, eta_high: 80,
+    dt_min: 20,
+    dP_gas: 250,   // typical gas-side pressure drop added (Pa)
+    tmax: 500,
+    suitable: ['water','metal'],
+    pros: 'ทนทาน, บำรุงรักษาง่าย, ราคาสมเหตุผล',
+    cons: 'ขนาดใหญ่, ต้องพื้นที่ติดตั้งมาก',
+    ref: 'KMUTT WHR Guide §6.1'
+  },
+  economizer_finned: {
+    name: 'Finned-Tube Economizer',
+    icon: '🌡️',
+    desc: 'อุ่นน้ำป้อน Boiler ด้วยไอเสีย — มาตรฐาน BS 845',
+    U_low: 25, U_high: 80, U_mid: 50,
+    eta_low: 60, eta_high: 80,
+    dt_min: 25,
+    dP_gas: 300,   // typical gas-side pressure drop added (Pa)
+    tmax: 400,
+    suitable: ['water'],
+    pros: 'ประสิทธิภาพดี, compact กว่า bare tube',
+    cons: 'ต้องระวัง fouling บน fin',
+    ref: 'KMUTT WHR Guide §5.2'
+  },
+  rotary_regen: {
+    name: 'Rotary Regenerator',
+    icon: '🔄',
+    desc: 'Heat Wheel — ประสิทธิภาพสูงสุด แต่มี leakage',
+    U_low: 30, U_high: 100, U_mid: 65,
+    eta_low: 70, eta_high: 90,
+    dt_min: 15,
+    dP_gas: 450,   // typical gas-side pressure drop added (Pa)
+    tmax: 750,
+    suitable: ['air'],
+    pros: 'ε สูงมาก 70–90%, compact',
+    cons: 'มี gas leakage ~5%, ชิ้นส่วนหมุน',
+    ref: 'KMUTT WHR Guide §5.9'
+  },
+  convection_preheater: {
+    name: 'Convection Preheater (Load)',
+    icon: '⚙️',
+    desc: 'อุ่นชิ้นงาน/โลหะก่อนเข้าเตา — Tunnel / Chamber',
+    U_low: 15, U_high: 60, U_mid: 35,
+    eta_low: 40, eta_high: 65,
+    dt_min: 60,
+    dP_gas: 175,   // typical gas-side pressure drop added (Pa)
+    tmax: 800,
+    suitable: ['metal'],
+    pros: 'ลด Tapping time, ประหยัดพลังงานในเตาหลัก',
+    cons: 'ต้องออกแบบ conveyor system',
+    ref: 'KMUTT WHR Guide §2.3.3'
+  }
+};
+
+// ─── HX ADVISOR: recommend HX for given conditions ────────────
+function hxAdvisor(mode, tfg_in, tfg_out, t_cold_in, t_cold_out) {
+  const results = [];
+  for (const [key, hx] of Object.entries(HX_TYPES)) {
+    if (!hx.suitable.includes(mode)) continue;
+    const dt_hot_end  = tfg_in  - t_cold_out;  // Hot end ΔT (counter-flow)
+    const dt_cold_end = tfg_out - t_cold_in;    // Cold end ΔT
+    const dt_min_actual = Math.min(dt_hot_end, dt_cold_end);
+    const tmax_ok = tfg_in <= hx.tmax;
+    const approach_ok = dt_min_actual >= hx.dt_min;
+    let score = 0;
+    if (tmax_ok) score += 30;
+    if (approach_ok) score += 30;
+    if (dt_min_actual >= hx.dt_min * 1.5) score += 20;
+    score += Math.min(20, (hx.eta_high - hx.eta_low) / 2);
+    results.push({ key, hx, score, tmax_ok, approach_ok, dt_min_actual });
+  }
+  results.sort((a,b) => b.score - a.score);
+  return results;
+}
+
+// ─── ROBUST LMTD CALCULATION ──────────────────────────────────
+// Counter-flow LMTD with full edge-case handling:
+//  • ΔT1 ≈ ΔT2  → ln(1)=0 singularity → fall back to AMTD (arithmetic mean)
+//  • near-equal ΔT (ratio→1) → ln→0 → numerical blow-up → AMTD
+//  • temperature cross (ΔT ≤ 0) → physically infeasible → return {valid:false}
+// Returns {lmtd, method, valid, dt1, dt2}
+function robustLMTD(tHot_in, tHot_out, tCold_in, tCold_out) {
+  // Counter-flow convention: hot enters where cold leaves
+  const dt1 = tHot_in  - tCold_out;   // hot inlet end
+  const dt2 = tHot_out - tCold_in;    // hot outlet end
+
+  // Temperature cross / infeasible (one end has hot ≤ cold)
+  if (dt1 <= 0 || dt2 <= 0) {
+    return { lmtd: NaN, method: 'infeasible', valid: false, dt1, dt2 };
+  }
+
+  const ratio = dt1 / dt2;
+  // If ΔT1 and ΔT2 are within 1% of each other, ln term is numerically unstable.
+  // AMTD differs from LMTD by <0.1% in this range, so use AMTD safely.
+  if (Math.abs(ratio - 1) < 0.01) {
+    return { lmtd: (dt1 + dt2) / 2, method: 'AMTD', valid: true, dt1, dt2 };
+  }
+
+  const lmtd = (dt1 - dt2) / Math.log(ratio);
+  if (!isFinite(lmtd) || lmtd <= 0) {
+    // Last-resort guard
+    return { lmtd: (dt1 + dt2) / 2, method: 'AMTD', valid: true, dt1, dt2 };
+  }
+  return { lmtd, method: 'LMTD', valid: true, dt1, dt2 };
+}
+
+// ─── TEMPERATURE-DEPENDENT WATER Cp ───────────────────────────
+// Cp of liquid water [kJ/(kg·K)] vs temperature (°C), 1 atm / saturation.
+// Quadratic least-squares fit to NIST/IAPWS data — max error 0.09% over 5–150°C.
+//  • 4.196 @5°C → minimum 4.180 @~43°C → 4.216 @100°C → 4.247 @120°C
+// Far more accurate than fixed 4.187 for hot feedwater (90–120°C).
+function cpWater(T_C) {
+  const T = (T_C === undefined || T_C === null || !isFinite(T_C)) ? 25 : T_C;
+  const t = Math.max(0, Math.min(180, T));   // clamp to fit's valid range
+  const cp = 4.200671 - 9.732100e-4 * t + 1.129510e-5 * t * t;
+  return Math.round(cp * 10000) / 10000;
+}
+
+// ─── HX AREA CALCULATION ──────────────────────────────────────
+function calcHXArea(q_kW, lmtd, U_mid) {
+  // A = Q / (U × LMTD)   [m²]
+  // Q in W, U in W/(m²·K), LMTD in K
+  if (!lmtd || lmtd <= 0 || !U_mid || U_mid <= 0) return null;
+  return (q_kW * 1000) / (U_mid * lmtd);
+}
+
+// ─── RENDER HX PANEL ──────────────────────────────────────────
+function renderHXPanel(containerId, mode, q_kW, lmtd, tfg_in, tfg_out, t_cold_in, t_cold_out) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const recs = hxAdvisor(mode, tfg_in, tfg_out, t_cold_in, t_cold_out);
+  const dt_hot  = tfg_in  - t_cold_out;
+  const dt_cold = tfg_out - t_cold_in;
+  const dt_min  = Math.min(dt_hot, dt_cold);
+  const dt_max  = Math.max(dt_hot, dt_cold);
+
+  // Approach temp color
+  const atClass = dt_min < 10 ? 'bad' : dt_min < 20 ? 'warn' : 'ok';
+  const atMsg   = dt_min < 10 ? '⛔ น้อยเกินไป — HX ขนาดใหญ่มาก ไม่คุ้มทุน'
+                : dt_min < 20 ? '⚠️ ต่ำ — ต้องพื้นที่ HX มาก'
+                : dt_min < 50 ? '✅ เหมาะสม'
+                : '✅ ดีมาก — HX ขนาดพอเหมาะ';
+
+  // Build HX type buttons
+  const modeHX = recs.slice(0, 5);
+  const hxBtns = modeHX.map((r, i) => {
+    const isFirst = i === 0;
+    return `<div class="hx-type-btn ${isFirst ? 'selected' : ''}"
+      id="hxbtn_${containerId}_${r.key}"
+      onclick="selectHX('${containerId}','${r.key}',${q_kW},${lmtd},${tfg_in},${tfg_out},${t_cold_in},${t_cold_out})">
+      <span class="hx-icon">${r.hx.icon}</span>
+      <span class="hx-name">${r.hx.name}</span>
+      <span class="hx-u">U = ${r.hx.U_low}–${r.hx.U_high} W/(m²·K)</span>
+      <span class="hx-eta">η = ${r.hx.eta_low}–${r.hx.eta_high}%</span>
+    </div>`;
+  }).join('');
+
+  // Best recommendation pills
+  const bestKey = recs[0]?.key;
+  const recPills = recs.slice(0, 4).map((r, i) => {
+    const cls = i === 0 ? 'best' : i <= 2 ? 'good' : 'good';
+    const lbl = i === 0 ? '⭐ แนะนำ' : `#${i+1}`;
+    return `<span class="rec-pill ${cls}">${lbl} ${r.hx.name}</span>`;
+  }).join('');
+
+  // Initial area calc with best HX
+  const bestHX = recs[0]?.hx;
+  const areaInitial = bestHX ? calcHXArea(q_kW, lmtd, bestHX.U_mid) : null;
+
+  el.innerHTML = `
+    <div class="card" style="margin-top:14px; border-top:3px solid var(--accent2);">
+      <div class="card-header" style="background:rgba(9,105,218,0.06)">
+        <div class="dot blue"></div>
+        🏗️ HX Selection &amp; Approach Temperature Analysis
+      </div>
+      <div class="card-body">
+
+        <!-- Approach Temperature -->
+        <p style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">
+          📐 Approach Temperature (อุณหภูมิที่ต่างกันน้อยที่สุดระหว่างสองกระแส)
+        </p>
+        <div class="approach-bar">
+          <div>
+            <div class="approach-val ${atClass}">${fmtN(dt_min,1)}°C</div>
+            <div style="font-size:10px;color:var(--text3)">ΔT_min (Approach)</div>
+          </div>
+          <div style="border-left:1px solid var(--border);padding-left:12px;flex:1">
+            <div style="font-size:12px;color:var(--text2)">${atMsg}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">
+              ΔT_hot_end = ${tfg_in}−${t_cold_out} = <strong>${dt_hot.toFixed(1)}°C</strong> &nbsp;|&nbsp;
+              ΔT_cold_end = ${tfg_out}−${t_cold_in} = <strong>${dt_cold.toFixed(1)}°C</strong>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">
+              Correction Factor F (multi-pass) ≈ 0.85–0.95 สำหรับ Shell&amp;Tube | LMTD_eff = F × LMTD
+            </div>
+          </div>
+        </div>
+
+        <!-- HX Type Selection -->
+        <p style="font-size:12px;font-weight:700;color:var(--text);margin:12px 0 6px">
+          🔧 เลือกชนิด Heat Exchanger <span style="font-weight:400;color:var(--text3)">(คลิกเพื่อคำนวณพื้นที่)</span>
+        </p>
+        <div style="margin-bottom:8px">${recPills}</div>
+        <div class="hx-card-grid">${hxBtns}</div>
+
+        <!-- HX Result Panel -->
+        <div id="hxresult_${containerId}">
+          ${bestHX ? renderHXResult(containerId, bestKey, q_kW, lmtd, bestHX) : ''}
+        </div>
+      </div>
+    </div>`;
+
+  // Auto-compute ID Fan penalty for the default (best) HX shown on first render
+  if (bestHX) recalcFanPenalty(containerId, q_kW);
+}
+
+function renderHXResult(containerId, hxKey, q_kW, lmtd, hx) {
+  if (!hx || !lmtd || lmtd <= 0) return '';
+  const A_low  = calcHXArea(q_kW, lmtd, hx.U_high); // Conservative U → large area
+  const A_mid  = calcHXArea(q_kW, lmtd, hx.U_mid);
+  const A_high = calcHXArea(q_kW, lmtd, hx.U_low);  // Low U → largest area
+  const F = 0.90; // LMTD correction factor (conservative)
+  const A_design = A_high / F; // With F correction + 15% fouling margin
+  const A_margin = A_design * 1.15;
+
+  const etaAdj_kW = q_kW * (hx.eta_low / 100);
+  const etaAdj_kWhi = q_kW * (hx.eta_high / 100);
+
+  return `
+    <div style="background:rgba(9,105,218,0.04);border:1px solid rgba(9,105,218,0.2);border-radius:6px;padding:12px;margin-top:10px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">
+        ${hx.icon} ${hx.name} — ผลการคำนวณพื้นที่ HX
+      </div>
+      <div class="hx-result-row">
+        <div class="hx-kpi">
+          <div class="kpi-val">${fmtN(A_mid,1)} m²</div>
+          <div class="kpi-lbl">พื้นที่ (U_mid=${hx.U_mid} W/m²K)</div>
+        </div>
+        <div class="hx-kpi green">
+          <div class="kpi-val">${fmtN(A_margin,1)} m²</div>
+          <div class="kpi-lbl">พื้นที่ Design (+15% fouling)</div>
+        </div>
+        <div class="hx-kpi gold">
+          <div class="kpi-val">${hx.eta_low}–${hx.eta_high}%</div>
+          <div class="kpi-lbl">Thermal Efficiency (η)</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--text2)">
+        <strong>สูตร:</strong> A = Q / (U × LMTD_eff) &nbsp;|&nbsp;
+        LMTD_eff = F × LMTD = 0.90 × ${fmtN(lmtd,1)} = ${fmtN(lmtd*F,1)} °C<br>
+        <strong>ช่วงพื้นที่:</strong> A = ${fmtN(A_low,1)} – ${fmtN(A_high,1)} m²
+        (U = ${hx.U_high}–${hx.U_low} W/m²K)<br>
+        <strong>ความร้อนที่กู้คืนจริง (ปรับด้วย η):</strong> ${fmtN(etaAdj_kW,1)} – ${fmtN(etaAdj_kWhi,1)} kW
+      </div>
+      <div style="margin-top:8px;font-size:12px;background:var(--surface2);border-radius:4px;padding:8px">
+        <strong>ข้อดี:</strong> ${hx.pros}<br>
+        <strong>ข้อจำกัด:</strong> ${hx.cons}<br>
+        <strong>อ้างอิง:</strong> ${hx.ref}
+      </div>
+
+      <!-- ID Fan Pressure Drop Penalty -->
+      <div style="margin-top:10px;background:rgba(207,79,42,0.05);border:1px solid rgba(207,79,42,0.25);border-radius:6px;padding:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">
+          🌀 พลังงานไฟฟ้าที่ ID Fan ใช้เพิ่ม (Pressure Drop Penalty)
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:8px">
+          การติดตั้ง HX เพิ่ม pressure drop ในระบบไอเสีย ทำให้พัดลมดูด (ID Fan) ทำงานหนักขึ้น —
+          ค่านี้ต้องหักออกจากผลประหยัด
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:8px">
+          <div>
+            <label style="font-size:10px;color:var(--text3);display:block">ΔP_gas เพิ่ม (Pa)</label>
+            <input type="number" id="fan_dp_${containerId}" value="${hx.dP_gas}" step="10"
+              style="width:100%;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px"
+              oninput="recalcFanPenalty('${containerId}',${q_kW})">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text3);display:block">อัตราไหลไอเสีย (Nm³/hr)</label>
+            <input type="number" id="fan_flow_${containerId}" value="${fanFlowGuess(containerId)}" step="100"
+              style="width:100%;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px"
+              oninput="recalcFanPenalty('${containerId}',${q_kW})">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text3);display:block">η_fan × η_motor</label>
+            <input type="number" id="fan_eta_${containerId}" value="0.55" step="0.05" min="0.1" max="0.9"
+              style="width:100%;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px"
+              oninput="recalcFanPenalty('${containerId}',${q_kW})">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text3);display:block">ชม.ทำงาน (hr/yr)</label>
+            <input type="number" id="fan_hrs_${containerId}" value="${fanHrsGuess(containerId)}" step="100"
+              style="width:100%;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px"
+              oninput="recalcFanPenalty('${containerId}',${q_kW})">
+          </div>
+        </div>
+        <div id="fan_result_${containerId}" style="font-size:12px;color:var(--text)"></div>
+      </div>
+    </div>`;
+}
+
+// Guess flue gas flow from the sync field (Nm³/hr) per mode
+function fanFlowGuess(containerId) {
+  const map = { hx_panel_air: 'a_mfg', hx_panel_water: 'w_mfg', hx_panel_metal: 'm_mfg' };
+  const el = document.getElementById(map[containerId]);
+  const v = el ? parseFloat(el.value) : NaN;
+  return isFinite(v) && v > 0 ? Math.round(v) : 1000;
+}
+function fanHrsGuess(containerId) {
+  const map = { hx_panel_air: 'a_hrs', hx_panel_water: 'w_hrs', hx_panel_metal: 'm_hrs' };
+  const el = document.getElementById(map[containerId]);
+  const v = el ? parseFloat(el.value) : NaN;
+  return isFinite(v) && v > 0 ? Math.round(v) : 6000;
+}
+
+// Compute ID Fan electrical penalty and net saving
+function recalcFanPenalty(containerId, q_rec_kW) {
+  const dP   = parseFloat(document.getElementById('fan_dp_' + containerId).value);     // Pa
+  const flow = parseFloat(document.getElementById('fan_flow_' + containerId).value);   // Nm³/hr
+  const eta  = parseFloat(document.getElementById('fan_eta_' + containerId).value);    // combined
+  const hrs  = parseFloat(document.getElementById('fan_hrs_' + containerId).value);    // hr/yr
+  const out  = document.getElementById('fan_result_' + containerId);
+  if (!out) return;
+  if (![dP, flow, eta, hrs].every(isFinite) || eta <= 0) {
+    out.innerHTML = '<span style="color:var(--red)">กรอกค่าให้ครบและถูกต้อง</span>';
+    return;
+  }
+  // Volumetric flow m³/s (use actual ~ Nm³ as approximation; conservative)
+  const Q_m3s = flow / 3600;
+  // Fan electric power [W] = ΔP[Pa] × Q[m³/s] / η_combined
+  const P_fan_W = (dP * Q_m3s) / eta;
+  const P_fan_kW = P_fan_W / 1000;
+  const E_fan_kWh = P_fan_kW * hrs;                 // kWh/yr electrical
+  // Convert recovered heat to comparable basis (thermal kWh/yr)
+  const E_rec_kWh = q_rec_kW * hrs;                 // kWh-thermal/yr
+  const penaltyPct = E_rec_kWh > 0 ? (E_fan_kWh / E_rec_kWh * 100) : 0;
+  const elecCost = 4.5; // ฿/kWh default
+  const fanCost_yr = E_fan_kWh * elecCost;
+
+  out.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div>กำลังไฟ ID Fan เพิ่ม: <strong>${fmtN(P_fan_kW,2)} kW</strong></div>
+      <div>พลังงานไฟฟ้า/ปี: <strong>${fmtN(E_fan_kWh,0)} kWh/yr</strong></div>
+      <div>ค่าไฟเพิ่ม @4.5฿: <strong style="color:var(--accent)">${fmtN(fanCost_yr,0)} ฿/yr</strong></div>
+      <div>คิดเป็น <strong>${fmtN(penaltyPct,1)}%</strong> ของความร้อนที่กู้คืน</div>
+    </div>
+    <div style="margin-top:6px;font-size:11px;color:var(--text3)">
+      สูตร: P_fan = ΔP × Q ÷ η = ${fmtN(dP,0)} Pa × ${fmtN(Q_m3s,3)} m³/s ÷ ${eta}
+      = ${fmtN(P_fan_kW,2)} kW${penaltyPct > 15 ? ' &nbsp;⚠️ <span style="color:var(--accent)">penalty สูง — พิจารณา HX ที่ dP ต่ำกว่า</span>' : ''}
+    </div>`;
+}
+
+function selectHX(containerId, hxKey, q_kW, lmtd, tfg_in, tfg_out, t_cold_in, t_cold_out) {
+  // Update button highlight
+  document.querySelectorAll(`[id^="hxbtn_${containerId}_"]`).forEach(b => b.classList.remove('selected'));
+  const btn = document.getElementById('hxbtn_' + containerId + '_' + hxKey);
+  if (btn) btn.classList.add('selected');
+  // Render result
+  const hx = HX_TYPES[hxKey];
+  document.getElementById('hxresult_' + containerId).innerHTML = renderHXResult(containerId, hxKey, q_kW, lmtd, hx);
+  recalcFanPenalty(containerId, q_kW);   // auto-compute fan penalty on selection
+}
+
+// ─── Calculation Trace toggle ─────────────────────────────────
+function traceToggle(id) {
+  const hdr  = document.getElementById('trace-hdr-' + id);
+  const body = document.getElementById('trace-body-' + id);
+  if (!hdr || !body) return;
+  hdr.classList.toggle('open');
+  body.classList.toggle('open');
+}
+
+// ─── Build Trace HTML ─────────────────────────────────────────
+// steps = [{num, color, title, formula, sub, result, note}, ...]
+function buildTraceHTML(id, steps) {
+  const rows = steps.map(s => `
+    <div class="eq-step">
+      <div class="eq-num ${s.color||''}">${s.num}</div>
+      <div class="eq-content">
+        <div class="eq-title">${s.title}</div>
+        <code class="eq-formula">${s.formula}</code>
+        <code class="eq-sub">${s.sub}</code>
+        <span class="eq-result">= ${s.result}</span>
+        ${s.note ? `<div class="eq-note">📌 ${s.note}</div>` : ''}
+      </div>
+    </div>`).join('');
+
+  return `
+    <div class="calc-trace">
+      <div class="calc-trace-header" id="trace-hdr-${id}" onclick="traceToggle('${id}')">
+        <span class="trace-icon">🔍</span>
+        <span>แสดงการคำนวณทีละขั้น (Calculation Trace)</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="calc-trace-body" id="trace-body-${id}">
+        ${rows}
+      </div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// FUEL DATABASE — ครอบคลุมทุกสถานะ (Gas / Liquid / Solid)
+// อ้างอิง: EnPI Steam Boiler TripleE v51 (nk.triplee@gmail.com)
+// ncv = NCV/LHV [MJ/Nm³ for gas, MJ/kg for liquid/solid]
+// Ao  = Stoichiometric Air [Nm³/Nm³fuel for gas, kg/kg for liq/solid]
+// ef  = CO₂ Emission Factor [kg CO₂/Nm³ for gas, kg CO₂/kg for liq/solid]
+// cpfg = Cp flue gas estimate [kJ/(Nm³·K) for gas, kJ/(kg·K) for liq/solid]
+// fuelUnit = หน่วยที่ใช้วัดอัตราการไหล
+// phase = 'gas' | 'liquid' | 'solid'
+// ════════════════════════════════════════════════════════════
+const FUELS = {
+  // ─── GAS FUELS (หน่วย Nm³/hr) ──────────────────────────────
+  lpg_6040: {
+    name:'LPG (C₃H₈:C₄H₁₀ = 60:40)',  phase:'liquid',
+    ncv:46.1,  hhv:50.2, ef:2.99, Ao:13.94,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.42, co2max:12.7, rho_liq:1.964,
+    note:'LPG อุตสาหกรรมไทย ความหนาแน่น ~1.964 kg/Nm³ | NCV 46.1 MJ/kg'
+  },
+  lpg_propane: {
+    name:'LPG Pure Propane (C₃H₈ 100%)',  phase:'liquid',
+    ncv:46.4,  hhv:50.4, ef:2.99, Ao:15.69,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.43, co2max:13.75, rho_liq:1.964,
+    note:'Propane บริสุทธิ์ NCV 46.4 MJ/kg'
+  },
+  lpg_butane: {
+    name:'LPG Pure Butane (C₄H₁₀ 100%)', phase:'liquid',
+    ncv:45.7,  hhv:49.5, ef:2.99, Ao:15.43,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.44, co2max:14.06, rho_liq:2.589,
+    note:'Butane บริสุทธิ์ NCV 45.7 MJ/kg'
+  },
+  ng_methane: {
+    name:'Natural Gas / CNG (CH₄ ~95%)', phase:'gas',
+    ncv:35.8,  hhv:39.9,  ef:2.035, Ao:9.52,
+    label:'Nm³/hr', fuelUnit:'Nm³/hr', flowLabel:'อัตราการไหล (Nm³/hr)',
+    cpfg:1.38, co2max:11.73,
+    note:'ก๊าซธรรมชาติ / CNG'
+  },
+  biogas_60: {
+    name:'Biogas (CH₄ 60%, CO₂ 40%)',    phase:'gas',
+    ncv:21.5,  hhv:23.9,  ef:0.0,   Ao:5.71,
+    label:'Nm³/hr', fuelUnit:'Nm³/hr', flowLabel:'อัตราการไหล (Nm³/hr)',
+    cpfg:1.52, co2max:7.04,
+    note:'ก๊าซชีวภาพ 60% CH₄ — EF=0 (คาร์บอนเป็นกลาง)'
+  },
+  hydrogen: {
+    name:'Hydrogen H₂ (100%)',            phase:'gas',
+    ncv:10.8,  hhv:12.75, ef:0.0,   Ao:2.38,
+    label:'Nm³/hr', fuelUnit:'Nm³/hr', flowLabel:'อัตราการไหล (Nm³/hr)',
+    cpfg:1.29, co2max:0,
+    note:'ไฮโดรเจน — ไม่มี CO₂'
+  },
+
+  // ─── LIQUID FUELS (หน่วย kg/hr หรือ L/hr) ──────────────────
+  diesel: {
+    name:'Diesel / Gas Oil (B0)',         phase:'liquid',
+    ncv:42.7,  hhv:45.5,  ef:2.675, Ao:14.5,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.36, co2max:15.8, rho_liq:845,
+    note:'น้ำมันดีเซล ความหนาแน่น ~845 kg/m³'
+  },
+  fuel_oil_a: {
+    name:'Fuel Oil A (FO-A)',             phase:'liquid',
+    ncv:40.2,  hhv:42.4,  ef:3.096, Ao:13.3,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.35, co2max:16.5, rho_liq:950,
+    note:'น้ำมันเตา A ความหนาแน่น ~950 kg/m³'
+  },
+  fuel_oil_c: {
+    name:'Fuel Oil C (FO-C, Bunker)',     phase:'liquid',
+    ncv:39.8,  hhv:42.0,  ef:3.180, Ao:13.1,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.35, co2max:16.8, rho_liq:980,
+    note:'น้ำมันเตา C (Bunker) ความหนาแน่น ~980 kg/m³'
+  },
+  kerosene: {
+    name:'Kerosene / Jet A-1',            phase:'liquid',
+    ncv:43.2,  hhv:46.2,  ef:2.530, Ao:14.8,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.37, co2max:15.2, rho_liq:800,
+    note:'น้ำมันก๊าด / Jet fuel ความหนาแน่น ~800 kg/m³'
+  },
+  palm_oil: {
+    name:'Palm Oil / Biodiesel (B100)',   phase:'liquid',
+    ncv:34.5,  hhv:37.2,  ef:0.0,   Ao:12.0,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.38, co2max:13.5, rho_liq:875,
+    note:'น้ำมันปาล์ม / ไบโอดีเซล — EF=0 (renewable)'
+  },
+
+  // ─── SOLID FUELS (หน่วย kg/hr) ─────────────────────────────
+  coal_24m: {
+    name:'Bituminous Coal M=24%',         phase:'solid',
+    ncv:18.5,  hhv:20.1,  ef:2.470, Ao:6.25,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.35, co2max:18.7,
+    note:'ถ่านหิน Bituminous ความชื้น 24% (ค่าจาก EnPI v51)'
+  },
+  coal_28m: {
+    name:'Bituminous Coal M=28%',         phase:'solid',
+    ncv:16.8,  hhv:18.3,  ef:2.340, Ao:5.70,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.35, co2max:18.3,
+    note:'ถ่านหิน Bituminous ความชื้น 28% (ค่าจาก EnPI v51)'
+  },
+  wood_8m: {
+    name:'Wood / Biomass M=8%',           phase:'solid',
+    ncv:16.0,  hhv:17.3,  ef:0.0,   Ao:5.60,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.40, co2max:20.1,
+    note:'ไม้ / ชีวมวล ความชื้น 8% — EF=0 (carbon neutral)'
+  },
+  wood_16m: {
+    name:'Wood / Biomass M=16%',          phase:'solid',
+    ncv:13.5,  hhv:14.8,  ef:0.0,   Ao:4.70,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.41, co2max:19.5,
+    note:'ไม้ / ชีวมวล ความชื้น 16%'
+  },
+  wood_pellet: {
+    name:'Wood Pellet M=8%',              phase:'solid',
+    ncv:16.5,  hhv:17.8,  ef:0.0,   Ao:5.80,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.40, co2max:20.3,
+    note:'เม็ดไม้อัด Wood Pellet ความชื้น 8%'
+  },
+  bagasse: {
+    name:'Bagasse (ชานอ้อย) M=50%',       phase:'solid',
+    ncv:7.5,   hhv:9.0,   ef:0.0,   Ao:3.20,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.45, co2max:18.0,
+    note:'ชานอ้อย ความชื้น ~50% — EF=0 (carbon neutral)'
+  },
+  rice_husk: {
+    name:'Rice Husk (แกลบ) M=12%',        phase:'solid',
+    ncv:12.5,  hhv:13.5,  ef:0.0,   Ao:4.80,
+    label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
+    cpfg:1.42, co2max:19.0,
+    note:'แกลบข้าว ความชื้น ~12%'
+  },
+  custom: {
+    name:'Custom (กรอกเอง)',               phase:'gas',
+    ncv:93.6,  hhv:101.3, ef:1.695, Ao:27.38,
+    label:'Nm³/hr', fuelUnit:'Nm³/hr', flowLabel:'อัตราการไหล (Nm³/hr)',
+    cpfg:1.42, co2max:12.7,
+    note:'กรอกค่า NCV และหน่วยเองด้านล่าง'
+  },
+};
+
+const METALS = {
+  steel:     { name:'Carbon Steel',  cp:0.49,  rho:7850 },
+  alloy:     { name:'Alloy Steel',   cp:0.50,  rho:7800 },
+  al:        { name:'Aluminium',     cp:0.90,  rho:2700 },
+  cu:        { name:'Copper',        cp:0.385, rho:8960 },
+  cast_iron: { name:'Cast Iron',     cp:0.46,  rho:7200 },
+  custom:    { name:'Custom',        cp:0.49,  rho:7850 },
+};
+
+// ════════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ════════════════════════════════════════════════════════════
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════
+// GLOBAL FG CALCULATION
+// ════════════════════════════════════════════════════════════
+function updateFuelProps() {
+  const fuel = FUELS[document.getElementById('g_fuel').value];
+  document.getElementById('a_cpfg').value = fuel.cpfg;
+  document.getElementById('w_cpfg').value = fuel.cpfg;
+  // อัปเดต label หน่วยเชื้อเพลิง
+  document.getElementById('g_fuel_unit_display').textContent = fuel.fuelUnit;
+  document.getElementById('g_flow_label').textContent = fuel.flowLabel || 'อัตราการไหลเชื้อเพลิง';
+  // แสดง badge สถานะเชื้อเพลิง
+  const phaseBadge = { gas:'⛽ Gas', liquid:'🛢️ Liquid', solid:'🪵 Solid' };
+  document.getElementById('g_phase_badge').textContent = phaseBadge[fuel.phase] || fuel.phase;
+  document.getElementById('g_phase_badge').style.color =
+    fuel.phase==='gas' ? 'var(--accent2)' : fuel.phase==='liquid' ? 'var(--accent4)' : 'var(--accent3)';
+  // แสดง note
+  const noteEl = document.getElementById('g_fuel_note');
+  if(noteEl) noteEl.textContent = fuel.note || '';
+  // อัปเดต p_ncv และ p_ef ในสรุปรวม
+  const pNcv = document.getElementById('p_ncv');
+  const pEf  = document.getElementById('p_ef');
+  if(pNcv) pNcv.value = fuel.ncv;
+  if(pEf)  pEf.value  = fuel.ef;
+}
+function syncGlobal() { /* live sync */ }
+
+function calcGlobal() {
+  const o2_pct = parseFloat(document.getElementById('g_o2').value);  // %vol  e.g. 3.0
+  const o2     = o2_pct / 100;  // fraction e.g. 0.03
+  const fuelFlow = parseFloat(document.getElementById('g_fuel_flow').value);
+  const fuelKey = document.getElementById('g_fuel').value;
+  const fuel = FUELS[fuelKey];
+
+  // Excess Air from O2 (fraction)
+  const denom = 0.21 - o2;
+  if (denom <= 0) {
+    alert('⚠️ %O₂ ต้องน้อยกว่า 21% ครับ (ค่าปัจจุบัน ' + o2_pct + '%)');
+    return;
+  }
+  const ea = (o2 / denom) * 100;
+  document.getElementById('g_ea').textContent = ea.toFixed(1);
+
+  // FG flow calculation — แยกตาม phase
+  // Gas: Nm³_fg / Nm³_fuel   |   Liquid/Solid: Nm³_fg / kg_fuel (approx)
+  const alpha = 1 + ea/100;
+  let mfg;
+  if (fuel.phase === 'gas') {
+    // per Nm³ fuel: FG ≈ Ao*(1+EA) + 1 (wet FG volume)
+    mfg = fuelFlow * (fuel.Ao * alpha + 1) * 0.95;
+  } else {
+    // per kg fuel: stoichiometric air Ao [kg/kg] → convert to Nm³ (÷1.293)
+    const air_nm3 = fuel.Ao * alpha / 1.293;   // kg air/kg fuel ÷ 1.293 kg/Nm³
+    mfg = fuelFlow * (air_nm3 * 1.25);          // FG ≈ air + fuel combustion products
+  }
+  document.getElementById('g_mfg').textContent = mfg.toFixed(1);
+
+  // Cp_fg — estimate at average temp
+  const tfg_in = parseFloat(document.getElementById('g_tfg_in').value);
+  const tavg = (tfg_in + 150) / 2;
+  const cpfg = fuel.cpfg + (tavg - 300) * 0.00015;
+  document.getElementById('g_cpfg').textContent = cpfg.toFixed(3);
+
+  // Sync to other tabs
+  document.getElementById('a_tfg1').value = document.getElementById('g_tfg_in').value;
+  document.getElementById('a_mfg').value  = mfg.toFixed(1);
+  document.getElementById('a_cpfg').value = cpfg.toFixed(3);
+  document.getElementById('a_tair1').value = document.getElementById('g_tamb').value;
+  document.getElementById('w_mfg').value  = mfg.toFixed(1);
+  document.getElementById('w_cpfg').value = cpfg.toFixed(3);
+  document.getElementById('m_mfg').value  = mfg.toFixed(1);
+
+  // อัปเดต p_ncv สำหรับสรุปรวม
+  const pNcv = document.getElementById('p_ncv');
+  const pEf  = document.getElementById('p_ef');
+  if(pNcv) pNcv.value = fuel.ncv;
+  if(pEf)  pEf.value  = fuel.ef;
+
+  // แสดง fuel properties summary
+  const unitStr = fuel.fuelUnit;
+  alert(
+    `✅ อัพเดตค่า FG ทุก Mode เรียบร้อย\n\n` +
+    `เชื้อเพลิง: ${fuel.name}\n` +
+    `สถานะ: ${fuel.phase.toUpperCase()} (${unitStr})\n` +
+    `NCV: ${fuel.ncv} MJ/${unitStr.replace('/hr','')}\n` +
+    `HHV: ${fuel.hhv} MJ/${unitStr.replace('/hr','')}\n` +
+    `EF: ${fuel.ef} kgCO₂/${unitStr.replace('/hr','')}\n` +
+    `────────────────\n` +
+    `ṁ_fg ≈ ${mfg.toFixed(1)} Nm³/hr\n` +
+    `Excess Air = ${ea.toFixed(1)}%`
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// MODE 1: AIR PREHEATING
+// ════════════════════════════════════════════════════════════
+function setRecupStage(n) {
+  recupStage = n;
+  document.getElementById('recup1_btn').classList.toggle('active', n===1);
+  document.getElementById('recup2_btn').classList.toggle('active', n===2);
+  document.getElementById('tfg3_wrap').style.opacity  = n===2 ? '1' : '0.3';
+  document.getElementById('tair3_wrap').style.opacity = n===2 ? '1' : '0.3';
+  // SVG opacity
+  const op = n===2 ? 1 : 0.3;
+  document.getElementById('recup2_box').setAttribute('opacity', op);
+}
+
+function loadSampleAir() {
+  // From "Heat Balance เตาเผา ไฟล์หลักอ้างอิง.xlsx" data
+  document.getElementById('a_tfg1').value = 745;
+  document.getElementById('a_tfg2').value = 527;
+  document.getElementById('a_tfg3').value = 331;
+  document.getElementById('a_tair1').value = 31;
+  document.getElementById('a_tair2').value = 274;
+  document.getElementById('a_tair3').value = 478;
+  document.getElementById('a_mair').value = 128;
+  document.getElementById('a_cpair').value = 1.30;
+  document.getElementById('a_mfg').value = 155;
+  document.getElementById('a_cpfg').value = 1.42;
+  setRecupStage(2);
+}
+
+function calcAir() {
+  const tfg1 = parseFloat(document.getElementById('a_tfg1').value);
+  const tfg2 = parseFloat(document.getElementById('a_tfg2').value);
+  const tfg3 = recupStage === 2 ? parseFloat(document.getElementById('a_tfg3').value) : tfg2;
+  const tair1 = parseFloat(document.getElementById('a_tair1').value);
+  const tair2 = parseFloat(document.getElementById('a_tair2').value);
+  const tair3 = recupStage === 2 ? parseFloat(document.getElementById('a_tair3').value) : tair2;
+  const mair  = parseFloat(document.getElementById('a_mair').value);
+  const cpair = parseFloat(document.getElementById('a_cpair').value);
+  const mfg   = parseFloat(document.getElementById('a_mfg').value);
+  const cpfg  = parseFloat(document.getElementById('a_cpfg').value);
+  const fuelKey = document.getElementById('g_fuel').value;
+  const fuel = FUELS[fuelKey];
+
+  // Heat from FG side  [kJ/hr ÷ 3600 = kW]
+  const q_fg_kJ = mfg * cpfg * (tfg1 - (recupStage===2 ? tfg3 : tfg2));
+  const q_fg_kw = q_fg_kJ / 3600; // kJ/hr → kW
+
+  // Heat absorbed by air side  [kJ/hr ÷ 3600 = kW]
+  const q_air_kJ = mair * cpair * ((recupStage===2 ? tair3 : tair2) - tair1);
+  const q_air_kw = q_air_kJ / 3600;
+
+  // Effectiveness
+  const c_fg  = mfg  * cpfg;
+  const c_air = mair * cpair;
+  const c_min = Math.min(c_fg, c_air);
+  const q_max = c_min * (tfg1 - tair1);
+  const eff   = (q_air_kJ / q_max) * 100;
+
+  // Fuel saving: Q_air [kJ/hr] ÷ 1000 = MJ/hr → ÷ NCV [MJ/unit] = unit/hr
+  const fuelSave_hr = (q_air_kJ / 1000) / fuel.ncv;
+  const hrs = 8000;
+  const fuelSave_yr = fuelSave_hr * hrs;
+  // Annual energy: q_air_kw [kW] × hrs [hr/yr] × 3.6 [kJ/Wh·1000/1000] ÷ 1000 = GJ/yr
+  // kW × hr = kWh → × 3.6/1000 = GJ
+  const q_gj_yr = q_air_kw * hrs * 3.6 / 1000;
+
+  // Stage details
+  let stageHtml = '';
+  if (recupStage === 2) {
+    const q1_fg = mfg * cpfg * (tfg1 - tfg2) / 3600;
+    const q2_fg = mfg * cpfg * (tfg2 - tfg3) / 3600;
+    stageHtml = `
+      <hr class="divider">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:8px"><strong>รายละเอียดแต่ละชั้น:</strong></p>
+      <div class="grid-2">
+        <div class="result-item">
+          <div class="r-label">Q Recup.1</div>
+          <div class="r-value">${q1_fg.toFixed(2)}</div>
+          <div class="r-unit">kW</div>
+        </div>
+        <div class="result-item">
+          <div class="r-label">Q Recup.2</div>
+          <div class="r-value">${q2_fg.toFixed(2)}</div>
+          <div class="r-unit">kW</div>
+        </div>
+      </div>`;
+  }
+
+  R.air = { q_kw: q_air_kw, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true,
+            fuelUnit: fuel.fuelUnit, fuelName: fuel.name, ncv: fuel.ncv, ef: fuel.ef };
+
+  // ── Build Trace ──────────────────────────────────────────────
+  const Ao_air = fuel.Ao || 27.38;
+  const traceSteps_air = [
+    {
+      num:1, color:'', title:'ความร้อนที่ไอเสียส่งให้ (Q_fg) — ฝั่ง Flue Gas',
+      formula: 'Q_fg [kW] = ṁ_fg [Nm³/hr] × Cp_fg [kJ/(Nm³·K)] × (Tfg_in − Tfg_out) ÷ 3,600',
+      sub:     `Q_fg = ${fmtN(mfg,2)} × ${cpfg.toFixed(3)} × (${tfg1} − ${recupStage===2?tfg3:tfg2}) ÷ 3,600`,
+      result:  `${fmtN(q_fg_kw,2)} kW`,
+      note:    'Cp_fg ≈ 1.38–1.45 kJ/(Nm³·K) สำหรับก๊าซ LPG/NG; สูงขึ้นเล็กน้อยตามอุณหภูมิ'
+    },
+    {
+      num:2, color:'blue', title:'ความร้อนที่อากาศรับได้ (Q_air) — ฝั่ง Air',
+      formula: 'Q_air [kW] = ṁ_air [Nm³/hr] × Cp_air [kJ/(Nm³·K)] × (Tair_out − Tair_in) ÷ 3,600',
+      sub:     `Q_air = ${fmtN(mair,2)} × ${cpair.toFixed(3)} × (${recupStage===2?tair3:tair2} − ${tair1}) ÷ 3,600`,
+      result:  `${fmtN(q_air_kw,2)} kW`,
+      note:    'Cp_air ≈ 1.30 kJ/(Nm³·K) ที่ช่วง 30–500°C'
+    },
+    {
+      num:3, color:'', title:'Heat Exchanger Effectiveness (ε)',
+      formula: 'ε = Q_air / Q_max   |   Q_max = C_min × (Tfg_in − Tair_in)\nC_min = min(ṁ_fg × Cp_fg, ṁ_air × Cp_air)',
+      sub:     `C_fg=${fmtN(mfg*cpfg,2)}  C_air=${fmtN(mair*cpair,2)}  C_min=${fmtN(Math.min(mfg*cpfg,mair*cpair),2)}\nQ_max = ${fmtN(Math.min(mfg*cpfg,mair*cpair),2)} × (${tfg1}−${tair1}) = ${fmtN(Math.min(mfg*cpfg,mair*cpair)*(tfg1-tair1),2)} kJ/hr`,
+      result:  `ε = ${fmtN(eff,1)} %`,
+      note:    'ε > 70% = HX ประสิทธิภาพดี | ε < 40% = ควรทบทวนการออกแบบ'
+    },
+    {
+      num:4, color:'green', title:'พลังงานรวมต่อปี (Annual Energy)',
+      formula: 'E_yr [GJ/yr] = Q_air [kW] × Operating Hours [hr/yr] × 3.6 ÷ 1,000',
+      sub:     `E_yr = ${fmtN(q_air_kw,2)} × ${fmtN(hrs,0)} × 3.6 ÷ 1,000`,
+      result:  `${fmtN(q_gj_yr,1)} GJ/yr`,
+      note:    `ชั่วโมงทำงาน = ${fmtN(hrs,0)} hr/yr`
+    },
+    {
+      num:5, color:'gold', title:'เชื้อเพลิงที่ประหยัดได้ต่อปี (Fuel Saving)',
+      formula: `Fuel_save [${fuel.fuelUnit.replace('/hr','/hr')}] = Q_air [kJ/hr] ÷ 1,000 [kJ→MJ] ÷ NCV [MJ/${fuel.fuelUnit.replace('/hr','')}]\nFuel_save/yr = Fuel_save_hr × Operating Hours`,
+      sub:     `Fuel_save = (${fmtN(q_air_kJ,1)} kJ/hr ÷ 1,000) ÷ ${fuel.ncv} = ${fmtN(fuelSave_hr,4)} ${fuel.fuelUnit.replace('/hr','/hr')}\nFuel_save/yr = ${fmtN(fuelSave_hr,4)} × ${fmtN(hrs,0)}`,
+      result:  `${fmtN(fuelSave_yr,0)} ${fuel.fuelUnit.replace('/hr','/yr')}`,
+      note:    `NCV (${fuel.name}) = ${fuel.ncv} MJ/${fuel.fuelUnit.replace('/hr','')} | หน่วย: kJ ÷ 1000 = MJ → ÷ NCV [MJ/unit] = unit/hr`
+    }
+  ];
+  const traceHTML_air = buildTraceHTML('air', traceSteps_air);
+
+  document.getElementById('air_result_body').innerHTML = `
+    <div class="result-grid">
+      <div class="result-item highlight">
+        <div class="r-label">ความร้อนที่กู้คืน (Air)</div>
+        <div class="r-value">${fmtN(q_air_kw, 2)}</div>
+        <div class="r-unit">kW</div>
+      </div>
+      <div class="result-item">
+        <div class="r-label">ความร้อนจาก FG</div>
+        <div class="r-value">${fmtN(q_fg_kw, 2)}</div>
+        <div class="r-unit">kW</div>
+      </div>
+      <div class="result-item blue">
+        <div class="r-label">Effectiveness ε</div>
+        <div class="r-value">${fmtN(eff, 1)}</div>
+        <div class="r-unit">%</div>
+      </div>
+      <div class="result-item">
+        <div class="r-label">Tair ออก (Preheated)</div>
+        <div class="r-value">${recupStage===2 ? tair3 : tair2}</div>
+        <div class="r-unit">°C</div>
+      </div>
+      <div class="result-item">
+        <div class="r-label">Tfg ออก (Stack)</div>
+        <div class="r-value">${recupStage===2 ? tfg3 : tfg2}</div>
+        <div class="r-unit">°C</div>
+      </div>
+      <div class="result-item gold">
+        <div class="r-label">เชื้อเพลิงประหยัด/ชม</div>
+        <div class="r-value">${fmtN(fuelSave_hr, 3)}</div>
+        <div class="r-unit">${fuel.label.replace('/hr','')}</div>
+      </div>
+    </div>
+    ${stageHtml}
+    <div class="info-box" style="margin-top:12px">
+      💡 พลังงานรวมต่อปี: <strong>${fmtN(q_gj_yr, 1)} GJ/yr</strong> &nbsp;|&nbsp;
+      ประหยัดเชื้อเพลิง: <strong>${fmtN(fuelSave_yr, 0)} ${fuel.label.replace('/hr','/yr')}</strong>
+    </div>
+    ${traceHTML_air}`;
+
+  // ── HX Panel ─────────────────────────────────────────────────
+  const tfg_out_air = recupStage===2 ? tfg3 : tfg2;
+  const tair_out_air = recupStage===2 ? tair3 : tair2;
+  const lmtdAir = robustLMTD(tfg1, tfg_out_air, tair1, tair_out_air);
+  renderHXPanel('hx_panel_air', 'air', q_air_kw, lmtdAir.valid ? lmtdAir.lmtd : (tfg1-tair1)/2, tfg1, tfg_out_air, tair1, tair_out_air);
+}
+
+// ════════════════════════════════════════════════════════════
+// MODE 2: WATER / ECONOMIZER
+// ════════════════════════════════════════════════════════════
+function setWaterType() {
+  const t = document.getElementById('w_type').value;
+  if (t === 'fw')   { document.getElementById('w_tw_in').value=25; document.getElementById('w_tw_out').value=90; }
+  if (t === 'proc') { document.getElementById('w_tw_in').value=30; document.getElementById('w_tw_out').value=70; }
+  if (t === 'hw')   { document.getElementById('w_tw_in').value=15; document.getElementById('w_tw_out').value=60; }
+}
+
+function loadSampleWater() {
+  document.getElementById('w_tfg_in').value  = 280;
+  document.getElementById('w_tfg_out').value = 160;
+  document.getElementById('w_mfg').value     = 155;
+  document.getElementById('w_cpfg').value    = 1.40;
+  document.getElementById('w_tw_in').value   = 25;
+  document.getElementById('w_tw_out').value  = 85;
+  document.getElementById('w_mwater').value  = 0;
+  document.getElementById('w_hrs').value     = 8000;
+}
+
+function calcWater() {
+  const tfg_in  = parseFloat(document.getElementById('w_tfg_in').value);
+  const tfg_out = parseFloat(document.getElementById('w_tfg_out').value);
+  const mfg     = parseFloat(document.getElementById('w_mfg').value);
+  const cpfg    = parseFloat(document.getElementById('w_cpfg').value);
+  const tw_in   = parseFloat(document.getElementById('w_tw_in').value);
+  const tw_out  = parseFloat(document.getElementById('w_tw_out').value);
+  const cp_w    = cpWater((tw_in + tw_out) / 2);   // T-dependent Cp at mean water temp
+  document.getElementById('w_cp').value = cp_w.toFixed(4);  // reflect in UI
+  let mwater    = parseFloat(document.getElementById('w_mwater').value);
+  const hrs     = parseFloat(document.getElementById('w_hrs').value);
+  const fuelKey = document.getElementById('g_fuel').value;
+  const fuel = FUELS[fuelKey];
+
+  // Heat available from FG  [kJ/hr ÷ 3600 = kW]
+  const q_fg_kW = (mfg * cpfg * (tfg_in - tfg_out)) / 3600;
+
+  // Water flow if 0 → compute from FG heat
+  if (mwater <= 0) {
+    mwater = (mfg * cpfg * (tfg_in - tfg_out)) / (cp_w * (tw_out - tw_in));
+  }
+  const q_water_kW = (mwater * cp_w * (tw_out - tw_in)) / 3600;
+
+  // Use min
+  const q_rec = Math.min(q_fg_kW, q_water_kW);
+
+  // Fuel saving equivalent
+  const fuelSave_hr = (q_rec * 3.6) / fuel.ncv;
+  const fuelSave_yr = fuelSave_hr * hrs;
+  const q_gj_yr = q_rec * hrs * 3.6 / 1000;
+
+  // ── Save to global state ─────────────────────────────────────
+  R.water = { q_kw: q_rec, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true,
+              fuelUnit: fuel.fuelUnit, fuelName: fuel.name, ncv: fuel.ncv, ef: fuel.ef };
+
+  // ── Dew Point warning ────────────────────────────────────────
+  const dewPoint = fuel.phase === 'solid' ? 160 : 150;
+  const dewWarning = tfg_out < dewPoint
+    ? '<div class="warn">⚠️ Tfg_out = ' + tfg_out + '°C ต่ำกว่า Acid Dew Point แนะนำ > ' + dewPoint + '°C เพื่อป้องกันการกัดกร่อน</div>'
+    : '<div class="ok">✅ Tfg_out = ' + tfg_out + '°C ปลอดภัยเหนือ Dew Point (' + dewPoint + '°C)</div>';
+
+  // ── Build Trace ──────────────────────────────────────────────
+  const traceSteps_water = [
+    {
+      num:1, color:'', title:'ความร้อนสูงสุดที่ไอเสียให้ได้ (Q_fg_avail)',
+      formula: 'Q_fg [kW] = ṁ_fg [Nm³/hr] × Cp_fg [kJ/(Nm³·K)] × (Tfg_in − Tfg_out) ÷ 3,600',
+      sub:     `Q_fg = ${fmtN(mfg,2)} × ${cpfg.toFixed(3)} × (${tfg_in} − ${tfg_out}) ÷ 3,600`,
+      result:  `${fmtN(q_fg_kW,2)} kW`,
+      note:    'ตรวจ Tfg_out > Acid Dew Point เพื่อป้องกันกัดกร่อน'
+    },
+    {
+      num:2, color:'blue', title:'ความร้อนที่น้ำต้องการ (Q_water_demand)',
+      formula: 'Q_w [kW] = ṁ_water [kg/hr] × Cp_w [kJ/(kg·K)] × (Tw_out − Tw_in) ÷ 3,600\nCp_water = f(T_mean) จาก NIST fit',
+      sub:     `Cp_w @ ${fmtN((tw_in+tw_out)/2,0)}°C = ${cp_w.toFixed(4)} kJ/(kg·K)\nQ_w = ${fmtN(mwater,1)} × ${cp_w.toFixed(4)} × (${tw_out} − ${tw_in}) ÷ 3,600`,
+      result:  `${fmtN(q_water_kW,2)} kW`,
+      note:    `ṁ_water = ${fmtN(mwater,1)} kg/hr ${parseFloat(document.getElementById('w_mwater').value)<=0?'(คำนวณจากความร้อน FG)':'(ค่าที่กรอก)'}`
+    },
+    {
+      num:3, color:'green', title:'ความร้อนที่กู้คืนได้จริง (Q_recovered)',
+      formula: 'Q_rec = min(Q_fg_avail, Q_water_demand)',
+      sub:     `Q_rec = min(${fmtN(q_fg_kW,2)}, ${fmtN(q_water_kW,2)})`,
+      result:  `${fmtN(q_rec,2)} kW`,
+      note:    'ถูกจำกัดโดยด้านที่มีกำลังความร้อนน้อยกว่า'
+    },
+    {
+      num:4, color:'green', title:'พลังงานรวมต่อปี (Annual Energy)',
+      formula: 'E_yr [GJ/yr] = Q_rec [kW] × Hrs [hr/yr] × 3.6 ÷ 1,000',
+      sub:     `E_yr = ${fmtN(q_rec,2)} × ${fmtN(hrs,0)} × 3.6 ÷ 1,000`,
+      result:  `${fmtN(q_gj_yr,1)} GJ/yr`,
+      note:    `ชั่วโมงทำงาน = ${fmtN(hrs,0)} hr/yr`
+    },
+    {
+      num:5, color:'gold', title:'เชื้อเพลิงที่ประหยัดได้ต่อปี (Fuel Saving)',
+      formula: `Fuel_save = E_yr [GJ/yr] × 1,000 ÷ NCV [MJ/${fuel.fuelUnit.replace('/hr','')}]`,
+      sub:     `Fuel_save = ${fmtN(q_gj_yr,1)} × 1,000 ÷ ${fuel.ncv}`,
+      result:  `${fmtN(fuelSave_yr,0)} ${fuel.fuelUnit.replace('/hr','/yr')}`,
+      note:    `NCV (${fuel.name}) = ${fuel.ncv} MJ/${fuel.fuelUnit.replace('/hr','')}`
+    }
+  ];
+  const traceHTML_water = buildTraceHTML('water', traceSteps_water);
+
+  document.getElementById('water_result_body').innerHTML = `
+    <div class="result-grid">
+      <div class="result-item highlight">
+        <div class="r-label">ความร้อนที่กู้คืน (Water)</div>
+        <div class="r-value">${fmtN(q_rec, 2)}</div>
+        <div class="r-unit">kW</div>
+      </div>
+      <div class="result-item blue">
+        <div class="r-label">อัตราน้ำที่อุ่นได้</div>
+        <div class="r-value">${fmtN(mwater, 1)}</div>
+        <div class="r-unit">kg/hr</div>
+      </div>
+      <div class="result-item">
+        <div class="r-label">Tw_out จริง</div>
+        <div class="r-value">${tw_out}</div>
+        <div class="r-unit">°C</div>
+      </div>
+      <div class="result-item gold">
+        <div class="r-label">เชื้อเพลิงประหยัด/ชม</div>
+        <div class="r-value">${fmtN(fuelSave_hr, 3)}</div>
+        <div class="r-unit">${fuel.label.replace('/hr','')}</div>
+      </div>
+    </div>
+    ${dewWarning}
+    <div class="info-box" style="margin-top:12px">
+      💡 พลังงานต่อปี: <strong>${fmtN(q_gj_yr, 1)} GJ/yr</strong> &nbsp;|&nbsp;
+      ประหยัดเชื้อเพลิง: <strong>${fmtN(fuelSave_yr, 0)} ${fuel.label.replace('/hr','/yr')}</strong>
+    </div>
+    ${traceHTML_water}`;
+
+  // ── HX Panel ─────────────────────────────────────────────────
+  const lmtdWater = robustLMTD(tfg_in, tfg_out, tw_in, tw_out);
+  renderHXPanel('hx_panel_water', 'water', q_rec, lmtdWater.valid ? lmtdWater.lmtd : (tfg_in - tw_in)/2, tfg_in, tfg_out, tw_in, tw_out);
+}
+
+// ════════════════════════════════════════════════════════════
+// MODE 3: METAL PREHEATING
+// ════════════════════════════════════════════════════════════
+function setMetalProps() {
+  const key = document.getElementById('m_type').value;
+  const m = METALS[key];
+  document.getElementById('m_cp').value = m.cp;
+  document.getElementById('m_cp_disp').textContent  = m.cp;
+  document.getElementById('m_rho_disp').textContent = m.rho;
+}
+
+function loadSampleMetal(type) {
+  document.getElementById('m_type').value = type; setMetalProps();
+  if (type === 'steel') {
+    document.getElementById('m_rate').value   = 800;
+    document.getElementById('m_tin').value    = 25;
+    document.getElementById('m_tout').value   = 300;
+    document.getElementById('m_tfg_in').value = 500;
+    document.getElementById('m_tfg_out').value= 200;
+    document.getElementById('m_mfg').value    = 155;
+    document.getElementById('m_hrs').value    = 6000;
+  } else {
+    document.getElementById('m_rate').value   = 500;
+    document.getElementById('m_tin').value    = 25;
+    document.getElementById('m_tout').value   = 200;
+    document.getElementById('m_tfg_in').value = 400;
+    document.getElementById('m_tfg_out').value= 180;
+    document.getElementById('m_mfg').value    = 155;
+    document.getElementById('m_hrs').value    = 5000;
+  }
+}
+
+function calcMetal() {
+  const mrate   = parseFloat(document.getElementById('m_rate').value);
+  const cp      = parseFloat(document.getElementById('m_cp').value);
+  const t_in    = parseFloat(document.getElementById('m_tin').value);
+  const t_out   = parseFloat(document.getElementById('m_tout').value);
+  const tfg_in  = parseFloat(document.getElementById('m_tfg_in').value);
+  const tfg_out = parseFloat(document.getElementById('m_tfg_out').value);
+  const mfg     = parseFloat(document.getElementById('m_mfg').value);
+  const hrs     = parseFloat(document.getElementById('m_hrs').value);
+  const fuelKey = document.getElementById('g_fuel').value;
+  const fuel = FUELS[fuelKey];
+  const cpfg    = parseFloat(document.getElementById('a_cpfg').value) || 1.42;
+  const cpfg_m  = cpfg; // alias for trace display
+
+  // Heat demand by metal  [kJ/hr ÷ 3600 = kW]
+  const q_metal_kW = (mrate * cp * (t_out - t_in)) / 3600;
+
+  // Heat available from FG  [kJ/hr ÷ 3600 = kW]
+  const q_fg_kW = (mfg * cpfg * (tfg_in - tfg_out)) / 3600;
+
+  // Check feasibility: LMTD or just show warning
+  const lmtdMetal = robustLMTD(tfg_in, tfg_out, t_in, t_out);
+  const lmtd = lmtdMetal.valid ? lmtdMetal.lmtd : NaN;
+  const q_rec = Math.min(q_metal_kW, q_fg_kW);
+
+  const fuelSave_hr = (q_rec * 3.6) / fuel.ncv;
+  const fuelSave_yr = fuelSave_hr * hrs;
+  const q_gj_yr = q_rec * hrs * 3.6 / 1000;
+
+  // Thermal check
+  const feasible = (tfg_in > t_out + 50) && (tfg_out > t_in + 20);
+  const feasMsg = feasible
+    ? `<div class="ok">✅ ΔT_min ≥ 20°C — การถ่ายเทความร้อนเป็นไปได้</div>`
+    : `<div class="warn">⚠️ ΔT ระหว่าง FG และโลหะน้อยเกินไป ควรพิจารณาออกแบบ HX ใหม่</div>`;
+
+  R.metal = { q_kw: q_rec, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true,
+              fuelUnit: fuel.fuelUnit, fuelName: fuel.name, ncv: fuel.ncv, ef: fuel.ef };
+
+  // ── Build Trace ──────────────────────────────────────────────
+  const metalName = document.getElementById('m_type').options[document.getElementById('m_type').selectedIndex].text;
+  const traceSteps_metal = [
+    {
+      num:1, color:'gold', title:'ความร้อนที่โลหะต้องการ (Q_metal_demand)',
+      formula: 'Q_metal [kW] = ṁ_metal [kg/hr] × Cp_metal [kJ/(kg·K)] × (T_out − T_in) ÷ 3,600',
+      sub:     `Q_metal = ${fmtN(mrate,1)} × ${cp.toFixed(3)} × (${t_out} − ${t_in}) ÷ 3,600`,
+      result:  `${fmtN(q_metal_kW,2)} kW`,
+      note:    `วัสดุ: ${metalName} | Cp = ${cp.toFixed(3)} kJ/(kg·K)`
+    },
+    {
+      num:2, color:'', title:'ความร้อนสูงสุดที่ไอเสียให้ได้ (Q_fg_avail)',
+      formula: 'Q_fg [kW] = ṁ_fg [Nm³/hr] × Cp_fg [kJ/(Nm³·K)] × (Tfg_in − Tfg_out) ÷ 3,600',
+      sub:     `Q_fg = ${fmtN(mfg,2)} × ${cpfg_m.toFixed(3)} × (${tfg_in} − ${tfg_out}) ÷ 3,600`,
+      result:  `${fmtN(q_fg_kW,2)} kW`,
+      note:    `Cp_fg ≈ ${cpfg_m.toFixed(3)} kJ/(Nm³·K)`
+    },
+    {
+      num:3, color:'blue', title:'LMTD — Log Mean Temperature Difference',
+      formula: 'LMTD = (ΔT₁ − ΔT₂) / ln(ΔT₁/ΔT₂)\nΔT₁ = Tfg_in − T_metal_out   |   ΔT₂ = Tfg_out − T_metal_in',
+      sub:     `ΔT₁ = ${tfg_in} − ${t_out} = ${fmtN(lmtdMetal.dt1,1)} °C\nΔT₂ = ${tfg_out} − ${t_in} = ${fmtN(lmtdMetal.dt2,1)} °C` +
+               (lmtdMetal.method === 'AMTD' ? `\n(ΔT₁≈ΔT₂ → ใช้ AMTD = (ΔT₁+ΔT₂)/2 เพื่อเลี่ยง singularity)` :
+                lmtdMetal.method === 'infeasible' ? `\n⚠️ Temperature cross: ΔT ติดลบ — การถ่ายเทความร้อนเป็นไปไม่ได้` :
+                `\nLMTD = (${fmtN(lmtdMetal.dt1,1)} − ${fmtN(lmtdMetal.dt2,1)}) / ln(${(lmtdMetal.dt1/lmtdMetal.dt2).toFixed(3)})`),
+      result:  `${lmtdMetal.valid ? fmtN(lmtd,1) + ' °C' + (lmtdMetal.method==='AMTD'?' (AMTD)':'') : 'N/A (ตรวจ ΔT)'}`,
+      note:    'LMTD ใช้ประเมินพื้นที่ HX: A = Q / (U × LMTD) | U ≈ 20–80 W/(m²·K) สำหรับ Gas-Metal HX'
+    },
+    {
+      num:4, color:'green', title:'ความร้อนที่กู้คืนได้จริง (Q_recovered)',
+      formula: 'Q_rec = min(Q_fg_avail, Q_metal_demand)',
+      sub:     `Q_rec = min(${fmtN(q_fg_kW,2)}, ${fmtN(q_metal_kW,2)})`,
+      result:  `${fmtN(q_rec,2)} kW`,
+      note:    'ถูกจำกัดโดยด้านที่มีกำลังความร้อนน้อยกว่า'
+    },
+    {
+      num:5, color:'green', title:'พลังงานรวมต่อปี (Annual Energy)',
+      formula: 'E_yr [GJ/yr] = Q_rec [kW] × Hrs [hr/yr] × 3.6 ÷ 1,000',
+      sub:     `E_yr = ${fmtN(q_rec,2)} × ${fmtN(hrs,0)} × 3.6 ÷ 1,000`,
+      result:  `${fmtN(q_gj_yr,1)} GJ/yr`,
+      note:    `ชั่วโมงทำงาน = ${fmtN(hrs,0)} hr/yr`
+    },
+    {
+      num:6, color:'gold', title:'เชื้อเพลิงที่ประหยัดได้ต่อปี (Fuel Saving)',
+      formula: `Fuel_save = E_yr [GJ/yr] × 1,000 ÷ NCV [MJ/${fuel.fuelUnit.replace('/hr','')}]`,
+      sub:     `Fuel_save = ${fmtN(q_gj_yr,1)} × 1,000 ÷ ${fuel.ncv}`,
+      result:  `${fmtN(fuelSave_yr,0)} ${fuel.fuelUnit.replace('/hr','/yr')}`,
+      note:    `NCV (${fuel.name}) = ${fuel.ncv} MJ/${fuel.fuelUnit.replace('/hr','')}`
+    }
+  ];
+  const traceHTML_metal = buildTraceHTML('metal', traceSteps_metal);
+
+  document.getElementById('metal_result_body').innerHTML = `
+    <div class="result-grid">
+      <div class="result-item gold">
+        <div class="r-label">ความร้อนที่โลหะต้องการ</div>
+        <div class="r-value">${fmtN(q_metal_kW, 2)}</div>
+        <div class="r-unit">kW</div>
+      </div>
+      <div class="result-item">
+        <div class="r-label">ความร้อนจาก FG</div>
+        <div class="r-value">${fmtN(q_fg_kW, 2)}</div>
+        <div class="r-unit">kW</div>
+      </div>
+      <div class="result-item highlight">
+        <div class="r-label">ความร้อนที่กู้คืนได้จริง</div>
+        <div class="r-value">${fmtN(q_rec, 2)}</div>
+        <div class="r-unit">kW</div>
+      </div>
+      <div class="result-item blue">
+        <div class="r-label">LMTD</div>
+        <div class="r-value">${lmtdMetal.valid ? fmtN(lmtd, 1) : 'N/A'}</div>
+        <div class="r-unit">°C${lmtdMetal.method==='AMTD' ? ' (AMTD)' : ''}</div>
+      </div>
+    </div>
+    ${feasMsg}
+    <div class="info-box" style="margin-top:12px">
+      💡 พลังงานต่อปี: <strong>${fmtN(q_gj_yr, 1)} GJ/yr</strong> &nbsp;|&nbsp;
+      ประหยัดเชื้อเพลิง: <strong>${fmtN(fuelSave_yr, 0)} ${fuel.label.replace('/hr','/yr')}</strong>
+    </div>
+    ${traceHTML_metal}`;
+
+  // ── HX Panel ─────────────────────────────────────────────────
+  renderHXPanel('hx_panel_metal', 'metal', q_rec, lmtdMetal.valid ? lmtdMetal.lmtd : (tfg_in - t_in)/2, tfg_in, tfg_out, t_in, t_out);
+}
+
+// ════════════════════════════════════════════════════════════
+// TAB 4: WHR DRYING — BIOMASS MOISTURE REDUCTION
+// ════════════════════════════════════════════════════════════
+
+// Default properties per material type
+const DRY_MAT_DEFAULTS = {
+  wood_chip:   { mc_in: 50, mc_out: 15, ncv_dry: 16.5, label: 'ไม้สับสด' },
+  palm_bunch:  { mc_in: 65, mc_out: 15, ncv_dry: 15.5, label: 'ทะลายปาล์มสด (EFB)' },
+  palm_fiber:  { mc_in: 40, mc_out: 15, ncv_dry: 17.0, label: 'ใยปาล์มสด' },
+  bagasse:     { mc_in: 50, mc_out: 15, ncv_dry: 17.0, label: 'ชานอ้อยสด' },
+  rice_husk:   { mc_in: 12, mc_out:  9, ncv_dry: 13.0, label: 'แกลบ' },
+  custom:      { mc_in: 50, mc_out: 15, ncv_dry: 16.0, label: 'วัสดุกำหนดเอง' },
+};
+
+let currentDryMat = 'wood_chip';
+
+function selectDryMat(btn, key) {
+  document.querySelectorAll('#drying_mat_grid .hx-type-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  currentDryMat = key;
+  const d = DRY_MAT_DEFAULTS[key];
+  document.getElementById('d_mc_in').value   = d.mc_in;
+  document.getElementById('d_mc_out').value  = d.mc_out;
+  document.getElementById('d_ncv_dry').value = d.ncv_dry;
+  dryCalcAuto();
+}
+
+function dryCalcAuto() {
+  // live auto calc on input changes — silent fail if invalid
+  try { calcDrying(true); } catch(e) {}
+}
+
+function resetDrying() {
+  const d = DRY_MAT_DEFAULTS[currentDryMat];
+  document.getElementById('d_mc_in').value    = d.mc_in;
+  document.getElementById('d_mc_out').value   = d.mc_out;
+  document.getElementById('d_ncv_dry').value  = d.ncv_dry;
+  document.getElementById('d_m_wet').value    = 1000;
+  document.getElementById('d_tdry').value     = 80;
+  document.getElementById('d_tair_in').value  = 33;
+  document.getElementById('d_hrs').value      = 6000;
+  document.getElementById('d_fuel_price_gj').value = 350;
+  document.getElementById('d_eta').value      = 70;
+  document.getElementById('d_eta_val').textContent = '70%';
+  document.getElementById('drying_result_panel').style.display = 'none';
+  document.getElementById('drying_trace_wrap').innerHTML = '';
+  document.getElementById('drying_visual_body').innerHTML =
+    '<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">คำนวณเพื่อดูกราฟ</div>';
+}
+
+function calcDrying(silent = false) {
+  // ── Read inputs ──────────────────────────────────────────
+  const mc_in_pct  = parseFloat(document.getElementById('d_mc_in').value);     // % wet basis
+  const mc_out_pct = parseFloat(document.getElementById('d_mc_out').value);     // % wet basis
+  const m_wet_hr   = parseFloat(document.getElementById('d_m_wet').value);      // kg_wet/hr
+  const t_dry      = parseFloat(document.getElementById('d_tdry').value);       // °C air in dryer
+  const t_air_in   = parseFloat(document.getElementById('d_tair_in').value);    // °C ambient
+  const hrs        = parseFloat(document.getElementById('d_hrs').value);        // hr/yr
+  const ncv_dry    = parseFloat(document.getElementById('d_ncv_dry').value);    // MJ/kg_dry
+  const fuel_price = parseFloat(document.getElementById('d_fuel_price_gj').value); // บาท/GJ
+  const eta        = parseFloat(document.getElementById('d_eta').value) / 100;  // fraction
+
+  // ── Validate ──────────────────────────────────────────────
+  if (!isFinite(mc_in_pct)||!isFinite(mc_out_pct)||!isFinite(m_wet_hr)) return;
+  if (mc_in_pct <= mc_out_pct) {
+    if (!silent) alert('⚠️ ความชื้นเริ่มต้น (MC_in) ต้องมากกว่าความชื้นปลายทาง (MC_out)');
+    return;
+  }
+  if (mc_in_pct >= 100 || mc_out_pct < 0) return;
+
+  // ── Convert MC wet basis → fractions ─────────────────────
+  const MC_in  = mc_in_pct  / 100;   // fraction
+  const MC_out = mc_out_pct / 100;   // fraction
+
+  // ── Step 1: Dry solid mass flow ───────────────────────────
+  // m_dry_solid = m_wet × (1 − MC_in)
+  const m_dry_solid = m_wet_hr * (1 - MC_in);          // kg_dry/hr
+
+  // ── Step 2: Mass of wet output (after drying) ─────────────
+  // m_wet_out = m_dry_solid / (1 − MC_out)
+  const m_wet_out = m_dry_solid / (1 - MC_out);         // kg_wet_out/hr
+
+  // ── Step 3: Evaporation rate ──────────────────────────────
+  // m_evap = m_wet_in − m_wet_out
+  const m_evap = m_wet_hr - m_wet_out;                  // kg_water/hr
+
+  // ── Step 4: Heat of vaporisation at operating temp ────────
+  // h_fg @ Tdry (approx): 2501 − 2.37×T kJ/kg
+  const h_fg = 2501 - 2.37 * t_dry;                     // kJ/kg  (latent)
+  // Sensible heat to raise water to T_dry from T_air_in
+  const Cp_water = cpWater((t_air_in + t_dry) / 2);     // kJ/(kg·K), T-dependent
+  const h_sensible = Cp_water * (t_dry - t_air_in);     // kJ/kg
+
+  // ── Step 5: Theoretical drying energy ────────────────────
+  // Q_dry_theory = m_evap × (h_fg + h_sensible)
+  const q_dry_theory_kW = m_evap * (h_fg + h_sensible) / 3600; // kW
+
+  // ── Step 6: Actual heat demand (accounting dryer efficiency)
+  // Q_dry_actual = Q_dry_theory / η_dryer
+  const q_dry_actual_kW = q_dry_theory_kW / eta;        // kW
+
+  // ── Step 7: Compare with available WHR from FG ───────────
+  // Use global shared FG data if available
+  let q_fg_avail_kW = Infinity;
+  const gMfg  = parseFloat(document.getElementById('g_mfg')?.textContent);
+  const gCpfg = parseFloat(document.getElementById('g_cpfg')?.textContent);
+  const gTfg  = parseFloat(document.getElementById('g_tfg_in')?.value);
+  const gTamb = parseFloat(document.getElementById('g_tamb')?.value);
+  if (isFinite(gMfg) && isFinite(gCpfg) && isFinite(gTfg)) {
+    // Max Q from FG cooling to T_dry + 10°C (safety margin)
+    const tfg_out_min = Math.max(t_dry + 10, gTamb + 30);
+    q_fg_avail_kW = gMfg * gCpfg * Math.max(0, gTfg - tfg_out_min) / 3600;
+  }
+  const q_recovered_kW = Math.min(q_dry_actual_kW, isFinite(q_fg_avail_kW) ? q_fg_avail_kW : q_dry_actual_kW);
+  const is_fg_limited  = isFinite(q_fg_avail_kW) && q_fg_avail_kW < q_dry_actual_kW;
+
+  // ── Step 8: Annual energy ─────────────────────────────────
+  const q_gj_yr = q_recovered_kW * hrs * 3.6 / 1000;   // GJ/yr
+
+  // ── Step 9: NCV of wet material (before / after drying) ───
+  // NCV_wet = NCV_dry × (1 − MC) − 2.44 × MC  (Dulong-Petit approx)
+  const ncv_wet_in  = ncv_dry * (1 - MC_in)  - 2.44 * MC_in;    // MJ/kg_wet
+  const ncv_wet_out = ncv_dry * (1 - MC_out) - 2.44 * MC_out;   // MJ/kg_wet
+
+  // ── Step 10: Energy gain from NCV improvement (per yr) ────
+  // Per hour, burned material = m_wet_out (wet output)
+  // ΔQ_NCV = m_wet_out × (NCV_out − NCV_in_equivalent)
+  // Compare same-mass basis (wet output vs equivalent wet input)
+  // Use: gain = m_dry_solid × NCV_dry × (unchanged) but fewer evap losses
+  // Practical: ΔE = m_wet_out × (ncv_wet_out − ncv_wet_in_adj)
+  //  where ncv_wet_in_adj = ncv of material at MC_in
+  const ncv_delta = Math.max(0, ncv_wet_out - ncv_wet_in);       // MJ/kg_wet
+  const ncv_gain_kW_basis = m_wet_out * ncv_delta / 3.6;         // kW
+  const ncv_gain_gj_yr    = ncv_gain_kW_basis * hrs * 3.6 / 1000; // GJ/yr
+
+  // ── Step 11: Monetary value ───────────────────────────────
+  const saving_drying_baht = q_gj_yr * fuel_price;               // บาท/yr (heat cost saved)
+  const saving_ncv_baht    = ncv_gain_gj_yr * fuel_price;        // บาท/yr (extra fuel energy)
+
+  // ── Step 12: Specific Moisture Extraction Rate (SMER) ─────
+  // SMER = kg_water_evaporated / kWh_heat_input
+  const smer = q_recovered_kW > 0 ? m_evap / q_recovered_kW : 0; // kg/kWh
+
+  // ── Store in R ────────────────────────────────────────────
+  R.drying.q_kw         = q_recovered_kW;
+  R.drying.q_gj         = q_gj_yr;
+  R.drying.fuel_save    = q_gj_yr;   // stored as GJ/yr (heat unit)
+  R.drying.hrs          = hrs;
+  R.drying.evap_kg_hr   = m_evap;
+  R.drying.m_dry_out    = m_wet_out;
+  R.drying.ncv_gain_gj  = ncv_gain_gj_yr;
+  R.drying.fuelUnit     = 'GJ/hr';
+  R.drying.done         = true;
+
+  // ── Render results ────────────────────────────────────────
+  const panel = document.getElementById('drying_result_panel');
+  panel.style.display = 'block';
+
+  const feasMsg = is_fg_limited
+    ? `<div class="info-box" style="border-color:var(--accent4);background:rgba(154,103,0,0.06);margin-top:10px">
+        ⚠️ <strong>FG มีพลังงานไม่พอ:</strong> FG ให้ได้ ${fmtN(q_fg_avail_kW,2)} kW แต่ตู้อบต้องการ ${fmtN(q_dry_actual_kW,2)} kW
+        — คำนวณจากพลังงาน FG จริง ควรเพิ่มแหล่งความร้อนเสริม
+       </div>`
+    : `<div class="info-box" style="border-color:var(--accent3);background:rgba(26,127,55,0.06);margin-top:10px">
+        ✅ <strong>พลังงานเพียงพอ:</strong> FG มีพลังงานเพียงพอสำหรับการอบแห้ง
+       </div>`;
+
+  document.getElementById('drying_result_body').innerHTML = `
+    <div class="result-grid">
+      <div class="result-item" style="border-color:#2d9a4e">
+        <div class="r-label">อัตราระเหยน้ำ (ṁ_evap)</div>
+        <div class="r-value" style="color:#2d9a4e">${fmtN(m_evap, 1)}</div>
+        <div class="r-unit">kg_water/hr</div>
+      </div>
+      <div class="result-item blue">
+        <div class="r-label">วัสดุแห้งออก (m_dry_out)</div>
+        <div class="r-value">${fmtN(m_wet_out, 1)}</div>
+        <div class="r-unit">kg_wet/hr (MC=${mc_out_pct}%)</div>
+      </div>
+      <div class="result-item" style="border-color:#2d9a4e">
+        <div class="r-label">ความร้อนที่ต้องการ (Q_dry)</div>
+        <div class="r-value" style="color:#2d9a4e">${fmtN(q_recovered_kW, 2)}</div>
+        <div class="r-unit">kW</div>
+      </div>
+      <div class="result-item highlight">
+        <div class="r-label">พลังงานอบแห้งต่อปี</div>
+        <div class="r-value">${fmtN(q_gj_yr, 1)}</div>
+        <div class="r-unit">GJ/yr</div>
+      </div>
+      <div class="result-item gold">
+        <div class="r-label">NCV สด (ก่อน→หลัง)</div>
+        <div class="r-value">${fmtN(ncv_wet_in,2)} → ${fmtN(ncv_wet_out,2)}</div>
+        <div class="r-unit">MJ/kg_wet</div>
+      </div>
+      <div class="result-item" style="border-color:#8250df">
+        <div class="r-label">SMER (ประสิทธิภาพอบ)</div>
+        <div class="r-value" style="color:#8250df">${fmtN(smer, 3)}</div>
+        <div class="r-unit">kg_water/kWh</div>
+      </div>
+    </div>
+    ${feasMsg}
+    <div class="info-box" style="margin-top:10px">
+      💰 มูลค่าความร้อนทดแทน: <strong>${fmtN(saving_drying_baht,0)} บาท/ปี</strong>
+      &nbsp;|&nbsp; พลังงานเพิ่มจาก NCV: <strong>${fmtN(ncv_gain_gj_yr,1)} GJ/yr</strong>
+      &nbsp;|&nbsp; มูลค่ารวม: <strong>${fmtN(saving_drying_baht + saving_ncv_baht, 0)} บาท/ปี</strong>
+    </div>`;
+
+  // ── Render visual moisture bar chart ─────────────────────
+  renderDryingVisual(mc_in_pct, mc_out_pct, ncv_wet_in, ncv_wet_out, ncv_dry, m_wet_hr, m_wet_out, m_evap);
+
+  // ── Render calc trace ─────────────────────────────────────
+  const matLabel = DRY_MAT_DEFAULTS[currentDryMat]?.label || 'วัสดุ';
+  const steps = [
+    { num:1, color:'red',   title:'มวลของแข็งแห้ง (m_dry_solid)',
+      formula: 'm_dry_solid = m_wet × (1 − MC_in)',
+      sub:     `m_dry_solid = ${fmtN(m_wet_hr,0)} × (1 − ${fmtN(MC_in,3)})`,
+      result:  `${fmtN(m_dry_solid,2)} kg_dry/hr`,
+      note:    'มวลโครงสร้างแห้งไม่เปลี่ยนตลอดกระบวนการ' },
+    { num:2, color:'blue',  title:'มวลผลผลิตหลังอบ (m_wet_out)',
+      formula: 'm_wet_out = m_dry_solid ÷ (1 − MC_out)',
+      sub:     `m_wet_out = ${fmtN(m_dry_solid,2)} ÷ (1 − ${fmtN(MC_out,3)})`,
+      result:  `${fmtN(m_wet_out,2)} kg_wet/hr`,
+      note:    `ความชื้นลดจาก ${mc_in_pct}% → ${mc_out_pct}%` },
+    { num:3, color:'red',   title:'อัตราระเหยน้ำ (ṁ_evap)',
+      formula: 'ṁ_evap = m_wet_in − m_wet_out',
+      sub:     `ṁ_evap = ${fmtN(m_wet_hr,0)} − ${fmtN(m_wet_out,2)}`,
+      result:  `${fmtN(m_evap,2)} kg_water/hr`,
+      note:    'น้ำที่ต้องระเหยออกจากวัสดุ' },
+    { num:4, color:'blue',  title:'ความร้อนแฝงระเหย h_fg @ T_dry',
+      formula: 'h_fg ≈ 2,501 − 2.37 × T_dry  [kJ/kg]',
+      sub:     `h_fg = 2,501 − 2.37 × ${t_dry} = ${fmtN(h_fg,1)} kJ/kg`,
+      result:  `${fmtN(h_fg,1)} kJ/kg`,
+      note:    `+ h_sensible = Cp_w × ΔT = ${fmtN(h_sensible,1)} kJ/kg → รวม ${fmtN(h_fg+h_sensible,1)} kJ/kg` },
+    { num:5, color:'green', title:'ความร้อนทฤษฎีอบแห้ง (Q_theory)',
+      formula: 'Q_theory = ṁ_evap × (h_fg + h_sensible) ÷ 3,600',
+      sub:     `Q_theory = ${fmtN(m_evap,2)} × ${fmtN(h_fg+h_sensible,1)} ÷ 3,600`,
+      result:  `${fmtN(q_dry_theory_kW,2)} kW`,
+      note:    `÷ 3,600 แปลงหน่วย kJ/hr → kW` },
+    { num:6, color:'green', title:'ความร้อนจริงที่ต้องการ (Q_actual)',
+      formula: 'Q_actual = Q_theory ÷ η_dryer',
+      sub:     `Q_actual = ${fmtN(q_dry_theory_kW,2)} ÷ ${fmtN(eta,2)}`,
+      result:  `${fmtN(q_dry_actual_kW,2)} kW`,
+      note:    `η_dryer = ${(eta*100).toFixed(0)}%` },
+    { num:7, color:'gold',  title:'NCV วัสดุ (ก่อน → หลังอบ)',
+      formula: 'NCV_wet = NCV_dry × (1−MC) − 2.44 × MC  [MJ/kg_wet]',
+      sub:     `NCV_in = ${fmtN(ncv_dry,1)}×${fmtN(1-MC_in,3)} − 2.44×${fmtN(MC_in,3)} = ${fmtN(ncv_wet_in,3)}\nNCV_out= ${fmtN(ncv_dry,1)}×${fmtN(1-MC_out,3)} − 2.44×${fmtN(MC_out,3)} = ${fmtN(ncv_wet_out,3)}`,
+      result:  `+${fmtN(ncv_delta,3)} MJ/kg_wet`,
+      note:    'สูตร Dulong-Petit (modified)' },
+    { num:8, color:'green', title:'พลังงานที่กู้คืนได้จริงต่อปี',
+      formula: 'E_yr = Q_recovered × hrs × 3.6 ÷ 1,000  [GJ/yr]',
+      sub:     `E_yr = ${fmtN(q_recovered_kW,2)} × ${fmtN(hrs,0)} × 3.6 ÷ 1,000`,
+      result:  `${fmtN(q_gj_yr,1)} GJ/yr`,
+      note:    `SMER = ${fmtN(smer,3)} kg_water/kWh` },
+  ];
+
+  const traceHtml = `
+    <div class="calc-trace" style="margin-top:14px">
+      <div class="calc-trace-header" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+        <span class="trace-icon">🧮</span>
+        แสดงขั้นตอนการคำนวณละเอียด (${matLabel})
+        <span class="chevron">▼</span>
+      </div>
+      <div class="calc-trace-body">
+        ${steps.map(s => `
+          <div class="eq-step">
+            <div class="eq-num ${s.color}">${s.num}</div>
+            <div class="eq-content">
+              <div class="eq-title">${s.title}</div>
+              <code class="eq-formula">${s.formula}</code>
+              <code class="eq-sub">${s.sub}</code>
+              <span class="eq-result">= ${s.result}</span>
+              <div class="eq-note">${s.note}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  document.getElementById('drying_trace_wrap').innerHTML = traceHtml;
+}
+
+function renderDryingVisual(mc_in, mc_out, ncv_in, ncv_out, ncv_dry, m_wet_in, m_wet_out, m_evap) {
+  const wrap = document.getElementById('drying_visual_body');
+  document.getElementById('drying_visual_card').style.display = 'block';
+  const barW = 300;
+  // MC bar scale
+  const scaleMax = Math.max(mc_in, 100);
+  const wIn  = (mc_in  / scaleMax * barW).toFixed(1);
+  const wOut = (mc_out / scaleMax * barW).toFixed(1);
+  // NCV bar scale
+  const ncvMax = Math.max(ncv_dry * 1.05, ncv_out + 1);
+  const wNcvIn  = (Math.max(0, ncv_in)  / ncvMax * barW).toFixed(1);
+  const wNcvOut = (Math.max(0, ncv_out) / ncvMax * barW).toFixed(1);
+  const wNcvDry = (ncv_dry / ncvMax * barW).toFixed(1);
+
+  wrap.innerHTML = `
+    <div style="margin-bottom:18px">
+      <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">📊 ความชื้น (MC % wet basis)</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:11px;color:var(--text3);width:55px">ก่อนอบ</span>
+        <div style="background:#fff3ee;border:1px solid #cf4f2a;border-radius:4px;overflow:hidden;width:${barW}px;height:28px;position:relative">
+          <div style="width:${wIn}px;height:100%;background:linear-gradient(90deg,#ff6a00,#cf4f2a);display:flex;align-items:center;justify-content:flex-end;padding-right:6px">
+            <span style="color:#fff;font-size:11px;font-weight:700;font-family:'IBM Plex Mono'">${mc_in}%</span>
+          </div>
+        </div>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;color:var(--text2)">${fmtN(m_wet_in,0)} kg/hr</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:11px;color:var(--text3);width:55px">หลังอบ</span>
+        <div style="background:#edfbf0;border:1px solid #2d9a4e;border-radius:4px;overflow:hidden;width:${barW}px;height:28px;position:relative">
+          <div style="width:${wOut}px;height:100%;background:linear-gradient(90deg,#2d9a4e,#1a7f37);display:flex;align-items:center;justify-content:flex-end;padding-right:6px">
+            <span style="color:#fff;font-size:11px;font-weight:700;font-family:'IBM Plex Mono'">${mc_out}%</span>
+          </div>
+        </div>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;color:var(--text2)">${fmtN(m_wet_out,0)} kg/hr</span>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--accent2)">
+        💧 น้ำที่ระเหยออก: <strong style="font-family:'IBM Plex Mono'">${fmtN(m_evap,1)} kg_water/hr</strong>
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px">
+      <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">🔥 NCV วัสดุ (MJ/kg_wet)</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:11px;color:var(--text3);width:55px">ก่อนอบ</span>
+        <div style="background:#f5f7fa;border:1px solid var(--border);border-radius:4px;overflow:hidden;width:${barW}px;height:28px">
+          <div style="width:${wNcvIn}px;height:100%;background:linear-gradient(90deg,#adb5bd,#8c959f);display:flex;align-items:center;justify-content:flex-end;padding-right:6px">
+            <span style="color:#fff;font-size:11px;font-weight:700;font-family:'IBM Plex Mono'">${fmtN(ncv_in,2)}</span>
+          </div>
+        </div>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;color:var(--text2)">MJ/kg</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:11px;color:var(--text3);width:55px">หลังอบ</span>
+        <div style="background:#edfbf0;border:1px solid #2d9a4e;border-radius:4px;overflow:hidden;width:${barW}px;height:28px">
+          <div style="width:${wNcvOut}px;height:100%;background:linear-gradient(90deg,#2d9a4e,#1a7f37);display:flex;align-items:center;justify-content:flex-end;padding-right:6px">
+            <span style="color:#fff;font-size:11px;font-weight:700;font-family:'IBM Plex Mono'">${fmtN(ncv_out,2)}</span>
+          </div>
+        </div>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;color:var(--text2)">MJ/kg</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:11px;color:var(--text3);width:55px">Dry basis</span>
+        <div style="background:#fff8ec;border:1px solid var(--accent4);border-radius:4px;overflow:hidden;width:${barW}px;height:28px">
+          <div style="width:${wNcvDry}px;height:100%;background:linear-gradient(90deg,#e3b341,#9a6700);display:flex;align-items:center;justify-content:flex-end;padding-right:6px">
+            <span style="color:#fff;font-size:11px;font-weight:700;font-family:'IBM Plex Mono'">${fmtN(ncv_dry,2)}</span>
+          </div>
+        </div>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;color:var(--text2)">MJ/kg_dry</span>
+      </div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// SUMMARY
+// ════════════════════════════════════════════════════════════
+function buildSummary() {
+  const fuelPrice = parseFloat(document.getElementById('p_fuel_price').value);
+  const capex     = parseFloat(document.getElementById('p_capex').value);
+
+  // อ่าน NCV และ EF จาก field (ผู้ใช้สามารถแก้ไขได้)
+  const ncv_override = parseFloat(document.getElementById('p_ncv').value);
+  const ef_override  = parseFloat(document.getElementById('p_ef').value);
+
+  // ตรวจสอบว่าทุก Mode ใช้เชื้อเพลิงเดียวกันหรือไม่ (เพื่อแสดงหน่วยรวม)
+  const doneUnits = [R.air, R.water, R.metal]
+    .filter(r => r.done)
+    .map(r => r.fuelUnit || 'Nm³/hr');
+  const allSameUnit = doneUnits.length > 0 && doneUnits.every(u => u === doneUnits[0]);
+  const unitBase = allSameUnit ? doneUnits[0].replace('/hr','') : 'unit';
+
+  const modes = [
+    { name:'💨 Air Preheating',   icon:'💨', ...R.air   },
+    { name:'💧 Economizer',       icon:'💧', ...R.water },
+    { name:'⚙️ Metal Preheating', icon:'⚙️', ...R.metal },
+    { name:'🌿 WHR Drying',       icon:'🌿', ...R.drying, fuelUnit:'GJ/hr' },
+  ];
+
+  let totalKW = 0, totalGJ = 0, totalFuel = 0, totalCO2 = 0, totalSaving = 0;
+  let rows = '';
+  let unitMismatchNote = '';
+
+  for (const m of modes) {
+    if (!m.done) {
+      rows += `<tr><td>${m.name}</td><td colspan="4" style="color:var(--text3)">—ยังไม่ได้คำนวณ—</td></tr>`;
+      continue;
+    }
+    // ใช้ ef จาก Mode นั้น (เก็บใน R) เพื่อความถูกต้อง
+    const ef_use  = m.ef  || ef_override;
+    const ncv_use = m.ncv || ncv_override;
+    const fu      = (m.fuelUnit || 'Nm³/hr').replace('/hr','');
+
+    // CO₂: fuel_save [unit/yr] × ef [kgCO₂/unit] ÷ 1000 → tCO₂
+    const co2        = m.fuel_save * ef_use / 1000;
+    // มูลค่าประหยัด: fuel_save [unit/yr] × ราคา [บาท/unit]
+    const saving     = m.fuel_save * fuelPrice;
+
+    totalKW    += m.q_kw;
+    totalGJ    += m.q_gj;
+    totalFuel  += m.fuel_save;
+    totalCO2   += co2;
+    totalSaving+= saving;
+
+    rows += `<tr>
+      <td>${m.name}</td>
+      <td>${fmtN(m.q_kw, 2)}</td>
+      <td>${fmtN(m.q_gj, 1)}</td>
+      <td>${fmtN(m.fuel_save, 0)} ${fu}/yr</td>
+      <td>${fmtN(co2, 2)}</td>
+    </tr>`;
+
+    if (!allSameUnit) {
+      unitMismatchNote = '<div class="info-box" style="margin-top:8px">⚠️ แต่ละ Mode ใช้เชื้อเพลิงต่างหน่วย — ยอดรวม "เชื้อเพลิง" ไม่สามารถรวมกันตรงๆ ได้ ดูแยกแต่ละแถว</div>';
+    }
+  }
+
+  rows += `<tr style="font-weight:700;background:var(--surface2)">
+    <td>รวมทั้งหมด</td>
+    <td>${fmtN(totalKW, 2)}</td>
+    <td>${fmtN(totalGJ, 1)}</td>
+    <td>${allSameUnit ? fmtN(totalFuel,0)+' '+unitBase+'/yr' : '— (ต่างหน่วย)'}</td>
+    <td>${fmtN(totalCO2, 2)}</td>
+  </tr>`;
+
+  document.getElementById('summary_tbody').innerHTML = rows + (unitMismatchNote ? `<tr><td colspan="5">${unitMismatchNote}</td></tr>` : '');
+  document.getElementById('s_total_kw').textContent  = fmtN(totalKW, 2);
+  document.getElementById('s_total_gj').textContent  = fmtN(totalGJ, 1);
+  document.getElementById('s_fuel_save').textContent = allSameUnit ? fmtN(totalFuel, 0) : '—';
+  document.getElementById('s_fuel_unit').textContent = allSameUnit ? unitBase+'/yr' : 'unit/yr';
+
+  // ── Valuation ─────────────────────────────────────────────
+  // มูลค่า = fuel_save [unit/yr] × fuelPrice [บาท/unit]
+  // ** ต้องมั่นใจว่า fuelPrice มีหน่วยเดียวกับ fuelUnit ที่เลือกในแท็บก่อน
+  // Simple Payback = capex / total_saving_baht_per_yr
+  const spb = totalSaving > 0 ? capex / totalSaving : Infinity;
+
+  // แสดง label หน่วยราคา
+  const fuelUnitLabel = allSameUnit ? unitBase : 'unit';
+  document.getElementById('p_fuel_price_label').textContent =
+    'ค่าเชื้อเพลิง (บาท/' + fuelUnitLabel + ')';
+  document.getElementById('p_ncv_label').textContent =
+    'NCV เชื้อเพลิง (MJ/' + fuelUnitLabel + ')';
+
+  document.getElementById('valuation_result').innerHTML = `
+    <div class="result-grid">
+      <div class="result-item highlight">
+        <div class="r-label">ประหยัดค่าเชื้อเพลิง/ปี</div>
+        <div class="r-value">${fmtN(totalSaving, 0)}</div>
+        <div class="r-unit">บาท/ปี</div>
+      </div>
+      <div class="result-item" style="font-size:11px;color:var(--text3);padding:8px 10px;text-align:left">
+        <strong style="display:block;color:var(--text2);margin-bottom:4px">📐 วิธีคำนวณ</strong>
+        มูลค่า = Σ(ประหยัดเชื้อเพลิง × ราคา)<br>
+        = ${fmtN(totalFuel,0)} ${fuelUnitLabel}/yr × ${fuelPrice} บาท/${fuelUnitLabel}<br>
+        = <strong>${fmtN(totalSaving,0)} บาท/ปี</strong>
+      </div>
+      <div class="result-item blue">
+        <div class="r-label">CO₂ ลดได้รวม</div>
+        <div class="r-value">${fmtN(totalCO2, 2)}</div>
+        <div class="r-unit">tCO₂/yr</div>
+      </div>
+      <div class="result-item gold">
+        <div class="r-label">Simple Payback Period</div>
+        <div class="r-value">${isFinite(spb) && spb > 0 ? fmtN(spb, 2) : '—'}</div>
+        <div class="r-unit">ปี</div>
+      </div>
+    </div>`;
+
+  // Sankey bar
+  buildSankey(modes, totalKW);
+}
+
+function buildSankey(modes, total) {
+  if (total <= 0) return;
+  const cols = ['#f78166', '#79c0ff', '#e3b341', '#56d364'];
+  let bar = '<div class="sankey-bar">';
+  let legend = '<div class="sankey-label">';
+  modes.forEach((m, i) => {
+    if (!m.done || m.q_kw <= 0) return;
+    const pct = (m.q_kw / total * 100).toFixed(1);
+    bar += `<div class="sankey-seg" style="background:${cols[i]};width:${pct}%">${pct}%</div>`;
+    legend += `<div class="sankey-legend"><span style="background:${cols[i]}"></span>${m.name} (${fmtN(m.q_kw, 1)} kW)</div>`;
+  });
+  bar += '</div>'; legend += '</div>';
+  document.getElementById('sankey_area').innerHTML =
+    `<p style="font-size:11px;color:var(--text3);margin-bottom:6px">การกระจายพลังงานที่กู้คืนรวม ${fmtN(total, 2)} kW:</p>` +
+    bar + legend;
+}
+
+// ════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  updateFuelProps();
+  setRecupStage(1);
+  // Set default fuel to LPG 60:40
+  document.getElementById('g_fuel').value = 'lpg_6040';
+  updateFuelProps();
+});
+</script>
+</body>
+</html>
