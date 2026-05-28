@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VRV/VRF Performance Calculator — Triple E Technology</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Bebas+Neue&display=swap');
+:root {
+  --bg:#f0f4f8; --surface:#ffffff; --surface2:#e8edf3; --surface3:#dde4ec;
+  --border:#c8d0da; --border2:#a0aab4;
+  --text:#1a2332; --text2:#4a5568; --text3:#8492a6;
+  --cool:#0066cc;   /* primary - cool blue (refrigerant/AC) */
+  --cool2:#0099e6;
+  --cool3:#e6f4ff;
+  --warm:#e85d04;   /* heat rejection */
+  --warm2:#ff8c42;
+  --green:#16a34a;  --green2:#dcfce7;
+  --gold:#b45309;   --gold2:#fef3c7;
+  --purple:#7c3aed; --purple2:#ede9fe;
+  --red:#dc2626;    --red2:#fee2e2;
+  --r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+
+/* ─── HEADER ─── */
+header{background:linear-gradient(135deg,#001a33 0%,#003366 50%,#004d99 100%);
+  padding:0 24px;display:flex;align-items:center;gap:0;position:sticky;top:0;z-index:200;
+  border-bottom:2px solid var(--cool2);box-shadow:0 2px 12px rgba(0,102,204,0.3)}
+.hdr-brand{display:flex;align-items:center;gap:14px;padding:14px 0}
+.hdr-logo{width:42px;height:42px;border-radius:8px;background:linear-gradient(135deg,#0099e6,#0066cc);
+  display:flex;align-items:center;justify-content:center;font-size:22px}
+.hdr-title{font-family:'Bebas Neue',sans-serif;font-size:22px;color:#ffffff;letter-spacing:2px;line-height:1}
+.hdr-sub{font-size:11px;color:#79c0ff;letter-spacing:1px;margin-top:2px}
+.hdr-sep{width:1px;background:rgba(255,255,255,0.15);margin:0 20px;height:40px}
+.hdr-badge{display:flex;align-items:center;gap:6px;background:rgba(0,153,230,0.2);
+  border:1px solid rgba(0,153,230,0.4);border-radius:20px;padding:4px 12px;font-size:11px;color:#79c0ff}
+.hdr-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.hdr-tag{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);
+  border-radius:6px;padding:3px 10px;font-size:11px;color:#b3d4f0;font-family:'IBM Plex Mono',monospace}
+
+/* ─── NAV TABS ─── */
+.nav-tabs{display:flex;background:#fff;border-bottom:2px solid var(--border);
+  padding:0 20px;overflow-x:auto;gap:2px;position:sticky;top:74px;z-index:100;
+  box-shadow:0 2px 4px rgba(0,0,0,0.06)}
+.tab-btn{display:flex;align-items:center;gap:7px;padding:12px 18px;border:none;background:none;
+  cursor:pointer;font-family:'IBM Plex Sans Thai',sans-serif;font-size:13px;color:var(--text3);
+  border-bottom:3px solid transparent;white-space:nowrap;transition:all .2s;margin-bottom:-2px}
+.tab-btn:hover{color:var(--cool);background:var(--cool3)}
+.tab-btn.active{color:var(--cool);border-bottom-color:var(--cool);font-weight:600;background:var(--cool3)}
+.tab-icon{font-size:15px}
+
+/* ─── MAIN ─── */
+.main{max-width:1400px;margin:0 auto;padding:24px 20px}
+.tab-content{display:none}.tab-content.active{display:block}
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1.5px;
+  color:var(--cool);margin-bottom:18px;display:flex;align-items:center;gap:10px;
+  border-left:4px solid var(--cool);padding-left:12px}
+
+/* ─── GRID ─── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+@media(max-width:1100px){.grid-4{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.grid-3{grid-template-columns:1fr 1fr}}
+@media(max-width:650px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+/* ─── CARD ─── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;margin-bottom:16px}
+.card-header{display:flex;align-items:center;gap:8px;padding:11px 16px;
+  background:var(--surface2);border-bottom:1px solid var(--border);font-weight:600;font-size:13px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--cool);flex-shrink:0}
+.dot.warm{background:var(--warm)}.dot.green{background:var(--green)}
+.dot.gold{background:var(--gold)}.dot.purple{background:var(--purple)}.dot.red{background:var(--red)}
+.card-body{padding:16px}
+
+/* ─── FIELDS ─── */
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;font-weight:500;color:var(--text2)}
+.field label span{font-weight:400;color:var(--text3)}
+.field input,.field select,.field textarea{
+  border:1px solid var(--border);border-radius:6px;padding:8px 10px;
+  font-family:'IBM Plex Mono',monospace;font-size:13px;background:#fff;
+  color:var(--text);transition:border .2s;width:100%}
+.field input:focus,.field select:focus{outline:none;border-color:var(--cool);
+  box-shadow:0 0 0 3px rgba(0,102,204,0.08)}
+.field input[readonly]{background:var(--surface2);color:var(--text2)}
+
+/* ─── BUTTONS ─── */
+.btn{border:none;border-radius:7px;padding:10px 20px;font-family:'IBM Plex Sans Thai',sans-serif;
+  font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:linear-gradient(135deg,var(--cool),#004db3);color:#fff;box-shadow:0 2px 8px rgba(0,102,204,0.3)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,102,204,0.4)}
+.btn-secondary{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--surface3)}
+.btn-warm{background:linear-gradient(135deg,var(--warm),#b34500);color:#fff}
+.btn-green{background:linear-gradient(135deg,var(--green),#15803d);color:#fff}
+.btn-group{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+
+/* ─── RESULT ITEMS ─── */
+.result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0}
+.result-item{border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;
+  background:var(--surface2);border-top:3px solid var(--cool)}
+.result-item.warm{border-top-color:var(--warm)}
+.result-item.green{border-top-color:var(--green)}
+.result-item.gold{border-top-color:var(--gold)}
+.result-item.purple{border-top-color:var(--purple)}
+.result-item.red{border-top-color:var(--red)}
+.r-label{font-size:10px;color:var(--text3);font-weight:500;margin-bottom:4px}
+.r-value{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--cool);line-height:1.1}
+.r-value.warm{color:var(--warm)}.r-value.green{color:var(--green)}
+.r-value.gold{color:var(--gold)}.r-value.red{color:var(--red)}.r-value.purple{color:var(--purple)}
+.r-unit{font-size:10px;color:var(--text3);margin-top:2px}
+
+/* ─── STATUS PILL ─── */
+.status-pill{display:inline-flex;align-items:center;gap:5px;border-radius:20px;
+  padding:3px 10px;font-size:12px;font-weight:600}
+.pill-good{background:var(--green2);color:var(--green);border:1px solid #86efac}
+.pill-warn{background:var(--gold2);color:var(--gold);border:1px solid #fcd34d}
+.pill-bad{background:var(--red2);color:var(--red);border:1px solid #fca5a5}
+.pill-info{background:var(--purple2);color:var(--purple);border:1px solid #c4b5fd}
+
+/* ─── INFO BOX ─── */
+.info-box{background:var(--cool3);border:1px solid #93c5fd;border-radius:8px;
+  padding:10px 14px;font-size:12px;color:#1e40af;margin:10px 0;line-height:1.6}
+.warn-box{background:var(--gold2);border:1px solid #fcd34d;border-radius:8px;
+  padding:10px 14px;font-size:12px;color:#92400e;margin:10px 0;line-height:1.6}
+.good-box{background:var(--green2);border:1px solid #86efac;border-radius:8px;
+  padding:10px 14px;font-size:12px;color:#166534;margin:10px 0;line-height:1.6}
+.bad-box{background:var(--red2);border:1px solid #fca5a5;border-radius:8px;
+  padding:10px 14px;font-size:12px;color:#991b1b;margin:10px 0;line-height:1.6}
+
+/* ─── FORMULA BOX ─── */
+.formula-box{background:#001a33;border-radius:7px;padding:10px 14px;
+  font-family:'IBM Plex Mono',monospace;font-size:12px;color:#79c0ff;
+  margin:8px 0;line-height:1.8;white-space:pre-wrap}
+
+/* ─── CALC TRACE ─── */
+.calc-trace{border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:14px}
+.calc-trace-header{display:flex;align-items:center;gap:8px;padding:10px 14px;
+  background:var(--surface2);cursor:pointer;font-size:13px;font-weight:600;user-select:none}
+.calc-trace-header .chevron{margin-left:auto;transition:transform .2s}
+.calc-trace-header.open .chevron{transform:rotate(180deg)}
+.calc-trace-body{display:none;padding:14px;background:#fafbfc}
+.calc-trace-body.open{display:block}
+.eq-step{display:flex;gap:12px;margin-bottom:12px;align-items:flex-start}
+.eq-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:#fff;flex-shrink:0;margin-top:2px}
+.eq-num.blue{background:var(--cool)}.eq-num.red{background:var(--red)}
+.eq-num.green{background:var(--green)}.eq-num.gold{background:var(--gold)}
+.eq-num.purple{background:var(--purple)}.eq-num.warm{background:var(--warm)}
+.eq-content{flex:1}
+.eq-title{font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px}
+.eq-formula{display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;
+  color:var(--cool);background:#e6f4ff;border-radius:4px;padding:4px 8px;margin-bottom:3px}
+.eq-sub{display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);
+  background:var(--surface2);border-radius:4px;padding:3px 8px;margin-bottom:3px;white-space:pre}
+.eq-result{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;color:var(--green)}
+.eq-note{font-size:11px;color:var(--text3);margin-top:3px}
+
+/* ─── DATA TABLE ─── */
+.data-table{border-collapse:collapse;width:100%;font-size:12px}
+.data-table th{background:var(--surface2);padding:8px 10px;text-align:left;
+  border-bottom:2px solid var(--border);font-weight:600;white-space:nowrap}
+.data-table td{padding:7px 10px;border-bottom:1px solid var(--border)}
+.data-table tr:hover td{background:var(--cool3)}
+
+/* ─── SELECTOR GRID ─── */
+.sel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:10px 0}
+.sel-btn{border:1.5px solid var(--border);border-radius:8px;padding:10px 8px;text-align:center;
+  cursor:pointer;background:var(--surface);transition:all .15s;display:flex;flex-direction:column;gap:4px}
+.sel-btn:hover{border-color:var(--cool);background:var(--cool3)}
+.sel-btn.selected{border-color:var(--cool);background:var(--cool3);box-shadow:0 0 0 2px rgba(0,102,204,0.15)}
+.sel-icon{font-size:22px}.sel-name{font-size:12px;font-weight:600;color:var(--text)}
+.sel-sub{font-size:10px;color:var(--text3)}
+
+/* ─── GAUGE ─── */
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:6px}
+.gauge-svg{width:140px;height:80px}
+
+/* ─── RANGE INPUT ─── */
+input[type=range]{accent-color:var(--cool)}
+
+/* ─── SCHEMATIC ─── */
+.schematic-wrap{background:linear-gradient(135deg,#f8fbff,#eef4fb);
+  border-radius:8px;padding:10px;border:1px solid #c5d5e8}
+
+/* ─── SCROLL ─── */
+::-webkit-scrollbar{height:4px;width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ─── KPIS ROW ─── */
+.kpi-strip{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.kpi-card{flex:1;min-width:120px;background:#fff;border:1px solid var(--border);
+  border-radius:10px;padding:14px;border-top:4px solid var(--cool);text-align:center}
+.kpi-val{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:var(--cool)}
+.kpi-label{font-size:11px;color:var(--text3);margin-top:2px}
+.kpi-sub{font-size:10px;color:var(--text2);margin-top:4px;font-weight:500}
+
+/* ─── COMPARISON BAR ─── */
+.comp-bar-wrap{margin:8px 0}
+.comp-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.comp-bar-label{font-size:11px;color:var(--text2);width:110px;flex-shrink:0;text-align:right}
+.comp-bar-track{flex:1;height:22px;background:var(--surface2);border-radius:4px;overflow:hidden;position:relative}
+.comp-bar-fill{height:100%;border-radius:4px;display:flex;align-items:center;justify-content:flex-end;
+  padding-right:6px;transition:width .5s ease}
+.comp-bar-val{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;color:#fff}
+
+/* Intro mode cards */
+.mode-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
+.mode-card{background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:16px;
+  border-top:4px solid var(--cool);transition:all .15s;cursor:pointer}
+.mode-card:hover{border-color:var(--cool);transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,102,204,0.12)}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="hdr-brand">
+    <div class="hdr-logo">❄️</div>
+    <div>
+      <div class="hdr-title">VRV / VRF Performance Calculator</div>
+      <div class="hdr-sub">Triple E Technology Co., Ltd. — Energy Audit Tools</div>
+    </div>
+  </div>
+  <div class="hdr-sep"></div>
+  <div class="hdr-badge">🌡️ Variable Refrigerant System Analysis</div>
+  <div class="hdr-right">
+    <span class="hdr-tag">ASHRAE 116</span>
+    <span class="hdr-tag">ISO 5151</span>
+    <span class="hdr-tag">AHRI 1230</span>
+    <span class="hdr-tag">ECBC Thailand</span>
+  </div>
+</header>
+
+<!-- NAV -->
+<div class="nav-tabs">
+  <button class="tab-btn active" onclick="switchTab('overview',this)"><span class="tab-icon">📋</span>ภาพรวม</button>
+  <button class="tab-btn" onclick="switchTab('cop',this)"><span class="tab-icon">❄️</span>1. COP / EER / IPLV</button>
+  <button class="tab-btn" onclick="switchTab('capacity',this)"><span class="tab-icon">📐</span>2. Capacity & Loading</button>
+  <button class="tab-btn" onclick="switchTab('field',this)"><span class="tab-icon">🔬</span>3. Field Measurement</button>
+  <button class="tab-btn" onclick="switchTab('refrig',this)"><span class="tab-icon">🧊</span>4. Refrigerant Circuit</button>
+  <button class="tab-btn" onclick="switchTab('compare',this)"><span class="tab-icon">📊</span>5. เปรียบเทียบ & สรุป</button>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- ═══════════════════════ OVERVIEW ═══════════════════════ -->
+<div id="tab-overview" class="tab-content active">
+  <div class="section-title">❄️ VRV/VRF — ระบบปรับอากาศแบบ Variable Refrigerant</div>
+
+  <div class="mode-card-grid">
+    <div class="mode-card" onclick="switchTabById('cop')">
+      <div style="font-size:28px;margin-bottom:8px">❄️</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:6px">1. COP / EER / IPLV</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5">คำนวณ Coefficient of Performance, Energy Efficiency Ratio และ Integrated Part Load Value ตามมาตรฐาน AHRI 1230</div>
+      <div class="formula-box" style="margin-top:8px;font-size:10px">COP = Q_cool / W_input
+EER = Q_cool(BTU/hr) / W_input(W)
+IPLV = 0.01A + 0.42B + 0.45C + 0.12D</div>
+    </div>
+    <div class="mode-card" onclick="switchTabById('capacity')" style="border-top-color:var(--warm)">
+      <div style="font-size:28px;margin-bottom:8px">📐</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:6px">2. Capacity & System Loading</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5">ตรวจสอบ Rated vs Actual Capacity, Diversity Factor, และ Piping Correction ตามระยะท่อและความสูง</div>
+      <div class="formula-box" style="margin-top:8px;font-size:10px">CF_pipe = f(L_pipe, ΔH)
+Diversity = ΣQ_indoor / Q_outdoor
+PLR = Q_actual / Q_rated</div>
+    </div>
+    <div class="mode-card" onclick="switchTabById('field')" style="border-top-color:var(--green)">
+      <div style="font-size:28px;margin-bottom:8px">🔬</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:6px">3. Field Measurement</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5">คำนวณสมรรถนะจากค่าวัดภาคสนาม: กระแส/แรงดัน, อุณหภูมิจ่าย/กลับ, อัตราการไหลอากาศ</div>
+      <div class="formula-box" style="margin-top:8px;font-size:10px">Q_sens = ṁ_air × Cp × ΔT
+Q_lat  = ṁ_air × Δω × h_fg
+W_comp = √3 × V × I × PF</div>
+    </div>
+    <div class="mode-card" onclick="switchTabById('refrig')" style="border-top-color:var(--purple)">
+      <div style="font-size:28px;margin-bottom:8px">🧊</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:6px">4. Refrigerant Circuit</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5">วิเคราะห์ P-h Diagram, Superheat / Subcooling, Compressor Efficiency และตรวจสอบการรั่วของสารทำความเย็น</div>
+      <div class="formula-box" style="margin-top:8px;font-size:10px">η_comp = (h2s − h1)/(h2 − h1)
+SHR  = Q_sens / Q_total
+SC   = T_sat(cond) − T_liquid</div>
+    </div>
+    <div class="mode-card" onclick="switchTabById('compare')" style="border-top-color:var(--gold)">
+      <div style="font-size:28px;margin-bottom:8px">📊</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:6px">5. เปรียบเทียบ & สรุปผล</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5">เปรียบเทียบสมรรถนะกับ Nameplate, มาตรฐาน ECBC Thailand, และประเมินมูลค่าไฟฟ้าที่ประหยัดได้</div>
+      <div class="formula-box" style="margin-top:8px;font-size:10px">Degradation = (COP_rated−COP_field)/COP_rated
+Saving = ΔW × hrs × tariff</div>
+    </div>
+  </div>
+
+  <!-- Quick reference -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><div class="dot"></div>มาตรฐานอ้างอิงที่ใช้ในเครื่องมือนี้</div>
+      <div class="card-body">
+        <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead><tr><th>มาตรฐาน</th><th>ขอบเขต</th><th>พารามิเตอร์หลัก</th></tr></thead>
+          <tbody>
+            <tr><td><strong>AHRI 1230-2021</strong></td><td>VRF Heat Pump</td><td>COP, EER, IPLV, COP_H</td></tr>
+            <tr><td><strong>ISO 5151:2017</strong></td><td>Non-ducted AC</td><td>Cooling/Heating Capacity, EER</td></tr>
+            <tr><td><strong>ASHRAE 116</strong></td><td>Seasonal performance</td><td>SEER, HSPF</td></tr>
+            <tr><td><strong>ECBC Thailand</strong></td><td>Building energy code</td><td>EER ≥ 3.0 W/W (เกณฑ์ขั้นต่ำ)</td></tr>
+            <tr><td><strong>ASHRAE 62.1</strong></td><td>Ventilation</td><td>CFM/person, ACH</td></tr>
+            <tr><td><strong>TISI 1301</strong></td><td>Thailand std.</td><td>EER label ⭐–⭐⭐⭐⭐⭐</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="dot warm"></div>เงื่อนไขทดสอบมาตรฐาน (Rating Conditions)</div>
+      <div class="card-body">
+        <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead><tr><th>โหมด</th><th>T_indoor (°C)</th><th>T_outdoor (°C)</th><th>มาตรฐาน</th></tr></thead>
+          <tbody>
+            <tr><td>Cooling (Full)</td><td>27°C DB / 19°C WB</td><td>35°C DB / 24°C WB</td><td>AHRI/ISO</td></tr>
+            <tr><td>Cooling A (75%)</td><td>27°C DB / 19°C WB</td><td>27.5°C DB</td><td>IPLV</td></tr>
+            <tr><td>Cooling B (50%)</td><td>27°C DB / 19°C WB</td><td>20°C DB</td><td>IPLV</td></tr>
+            <tr><td>Cooling D (25%)</td><td>27°C DB / 19°C WB</td><td>12.5°C DB</td><td>IPLV</td></tr>
+            <tr><td>Heating (Full)</td><td>20°C DB / 15°C WB</td><td>7°C DB / 6°C WB</td><td>AHRI</td></tr>
+            <tr><td>ไทย (Tropical)</td><td>27°C DB / 19°C WB</td><td>35°C DB</td><td>TISI</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>วิธีใช้งาน:</strong> เลือก Tab ที่ต้องการ → กรอกข้อมูลจาก Nameplate / การวัดภาคสนาม → กดคำนวณ → ดูผลเปรียบเทียบในแท็บที่ 5
+    &nbsp;|&nbsp; ข้อมูลทั้งหมดจะถูกรวบรวมอัตโนมัติในแท็บสรุป
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB 1: COP/EER/IPLV ═══════════════════════ -->
+<div id="tab-cop" class="tab-content">
+  <div class="section-title">❄️ Tab 1: COP / EER / IPLV — ประสิทธิภาพพลังงาน</div>
+  <div class="grid-2">
+    <!-- LEFT INPUT -->
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="dot"></div>ข้อมูล Nameplate / Specification</div>
+        <div class="card-body">
+          <div class="grid-2" style="gap:12px">
+            <div class="field">
+              <label>ยี่ห้อ / รุ่น <span>(Brand / Model)</span></label>
+              <input type="text" id="c_brand" placeholder="เช่น Daikin REYQ10T" oninput="syncNameplate()">
+            </div>
+            <div class="field">
+              <label>สารทำความเย็น <span>(Refrigerant)</span></label>
+              <select id="c_refrig" onchange="syncNameplate()">
+                <option value="R410A">R-410A (HFC - เดิม)</option>
+                <option value="R32">R-32 (HFC - ประสิทธิภาพสูง)</option>
+                <option value="R454B">R-454B (HFO Low-GWP)</option>
+                <option value="R407C">R-407C (HFC)</option>
+                <option value="R22">R-22 (HCFC - เลิกใช้)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Rated Cooling Capacity <span>(kW)</span></label>
+              <input type="number" id="c_qrated" value="28.0" step="0.5" onchange="calcCOP()">
+            </div>
+            <div class="field">
+              <label>Rated Power Input <span>(kW)</span></label>
+              <input type="number" id="c_wrated" value="8.5" step="0.1" onchange="calcCOP()">
+            </div>
+            <div class="field">
+              <label>Rated EER <span>(W/W จาก Nameplate)</span></label>
+              <input type="number" id="c_eer_plate" value="3.29" step="0.01" onchange="calcCOP()">
+            </div>
+            <div class="field">
+              <label>Rated IPLV <span>(จาก Nameplate ถ้ามี)</span></label>
+              <input type="number" id="c_iplv_plate" value="5.2" step="0.01" onchange="calcCOP()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IPLV Part-load inputs -->
+      <div class="card">
+        <div class="card-header"><div class="dot gold"></div>ข้อมูล Part-Load สำหรับคำนวณ IPLV (AHRI 1230)</div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text2);margin-bottom:12px">
+            IPLV = 0.01×A + 0.42×B + 0.45×C + 0.12×D &nbsp;(AHRI weighting factors)
+          </p>
+          <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead>
+              <tr><th>Load Point</th><th>%Load</th><th>T_out (°C)</th><th>EER ณ จุดนี้</th><th>Weight</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>A</strong> (Full)</td><td>100%</td><td>35.0</td>
+                <td><input type="number" id="iplv_a" value="3.29" step="0.01" style="width:80px;padding:4px 6px;font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid var(--border);border-radius:4px" onchange="calcCOP()"></td>
+                <td>1%</td>
+              </tr>
+              <tr>
+                <td><strong>B</strong> (75%)</td><td>75%</td><td>27.5</td>
+                <td><input type="number" id="iplv_b" value="4.10" step="0.01" style="width:80px;padding:4px 6px;font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid var(--border);border-radius:4px" onchange="calcCOP()"></td>
+                <td>42%</td>
+              </tr>
+              <tr>
+                <td><strong>C</strong> (50%)</td><td>50%</td><td>20.0</td>
+                <td><input type="number" id="iplv_c" value="5.50" step="0.01" style="width:80px;padding:4px 6px;font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid var(--border);border-radius:4px" onchange="calcCOP()"></td>
+                <td>45%</td>
+              </tr>
+              <tr>
+                <td><strong>D</strong> (25%)</td><td>25%</td><td>12.5</td>
+                <td><input type="number" id="iplv_d" value="7.20" step="0.01" style="width:80px;padding:4px 6px;font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid var(--border);border-radius:4px" onchange="calcCOP()"></td>
+                <td>12%</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="calcCOP()">❄️ คำนวณ COP / EER / IPLV</button>
+            <button class="btn btn-secondary" onclick="resetCOP()">↺ ล้างค่า</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT OUTPUT -->
+    <div>
+      <!-- KPI strip -->
+      <div class="kpi-strip" id="cop_kpi" style="display:none">
+        <div class="kpi-card"><div class="kpi-val" id="k_cop">—</div><div class="kpi-label">COP (W/W)</div><div class="kpi-sub">Coefficient of Performance</div></div>
+        <div class="kpi-card" style="border-top-color:var(--warm)"><div class="kpi-val warm" id="k_eer">—</div><div class="kpi-label">EER (W/W)</div><div class="kpi-sub">Energy Efficiency Ratio</div></div>
+        <div class="kpi-card" style="border-top-color:var(--gold)"><div class="kpi-val gold" id="k_iplv">—</div><div class="kpi-label">IPLV (W/W)</div><div class="kpi-sub">Integrated Part Load</div></div>
+      </div>
+
+      <!-- Rating check -->
+      <div class="card" id="cop_result_card" style="display:none">
+        <div class="card-header"><div class="dot green"></div>ผลการประเมินตามมาตรฐาน</div>
+        <div class="card-body" id="cop_result_body"></div>
+      </div>
+
+      <!-- ECBC / TISI reference -->
+      <div class="card">
+        <div class="card-header"><div class="dot gold"></div>เกณฑ์มาตรฐาน EER (อ้างอิง ECBC Thailand / TISI 1301)</div>
+        <div class="card-body">
+          <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>ขนาดระบบ (kW)</th><th>EER ขั้นต่ำ (ECBC)</th><th>IPLV ขั้นต่ำ</th><th>ระดับ ⭐ (TISI)</th></tr></thead>
+            <tbody>
+              <tr><td>&lt; 19 kW (Small)</td><td>≥ 3.2</td><td>≥ 4.5</td><td>⭐⭐⭐ = EER ≥ 3.2</td></tr>
+              <tr><td>19 – 40 kW (Medium)</td><td>≥ 3.0</td><td>≥ 4.2</td><td>⭐⭐⭐⭐ = EER ≥ 3.5</td></tr>
+              <tr><td>40 – 70 kW (Large)</td><td>≥ 2.8</td><td>≥ 3.9</td><td>⭐⭐⭐⭐⭐ = EER ≥ 4.0</td></tr>
+              <tr><td>&gt; 70 kW (Very Large)</td><td>≥ 2.6</td><td>≥ 3.6</td><td>— (AHRI 1230 basis)</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <div class="info-box" style="margin-top:10px">
+            💡 <strong>VRV/VRF ที่ดี:</strong> EER ≥ 3.5 | IPLV ≥ 5.0 | COP_cooling ≥ 3.5
+            (ระบบรุ่นใหม่ R-32 มักได้ EER 4.0–5.5 ที่เงื่อนไขมาตรฐาน)
+          </div>
+        </div>
+      </div>
+
+      <!-- Calc trace -->
+      <div id="cop_trace"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB 2: CAPACITY ═══════════════════════ -->
+<div id="tab-capacity" class="tab-content">
+  <div class="section-title">📐 Tab 2: Capacity & System Loading</div>
+  <div class="grid-2">
+    <div>
+      <!-- System config -->
+      <div class="card">
+        <div class="card-header"><div class="dot warm"></div>ข้อมูลระบบ VRV/VRF</div>
+        <div class="card-body">
+          <div class="grid-2" style="gap:12px">
+            <div class="field">
+              <label>Outdoor Unit Rated Capacity <span>(kW)</span></label>
+              <input type="number" id="cap_q_out" value="28.0" step="0.5" onchange="calcCapacity()">
+            </div>
+            <div class="field">
+              <label>จำนวน Indoor Units <span>(เครื่อง)</span></label>
+              <input type="number" id="cap_n_in" value="8" step="1" min="1" max="64" onchange="updateIndoorTable()">
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">Indoor Unit Capacities (กรอกทีละเครื่อง)</div>
+            <div id="indoor_table_wrap">
+              <!-- Generated by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Piping correction -->
+      <div class="card">
+        <div class="card-header"><div class="dot"></div>Piping Correction Factor</div>
+        <div class="card-body">
+          <div class="grid-2" style="gap:12px">
+            <div class="field">
+              <label>ความยาวท่อสารทำความเย็น <span>(m equivalent)</span></label>
+              <input type="number" id="cap_pipe_len" value="30" step="5" onchange="calcCapacity()">
+            </div>
+            <div class="field">
+              <label>ความสูงระหว่าง ODU–IDU <span>(m, + = IDU สูงกว่า)</span></label>
+              <input type="number" id="cap_height" value="5" step="1" onchange="calcCapacity()">
+            </div>
+            <div class="field">
+              <label>T_outdoor จริง <span>(°C DB)</span></label>
+              <input type="number" id="cap_tout" value="36" step="0.5" onchange="calcCapacity()">
+            </div>
+            <div class="field">
+              <label>T_indoor setpoint <span>(°C DB)</span></label>
+              <input type="number" id="cap_tin" value="25" step="0.5" onchange="calcCapacity()">
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--warm),#b34500)" onclick="calcCapacity()">📐 คำนวณ Capacity</button>
+            <button class="btn btn-secondary" onclick="resetCapacity()">↺ ล้างค่า</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="kpi-strip" id="cap_kpi" style="display:none">
+        <div class="kpi-card" style="border-top-color:var(--warm)"><div class="kpi-val warm" id="k_diversity">—</div><div class="kpi-label">Diversity Factor</div><div class="kpi-sub">ΣQ_IDU / Q_ODU</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="k_cf_pipe">—</div><div class="kpi-label">Piping CF</div><div class="kpi-sub">Correction Factor</div></div>
+        <div class="kpi-card" style="border-top-color:var(--green)"><div class="kpi-val green" id="k_q_avail">—</div><div class="kpi-label">Q_available (kW)</div><div class="kpi-sub">หลัง correction</div></div>
+      </div>
+      <div class="card" id="cap_result_card" style="display:none">
+        <div class="card-header"><div class="dot warm"></div>ผลการวิเคราะห์ Capacity</div>
+        <div class="card-body" id="cap_result_body"></div>
+      </div>
+      <div id="cap_trace"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB 3: FIELD MEASUREMENT ═══════════════════════ -->
+<div id="tab-field" class="tab-content">
+  <div class="section-title">🔬 Tab 3: Field Measurement — สมรรถนะจากการวัดจริง</div>
+  <div class="grid-2">
+    <div>
+      <!-- Electrical measurement -->
+      <div class="card">
+        <div class="card-header"><div class="dot red"></div>⚡ การวัดทางไฟฟ้า (Power Meter / Clamp Meter)</div>
+        <div class="card-body">
+          <div class="grid-3" style="gap:10px">
+            <div class="field">
+              <label>แรงดันไฟฟ้า V <span>(V line-line)</span></label>
+              <input type="number" id="f_volt" value="400" step="1" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>กระแสเฉลี่ย I <span>(A)</span></label>
+              <input type="number" id="f_curr" value="14.5" step="0.1" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>Power Factor <span>(PF)</span></label>
+              <input type="number" id="f_pf" value="0.90" step="0.01" min="0.5" max="1.0" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>ระบบไฟฟ้า <span></span></label>
+              <select id="f_phase" onchange="calcField()">
+                <option value="3">3 เฟส (3-Phase)</option>
+                <option value="1">1 เฟส (Single-Phase)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>W_input วัดโดยตรง <span>(kW, ถ้ามี Wattmeter)</span></label>
+              <input type="number" id="f_wdirect" value="" step="0.1" placeholder="เว้นว่างถ้าไม่มี" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>ชั่วโมงทำงานต่อวัน <span>(hr/day)</span></label>
+              <input type="number" id="f_hrs_day" value="10" step="0.5" onchange="calcField()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Air-side thermal measurement -->
+      <div class="card">
+        <div class="card-header"><div class="dot"></div>🌡️ การวัดด้านอากาศ (Indoor Unit — Air Side)</div>
+        <div class="card-body">
+          <div class="grid-2" style="gap:10px">
+            <div class="field">
+              <label>T_return (อากาศกลับ) DB <span>(°C)</span></label>
+              <input type="number" id="f_tra_db" value="27.0" step="0.1" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>T_return (อากาศกลับ) WB <span>(°C)</span></label>
+              <input type="number" id="f_tra_wb" value="19.5" step="0.1" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>T_supply (อากาศจ่าย) DB <span>(°C)</span></label>
+              <input type="number" id="f_tsa_db" value="13.0" step="0.1" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>T_supply (อากาศจ่าย) WB <span>(°C)</span></label>
+              <input type="number" id="f_tsa_wb" value="12.5" step="0.1" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>อัตราการไหลอากาศ CFM <span>(CFM)</span></label>
+              <input type="number" id="f_cfm" value="1200" step="50" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>หรือ อัตราการไหล CMH <span>(m³/hr)</span></label>
+              <input type="number" id="f_cmh" value="" step="50" placeholder="เว้นว่างถ้ากรอก CFM" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>ความดันบรรยากาศ <span>(kPa, ค่าเริ่ม = 101.3)</span></label>
+              <input type="number" id="f_patm" value="101.3" step="0.1" onchange="calcField()">
+            </div>
+            <div class="field">
+              <label>ค่าไฟฟ้า <span>(บาท/kWh)</span></label>
+              <input type="number" id="f_tariff" value="4.50" step="0.1" onchange="calcField()">
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--green),#15803d)" onclick="calcField()">🔬 คำนวณสมรรถนะภาคสนาม</button>
+            <button class="btn btn-secondary" onclick="resetField()">↺ ล้างค่า</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="kpi-strip" id="field_kpi" style="display:none">
+        <div class="kpi-card" style="border-top-color:var(--cool)"><div class="kpi-val" id="fk_w">—</div><div class="kpi-label">W_input (kW)</div><div class="kpi-sub">กำลังไฟฟ้าจริง</div></div>
+        <div class="kpi-card" style="border-top-color:var(--warm)"><div class="kpi-val warm" id="fk_qtot">—</div><div class="kpi-label">Q_total (kW)</div><div class="kpi-sub">ความเย็นรวม</div></div>
+        <div class="kpi-card" style="border-top-color:var(--green)"><div class="kpi-val green" id="fk_cop">—</div><div class="kpi-label">COP_field</div><div class="kpi-sub">ภาคสนาม</div></div>
+        <div class="kpi-card" style="border-top-color:var(--purple)"><div class="kpi-val purple" id="fk_shr">—</div><div class="kpi-label">SHR</div><div class="kpi-sub">Sensible Heat Ratio</div></div>
+      </div>
+
+      <div class="card" id="field_result_card" style="display:none">
+        <div class="card-header"><div class="dot green"></div>ผลการวิเคราะห์ภาคสนาม</div>
+        <div class="card-body" id="field_result_body"></div>
+      </div>
+
+      <!-- Psychro reference -->
+      <div class="card">
+        <div class="card-header"><div class="dot"></div>📖 สูตรอ้างอิง Psychrometric</div>
+        <div class="card-body">
+          <div class="formula-box">ω (Humidity Ratio) = 0.622 × Pv/(P_atm − Pv)
+Pv_sat(T°C) = exp(17.625×T/(243.04+T)) × 3.1623 kPa  [WB]
+
+h_air = 1.006×T_db + ω×(2501 + 1.86×T_db)  [kJ/kg_dry]
+ρ_air ≈ P_atm/(287×(T_db+273.15))  [kg/m³]
+ṁ_air = ρ × Q_v  [kg/s]
+
+Q_sens = ṁ × Cp_air × (T_return_db − T_supply_db)
+Q_lat  = ṁ × (ω_return − ω_supply) × 2501
+Q_total= Q_sens + Q_lat  [kW]
+SHR    = Q_sens / Q_total</div>
+        </div>
+      </div>
+
+      <div id="field_trace"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB 4: REFRIGERANT ═══════════════════════ -->
+<div id="tab-refrig" class="tab-content">
+  <div class="section-title">🧊 Tab 4: Refrigerant Circuit Analysis</div>
+  <div class="grid-2">
+    <div>
+      <div class="card">
+        <div class="card-header"><div class="dot purple"></div>สารทำความเย็น & จุดทำงาน</div>
+        <div class="card-body">
+          <div class="grid-2" style="gap:10px">
+            <div class="field">
+              <label>สารทำความเย็น</label>
+              <select id="r_refrig" onchange="updateSatProp()">
+                <option value="R410A">R-410A</option>
+                <option value="R32">R-32</option>
+                <option value="R407C">R-407C</option>
+                <option value="R22">R-22</option>
+                <option value="R454B">R-454B</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>T_evap (อุณหภูมิระเหย) <span>(°C)</span></label>
+              <input type="number" id="r_tevap" value="7" step="0.5" onchange="calcRefrig()">
+            </div>
+            <div class="field">
+              <label>T_cond (อุณหภูมิควบแน่น) <span>(°C)</span></label>
+              <input type="number" id="r_tcond" value="45" step="0.5" onchange="calcRefrig()">
+            </div>
+            <div class="field">
+              <label>Superheat (SH) <span>(°C, วัดที่ Suction)</span></label>
+              <input type="number" id="r_sh" value="7" step="0.5" onchange="calcRefrig()">
+            </div>
+            <div class="field">
+              <label>Subcooling (SC) <span>(°C, วัดที่ Liquid Line)</span></label>
+              <input type="number" id="r_sc" value="5" step="0.5" onchange="calcRefrig()">
+            </div>
+            <div class="field">
+              <label>T_discharge (ออกคอมเพรสเซอร์) <span>(°C)</span></label>
+              <input type="number" id="r_tdis" value="85" step="1" onchange="calcRefrig()">
+            </div>
+            <div class="field">
+              <label>Suction Pressure วัดจริง <span>(barg)</span></label>
+              <input type="number" id="r_psuct" value="" step="0.1" placeholder="ถ้าวัดได้" onchange="calcRefrig()">
+            </div>
+            <div class="field">
+              <label>Discharge Pressure วัดจริง <span>(barg)</span></label>
+              <input type="number" id="r_pdisch" value="" step="0.1" placeholder="ถ้าวัดได้" onchange="calcRefrig()">
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--purple),#5b21b6)" onclick="calcRefrig()">🧊 วิเคราะห์วงจรสาร</button>
+            <button class="btn btn-secondary" onclick="resetRefrig()">↺ ล้างค่า</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Normal ranges reference -->
+      <div class="card">
+        <div class="card-header"><div class="dot"></div>ช่วงค่าปกติสำหรับ VRV/VRF</div>
+        <div class="card-body">
+          <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>พารามิเตอร์</th><th>ปกติ</th><th>เตือน</th><th>ผิดปกติ</th></tr></thead>
+            <tbody>
+              <tr><td>Superheat (SH)</td><td>5–10°C</td><td>10–15°C</td><td>&gt;15°C หรือ &lt;3°C</td></tr>
+              <tr><td>Subcooling (SC)</td><td>3–8°C</td><td>8–12°C</td><td>&gt;12°C หรือ &lt;1°C</td></tr>
+              <tr><td>T_discharge (R410A)</td><td>70–90°C</td><td>90–105°C</td><td>&gt;105°C</td></tr>
+              <tr><td>T_discharge (R32)</td><td>75–100°C</td><td>100–115°C</td><td>&gt;115°C</td></tr>
+              <tr><td>Compression Ratio</td><td>2.5–4.0</td><td>4.0–5.0</td><td>&gt;5.0</td></tr>
+              <tr><td>T_evap (Cooling)</td><td>5–12°C</td><td>0–5°C</td><td>&lt;0°C (frost)</td></tr>
+              <tr><td>T_cond (35°C outdoor)</td><td>40–50°C</td><td>50–55°C</td><td>&gt;55°C</td></tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <!-- P-h schematic -->
+      <div class="card">
+        <div class="card-header"><div class="dot purple"></div>แผนภาพวงจรสาร (Refrigeration Cycle)</div>
+        <div class="card-body">
+          <div class="schematic-wrap">
+            <svg viewBox="0 0 500 320" xmlns="http://www.w3.org/2000/svg" style="width:100%">
+              <!-- Background grid -->
+              <defs>
+                <pattern id="grid" width="50" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M50,0 L0,0 0,40" fill="none" stroke="#c5d5e8" stroke-width="0.5"/>
+                </pattern>
+                <marker id="arrB" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#0066cc"/></marker>
+                <marker id="arrR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#e85d04"/></marker>
+                <marker id="arrG" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#16a34a"/></marker>
+                <marker id="arrP" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#7c3aed"/></marker>
+              </defs>
+              <rect width="500" height="320" fill="url(#grid)"/>
+
+              <!-- Axis labels -->
+              <text x="250" y="315" text-anchor="middle" fill="#4a5568" font-size="11" font-family="IBM Plex Mono">Enthalpy h (kJ/kg)</text>
+              <text x="12" y="160" text-anchor="middle" fill="#4a5568" font-size="11" font-family="IBM Plex Mono" transform="rotate(-90,12,160)">Pressure P (bar)</text>
+
+              <!-- Saturation dome (simplified) -->
+              <path d="M80,280 Q180,20 280,40 Q350,50 420,180" fill="none" stroke="#93c5fd" stroke-width="2" stroke-dasharray="6,3"/>
+              <text x="170" y="28" fill="#93c5fd" font-size="10" font-family="IBM Plex Mono">Saturation Curve</text>
+
+              <!-- P_cond line -->
+              <line x1="40" y1="80" x2="460" y2="80" stroke="#e85d04" stroke-width="1" stroke-dasharray="8,4"/>
+              <text x="42" y="75" fill="#e85d04" font-size="10" font-family="IBM Plex Mono">P_cond</text>
+
+              <!-- P_evap line -->
+              <line x1="40" y1="240" x2="460" y2="240" stroke="#0066cc" stroke-width="1" stroke-dasharray="8,4"/>
+              <text x="42" y="235" fill="#0066cc" font-size="10" font-family="IBM Plex Mono">P_evap</text>
+
+              <!-- Cycle points -->
+              <!-- 1: Suction (evap exit, superheat) -->
+              <circle cx="140" cy="240" r="6" fill="#0066cc"/>
+              <text x="130" y="258" fill="#0066cc" font-size="11" font-weight="bold" font-family="IBM Plex Mono">1</text>
+              <text x="110" y="270" fill="#0066cc" font-size="9" font-family="IBM Plex Mono">Suction+SH</text>
+
+              <!-- 2: Discharge (comp exit) -->
+              <circle cx="340" cy="58" r="6" fill="#e85d04"/>
+              <text x="346" y="56" fill="#e85d04" font-size="11" font-weight="bold" font-family="IBM Plex Mono">2</text>
+              <text x="316" y="44" fill="#e85d04" font-size="9" font-family="IBM Plex Mono">Discharge</text>
+
+              <!-- 2s: Isentropic ref -->
+              <circle cx="280" cy="58" r="4" fill="none" stroke="#e85d04" stroke-width="1.5" stroke-dasharray="2,2"/>
+              <text x="260" y="46" fill="#e85d04" font-size="9" font-family="IBM Plex Mono">2s</text>
+
+              <!-- 3: Cond exit (subcooling) -->
+              <circle cx="200" cy="80" r="6" fill="#7c3aed"/>
+              <text x="206" y="78" fill="#7c3aed" font-size="11" font-weight="bold" font-family="IBM Plex Mono">3</text>
+              <text x="185" y="66" fill="#7c3aed" font-size="9" font-family="IBM Plex Mono">SC</text>
+
+              <!-- 4: Expansion exit -->
+              <circle cx="140" cy="240" r="0"/>
+              <circle cx="120" cy="240" r="6" fill="#16a34a"/>
+              <text x="106" y="258" fill="#16a34a" font-size="11" font-weight="bold" font-family="IBM Plex Mono">4</text>
+              <text x="96" y="270" fill="#16a34a" font-size="9" font-family="IBM Plex Mono">Exp</text>
+
+              <!-- Cycle arrows -->
+              <!-- 1→2 Compression -->
+              <path d="M140,240 C160,180 240,120 340,58" fill="none" stroke="#e85d04" stroke-width="2.5" marker-end="url(#arrR)"/>
+              <text x="215" y="162" fill="#e85d04" font-size="10" font-family="IBM Plex Mono" transform="rotate(-45,215,162)">COMPRESS</text>
+
+              <!-- 2→3 Condensation -->
+              <path d="M340,58 L200,80" fill="none" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#arrP)"/>
+              <text x="280" y="65" fill="#7c3aed" font-size="10" font-family="IBM Plex Mono">CONDENSE</text>
+
+              <!-- 3→4 Expansion -->
+              <path d="M200,80 L120,240" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrG)"/>
+              <text x="145" y="170" fill="#16a34a" font-size="10" font-family="IBM Plex Mono" transform="rotate(60,145,170)">EXPAND</text>
+
+              <!-- 4→1 Evaporation -->
+              <path d="M120,240 L140,240" fill="none" stroke="#0066cc" stroke-width="2.5" marker-end="url(#arrB)"/>
+              <!-- evap line extends -->
+              <path d="M120,240 L160,240 L160,240" fill="none" stroke="#0066cc" stroke-width="2.5"/>
+              <text x="125" y="228" fill="#0066cc" font-size="10" font-family="IBM Plex Mono">EVAPORATE → +SH</text>
+
+              <!-- Labels: W_comp, Q_cond, Q_evap -->
+              <rect x="355" y="120" width="80" height="20" rx="3" fill="#fff3ee" stroke="#e85d04"/>
+              <text x="395" y="134" text-anchor="middle" fill="#e85d04" font-size="10" font-family="IBM Plex Mono">W_comp</text>
+
+              <rect x="355" y="85" width="80" height="20" rx="3" fill="#ede9fe" stroke="#7c3aed"/>
+              <text x="395" y="99" text-anchor="middle" fill="#7c3aed" font-size="10" font-family="IBM Plex Mono">Q_cond (heat out)</text>
+
+              <rect x="30" y="255" width="80" height="20" rx="3" fill="#e6f4ff" stroke="#0066cc"/>
+              <text x="70" y="269" text-anchor="middle" fill="#0066cc" font-size="10" font-family="IBM Plex Mono">Q_evap (cooling)</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="refrig_result_card" style="display:none">
+        <div class="card-header"><div class="dot purple"></div>ผลการวิเคราะห์วงจรสาร</div>
+        <div class="card-body" id="refrig_result_body"></div>
+      </div>
+      <div id="refrig_trace"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB 5: COMPARE ═══════════════════════ -->
+<div id="tab-compare" class="tab-content">
+  <div class="section-title">📊 Tab 5: เปรียบเทียบ & สรุปผลการตรวจสอบ</div>
+
+  <div id="compare_empty" class="info-box">
+    ⚠️ กรุณาคำนวณอย่างน้อย Tab 1 (COP/EER) และ Tab 3 (Field) ก่อน จึงจะมีผลสรุปเปรียบเทียบ
+  </div>
+
+  <div id="compare_body" style="display:none">
+    <!-- KPI comparison -->
+    <div class="card">
+      <div class="card-header"><div class="dot"></div>เปรียบเทียบ Nameplate vs ภาคสนาม</div>
+      <div class="card-body">
+        <div id="compare_bars"></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><div class="dot green"></div>ผลการประเมินสมรรถนะ</div>
+        <div class="card-body" id="compare_rating"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="dot gold"></div>มูลค่าพลังงานที่สูญเสีย / ประหยัดได้</div>
+        <div class="card-body" id="compare_saving"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="dot warm"></div>ข้อเสนอแนะการปรับปรุง</div>
+      <div class="card-body" id="compare_reco"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .main -->
+
+<script>
+// ═══════════════════════════════════════════
+// GLOBAL STATE
+// ═══════════════════════════════════════════
+const S = {
+  cop: { done:false, eer:0, cop:0, iplv:0, q_rated:0, w_rated:0 },
+  cap: { done:false, diversity:0, cf_pipe:0, q_avail:0, q_total_idu:0 },
+  field: { done:false, w_kw:0, q_total:0, q_sens:0, q_lat:0, cop_field:0, shr:0, tariff:4.5 },
+  refrig: { done:false, sh:0, sc:0, cr:0, t_dis:0, cop_cycle:0 },
+};
+
+// ─── Tab switching ───────────────────────
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  if(btn) btn.classList.add('active');
+}
+function switchTabById(id) {
+  const btn = document.querySelector(`.tab-btn[onclick="switchTab('${id}',this)"]`);
+  switchTab(id, btn);
+}
+document.querySelectorAll('.mode-card').forEach(c=>{
+  c.addEventListener('click', ()=>{ const id=c.getAttribute('onclick').match(/'(\w+)'/)[1]; switchTabById(id); });
+});
+
+function fmtN(v,d=2){ return isFinite(v)?parseFloat(v.toFixed(d)).toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d}):v }
+
+// ─── Indoor table generator (Cap) ────────
+function updateIndoorTable() {
+  const n = parseInt(document.getElementById('cap_n_in').value) || 4;
+  const wrap = document.getElementById('indoor_table_wrap');
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">';
+  for(let i=1;i<=n;i++){
+    html += `<div class="field"><label>IDU #${i} <span>(kW)</span></label>
+      <input type="number" id="idu_${i}" value="${(2.5+Math.random()*1.5).toFixed(1)}" step="0.1" onchange="calcCapacity()"></div>`;
+  }
+  html += '</div>';
+  wrap.innerHTML = html;
+  calcCapacity();
+}
+
+// ═══════════════════════════════════════════
+// TAB 1: COP / EER / IPLV
+// ═══════════════════════════════════════════
+function calcCOP() {
+  const q = parseFloat(document.getElementById('c_qrated').value);
+  const w = parseFloat(document.getElementById('c_wrated').value);
+  const eerPlate = parseFloat(document.getElementById('c_eer_plate').value);
+  const iplvPlate = parseFloat(document.getElementById('c_iplv_plate').value);
+  const eerA = parseFloat(document.getElementById('iplv_a').value);
+  const eerB = parseFloat(document.getElementById('iplv_b').value);
+  const eerC = parseFloat(document.getElementById('iplv_c').value);
+  const eerD = parseFloat(document.getElementById('iplv_d').value);
+  if(!isFinite(q)||!isFinite(w)||w===0) return;
+
+  // COP = Q/W
+  const cop = q / w;
+  // EER = Q(BTU/hr) / W(W) = Q(kW)×3412.14 / W(kW)×1000 = Q/W × 3.412 = COP × 3.412
+  const eer_calc = cop * 3.41214;
+  // IPLV = 0.01A + 0.42B + 0.45C + 0.12D
+  const iplv_calc = 0.01*eerA + 0.42*eerB + 0.45*eerC + 0.12*eerD;
+
+  // Store
+  S.cop = { done:true, eer:eer_calc, cop, iplv:iplv_calc, q_rated:q, w_rated:w,
+    eer_plate:eerPlate, iplv_plate:iplvPlate };
+
+  // KPI
+  document.getElementById('k_cop').textContent = fmtN(cop,3);
+  document.getElementById('k_eer').textContent = fmtN(eer_calc,3);
+  document.getElementById('k_iplv').textContent = fmtN(iplv_calc,3);
+  document.getElementById('cop_kpi').style.display = 'flex';
+
+  // Determine size bracket
+  let bracket, eer_min, iplv_min;
+  if(q<19){bracket='< 19 kW (Small)';eer_min=3.2;iplv_min=4.5}
+  else if(q<40){bracket='19–40 kW (Medium)';eer_min=3.0;iplv_min=4.2}
+  else if(q<70){bracket='40–70 kW (Large)';eer_min=2.8;iplv_min=3.9}
+  else{bracket='> 70 kW (Very Large)';eer_min=2.6;iplv_min=3.6}
+
+  const eerOK = eer_calc >= eer_min;
+  const iplvOK = iplv_calc >= iplv_min;
+  const eerDiff = ((eer_calc - eerPlate)/eerPlate*100).toFixed(1);
+  const iplvDiff = ((iplv_calc - iplvPlate)/iplvPlate*100).toFixed(1);
+
+  let stars = eer_calc>=4.0?'⭐⭐⭐⭐⭐':eer_calc>=3.5?'⭐⭐⭐⭐':eer_calc>=3.2?'⭐⭐⭐':eer_calc>=2.8?'⭐⭐':'⭐';
+
+  document.getElementById('cop_result_body').innerHTML = `
+    <div class="result-grid">
+      <div class="result-item"><div class="r-label">COP (W/W)</div><div class="r-value">${fmtN(cop,3)}</div><div class="r-unit">= Q/W</div></div>
+      <div class="result-item warm"><div class="r-label">EER (W/W)</div><div class="r-value warm">${fmtN(eer_calc,3)}</div><div class="r-unit">= COP × 3.412</div></div>
+      <div class="result-item gold"><div class="r-label">IPLV (W/W)</div><div class="r-value gold">${fmtN(iplv_calc,3)}</div><div class="r-unit">AHRI 1230 weighted</div></div>
+      <div class="result-item ${eerOK?'green':'red'}"><div class="r-label">EER vs ECBC Min</div>
+        <div class="r-value ${eerOK?'green':'red'}">${eerOK?'✅ PASS':'❌ FAIL'}</div>
+        <div class="r-unit">Min = ${eer_min} | ขนาด: ${bracket}</div></div>
+      <div class="result-item ${iplvOK?'green':'red'}"><div class="r-label">IPLV vs ECBC Min</div>
+        <div class="r-value ${iplvOK?'green':'red'}">${iplvOK?'✅ PASS':'❌ FAIL'}</div>
+        <div class="r-unit">Min = ${iplv_min}</div></div>
+      <div class="result-item purple"><div class="r-label">ระดับดาว TISI</div>
+        <div class="r-value purple" style="font-size:13px">${stars}</div><div class="r-unit">EER = ${fmtN(eer_calc,2)}</div></div>
+    </div>
+    <div class="${eerOK&&iplvOK?'good-box':'warn-box'}" style="margin-top:10px">
+      ${eerOK&&iplvOK?'✅ ระบบผ่านเกณฑ์ ECBC Thailand ทั้ง EER และ IPLV':'⚠️ ระบบ'+(!eerOK?' EER ไม่ผ่านเกณฑ์':'')+(!iplvOK?' IPLV ไม่ผ่านเกณฑ์':'')+' ควรพิจารณาปรับปรุง'}
+    </div>
+    ${Math.abs(parseFloat(eerDiff))>2?`<div class="warn-box">EER คำนวณ (${fmtN(eer_calc,3)}) แตกต่างจาก Nameplate (${fmtN(eerPlate,3)}) = ${eerDiff}% — ตรวจสอบข้อมูล Nameplate</div>`:''}`;
+  document.getElementById('cop_result_card').style.display = 'block';
+
+  // Trace
+  const trace = [
+    {num:1,col:'blue',title:'COP (Coefficient of Performance)',
+     formula:'COP = Q_cool / W_input',
+     sub:`COP = ${fmtN(q,2)} kW ÷ ${fmtN(w,2)} kW`,result:`COP = ${fmtN(cop,4)}`,
+     note:'อัตราส่วนความเย็นต่อกำลังไฟฟ้าที่ใช้'},
+    {num:2,col:'red',title:'EER (Energy Efficiency Ratio)',
+     formula:'EER = COP × 3.41214  [BTU/hr per W]',
+     sub:`EER = ${fmtN(cop,4)} × 3.41214`,result:`EER = ${fmtN(eer_calc,4)} W/W`,
+     note:'เทียบ: 1 kW = 3,412 BTU/hr, 1 W input → EER W/W = EER BTU/(W·hr)'},
+    {num:3,col:'gold',title:'IPLV (Integrated Part Load Value)',
+     formula:'IPLV = 0.01×A + 0.42×B + 0.45×C + 0.12×D',
+     sub:`IPLV = 0.01×${eerA} + 0.42×${eerB} + 0.45×${eerC} + 0.12×${eerD}
+     = ${(0.01*eerA).toFixed(3)} + ${(0.42*eerB).toFixed(3)} + ${(0.45*eerC).toFixed(3)} + ${(0.12*eerD).toFixed(3)}`,
+     result:`IPLV = ${fmtN(iplv_calc,4)}`,
+     note:'AHRI 1230 weighting: ส่วนใหญ่ใช้โหลด 50% (45%) และ 75% (42%)'},
+  ];
+  document.getElementById('cop_trace').innerHTML = buildTrace(trace,'COP/EER/IPLV');
+  updateCompare();
+}
+function resetCOP(){ document.getElementById('c_qrated').value=28;document.getElementById('c_wrated').value=8.5;calcCOP(); }
+
+// ═══════════════════════════════════════════
+// TAB 2: CAPACITY
+// ═══════════════════════════════════════════
+function calcCapacity() {
+  const q_out = parseFloat(document.getElementById('cap_q_out').value);
+  const n = parseInt(document.getElementById('cap_n_in').value)||4;
+  const Lpipe = parseFloat(document.getElementById('cap_pipe_len').value)||30;
+  const dH = parseFloat(document.getElementById('cap_height').value)||5;
+  const Tout = parseFloat(document.getElementById('cap_tout').value)||36;
+  const Tin = parseFloat(document.getElementById('cap_tin').value)||25;
+
+  // Sum IDU capacities
+  let q_idu_sum = 0;
+  for(let i=1;i<=n;i++){
+    const el=document.getElementById(`idu_${i}`);
+    if(el) q_idu_sum += parseFloat(el.value)||0;
+  }
+
+  // Diversity Factor
+  const diversity = q_idu_sum / q_out;
+
+  // Piping correction factor (simplified IEC/manufacturer method)
+  // CF decreases ~0.15% per meter beyond 15m, and 0.3% per meter height (IDU above ODU)
+  const pipe_penalty = Math.max(0, Lpipe - 15) * 0.0015;
+  const height_penalty = dH > 0 ? dH * 0.003 : 0; // only penalise when IDU is higher
+  const cf_pipe = Math.max(0.75, 1 - pipe_penalty - height_penalty);
+
+  // Temperature correction (manufacturer tables simplified)
+  // At 35°C outdoor: CF_T = 1.0; each +1°C reduces by ~1.5%
+  const cf_temp = Math.max(0.80, 1 - Math.max(0, Tout - 35) * 0.015);
+
+  // Available capacity
+  const q_avail = q_out * cf_pipe * cf_temp;
+
+  // PLR at design
+  const plr = q_idu_sum / q_avail;
+
+  S.cap = { done:true, diversity, cf_pipe, cf_temp, q_avail, q_total_idu:q_idu_sum, plr, q_out };
+
+  document.getElementById('k_diversity').textContent = fmtN(diversity,3);
+  document.getElementById('k_cf_pipe').textContent = fmtN(cf_pipe,3);
+  document.getElementById('k_q_avail').textContent = fmtN(q_avail,2);
+  document.getElementById('cap_kpi').style.display = 'flex';
+
+  const divOK = diversity>=0.5 && diversity<=1.3;
+  const plrOK = plr<=1.1;
+  let divMsg = diversity<0.5?'⚠️ Diversity ต่ำเกินไป (Under-designed)':diversity>1.3?'❌ Diversity สูงเกิน 130% — ระบบจะขาด Capacity':'✅ Diversity อยู่ในช่วงปกติ (50–130%)';
+  let plrMsg = plr>1.1?`❌ PLR = ${fmtN(plr,2)} เกิน 110% — Outdoor Unit ไม่พอ`:`✅ PLR = ${fmtN(plr,2)} — อยู่ในเกณฑ์`;
+
+  document.getElementById('cap_result_body').innerHTML = `
+    <div class="result-grid">
+      <div class="result-item warm"><div class="r-label">Diversity Factor</div><div class="r-value warm">${fmtN(diversity,3)}</div><div class="r-unit">ΣQ_IDU/Q_ODU</div></div>
+      <div class="result-item"><div class="r-label">CF_pipe</div><div class="r-value">${fmtN(cf_pipe,3)}</div><div class="r-unit">L=${Lpipe}m, ΔH=${dH}m</div></div>
+      <div class="result-item"><div class="r-label">CF_temp</div><div class="r-value">${fmtN(cf_temp,3)}</div><div class="r-unit">T_out=${Tout}°C</div></div>
+      <div class="result-item green"><div class="r-label">Q_available</div><div class="r-value green">${fmtN(q_avail,2)} kW</div><div class="r-unit">หลัง correction</div></div>
+      <div class="result-item ${plrOK?'green':'red'}"><div class="r-label">PLR (Part Load Ratio)</div><div class="r-value ${plrOK?'green':'red'}">${fmtN(plr,3)}</div><div class="r-unit">Q_IDU/Q_avail</div></div>
+      <div class="result-item gold"><div class="r-label">ΣQ_IDU</div><div class="r-value gold">${fmtN(q_idu_sum,2)} kW</div><div class="r-unit">${n} เครื่อง</div></div>
+    </div>
+    <div class="${divOK?'good-box':'warn-box'}">${divMsg}</div>
+    <div class="${plrOK?'good-box':'bad-box'}">${plrMsg}</div>`;
+  document.getElementById('cap_result_card').style.display='block';
+
+  const trace=[
+    {num:1,col:'red',title:'Diversity Factor',formula:'Diversity = ΣQ_IDU / Q_ODU_rated',
+     sub:`Diversity = ${fmtN(q_idu_sum,2)} ÷ ${fmtN(q_out,2)}`,result:`Diversity = ${fmtN(diversity,3)}`,
+     note:'แนะนำ 0.5–1.3; >1.0 เรียกว่า Over-connected (allowed แต่ต้องใช้ Total Diversity)'},
+    {num:2,col:'blue',title:'Piping Correction Factor',formula:'CF_pipe = 1 − 0.0015×max(L−15,0) − 0.003×max(ΔH,0)',
+     sub:`CF_pipe = 1 − 0.0015×${Math.max(0,Lpipe-15)} − 0.003×${Math.max(0,dH)}\n= ${fmtN(cf_pipe,4)}`,
+     result:`CF_pipe = ${fmtN(cf_pipe,4)}`,note:`L_equiv=${Lpipe}m, ΔH=${dH}m (simplified; ใช้ตาราง Mfr จะแม่นกว่า)`},
+    {num:3,col:'warm',title:'Temperature Correction',formula:'CF_temp = 1 − 0.015×max(T_out−35, 0)',
+     sub:`CF_temp = 1 − 0.015×${Math.max(0,Tout-35).toFixed(1)}`,result:`CF_temp = ${fmtN(cf_temp,4)}`,
+     note:'ที่ T_out>35°C: Capacity ลดลงตามอุณหภูมิ outdoor'},
+    {num:4,col:'green',title:'Available Capacity',formula:'Q_avail = Q_ODU × CF_pipe × CF_temp',
+     sub:`Q_avail = ${fmtN(q_out,2)} × ${fmtN(cf_pipe,4)} × ${fmtN(cf_temp,4)}`,
+     result:`Q_avail = ${fmtN(q_avail,2)} kW`,note:''},
+    {num:5,col:'purple',title:'Part Load Ratio (PLR)',formula:'PLR = ΣQ_IDU / Q_avail',
+     sub:`PLR = ${fmtN(q_idu_sum,2)} ÷ ${fmtN(q_avail,2)}`,result:`PLR = ${fmtN(plr,3)}`,
+     note:'PLR ≤ 1.1 แนะนำ; >1.1 ระบบจะทำงานเต็ม capacity ตลอด'},
+  ];
+  document.getElementById('cap_trace').innerHTML=buildTrace(trace,'Capacity Analysis');
+  updateCompare();
+}
+function resetCapacity(){ document.getElementById('cap_q_out').value=28; updateIndoorTable(); }
+
+// ═══════════════════════════════════════════
+// TAB 3: FIELD MEASUREMENT
+// ═══════════════════════════════════════════
+function calcField() {
+  // Electrical
+  const V = parseFloat(document.getElementById('f_volt').value)||400;
+  const I = parseFloat(document.getElementById('f_curr').value)||14.5;
+  const PF = parseFloat(document.getElementById('f_pf').value)||0.90;
+  const phase = parseInt(document.getElementById('f_phase').value)||3;
+  const wDirect = parseFloat(document.getElementById('f_wdirect').value);
+  const hrsDay = parseFloat(document.getElementById('f_hrs_day').value)||10;
+  const tariff = parseFloat(document.getElementById('f_tariff').value)||4.5;
+
+  // Compute W
+  let w_kw;
+  if(isFinite(wDirect) && wDirect>0) w_kw = wDirect;
+  else w_kw = phase===3 ? (Math.sqrt(3)*V*I*PF/1000) : (V*I*PF/1000);
+
+  // Air side
+  const Tra_db = parseFloat(document.getElementById('f_tra_db').value)||27;
+  const Tra_wb = parseFloat(document.getElementById('f_tra_wb').value)||19.5;
+  const Tsa_db = parseFloat(document.getElementById('f_tsa_db').value)||13;
+  const Tsa_wb = parseFloat(document.getElementById('f_tsa_wb').value)||12.5;
+  const patm   = parseFloat(document.getElementById('f_patm').value)||101.3;
+
+  // CFM / CMH
+  let cmh = parseFloat(document.getElementById('f_cmh').value);
+  const cfm = parseFloat(document.getElementById('f_cfm').value)||1200;
+  if(!isFinite(cmh)||cmh===0) cmh = cfm * 1.6990; // 1 CFM = 1.699 m³/hr
+
+  const qv = cmh/3600; // m³/s
+
+  // Psychrometric: humidity ratio ω = 0.622 Pv/(Patm-Pv)
+  // Pv from WB using Magnus approximation (Antoine variant, saturation from WB)
+  function pvSat(T){ return Math.exp(17.625*T/(243.04+T))*3.1623 } // kPa at T°C
+  // Adjusted Pv from WB: Pv = PvSat(WB) - A×Patm×(DB-WB), A=0.000662
+  function pvFromWB(db,wb){ return pvSat(wb) - 0.000662*patm*(db-wb) }
+
+  const Pv_ra = pvFromWB(Tra_db,Tra_wb);
+  const Pv_sa = pvFromWB(Tsa_db,Tsa_wb);
+  const w_ra = 0.622*Pv_ra/(patm-Pv_ra); // kg/kg_dry
+  const w_sa = 0.622*Pv_sa/(patm-Pv_sa);
+
+  // Enthalpy kJ/kg_dry
+  const h_ra = 1.006*Tra_db + w_ra*(2501+1.86*Tra_db);
+  const h_sa = 1.006*Tsa_db + w_sa*(2501+1.86*Tsa_db);
+
+  // Air density
+  const rho_ra = patm*1000 / (287.058*(Tra_db+273.15)); // kg/m³
+
+  // Mass flow
+  const m_air = rho_ra * qv; // kg/s
+
+  // Loads
+  const q_sens = m_air * 1.006 * (Tra_db - Tsa_db); // kW
+  const q_lat  = m_air * (w_ra - w_sa) * 2501;       // kW
+  const q_total = m_air * (h_ra - h_sa);              // kW (= q_sens + q_lat approx)
+
+  const shr = q_sens / q_total;
+  const cop_field = q_total / w_kw;
+
+  // Annual estimate
+  const days_yr = 260; // working days
+  const e_yr = w_kw * hrsDay * days_yr; // kWh/yr
+  const cost_yr = e_yr * tariff;
+
+  S.field = { done:true, w_kw, q_total, q_sens, q_lat, cop_field, shr,
+    m_air, h_ra, h_sa, w_ra, w_sa, tariff, rho_ra,
+    e_yr, cost_yr, hrsDay, cfm, cmh };
+
+  // KPI
+  document.getElementById('fk_w').textContent = fmtN(w_kw,2);
+  document.getElementById('fk_qtot').textContent = fmtN(q_total,2);
+  document.getElementById('fk_cop').textContent = fmtN(cop_field,3);
+  document.getElementById('fk_shr').textContent = fmtN(shr,3);
+  document.getElementById('field_kpi').style.display='flex';
+
+  const shrOK = shr>=0.65 && shr<=0.90;
+  const copOK = cop_field >= 2.5;
+  const q_kW_ton = q_total * 0.2843; // RT
+
+  document.getElementById('field_result_body').innerHTML = `
+    <div class="result-grid">
+      <div class="result-item"><div class="r-label">W_input (kW)</div><div class="r-value">${fmtN(w_kw,2)}</div><div class="r-unit">${phase===3?'√3×V×I×PF':'V×I×PF'} ÷ 1000</div></div>
+      <div class="result-item warm"><div class="r-label">Q_total (kW)</div><div class="r-value warm">${fmtN(q_total,2)}</div><div class="r-unit">${fmtN(q_kW_ton,2)} RT (Tons of Refrig.)</div></div>
+      <div class="result-item"><div class="r-label">Q_sensible (kW)</div><div class="r-value">${fmtN(q_sens,2)}</div><div class="r-unit">ṁ × Cp × ΔT</div></div>
+      <div class="result-item purple"><div class="r-label">Q_latent (kW)</div><div class="r-value purple">${fmtN(q_lat,2)}</div><div class="r-unit">ṁ × Δω × 2501</div></div>
+      <div class="result-item ${copOK?'green':'red'}"><div class="r-label">COP_field</div><div class="r-value ${copOK?'green':'red'}">${fmtN(cop_field,3)}</div><div class="r-unit">${copOK?'✅ ≥ 2.5':'❌ < 2.5 ต่ำ'}</div></div>
+      <div class="result-item ${shrOK?'gold':'warn'}"><div class="r-label">SHR</div><div class="r-value gold">${fmtN(shr,3)}</div><div class="r-unit">${shrOK?'✅ ปกติ':'⚠️ ตรวจสอบ'}</div></div>
+    </div>
+    <div class="info-box">
+      💧 Humidity Ratio: Return = ${fmtN(w_ra*1000,1)} g/kg | Supply = ${fmtN(w_sa*1000,1)} g/kg
+      &nbsp;|&nbsp; ṁ_air = ${fmtN(m_air,3)} kg/s &nbsp;|&nbsp; ρ = ${fmtN(rho_ra,3)} kg/m³
+    </div>
+    <div class="info-box">
+      💰 กำลังไฟรายปี (ประมาณ ${hrsDay} hr/day × 260 วัน): <strong>${fmtN(e_yr,0)} kWh/yr</strong>
+      &nbsp;|&nbsp; ค่าไฟ: <strong>${fmtN(cost_yr,0)} บาท/ปี</strong>
+    </div>`;
+  document.getElementById('field_result_card').style.display='block';
+
+  const trace=[
+    {num:1,col:'red',title:'กำลังไฟฟ้าที่ใช้ W_input',
+     formula:`W_kW = ${phase===3?'√3 × V × I × PF / 1000':'V × I × PF / 1000'}`,
+     sub:`W_kW = ${phase===3?`√3 × ${V} × ${I} × ${PF} / 1000`:`${V} × ${I} × ${PF} / 1000`}`,
+     result:`W_input = ${fmtN(w_kw,3)} kW`,note:isFinite(wDirect)&&wDirect>0?'ใช้ค่า Wattmeter โดยตรง':'คำนวณจาก V, I, PF'},
+    {num:2,col:'blue',title:'Humidity Ratio (ω) ของอากาศกลับ',
+     formula:'Pv = PvSat(WB) − 0.000662×Patm×(DB−WB)\nω = 0.622 × Pv / (Patm − Pv)',
+     sub:`Pv_ra = ${fmtN(Pv_ra,4)} kPa\nω_ra = 0.622 × ${fmtN(Pv_ra,4)} / (${patm} − ${fmtN(Pv_ra,4)})`,
+     result:`ω_ra = ${fmtN(w_ra*1000,2)} g/kg_dry`,note:'Psychrometric equation; ใช้ P_atm จริงเพื่อความแม่นยำ'},
+    {num:3,col:'blue',title:'Enthalpy อากาศ (h)',
+     formula:'h = 1.006×T_db + ω×(2501 + 1.86×T_db)  [kJ/kg_dry]',
+     sub:`h_ra = 1.006×${Tra_db} + ${fmtN(w_ra,5)}×(2501+1.86×${Tra_db}) = ${fmtN(h_ra,2)}\nh_sa = 1.006×${Tsa_db} + ${fmtN(w_sa,5)}×(2501+1.86×${Tsa_db}) = ${fmtN(h_sa,2)}`,
+     result:`Δh = ${fmtN(h_ra-h_sa,3)} kJ/kg`,note:''},
+    {num:4,col:'warm',title:'อัตราการไหลมวลอากาศ ṁ_air',
+     formula:'ρ = P_atm×1000 / (287.058×(T+273.15))\nṁ = ρ × Q_v  [kg/s]',
+     sub:`ρ = ${patm*1000}/(287.058×${Tra_db+273.15}) = ${fmtN(rho_ra,4)} kg/m³\nQ_v = ${fmtN(cmh,0)} m³/hr ÷ 3600 = ${fmtN(qv,4)} m³/s\nṁ = ${fmtN(rho_ra,4)} × ${fmtN(qv,4)}`,
+     result:`ṁ_air = ${fmtN(m_air,4)} kg/s`,note:`= ${fmtN(cfm,0)} CFM = ${fmtN(cmh,0)} m³/hr`},
+    {num:5,col:'green',title:'Q_sens, Q_lat, Q_total',
+     formula:'Q_sens = ṁ × Cp_air × ΔT_db\nQ_lat  = ṁ × Δω × 2501\nQ_total= ṁ × Δh',
+     sub:`Q_sens = ${fmtN(m_air,4)}×1.006×${Tra_db-Tsa_db} = ${fmtN(q_sens,3)}\nQ_lat  = ${fmtN(m_air,4)}×${fmtN((w_ra-w_sa)*1000,2)/1000}×2501 = ${fmtN(q_lat,3)}\nQ_total= ${fmtN(m_air,4)}×${fmtN(h_ra-h_sa,3)} = ${fmtN(q_total,3)}`,
+     result:`Q_total = ${fmtN(q_total,3)} kW | SHR = ${fmtN(shr,4)}`,note:''},
+    {num:6,col:'purple',title:'COP ภาคสนาม',
+     formula:'COP_field = Q_total / W_input',
+     sub:`COP_field = ${fmtN(q_total,3)} ÷ ${fmtN(w_kw,3)}`,
+     result:`COP_field = ${fmtN(cop_field,4)}`,note:'เปรียบเทียบกับ COP Nameplate ในแท็บสรุป'},
+  ];
+  document.getElementById('field_trace').innerHTML=buildTrace(trace,'Field Measurement');
+  updateCompare();
+}
+function resetField(){ document.getElementById('f_cfm').value=1200; calcField(); }
+
+// ═══════════════════════════════════════════
+// TAB 4: REFRIGERANT
+// ═══════════════════════════════════════════
+// Simplified saturation properties (P_sat in bar, h approx in kJ/kg)
+const REFRIG_SAT = {
+  R410A:{ name:'R-410A', A_ant:16.456, B_ant:2534, C_ant:226, molar:72.58,
+    h_evap_ref:220, h_liq_ref:250, T_ref:0, glide:0, gwp:2088, tmax_dis:110 },
+  R32:  { name:'R-32',   A_ant:16.878, B_ant:2380, C_ant:233, molar:52.02,
+    h_evap_ref:498, h_liq_ref:200, T_ref:0, glide:0, gwp:675, tmax_dis:120 },
+  R407C:{ name:'R-407C', A_ant:16.7,   B_ant:2550, C_ant:230, molar:86.2,
+    h_evap_ref:380, h_liq_ref:240, T_ref:0, glide:6, gwp:1774, tmax_dis:110 },
+  R22:  { name:'R-22',   A_ant:16.285, B_ant:2448, C_ant:233, molar:86.47,
+    h_evap_ref:400, h_liq_ref:235, T_ref:0, glide:0, gwp:1810, tmax_dis:105 },
+  R454B:{ name:'R-454B', A_ant:16.6,   B_ant:2470, C_ant:230, molar:66.5,
+    h_evap_ref:340, h_liq_ref:210, T_ref:0, glide:2, gwp:466, tmax_dis:115 },
+};
+
+function pSat(refKey, T_c){
+  // Antoine-like: log10(P_mmHg) = A - B/(C+T)
+  const r = REFRIG_SAT[refKey];
+  const p_kPa = Math.exp(r.A_ant - r.B_ant/(r.C_ant+T_c)) ; // kPa (fitted)
+  return p_kPa / 100; // bar
+}
+
+function calcRefrig(){
+  const refKey = document.getElementById('r_refrig').value;
+  const r = REFRIG_SAT[refKey];
+  const T_evap = parseFloat(document.getElementById('r_tevap').value)||7;
+  const T_cond = parseFloat(document.getElementById('r_tcond').value)||45;
+  const SH = parseFloat(document.getElementById('r_sh').value)||7;
+  const SC = parseFloat(document.getElementById('r_sc').value)||5;
+  const T_dis = parseFloat(document.getElementById('r_tdis').value)||85;
+
+  const P_evap = pSat(refKey, T_evap); // bar
+  const P_cond = pSat(refKey, T_cond);
+  const CR = P_cond / P_evap; // compression ratio
+
+  // Approximate enthalpy using simplified Clausius-Clapeyron
+  // h1 (suction, superheat): h_g at evap + Cp_vapour * SH
+  const Cp_vap = refKey==='R32'?1.30:refKey==='R22'?0.74:0.87; // kJ/(kg·K) approx
+  const h_fg_evap = 150 + 2.5*(T_cond-T_evap); // rough, kJ/kg
+  const h1 = 200 + h_fg_evap + Cp_vap*SH; // suction enthalpy
+
+  // h2 (discharge): isentropic + inefficiency
+  const eta_is = 0.70; // assumed isentropic efficiency
+  const gamma = refKey==='R32'?1.18:refKey==='R22'?1.14:1.15;
+  const delta_h_is = h1*(gamma/(gamma-1))*(Math.pow(CR,(gamma-1)/gamma)-1)*0.08; // simplified
+  const h2s = h1 + delta_h_is;
+  const h2  = h1 + delta_h_is/eta_is;
+
+  // h3 (liquid after subcooling)
+  const Cp_liq = refKey==='R32'?1.65:refKey==='R22'?1.19:1.45;
+  const h3 = 200 - Cp_liq*SC;
+
+  // h4 = h3 (isenthalpic expansion)
+  const h4 = h3;
+
+  // COP_cycle = (h1-h4)/(h2-h1)
+  const cop_cycle = (h1-h4)/(h2-h1);
+  const eta_comp = delta_h_is/Math.max((h2-h1),0.001);
+
+  S.refrig = { done:true, sh:SH, sc:SC, cr:CR, t_dis:T_dis, cop_cycle,
+    eta_comp, P_evap, P_cond, refKey, gwp:r.gwp, tmax_dis:r.tmax_dis };
+
+  // Status assessment
+  function shStat(sh){ return sh>=5&&sh<=10?'pill-good':sh>=10&&sh<=15?'pill-warn':'pill-bad' }
+  function scStat(sc){ return sc>=3&&sc<=8?'pill-good':sc>=1&&sc<3?'pill-warn':'pill-bad' }
+  function crStat(cr){ return cr<=4?'pill-good':cr<=5?'pill-warn':'pill-bad' }
+  function tdStat(td,mx){ return td<mx-15?'pill-good':td<mx?'pill-warn':'pill-bad' }
+
+  document.getElementById('refrig_result_body').innerHTML = `
+    <div class="result-grid">
+      <div class="result-item"><div class="r-label">P_evap</div><div class="r-value">${fmtN(P_evap,2)}</div><div class="r-unit">bar | T_evap=${T_evap}°C</div></div>
+      <div class="result-item warm"><div class="r-label">P_cond</div><div class="r-value warm">${fmtN(P_cond,2)}</div><div class="r-unit">bar | T_cond=${T_cond}°C</div></div>
+      <div class="result-item purple"><div class="r-label">Compression Ratio</div>
+        <div class="r-value purple">${fmtN(CR,2)}</div><div class="r-unit"><span class="status-pill ${crStat(CR)}">${CR<=4?'✅ ปกติ':CR<=5?'⚠️ สูง':'❌ สูงมาก'}</span></div></div>
+      <div class="result-item ${shStat(SH)}"><div class="r-label">Superheat (SH)</div>
+        <div class="r-value">${fmtN(SH,1)}°C</div><div class="r-unit"><span class="status-pill ${shStat(SH)}">${SH>=5&&SH<=10?'✅ ปกติ':SH>10?'⚠️ สูง':'❌ ต่ำ (ระวัง Liquid Back)'}</span></div></div>
+      <div class="result-item ${scStat(SC)}"><div class="r-label">Subcooling (SC)</div>
+        <div class="r-value">${fmtN(SC,1)}°C</div><div class="r-unit"><span class="status-pill ${scStat(SC)}">${SC>=3&&SC<=8?'✅ ปกติ':SC>8?'⚠️ สูง':SC<1?'❌ ไม่มี SC':''}</span></div></div>
+      <div class="result-item ${tdStat(T_dis,r.tmax_dis)}"><div class="r-label">T_discharge</div>
+        <div class="r-value">${fmtN(T_dis,1)}°C</div>
+        <div class="r-unit"><span class="status-pill ${tdStat(T_dis,r.tmax_dis)}">${T_dis<r.tmax_dis-15?'✅ ปกติ':T_dis<r.tmax_dis?'⚠️ เฝ้าระวัง':'❌ เกิน Max'}</span></div></div>
+    </div>
+    <div class="result-grid" style="margin-top:10px">
+      <div class="result-item green"><div class="r-label">COP_cycle (approx)</div><div class="r-value green">${fmtN(cop_cycle,3)}</div><div class="r-unit">วงจรสารทำความเย็น</div></div>
+      <div class="result-item gold"><div class="r-label">η_isentropic (est.)</div><div class="r-value gold">${fmtN(eta_comp*100,1)}%</div><div class="r-unit">Compressor efficiency</div></div>
+      <div class="result-item"><div class="r-label">GWP สาร (${r.name})</div><div class="r-value" style="font-size:14px">${r.gwp}</div><div class="r-unit">kgCO₂eq/kg</div></div>
+    </div>
+    ${r.glide>0?`<div class="warn-box">⚠️ ${r.name} มี Temperature Glide ${r.glide}°C — ควรวัด T ที่ dew point สำหรับ subcooling</div>`:''}
+    ${SH<3?'<div class="bad-box">❌ SH ต่ำมาก — ความเสี่ยง Liquid Slugging เข้าคอมเพรสเซอร์</div>':''}
+    ${T_dis>=r.tmax_dis?`<div class="bad-box">❌ T_discharge (${T_dis}°C) เกินค่าสูงสุดที่ปลอดภัย (${r.tmax_dis}°C) สำหรับ ${r.name}</div>`:''}`;
+  document.getElementById('refrig_result_card').style.display='block';
+
+  const trace=[
+    {num:1,col:'blue',title:`P_sat (${r.name}) ที่ T_evap และ T_cond`,
+     formula:'P_sat ≈ exp(A − B/(C+T)) × scaling  [bar] (Antoine approx)',
+     sub:`P_evap(${T_evap}°C) ≈ ${fmtN(P_evap,3)} bar\nP_cond(${T_cond}°C) ≈ ${fmtN(P_cond,3)} bar`,
+     result:`ΔP = ${fmtN(P_cond-P_evap,2)} bar`,note:'ค่าแม่นยำ: ใช้ REFPROP / ASHRAE tables'},
+    {num:2,col:'purple',title:'Compression Ratio (CR)',
+     formula:'CR = P_cond / P_evap',
+     sub:`CR = ${fmtN(P_cond,3)} ÷ ${fmtN(P_evap,3)}`,result:`CR = ${fmtN(CR,3)}`,
+     note:'CR > 4: efficiency ลดลง; >5: compressor เสี่ยงเสียหาย'},
+    {num:3,col:'warm',title:'ประเมิน Superheat และ Subcooling',
+     formula:'T_sat(evap) = T_evap — วัดจาก Low-side gauge\nSH = T_suction_actual − T_sat(evap)\nSC = T_sat(cond) − T_liquid_line',
+     sub:`SH = ${SH}°C (ปกติ: 5–10°C)\nSC = ${SC}°C (ปกติ: 3–8°C)`,
+     result:`SH: ${SH>=5&&SH<=10?'✅ ปกติ':'⚠️ ผิดปกติ'} | SC: ${SC>=3&&SC<=8?'✅ ปกติ':'⚠️ ผิดปกติ'}`,
+     note:'SH ต่ำเสี่ยง Liquid Back; SH สูง = Capacity ลด, T_dis สูง'},
+    {num:4,col:'green',title:'COP วงจรสาร (approximation)',
+     formula:'COP_cycle = (h1−h4)/(h2−h1)',
+     sub:`h1(suction+SH) ≈ ${fmtN(h1,1)} kJ/kg\nh2(discharge) ≈ ${fmtN(h2,1)} kJ/kg\nh3(liquid-SC) ≈ ${fmtN(h3,1)} kJ/kg | h4=h3`,
+     result:`COP_cycle ≈ ${fmtN(cop_cycle,3)}`,
+     note:'⚠️ ค่าประมาณเท่านั้น — ใช้ REFPROP / CoolProp สำหรับ h จริง'},
+  ];
+  document.getElementById('refrig_trace').innerHTML=buildTrace(trace,'Refrigerant Circuit');
+  updateCompare();
+}
+function updateSatProp(){ calcRefrig(); }
+function resetRefrig(){ calcRefrig(); }
+
+// ═══════════════════════════════════════════
+// TAB 5: COMPARE
+// ═══════════════════════════════════════════
+function updateCompare(){
+  const hasCOP   = S.cop.done;
+  const hasField = S.field.done;
+  if(!hasCOP && !hasField){
+    document.getElementById('compare_empty').style.display='block';
+    document.getElementById('compare_body').style.display='none';
+    return;
+  }
+  document.getElementById('compare_empty').style.display='none';
+  document.getElementById('compare_body').style.display='block';
+
+  // Comparison bars
+  const barData = [];
+  if(hasCOP && hasField){
+    const copDeg = ((S.cop.cop - S.field.cop_field)/S.cop.cop*100);
+    const eerDeg = ((S.cop.eer - S.field.cop_field*3.412)/S.cop.eer*100);
+    barData.push({label:'COP Nameplate',val:S.cop.cop,max:8,color:'#0066cc'});
+    barData.push({label:'COP Field',val:S.field.cop_field,max:8,color:copDeg>15?'#dc2626':'#16a34a'});
+    barData.push({label:'EER Nameplate',val:S.cop.eer,max:8,color:'#e85d04'});
+    barData.push({label:'EER Field (equiv)',val:S.field.cop_field*3.412,max:8,color:'#b45309'});
+  } else if(hasCOP){
+    barData.push({label:'COP Nameplate',val:S.cop.cop,max:8,color:'#0066cc'});
+    barData.push({label:'EER Nameplate',val:S.cop.eer,max:8,color:'#e85d04'});
+    barData.push({label:'IPLV Nameplate',val:S.cop.iplv,max:8,color:'#7c3aed'});
+  }
+  if(hasField){
+    barData.push({label:'Q_total (kW)',val:S.field.q_total,max:Math.max(S.field.q_total*1.4,30),color:'#7c3aed'});
+  }
+
+  const barsHtml = barData.map(b=>{
+    const pct = Math.min(100,(b.val/b.max)*100);
+    return `<div class="comp-bar-row">
+      <div class="comp-bar-label">${b.label}</div>
+      <div class="comp-bar-track">
+        <div class="comp-bar-fill" style="width:${pct}%;background:${b.color}">
+          <span class="comp-bar-val">${fmtN(b.val,2)}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('compare_bars').innerHTML = `<div class="comp-bar-wrap">${barsHtml}</div>`;
+
+  // Rating text
+  let ratingHtml='';
+  if(hasCOP){
+    const ok=S.cop.eer>=3.0;
+    ratingHtml+=`<div class="${ok?'good-box':'bad-box'}">EER Nameplate = ${fmtN(S.cop.eer,3)} → ${ok?'✅ ผ่าน ECBC':'❌ ไม่ผ่าน ECBC (Min 3.0)'}</div>`;
+    ratingHtml+=`<div class="info-box">IPLV = ${fmtN(S.cop.iplv,3)} W/W — Seasonal weighted average</div>`;
+  }
+  if(hasCOP && hasField){
+    const deg=((S.cop.cop - S.field.cop_field)/S.cop.cop*100);
+    const cls=deg>20?'bad-box':deg>10?'warn-box':'good-box';
+    ratingHtml+=`<div class="${cls}">COP Degradation = ${fmtN(deg,1)}% (Nameplate ${fmtN(S.cop.cop,3)} → Field ${fmtN(S.field.cop_field,3)})
+${deg>20?'❌ สมรรถนะตกต่ำมาก ควรบำรุงรักษา/ตรวจสอบ':deg>10?'⚠️ สมรรถนะลดลงพอควร ควรตรวจสอบ':'✅ สมรรถนะอยู่ในเกณฑ์ดี'}</div>`;
+  }
+  if(S.refrig.done){
+    ratingHtml+=`<div class="info-box">Compression Ratio = ${fmtN(S.refrig.cr,2)} | SH = ${S.refrig.sh}°C | SC = ${S.refrig.sc}°C | GWP = ${S.refrig.gwp}</div>`;
+  }
+  document.getElementById('compare_rating').innerHTML=ratingHtml||'<p style="color:var(--text3)">ยังไม่มีข้อมูลเพียงพอ</p>';
+
+  // Saving
+  let savingHtml='';
+  if(hasCOP && hasField && S.cop.cop>0){
+    const cop_n=S.cop.cop, cop_f=S.field.cop_field;
+    const q=S.field.q_total;
+    const w_ideal=q/cop_n, w_actual=q/cop_f;
+    const dw=Math.max(0,w_actual-w_ideal);
+    const tariff=S.field.tariff||4.5;
+    const hrsDay=S.field.hrsDay||10;
+    const dCost=dw*hrsDay*260*tariff;
+    savingHtml=`
+      <div class="result-grid">
+        <div class="result-item"><div class="r-label">W ถ้า COP = Nameplate</div><div class="r-value">${fmtN(w_ideal,2)}</div><div class="r-unit">kW</div></div>
+        <div class="result-item red"><div class="r-label">W จริง (Field)</div><div class="r-value red">${fmtN(w_actual,2)}</div><div class="r-unit">kW</div></div>
+        <div class="result-item warm"><div class="r-label">พลังงานส่วนเกิน</div><div class="r-value warm">${fmtN(dw,2)}</div><div class="r-unit">kW</div></div>
+        <div class="result-item gold"><div class="r-label">มูลค่าสูญเสียรายปี</div><div class="r-value gold">${fmtN(dCost,0)}</div><div class="r-unit">บาท/ปี</div></div>
+      </div>
+      <div class="${dCost>50000?'bad-box':dCost>20000?'warn-box':'good-box'}">
+        ${dw>0.1?`⚠️ ประหยัดได้ ${fmtN(dw,2)} kW = ${fmtN(dCost,0)} บาท/ปี หากปรับสมรรถนะกลับมาเท่า Nameplate`:'✅ สมรรถนะใกล้เคียง Nameplate'}
+      </div>`;
+  } else {
+    savingHtml='<p style="color:var(--text3);font-size:12px">ต้องการข้อมูลทั้ง Tab 1 และ Tab 3 เพื่อคำนวณ</p>';
+  }
+  document.getElementById('compare_saving').innerHTML=savingHtml;
+
+  // Recommendations
+  const recos=[];
+  if(S.refrig.done){
+    if(S.refrig.sh<3) recos.push({icon:'🔴',text:'SH ต่ำมาก — ตรวจสอบ Expansion Valve (EEV) และปริมาณสาร'});
+    if(S.refrig.sh>15) recos.push({icon:'🟡',text:'SH สูง — สารทำความเย็นอาจน้อย (Undercharge) หรือ EEV ปิดมากเกิน'});
+    if(S.refrig.sc<1) recos.push({icon:'🔴',text:'SC ต่ำ/ไม่มี — อาจมีแก๊สปนในท่อน้ำเหลือง (Flash Gas) ตรวจสอบสาร'});
+    if(S.refrig.cr>5) recos.push({icon:'🔴',text:'Compression Ratio สูง — ตรวจสอบ Condenser fouling / Filter coil อุดตัน'});
+    if(S.refrig.t_dis>S.refrig.tmax_dis) recos.push({icon:'🔴',text:`T_discharge สูงเกิน ${S.refrig.tmax_dis}°C — อันตราย ตรวจสอบทันที`});
+  }
+  if(S.cap.done && S.cap.plr>1.1) recos.push({icon:'🟡',text:'PLR > 110% — Outdoor Unit อาจไม่เพียงพอ พิจารณาเพิ่ม ODU'});
+  if(S.cap.done && S.cap.diversity>1.3) recos.push({icon:'🟡',text:'Diversity > 130% — รีบตรวจสอบ Total Capacity ก่อน Summer Peak'});
+  if(hasCOP && hasField){
+    const deg=((S.cop.cop-S.field.cop_field)/S.cop.cop*100);
+    if(deg>20) recos.push({icon:'🔴',text:'COP ตกต่ำ > 20% จาก Nameplate — ตรวจสอบ Coil Fouling, Refrigerant Charge, Airflow'});
+    else if(deg>10) recos.push({icon:'🟡',text:'COP ตกลง 10–20% — แนะนำ Preventive Maintenance: ล้าง Coil, ตรวจ Filter'});
+  }
+  if(recos.length===0) recos.push({icon:'✅',text:'ยังไม่พบปัญหาจากข้อมูลที่คำนวณ — แนะนำตรวจสอบ Coil Cleaning ทุก 6 เดือน'});
+
+  document.getElementById('compare_reco').innerHTML=recos.map(r=>
+    `<div style="display:flex;gap:10px;margin-bottom:8px;align-items:flex-start">
+      <span style="font-size:16px;flex-shrink:0">${r.icon}</span>
+      <span style="font-size:13px;color:var(--text);line-height:1.5">${r.text}</span>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════
+// CALC TRACE BUILDER
+// ═══════════════════════════════════════════
+function buildTrace(steps, title){
+  const cols={blue:'blue',red:'red',green:'green',gold:'gold',purple:'purple',warm:'warm'};
+  return `<div class="calc-trace" style="margin-top:14px">
+    <div class="calc-trace-header" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span>🧮</span> แสดงขั้นตอนการคำนวณ: ${title} <span class="chevron">▼</span>
+    </div>
+    <div class="calc-trace-body">
+      ${steps.map(s=>`
+        <div class="eq-step">
+          <div class="eq-num ${cols[s.col]||'blue'}">${s.num}</div>
+          <div class="eq-content">
+            <div class="eq-title">${s.title}</div>
+            <code class="eq-formula">${s.formula}</code>
+            <code class="eq-sub">${s.sub}</code>
+            <span class="eq-result">= ${s.result}</span>
+            ${s.note?`<div class="eq-note">📌 ${s.note}</div>`:''}
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', ()=>{
+  updateIndoorTable();
+  calcCOP();
+  calcField();
+  calcRefrig();
+});
+</script>
+</body>
+</html>
