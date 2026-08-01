@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equipment Heat Loss &amp; Insulation Calculator — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0f2a4a;--teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa;--card:#fff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;
+  --accent:#12a4a4;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;
+  --whr-dark:#e65100;--whr-mid:#ff8f00;--whr-light:#fff8e1;--whr-text:#e65100;
+  --radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Thai",sans-serif;line-height:1.55}
+header{background:var(--header-grad);color:#fff;padding:22px 20px}
+header .brand{font-size:.78rem;letter-spacing:2px;text-transform:uppercase;opacity:.8}
+header h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:2rem;margin:.15rem 0 0}
+header p{margin:.25rem 0 0;opacity:.9;font-size:.95rem}
+.wrap{max-width:1220px;margin:18px auto;padding:0 16px;display:grid;gap:16px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 22px}
+.card h2{font-family:"Barlow Condensed",sans-serif;color:var(--navy);margin:.1rem 0 .9rem;font-size:1.3rem}
+.card h3{font-family:"Barlow Condensed",sans-serif;color:var(--whr-dark);margin:1.1rem 0 .5rem;font-size:1.08rem}
+label{display:block;font-size:.8rem;color:var(--muted);margin:.5rem 0 .2rem}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;
+  font-family:"IBM Plex Mono",monospace;font-size:.9rem;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:2px solid rgba(255,143,0,.35);border-color:var(--whr-mid)}
+input[type=checkbox]{width:auto;transform:scale(1.15);margin-right:6px;vertical-align:-2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+button{background:var(--whr-mid);color:#fff;border:0;border-radius:10px;padding:10px 18px;
+  font-weight:600;cursor:pointer;font-size:.94rem;margin-top:12px;font-family:"IBM Plex Sans Thai",sans-serif}
+button:hover{filter:brightness(1.08)}
+button.ghost{background:#fff5e6;color:var(--whr-dark);border:1px solid #ffd9a0}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--line)}
+.tab{padding:10px 15px;cursor:pointer;font-weight:600;font-size:.9rem;color:var(--muted);
+  border-bottom:3px solid transparent;margin-bottom:-2px;user-select:none}
+.tab.active{color:var(--whr-dark);border-bottom-color:var(--whr-mid)}
+.panel{display:none}.panel.active{display:block}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.87rem}
+th,td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left}
+th{background:#fffaf2;color:var(--navy);font-weight:600;font-size:.82rem}
+td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
+tr.tot td{background:var(--whr-light);font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:6px}
+.kpi{background:#fffdf8;border:1px solid #ffe6bf;border-radius:12px;padding:12px 14px}
+.kpi .lb{font-size:.74rem;color:var(--muted)}
+.kpi .val{font-family:"Barlow Condensed",sans-serif;font-size:1.7rem;color:var(--navy);line-height:1.12}
+.kpi .un{font-size:.75rem;color:var(--muted);font-family:"IBM Plex Mono",monospace}
+.kpi.good .val{color:#12703f}.kpi.bad .val{color:#b3302f}
+.assump{color:var(--muted);font-size:.8rem;margin-top:12px;background:#fffdf8;
+  border-left:3px solid var(--whr-mid);padding:10px 12px;border-radius:0 8px 8px 0}
+.assump b{color:var(--navy)}
+.note{font-size:.77rem;color:var(--muted);margin-top:3px}
+.small{font-size:.82rem}
+.badge{display:inline-block;font-size:.7rem;padding:2px 8px;border-radius:12px;background:var(--whr-light);color:var(--whr-text);font-weight:600}
+.badge.ok{background:#e6f7ed;color:#12703f}
+.badge.warn{background:#fff4e0;color:#9a6100}
+.badge.danger{background:#fdecee;color:#9c2331}
+.badge.info{background:#e3f2fd;color:#0b3d91}
+/* component cards */
+.comp{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px;background:#fcfdff}
+.comp.off{opacity:.5;background:#f7f8fa}
+.comp-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.comp-no{width:26px;height:26px;border-radius:50%;background:var(--whr-mid);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.82rem;flex-shrink:0}
+.comp-svg{width:78px;height:60px;flex-shrink:0;border:1px solid var(--line);border-radius:8px;background:#fff}
+.comp-grid{display:grid;grid-template-columns:78px 1fr;gap:12px;align-items:start;margin-top:8px}
+.dimbox{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.comp-out{font-size:.8rem;color:var(--muted);margin-top:6px;font-family:"IBM Plex Mono",monospace}
+.comp-out b{color:var(--whr-dark)}
+/* catalog */
+.cat{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px}
+.cat-item{border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;background:#fff}
+.cat-item svg{width:100%;height:76px}
+.cat-item .nm{font-size:.78rem;font-weight:600;color:var(--navy);margin-top:6px;line-height:1.3}
+.cat-item .fm{font-size:.68rem;color:var(--muted);font-family:"IBM Plex Mono",monospace;margin-top:4px}
+.chartbox{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px}
+svg.chart{display:block;width:100%;min-width:640px;height:auto;font-family:"IBM Plex Mono",monospace}
+.refbox{background:#fffdf8;border:1px solid #ffe6bf;border-radius:12px;padding:12px 14px;margin-top:10px}
+footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
+@media(max-width:820px){.grid2,.grid3,.grid4,.grid5{grid-template-columns:1fr}
+  .wrap{padding:0 10px}.card{padding:15px}.comp-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Triple E Technology Co., Ltd.</div>
+  <h1>Equipment Heat Loss &amp; Insulation Calculator</h1>
+  <p>คำนวณการสูญเสียความร้อนของอุปกรณ์รูปทรงประกอบ — ถัง หม้อผสมสาร หัวถัง ท่อ · ก่อน–หลังหุ้มฉนวน (ISO 12241)</p>
+</header>
+
+<div class="wrap">
+  <div class="card" style="padding-bottom:6px">
+    <div class="tabs">
+      <div class="tab active" data-p="p1">1 · ตั้งค่า &amp; ประกอบอุปกรณ์</div>
+      <div class="tab" data-p="p2">2 · ผลการคำนวณ &amp; ผลประหยัด</div>
+      <div class="tab" data-p="p3">3 · ความหนาฉนวนที่เหมาะสม</div>
+      <div class="tab" data-p="p4">4 · คลังรูปทรง &amp; สูตร</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANEL 1 ═══════════ -->
+  <div class="panel active" id="p1">
+
+    <div class="card">
+      <h2>ก) สภาวะการทำงาน (Operating Condition)</h2>
+      <div class="grid4">
+        <div><label>ชื่ออุปกรณ์ (Equipment)</label><input id="eqName" type="text" value="ถังผสมสารเคมี MT-01" style="font-family:inherit"></div>
+        <div><label>อุณหภูมิสาร/กระบวนการ T<sub>f</sub> (°C)</label><input id="Tf" type="number" step="1" value="150" oninput="calcAll()"></div>
+        <div><label>อุณหภูมิอากาศแวดล้อม T<sub>a</sub> (°C)</label><input id="Ta" type="number" step="0.5" value="32" oninput="calcAll()"></div>
+        <div><label>ความเร็วลม v (m/s) — 0 = อากาศนิ่งในอาคาร</label><input id="wind" type="number" step="0.1" value="0" oninput="calcAll()"></div>
+      </div>
+      <div class="grid4">
+        <div><label>สัมประสิทธิ์ถ่ายเทความร้อนด้านใน h<sub>i</sub></label>
+          <select id="hiSel" onchange="$('hi').value=this.value;calcAll()">
+            <option value="99999" selected>ถือว่าผิวโลหะด้านใน = อุณหภูมิสาร (ไม่คิดฟิล์มใน)</option>
+            <option value="5000">ของเหลวเดือด / ไอน้ำควบแน่น (~5000)</option>
+            <option value="1200">ของเหลวมีการกวน / ปั๊มหมุนเวียน (~1200)</option>
+            <option value="300">ของเหลวนิ่ง — พาความร้อนอิสระ (~300)</option>
+            <option value="40">ก๊าซร้อนไหลผ่าน (~40)</option>
+            <option value="12">ก๊าซนิ่ง / ช่องอากาศ (~12)</option>
+          </select></div>
+        <div><label>ค่า h<sub>i</sub> ที่ใช้ (W/m²·K)</label><input id="hi" type="number" step="1" value="99999" oninput="calcAll()"></div>
+        <div><label>ผนังโลหะ — ความหนา (mm)</label><input id="tWall" type="number" step="0.5" value="6" oninput="calcAll()"></div>
+        <div><label>ผนังโลหะ — วัสดุ (k, W/m·K)</label>
+          <select id="kWall" onchange="calcAll()">
+            <option value="45" selected>เหล็กกล้าคาร์บอน (45)</option>
+            <option value="16">สเตนเลส 304/316 (16)</option>
+            <option value="52">เหล็กหล่อ (52)</option>
+            <option value="205">อะลูมิเนียม (205)</option>
+            <option value="386">ทองแดง (386)</option>
+          </select></div>
+      </div>
+      <div class="grid4">
+        <div><label>ชั่วโมงทำงานต่อปี (h/ปี)</label><input id="hrs" type="number" step="10" value="6000" oninput="calcAll()"></div>
+        <div><label>สภาพผิวเมื่อ<b>ยังไม่หุ้ม</b> — ค่าการแผ่รังสี ε</label>
+          <select id="emBare" onchange="calcAll()">
+            <option value="0.79" selected>ผิวเหล็กออกซิไดซ์ / ผิวร้อน (0.79)</option>
+            <option value="0.90">ผิวทาสี / ผิวปูน (0.90)</option>
+            <option value="0.28">ผิวเหล็กใหม่ ผิวมัน (0.28)</option>
+            <option value="0.20">สเตนเลสขัดผิว (0.20)</option>
+          </select></div>
+        <div><label>สภาพผิวเมื่อ<b>หุ้มแล้ว</b> — วัสดุหุ้มนอก (Cladding)</label>
+          <select id="emIns" onchange="onClad()">
+            <option value="0.15|0.5" selected>แผ่นอะลูมิเนียม (ε 0.15)</option>
+            <option value="0.05|0.5">อะลูมิเนียมขัดมัน (ε 0.05)</option>
+            <option value="0.25|0.5">แผ่นเหล็กชุบสังกะสี (ε 0.25)</option>
+            <option value="0.20|0.5">แผ่นสเตนเลส (ε 0.20)</option>
+            <option value="0.90|2.0">ผ้าใยแก้ว / ฉาบปูนซีเมนต์ (ε 0.90)</option>
+            <option value="0.90|0.0">ผิวฉนวนเปลือย ไม่มีวัสดุหุ้ม (ε 0.90)</option>
+          </select></div>
+        <div><label>ความหนาวัสดุหุ้มนอก (mm)</label><input id="tClad" type="number" step="0.1" value="0.5" oninput="calcAll()"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ข) ฉนวนความร้อน (Insulation) — ค่าเริ่มต้นของทั้งอุปกรณ์</h2>
+      <div class="grid4">
+        <div><label>ชนิดฉนวน</label><select id="insMat" onchange="calcAll()"></select></div>
+        <div><label>ความหนาฉนวน (mm)</label><input id="insT" type="number" step="5" value="75" oninput="calcAll()"></div>
+        <div><label>ค่า k ที่ใช้จริง (W/m·K) — คำนวณจากอุณหภูมิเฉลี่ย</label><input id="kShow" type="text" readonly style="background:#f7f8fa"></div>
+        <div><label>หรือกำหนด k เอง (W/m·K) — ใส่ 0 = ใช้ค่าจากตาราง</label><input id="kMan" type="number" step="0.001" value="0" oninput="calcAll()"></div>
+      </div>
+      <div class="note" id="insNote"></div>
+    </div>
+
+    <div class="card">
+      <h2>ค) ประกอบรูปทรงอุปกรณ์ (สูงสุด 7 ชิ้น)</h2>
+      <p class="note" style="margin-bottom:10px">
+        เลือกรูปทรงเรขาคณิต 3 มิติมาประกอบกันเป็นอุปกรณ์จริง เช่น
+        <b>หัวถังบน (2:1 Ellipsoidal) + ลำตัวถังทรงกระบอกตั้ง + ก้นถัง (Torispherical)</b>
+        ระบบจะคำนวณพื้นที่ผิวภายนอกและปริมาตรของแต่ละชิ้น แล้วรวมเป็นการสูญเสียความร้อนทั้งอุปกรณ์
+      </p>
+      <div style="margin-bottom:10px">
+        <button class="ghost" style="margin-top:0" onclick="syncD()">
+          ↔ ใช้เส้นผ่านศูนย์กลางเดียวกันทุกชิ้น (จากชิ้นที่ 1) และปรับสัดส่วนหัวถังเป็นค่ามาตรฐาน</button>
+        <span class="note" style="display:inline-block;margin-left:8px">
+          2:1 Ellipsoidal → h = D/4 · ASME F&amp;D → L = D, r = 0.06 D · 80-10 → L = 0.8 D, r = 0.1 D</span>
+      </div>
+      <div id="comps"></div>
+      <div class="kpis" id="kpiGeo"></div>
+      <h3>ภาพประกอบอุปกรณ์ (Assembly Sketch)</h3>
+      <div class="chartbox"><svg id="asm" class="chart" viewBox="0 0 900 300" preserveAspectRatio="xMidYMid meet"></svg></div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANEL 2 ═══════════ -->
+  <div class="panel" id="p2">
+    <div class="card">
+      <h2>ผลการคำนวณการสูญเสียความร้อน</h2>
+      <div class="kpis" id="kpiMain"></div>
+      <h3>รายชิ้นส่วน</h3>
+      <div style="overflow-x:auto"><table id="tblComp">
+        <thead><tr>
+          <th>#</th><th>รูปทรง</th><th class="num">จำนวน</th>
+          <th class="num">พื้นที่ผิวเปลือย (m²)</th><th class="num">พื้นที่ผิวหลังหุ้ม (m²)</th><th class="num">ปริมาตร (m³)</th>
+          <th class="num">T<sub>s</sub> เปลือย (°C)</th><th class="num">Q เปลือย (W)</th>
+          <th class="num">T<sub>s</sub> หุ้ม (°C)</th><th class="num">Q หุ้ม (W)</th>
+          <th class="num">ลดได้ (W)</th><th>ความปลอดภัยผิวสัมผัส</th>
+        </tr></thead><tbody></tbody></table></div>
+      <p class="assump" id="asmCalc"></p>
+    </div>
+
+    <div class="card">
+      <h2>ต้นทุนพลังงานและผลประหยัด (Energy &amp; Economics)</h2>
+      <div class="grid4">
+        <div><label>แหล่งพลังงานความร้อน</label><select id="fuel" onchange="onFuel()"></select></div>
+        <div><label>ค่าความร้อน LHV (MJ/หน่วย)</label><input id="lhv" type="number" step="0.01" value="39.77" oninput="calcAll()"></div>
+        <div><label>ราคาเชื้อเพลิง (บาท/หน่วย)</label><input id="price" type="number" step="0.01" value="22" oninput="calcAll()"></div>
+        <div><label>ประสิทธิภาพหม้อไอน้ำ/เครื่องกำเนิดความร้อน η (%)</label><input id="eff" type="number" step="1" value="85" oninput="calcAll()"></div>
+      </div>
+      <div class="grid4">
+        <div><label>Emission Factor (kgCO₂e/หน่วย)</label><input id="ef" type="number" step="0.0001" value="3.1543" oninput="calcAll()">
+          <div class="note">ตรวจสอบค่าล่าสุดที่ Emission Factor Selector (TGO)</div></div>
+        <div><label>ต้นทุนฉนวนติดตั้ง — ค่าคงที่ (บาท/m²)</label><input id="cA" type="number" step="10" value="350" oninput="calcAll()"></div>
+        <div><label>ต้นทุนฉนวนติดตั้ง — ต่อความหนา (บาท/m²·mm)</label><input id="cB" type="number" step="0.5" value="9" oninput="calcAll()"></div>
+        <div><label>อายุโครงการ (ปี) / อัตราคิดลด (%)</label>
+          <div style="display:flex;gap:6px"><input id="life" type="number" step="1" value="10" oninput="calcAll()">
+          <input id="disc" type="number" step="0.5" value="7" oninput="calcAll()"></div></div>
+      </div>
+      <div class="kpis" id="kpiEco" style="margin-top:14px"></div>
+      <div style="overflow-x:auto"><table id="tblEco"><tbody></tbody></table></div>
+      <p class="assump" id="asmEco"></p>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANEL 3 ═══════════ -->
+  <div class="panel" id="p3">
+    <div class="card">
+      <h2>การหาความหนาฉนวนที่เหมาะสมทางเศรษฐศาสตร์ (Economic Thickness)</h2>
+      <p class="note">กวาดค่าความหนาฉนวน 0–300 mm แล้วเปรียบเทียบ “ต้นทุนพลังงานที่สูญเสียต่อปี”
+        กับ “ค่าฉนวนที่คิดเป็นรายปี (annualized)” จุดต่ำสุดของเส้นรวมคือความหนาที่คุ้มค่าที่สุด</p>
+      <div class="kpis" id="kpiOpt"></div>
+      <div class="chartbox" style="margin-top:12px">
+        <svg id="chartOpt" class="chart" viewBox="0 0 900 500" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div style="overflow-x:auto"><table id="tblOpt">
+        <thead><tr><th class="num">ความหนา (mm)</th><th class="num">k (W/m·K)</th><th class="num">Q (kW)</th>
+        <th class="num">T<sub>s</sub> (°C)</th><th class="num">ค่าพลังงานสูญเสีย (บาท/ปี)</th>
+        <th class="num">ค่าฉนวนรายปี (บาท/ปี)</th><th class="num">รวม (บาท/ปี)</th><th class="num">คืนทุน (ปี)</th></tr></thead>
+        <tbody></tbody></table></div>
+      <p class="assump" id="asmOpt"></p>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANEL 4 ═══════════ -->
+  <div class="panel" id="p4">
+    <div class="card">
+      <h2>คลังรูปทรงเรขาคณิต 3 มิติ (Shape Library)</h2>
+      <p class="note">พื้นที่ผิวที่แสดงคือ <b>พื้นที่ผิวโค้งด้านนอกที่ใช้ถ่ายเทความร้อน</b> (Curved / Heat-transfer surface area)
+        · D = เส้นผ่านศูนย์กลาง, H/L = ความสูงหรือความยาว, h = ความลึกหัวถัง</p>
+      <div class="cat" id="catalog"></div>
+    </div>
+    <div class="card">
+      <h2>สมการที่ใช้</h2>
+      <div class="refbox small" style="font-family:'IBM Plex Mono',monospace;line-height:1.95">
+        <b>1) ความต้านทานความร้อนอนุกรม</b><br>
+        Q = (T<sub>f</sub> − T<sub>a</sub>) / (R<sub>i</sub> + R<sub>ผนัง</sub> + R<sub>ฉนวน</sub> + R<sub>หุ้มนอก</sub> + R<sub>o</sub>)<br>
+        R<sub>i</sub> = 1/(h<sub>i</sub>·A<sub>in</sub>) &nbsp;;&nbsp; R<sub>o</sub> = 1/(h<sub>o</sub>·A<sub>out</sub>) &nbsp;;&nbsp;
+        R<sub>ชั้น</sub> = t / (k · A<sub>mean</sub>)<br>
+        A<sub>mean</sub> : ผิวราบ = A &nbsp;| ทรงกระบอก = (A₂−A₁)/ln(A₂/A₁) (log-mean) &nbsp;| ทรงกลม/หัวถัง = √(A₁·A₂) (geometric-mean)<br><br>
+
+        <b>2) สัมประสิทธิ์ผิวนอก h<sub>o</sub> = h<sub>c</sub> + h<sub>r</sub></b> &nbsp;(ISO 12241 Annex A)<br>
+        การพาอิสระ — ผนังตั้ง: &nbsp; h<sub>c</sub> = 1.32(ΔT/H)<sup>0.25</sup> [laminar, H³ΔT&lt;10] ; 1.31·ΔT<sup>1/3</sup> [turbulent]<br>
+        การพาอิสระ — ทรงกระบอกนอน: h<sub>c</sub> = 1.25(ΔT/D)<sup>0.25</sup> ; 1.21·ΔT<sup>1/3</sup><br>
+        การพาอิสระ — ผิวราบหันขึ้น: h<sub>c</sub> = 1.32(ΔT/L)<sup>0.25</sup> ; หันลง: h<sub>c</sub> = 0.59(ΔT/L)<sup>0.25</sup><br>
+        การพาบังคับ (มีลม v ≥ 0.5 m/s): h<sub>c</sub> = 8.9·v<sup>0.9</sup> / D<sup>0.1</sup><br>
+        การแผ่รังสี: h<sub>r</sub> = ε·σ·(T<sub>s</sub>⁴ − T<sub>a</sub>⁴)/(T<sub>s</sub> − T<sub>a</sub>) , σ = 5.67×10⁻⁸ W/m²K⁴ , T เป็นเคลวิน<br>
+        แก้สมการซ้ำ (iteration) หา T<sub>s</sub> จนลู่เข้า เพราะ h<sub>o</sub> ขึ้นกับ T<sub>s</sub><br><br>
+
+        <b>3) ค่าการนำความร้อนของฉนวนขึ้นกับอุณหภูมิ</b><br>
+        k(T<sub>m</sub>) = a + b·T<sub>m</sub> + c·T<sub>m</sub>² , T<sub>m</sub> = อุณหภูมิเฉลี่ยของฉนวน = (T<sub>ผิวใน</sub> + T<sub>ผิวนอก</sub>)/2<br><br>
+
+        <b>4) เศรษฐศาสตร์</b><br>
+        พลังงานสูญเสีย = Q(kW) × ชั่วโมงต่อปี &nbsp;→&nbsp; เชื้อเพลิง = พลังงาน / (LHV/3.6 × η)<br>
+        ค่าฉนวนรายปี = (ต้นทุนติดตั้ง) × CRF , CRF = i(1+i)<sup>n</sup> / [(1+i)<sup>n</sup> − 1]<br>
+        ความหนาที่เหมาะสม = จุดที่ (ค่าพลังงานสูญเสีย + ค่าฉนวนรายปี) ต่ำสุด
+      </div>
+
+      <h3>เกณฑ์ตรวจสอบภาคสนาม</h3>
+      <ul class="small" style="color:var(--muted);line-height:1.85">
+        <li><b>อุณหภูมิผิวสัมผัสปลอดภัย:</b> ASTM C1055 กำหนดผิวโลหะที่ 60 °C สัมผัส 5 วินาที = ขีดเริ่มบาดเจ็บ
+          — งานตรวจวัดพลังงานไทยใช้เกณฑ์ผิวฉนวนไม่เกิน <b>60 °C</b> (บริเวณที่คนเข้าถึงได้)</li>
+        <li><b>ตรวจด้วยกล้องถ่ายภาพความร้อน:</b> เทียบ T<sub>s</sub> ที่คำนวณกับที่วัดจริง ต่างเกิน 10 °C แสดงว่าฉนวนเสื่อม/เปียก หรือมี thermal bridge</li>
+        <li><b>จุดที่มักถูกลืมหุ้ม:</b> หน้าแปลน วาล์ว ขาถัง แมนโฮล ช่องมองระดับ หัวถังบน–ล่าง — ใช้รูปทรง “พื้นที่ผิวกำหนดเอง” เพิ่มเข้าไป</li>
+        <li><b>งานเย็น (cold service):</b> ต้องตรวจว่า T<sub>s</sub> สูงกว่าจุดน้ำค้างของอากาศ มิฉะนั้นเกิดหยดน้ำและ CUI — ใช้เครื่องมือ Psychrometric Chart หาจุดน้ำค้าง</li>
+        <li><b>ข้อจำกัด:</b> สมการนี้เป็นการถ่ายเทความร้อน 1 มิติต่อชิ้น ไม่รวม thermal bridge จากขาตั้ง/หูยก/nozzle
+          ในทางปฏิบัติควรบวกเผื่อ 5–15 % ของค่าที่คำนวณได้</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>© Triple E Technology Co., Ltd. — Energy Engineering Tools · ISO 12241 / ASTM C680</footer>
+</div>
+
+<script>
+/* ════════════════ helpers ════════════════ */
+const $=id=>document.getElementById(id), num=id=>parseFloat($(id).value)||0;
+const fmt=(v,d=2)=>!isFinite(v)?'–':v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtA=v=>{const a=Math.abs(v);return !isFinite(v)?'–':fmt(v,a>=1000?0:a>=100?1:a>=10?2:a>=1?3:4)};
+const SB=5.670374419e-8;
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');$(t.dataset.p).classList.add('active');
+  if(t.dataset.p==='p3') sweep();
+});
+
+/* ════════════════ SHAPE LIBRARY ════════════════
+   area(d,o) : พื้นที่ผิวโค้งภายนอก เมื่อขยายออกจากผิวเดิม o เมตร
+   vol(d)    : ปริมาตรภายใน
+   char(d,o) : ความยาวลักษณะเฉพาะสำหรับสมการพาความร้อน
+   geo       : 'flat' | 'cyl' | 'sph'  → กติกา A_mean ของความต้านทานชั้นฉนวน
+   ori       : 'vert' | 'horiz' | 'up' | 'down'  (ค่าเริ่มต้น, ผู้ใช้แก้ได้)
+*/
+const P=Math.PI;
+function ellipArea(a,c){          // พื้นที่ผิว spheroid เต็มลูก
+  if(Math.abs(a-c)<1e-12) return 4*P*a*a;
+  if(a>c){const e=Math.sqrt(1-c*c/(a*a));return 2*P*a*a*(1+((1-e*e)/e)*Math.atanh(e));}
+  const e=Math.sqrt(1-a*a/(c*c));return 2*P*a*a*(1+(c/(a*e))*Math.asin(e));
+}
+function toriGeo(D,L,r,o){        // torispherical: คืน {A,V,h}
+  D=Math.max(D,1e-6); r=Math.min(Math.max(r,1e-6),D/2); L=Math.max(L,D/2);
+  const Rc=D/2-r;
+  if(L-r<=1e-9){                  // เสื่อมเป็นครึ่งทรงกลม
+    const R=D/2+o; return {A:2*P*R*R, V:(2/3)*P*Math.pow(D/2,3), h:D/2};
+  }
+  const sa=Math.min(1,Rc/(L-r)), a=Math.asin(sa), ca=Math.cos(a);
+  const Lo=L+o, ro=r+o;
+  const A=2*P*Lo*Lo*(1-ca)+2*P*ro*(Rc*(P/2-a)+ro*ca);
+  const h=L-(L-r)*ca, zj=r*ca, zc=-(L-r)*ca;
+  const f=z=> z<=zj ? P*Math.pow(Rc+Math.sqrt(Math.max(0,r*r-z*z)),2) : P*Math.max(0,L*L-Math.pow(z-zc,2));
+  let V=0; const N=600;
+  for(let i=0;i<N;i++){const z1=h*i/N,z2=h*(i+1)/N,zm=(z1+z2)/2;V+=(z2-z1)/6*(f(z1)+4*f(zm)+f(z2));}
+  return {A,V,h};
+}
+function sv(inner){return '<svg viewBox="0 0 80 62" fill="none" stroke="#0f2a4a" stroke-width="1.6" '+
+  'stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>';}
+const CL='stroke="#12a4a4" stroke-width="0.9" stroke-dasharray="4 3"';
+
+const SHAPES={
+/* ── A. ลำตัว ── */
+cylV:{g:'ลำตัวอุปกรณ์',n:'ทรงกระบอกตั้ง (Vertical Cylinder Shell)',geo:'cyl',ori:'vert',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',2],['H','ความสูง H (m)',3]],
+  A:(d,o)=>P*(d.D+2*o)*d.H, V:d=>P*d.D*d.D/4*d.H, c:(d,o)=>d.H,
+  f:'A = πDH , V = πD²H/4',
+  s:sv('<ellipse cx="40" cy="12" rx="17" ry="5"/><path d="M23 12v38"/><path d="M57 12v38"/><ellipse cx="40" cy="50" rx="17" ry="5"/><path d="M40 6v52" '+CL+'/>')},
+cylH:{g:'ลำตัวอุปกรณ์',n:'ทรงกระบอกนอน (Horizontal Cylinder Shell)',geo:'cyl',ori:'horiz',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',2],['H','ความยาว L (m)',4]],
+  A:(d,o)=>P*(d.D+2*o)*d.H, V:d=>P*d.D*d.D/4*d.H, c:(d,o)=>d.D+2*o,
+  f:'A = πDL , V = πD²L/4',
+  s:sv('<ellipse cx="14" cy="31" rx="5" ry="16"/><path d="M14 15h52"/><path d="M14 47h52"/><ellipse cx="66" cy="31" rx="5" ry="16"/><path d="M8 31h64" '+CL+'/>')},
+pipe:{g:'ลำตัวอุปกรณ์',n:'ท่อ / ท่อลมกลม (Pipe · Round Duct)',geo:'cyl',ori:'horiz',
+  d:[['D','เส้นผ่านศูนย์กลางนอก OD (m)',0.2],['H','ความยาว L (m)',10]],
+  A:(d,o)=>P*(d.D+2*o)*d.H, V:d=>P*d.D*d.D/4*d.H, c:(d,o)=>d.D+2*o,
+  f:'A = π·OD·L',
+  s:sv('<ellipse cx="14" cy="31" rx="4" ry="11"/><ellipse cx="14" cy="31" rx="2" ry="6" stroke-width="1"/><path d="M14 20h52"/><path d="M14 42h52"/><ellipse cx="66" cy="31" rx="4" ry="11"/>')},
+cone:{g:'ลำตัวอุปกรณ์',n:'กรวย (Cone — ผิวข้าง)',geo:'cyl',ori:'vert',
+  d:[['D','เส้นผ่านศูนย์กลางฐาน D (m)',2],['H','ความสูง H (m)',1.5]],
+  A:(d,o)=>{const r=d.D/2+o,h=d.H+o;return P*r*Math.sqrt(r*r+h*h)}, V:d=>P*d.D*d.D/12*d.H, c:(d,o)=>d.H,
+  f:'A = πr√(r²+h²) , V = πr²h/3',
+  s:sv('<path d="M40 8 L62 48"/><path d="M40 8 L18 48"/><ellipse cx="40" cy="48" rx="22" ry="6"/><path d="M40 4v50" '+CL+'/>')},
+frustum:{g:'ลำตัวอุปกรณ์',n:'กรวยตัด (Conical Frustum · Transition)',geo:'cyl',ori:'vert',
+  d:[['D','เส้นผ่านศูนย์กลางใหญ่ D₁ (m)',2],['D2','เส้นผ่านศูนย์กลางเล็ก D₂ (m)',1],['H','ความสูง H (m)',1]],
+  A:(d,o)=>{const R=d.D/2+o,r=d.D2/2+o;return P*(R+r)*Math.sqrt(Math.pow(d.D/2-d.D2/2,2)+d.H*d.H)},
+  V:d=>P*d.H/12*(d.D*d.D+d.D*d.D2+d.D2*d.D2), c:(d,o)=>d.H,
+  f:'A = π(R+r)·√((R−r)²+h²)',
+  s:sv('<ellipse cx="40" cy="14" rx="11" ry="4"/><path d="M29 14 L18 48"/><path d="M51 14 L62 48"/><ellipse cx="40" cy="48" rx="22" ry="6"/>')},
+box:{g:'ลำตัวอุปกรณ์',n:'กล่องสี่เหลี่ยม 6 ด้าน (Rectangular Box)',geo:'flat',ori:'vert',
+  d:[['L','ความยาว L (m)',2],['W','ความกว้าง W (m)',1.5],['H','ความสูง H (m)',1.5]],
+  A:(d,o)=>{const L=d.L+2*o,W=d.W+2*o,H=d.H+2*o;return 2*(L*W+L*H+W*H)}, V:d=>d.L*d.W*d.H, c:(d,o)=>d.H,
+  f:'A = 2(LW+LH+WH) , V = LWH',
+  s:sv('<path d="M16 22 L48 22 L48 50 L16 50 Z"/><path d="M16 22 L30 12 L62 12 L48 22"/><path d="M48 50 L62 40 L62 12"/>')},
+panel:{g:'ลำตัวอุปกรณ์',n:'แผ่นเรียบ / ผนัง (Flat Panel · Wall)',geo:'flat',ori:'vert',
+  d:[['L','ความกว้าง W (m)',2],['H','ความสูง H (m)',2]],
+  A:(d,o)=>d.L*d.H, V:d=>0, c:(d,o)=>d.H,
+  f:'A = W × H (คิดด้านเดียว)',
+  s:sv('<path d="M16 12 L58 12 L64 20 L64 50 L22 50 L16 42 Z"/><path d="M16 12 L22 20 L64 20"/><path d="M22 20 L22 50"/>')},
+ductR:{g:'ลำตัวอุปกรณ์',n:'ท่อลมสี่เหลี่ยม (Rectangular Duct)',geo:'flat',ori:'vert',
+  d:[['L','ความกว้าง W (m)',0.6],['W','ความสูง H (m)',0.4],['H','ความยาว L (m)',15]],
+  A:(d,o)=>2*(d.L+d.W+4*o)*d.H, V:d=>d.L*d.W*d.H, c:(d,o)=>d.W+2*o,
+  f:'A = 2(W+H)·L',
+  s:sv('<path d="M10 24 L54 24 L54 46 L10 46 Z"/><path d="M10 24 L22 14 L66 14 L54 24"/><path d="M54 46 L66 36 L66 14"/>')},
+
+/* ── B. หัวถัง ── */
+headHemi:{g:'หัวถัง (Heads)',n:'หัวถังครึ่งทรงกลม (Hemispherical Head)',geo:'sph',ori:'up',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',2]],
+  A:(d,o)=>2*P*Math.pow(d.D/2+o,2), V:d=>P*Math.pow(d.D,3)/12, c:(d,o)=>d.D+2*o,
+  f:'A = πD²/2 = 1.5708 D² , V = πD³/12 = 0.2618 D³',
+  s:sv('<path d="M12 46 A28 28 0 0 1 68 46"/><path d="M12 46h56"/><path d="M40 12v40" '+CL+'/><path d="M40 46 L60 33" '+CL+'/>')},
+headEllip:{g:'หัวถัง (Heads)',n:'หัวถังรูปวงรี 2:1 (2:1 Ellipsoidal · Semi-Elliptical)',geo:'sph',ori:'up',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',2],['h','ความลึกหัวถัง h (m) — 2:1 คือ D/4',0.5]],
+  A:(d,o)=>ellipArea(d.D/2+o,d.h+o)/2, V:d=>(2/3)*P*Math.pow(d.D/2,2)*d.h, c:(d,o)=>d.D+2*o,
+  pr:D=>({h:D/4}),
+  f:'A (2:1) = 1.0840 D² (สูตรทรงรีแบน) , V = (2/3)πa²c = πD³/24',
+  s:sv('<path d="M10 46 A30 22 0 0 1 70 46"/><path d="M10 46h60"/><path d="M40 22v28" '+CL+'/><path d="M10 46h-0"/><path d="M40 46 L64 38" '+CL+'/>')},
+headTori:{g:'หัวถัง (Heads)',n:'หัวถัง ASME F&D (Torispherical · Flanged and Dished)',geo:'sph',ori:'up',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',2],['L','รัศมีโดม L (m) — ASME ใช้ L = D',2],['r','รัศมีหัวโค้ง r (m) — ASME ใช้ 0.06 D',0.12]],
+  A:(d,o)=>toriGeo(d.D,d.L,d.r,o).A, V:d=>toriGeo(d.D,d.L,d.r,0).V, c:(d,o)=>d.D+2*o,
+  pr:D=>({L:D,r:0.06*D}),
+  f:'A = 2πL²(1−cosα) + 2πr[R꜀(π/2−α)+r·cosα] , sinα = R꜀/(L−r) , R꜀ = D/2−r',
+  s:sv('<path d="M10 46 A58 58 0 0 1 70 46"/><path d="M10 46h60"/><path d="M40 30v20" '+CL+'/><path d="M40 46 L66 41" '+CL+'/><circle cx="16" cy="44" r="1.7" fill="#e65100" stroke="none"/><circle cx="64" cy="44" r="1.7" fill="#e65100" stroke="none"/>')},
+head8010:{g:'หัวถัง (Heads)',n:'หัวถังแบน 80-10 (Flat Dished · Non-standard 80-10)',geo:'sph',ori:'up',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',2],['L','รัศมีโดม L (m) — 0.8 D',1.6],['r','รัศมีหัวโค้ง r (m) — 0.1 D',0.2]],
+  A:(d,o)=>toriGeo(d.D,d.L,d.r,o).A, V:d=>toriGeo(d.D,d.L,d.r,0).V, c:(d,o)=>d.D+2*o,
+  pr:D=>({L:0.8*D,r:0.1*D}),
+  f:'สูตรเดียวกับ Torispherical แต่ L = 0.8 D , r = 0.1 D',
+  s:sv('<path d="M10 46 A38 38 0 0 1 70 46"/><path d="M10 46h60"/><path d="M40 22v28" '+CL+'/><circle cx="15" cy="42" r="1.7" fill="#e65100" stroke="none"/><circle cx="65" cy="42" r="1.7" fill="#e65100" stroke="none"/>')},
+headFlat:{g:'หัวถัง (Heads)',n:'ฝาแบน / แผ่นปิด (Flat Head · Disc)',geo:'flat',ori:'up',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',2]],
+  A:(d,o)=>P*Math.pow(d.D+2*o,2)/4, V:d=>0, c:(d,o)=>0.9*(d.D+2*o),
+  f:'A = πD²/4 = 0.7854 D² , V = 0',
+  s:sv('<ellipse cx="40" cy="30" rx="28" ry="9"/><path d="M12 30v7"/><path d="M68 30v7"/><path d="M12 37a28 9 0 0 0 56 0"/>')},
+headCone:{g:'หัวถัง (Heads)',n:'หัวถังกรวย (Conical Head · ก้นกรวย)',geo:'cyl',ori:'down',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',2],['H','ความสูงกรวย h (m)',1.2]],
+  A:(d,o)=>{const r=d.D/2+o,h=d.H+o;return P*r*Math.sqrt(r*r+h*h)}, V:d=>P*d.D*d.D/12*d.H, c:(d,o)=>d.H,
+  f:'A = πr√(r²+h²) , V = πr²h/3',
+  s:sv('<ellipse cx="40" cy="14" rx="26" ry="7"/><path d="M14 14 L40 52"/><path d="M66 14 L40 52"/><path d="M40 8v48" '+CL+'/>')},
+headToriCone:{g:'หัวถัง (Heads)',n:'หัวถังกรวยมีหัวโค้ง (Toriconical Head)',geo:'cyl',ori:'down',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',2],['r','รัศมีหัวโค้ง r (m)',0.2],['phi','มุมครึ่งกรวย φ (องศา)',30],['D2','เส้นผ่านศูนย์กลางปลาย d (m)',0.2]],
+  A:(d,o)=>{const r=d.r+o,Rc=d.D/2-d.r,ph=d.phi*P/180;
+    const Ak=2*P*r*(Rc*ph+r*Math.sin(ph));
+    const x1=Rc+r*Math.cos(ph), r2=d.D2/2+o/Math.max(0.2,Math.cos(ph));
+    const sl=Math.max(0,(x1-r2)/Math.max(0.05,Math.sin(ph)));
+    return Ak+P*(x1+r2)*sl;},
+  V:d=>{const Rc=d.D/2-d.r,ph=d.phi*P/180,x1=Rc+d.r*Math.cos(ph),r2=d.D2/2;
+    const hk=d.r*Math.sin(ph), hc=(x1-r2)/Math.max(0.05,Math.tan(ph));
+    return P*hk/3*(Math.pow(d.D/2,2)+d.D/2*x1+x1*x1)*0.5+P*hc/3*(x1*x1+x1*r2+r2*r2);},
+  c:(d,o)=>Math.max(0.2,d.D/2/Math.max(0.05,Math.tan(d.phi*P/180))),
+  pr:D=>({r:0.1*D}),
+  f:'A = 2πr[R꜀φ + r·sinφ] + π(x₁+r₂)·slant',
+  s:sv('<ellipse cx="40" cy="12" rx="30" ry="6"/><path d="M10 12v4 A12 12 0 0 0 15 25 L33 52"/><path d="M70 12v4 A12 12 0 0 1 65 25 L47 52"/><path d="M33 52h14"/><path d="M40 6v52" '+CL+'/>')},
+
+/* ── C. อื่น ๆ ── */
+sphere:{g:'รูปทรงอื่น',n:'ทรงกลมเต็มลูก (Sphere · ถังทรงกลม)',geo:'sph',ori:'horiz',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',3]],
+  A:(d,o)=>P*Math.pow(d.D+2*o,2), V:d=>P*Math.pow(d.D,3)/6, c:(d,o)=>d.D+2*o,
+  f:'A = πD² , V = πD³/6',
+  s:sv('<circle cx="40" cy="31" r="24"/><ellipse cx="40" cy="31" rx="24" ry="8" stroke-width="1" stroke-dasharray="4 3"/>')},
+capsule:{g:'รูปทรงอื่น',n:'แคปซูล — ทรงกระบอก + หัวครึ่งทรงกลม 2 ข้าง',geo:'cyl',ori:'horiz',
+  d:[['D','เส้นผ่านศูนย์กลาง D (m)',2],['H','ความยาวส่วนกระบอก L (m)',4]],
+  A:(d,o)=>{const R=d.D/2+o;return 2*P*R*d.H+4*P*R*R}, V:d=>P*d.D*d.D/4*d.H+P*Math.pow(d.D,3)/6, c:(d,o)=>d.D+2*o,
+  f:'A = πDL + πD² , V = πD²L/4 + πD³/6',
+  s:sv('<path d="M24 13 A18 18 0 0 0 24 49"/><path d="M56 13 A18 18 0 0 1 56 49"/><path d="M24 13h32"/><path d="M24 49h32"/>')},
+torus:{g:'รูปทรงอื่น',n:'ทรงโดนัท / ท่อวงแหวน (Torus)',geo:'cyl',ori:'horiz',
+  d:[['R','รัศมีวง R (m)',1],['D','เส้นผ่านศูนย์กลางท่อ d (m)',0.3]],
+  A:(d,o)=>4*P*P*d.R*(d.D/2+o), V:d=>2*P*P*d.R*Math.pow(d.D/2,2), c:(d,o)=>d.D+2*o,
+  f:'A = 4π²R·r , V = 2π²R·r²',
+  s:sv('<ellipse cx="40" cy="31" rx="30" ry="16"/><ellipse cx="40" cy="31" rx="13" ry="6"/>')},
+elbow:{g:'รูปทรงอื่น',n:'ข้องอ 90° (90° Elbow · Bend)',geo:'cyl',ori:'horiz',
+  d:[['R','รัศมีดัดโค้ง R (m)',0.3],['D','เส้นผ่านศูนย์กลางนอก OD (m)',0.2]],
+  A:(d,o)=>P*P*d.R*(d.D/2+o), V:d=>P*P*d.R*Math.pow(d.D/2,2)/2, c:(d,o)=>d.D+2*o,
+  f:'A = ¼ · 4π²R·r = π²R·r',
+  s:sv('<path d="M16 54 A38 38 0 0 1 54 16"/><path d="M38 54 A16 16 0 0 1 54 38"/><path d="M16 54h22"/><path d="M54 16v22"/><path d="M12 54h4"/><path d="M54 12v4"/>')},
+custom:{g:'รูปทรงอื่น',n:'พื้นที่ผิวกำหนดเอง (Custom Area — หน้าแปลน วาล์ว ขาถัง)',geo:'flat',ori:'vert',
+  d:[['A','พื้นที่ผิว A (m²)',1],['L','ความยาวลักษณะเฉพาะ (m)',0.5]],
+  A:(d,o)=>d.A, V:d=>0, c:(d,o)=>Math.max(0.05,d.L),
+  f:'ผู้ใช้ระบุพื้นที่ผิวโดยตรง (ไม่ขยายตามความหนาฉนวน)',
+  s:sv('<rect x="14" y="14" width="52" height="34" stroke-dasharray="5 4"/><text x="40" y="37" font-size="17" fill="#0f2a4a" stroke="none" text-anchor="middle" font-family="serif">A</text>')}
+};
+const ORI={vert:'ผนังตั้ง (Vertical)',horiz:'ทรงกระบอกนอน (Horizontal)',up:'ผิวราบหันขึ้น (Facing up)',down:'ผิวราบหันลง (Facing down)'};
+
+/* ════════════════ INSULATION MATERIALS  k = a + b·Tm + c·Tm² ════════════════ */
+const INS={
+ rockwool :{n:'ใยหิน Rockwool 100 kg/m³ (ถึง 650 °C)',a:0.03600,b:6.215e-5,c:3.381e-7,max:650},
+ glasswool:{n:'ใยแก้ว Glass wool 48 kg/m³ (ถึง 250 °C)',a:0.03162,b:1.2571e-4,c:3.810e-7,max:250},
+ calsil   :{n:'แคลเซียมซิลิเกต Calcium Silicate (ถึง 650 °C)',a:0.05063,b:6.500e-5,c:8.750e-8,max:650},
+ ceramic  :{n:'เซรามิกไฟเบอร์ Ceramic Fiber 128 kg/m³ (ถึง 1260 °C)',a:0.04125,b:5.000e-5,c:2.1875e-7,max:1260},
+ perlite  :{n:'เพอร์ไลต์ Expanded Perlite (ถึง 650 °C)',a:0.04688,b:7.500e-5,c:6.250e-8,max:650},
+ aerogel  :{n:'แอโรเจล Aerogel Blanket (ถึง 650 °C)',a:0.01942,b:2.186e-5,c:5.524e-8,max:650},
+ foamglass:{n:'โฟมแก้ว Cellular Glass (−260 ถึง 430 °C)',a:0.04000,b:1.300e-4,c:0,max:430},
+ pu       :{n:'โฟม PU / PIR (ถึง 120 °C)',a:0.02150,b:1.100e-4,c:0,max:120},
+ elasto   :{n:'อีลาสโตเมอร์ NBR/EPDM (−50 ถึง 105 °C) — งานเย็น',a:0.03400,b:1.200e-4,c:0,max:105},
+ firebrick:{n:'อิฐฉนวน / คอนกรีตทนไฟ (ถึง 1200 °C)',a:0.20000,b:1.500e-4,c:0,max:1200}
+};
+const kOf=(key,Tm)=>{const m=INS[key];return Math.max(0.005,m.a+m.b*Tm+m.c*Tm*Tm)};
+
+/* ════════════════ FUELS ════════════════ */
+const FUELS={
+ fo    :{n:'น้ำมันเตา (Fuel Oil) — บาท/ลิตร',lhv:39.77,pr:22,ef:3.1543,u:'ลิตร'},
+ diesel:{n:'น้ำมันดีเซล — บาท/ลิตร',lhv:36.42,pr:32,ef:2.7406,u:'ลิตร'},
+ lpg   :{n:'LPG — บาท/กก.',lhv:46.15,pr:25,ef:3.1133,u:'กก.'},
+ ng    :{n:'ก๊าซธรรมชาติ NG — บาท/MMBTU',lhv:1055.06,pr:420,ef:59.20,u:'MMBTU'},
+ coal  :{n:'ถ่านหินบิทูมินัส — บาท/กก.',lhv:25.80,pr:4.5,ef:2.4241,u:'กก.'},
+ bio   :{n:'ชีวมวล ไม้สับ (ความชื้น 35 %) — บาท/กก.',lhv:12.50,pr:1.5,ef:0,u:'กก.'},
+ elec  :{n:'ไฟฟ้า (ฮีตเตอร์) — บาท/kWh',lhv:3.6,pr:4.2,ef:0.4999,u:'kWh'},
+ steam :{n:'ไอน้ำซื้อ — บาท/ตัน (ใช้ 2,100 MJ/ตัน)',lhv:2100,pr:900,ef:150,u:'ตัน'}
+};
+
+/* ════════════════ HEAT TRANSFER ════════════════ */
+function hConv(Ts,Ta,L,ori,v){
+  const dT=Math.abs(Ts-Ta); if(dT<1e-6) return 0;
+  L=Math.max(L,0.02);
+  if(v>=0.5) return 8.9*Math.pow(v,0.9)/Math.pow(L,0.1);
+  const turb=Math.pow(L,3)*dT>10;
+  switch(ori){
+    case 'horiz': return turb?1.21*Math.cbrt(dT):1.25*Math.pow(dT/L,0.25);
+    case 'up'   : return turb?1.52*Math.cbrt(dT):1.32*Math.pow(dT/L,0.25);
+    case 'down' : return 0.59*Math.pow(dT/L,0.25);
+    default     : return turb?1.31*Math.cbrt(dT):1.32*Math.pow(dT/L,0.25);
+  }
+}
+function hRad(em,Ts,Ta){
+  const s=Ts+273.15,a=Ta+273.15;
+  return Math.abs(Ts-Ta)<1e-6 ? 4*em*SB*Math.pow(a,3) : em*SB*(Math.pow(s,4)-Math.pow(a,4))/(Ts-Ta);
+}
+const aMean=(geo,A1,A2)=>{
+  if(A2<=A1*1.0000001) return A1;
+  if(geo==='flat') return (A1+A2)/2;
+  if(geo==='sph')  return Math.sqrt(A1*A2);
+  return (A2-A1)/Math.log(A2/A1);
+};
+/* คำนวณ 1 ชิ้นส่วน — insulated=false คือผิวเปลือย */
+function solve(sh,dim,ori,Tf,Ta,v,hi,tw,kw,tIns,insKey,kMan,em,tClad){
+  const A0=sh.A(dim,0);                     // ผิวโลหะด้านนอก (= ผิวใน โดยประมาณ)
+  const oIns=tIns/1000, oCl=tClad/1000;
+  const A1=sh.A(dim,oIns), A2=sh.A(dim,oIns+oCl);
+  const Aout=tIns>0?A2:A0;
+  const Lc=sh.c(dim,tIns>0?oIns+oCl:0);
+  let Ts=Ta+(Tf-Ta)*(tIns>0?0.08:0.9), Tsi=Tf, k=0.05, Q=0, ho=8;
+  for(let it=0;it<80;it++){
+    ho=hConv(Ts,Ta,Lc,ori,v)+hRad(em,Ts,Ta);
+    let R=1/Math.max(1e-9,ho*Aout);
+    if(hi<9e4) R+=1/(hi*A0);
+    if(tw>0&&kw>0) R+=(tw/1000)/(kw*A0);
+    if(tIns>0){
+      const Tm=(Tsi+Ts)/2;
+      k=kMan>0?kMan:kOf(insKey,Tm);
+      R+=oIns/(k*aMean(sh.geo,A0,A1));
+      if(oCl>0) R+=oCl/(45*aMean(sh.geo,A1,A2));
+    }
+    const Qn=(Tf-Ta)/R;
+    const TsN=Ta+Qn/Math.max(1e-9,ho*Aout);
+    Tsi=Tf-Qn*((hi<9e4?1/(hi*A0):0)+(tw>0&&kw>0?(tw/1000)/(kw*A0):0));
+    if(Math.abs(TsN-Ts)<0.002){Ts=TsN;Q=Qn;break}
+    Ts=Ts+0.6*(TsN-Ts); Q=Qn;
+  }
+  return {A0,Aout,Ts,Q,ho,k,Lc};
+}
+
+/* ════════════════ BUILD UI ════════════════ */
+const NC=7;
+const DEFAULTS=[
+ {on:true, sh:'headEllip', ori:'up',   q:1},
+ {on:true, sh:'cylV',      ori:'vert', q:1},
+ {on:true, sh:'headTori',  ori:'down', q:1},
+ {on:false,sh:'pipe',      ori:'horiz',q:1},
+ {on:false,sh:'headFlat',  ori:'up',   q:1},
+ {on:false,sh:'custom',    ori:'vert', q:1},
+ {on:false,sh:'cone',      ori:'down', q:1}
+];
+function shapeOptions(sel){
+  const groups={};
+  for(const k in SHAPES){(groups[SHAPES[k].g]=groups[SHAPES[k].g]||[]).push(k)}
+  let h='';
+  for(const g in groups){h+=`<optgroup label="${g}">`+
+    groups[g].map(k=>`<option value="${k}"${k===sel?' selected':''}>${SHAPES[k].n}</option>`).join('')+'</optgroup>'}
+  return h;
+}
+function buildComps(){
+  $('comps').innerHTML=DEFAULTS.map((d,i)=>`
+   <div class="comp${d.on?'':' off'}" id="c${i}">
+     <div class="comp-head">
+       <div class="comp-no">${i+1}</div>
+       <label style="margin:0;font-size:.85rem;color:var(--ink)">
+         <input type="checkbox" id="on${i}" ${d.on?'checked':''} onchange="calcAll()">ใช้งาน</label>
+       <div style="flex:1;min-width:230px"><select id="sh${i}" onchange="onShape(${i})">${shapeOptions(d.sh)}</select></div>
+       <div style="width:200px"><select id="or${i}" onchange="calcAll()">
+         ${Object.keys(ORI).map(o=>`<option value="${o}"${o===d.ori?' selected':''}>${ORI[o]}</option>`).join('')}</select></div>
+       <div style="width:104px"><label style="margin:0;font-size:.72rem">จำนวน (ชิ้น)</label>
+         <input id="qt${i}" type="number" step="1" min="1" value="${d.q}" oninput="calcAll()"></div>
+     </div>
+     <div class="comp-grid">
+       <div class="comp-svg" id="sg${i}"></div>
+       <div>
+         <div class="dimbox" id="db${i}"></div>
+         <div style="margin-top:8px" class="dimbox">
+           <div><label style="margin:0">ความหนาฉนวนเฉพาะชิ้นนี้ (mm) — ใส่ −1 = ใช้ค่าเริ่มต้น</label>
+             <input id="ti${i}" type="number" step="5" value="-1" oninput="calcAll()"></div>
+         </div>
+         <div class="comp-out" id="ot${i}"></div>
+       </div>
+     </div>
+   </div>`).join('');
+  DEFAULTS.forEach((d,i)=>onShape(i,true));
+}
+function onShape(i,init){
+  const key=$('sh'+i).value, sh=SHAPES[key];
+  $('sg'+i).innerHTML=sh.s;
+  $('db'+i).innerHTML=sh.d.map(([k,lb,v])=>
+    `<div><label style="margin:0">${lb}</label><input data-k="${k}" id="d${i}_${k}" type="number" step="any"
+      value="${v}" oninput="calcAll()"></div>`).join('');
+  if(!init){$('or'+i).value=sh.ori}
+  if(!init) calcAll();
+}
+function syncD(){
+  let D=0;
+  for(let i=0;i<NC;i++){const el=$(`d${i}_D`); if(el){D=parseFloat(el.value)||0; break}}
+  if(!D){alert('ไม่พบชิ้นส่วนที่มีเส้นผ่านศูนย์กลาง D');return}
+  for(let i=0;i<NC;i++){
+    const el=$(`d${i}_D`); if(!el) continue;
+    el.value=D;
+    const sh=SHAPES[$('sh'+i).value];
+    if(sh.pr){const o=sh.pr(D); for(const k in o){const e2=$(`d${i}_${k}`); if(e2) e2.value=+o[k].toFixed(4);}}
+  }
+  calcAll();
+}
+function readComp(i){
+  const key=$('sh'+i).value, sh=SHAPES[key], dim={};
+  sh.d.forEach(([k])=>dim[k]=parseFloat($(`d${i}_${k}`).value)||0);
+  return {on:$('on'+i).checked,key,sh,dim,ori:$('or'+i).value,q:Math.max(1,parseInt($('qt'+i).value)||1),
+          tOv:parseFloat($('ti'+i).value)};
+}
+
+/* ════════════════ MAIN CALC ════════════════ */
+let LAST=null;
+function calcAll(){
+  const Tf=num('Tf'),Ta=num('Ta'),v=num('wind'),hi=num('hi'),tw=num('tWall'),kw=parseFloat($('kWall').value);
+  const insKey=$('insMat').value, tDef=num('insT'), kMan=num('kMan');
+  const emB=parseFloat($('emBare').value);
+  const [emI,tCladDef]=$('emIns').value.split('|').map(Number);
+  const tClad=num('tClad');
+
+  const rows=[]; let Ab=0,Ai=0,Vt=0,Qb=0,Qi=0,minTs=1e9,maxTs=-1e9,kUse=0,n=0;
+  for(let i=0;i<NC;i++){
+    const c=readComp(i);
+    $('c'+i).className='comp'+(c.on?'':' off');
+    const t=(c.tOv>=0)?c.tOv:tDef;
+    const bare=solve(c.sh,c.dim,c.ori,Tf,Ta,v,hi,tw,kw,0,insKey,kMan,emB,0);
+    const ins =solve(c.sh,c.dim,c.ori,Tf,Ta,v,hi,tw,kw,t,insKey,kMan,t>0?emI:emB,t>0?tClad:0);
+    $('ot'+i).innerHTML = c.on
+      ? `พื้นที่ผิวเปลือย <b>${fmt(bare.A0,3)}</b> m² · หลังหุ้ม <b>${fmt(ins.Aout,3)}</b> m² · ปริมาตร <b>${fmt(c.sh.V(c.dim),3)}</b> m³
+         · Q เปลือย <b>${fmt(bare.Q*c.q,0)}</b> W → หุ้ม <b>${fmt(ins.Q*c.q,0)}</b> W · T ผิว <b>${fmt(ins.Ts,1)}</b> °C`
+      : '<span style="opacity:.6">ปิดใช้งาน</span>';
+    if(!c.on) continue;
+    rows.push({i,c,t,bare,ins});
+    Ab+=bare.A0*c.q; Ai+=ins.Aout*c.q; Vt+=c.sh.V(c.dim)*c.q;
+    Qb+=bare.Q*c.q;  Qi+=ins.Q*c.q;
+    minTs=Math.min(minTs,ins.Ts); maxTs=Math.max(maxTs,ins.Ts);
+    if(t>0){kUse+=ins.k;n++}
+  }
+  const kAvg=n?kUse/n:0;
+  $('kShow').value=kAvg?fmt(kAvg,4):'—';
+  const m=INS[insKey];
+  $('insNote').innerHTML=`<span class="badge info">${m.n}</span> `+
+    (Tf>m.max?`<span class="badge danger">อุณหภูมิใช้งาน ${fmt(Tf,0)} °C เกินขีดจำกัดของฉนวนชนิดนี้ (${m.max} °C) — ต้องเปลี่ยนชนิดฉนวน</span>`
+             :`<span class="badge ok">อุณหภูมิใช้งานอยู่ในพิกัด (สูงสุด ${m.max} °C)</span>`)+
+    ` &nbsp; k = ${fmt(m.a,5)} + ${m.b.toExponential(3)}·T + ${m.c.toExponential(3)}·T²`;
+
+  $('kpiGeo').innerHTML=`
+   <div class="kpi"><div class="lb">จำนวนชิ้นที่ใช้งาน</div><div class="val">${rows.length}</div><div class="un">จาก ${NC} ช่อง</div></div>
+   <div class="kpi"><div class="lb">พื้นที่ผิวรวม (ยังไม่หุ้ม)</div><div class="val">${fmt(Ab,2)}</div><div class="un">m²</div></div>
+   <div class="kpi"><div class="lb">พื้นที่ผิวรวม (หลังหุ้ม)</div><div class="val">${fmt(Ai,2)}</div><div class="un">m² — ใช้คิดราคาฉนวน</div></div>
+   <div class="kpi"><div class="lb">ปริมาตรภายในรวม</div><div class="val">${fmt(Vt,3)}</div><div class="un">m³ &nbsp;· ${fmt(Vt*1000,0)} ลิตร</div></div>`;
+
+  drawAsm(rows);
+
+  /* ── ตารางรายชิ้น ── */
+  let tb='';
+  rows.forEach(r=>{
+    const safe=r.ins.Ts<=60, warn=r.ins.Ts<=80;
+    tb+=`<tr><td>${r.i+1}</td><td class="small">${r.c.sh.n}</td><td class="num">${r.c.q}</td>
+      <td class="num">${fmt(r.bare.A0*r.c.q,3)}</td><td class="num">${fmt(r.ins.Aout*r.c.q,3)}</td>
+      <td class="num">${fmt(r.c.sh.V(r.c.dim)*r.c.q,3)}</td>
+      <td class="num">${fmt(r.bare.Ts,1)}</td><td class="num">${fmt(r.bare.Q*r.c.q,0)}</td>
+      <td class="num">${fmt(r.ins.Ts,1)}</td><td class="num">${fmt(r.ins.Q*r.c.q,0)}</td>
+      <td class="num">${fmt((r.bare.Q-r.ins.Q)*r.c.q,0)}</td>
+      <td><span class="badge ${safe?'ok':warn?'warn':'danger'}">${safe?'ปลอดภัย ≤ 60 °C':warn?'ระวัง 60–80 °C':'อันตราย > 80 °C'}</span></td></tr>`;
+  });
+  tb+=`<tr class="tot"><td colspan="3">รวมทั้งอุปกรณ์</td>
+    <td class="num">${fmt(Ab,3)}</td><td class="num">${fmt(Ai,3)}</td><td class="num">${fmt(Vt,3)}</td>
+    <td class="num">—</td><td class="num">${fmt(Qb,0)}</td><td class="num">—</td><td class="num">${fmt(Qi,0)}</td>
+    <td class="num">${fmt(Qb-Qi,0)}</td><td>—</td></tr>`;
+  $('tblComp').querySelector('tbody').innerHTML=tb;
+
+  const red=Qb>0?100*(Qb-Qi)/Qb:0;
+  $('kpiMain').innerHTML=`
+   <div class="kpi bad"><div class="lb">การสูญเสียความร้อน — ผิวเปลือย</div><div class="val">${fmt(Qb/1000,2)}</div><div class="un">kW &nbsp;(${fmt(Qb,0)} W)</div></div>
+   <div class="kpi good"><div class="lb">การสูญเสียความร้อน — หลังหุ้มฉนวน</div><div class="val">${fmt(Qi/1000,2)}</div><div class="un">kW &nbsp;(${fmt(Qi,0)} W)</div></div>
+   <div class="kpi good"><div class="lb">ลดการสูญเสียได้</div><div class="val">${fmt((Qb-Qi)/1000,2)}</div><div class="un">kW &nbsp;· ${fmt(red,1)} %</div></div>
+   <div class="kpi"><div class="lb">ฟลักซ์ความร้อนเฉลี่ยหลังหุ้ม</div><div class="val">${fmt(Ai>0?Qi/Ai:0,1)}</div><div class="un">W/m² (เกณฑ์ดี &lt; 100)</div></div>
+   <div class="kpi ${maxTs<=60?'good':'bad'}"><div class="lb">อุณหภูมิผิวสูงสุดหลังหุ้ม</div><div class="val">${fmt(maxTs,1)}</div><div class="un">°C (เกณฑ์ปลอดภัย ≤ 60)</div></div>
+   <div class="kpi"><div class="lb">ค่า k ฉนวนเฉลี่ยที่ใช้</div><div class="val">${fmt(kAvg,4)}</div><div class="un">W/m·K</div></div>`;
+
+  $('asmCalc').innerHTML=`<b>สภาวะที่ใช้:</b> T<sub>f</sub> = ${fmt(Tf,1)} °C · T<sub>a</sub> = ${fmt(Ta,1)} °C ·
+    ลม ${fmt(v,1)} m/s (${v>=0.5?'การพาบังคับ':'การพาอิสระ'}) · ผนังโลหะ ${fmt(tw,1)} mm (k = ${kw}) ·
+    ฉนวน ${fmt(tDef,0)} mm + วัสดุหุ้ม ${fmt(tClad,1)} mm · ε เปลือย ${emB} → หุ้ม ${emI}<br>
+    <b>วิธี:</b> แก้สมการซ้ำหาอุณหภูมิผิวจนลู่เข้า (h<sub>o</sub> ขึ้นกับ T<sub>s</sub>) · A<sub>mean</sub> ตามรูปทรง
+    (ราบ = เลขคณิต, กระบอก = ลอการิทึม, ทรงกลม/หัวถัง = เรขาคณิต)<br>
+    <b>ข้อควรระวัง:</b> ผลนี้ยังไม่รวม thermal bridge จากขาตั้ง หูยก และ nozzle — ในรายงานควรบวกเผื่อ 5–15 %`;
+
+  LAST={rows,Tf,Ta,v,hi,tw,kw,insKey,kMan,emB,emI,tClad,Ab,Ai,Vt,Qb,Qi};
+  eco();
+}
+
+/* ════════════════ ASSEMBLY SKETCH ════════════════ */
+function drawAsm(rows){
+  const svg=$('asm'); if(!rows.length){svg.innerHTML='<text x="450" y="150" text-anchor="middle" font-size="15" fill="#8b97a5">ยังไม่ได้เลือกชิ้นส่วน</text>';return}
+  const W=900,H=300,pad=20;
+  const cw=Math.min(180,(W-2*pad)/rows.length);
+  let g=`<rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/>`;
+  rows.forEach((r,idx)=>{
+    const x=pad+idx*cw+cw/2;
+    const flip=(r.c.ori==='down');
+    g+=`<g transform="translate(${x-52},30) scale(1.3)${flip?` translate(0,62) scale(1,-1)`:''}">`+
+       `${r.c.sh.s.replace('<svg','<svg width="80" height="62"')}</g>`;
+    g+=`<text x="${x}" y="140" text-anchor="middle" font-size="12.5" font-weight="700" fill="#e65100">${r.i+1} · ×${r.c.q}</text>`;
+    const nm=r.c.sh.n.split('(')[0].trim();
+    g+=`<text x="${x}" y="158" text-anchor="middle" font-size="10.5" fill="#0f2a4a">${nm.length>22?nm.slice(0,21)+'…':nm}</text>`;
+    g+=`<text x="${x}" y="176" text-anchor="middle" font-size="10" fill="#5b6b7b" font-family="monospace">A = ${fmt(r.bare.A0*r.c.q,2)} m²</text>`;
+    g+=`<text x="${x}" y="192" text-anchor="middle" font-size="10" fill="#5b6b7b" font-family="monospace">V = ${fmt(r.c.sh.V(r.c.dim)*r.c.q,2)} m³</text>`;
+    g+=`<text x="${x}" y="212" text-anchor="middle" font-size="10.5" fill="#b3302f" font-family="monospace">Q₀ = ${fmt(r.bare.Q*r.c.q,0)} W</text>`;
+    g+=`<text x="${x}" y="228" text-anchor="middle" font-size="10.5" fill="#12703f" font-family="monospace">Q₁ = ${fmt(r.ins.Q*r.c.q,0)} W</text>`;
+    g+=`<text x="${x}" y="246" text-anchor="middle" font-size="10" fill="#5b6b7b" font-family="monospace">Ts = ${fmt(r.ins.Ts,1)} °C</text>`;
+    if(idx<rows.length-1) g+=`<text x="${x+cw/2}" y="100" text-anchor="middle" font-size="18" fill="#ff8f00">+</text>`;
+  });
+  g+=`<text x="${W/2}" y="278" text-anchor="middle" font-size="12" fill="#0f2a4a" font-weight="600">
+      ${$('eqName').value} — Q₀ = ผิวเปลือย · Q₁ = หลังหุ้มฉนวน</text>`;
+  svg.innerHTML=g;
+}
+
+/* ════════════════ ECONOMICS ════════════════ */
+function onFuel(){
+  const f=FUELS[$('fuel').value];
+  $('lhv').value=f.lhv; $('price').value=f.pr; $('ef').value=f.ef;
+  if($('fuel').value==='elec') $('eff').value=100;
+  calcAll();
+}
+const CRF=(i,n)=>i<=0?1/n:i*Math.pow(1+i,n)/(Math.pow(1+i,n)-1);
+function eco(){
+  if(!LAST) return;
+  const {Qb,Qi,Ai}=LAST;
+  const hrs=num('hrs'), lhv=num('lhv'), pr=num('price'), eff=num('eff')/100, ef=num('ef');
+  const f=FUELS[$('fuel').value];
+  const kwhPerUnit=lhv/3.6*Math.max(0.01,eff);
+  const costPerKWh=kwhPerUnit>0?pr/kwhPerUnit:0;
+
+  const Eb=Qb/1000*hrs, Ei=Qi/1000*hrs, Es=Eb-Ei;           // kWh ความร้อน/ปี
+  const Ub=Eb/kwhPerUnit, Ui=Ei/kwhPerUnit, Us=Ub-Ui;       // หน่วยเชื้อเพลิง/ปี
+  const Cb=Ub*pr, Ci=Ui*pr, Cs=Cb-Ci;
+  const Gb=Ub*ef/1000, Gi=Ui*ef/1000, Gs=Gb-Gi;             // tCO2e/ปี
+
+  const cap=Ai*(num('cA')+num('cB')*num('insT'));
+  const pb=Cs>0?cap/Cs:Infinity;
+  const crf=CRF(num('disc')/100,Math.max(1,num('life')));
+  const npvSave=Cs*(1/crf)-cap;
+
+  $('kpiEco').innerHTML=`
+   <div class="kpi bad"><div class="lb">ค่าพลังงานสูญเสีย — ผิวเปลือย</div><div class="val">${fmt(Cb,0)}</div><div class="un">บาท/ปี</div></div>
+   <div class="kpi good"><div class="lb">ค่าพลังงานสูญเสีย — หลังหุ้ม</div><div class="val">${fmt(Ci,0)}</div><div class="un">บาท/ปี</div></div>
+   <div class="kpi good"><div class="lb">ผลประหยัด</div><div class="val">${fmt(Cs,0)}</div><div class="un">บาท/ปี</div></div>
+   <div class="kpi"><div class="lb">เงินลงทุนฉนวน</div><div class="val">${fmt(cap,0)}</div><div class="un">บาท (${fmt(Ai,1)} m²)</div></div>
+   <div class="kpi ${pb<=3?'good':pb<=5?'':'bad'}"><div class="lb">ระยะเวลาคืนทุนอย่างง่าย</div>
+     <div class="val">${isFinite(pb)?fmt(pb,2):'—'}</div><div class="un">ปี</div></div>
+   <div class="kpi good"><div class="lb">ลดการปล่อยก๊าซเรือนกระจก</div><div class="val">${fmt(Gs,2)}</div><div class="un">tCO₂e/ปี</div></div>`;
+
+  const R=(a,b,c,d,u)=>`<tr><td>${a}</td><td class="num">${b}</td><td class="num">${c}</td><td class="num">${d}</td><td>${u}</td></tr>`;
+  $('tblEco').querySelector('tbody').innerHTML=
+   `<tr><th>รายการ</th><th class="num">ผิวเปลือย</th><th class="num">หลังหุ้มฉนวน</th><th class="num">ผลประหยัด</th><th>หน่วย</th></tr>`+
+   R('การสูญเสียความร้อน',fmt(Qb/1000,3),fmt(Qi/1000,3),fmt((Qb-Qi)/1000,3),'kW')+
+   R('พลังงานความร้อนสูญเสียต่อปี',fmt(Eb,0),fmt(Ei,0),fmt(Es,0),'kWh<sub>th</sub>/ปี')+
+   R('พลังงานความร้อนสูญเสียต่อปี',fmt(Eb*3.6/1000,2),fmt(Ei*3.6/1000,2),fmt(Es*3.6/1000,2),'GJ/ปี')+
+   R(`ปริมาณเชื้อเพลิง (${f.u})`,fmt(Ub,0),fmt(Ui,0),fmt(Us,0),f.u+'/ปี')+
+   R('ค่าใช้จ่าย',fmt(Cb,0),fmt(Ci,0),fmt(Cs,0),'บาท/ปี')+
+   R('ก๊าซเรือนกระจก',fmt(Gb,3),fmt(Gi,3),fmt(Gs,3),'tCO₂e/ปี')+
+   `<tr class="tot"><td>เงินลงทุน / คืนทุน / NPV ที่ ${fmt(num('disc'),1)} % ${num('life')} ปี</td>
+     <td class="num">${fmt(cap,0)} บาท</td><td class="num">${isFinite(pb)?fmt(pb,2)+' ปี':'—'}</td>
+     <td class="num">${fmt(npvSave,0)} บาท</td><td>—</td></tr>`;
+
+  $('asmEco').innerHTML=`<b>ต้นทุนความร้อน:</b> ${fmt(costPerKWh,3)} บาท/kWh<sub>th</sub>
+    = ราคา ${fmt(pr,2)} บาท/${f.u} ÷ (LHV ${fmt(lhv,2)} MJ ÷ 3.6 × η ${fmt(eff*100,0)} %)
+    = ${fmt(kwhPerUnit,3)} kWh<sub>th</sub> ต่อ ${f.u}<br>
+    <b>ต้นทุนฉนวน:</b> ${fmt(num('cA'),0)} + ${fmt(num('cB'),1)} × ${fmt(num('insT'),0)} mm
+    = ${fmt(num('cA')+num('cB')*num('insT'),0)} บาท/m² × ${fmt(Ai,2)} m² = ${fmt(cap,0)} บาท (ปรับค่าตามใบเสนอราคาจริงได้)<br>
+    <b>Emission Factor:</b> ${fmt(ef,4)} kgCO₂e/${f.u}
+    ${$('fuel').value==='bio'?'— ชีวมวลเป็น biogenic CO₂ ให้รายงานแยกตาม ISO 14064-1':''}
+    · ตรวจสอบค่าล่าสุดจาก TGO ก่อนใช้ในรายงาน`;
+}
+
+/* ════════════════ OPTIMUM THICKNESS SWEEP ════════════════ */
+function sweep(){
+  if(!LAST) calcAll();
+  const {rows,Tf,Ta,v,hi,tw,kw,insKey,kMan,emB,emI}=LAST;
+  const tClad=num('tClad'), hrs=num('hrs'), lhv=num('lhv'), pr=num('price'), eff=num('eff')/100;
+  const kwhPerUnit=lhv/3.6*Math.max(0.01,eff), cKwh=kwhPerUnit>0?pr/kwhPerUnit:0;
+  const cA=num('cA'), cB=num('cB'), crf=CRF(num('disc')/100,Math.max(1,num('life')));
+
+  const T=[]; for(let t=0;t<=300;t+=5) T.push(t);
+  const D=T.map(t=>{
+    let Q=0,A=0,Ts=-1e9,k=0,n=0;
+    rows.forEach(r=>{
+      const s=solve(r.c.sh,r.c.dim,r.c.ori,Tf,Ta,v,hi,tw,kw,t,insKey,kMan,t>0?emI:emB,t>0?tClad:0);
+      Q+=s.Q*r.c.q; A+=s.Aout*r.c.q; Ts=Math.max(Ts,s.Ts); if(t>0){k+=s.k;n++}
+    });
+    const cost=Q/1000*hrs*cKwh;
+    const cap=t>0?A*(cA+cB*t):0;
+    return {t,Q,A,Ts,k:n?k/n:0,cost,cap,ann:cap*crf,tot:cost+cap*crf};
+  });
+  const base=D[0];
+  D.forEach(d=>d.pb=(base.cost-d.cost)>0?d.cap/(base.cost-d.cost):Infinity);
+  const opt=D.reduce((a,b)=>b.tot<a.tot?b:a);
+  const safe=D.find(d=>d.Ts<=60);
+
+  $('kpiOpt').innerHTML=`
+   <div class="kpi good"><div class="lb">ความหนาที่คุ้มค่าที่สุด (Economic)</div><div class="val">${opt.t}</div><div class="un">mm — ต้นทุนรวมต่ำสุด</div></div>
+   <div class="kpi"><div class="lb">ต้นทุนรวมที่จุดเหมาะสม</div><div class="val">${fmt(opt.tot,0)}</div><div class="un">บาท/ปี</div></div>
+   <div class="kpi"><div class="lb">Q ที่จุดเหมาะสม</div><div class="val">${fmt(opt.Q/1000,2)}</div><div class="un">kW · T ผิว ${fmt(opt.Ts,1)} °C</div></div>
+   <div class="kpi ${safe?'good':'bad'}"><div class="lb">ความหนาขั้นต่ำเพื่อผิว ≤ 60 °C</div>
+     <div class="val">${safe?safe.t:'&gt;300'}</div><div class="un">mm (ความปลอดภัยผิวสัมผัส)</div></div>
+   <div class="kpi"><div class="lb">ความหนาที่ใช้อยู่ปัจจุบัน</div><div class="val">${fmt(num('insT'),0)}</div><div class="un">mm</div></div>
+   <div class="kpi"><div class="lb">คืนทุนที่ความหนาเหมาะสม</div><div class="val">${isFinite(opt.pb)?fmt(opt.pb,2):'—'}</div><div class="un">ปี</div></div>`;
+
+  drawOpt(D,opt,safe);
+
+  let tb='';
+  D.filter(d=>d.t%25===0||d.t===opt.t||(safe&&d.t===safe.t)).forEach(d=>{
+    const hl=(d.t===opt.t)?' class="tot"':'';
+    tb+=`<tr${hl}><td class="num">${d.t}</td><td class="num">${d.t?fmt(d.k,4):'—'}</td><td class="num">${fmt(d.Q/1000,3)}</td>
+      <td class="num">${fmt(d.Ts,1)}</td><td class="num">${fmt(d.cost,0)}</td><td class="num">${fmt(d.ann,0)}</td>
+      <td class="num">${fmt(d.tot,0)}</td><td class="num">${isFinite(d.pb)?fmt(d.pb,2):'—'}</td></tr>`;
+  });
+  $('tblOpt').querySelector('tbody').innerHTML=tb;
+
+  $('asmOpt').innerHTML=`<b>วิธี:</b> ที่ความหนาแต่ละค่า คำนวณ Q ใหม่ทั้งอุปกรณ์ (ค่า k ปรับตามอุณหภูมิเฉลี่ยของฉนวน
+    และพื้นที่ผิวนอกโตขึ้นตามความหนา) → ค่าพลังงานสูญเสียต่อปี = Q × ${fmt(hrs,0)} h × ${fmt(cKwh,3)} บาท/kWh<sub>th</sub><br>
+    <b>ค่าฉนวนรายปี</b> = A<sub>นอก</sub>(t) × (${fmt(cA,0)} + ${fmt(cB,1)}·t) × CRF(${fmt(num('disc'),1)} %, ${num('life')} ปี = ${fmt(crf,4)})<br>
+    <b>ข้อสังเกต:</b> ถ้าจุดเหมาะสมทางเศรษฐศาสตร์ให้ผิวยังร้อนเกิน 60 °C ต้องเลือกความหนาตาม
+    <u>เกณฑ์ความปลอดภัย</u> แทน (ค่าที่มากกว่าระหว่างสองเกณฑ์)`;
+}
+function drawOpt(D,opt,safe){
+  const W=900,H=500,L=84,R=92,T=56,B=58,pw=W-L-R,ph=H-T-B;
+  const xMax=300;
+  /* จำกัดสเกลแกน Y ให้เห็นบริเวณจุดที่คุ้มค่าชัดเจน — ค่าที่ความหนาน้อยมากจะทะลุกรอบบน */
+  const yMax=Math.max(opt.tot*3.5, Math.max(...D.filter(d=>d.t>=50).map(d=>d.tot))*1.25, 1);
+  const X=t=>L+t/xMax*pw, Y=y=>T+ph-Math.min(Math.max(y,0),yMax)/yMax*ph;
+  const tMax=Math.max(80,Math.max(...D.map(d=>d.Ts))*1.05);
+  const Y2=v=>T+ph-Math.min(v,tMax)/tMax*ph;
+  let g=`<rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/>`
+       +`<rect x="${L}" y="${T}" width="${pw}" height="${ph}" fill="#fffdf8" stroke="#e0d5c2"/>`;
+  for(let t=0;t<=xMax;t+=25){
+    g+=`<line x1="${X(t)}" y1="${T}" x2="${X(t)}" y2="${T+ph}" stroke="${t%50?'#f7f3ec':'#f0e9dd'}"/>`;
+    if(t%50===0) g+=`<text x="${X(t)}" y="${T+ph+18}" font-size="11" fill="#5b6b7b" text-anchor="middle">${t}</text>`;
+  }
+  for(let i=0;i<=5;i++){const y=yMax*i/5;
+    g+=`<line x1="${L}" y1="${Y(y)}" x2="${L+pw}" y2="${Y(y)}" stroke="#f0e9dd"/>
+        <text x="${L-8}" y="${Y(y)+4}" font-size="10.5" fill="#5b6b7b" text-anchor="end">${Math.round(y).toLocaleString('en-US')}</text>
+        <text x="${L+pw+8}" y="${Y2(tMax*i/5)+4}" font-size="10.5" fill="#1e9e5a">${Math.round(tMax*i/5)}</text>`;
+  }
+  const path=(key,col,dash,w)=>`<path d="${D.map((d,i)=>(i?'L':'M')+X(d.t).toFixed(1)+' '+Y(d[key]).toFixed(1)).join(' ')}"
+      fill="none" stroke="${col}" stroke-width="${w||2.2}" ${dash?'stroke-dasharray="7 4"':''} clip-path="url(#cp)"/>`;
+  g+=`<defs><clipPath id="cp"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath></defs>`;
+  g+=path('cost','#d1495b',1)+path('ann','#1e88e5',1)+path('tot','#e65100',0,2.8);
+  g+=`<path d="${D.map((d,i)=>(i?'L':'M')+X(d.t).toFixed(1)+' '+Y2(d.Ts).toFixed(1)).join(' ')}"
+      fill="none" stroke="#1e9e5a" stroke-width="1.8" stroke-dasharray="3 3" clip-path="url(#cp)"/>`;
+  g+=`<line x1="${L}" y1="${Y2(60)}" x2="${L+pw}" y2="${Y2(60)}" stroke="#1e9e5a" stroke-width="1" opacity=".5"/>
+      <text x="${L+pw-4}" y="${Y2(60)-5}" font-size="10" fill="#1e9e5a" text-anchor="end">เกณฑ์ผิวสัมผัส 60 °C</text>`;
+  /* เส้นอ้างอิงแนวตั้ง */
+  const vline=(t,col,dash,lab,yTxt,anch)=>{
+    if(!(t>=0&&t<=xMax)) return '';
+    const a=anch||(X(t)>L+pw*0.72?'end':'start'), dx=a==='end'?-7:7;
+    return `<line x1="${X(t)}" y1="${T}" x2="${X(t)}" y2="${T+ph}" stroke="${col}" stroke-width="${dash?1.5:2}" ${dash?'stroke-dasharray="6 4"':''}/>
+            <text x="${X(t)+dx}" y="${yTxt}" font-size="11" fill="${col}" text-anchor="${a}" font-weight="600">${lab}</text>`;
+  };
+  const cur=num('insT');
+  if(cur>0) g+=vline(cur,'#5b6b7b',1,`ความหนาที่ใช้อยู่ ${fmt(cur,0)} mm`,T+ph-12);
+  if(safe)  g+=vline(safe.t,'#1e9e5a',1,`ผิว ≤ 60 °C ที่ ${safe.t} mm`,T+18);
+  g+=vline(opt.t,'#e65100',0,`คุ้มค่าที่สุด ${opt.t} mm`,T+38);
+  g+=`<circle cx="${X(opt.t)}" cy="${Y(opt.tot)}" r="6" fill="#e65100" stroke="#fff" stroke-width="2"/>`;
+  /* แกน */
+  g+=`<text x="${L+pw/2}" y="${H-16}" font-size="12.5" text-anchor="middle" fill="#0f2a4a" font-weight="600">ความหนาฉนวน (mm)</text>
+      <text transform="translate(18,${T+ph/2}) rotate(-90)" font-size="12.5" text-anchor="middle" fill="#0f2a4a" font-weight="600">ต้นทุน (บาท/ปี)</text>
+      <text transform="translate(${W-14},${T+ph/2}) rotate(90)" font-size="12.5" text-anchor="middle" fill="#1e9e5a" font-weight="600">อุณหภูมิผิว (°C)</text>`;
+  /* คำอธิบายสัญลักษณ์ (นอกกรอบกราฟ) */
+  const lg=[['ค่าพลังงานที่สูญเสีย','#d1495b',1],['ค่าฉนวนคิดเป็นรายปี','#1e88e5',1],['ต้นทุนรวม','#e65100',0],['อุณหภูมิผิว (แกนขวา)','#1e9e5a',1]];
+  let lx=L;
+  lg.forEach(([n,c,d])=>{
+    g+=`<line x1="${lx}" y1="20" x2="${lx+24}" y2="20" stroke="${c}" stroke-width="2.6" ${d?'stroke-dasharray="6 3"':''}/>
+        <text x="${lx+29}" y="24" font-size="11" fill="#3a4b5c">${n}</text>`;
+    lx+=29+n.length*6.6+22;
+  });
+  g+=`<text x="${L}" y="40" font-size="10.5" fill="#8b97a5">หมายเหตุ: ที่ความหนาน้อยมาก ต้นทุนพลังงานสูงจนทะลุกรอบกราฟ (ผิวเปลือย = ${fmt(D[0].tot,0)} บาท/ปี) — สเกลถูกย่อเพื่อให้เห็นช่วงที่คุ้มค่าชัดเจน</text>`;
+  $('chartOpt').innerHTML=g;
+}
+
+/* ════════════════ CATALOG ════════════════ */
+function buildCatalog(){
+  $('catalog').innerHTML=Object.keys(SHAPES).map(k=>{const s=SHAPES[k];
+    return `<div class="cat-item">${s.s}<div class="nm">${s.n}</div><div class="fm">${s.f}</div></div>`}).join('');
+}
+function onClad(){
+  const [,t]=$('emIns').value.split('|').map(Number);
+  $('tClad').value=t; calcAll();
+}
+
+/* ════════════════ INIT ════════════════ */
+Object.keys(INS).forEach(k=>$('insMat').add(new Option(INS[k].n,k)));
+Object.keys(FUELS).forEach(k=>$('fuel').add(new Option(FUELS[k].n,k)));
+$('insMat').value='rockwool'; $('fuel').value='fo';
+buildComps(); buildCatalog(); calcAll();
+$('eqName').oninput=()=>drawAsm(LAST?LAST.rows:[]);
+</script>
+</body>
+</html>
