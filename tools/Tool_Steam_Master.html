@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steam Assessment (MEASUR-style) | การประเมินระบบไอน้ำ — Triple E Technology</title>
+<style>
+  :root{
+    --primary:#0f5b8e;--primary-light:#1e7cb8;--accent:#f59e0b;
+    --bg:#f7fafc;--panel:#ffffff;--panel-2:#eef4f9;--border:#d4dde6;
+    --text:#1a2733;--text-soft:#4a5b6c;--good:#2e7d32;--warn:#d97706;--bad:#c62828;
+    --hp:#c0392b;--mp:#e67e22;--lp:#f1c40f;--cond:#27ae60;--fw:#8e44ad;--turb:#2980b9;
+    --shadow:0 2px 8px rgba(15,91,142,.06),0 1px 3px rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI','Sarabun','Noto Sans Thai',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.55;font-size:14.5px}
+  header{background:linear-gradient(135deg,var(--primary)0%,var(--primary-light)100%);color:#fff;padding:22px 28px;box-shadow:var(--shadow)}
+  header h1{margin:0 0 4px;font-size:22px;font-weight:600}
+  header .subtitle{font-size:13.5px;opacity:.92}
+  header .credit{font-size:12px;opacity:.8;margin-top:6px}
+  .container{max-width:1280px;margin:0 auto;padding:18px 18px 60px}
+  .tabs{display:flex;flex-wrap:wrap;gap:4px;margin:14px 0;border-bottom:2px solid var(--border)}
+  .tab{padding:9px 16px;background:var(--panel-2);border:1px solid var(--border);border-bottom:none;border-radius:6px 6px 0 0;cursor:pointer;font-size:13.5px;color:var(--text-soft);user-select:none}
+  .tab:hover{background:#e3edf5;color:var(--text)}
+  .tab.active{background:var(--panel);color:var(--primary);font-weight:600;border-color:var(--primary);border-bottom:2px solid var(--panel);margin-bottom:-2px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:0 8px 8px 8px;padding:22px;box-shadow:var(--shadow);display:none}
+  .panel.active{display:block}
+  h2{color:var(--primary);font-size:18px;margin:0 0 10px}
+  .desc{color:var(--text-soft);font-size:13.5px;margin:0 0 16px}
+  .section-title{font-weight:600;color:var(--primary);margin:18px 0 8px;padding-bottom:5px;border-bottom:1px dashed var(--border)}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 16px}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px}
+  @media(max-width:760px){.grid-3,.grid-4{grid-template-columns:1fr 1fr}}
+  .field{display:flex;flex-direction:column;gap:3px}
+  .field label{font-size:12.5px;color:var(--text-soft)}
+  .field .unit{color:#8497a8;font-size:11px}
+  .field input,.field select{padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13.5px;background:var(--panel);width:100%}
+  .field input:focus,.field select:focus{outline:2px solid var(--primary-light);border-color:var(--primary-light)}
+  .hdr-card{border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin:10px 0;background:var(--panel-2)}
+  .hdr-card.hp{border-left:5px solid var(--hp)}.hdr-card.mp{border-left:5px solid var(--mp)}.hdr-card.lp{border-left:5px solid var(--lp)}
+  .hdr-card.turb{border-left:5px solid var(--turb)}
+  .hdr-card h3{margin:0 0 8px;font-size:14.5px;display:flex;align-items:center;gap:8px}
+  .hdr-card h3 input[type=checkbox]{width:auto}
+  .btn-row{margin:20px 0 6px;display:flex;gap:10px;flex-wrap:wrap}
+  .btn{background:var(--primary);color:#fff;border:none;padding:11px 22px;border-radius:7px;font-size:14.5px;cursor:pointer;font-weight:600}
+  .btn:hover{background:var(--primary-light)}
+  .btn.secondary{background:var(--panel-2);color:var(--text-soft);border:1px solid var(--border)}
+  .btn.small{padding:6px 12px;font-size:12.5px}
+  .btn.danger{background:#fdeceb;color:var(--bad);border:1px solid var(--bad)}
+  .summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:6px 0 18px}
+  @media(max-width:760px){.summary-grid{grid-template-columns:1fr}}
+  .sum-box{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .sum-box .head{background:var(--primary);color:#fff;text-align:center;font-weight:600;padding:7px;font-size:13.5px}
+  .sum-box .row{display:flex;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--border);font-size:13.5px}
+  .sum-box .row .k{color:var(--text-soft)}.sum-box .row .v{font-weight:600}
+  .sum-box .row .v.big{color:var(--accent);font-size:15px}
+  .results .step{background:var(--panel-2);border-left:3px solid var(--primary-light);border-radius:5px;padding:10px 12px;margin:8px 0}
+  .results .step .label{font-weight:600;color:var(--primary);font-size:13px;margin-bottom:4px}
+  .results .formula{font-family:'Consolas','Courier New',monospace;font-size:12.5px;line-height:1.8}
+  .results .num{background:#fff;border:1px solid var(--border);border-radius:3px;padding:0 4px;color:var(--primary);font-weight:600}
+  .note{background:#fff8e6;border:1px solid var(--accent);border-radius:6px;padding:10px 12px;font-size:13px;color:#8a5a00;margin:10px 0}
+  .flowtbl{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
+  .flowtbl th,.flowtbl td{border:1px solid var(--border);padding:7px 10px;text-align:right}
+  .flowtbl th{background:var(--primary);color:#fff;text-align:center}.flowtbl td:first-child{text-align:left}
+  .badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;color:#fff;font-weight:600}
+  svg text{font-family:'Segoe UI','Sarabun',sans-serif}
+  /* ===== field hints (ที่มาของข้อมูล) ===== */
+  .hint{display:none;font-size:11px;color:#5f7387;line-height:1.5;margin-top:3px;background:#f3f7fb;border-left:2.5px solid #9dbdd6;padding:3px 7px;border-radius:4px}
+  body.show-hints .hint{display:block}
+  .hint-bar{display:flex;align-items:center;gap:8px;background:#fffdf3;border:1px solid #e5d9a8;border-radius:8px;padding:8px 14px;margin:10px 0;font-size:13px;color:#6b5a12}
+  .hint-bar input{width:auto}
+  /* ===== scenario bar ===== */
+  .scen-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin:12px 0;box-shadow:var(--shadow)}
+  .scen-bar .lbl{font-weight:600;color:var(--primary);font-size:13.5px}
+  .scen-chip{padding:6px 14px;border-radius:16px;border:1.5px solid var(--border);background:var(--panel-2);cursor:pointer;font-size:13px;color:var(--text-soft);user-select:none}
+  .scen-chip.active{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
+  .scen-chip.baseline.active{background:#4a5b6c;border-color:#4a5b6c}
+  .scen-edit{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto}
+  .scen-edit input{padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12.5px}
+  .cmp-tbl{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+  .cmp-tbl th,.cmp-tbl td{border:1px solid var(--border);padding:7px 10px;text-align:right}
+  .cmp-tbl th{background:var(--primary);color:#fff;text-align:center}
+  .cmp-tbl td:first-child,.cmp-tbl th:first-child{text-align:left}
+  .cmp-tbl tr.sect td{background:var(--panel-2);font-weight:600;color:var(--primary);text-align:left}
+  .cmp-tbl .pos{color:var(--good);font-weight:600}.cmp-tbl .neg{color:var(--bad);font-weight:600}
+  /* ===== report / print ===== */
+  #reportBody{font-size:14px}
+  .rep-head-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 16px;margin-bottom:12px}
+  @media print{
+    @page{size:A4;margin:14mm 12mm}
+    body{background:#fff;font-size:12.5px}
+    header,.tabs,.scen-bar,.no-print,.btn-row{display:none!important}
+    .hint{display:none!important}
+    .container{max-width:100%;padding:0}
+    .panel{display:none;border:none;box-shadow:none;padding:0}
+    .panel#report{display:block!important}
+    .cmp-tbl,.flowtbl{font-size:11px}
+    .rep-page-break{page-break-before:always}
+    svg{max-width:100%}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>การประเมินระบบไอน้ำ — Steam Assessment <span style="font-size:14px;opacity:.85">(MEASUR-style · Phase 3)</span></h1>
+  <div class="subtitle">Boiler · PRV · Steam Turbine · Flash Tank · Deaerator · Process Load · Make-Up Water — พร้อมโหมด Baseline vs Modification, ตารางผลประหยัด, บันทึก/โหลดงาน (JSON) และรายงานพิมพ์ PDF</div>
+  <div class="credit">Steam Properties: IAPWS-IF97 (table interpolation) | Iterative Mass &amp; Energy Balance | ความดันเป็น bar a (absolute) | อ.หนึ่ง กลับทวี — Triple E Technology</div>
+</header>
+<div class="container">
+
+  <div class="scen-bar" id="scenBar"></div>
+
+  <div class="hint-bar"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" checked onchange="document.body.classList.toggle('show-hints',this.checked)"> 💡 แสดงคำอธิบายที่มาของข้อมูลใต้แต่ละช่องกรอก (ปิดได้เมื่อชำนาญแล้ว — ชี้เมาส์ค้างที่ช่องก็เห็นคำอธิบายเช่นกัน)</label></div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="input" onclick="showTab('input',this)">⚙️ ป้อนข้อมูล</div>
+    <div class="tab" data-tab="results" onclick="showTab('results',this)">📊 ผลลัพธ์</div>
+    <div class="tab" data-tab="diagram" onclick="showTab('diagram',this)">🗺️ ผังระบบ</div>
+    <div class="tab" data-tab="compare" onclick="showTab('compare',this);renderCompare()">⚖️ เปรียบเทียบมาตรการ</div>
+    <div class="tab" data-tab="report" onclick="showTab('report',this);renderReport()">🖨️ รายงาน</div>
+  </div>
+
+  <div class="panel active" id="input">
+    <h2>⚙️ ป้อนข้อมูล — <span id="scenTitleInput" style="color:var(--accent)"></span></h2>
+    <p class="desc">โครงสร้างแบบ MEASUR: Operations · Boiler · Headers · Turbines — แก้ไขข้อมูลของ scenario ที่เลือกอยู่ด้านบน แล้วกดคำนวณ (ข้อมูลจะบันทึกเข้า scenario อัตโนมัติ)</p>
+
+    <div class="section-title">① Operations (สภาวะดำเนินการและต้นทุน)</div>
+    <div class="grid-4">
+      <div class="field"><label>ชั่วโมงทำงาน/ปี <span class="unit">hr/yr</span></label><input type="number" id="hr" value="8520" step="any"></div>
+      <div class="field"><label>อุณหภูมิน้ำเติม <span class="unit">°C</span></label><input type="number" id="t_mu" value="50" step="any"></div>
+      <div class="field"><label>ราคาเชื้อเพลิง <span class="unit">฿/GJ (HHV)</span></label><input type="number" id="c_fuel" value="121.7" step="any"></div>
+      <div class="field"><label>ค่าไฟฟ้า <span class="unit">฿/kWh</span></label><input type="number" id="c_elec" value="4.5" step="any"></div>
+      <div class="field"><label>ค่าน้ำ <span class="unit">฿/m³</span></label><input type="number" id="c_water" value="9.98" step="any"></div>
+      <div class="field"><label>EF เชื้อเพลิง <span class="unit">kgCO₂/GJ</span></label><input type="number" id="ef_fuel" value="96.6876" step="any"></div>
+      <div class="field"><label>EF กริดไฟฟ้า <span class="unit">kgCO₂/MWh</span></label><input type="number" id="ef_grid" value="499" step="any"></div>
+    </div>
+
+    <div class="section-title">② Boiler (หม้อไอน้ำ)</div>
+    <div class="grid-4">
+      <div class="field"><label>ประสิทธิภาพหม้อไอน้ำ <span class="unit">% (ฐาน HHV แบบ MEASUR)</span></label><input type="number" id="eta_b" value="70.16" step="any"></div>
+      <div class="field"><label>อัตรา Blowdown <span class="unit">%</span></label><input type="number" id="bd" value="0.0526" step="any"></div>
+      <div class="field"><label>Blowdown Flashed?</label><select id="bd_flash"><option value="1">Yes</option><option value="0">No</option></select></div>
+      <div class="field"><label>Preheat Make-up ด้วย Blowdown?</label><select id="bd_preheat"><option value="0">No</option><option value="1">Yes</option></select></div>
+      <div class="field"><label>Approach Temperature <span class="unit">°C (สำหรับ preheat)</span></label><input type="number" id="bd_approach" value="50" step="any"></div>
+      <div class="field"><label>อุณหภูมิไอน้ำหม้อไอน้ำ <span class="unit">°C</span></label><input type="number" id="t_boiler" value="480" step="any"></div>
+      <div class="field"><label>Deaerator Vent Rate <span class="unit">%</span></label><input type="number" id="vent" value="1.15" step="any"></div>
+      <div class="field"><label>ความดัน Deaerator <span class="unit">bar a</span></label><input type="number" id="p_dea" value="1.79" step="any"></div>
+    </div>
+
+    <div class="section-title">③ Headers (ระดับความดัน)</div>
+    <div class="grid-4">
+      <div class="field"><label>จำนวนระดับความดัน</label>
+        <select id="nhead" onchange="updateHeaders()">
+          <option value="3">3 (HP+MP+LP)</option><option value="2">2 (HP+LP)</option><option value="1">1 (HP)</option>
+        </select></div>
+      <div class="field"><label>อุณหภูมิคอนเดนเสทคืน <span class="unit">°C</span></label><input type="number" id="t_cr" value="127" step="any"></div>
+    </div>
+    <div id="headerCards"></div>
+
+    <div class="section-title">④ Turbines (กังหันไอน้ำ — ผลิตไฟฟ้า, โหมด Fixed Flow)</div>
+    <div id="turbineCards"></div>
+
+    <div class="note">📌 EF เชื้อเพลิง (kgCO₂/GJ): NG≈56.1 • น้ำมันเตา≈77.4 • ถ่านหิน≈94.6 • LPG≈63.1 • ชีวมวล≈96.69 หรือ 0 (biogenic — รายงานแยก) · PRV = isenthalpic · กังหันใช้ η_isentropic และ generator · ความดันทั้งหมด <b>bar a</b> · η หม้อไอน้ำและราคาเชื้อเพลิงเป็นฐาน <b>HHV</b> ตามธรรมเนียม MEASUR (เทียบผลตรวจวัด BS 845 ฐาน LHV ให้แปลงก่อน: η_LHV = η_HHV × HHV/LHV)</div>
+    <div class="btn-row">
+      <button class="btn" onclick="runModel()">▶️ คำนวณแบบจำลอง (Solve)</button>
+      <button class="btn secondary" onclick="loadExample()">📋 ตัวอย่าง MEASUR (GR-4001 TB)</button>
+      <button class="btn secondary" onclick="exportJSON()">💾 บันทึกงาน (.json)</button>
+      <button class="btn secondary" onclick="document.getElementById('importFile').click()">📂 โหลดงาน (.json)</button>
+      <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importJSON(this)">
+    </div>
+    <div id="inputMsg" class="note" style="display:none"></div>
+  </div>
+
+  <div class="panel" id="results"><h2>📊 ผลลัพธ์ — <span id="scenTitleRes" style="color:var(--accent)"></span></h2><div id="resultsBody"><p class="desc">กดคำนวณก่อน...</p></div></div>
+  <div class="panel" id="diagram"><h2>🗺️ ผังระบบไอน้ำ — <span id="scenTitleDia" style="color:var(--accent)"></span></h2><div id="diagramBody"><p class="desc">กดคำนวณก่อน...</p></div></div>
+
+  <div class="panel" id="compare">
+    <h2>⚖️ เปรียบเทียบมาตรการ (Baseline vs Modifications)</h2>
+    <p class="desc">คำนวณทุก scenario พร้อมกันแล้วเทียบกับกรณีฐาน — ผลประหยัด = ต้นทุนดำเนินการสุทธิของกรณีฐาน − กรณีปรับปรุง (เชื้อเพลิง + น้ำเติม − มูลค่าไฟฟ้าที่ผลิตได้)</p>
+    <div id="compareBody"><p class="desc">ยังไม่มีข้อมูล — เพิ่ม Modification จากแถบด้านบนก่อน</p></div>
+  </div>
+
+  <div class="panel" id="report">
+    <h2 class="no-print">🖨️ รายงานผลการประเมินระบบไอน้ำ</h2>
+    <div class="no-print">
+      <div class="rep-head-grid">
+        <div class="field"><label>ชื่อสถานประกอบการ</label><input type="text" id="rep_company" value=""></div>
+        <div class="field"><label>ผู้ประเมิน</label><input type="text" id="rep_assessor" value="บริษัท ทริปเปิ้ลอี เทคโนโลยี จำกัด"></div>
+        <div class="field"><label>วันที่ประเมิน</label><input type="text" id="rep_date" value=""></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" onclick="renderReport()">🔄 สร้างรายงานใหม่</button>
+        <button class="btn secondary" onclick="window.print()">🖨️ พิมพ์ / บันทึกเป็น PDF</button>
+      </div>
+    </div>
+    <div id="reportBody"><p class="desc">กด "สร้างรายงานใหม่" เพื่อรวบรวมผลทุก scenario</p></div>
+  </div>
+
+</div>
+<script>
+/* ============================ ENGINE START ============================ */
+// ===== IAPWS-IF97 table interpolation (extended to 80 bar) =====
+const SH=[
+ [1,150,2776.4,7.614],[1,200,2875.3,7.835],[1,250,2974.3,8.033],[1,300,3074.3,8.216],[1,400,3278.2,8.545],[1,500,3488.1,8.834],
+ [4,155,2752.8,6.944],[4,200,2860.7,7.172],[4,250,2964.1,7.380],[4,300,3065.4,7.566],[4,400,3272.6,7.900],[4,500,3483.1,8.192],
+ [7,170,2764.1,6.798],[7,200,2844.2,6.967],[7,250,2953.5,7.186],[7,300,3058.0,7.381],[7,400,3267.6,7.719],[7,500,3479.7,8.015],
+ [10,200,2827.8,6.694],[10,250,2942.7,6.924],[10,300,3050.3,7.123],[10,400,3262.9,7.465],[10,500,3475.5,7.762],
+ [20,250,2902.5,6.548],[20,300,3023.5,6.769],[20,350,3137.0,6.959],[20,400,3247.6,7.127],[20,500,3467.6,7.432],
+ [30,300,2993.5,6.539],[30,350,3115.3,6.742],[30,400,3231.5,6.920],[30,500,3458.4,7.230],
+ [50,300,2924.5,6.208],[50,350,3067.6,6.448],[50,400,3195.7,6.645],[50,450,3316.2,6.819],[50,500,3433.8,6.975],[50,550,3550.0,7.117],
+ [60,350,3045.8,6.335],[60,400,3177.2,6.541],[60,450,3301.8,6.719],[60,480,3373.0,6.816],[60,500,3422.2,6.880],[60,550,3540.6,7.027],
+ [80,350,2988.1,6.132],[80,400,3138.3,6.363],[80,450,3272.0,6.555],[80,480,3347.8,6.656],[80,500,3398.3,6.724],[80,550,3521.0,6.875],
+];
+const SAT={
+ 0.1:[45.8,191.8,2392.1,2583.9,0.649,7.501,8.150],
+ 0.15:[53.97,225.9,2373.1,2599.1,0.755,7.254,8.009],
+ 0.2:[60.1,251.5,2357.5,2609.0,0.832,7.076,7.908],
+ 0.5:[81.3,340.5,2305.4,2645.9,1.091,6.502,7.593],
+ 1.0:[99.6,417.4,2257.5,2674.9,1.303,6.056,7.359],
+ 1.2:[104.8,439.4,2244.1,2683.4,1.361,5.937,7.298],
+ 1.79:[116.0,486.9,2213.0,2699.9,1.475,5.696,7.171],
+ 1.8:[116.9,490.7,2210.8,2701.5,1.486,5.661,7.147],
+ 2.0:[120.2,504.7,2201.6,2706.3,1.530,5.597,7.127],
+ 3.0:[133.5,561.5,2163.8,2725.3,1.672,5.321,6.993],
+ 4.0:[143.6,604.7,2132.9,2737.7,1.776,5.121,6.897],
+ 5.0:[151.8,640.1,2108.5,2748.6,1.860,4.960,6.820],
+ 6.0:[158.8,670.4,2086.3,2756.8,1.931,4.829,6.760],
+ 7.0:[165.0,696.9,2066.3,2763.5,1.992,4.717,6.709],
+ 8.0:[170.4,720.9,2048.0,2768.9,2.046,4.617,6.663],
+ 9.9:[179.4,760.3,2016.9,2777.2,2.133,4.461,6.594],
+ 10.0:[179.9,762.8,2014.6,2778.1,2.139,4.448,6.586],
+ 12.0:[188.0,798.4,1986.2,2784.8,2.216,4.306,6.523],
+ 15.0:[198.3,844.7,1947.3,2792.2,2.314,4.130,6.444],
+ 20.0:[212.4,908.6,1888.6,2799.5,2.447,3.893,6.340],
+ 30.0:[233.9,1008.4,1795.7,2804.2,2.646,3.539,6.186],
+ 40.0:[250.4,1087.4,1714.1,2801.4,2.797,3.273,6.070],
+ 50.0:[263.9,1154.5,1639.7,2794.2,2.921,3.068,5.989],
+ 60.0:[275.6,1213.7,1570.9,2784.6,3.027,2.862,5.889],
+ 64.0:[280.0,1236.4,1543.6,2780.0,3.069,2.785,5.854],
+ 80.0:[295.0,1317.1,1441.4,2758.6,3.208,2.536,5.744],
+};
+function getSat(P){const ks=Object.keys(SAT).map(Number).sort((a,b)=>a-b);
+ const k1=ks.filter(k=>k<=P).pop()??ks[0],k2=ks.filter(k=>k>=P).shift()??ks[ks.length-1];
+ if(k1===k2)return SAT[k1].slice();const f=(P-k1)/(k2-k1);return SAT[k1].map((v,i)=>v+f*(SAT[k2][i]-v));}
+function bilinear(arr,P,T,hIdx,sIdx){const ps=[...new Set(arr.map(r=>r[0]))].sort((a,b)=>a-b);
+ const p1=ps.filter(p=>p<=P).pop()??ps[0],p2=ps.filter(p=>p>=P).shift()??ps[ps.length-1];
+ function atP(pv){const rows=arr.filter(r=>r[0]===pv).sort((a,b)=>a[1]-b[1]);
+  const r1=rows.filter(r=>r[1]<=T).pop()??rows[0],r2=rows.filter(r=>r[1]>=T).shift()??rows[rows.length-1];
+  if(r1[1]===r2[1])return[r1[hIdx],r1[sIdx]];const ft=(T-r1[1])/(r2[1]-r1[1]);
+  return[r1[hIdx]+ft*(r2[hIdx]-r1[hIdx]),r1[sIdx]+ft*(r2[sIdx]-r1[sIdx])];}
+ const[h1,s1]=atP(p1),[h2,s2]=atP(p2);if(p1===p2)return{h:h1,s:s1};
+ const fp=(P-p1)/(p2-p1);return{h:h1+fp*(h2-h1),s:s1+fp*(s2-s1)};}
+const getSuperheat=(P,T)=>bilinear(SH,P,T,2,3);
+const Tsat=P=>getSat(P)[0],hf=P=>getSat(P)[1],hfg=P=>getSat(P)[2],hg=P=>getSat(P)[3];
+const sf=P=>getSat(P)[4],sfg=P=>getSat(P)[5],sg=P=>getSat(P)[6];
+const hLiq=T=>4.186*T;
+function hSteam(P,T){return T>Tsat(P)+1?getSuperheat(P,T).h:hg(P);}
+function sSteam(P,T){return T>Tsat(P)+1?getSuperheat(P,T).s:sg(P);}
+function tempFromH(P,h){const ts=Tsat(P);if(h<=hg(P)+0.5)return ts;
+ const ps=[...new Set(SH.map(r=>r[0]))].sort((a,b)=>a-b);
+ const p1=ps.filter(p=>p<=P).pop()??ps[0],p2=ps.filter(p=>p>=P).shift()??ps[ps.length-1];
+ function tAtP(pv){const rs=SH.filter(r=>r[0]===pv).sort((a,b)=>a[1]-b[1]);
+  const r1=rs.filter(r=>r[2]<=h).pop()??rs[0],r2=rs.filter(r=>r[2]>=h).shift()??rs[rs.length-1];
+  if(r1[2]===r2[2])return r1[1];return r1[1]+(h-r1[2])/(r2[2]-r1[2])*(r2[1]-r1[1]);}
+ const t1=tAtP(p1),t2=tAtP(p2);if(p1===p2)return t1;return t1+(P-p1)/(p2-p1)*(t2-t1);}
+function sFromPH(P,h){if(h>=hg(P)){const T=tempFromH(P,h);return getSuperheat(P,T).s;}
+ if(h>=hf(P)){const x=(h-hf(P))/hfg(P);return sf(P)+x*sfg(P);}return sf(P);}
+function hIsen(P_out,s_in){const sgg=sg(P_out),sff=sf(P_out),sfgg=sfg(P_out),hff=hf(P_out),hfgg=hfg(P_out);
+ if(s_in>=sgg){const ps=[...new Set(SH.map(r=>r[0]))].sort((a,b)=>a-b);
+  const p1=ps.filter(p=>p<=P_out).pop()??ps[0],p2=ps.filter(p=>p>=P_out).shift()??ps[ps.length-1];
+  function hAtP(pv){const rs=SH.filter(r=>r[0]===pv).sort((a,b)=>a[3]-b[3]);
+   const r1=rs.filter(r=>r[3]<=s_in).pop()??rs[0],r2=rs.filter(r=>r[3]>=s_in).shift()??rs[rs.length-1];
+   if(r1[3]===r2[3])return r1[2];return r1[2]+(s_in-r1[3])/(r2[3]-r1[3])*(r2[2]-r1[2]);}
+  const h1=hAtP(p1),h2=hAtP(p2);if(p1===p2)return h1;return h1+(P_out-p1)/(p2-p1)*(h2-h1);}
+ if(s_in>=sff){const x=(s_in-sff)/sfgg;return hff+x*hfgg;}return hff;}
+function turbine(m_tph,h_in,s_in,P_out,eIsen,eGen){const h_is=hIsen(P_out,s_in);
+ const h_out=h_in-eIsen*(h_in-h_is);const mkgs=m_tph*1000/3600;
+ return{h_is,h_out,power_kW:mkgs*(h_in-h_out)*eGen};}
+
+// ===== SOLVER (pure function of an input object — no DOM access) =====
+// inp = { nhead, hr, t_mu, c_fuel, c_elec, c_water, ef_fuel, ef_grid,
+//         eta_b, bd, bd_flash, bd_preheat, bd_approach, t_boiler, vent, p_dea, t_cr,
+//         headers:{hp:{P,D,CR}, mp:{P,D,CR}, lp:{P,D,CR}},        (CR in %)
+//         turb:{ct:{on,ei,eg,pc,f}, hpmp:{on,ei,eg,f}, mplp:{on,ei,eg,f}, hplp:{on,ei,eg,f}} }
+function solveModel(inp){
+  const n=+inp.nhead, keys=n===3?['hp','mp','lp']:n===2?['hp','lp']:['hp'];
+  const eta=+inp.eta_b/100, BD=+inp.bd/100, flashed=String(inp.bd_flash)==='1';
+  const Tsteam=+inp.t_boiler, ventR=+inp.vent/100, Pdea=+inp.p_dea;
+  const preheatMu=String(inp.bd_preheat)==='1', approach=+inp.bd_approach;
+  const Tmu=+inp.t_mu, hmu=hLiq(Tmu), Tcr=+inp.t_cr, hcr=hLiq(Tcr);
+  const hrY=+inp.hr, cFuel=+inp.c_fuel, cElec=+inp.c_elec, cWater=+inp.c_water;
+  const efFuel=+inp.ef_fuel, efGrid=+inp.ef_grid;
+  const H={};for(const k of keys)H[k]={P:+inp.headers[k].P,D:+inp.headers[k].D,CR:+inp.headers[k].CR/100};
+  const Php=H.hp.P, Pmp=(n>=3?H.mp.P:null), Plp=(n>=2?H.lp.P:H.hp.P);
+  const hHP=hSteam(Php,Tsteam), sHP=sSteam(Php,Tsteam);
+  const hfw=hf(Pdea), Tdea=Tsat(Pdea);
+
+  const tb=inp.turb||{};
+  const on=t=>tb[t]&&(tb[t].on===true||String(tb[t].on)==='1');
+  const ct = on('ct')?{f:+tb.ct.f,ei:+tb.ct.ei/100,eg:+tb.ct.eg/100,pc:+tb.ct.pc}:null;
+  const hpmp = (n===3&&on('hpmp'))?{f:+tb.hpmp.f,ei:+tb.hpmp.ei/100,eg:+tb.hpmp.eg/100}:null;
+  const mplp = (n===3&&on('mplp'))?{f:+tb.mplp.f,ei:+tb.mplp.ei/100,eg:+tb.mplp.eg/100}:null;
+  const hplp = (((n===2)||(n===3))&&on('hplp'))?{f:+tb.hplp.f,ei:+tb.hplp.ei/100,eg:+tb.hplp.eg/100}:null;
+
+  let ctR={power_kW:0,h_out:0,h_is:0,m:0,Pc:ct?ct.pc:0};
+  if(ct&&ct.f>0){const r=turbine(ct.f,hHP,sHP,ct.pc,ct.ei,ct.eg);ctR={...r,m:ct.f,Pc:ct.pc};}
+  let hpmpR={power_kW:0,h_out:hHP,m:0};
+  if(hpmp&&hpmp.f>0){const r=turbine(hpmp.f,hHP,sHP,Pmp,hpmp.ei,hpmp.eg);hpmpR={...r,m:hpmp.f};}
+  let hplpR={power_kW:0,h_out:hHP,m:0};
+  if(hplp&&hplp.f>0){const r=turbine(hplp.f,hHP,sHP,Plp,hplp.ei,hplp.eg);hplpR={...r,m:hplp.f};}
+
+  const Tcond=ctR.m, Thpmp=hpmpR.m, Tmplp=(mplp&&mplp.f>0)?mplp.f:0, Thplp=hplpR.m;
+  const sumD=keys.reduce((s,k)=>s+H[k].D,0);
+  const x_flash = flashed?Math.min(1,Math.max(0,(hf(Php)-hf(Pdea))/hfg(Pdea))):0;
+
+  let mDea=0,boilerSteam=0,feedwater=0,blow=0,mMu=0,iter=0,TmuOut=Tmu;
+  let hMP=hHP,sMP=sHP,mplpR={power_kW:0,h_out:hHP,m:Tmplp},hLP=hHP;
+  let PRV_HP_MP=0,PRV_MP_LP=0,PRV_HP_LP=0,vent=0,mFlash=0,mBlowLiq=0,mProc=0,mProcH=0,mCT=Tcond;
+  for(iter=0;iter<100;iter++){
+    if(n===3){
+      PRV_MP_LP=Math.max(0,H.lp.D+mDea-Tmplp-Thplp);
+      PRV_HP_MP=Math.max(0,H.mp.D+PRV_MP_LP+Tmplp-Thpmp);
+      boilerSteam=H.hp.D+PRV_HP_MP+Thpmp+Thplp+Tcond;
+      const mpIn=PRV_HP_MP+Thpmp; hMP=mpIn>0?(PRV_HP_MP*hHP+Thpmp*hpmpR.h_out)/mpIn:hHP;
+      sMP=sFromPH(Pmp,hMP);
+      if(mplp&&Tmplp>0){const r=turbine(Tmplp,hMP,sMP,Plp,mplp.ei,mplp.eg);mplpR={...r,m:Tmplp};}
+      const lpIn=PRV_MP_LP+Tmplp+Thplp; hLP=lpIn>0?(PRV_MP_LP*hMP+Tmplp*mplpR.h_out+Thplp*hplpR.h_out)/lpIn:hMP;
+    } else if(n===2){
+      PRV_HP_LP=Math.max(0,H.lp.D+mDea-Thplp);
+      boilerSteam=H.hp.D+PRV_HP_LP+Thplp+Tcond;
+      const lpIn=PRV_HP_LP+Thplp; hLP=lpIn>0?(PRV_HP_LP*hHP+Thplp*hplpR.h_out)/lpIn:hHP;
+    } else {
+      boilerSteam=H.hp.D+mDea+Tcond; hLP=hHP;
+    }
+    feedwater=boilerSteam/(1-BD); blow=feedwater-boilerSteam;
+    mFlash=blow*x_flash; mBlowLiq=blow-mFlash;
+    mProc=0;mProcH=0;for(const k of keys){const r=H[k].D*H[k].CR;mProc+=r;mProcH+=r*hcr;}
+    mCT=Tcond;
+    vent=ventR*feedwater;
+    mMu=keys.reduce((s,k)=>s+H[k].D*(1-H[k].CR),0)+mBlowLiq+vent;
+    let hmuEff=hmu; TmuOut=Tmu;
+    if(preheatMu){
+      const Tbd=flashed?Tdea:Tsat(Php);
+      const Tideal=Tbd-approach;
+      if(Tideal>Tmu && mMu>0){
+        const Qideal=mMu*4.186*(Tideal-Tmu);
+        const Qavail=mBlowLiq*4.186*(Tbd-Tmu);
+        const Q=Math.min(Qideal,Math.max(0,Qavail));
+        TmuOut=Tmu+Q/(mMu*4.186);
+        hmuEff=hLiq(TmuOut);
+      }
+    }
+    const hDeaSteam=hLP;
+    const E0=mProcH + mCT*hf(ctR.Pc||Pdea) + mFlash*hg(Pdea) + mMu*hmuEff;
+    const mDeaNew=(feedwater*hfw + vent*hg(Pdea) - E0)/hDeaSteam;
+    if(Math.abs(mDeaNew-mDea)<1e-7){mDea=Math.max(0,mDeaNew);break;}
+    mDea=Math.max(0,mDeaNew);
+  }
+
+  let lpSupply,lpDemand;
+  if(n===3){lpSupply=PRV_MP_LP+Tmplp+Thplp;lpDemand=H.lp.D+mDea;}
+  else if(n===2){lpSupply=PRV_HP_LP+Thplp;lpDemand=H.lp.D+mDea;}
+  else{lpSupply=mDea;lpDemand=mDea;}
+  const excessLP=Math.max(0,lpSupply-lpDemand);
+  mMu+=excessLP;
+
+  const kgs=t=>t*1000/3600;
+  const Qsteam=kgs(boilerSteam)*(hHP-hfw), Qblow=kgs(blow)*(hf(Php)-hfw);
+  const Qboiler=Qsteam+Qblow, Qfuel=Qboiler/eta;
+  const fuel_GJhr=Qfuel*3600/1e6, fuel_GJyr=fuel_GJhr*hrY, fuelCost=fuel_GJyr*cFuel, CO2fuel=fuel_GJyr*efFuel/1000;
+
+  const elecGen_kW=ctR.power_kW+hpmpR.power_kW+(mplpR?mplpR.power_kW:0)+hplpR.power_kW;
+  const elec_MWhyr=elecGen_kW*hrY/1000, elecValue=elecGen_kW*hrY*cElec;
+  const CO2elecOffset=elec_MWhyr*efGrid/1000;
+
+  const muVol=mMu*hrY, muCost=muVol*cWater;
+  const opCost=fuelCost+muCost;
+  const netOpCost=fuelCost+muCost-elecValue;
+  const CO2net=CO2fuel-CO2elecOffset;
+
+  const margin=(hh)=>(hh-hfw)/eta/1000*cFuel;
+  const mc={hp:margin(hHP)};
+  if(n>=3)mc.mp=margin(hMP); if(n>=2)mc.lp=margin(hLP);
+
+  return {n,keys,H,eta,BD,flashed,x_flash,Tsteam,ventR,Pdea,Tdea,hfw,Tmu,hmu,Tcr,hcr,hrY,cFuel,cElec,cWater,efFuel,efGrid,
+    Php,Pmp,Plp,hHP,sHP,hMP,hLP,ctR,hpmpR,mplpR,hplpR,Tcond,Thpmp,Tmplp,Thplp,
+    PRV_HP_MP,PRV_MP_LP,PRV_HP_LP,sumD,mDea,boilerSteam,feedwater,blow,mFlash,mBlowLiq,mProc,vent,mMu,iter,excessLP,
+    Qsteam,Qblow,Qboiler,Qfuel,fuel_GJhr,fuel_GJyr,fuelCost,CO2fuel,
+    elecGen_kW,elec_MWhyr,elecValue,CO2elecOffset,CO2net,muVol,muCost,opCost,netOpCost,mc,preheatMu,approach,TmuOut,
+    ctOn:!!ct,hpmpOn:!!hpmp,mplpOn:!!mplp,hplpOn:!!hplp};
+}
+/* ============================ ENGINE END ============================ */
+/* ============================ UI / SCENARIOS ============================ */
+const $=id=>document.getElementById(id);
+const fmt=(v,d=2)=>!isFinite(v)?'—':(Math.abs(v)>=1e15?v.toExponential(d):Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}));
+function showTab(id,el){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+ $(id).classList.add('active');
+ (el||document.querySelector('.tab[data-tab="'+id+'"]')).classList.add('active');
+ window.scrollTo({top:0,behavior:'smooth'});}
+
+// ===== คำอธิบายที่มาของข้อมูลแต่ละช่อง =====
+const HINTS={
+ hr:'ที่มา: บันทึกการเดินเครื่อง/ฝ่ายผลิต — ชั่วโมงที่ระบบไอน้ำเดินจริงต่อปี อย่าใช้ 8,760 โดยอัตโนมัติ',
+ t_mu:'ที่มา: วัดอุณหภูมิน้ำเติม (หลัง softener/RO) ที่ถังพักหรือท่อเข้า deaerator',
+ c_fuel:'ที่มา: ใบแจ้งหนี้เชื้อเพลิง ÷ ค่าความร้อน HHV เช่น (฿/ตัน) ÷ HHV(MJ/kg) × 1000 = ฿/GJ',
+ c_elec:'ที่มา: บิลไฟฟ้า กฟภ./กฟน. — ค่าเฉลี่ยรวมค่าพลังงาน+demand charge ของโรงงาน (฿/kWh)',
+ c_water:'ที่มา: ค่าน้ำประปา/น้ำดิบ + ค่าปรับสภาพน้ำ (เคมี, softener, RO) รวมเป็น ฿/m³',
+ ef_fuel:'ที่มา: ตาราง EF รายเชื้อเพลิงของ TGO/สผ. ปีล่าสุด (kgCO₂/GJ) — ชีวมวลรายงาน biogenic แยก',
+ ef_grid:'ที่มา: EF กริดไฟฟ้าประเทศไทยปีล่าสุดของ สผ./TGO (kgCO₂/MWh)',
+ eta_b:'ที่มา: ผลทดสอบประสิทธิภาพหม้อไอน้ำ (BS 845/ASME PTC 4) แปลงเป็นฐาน HHV: η_HHV = η_LHV ÷ (HHV/LHV) หรือ input–output จากมิเตอร์ไอน้ำ+เชื้อเพลิง',
+ bd:'ที่มา: มิเตอร์น้ำ blowdown หรือคำนวณจาก TDS: BD% = TDS_feed ÷ (TDS_boiler − TDS_feed) × 100',
+ bd_flash:'ที่มา: ดู P&ID/หน้างาน — มี flash tank แยกไอจาก blowdown กลับเข้า deaerator หรือไม่',
+ bd_preheat:'ที่มา: ดูหน้างาน — มี heat exchanger นำความร้อน blowdown ไปอุ่นน้ำเติมหรือไม่',
+ bd_approach:'ที่มา: สเปค heat exchanger — ถ้าไม่ทราบใช้ค่าประมาณ 30–50°C',
+ t_boiler:'ที่มา: เกจ/DCS ทางออกหม้อไอน้ำ — ถ้าไม่มี superheater ให้ใส่อุณหภูมิอิ่มตัวที่ความดันหม้อ',
+ vent:'ที่มา: สเปค deaerator หรือสังเกตไอที่ท่อ vent — ทั่วไป 0.1–1.5% ของน้ำป้อน',
+ p_dea:'ที่มา: เกจความดัน deaerator — แปลงเป็น bar a (bar g + 1.013)',
+ t_cr:'ที่มา: วัดอุณหภูมิท่อคอนเดนเสทรวมที่กลับเข้าถัง/deaerator',
+ nhead:'ที่มา: ผังระบบไอน้ำจริง (P&ID) — นับระดับความดัน header ที่จ่ายไอให้ process',
+};
+const HINT_RULES=[
+ [/^p_(hp|mp|lp)$/,'ที่มา: เกจความดัน header — แปลงเป็น bar a (bar g + 1.013)'],
+ [/^d_(hp|mp|lp)$/,'ที่มา: steam flow meter ของสาย process หรือประเมินจาก heat balance การใช้ไอน้ำจริง (t/hr)'],
+ [/^cr_(hp|mp|lp)$/,'ที่มา: มิเตอร์คอนเดนเสท หรือประเมิน % ที่กลับถังจริง — ไอใช้ตรง (direct injection) = 0%'],
+ [/_ei$/,'ที่มา: performance test หรือ datasheet ผู้ผลิตกังหัน (ทั่วไป 60–85%)'],
+ [/_eg$/,'ที่มา: datasheet เครื่องกำเนิดไฟฟ้า (ทั่วไป 95–99%)'],
+ [/_pc$/,'ที่มา: เกจสุญญากาศคอนเดนเซอร์ — แปลงเป็น bar a เช่น −0.85 bar g ≈ 0.16 bar a'],
+ [/_f$/,'ที่มา: flow meter/DCS — อัตราไอน้ำเข้ากังหันเฉลี่ยขณะเดินปกติ (t/hr)'],
+];
+function applyHints(){
+  const put=(el,txt)=>{const fld=el.closest('.field');if(!fld||fld.querySelector('.hint'))return;
+    const d=document.createElement('div');d.className='hint';d.textContent=txt;fld.appendChild(d);el.title=txt;};
+  for(const [id,txt] of Object.entries(HINTS)){const el=document.getElementById(id);if(el)put(el,txt);}
+  document.querySelectorAll('input,select').forEach(el=>{if(!el.id)return;
+    for(const [re,txt] of HINT_RULES){if(re.test(el.id)){put(el,txt);break;}}});
+}
+const HDEF={hp:{cls:'hp',label:'HP — สูง',dP:64,dD:0,dCR:100},mp:{cls:'mp',label:'MP — กลาง',dP:9.9,dD:0,dCR:0},lp:{cls:'lp',label:'LP — ต่ำ',dP:1.8,dD:0,dCR:0}};
+function headerKeys(){const n=+$('nhead').value;return n===3?['hp','mp','lp']:n===2?['hp','lp']:['hp'];}
+function updateHeaders(keep){
+  const prev=keep||{};
+  let html='';for(const k of headerKeys()){const d=HDEF[k];const pv=prev[k]||{};
+    html+=`<div class="hdr-card ${d.cls}"><h3>${d.label}</h3><div class="grid-4">
+      <div class="field"><label>ความดัน <span class="unit">bar a</span></label><input type="number" id="p_${k}" value="${pv.P??d.dP}" step="any"></div>
+      <div class="field"><label>Process Load <span class="unit">t/hr</span></label><input type="number" id="d_${k}" value="${pv.D??d.dD}" step="any"></div>
+      <div class="field"><label>Condensate Recovery <span class="unit">%</span></label><input type="number" id="cr_${k}" value="${pv.CR??d.dCR}" step="any"></div>
+    </div></div>`;}
+  $('headerCards').innerHTML=html;
+  updateTurbines();
+}
+function turbCard(id,title,extra,dIsen,dGen,dFlow,checked){
+  return `<div class="hdr-card turb"><h3><input type="checkbox" id="${id}_on" ${checked?'checked':''}> ${title}</h3>
+    <div class="grid-4">
+      <div class="field"><label>η Isentropic <span class="unit">%</span></label><input type="number" id="${id}_ei" value="${dIsen}" step="any"></div>
+      <div class="field"><label>η Generator <span class="unit">%</span></label><input type="number" id="${id}_eg" value="${dGen}" step="any"></div>
+      ${extra}
+      <div class="field"><label>Fixed Flow <span class="unit">t/hr</span></label><input type="number" id="${id}_f" value="${dFlow}" step="any"></div>
+    </div></div>`;
+}
+function updateTurbines(){
+  const n=+$('nhead').value;let html='';
+  html+=turbCard('ct','Condensing Turbine (HP → Condenser)',
+    `<div class="field"><label>Condenser Pressure <span class="unit">bar a</span></label><input type="number" id="ct_pc" value="0.15" step="any"></div>`,
+    89,99,81.17,true);
+  if(n===3){
+    html+=turbCard('hplp','HP → LP Turbine','<div class="field"></div>',77,99,0,false);
+    html+=turbCard('hpmp','HP → MP Turbine','<div class="field"></div>',89,99,8.52,true);
+    html+=turbCard('mplp','MP → LP Turbine','<div class="field"></div>',89,99,11.046,true);
+  } else if(n===2){
+    html+=turbCard('hplp','HP → LP Turbine','<div class="field"></div>',89,99,0,false);
+  }
+  $('turbineCards').innerHTML=html;
+  applyHints();
+}
+
+// ---- collect / apply UI <-> input object ----
+function collectUI(){
+  const n=+$('nhead').value;
+  const inp={nhead:n};
+  ['hr','t_mu','c_fuel','c_elec','c_water','ef_fuel','ef_grid','eta_b','bd','bd_approach','t_boiler','vent','p_dea','t_cr'].forEach(k=>inp[k]=+$(k).value);
+  inp.bd_flash=$('bd_flash').value; inp.bd_preheat=$('bd_preheat').value;
+  inp.headers={};
+  for(const k of headerKeys())inp.headers[k]={P:+$('p_'+k).value,D:+$('d_'+k).value,CR:+$('cr_'+k).value};
+  // keep defaults for headers not shown so switching nhead keeps data
+  for(const k of ['hp','mp','lp'])if(!inp.headers[k])inp.headers[k]={P:HDEF[k].dP,D:HDEF[k].dD,CR:HDEF[k].dCR};
+  const tb={};
+  const grab=id=>({on:$(id+'_on')?$(id+'_on').checked:false,ei:$(id+'_ei')?+$(id+'_ei').value:89,eg:$(id+'_eg')?+$(id+'_eg').value:99,f:$(id+'_f')?+$(id+'_f').value:0});
+  tb.ct={...grab('ct'),pc:$('ct_pc')?+$('ct_pc').value:0.15};
+  tb.hpmp=grab('hpmp');tb.mplp=grab('mplp');tb.hplp=grab('hplp');
+  inp.turb=tb;
+  return inp;
+}
+function applyUI(inp){
+  $('nhead').value=String(inp.nhead);
+  updateHeaders(inp.headers);
+  ['hr','t_mu','c_fuel','c_elec','c_water','ef_fuel','ef_grid','eta_b','bd','bd_approach','t_boiler','vent','p_dea','t_cr'].forEach(k=>{if(inp[k]!=null)$(k).value=inp[k];});
+  $('bd_flash').value=String(inp.bd_flash??'1');$('bd_preheat').value=String(inp.bd_preheat??'0');
+  for(const k of headerKeys()){const h=inp.headers[k];if(h){$('p_'+k).value=h.P;$('d_'+k).value=h.D;$('cr_'+k).value=h.CR;}}
+  const tb=inp.turb||{};
+  const put=(id,t)=>{if(!t)return;if($(id+'_on'))$(id+'_on').checked=!!t.on;if($(id+'_ei'))$(id+'_ei').value=t.ei;if($(id+'_eg'))$(id+'_eg').value=t.eg;if($(id+'_f'))$(id+'_f').value=t.f;};
+  put('ct',tb.ct);if(tb.ct&&$('ct_pc'))$('ct_pc').value=tb.ct.pc;
+  put('hpmp',tb.hpmp);put('mplp',tb.mplp);put('hplp',tb.hplp);
+}
+
+// ---- scenario store ----
+let scenarios=[{id:1,name:'กรณีฐาน (Baseline)',invest:0,inputs:null}];
+let activeIdx=0, nextId=2;
+function saveActive(){scenarios[activeIdx].inputs=collectUI();}
+function switchScenario(i){
+  if(i===activeIdx)return; saveActive();
+  activeIdx=i;
+  if(scenarios[i].inputs)applyUI(scenarios[i].inputs);
+  renderScenBar();
+  const R=solveModel(collectUI());
+  renderResults(R);renderDiagram(R);
+}
+function addModification(){
+  saveActive();
+  const base=JSON.parse(JSON.stringify(scenarios[activeIdx].inputs||collectUI()));
+  scenarios.push({id:nextId,name:'มาตรการที่ '+(scenarios.length),invest:0,inputs:base});
+  nextId++;activeIdx=scenarios.length-1;
+  applyUI(scenarios[activeIdx].inputs);renderScenBar();
+  showTab('input');
+}
+function deleteScenario(){
+  if(activeIdx===0){alert('ลบกรณีฐานไม่ได้');return;}
+  if(!confirm('ลบ "'+scenarios[activeIdx].name+'" ?'))return;
+  scenarios.splice(activeIdx,1);activeIdx=0;
+  if(scenarios[0].inputs)applyUI(scenarios[0].inputs);
+  renderScenBar();
+}
+function renderScenBar(){
+  let html='<span class="lbl">Scenario:</span>';
+  scenarios.forEach((s,i)=>{
+    html+=`<span class="scen-chip ${i===activeIdx?'active':''} ${i===0?'baseline':''}" onclick="switchScenario(${i})">${i===0?'⭐ ':''}${s.name}</span>`;
+  });
+  html+=`<button class="btn small" onclick="addModification()">＋ เพิ่มมาตรการ</button>`;
+  html+=`<span class="scen-edit">
+    <label style="font-size:12px;color:var(--text-soft)">ชื่อ:</label><input type="text" id="scenName" value="${scenarios[activeIdx].name.replace(/"/g,'&quot;')}" onchange="scenarios[activeIdx].name=this.value;renderScenBar()" style="width:170px">
+    ${activeIdx>0?`<label style="font-size:12px;color:var(--text-soft)">เงินลงทุน (฿):</label><input type="number" id="scenInvest" value="${scenarios[activeIdx].invest}" onchange="scenarios[activeIdx].invest=+this.value" style="width:110px">
+    <button class="btn small danger" onclick="deleteScenario()">🗑️ ลบ</button>`:''}
+  </span>`;
+  $('scenBar').innerHTML=html;
+  const t=scenarios[activeIdx].name;
+  $('scenTitleInput').textContent=t;$('scenTitleRes').textContent=t;$('scenTitleDia').textContent=t;
+}
+
+// ---- run / example ----
+function runModel(){
+  saveActive();
+  const R=solveModel(scenarios[activeIdx].inputs);
+  window._RES=R;
+  renderResults(R);renderDiagram(R);
+  showTab('results');
+}
+function loadExample(){
+  $('nhead').value='3';updateHeaders();
+  $('hr').value=8520;$('t_mu').value=50;$('c_fuel').value=121.7;$('c_elec').value=4.5;$('c_water').value=9.98;$('ef_fuel').value=96.6876;$('ef_grid').value=499;
+  $('eta_b').value=70.16;$('bd').value=0.0526;$('bd_flash').value='1';$('bd_preheat').value='1';$('bd_approach').value=50;$('t_boiler').value=480;$('vent').value=1.15;$('p_dea').value=1.79;
+  $('t_cr').value=127;
+  $('p_hp').value=64;$('d_hp').value=0;$('cr_hp').value=100;
+  $('p_mp').value=9.9;$('d_mp').value=0;$('cr_mp').value=0;
+  $('p_lp').value=1.8;$('d_lp').value=0;$('cr_lp').value=0;
+  $('ct_on').checked=true;$('ct_ei').value=89;$('ct_eg').value=99;$('ct_pc').value=0.15;$('ct_f').value=81.17;
+  if($('hplp_on')){$('hplp_on').checked=true;$('hplp_ei').value=77;$('hplp_eg').value=99;$('hplp_f').value=0;}
+  $('hpmp_on').checked=true;$('hpmp_ei').value=89;$('hpmp_eg').value=99;$('hpmp_f').value=8.52;
+  $('mplp_on').checked=true;$('mplp_ei').value=89;$('mplp_eg').value=99;$('mplp_f').value=11.046;
+  saveActive();
+  $('inputMsg').style.display='block';$('inputMsg').innerHTML='โหลดเคส MEASUR GR-4001 (L89 TB90) แล้ว — กดคำนวณ (คาดหวัง: ไอน้ำ ~94 t/hr, ไฟฟ้า ~25,147 kW, fuel ~377 GJ/hr)';
+}
+
+// ---- JSON save/load ----
+function exportJSON(){
+  saveActive();
+  const data={tool:'Tool_Steam_Assessment',version:'3.0',saved:new Date().toISOString(),
+    report:{company:$('rep_company').value,assessor:$('rep_assessor').value,date:$('rep_date').value},
+    scenarios,activeIdx};
+  const blob=new Blob([JSON.stringify(data,null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='SteamAssessment_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importJSON(input){
+  const file=input.files[0];if(!file)return;
+  const rd=new FileReader();
+  rd.onload=e=>{try{
+    const d=JSON.parse(e.target.result);
+    if(!d.scenarios||!Array.isArray(d.scenarios))throw new Error('รูปแบบไฟล์ไม่ถูกต้อง');
+    scenarios=d.scenarios;activeIdx=Math.min(d.activeIdx||0,scenarios.length-1);
+    nextId=Math.max(...scenarios.map(s=>s.id||1))+1;
+    if(d.report){$('rep_company').value=d.report.company||'';$('rep_assessor').value=d.report.assessor||'';$('rep_date').value=d.report.date||'';}
+    if(scenarios[activeIdx].inputs)applyUI(scenarios[activeIdx].inputs);
+    renderScenBar();
+    $('inputMsg').style.display='block';$('inputMsg').innerHTML='โหลดงานสำเร็จ: '+scenarios.length+' scenario';
+  }catch(err){alert('โหลดไฟล์ไม่สำเร็จ: '+err.message);}
+  input.value='';};
+  rd.readAsText(file);
+}
+</script>
+<script>
+/* ============================ RENDER: RESULTS & DIAGRAM ============================ */
+function renderResults(R){
+  if(!R)return;const f=fmt;
+  let frows='';const addF=(nm,v,u='t/hr',b='')=>{frows+=`<tr><td>${b} ${nm}</td><td>${f(v,2)}</td><td style="text-align:left">${u}</td></tr>`;};
+  addF('ไอน้ำผลิตจากหม้อไอน้ำ',R.boilerSteam,'t/hr','<span class="badge" style="background:var(--hp)">BOILER</span>');
+  if(R.ctR.m>0)addF('Condensing Turbine (→ คอนเดนเซอร์)',R.ctR.m,'t/hr','<span class="badge" style="background:var(--turb)">CT</span>');
+  if(R.n===3){addF('HP→MP Turbine',R.hpmpR.m);addF('MP→LP Turbine',R.mplpR.m);
+    if(R.hplpR.m>0)addF('HP→LP Turbine',R.hplpR.m);
+    addF('PRV HP→MP',R.PRV_HP_MP);addF('PRV MP→LP',R.PRV_MP_LP);}
+  else if(R.n===2){if(R.hplpR.m>0)addF('HP→LP Turbine',R.hplpR.m);addF('PRV HP→LP',R.PRV_HP_LP);}
+  for(const k of R.keys)if(R.H[k].D>0)addF('Process Load @ '+k.toUpperCase(),R.H[k].D);
+  addF('ไอน้ำเข้า Deaerator',R.mDea,'t/hr','<span class="badge" style="background:var(--lp);color:#333">DA</span>');
+  addF('น้ำป้อน (Feedwater)',R.feedwater,'t/hr','<span class="badge" style="background:var(--fw)">FW</span>');
+  addF('Blowdown',R.blow);if(R.flashed)addF('  ↳ Flash steam (กลับ DA)',R.mFlash);
+  addF('Deaerator Vent',R.vent);
+  if(R.excessLP>0.01)addF('ไอน้ำ LP ส่วนเกิน (กังหันจ่ายเกิน → ระบาย)',R.excessLP);
+  addF('คอนเดนเสทคืน (Process)',R.mProc);
+  addF('น้ำเติม (Make-Up)',R.mMu);
+
+  let mcRows=`<div class="row"><span class="k">HP Steam Cost</span><span class="v">${f(R.mc.hp,2)} ฿/t</span></div>`;
+  if(R.n>=3)mcRows+=`<div class="row"><span class="k">MP Steam Cost</span><span class="v">${f(R.mc.mp,2)} ฿/t</span></div>`;
+  if(R.n>=2)mcRows+=`<div class="row"><span class="k">LP Steam Cost</span><span class="v">${f(R.mc.lp,2)} ฿/t</span></div>`;
+
+  $('resultsBody').innerHTML=`
+   <div class="section-title" style="margin-top:0">สรุปแบบ MEASUR (Annual Steam System Summary)</div>
+   <div class="summary-grid">
+     <div class="sum-box"><div class="head">ไอน้ำ & ต้นทุนดำเนินการ</div>
+       <div class="row"><span class="k">Steam Generated</span><span class="v">${f(R.boilerSteam,1)} t/hr</span></div>
+       <div class="row"><span class="k">Fuel + Water Cost</span><span class="v">${f(R.opCost,0)} ฿/ปี</span></div>
+       <div class="row"><span class="k">Net Operating Cost (หักมูลค่าไฟ)</span><span class="v big">${f(R.netOpCost,0)} ฿/ปี</span></div>
+       <div class="row"><span class="k">CO₂ เชื้อเพลิง</span><span class="v">${f(R.CO2fuel,0)} tCO₂/ปี</span></div>
+     </div>
+     <div class="sum-box"><div class="head">ไฟฟ้า (Power Balance)</div>
+       <div class="row"><span class="k">Generation</span><span class="v">${f(R.elecGen_kW,1)} kW</span></div>
+       <div class="row"><span class="k">ผลิตต่อปี</span><span class="v">${f(R.elec_MWhyr,0)} MWh/ปี</span></div>
+       <div class="row"><span class="k">มูลค่าไฟ (offset)</span><span class="v big">${f(R.elecValue,0)} ฿/ปี</span></div>
+       <div class="row"><span class="k">CO₂ ที่เลี่ยงได้ (กริด)</span><span class="v">${f(R.CO2elecOffset,0)} tCO₂/ปี</span></div>
+     </div>
+     <div class="sum-box"><div class="head">เชื้อเพลิง (Fuel)</div>
+       <div class="row"><span class="k">Boiler Fuel Use</span><span class="v">${f(R.fuel_GJyr,0)} GJ/ปี</span></div>
+       <div class="row"><span class="k">Boiler Fuel Rate</span><span class="v">${f(R.fuel_GJhr,2)} GJ/hr</span></div>
+       <div class="row"><span class="k">Boiler Fuel Cost</span><span class="v big">${f(R.fuelCost,0)} ฿/ปี</span></div>
+     </div>
+     <div class="sum-box"><div class="head">น้ำเติม (Make-Up Water)</div>
+       <div class="row"><span class="k">Make-Up Required</span><span class="v">${f(R.muVol,0)} m³/ปี</span></div>
+       <div class="row"><span class="k">${R.preheatMu?'Make-Up Preheat':'Blowdown'}</span><span class="v">${R.preheatMu?f(R.Tmu,0)+'→'+f(R.TmuOut,1)+'°C':f(R.blow,2)+' t/hr'}</span></div>
+       <div class="row"><span class="k">Make-Up Cost</span><span class="v big">${f(R.muCost,0)} ฿/ปี</span></div>
+     </div>
+     <div class="sum-box"><div class="head">ต้นทุนไอน้ำส่วนเพิ่ม (Fuel-based)</div>${mcRows}</div>
+     <div class="sum-box"><div class="head">Boiler Heat Duty</div>
+       <div class="row"><span class="k">Q to Steam</span><span class="v">${f(R.Qsteam,0)} kW</span></div>
+       <div class="row"><span class="k">Q to Blowdown</span><span class="v">${f(R.Qblow,0)} kW</span></div>
+       <div class="row"><span class="k">Q Fuel Input</span><span class="v">${f(R.Qfuel,0)} kW</span></div>
+     </div>
+   </div>
+
+   <div class="section-title">อัตราการไหลของแต่ละสาย</div>
+   <table class="flowtbl"><tr><th>สาย</th><th>อัตราการไหล</th><th>หน่วย</th></tr>${frows}</table>
+
+   <div class="section-title">ขั้นตอนการคำนวณ</div>
+   <div class="results">
+     <div class="step"><div class="label">① คุณสมบัติไอน้ำหม้อไอน้ำ (IF97)</div><div class="formula">
+       @ ${f(R.Php,1)} bar a, ${f(R.Tsteam,0)}°C: h=<span class="num">${f(R.hHP,1)} kJ/kg</span>, s=<span class="num">${f(R.sHP,3)}</span> · น้ำป้อน(DA ${f(R.Pdea,2)} bar a): T_sat=<span class="num">${f(R.Tdea,1)}°C</span>, h_fw=<span class="num">${f(R.hfw,1)}</span></div></div>
+     <div class="step"><div class="label">② กังหันไอน้ำ — งานและไฟฟ้า (h_out=h_in−η_is·(h_in−h_isen))</div><div class="formula">
+       ${R.ctR.m>0?`Condensing: ${f(R.ctR.m,1)} t/hr, ${f(R.Php,0)}→${f(R.ctR.Pc,2)} bara, h:${f(R.hHP,0)}→${f(R.ctR.h_out,0)} ⇒ <span class="num">${f(R.ctR.power_kW,0)} kW</span><br>`:''}
+       ${R.n===3&&R.hpmpR.m>0?`HP→MP: ${f(R.hpmpR.m,1)} t/hr ⇒ <span class="num">${f(R.hpmpR.power_kW,0)} kW</span> · MP→LP: ${f(R.mplpR.m,1)} t/hr ⇒ <span class="num">${f(R.mplpR.power_kW,0)} kW</span><br>`:''}
+       ${R.n===2&&R.hplpR.m>0?`HP→LP: ${f(R.hplpR.m,1)} t/hr ⇒ <span class="num">${f(R.hplpR.power_kW,0)} kW</span><br>`:''}
+       <b>รวมไฟฟ้า = <span class="num">${f(R.elecGen_kW,0)} kW</span></b></div></div>
+     <div class="step"><div class="label">③ สมดุลมวล (วนซ้ำ ${R.iter+1} รอบ): Boiler Steam = ΣProcess + Deaerator + Condensing</div><div class="formula">
+       Boiler Steam = <span class="num">${f(R.boilerSteam,2)} t/hr</span> · Deaerator steam = <span class="num">${f(R.mDea,2)} t/hr</span> · Make-Up = <span class="num">${f(R.mMu,2)} t/hr</span>${R.flashed?` · Flash recovery = <span class="num">${f(R.mFlash,3)} t/hr</span>`:''}</div></div>
+     <div class="step"><div class="label">④ พลังงานหม้อไอน้ำและเชื้อเพลิง</div><div class="formula">
+       Q_boiler = ṁ·(h−h_fw)+blowdown = <span class="num">${f(R.Qboiler,0)} kW</span> ⇒ เชื้อเพลิง = Q/η = <span class="num">${f(R.Qfuel,0)} kW</span> = <span class="num">${f(R.fuel_GJhr,2)} GJ/hr</span></div></div>
+   </div>
+   <div class="note">📐 <b>ต้นทุนไอน้ำส่วนเพิ่ม</b> เป็นแบบ <b>fuel-based</b> = (h_header − h_fw)/η × ราคาเชื้อเพลิง — MEASUR ที่ MP/LP อาจสูงกว่าเพราะรวมค่าเสียโอกาสไฟฟ้า (cogeneration credit) · PRV=isenthalpic · header enthalpy ผสมจากสาย PRV+turbine</div>
+   <div class="note" style="background:#eef7f1;border-color:#0f9d6b;color:#0a5">🔗 ไฟฟ้าที่ผลิตได้ offsets ความต้องการในไซต์ · Net Operating Cost = Fuel + Make-Up − มูลค่าไฟฟ้า (ใช้เทียบผลประหยัดระหว่าง scenario) · CO₂ ใช้ EF ที่ผู้ใช้กำหนด (แนะนำ EF ไทยของ สผ./TGO)</div>`;
+}
+
+function renderDiagram(R){
+  if(!R)return;const f=v=>fmt(v,2);
+  const W=1180,Hh=660,BX0=170,BX1=860,yHP=140,yMP=265,yLP=390,yC=495,yB=575,PX=885,FX=45,LX=150;
+  const C={hp:'#c0392b',mp:'#e67e22',lp:'#f1c40f',cond:'#27ae60',fw:'#8e44ad',turb:'#2980b9',grey:'#9aa7b3',pri:'#0f5b8e',soft:'#4a5b6c',bad:'#c62828'};
+  const tHP=R.Tsteam,tMP=R.n>=3?tempFromH(R.Pmp,R.hMP):null,tLP=R.n>=2?tempFromH(R.Plp,R.hLP):null;
+  const headerY={hp:yHP,mp:yMP,lp:yLP};
+  let s=`<svg viewBox="0 0 ${W} ${Hh}" width="100%" style="max-width:1180px;background:#fff;border:1px solid #d4dde6;border-radius:8px">`;
+  const bar=(y,c,lab,P,flow,T)=>`<rect x="${BX0}" y="${y-13}" width="${BX1-BX0}" height="26" rx="4" fill="${c}"/>
+    <text x="${BX0+10}" y="${y+5}" fill="#fff" font-size="13" font-weight="700">${lab} — ${f(P)} bar a${T!=null?' · '+fmt(T,0)+'°C':''}</text>
+    <text x="${BX1-12}" y="${y+5}" fill="#fff" font-size="12" text-anchor="end">${f(flow)} t/hr</text>`;
+  const procBox=(y,c,d,rec)=>`<line x1="${BX1}" y1="${y}" x2="${PX}" y2="${y}" stroke="${C.grey}" stroke-width="3"/>
+    <rect x="${PX}" y="${y-20}" width="118" height="40" rx="4" fill="#eef1f4" stroke="${C.grey}" stroke-width="1.4"/>
+    <text x="${PX+59}" y="${y-4}" text-anchor="middle" font-size="11" fill="${C.soft}" font-weight="700">Process Usage</text>
+    <text x="${PX+59}" y="${y+12}" text-anchor="middle" font-size="10" fill="${C.soft}">${f(d)} t/hr · คืน ${fmt(rec*100,0)}%</text>`;
+  const turbG=(cx,cy,lab,kW,active)=>{const col=active&&kW>1?C.turb:C.grey;const fill=active&&kW>1?'#d6eaf8':'#eef1f4';
+    return `<polygon points="${cx-23},${cy-28} ${cx+23},${cy-32} ${cx+23},${cy+32} ${cx-23},${cy+28}" fill="${fill}" stroke="${col}" stroke-width="1.6"/>
+    <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="9.5" fill="${col}" font-weight="700">${lab}</text>
+    <text x="${cx}" y="${cy+11}" text-anchor="middle" font-size="9.5" fill="${active&&kW>1?C.bad:C.grey}" font-weight="700">${kW>1?fmt(kW,0)+' kW':'—'}</text>`;};
+  const vpipe=(x,y1,y2,c,w=3,dash='')=>`<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="${c}" stroke-width="${w}"${dash?` stroke-dasharray="${dash}"`:''}/>`;
+  const flowtxt=(x,y,t,c)=>`<text x="${x}" y="${y}" font-size="9.5" fill="${c}">${t}</text>`;
+  s+=`<rect x="${FX-5}" y="${yHP-42}" width="90" height="84" rx="7" fill="#eef4f9" stroke="${C.pri}" stroke-width="2"/>
+    <text x="${FX+40}" y="${yHP-18}" text-anchor="middle" font-size="12.5" font-weight="700" fill="${C.pri}">หม้อไอน้ำ</text>
+    <text x="${FX+40}" y="${yHP-2}" text-anchor="middle" font-size="10" fill="${C.soft}">η = ${fmt(R.eta*100,1)}%</text>
+    <text x="${FX+40}" y="${yHP+14}" text-anchor="middle" font-size="9.5" fill="${C.soft}">${f(R.fuel_GJhr)} GJ/hr</text>
+    <text x="${FX+40}" y="${yHP+30}" text-anchor="middle" font-size="9.5" fill="${C.hp}" font-weight="700">${f(R.boilerSteam)} t/hr·${fmt(R.Tsteam,0)}°C</text>`;
+  s+=`<line x1="${FX+85}" y1="${yHP}" x2="${BX0}" y2="${yHP}" stroke="${C.hp}" stroke-width="4"/>`;
+  s+=bar(yHP,C.hp,'HP',R.Php,R.boilerSteam,tHP);
+  s+=procBox(yHP,C.hp,R.H.hp.D,R.H.hp.CR);
+  if(R.n>=3){s+=bar(yMP,C.mp,'MP',R.Pmp,R.PRV_HP_MP+R.Thpmp,tMP);s+=procBox(yMP,C.mp,R.H.mp.D,R.H.mp.CR);}
+  if(R.n>=2){const lpflow=R.n===3?(R.PRV_MP_LP+R.Tmplp+R.Thplp):(R.PRV_HP_LP+R.Thplp);s+=bar(yLP,C.lp,'LP',R.Plp,lpflow,tLP);s+=procBox(yLP,C.lp,R.H.lp.D,R.H.lp.CR);}
+  const prv=(y1,y2,fl)=>`${vpipe(LX,y1+13,(y1+y2)/2-8,C.hp,3)}
+    <rect x="${LX-9}" y="${(y1+y2)/2-8}" width="18" height="16" fill="#b3c6d6" stroke="${C.pri}"/>
+    <polygon points="${LX-8},${(y1+y2)/2+8} ${LX+8},${(y1+y2)/2+8} ${LX},${(y1+y2)/2+20}" fill="${C.turb}"/>
+    ${vpipe(LX,(y1+y2)/2+20,y2-13,(y2===yMP?C.mp:C.lp),3)}
+    ${flowtxt(LX+14,(y1+y2)/2+4,'PRV '+f(fl),C.soft)}`;
+  if(R.n===3){s+=prv(yHP,yMP,R.PRV_HP_MP);s+=prv(yMP,yLP,R.PRV_MP_LP);}
+  else if(R.n===2){s+=prv(yHP,yLP,R.PRV_HP_LP);}
+  const cxC=300,cxHM=455,cxHL=620,cyT=yHP+62;
+  if(R.ctOn){s+=vpipe(cxC,yHP+13,cyT-30,R.ctR.m>1?C.hp:C.grey,3)+turbG(cxC,cyT,'Condensing',R.ctR.power_kW,R.ctR.m>0);
+    s+=vpipe(cxC,cyT+30,yC,R.ctR.m>1?C.cond:C.grey,3)+flowtxt(cxC+8,yLP+55,f(R.ctR.m)+' → คอนเดนเซอร์',C.soft);}
+  if(R.n>=3&&R.hpmpOn){s+=vpipe(cxHM,yHP+13,cyT-30,R.hpmpR.m>1?C.hp:C.grey,3)+turbG(cxHM,cyT,'HP→MP',R.hpmpR.power_kW,R.hpmpR.m>0)+vpipe(cxHM,cyT+30,yMP-13,R.hpmpR.m>1?C.mp:C.grey,3);}
+  if(R.hplpOn){const dst=R.n>=2?yLP:yHP;s+=vpipe(cxHL,yHP+13,cyT-30,R.hplpR.m>1?C.hp:C.grey,3)+turbG(cxHL,cyT,'HP→LP',R.hplpR.power_kW,R.hplpR.m>0)+vpipe(cxHL,cyT+30,dst-13,R.hplpR.m>1?C.lp:C.grey,3);}
+  if(R.n>=3&&R.mplpOn){const cyM=(yMP+yLP)/2;s+=vpipe(cxHM,yMP+13,cyM-30,R.mplpR.m>1?C.mp:C.grey,3)+turbG(cxHM,cyM,'MP→LP',R.mplpR.power_kW,R.mplpR.m>0)+vpipe(cxHM,cyM+30,yLP-13,R.mplpR.m>1?C.lp:C.grey,3);}
+  const DAx=200,DAw=170,DAcx=DAx+DAw/2;
+  const yLow=R.n===1?yHP:yLP;
+  s+=vpipe(DAcx+40,yLow+13,yB-22,C.lp,3,'5,3')+flowtxt(DAcx+46,(yLow+yB)/2,'ไอน้ำ DA '+f(R.mDea),'#b8860b');
+  s+=vpipe(DAcx-40,yB-22,yB-46,C.grey,2)+`<polygon points="${DAcx-45},${yB-46} ${DAcx-35},${yB-46} ${DAcx-40},${yB-58}" fill="${C.grey}"/>`+flowtxt(DAcx-78,yB-48,'vent '+f(R.vent),C.soft);
+  s+=`<rect x="${DAx}" y="${yB-22}" width="${DAw}" height="44" rx="7" fill="#eef4f9" stroke="${C.fw}" stroke-width="2"/>
+    <text x="${DAcx}" y="${yB-3}" text-anchor="middle" font-size="12.5" font-weight="700" fill="${C.fw}">Deaerator</text>
+    <text x="${DAcx}" y="${yB+14}" text-anchor="middle" font-size="10" fill="${C.soft}">${fmt(R.Tdea,0)}°C @ ${f(R.Pdea)} bar a</text>`;
+  const condRight=PX+60;
+  s+=`<line x1="${DAcx}" y1="${yC}" x2="${condRight}" y2="${yC}" stroke="${C.cond}" stroke-width="5"/>`;
+  s+=vpipe(DAcx,yC,yB-22,C.cond,5);
+  s+=flowtxt(690,yC-8,'คอนเดนเสทกลับ '+f(R.mProc+R.ctR.m)+' t/hr',C.cond);
+  if(R.ctOn&&R.ctR.m>1)s+=`<line x1="${cxC}" y1="${yC}" x2="${DAcx}" y2="${yC}" stroke="${C.cond}" stroke-width="5"/>`;
+  for(const k of R.keys){const rec=R.H[k].D*R.H[k].CR;if(rec>0.01){const px=PX+59;s+=vpipe(px,headerY[k]+20,yC,C.cond,2,'4,3');}}
+  const mux=condRight;
+  s+=`<rect x="${mux-10}" y="${yC-20}" width="120" height="40" rx="5" fill="#fff" stroke="${C.cond}" stroke-width="1.5"/>
+    <text x="${mux+50}" y="${yC-4}" text-anchor="middle" font-size="11" fill="${C.cond}" font-weight="700">Make-Up ${fmt(R.Tmu,0)}°C</text>
+    <text x="${mux+50}" y="${yC+12}" text-anchor="middle" font-size="10" fill="${C.soft}">${f(R.mMu)} t/hr</text>`;
+  if(R.preheatMu)s+=flowtxt(mux-60,yC+30,'อุ่นด้วย blowdown → '+fmt(R.TmuOut,1)+'°C',C.bad);
+  if(R.flashed&&R.mFlash>0.0005){const fx=600;
+    s+=`<rect x="${fx-32}" y="${yC-22}" width="64" height="44" rx="6" fill="#f4ecf7" stroke="${C.fw}" stroke-width="1.5"/>
+      <text x="${fx}" y="${yC-4}" text-anchor="middle" font-size="10" fill="${C.fw}" font-weight="700">Flash</text>
+      <text x="${fx}" y="${yC+9}" text-anchor="middle" font-size="9" fill="${C.fw}" font-weight="700">Tank</text>`;
+    s+=vpipe(fx,yC-22,yC-44,C.lp,2,'4,2')+flowtxt(fx-44,yC-30,'flash '+f(R.mFlash),C.soft);
+    s+=`<line x1="${fx-32}" y1="${yC+18}" x2="${fx-70}" y2="${yC+18}" stroke="#6b4a2b" stroke-width="3"/>`+flowtxt(fx-110,yC+30,'blowdown',C.soft);}
+  s+=`<line x1="${DAx}" y1="${yB}" x2="${FX}" y2="${yB}" stroke="${C.fw}" stroke-width="4"/>
+    ${vpipe(FX,yB,yHP+42,C.fw,4)}
+    <polygon points="${FX-5},${yHP+50} ${FX+5},${yHP+50} ${FX},${yHP+42}" fill="${C.fw}"/>
+    ${flowtxt(FX+6,yB-7,'Feedwater '+f(R.feedwater)+' t/hr',C.fw)}`;
+  s+=`<line x1="${FX+40}" y1="${yHP+42}" x2="${FX+40}" y2="${yHP+66}" stroke="#7f8c8d" stroke-width="3"/>`+flowtxt(FX-8,yHP+78,'Blowdown '+f(R.blow),'#7f8c8d');
+  s+=`</svg>`;
+  $('diagramBody').innerHTML=s;
+}
+</script>
+<script>
+/* ============================ COMPARE & REPORT ============================ */
+function solveAll(){
+  saveActive();
+  return scenarios.map(s=>({scen:s,R:solveModel(s.inputs||collectUI())}));
+}
+function compareTableHTML(all){
+  const base=all[0].R;
+  const f=fmt;
+  let head='<tr><th style="min-width:190px">รายการ</th>';
+  all.forEach((a,i)=>head+=`<th>${i===0?'⭐ ':''}${a.scen.name}</th>`);
+  head+='</tr>';
+  const row=(label,get,d=0,unit='')=>{
+    let r=`<tr><td>${label}${unit?` <span style="color:#8497a8;font-size:11px">(${unit})</span>`:''}</td>`;
+    all.forEach(a=>r+=`<td>${f(get(a.R),d)}</td>`);return r+'</tr>';
+  };
+  let html='<table class="cmp-tbl">'+head;
+  html+='<tr class="sect"><td colspan="'+(all.length+1)+'">พลังงานและการผลิต</td></tr>';
+  html+=row('ไอน้ำผลิต',R=>R.boilerSteam,2,'t/hr');
+  html+=row('เชื้อเพลิง',R=>R.fuel_GJhr,2,'GJ/hr');
+  html+=row('เชื้อเพลิงต่อปี',R=>R.fuel_GJyr,0,'GJ/ปี');
+  html+=row('ไฟฟ้าผลิต',R=>R.elecGen_kW,0,'kW');
+  html+=row('ไฟฟ้าต่อปี',R=>R.elec_MWhyr,0,'MWh/ปี');
+  html+=row('น้ำเติม',R=>R.muVol,0,'m³/ปี');
+  html+='<tr class="sect"><td colspan="'+(all.length+1)+'">ค่าใช้จ่าย (฿/ปี)</td></tr>';
+  html+=row('ค่าเชื้อเพลิง',R=>R.fuelCost,0);
+  html+=row('ค่าน้ำเติม',R=>R.muCost,0);
+  html+=row('มูลค่าไฟฟ้าที่ผลิตได้ (หัก)',R=>R.elecValue,0);
+  html+=row('ต้นทุนดำเนินการสุทธิ',R=>R.netOpCost,0);
+  html+='<tr class="sect"><td colspan="'+(all.length+1)+'">ก๊าซเรือนกระจก (tCO₂/ปี)</td></tr>';
+  html+=row('CO₂ เชื้อเพลิง',R=>R.CO2fuel,0);
+  html+=row('CO₂ เลี่ยงได้จากไฟฟ้า',R=>R.CO2elecOffset,0);
+  html+=row('CO₂ สุทธิ',R=>R.CO2net,0);
+  // savings block
+  html+='<tr class="sect"><td colspan="'+(all.length+1)+'">ผลประหยัดเทียบกรณีฐาน</td></tr>';
+  const srow=(label,get,d=0,cls=v=>v>0?'pos':(v<0?'neg':''))=>{
+    let r=`<tr><td>${label}</td>`;
+    all.forEach((a,i)=>{
+      if(i===0){r+='<td>—</td>';return;}
+      const v=get(base)-get(a.R);
+      r+=`<td class="${cls(v)}">${f(v,d)}</td>`;});
+    return r+'</tr>';};
+  html+=srow('ประหยัดเชื้อเพลิง (GJ/ปี)',R=>R.fuel_GJyr,0);
+  html+=srow('ประหยัดค่าใช้จ่ายสุทธิ (฿/ปี)',R=>R.netOpCost,0);
+  html+=srow('ลด CO₂ สุทธิ (tCO₂/ปี)',R=>R.CO2net,1);
+  let r1='<tr><td>% ประหยัด (เทียบต้นทุนสุทธิฐาน)</td>';
+  all.forEach((a,i)=>{if(i===0){r1+='<td>—</td>';return;}
+    const v=(base.netOpCost-a.R.netOpCost)/Math.abs(base.netOpCost)*100;
+    r1+=`<td class="${v>0?'pos':'neg'}">${f(v,2)} %</td>`;});
+  html+=r1+'</tr>';
+  let r2='<tr><td>เงินลงทุน (฿)</td>';
+  all.forEach((a,i)=>{r2+=`<td>${i===0?'—':f(a.scen.invest||0,0)}</td>`;});
+  html+=r2+'</tr>';
+  let r3='<tr><td>ระยะเวลาคืนทุนอย่างง่าย (ปี)</td>';
+  all.forEach((a,i)=>{if(i===0){r3+='<td>—</td>';return;}
+    const sav=base.netOpCost-a.R.netOpCost;
+    const pb=(a.scen.invest>0&&sav>0)?a.scen.invest/sav:null;
+    r3+=`<td>${pb!=null?f(pb,2):'—'}</td>`;});
+  html+=r3+'</tr></table>';
+  return html;
+}
+function renderCompare(){
+  const all=solveAll();
+  if(all.length<2){$('compareBody').innerHTML='<p class="desc">ยังไม่มีมาตรการปรับปรุง — กด "＋ เพิ่มมาตรการ" ที่แถบด้านบน ระบบจะคัดลอกกรณีฐานให้แล้วแก้เฉพาะค่าที่มาตรการเปลี่ยน</p>';return;}
+  $('compareBody').innerHTML=compareTableHTML(all)+
+   '<div class="note">ผลประหยัด = ต้นทุนดำเนินการสุทธิ (เชื้อเพลิง + น้ำเติม − มูลค่าไฟฟ้า) ของกรณีฐาน − กรณีปรับปรุง · ค่าบวก (เขียว) = ประหยัด · CO₂ ใช้ EF ที่กำหนดใน Operations ของแต่ละ scenario</div>';
+}
+function thaiDate(){
+  const d=new Date();
+  const m=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  return d.getDate()+' '+m[d.getMonth()]+' พ.ศ. '+(d.getFullYear()+543);
+}
+function inputTableHTML(inp){
+  const f=fmt;const rows=[];
+  const add=(k,v,u)=>rows.push(`<tr><td>${k}</td><td>${v}</td><td style="text-align:left">${u||''}</td></tr>`);
+  add('ชั่วโมงทำงาน/ปี',f(inp.hr,0),'hr/yr');add('อุณหภูมิน้ำเติม',f(inp.t_mu,1),'°C');
+  add('ราคาเชื้อเพลิง',f(inp.c_fuel,2),'฿/GJ (HHV)');add('ค่าไฟฟ้า',f(inp.c_elec,2),'฿/kWh');add('ค่าน้ำ',f(inp.c_water,2),'฿/m³');
+  add('ประสิทธิภาพหม้อไอน้ำ (HHV)',f(inp.eta_b,2),'%');add('อัตรา Blowdown',f(inp.bd,3),'%');
+  add('อุณหภูมิไอน้ำ',f(inp.t_boiler,0),'°C');add('Deaerator',f(inp.p_dea,2)+' bar a · vent '+f(inp.vent,2)+' %','');
+  add('อุณหภูมิคอนเดนเสทคืน',f(inp.t_cr,0),'°C');
+  const kk=inp.nhead===3?['hp','mp','lp']:inp.nhead===2?['hp','lp']:['hp'];
+  kk.forEach(k=>{const h=inp.headers[k];add('Header '+k.toUpperCase(),f(h.P,2)+' bar a · โหลด '+f(h.D,2)+' t/hr · คืน '+f(h.CR,0)+' %','');});
+  const tn={ct:'Condensing',hpmp:'HP→MP',mplp:'MP→LP',hplp:'HP→LP'};
+  Object.entries(inp.turb||{}).forEach(([k,t])=>{if(t&&t.on)add('Turbine '+tn[k],'η_is '+f(t.ei,0)+'% · η_gen '+f(t.eg,0)+'% · '+f(t.f,2)+' t/hr'+(k==='ct'?' · Pc '+f(t.pc,2)+' bar a':''),'');});
+  return '<table class="flowtbl"><tr><th>รายการ</th><th>ค่า</th><th>หน่วย</th></tr>'+rows.join('')+'</table>';
+}
+function renderReport(){
+  if(!$('rep_date').value)$('rep_date').value=thaiDate();
+  const all=solveAll();
+  const base=all[0].R;const f=fmt;
+  let html=`
+   <div style="text-align:center;margin-bottom:14px">
+     <div style="font-size:19px;font-weight:700;color:var(--primary)">รายงานผลการประเมินระบบไอน้ำ (Steam Assessment)</div>
+     <div style="font-size:14px;color:var(--text-soft)">${$('rep_company').value||'(ระบุชื่อสถานประกอบการ)'} · ประเมินโดย ${$('rep_assessor').value} · ${$('rep_date').value}</div>
+   </div>
+   <div class="section-title">1. บทสรุปผู้บริหาร</div>
+   <p>การประเมินระบบไอน้ำด้วยแบบจำลองสมดุลมวล-พลังงาน (โครงสร้างแบบโปรแกรม MEASUR ของ U.S. DOE/ORNL, คุณสมบัติไอน้ำตาม IAPWS-IF97)
+   กรณีฐานผลิตไอน้ำ ${f(base.boilerSteam,1)} t/hr ใช้เชื้อเพลิง ${f(base.fuel_GJyr,0)} GJ/ปี คิดเป็นค่าเชื้อเพลิง ${f(base.fuelCost,0)} บาท/ปี
+   ${base.elecGen_kW>1?'ผลิตไฟฟ้าจากกังหันไอน้ำ '+f(base.elecGen_kW,0)+' kW (มูลค่า '+f(base.elecValue,0)+' บาท/ปี)':''}
+   ต้นทุนดำเนินการสุทธิ ${f(base.netOpCost,0)} บาท/ปี และปล่อย CO₂ สุทธิ ${f(base.CO2net,0)} tCO₂/ปี</p>`;
+  if(all.length>1){
+    html+='<table class="cmp-tbl"><tr><th>มาตรการ</th><th>ประหยัดเชื้อเพลิง<br>(GJ/ปี)</th><th>ผลประหยัด<br>(บาท/ปี)</th><th>เงินลงทุน<br>(บาท)</th><th>คืนทุน<br>(ปี)</th><th>ลด CO₂<br>(tCO₂/ปี)</th></tr>';
+    all.slice(1).forEach(a=>{
+      const sav=base.netOpCost-a.R.netOpCost;
+      const pb=(a.scen.invest>0&&sav>0)?a.scen.invest/sav:null;
+      html+=`<tr><td>${a.scen.name}</td><td>${f(base.fuel_GJyr-a.R.fuel_GJyr,0)}</td><td class="${sav>0?'pos':'neg'}">${f(sav,0)}</td><td>${f(a.scen.invest||0,0)}</td><td>${pb!=null?f(pb,2):'—'}</td><td>${f(base.CO2net-a.R.CO2net,1)}</td></tr>`;});
+    html+='</table>';
+  }
+  html+=`<div class="section-title">2. ข้อมูลป้อนเข้ากรณีฐาน (Baseline Input)</div>`+inputTableHTML(all[0].scen.inputs);
+  html+=`<div class="section-title">3. ผลการจำลองรายกรณี</div>`;
+  html+='<table class="cmp-tbl"><tr><th>รายการ</th>';
+  all.forEach((a,i)=>html+=`<th>${i===0?'⭐ ':''}${a.scen.name}</th>`);html+='</tr>';
+  const row=(l,g,d,u)=>{let r=`<tr><td>${l}${u?` <span style="color:#8497a8;font-size:11px">(${u})</span>`:''}</td>`;all.forEach(a=>r+=`<td>${f(g(a.R),d)}</td>`);return r+'</tr>';};
+  html+=row('ไอน้ำผลิต',R=>R.boilerSteam,2,'t/hr')+row('เชื้อเพลิง',R=>R.fuel_GJyr,0,'GJ/ปี')+row('ไฟฟ้าผลิต',R=>R.elecGen_kW,0,'kW')+row('น้ำเติม',R=>R.muVol,0,'m³/ปี')+row('ต้นทุนดำเนินการสุทธิ',R=>R.netOpCost,0,'฿/ปี')+row('CO₂ สุทธิ',R=>R.CO2net,1,'tCO₂/ปี');
+  html+='</table>';
+  if(all.length>1){html+=`<div class="section-title">4. ตารางเปรียบเทียบโดยละเอียด</div><div class="rep-page-break"></div>`+compareTableHTML(all);}
+  html+=`<div class="section-title">${all.length>1?'5':'4'}. หมายเหตุและสมมุติฐาน</div>
+   <p style="font-size:12.5px;color:var(--text-soft)">
+   • แบบจำลองอ้างอิงโครงสร้าง Steam Assessment ของโปรแกรม MEASUR (U.S. DOE/ORNL) — คุณสมบัติไอน้ำตาม IAPWS-IF97 (การประมาณค่าในตาราง), PRV เป็น isenthalpic, กังหันใช้ประสิทธิภาพ isentropic และ generator ตามที่ระบุ<br>
+   • ประสิทธิภาพหม้อไอน้ำและราคาเชื้อเพลิงเป็นฐาน HHV ตามธรรมเนียม MEASUR — เทียบผลตรวจวัดฐาน LHV (BS 845/ประกาศ พพ.) ให้แปลงด้วย η_LHV = η_HHV × (HHV/LHV)<br>
+   • ต้นทุนดำเนินการสุทธิ = ค่าเชื้อเพลิง + ค่าน้ำเติม − มูลค่าไฟฟ้าที่ผลิตได้ · ผลประหยัดของแต่ละมาตรการเทียบกับกรณีฐาน<br>
+   • CO₂ คำนวณด้วย emission factor ที่ผู้ประเมินกำหนด (แนะนำค่า EF ของ สผ./TGO ปีล่าสุด) — ไม่ใช้ค่า eGRID ของสหรัฐฯ<br>
+   • เครื่องมือนี้พัฒนาโดย Triple E Technology เพื่องานประเมินเบื้องต้นภาคสนาม ควรทวนสอบด้วยการตรวจวัดจริงก่อนตัดสินใจลงทุน</p>`;
+  $('reportBody').innerHTML=html;
+}
+
+// ---- init ----
+document.body.classList.add('show-hints');
+updateHeaders();
+applyHints();
+saveActive();
+renderScenBar();
+$('rep_date').value=thaiDate();
+</script>
+</body>
+</html>
