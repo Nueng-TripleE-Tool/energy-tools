@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heat Exchanger Fouling Diagnostic — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root{
+  --navy:#0f2a4a; --teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa; --card:#fff; --ink:#1c2b3a; --muted:#5b6b7b; --line:#e2e8f0;
+  --accent:#12a4a4; --warn:#e08a00; --ok:#1e9e5a; --danger:#d1495b; --sev4:#8e1b2e;
+  --radius:14px; --shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+h1,h2,h3,.bc{font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+header{background:var(--header-grad);color:#fff;padding:26px 20px 30px}
+header .wrap{max-width:1180px;margin:0 auto}
+header .kicker{font-size:.78rem;letter-spacing:2px;text-transform:uppercase;opacity:.8}
+header h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:700;margin-top:4px}
+header p{font-size:.92rem;opacity:.88;max-width:760px;margin-top:6px}
+header .back{color:#fff;text-decoration:none;font-size:.82rem;opacity:.85;display:inline-block;margin-bottom:10px}
+header .back:hover{opacity:1}
+
+main{max-width:1180px;margin:0 auto;padding:0 16px 60px}
+
+/* ── sticky verdict strip ── */
+.verdict{position:sticky;top:0;z-index:40;background:var(--card);border:1px solid var(--line);
+  border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;overflow:hidden;margin-bottom:18px}
+.vcell{padding:12px 14px;background:var(--card);text-align:center;border-left:1px solid var(--line)}
+.vcell:first-child{border-left:none}
+.vcell .vlab{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.vcell .vnum{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:700;line-height:1.05}
+.vcell .vband{font-size:.8rem;font-weight:600}
+.vbar{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.vbar i{display:block;height:100%;border-radius:3px;transition:width .35s}
+.s0{color:var(--ok)} .s1{color:var(--warn)} .s2{color:var(--danger)} .s3{color:var(--sev4)}
+.b0{background:var(--ok)} .b1{background:var(--warn)} .b2{background:var(--danger)} .b3{background:var(--sev4)}
+
+/* ── tabs ── */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:9px 16px;border:1px solid var(--line);background:var(--card);border-radius:10px;
+  cursor:pointer;font-size:.88rem;font-weight:500;color:var(--muted);transition:.15s;white-space:nowrap}
+.tab:hover{border-color:var(--accent)}
+.tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.panel{display:none} .panel.on{display:block}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card > h2{font-size:1.12rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.card > .sub{font-size:.83rem;color:var(--muted);margin-bottom:14px}
+.card h3{font-size:1rem;color:var(--navy);margin:16px 0 8px}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+
+label.f{display:block;font-size:.8rem;color:var(--muted);margin-bottom:3px;font-weight:500}
+input[type=number],select,input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);
+  border-radius:9px;font-family:'IBM Plex Mono',monospace;font-size:.9rem;background:#fff;color:var(--ink)}
+input[type=number]:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(18,164,164,.13)}
+select{font-family:'IBM Plex Sans Thai',sans-serif}
+input[readonly]{background:#f1f5f9;color:var(--muted)}
+.fld{margin-bottom:10px}
+.unit{font-size:.72rem;color:var(--muted);font-weight:400}
+
+.btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:22px;
+  font-family:'IBM Plex Sans Thai',sans-serif;font-size:.87rem;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent);filter:none}
+.btn.sm{padding:5px 12px;font-size:.79rem}
+
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left}
+th{background:#f8fafc;font-weight:600;color:var(--navy);font-size:.8rem}
+td.n,th.n{text-align:right;font-family:'IBM Plex Mono',monospace}
+tr.hl td{background:#fffbeb}
+.tbl-wrap{overflow-x:auto}
+
+.note{font-size:.82rem;color:var(--muted);background:#f8fafc;border-left:3px solid var(--line);
+  padding:9px 13px;border-radius:0 8px 8px 0;margin-top:10px;line-height:1.6}
+.note.warn{background:#fff8e6;border-left-color:var(--warn)}
+.note.bad{background:#fdeef0;border-left-color:var(--danger)}
+.note.good{background:#eaf7f0;border-left-color:var(--ok)}
+.note b{color:var(--ink)}
+
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.74rem;font-weight:600}
+.p0{background:#eaf7f0;color:#14663b} .p1{background:#fff4de;color:#8a5300}
+.p2{background:#fdeef0;color:#9e2333} .p3{background:#8e1b2e;color:#fff}
+.pn{background:#eef2f7;color:var(--muted)}
+
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.87rem}
+.kv:last-child{border-bottom:none}
+.kv b{font-family:'IBM Plex Mono',monospace;font-weight:500}
+
+.big{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:700;line-height:1;color:var(--navy)}
+.bigu{font-size:.85rem;color:var(--muted);font-family:'IBM Plex Sans Thai',sans-serif}
+
+.oxgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.oxgrid .fld{margin-bottom:0}
+
+details.ox{border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-top:10px;background:#fcfdfe}
+details.ox summary{cursor:pointer;font-weight:600;font-size:.87rem;color:var(--navy)}
+details.ox[open] summary{margin-bottom:10px}
+
+.fuelbox{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fcfdfe}
+.fuelbox > h3{margin-top:0}
+
+.legend{font-size:.76rem;color:var(--muted);margin-top:8px}
+.zone{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;margin-bottom:5px;font-size:.85rem;border:1px solid var(--line)}
+.zone .zi{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;font-size:.8rem}
+.zone .zt{flex:1}
+.zone .zt b{display:block;font-size:.88rem}
+.zone .zt span{font-size:.77rem;color:var(--muted)}
+
+.srcbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.srcbar span{font-size:.72rem;background:#eef2f7;color:var(--muted);padding:2px 8px;border-radius:20px}
+
+footer{text-align:center;padding:22px;font-size:.8rem;color:var(--muted);
+  border-top:1px solid var(--line);background:#fff}
+footer b{color:var(--navy)}
+
+@media(max-width:640px){
+  .verdict{grid-template-columns:1fr;gap:0}
+  .vcell{border-left:none;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;text-align:left}
+  .vcell:first-child{border-top:none}
+  .vcell .vnum{font-size:1.6rem}
+  .vcell > div:last-child{flex:1}
+  .card{padding:15px}
+}
+@media print{
+  header,.tabs,.btn,footer{display:none}
+  .panel{display:block!important}
+  .card{box-shadow:none;break-inside:avoid}
+  .verdict{position:static}
+}
+
+/* ── shared extras for the diagnostic suite ── */
+.rowbtn{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+table input{padding:5px 7px;font-size:.82rem;border-radius:7px;min-width:70px}
+table td{vertical-align:middle}
+.del{background:none;border:none;color:var(--danger);cursor:pointer;font-size:.95rem}
+.gauge{height:9px;border-radius:5px;background:var(--line);overflow:hidden;margin-top:5px}
+.gauge i{display:block;height:100%;border-radius:5px;transition:width .3s}
+.stat{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fcfdfe}
+.stat .big{font-size:1.9rem}
+.verdict2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.verdict2 .vcell{border-left:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a href="../index.html" class="back"><i class="fas fa-arrow-left"></i> กลับหน้ารวมเครื่องมือ</a>
+    <div class="kicker"><i class="fas fa-stethoscope"></i> Troubleshooting · Triple E Technology</div>
+    <h1>Heat Exchanger Fouling Diagnostic</h1>
+    <p>ติดตามการเสื่อมสภาพของอุปกรณ์แลกเปลี่ยนความร้อนจาก LMTD และ UA ที่วัดได้จริง
+       คำนวณ Fouling Factor และหาจุดคุ้มทุนที่ควรเข้าล้าง</p>
+  </div>
+</header>
+
+<main>
+
+<div class="verdict2">
+  <div class="vcell"><div class="vlab">U ที่วัดได้</div>
+    <div class="vnum mono" id="vU">–</div><div class="vband">W/m²·K</div></div>
+  <div class="vcell"><div class="vlab">สมรรถนะเทียบสะอาด</div>
+    <div class="vnum mono" id="vPct">–</div><div class="vband" id="vPctb">%</div></div>
+  <div class="vcell"><div class="vlab">Fouling Factor R<sub>f</sub></div>
+    <div class="vnum mono" id="vRf">–</div><div class="vband">m²·K/W</div></div>
+  <div class="vcell"><div class="vlab">ควรล้างเมื่อ</div>
+    <div class="vnum mono" id="vDays" style="font-size:1.5rem">–</div><div class="vband" id="vDaysb"></div></div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-t="1"><i class="fas fa-right-left"></i> 1 · ข้อมูลตรวจวัด</div>
+  <div class="tab" data-t="2"><i class="fas fa-chart-simple"></i> 2 · ผลวิเคราะห์</div>
+  <div class="tab" data-t="3"><i class="fas fa-coins"></i> 3 · เศรษฐศาสตร์การล้าง</div>
+  <div class="tab" data-t="4"><i class="fas fa-list-check"></i> 4 · วินิจฉัยสาเหตุ</div>
+</div>
+
+<!-- ═══ 1 ═══ -->
+<section class="panel on" data-p="1">
+  <div class="card">
+    <h2>อุปกรณ์และรูปแบบการไหล</h2>
+    <div class="grid3">
+      <div class="fld"><label class="f">ชนิดอุปกรณ์</label>
+        <select id="hxType">
+          <option value="phe">Plate Heat Exchanger (PHE)</option>
+          <option value="counter">Shell &amp; Tube — สวนทาง (counterflow)</option>
+          <option value="st12">Shell &amp; Tube — 1 shell / 2 tube pass</option>
+          <option value="parallel">ไหลตามกัน (parallel flow)</option>
+          <option value="cond">Condenser / Evaporator (ฝั่งหนึ่งอุณหภูมิคงที่)</option>
+        </select></div>
+      <div class="fld"><label class="f">พื้นที่ผิวแลกเปลี่ยน A <span class="unit">m²</span></label><input type="number" id="area" value="500" step="1"></div>
+      <div class="fld"><label class="f">U สะอาด / ออกแบบ <span class="unit">W/m²·K</span></label><input type="number" id="uClean" value="3200" step="50"></div>
+    </div>
+    <div class="note">
+      <b>ค่า U สะอาดโดยประมาณ</b> — PHE น้ำ–น้ำ 3,000–6,000 · Shell&amp;Tube น้ำ–น้ำ 800–1,500 ·
+      น้ำ–น้ำมัน 150–400 · Condenser ไอน้ำ–น้ำ 1,500–4,000 · Economizer ก๊าซ–น้ำ 20–60 W/m²·K<br>
+      ถ้ามีค่าจาก data sheet หรือจากตอนเพิ่งล้างเสร็จ ให้ใช้ค่านั้นแทน จะแม่นกว่ามาก
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>อุณหภูมิและอัตราการไหล</h2>
+    <div class="grid2">
+      <div class="fuelbox">
+        <h3>ฝั่งร้อน</h3>
+        <div class="grid3">
+          <div class="fld"><label class="f">เข้า T₁ <span class="unit">°C</span></label><input type="number" id="Th1" value="46" step="0.1"></div>
+          <div class="fld"><label class="f">ออก T₂ <span class="unit">°C</span></label><input type="number" id="Th2" value="38" step="0.1"></div>
+          <div class="fld"><label class="f">อัตราการไหล <span class="unit">m³/h</span></label><input type="number" id="mh" value="900" step="10"></div>
+        </div>
+        <div class="fld"><label class="f">ค่าความจุความร้อนจำเพาะ <span class="unit">kJ/kg·K</span></label><input type="number" id="cph" value="4.186" step="0.001"></div>
+      </div>
+      <div class="fuelbox">
+        <h3>ฝั่งเย็น</h3>
+        <div class="grid3">
+          <div class="fld"><label class="f">เข้า t₁ <span class="unit">°C</span></label><input type="number" id="Tc1" value="31" step="0.1"></div>
+          <div class="fld"><label class="f">ออก t₂ <span class="unit">°C</span></label><input type="number" id="Tc2" value="38.5" step="0.1"></div>
+          <div class="fld"><label class="f">อัตราการไหล <span class="unit">m³/h</span></label><input type="number" id="mc" value="960" step="10"></div>
+        </div>
+        <div class="fld"><label class="f">ค่าความจุความร้อนจำเพาะ <span class="unit">kJ/kg·K</span></label><input type="number" id="cpc" value="4.186" step="0.001"></div>
+      </div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ความหนาแน่นฝั่งร้อน <span class="unit">kg/m³</span></label><input type="number" id="rh" value="993" step="1"></div>
+      <div class="fld"><label class="f">ความหนาแน่นฝั่งเย็น <span class="unit">kg/m³</span></label><input type="number" id="rc" value="994" step="1"></div>
+    </div>
+    <div id="balOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 2 ═══ -->
+<section class="panel" data-p="2">
+  <div class="card">
+    <h2>ผลการคำนวณ</h2>
+    <div id="calcOut"></div>
+  </div>
+  <div class="card">
+    <h2>Approach Temperature — KPI ที่ติดตามง่ายที่สุด</h2>
+    <div class="sub">ถ้าไม่มี flow meter ให้ใช้ approach เป็นตัวเฝ้าระวังแทน — ต้องเทียบที่ภาระเท่ากันเท่านั้น</div>
+    <div id="apOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 3 ═══ -->
+<section class="panel" data-p="3">
+  <div class="card">
+    <h2>ต้นทุนของการปล่อยให้สกปรก</h2>
+    <div class="grid3">
+      <div class="fld"><label class="f">อัตราการเสื่อมของ R<sub>f</sub> <span class="unit">m²·K/W ต่อ 1,000 ชม.</span></label><input type="number" id="rfRate" value="0.00004" step="0.00001"></div>
+      <div class="fld"><label class="f">ชั่วโมงเดินเครื่อง <span class="unit">ชม./ปี</span></label><input type="number" id="hrs" value="7000" step="100"></div>
+      <div class="fld"><label class="f">ค่าใช้จ่ายการล้างต่อครั้ง <span class="unit">บาท</span></label><input type="number" id="cCost" value="45000" step="1000"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ผลกระทบต่อพลังงาน <span class="unit">บาท/ปี ต่อทุก 10 % ที่ U ตก</span></label><input type="number" id="penalty" value="120000" step="5000"></div>
+      <div class="fld"><label class="f">เวลาหยุดเดินเครื่องเพื่อล้าง <span class="unit">ชม.</span></label><input type="number" id="dHrs" value="8" step="1"></div>
+      <div class="fld"><label class="f">ต้นทุนการหยุดเดินเครื่อง <span class="unit">บาท/ชม.</span></label><input type="number" id="dCost" value="3000" step="500"></div>
+    </div>
+    <div id="econOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 4 ═══ -->
+<section class="panel" data-p="4">
+  <div class="card">
+    <h2>สาเหตุที่เป็นไปได้ เรียงตามความน่าจะเป็น</h2>
+    <div class="sub">ก่อนสรุปว่าสกปรก ต้องตัดสาเหตุอื่นออกให้หมดก่อน — หลายครั้ง U ที่ดูตกคือข้อมูลผิด ไม่ใช่ตะกรัน</div>
+    <div id="dxOut"></div>
+  </div>
+  <div class="card">
+    <h2>สรุปสำหรับใส่รายงาน</h2>
+    <button class="btn ghost sm" id="btnCopy"><i class="fas fa-copy"></i> คัดลอกสรุป</button>
+    <button class="btn ghost sm" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์ / บันทึก PDF</button>
+    <div id="repOut" style="margin-top:12px"></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><b>Triple E Technology Co., Ltd.</b> — Heat Exchanger Fouling Diagnostic</p>
+  <p style="margin-top:5px">LMTD พร้อมตัวประกอบแก้ F ตามรูปแบบการไหล · Fouling factor จาก 1/U<sub>สกปรก</sub> − 1/U<sub>สะอาด</sub></p>
+</footer>
+
+<script>
+const $=id=>document.getElementById(id);
+const V=id=>parseFloat($(id).value)||0;
+const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed(d===undefined?2:d);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pill=(i,t)=>`<span class="pill p${i}">${t}</span>`;
+const money=v=>isFinite(v)?Math.round(v).toLocaleString('th-TH'):'–';
+
+/* ── ตัวประกอบแก้ F สำหรับ 1 shell / 2 tube pass ── */
+function fST12(T1,T2,t1,t2){
+  const dT=T1-T2, dt=t2-t1;
+  if(dt<=0||dT<=0||T1-t1<=0) return null;
+  const P=dt/(T1-t1), R=dT/dt;
+  if(P<=0||P>=1) return null;
+  const s=Math.sqrt(R*R+1);
+  let num,den;
+  if(Math.abs(R-1)<1e-4){
+    num=s*P/(1-P);
+    den=Math.log((2/P-1-R+s)/(2/P-1-R-s));
+  }else{
+    num=s/(R-1)*Math.log((1-P)/(1-P*R));
+    den=Math.log((2/P-1-R+s)/(2/P-1-R-s));
+  }
+  const F=num/den;
+  return (isFinite(F)&&F>0&&F<=1.001)?clamp(F,0,1):null;
+}
+function lmtdOf(T1,T2,t1,t2,type){
+  let d1,d2;
+  if(type==='parallel'){ d1=T1-t1; d2=T2-t2; }
+  else { d1=T1-t2; d2=T2-t1; }
+  if(d1<=0||d2<=0) return null;
+  if(Math.abs(d1-d2)<1e-6) return d1;
+  return (d1-d2)/Math.log(d1/d2);
+}
+
+let S={};
+function calc(){
+  const type=$('hxType').value;
+  const T1=V('Th1'),T2=V('Th2'),t1=V('Tc1'),t2=V('Tc2');
+  const A=V('area'), Uc=V('uClean');
+  const mh=V('mh')*V('rh')/3600, mc=V('mc')*V('rc')/3600;   // kg/s
+  const Qh=mh*V('cph')*(T1-T2), Qc=mc*V('cpc')*(t2-t1);
+  const Q=(Qh>0&&Qc>0)?(Qh+Qc)/2:Math.max(Qh,Qc);
+  const closure=(Qh>0&&Qc>0)?Math.abs(Qh-Qc)/((Qh+Qc)/2)*100:null;
+
+  const lmtd=lmtdOf(T1,T2,t1,t2,type);
+  let F=1, fNote='ไหลสวนทางสมบูรณ์ — F = 1';
+  if(type==='st12'){ const f=fST12(T1,T2,t1,t2); if(f!==null){F=f; fNote=`1 shell / 2 tube pass — F = ${fmt(F,3)}`;} else {F=null; fNote='คำนวณ F ไม่ได้ที่อุณหภูมิชุดนี้ (P หรือ R อยู่นอกช่วงที่เป็นไปได้)';} }
+  else if(type==='phe') fNote='PHE ไหลสวนทางเกือบสมบูรณ์ — ใช้ F = 1';
+  else if(type==='parallel') fNote='ไหลตามกัน — ใช้ LMTD ของรูปแบบนี้โดยตรง F = 1';
+  else if(type==='cond') fNote='ฝั่งหนึ่งอุณหภูมิคงที่ — F = 1 เสมอ';
+
+  const dTm=(lmtd!==null&&F!==null)?lmtd*F:null;
+  const U=(dTm&&A>0&&Q>0)?Q*1000/(A*dTm):null;
+  const pct=(U&&Uc>0)?U/Uc*100:null;
+  const Rf=(U&&Uc>0&&U<Uc)?(1/U-1/Uc):((U&&Uc>0)?(1/U-1/Uc):null);
+
+  const bal=closure===null?1:(closure<5?0:(closure<10?1:2));
+  S={type,T1,T2,t1,t2,A,Uc,Qh,Qc,Q,closure,lmtd,F,dTm,U,pct,Rf,fNote,bal};
+
+  /* verdict */
+  $('vU').textContent=fmt(U,0);
+  const pl=pct===null?1:(pct>90?0:(pct>75?1:(pct>60?2:3)));
+  $('vPct').textContent=fmt(pct,0); $('vPct').className='vnum mono s'+pl;
+  $('vPctb').innerHTML=`% · ${pill(pl,['สะอาด','เริ่มสกปรก','สกปรก','สกปรกมาก'][pl])}`;
+  $('vRf').textContent=Rf===null?'–':Rf.toExponential(2);
+
+  /* balance */
+  $('balOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${fmt(Qh,0)}</div><div class="bigu">Q ฝั่งร้อน · kW</div></div>
+     <div class="stat"><div class="big">${fmt(Qc,0)}</div><div class="bigu">Q ฝั่งเย็น · kW</div></div>
+     <div class="stat"><div class="big s${bal}">${fmt(closure,1)}</div><div class="bigu">ส่วนต่างสมดุล · %</div></div>
+     <div class="stat"><div class="big">${fmt(Q,0)}</div><div class="bigu">Q ที่ใช้คำนวณ · kW</div></div>
+   </div>
+   <div class="note ${bal===0?'good':(bal===1?'warn':'bad')}">
+     ${closure===null?'ข้อมูลไม่พอสำหรับปิดสมดุล — ต้องมีอัตราการไหลทั้งสองฝั่ง'
+      :(bal===0?`สมดุลปิดได้ดี (ต่างกัน ${fmt(closure,1)} %) ข้อมูลชุดนี้ใช้วินิจฉัยได้`
+        :(bal===1?`สมดุลต่างกัน ${fmt(closure,1)} % — ยังพอใช้ได้แต่ควรระวัง อาจมาจาก flow meter หรือการสูญเสียความร้อนสู่บรรยากาศ`
+          :`<b>สมดุลต่างกันถึง ${fmt(closure,1)} % — อย่าเพิ่งสรุปว่าอุปกรณ์สกปรก</b><br>
+            ส่วนต่างขนาดนี้แปลว่าข้อมูลอย่างน้อยหนึ่งตัวผิด สอบเทียบ flow meter และ sensor อุณหภูมิก่อน
+            แล้วค่อยกลับมาคำนวณใหม่ ไม่งั้นจะได้ค่า U ที่ผิดไปทั้งชุด`))}
+   </div>`;
+
+  /* main */
+  $('calcOut').innerHTML=`
+   <div class="grid4">
+     <div class="stat"><div class="big">${fmt(lmtd,2)}</div><div class="bigu">LMTD · °C</div></div>
+     <div class="stat"><div class="big">${F===null?'–':fmt(F,3)}</div><div class="bigu">ตัวประกอบแก้ F</div></div>
+     <div class="stat"><div class="big">${fmt(dTm,2)}</div><div class="bigu">ΔT เฉลี่ยที่ใช้จริง · °C</div></div>
+     <div class="stat"><div class="big s${pl}">${fmt(U,0)}</div><div class="bigu">U ที่วัดได้ · W/m²·K</div></div>
+   </div>
+   <div class="tbl-wrap" style="margin-top:14px"><table>
+     <tr><th>รายการ</th><th class="n">ค่า</th><th>หน่วย</th><th>ความหมาย</th></tr>
+     <tr><td>U สะอาด (อ้างอิง)</td><td class="n">${fmt(Uc,0)}</td><td>W/m²·K</td><td class="legend">จาก data sheet หรือตอนเพิ่งล้างเสร็จ</td></tr>
+     <tr class="${pl>=2?'hl':''}"><td>U ที่วัดได้</td><td class="n">${fmt(U,0)}</td><td>W/m²·K</td><td class="legend">Q / (A · F · LMTD)</td></tr>
+     <tr><td>สมรรถนะคงเหลือ</td><td class="n">${fmt(pct,1)}</td><td>%</td><td class="legend">${pill(pl,['สะอาด','เริ่มสกปรก','สกปรก','สกปรกมาก'][pl])}</td></tr>
+     <tr><td>Fouling factor R<sub>f</sub></td><td class="n">${Rf===null?'–':Rf.toExponential(3)}</td><td>m²·K/W</td><td class="legend">1/U − 1/U<sub>สะอาด</sub></td></tr>
+     <tr><td>UA ที่วัดได้</td><td class="n">${fmt(U*A/1000,1)}</td><td>kW/K</td><td class="legend">ใช้ติดตาม trend ได้ดีกว่า U เดี่ยว ๆ</td></tr>
+   </table></div>
+   <div class="note">${fNote}<br>
+     ${type==='st12'&&F!==null&&F<0.8?`<b>F = ${fmt(F,3)} ต่ำกว่า 0.80</b> — ที่ค่านี้ ΔT เฉลี่ยไวต่อความคลาดเคลื่อนของอุณหภูมิมาก
+       ผล U ที่ได้จึงมีความไม่แน่นอนสูง โดยทั่วไปการออกแบบจะหลีกเลี่ยงช่วง F < 0.80 อยู่แล้ว
+       ถ้าเจอค่านี้ในการเดินเครื่องจริง ให้ตรวจว่าอุณหภูมิที่วัดถูกต้องหรือมี temperature cross จริง`:''}
+   </div>
+   <div class="note">
+     <b>เกณฑ์ R<sub>f</sub> ที่ใช้ในการออกแบบโดยทั่วไป</b> — น้ำหล่อเย็นหอผึ่งที่บำบัดแล้ว 0.00018 ·
+     น้ำหล่อเย็นที่ไม่บำบัด 0.00035–0.00055 · น้ำในเมือง 0.00018 · น้ำมันหล่อลื่น 0.00018 ·
+     ไอเสีย 0.0009–0.0018 m²·K/W<br>
+     ถ้า R<sub>f</sub> ที่วัดได้เกินค่าที่ออกแบบเผื่อไว้ แปลว่าอุปกรณ์ทำงานต่ำกว่าที่ออกแบบตั้งใจแล้ว
+   </div>`;
+
+  /* approach */
+  const apHot=T2-t1, apCold=T1-t2;
+  $('apOut').innerHTML=`
+   <div class="grid3">
+     <div class="stat"><div class="big">${fmt(apHot,2)}</div><div class="bigu">Approach ฝั่งร้อน (T₂ − t₁) · °C</div></div>
+     <div class="stat"><div class="big">${fmt(apCold,2)}</div><div class="bigu">Approach ฝั่งเย็น (T₁ − t₂) · °C</div></div>
+     <div class="stat"><div class="big">${fmt(V('mh')>0?V('mc')/V('mh'):null,2)}</div><div class="bigu">อัตราส่วนการไหล เย็น/ร้อน</div></div>
+   </div>
+   <div class="note">
+     <b>วิธีใช้ approach เป็น KPI</b> — บันทึกทุกสัปดาห์ที่ภาระใกล้เคียงกัน แล้วพล็อต approach เทียบเวลา
+     เส้นที่ค่อย ๆ ไต่ขึ้นคือสัญญาณ fouling ที่ชัดและถูกกว่าการวัด U ทุกครั้ง<br>
+     <b>ข้อควรระวัง</b> — approach ขึ้นกับภาระด้วย ห้ามเทียบข้ามภาระ
+     ถ้าภาระเปลี่ยน ให้กลับมาใช้ UA แทน เพราะ UA แทบไม่ขึ้นกับภาระ
+     (เปลี่ยนตามอัตราการไหลตาม h ∝ v<sup>0.8</sup> เท่านั้น)
+   </div>`;
+
+  econ(); dx(); report();
+}
+
+function econ(){
+  const {Uc,U,A,pct}=S;
+  const rate=V('rfRate'), hrs=V('hrs'), cost=V('cCost'), pen=V('penalty');
+  const dHrs=V('dHrs'), dCost=V('dCost');
+  const totalClean=cost+dHrs*dCost;
+  if(!U||!Uc){ $('econOut').innerHTML='<div class="note bad">ยังคำนวณ U ไม่ได้</div>'; return; }
+  const Rf0=Math.max(0,1/U-1/Uc);
+  /* หาเวลาที่ต้นทุนรวมต่อชั่วโมงต่ำสุด */
+  const rows=[]; let best=null;
+  for(let m=1;m<=36;m++){
+    const h=hrs/12*m;
+    const RfEnd=Rf0+rate*h/1000;
+    const Uend=1/(1/Uc+RfEnd);
+    const lossAvg=(Uc-(U+Uend)/2)/Uc*100;               // % เฉลี่ยตลอดรอบ
+    const energyCost=lossAvg/10*pen*(h/hrs);
+    const total=(energyCost+totalClean)/(h/hrs);        // บาท/ปี เทียบเท่า
+    rows.push({m,h,RfEnd,Uend,lossAvg,energyCost,total});
+    if(best===null||total<best.total) best=rows[rows.length-1];
+  }
+  const nowLoss=(Uc-U)/Uc*100;
+  const nowCost=nowLoss/10*pen;
+  $('vDays').textContent=best?best.m:'–';
+  $('vDaysb').textContent=best?`เดือน · ประหยัดสุทธิ ${money(rows[rows.length-1].total-best.total)} บาท/ปี`:'';
+  $('econOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big s${nowLoss>20?2:(nowLoss>10?1:0)}">${fmt(nowLoss,1)}</div><div class="bigu">U ที่ตกไปแล้ว · %</div></div>
+     <div class="stat"><div class="big">${money(nowCost)}</div><div class="bigu">ต้นทุนพลังงานส่วนเกิน · บาท/ปี</div></div>
+     <div class="stat"><div class="big">${money(totalClean)}</div><div class="bigu">ต้นทุนล้าง 1 ครั้ง รวมหยุดเครื่อง</div></div>
+     <div class="stat"><div class="big s0">${best?best.m:'–'}</div><div class="bigu">รอบล้างที่คุ้มที่สุด · เดือน</div></div>
+   </div>
+   <div class="tbl-wrap" style="margin-top:12px"><table>
+     <tr><th class="n">รอบล้าง (เดือน)</th><th class="n">R<sub>f</sub> ปลายรอบ</th><th class="n">U ปลายรอบ</th>
+         <th class="n">U ที่ตกเฉลี่ย %</th><th class="n">ต้นทุนรวม บาท/ปี</th></tr>
+     ${rows.filter(r=>[2,3,4,6,9,12,18,24,36].includes(r.m)).map(r=>
+       `<tr${best&&Math.abs(r.m-best.m)<=1?' class="hl"':''}>
+        <td class="n">${r.m}</td><td class="n">${r.RfEnd.toExponential(2)}</td>
+        <td class="n">${fmt(r.Uend,0)}</td><td class="n">${fmt(r.lossAvg,1)}</td>
+        <td class="n">${money(r.total)}</td></tr>`).join('')}
+   </table></div>
+   <div class="note">
+     <b>วิธีคิด</b> — ต้นทุนรวมคือผลบวกของ (1) ค่าพลังงานส่วนเกินจาก U ที่ตกลงเรื่อย ๆ ตลอดรอบ
+     และ (2) ค่าล้างเฉลี่ยต่อปี รอบที่สั้นเกินไปเสียค่าล้างบ่อย รอบที่ยาวเกินไปเสียค่าพลังงาน
+     จุดต่ำสุดคือรอบที่ควรตั้ง<br>
+     <b>ตัวเลขที่ควรใส่ให้ตรงที่สุดคือ “ผลกระทบต่อพลังงานต่อทุก 10 % ที่ U ตก”</b>
+     — สำหรับ condenser ของ chiller ให้ประเมินจาก kW/RT ที่แย่ลงเมื่อ condensing temperature สูงขึ้น
+     สำหรับ economizer ให้ประเมินจากอุณหภูมิไอเสียที่สูงขึ้นและประสิทธิภาพหม้อไอน้ำที่ลดลง
+   </div>`;
+  S.best=best; S.nowLoss=nowLoss; S.totalClean=totalClean;
+}
+
+function dx(){
+  const {closure,pct,U,Uc,type,T1,T2,t1,t2,F}=S;
+  const out=[];
+  const add=(l,t,d)=>out.push({l,t,d});
+  if(closure!==null&&closure>10)
+    add(2,'ข้อมูลไม่สมดุล — สงสัยเครื่องมือวัดก่อน',
+      `สมดุลพลังงานสองฝั่งต่างกัน ${fmt(closure,1)} % ค่า U ที่คำนวณได้จึงเชื่อไม่ได้
+       สอบเทียบ flow meter (ตัวที่พบผิดบ่อยที่สุด) และ sensor อุณหภูมิก่อนสรุปว่าสกปรก`);
+  if(pct!==null&&pct<85)
+    add(2,'ตะกรันและคราบบนผิวแลกเปลี่ยน',
+      `สมรรถนะเหลือ ${fmt(pct,0)} % ของสะอาด — ในน้ำหล่อเย็นสาเหตุหลักคือตะกรันแคลเซียม
+       ตะกอนแขวนลอย และ biofilm ตรวจ cycle of concentration และค่าการนำไฟฟ้าประกอบ
+       ถ้าเป็นวงจรน้ำมันหรือ process ให้ดู coking และ polymer deposit`);
+  if(pct!==null&&pct>105)
+    add(1,'U สูงกว่าค่าสะอาดที่ตั้งไว้',
+      `เป็นไปได้สองทาง: ค่า U สะอาดที่ใส่ต่ำเกินจริง หรืออัตราการไหลตอนนี้สูงกว่าตอนออกแบบ
+       (U เพิ่มตาม h ∝ v<sup>0.8</sup>) ตรวจอัตราการไหลเทียบ design ก่อน`);
+  add(1,'อัตราการไหลต่ำกว่าออกแบบ',
+    `U ลดลงตาม h ∝ v<sup>0.8</sup> โดยที่อุปกรณ์ยังสะอาด — flow ที่ 70 % ของ design
+     ทำให้ U ตกไปประมาณ 15–20 % เอง ต้องแยกผลนี้ออกจาก fouling ก่อนเสมอ
+     ถ้า flow เปลี่ยน ให้แก้ค่า U สะอาดอ้างอิงตามสัดส่วนนี้ด้วย`);
+  add(1,'อากาศหรือก๊าซที่ไม่ควบแน่นค้างในระบบ',
+    `พบบ่อยใน condenser และวงจรปิดที่ air vent อุดตัน ก๊าซที่ค้างเกาะผิวท่อและเป็นฉนวนที่ดีมาก
+     ทำให้ U ตกฮวบโดยไม่มีตะกรันเลย — ไล่อากาศแล้ววัดซ้ำ ถ้า U กลับมาก็จบเรื่อง`);
+  add(1,'การไหลลัดวงจรและการกระจายไม่ทั่ว',
+    `ใน PHE คือ gasket รั่วภายในทำให้สองฝั่งผสมกัน (ตรวจจากสมดุลที่ไม่ปิดและอุณหภูมิที่แปลก)
+     ใน Shell&Tube คือ baffle เสียหายหรือ bypass ระหว่าง bundle กับ shell`);
+  if(type==='st12'&&F!==null&&F<0.8)
+    add(2,'ตัวประกอบแก้ F ต่ำ',
+      `F = ${fmt(F,3)} ที่ค่านี้ผลลัพธ์ไวต่อความคลาดเคลื่อนของอุณหภูมิมาก
+       และอาจเกิด temperature cross ที่รูปแบบ 1-2 pass รองรับไม่ได้ — ตรวจว่าอุณหภูมิที่วัดถูกต้อง`);
+  if(T2<t1||T1<t2)
+    add(2,'อุณหภูมิไขว้ผิดปกติ',
+      `ฝั่งร้อนออกเย็นกว่าฝั่งเย็นเข้า หรือฝั่งเย็นออกร้อนกว่าฝั่งร้อนเข้า
+       — เป็นไปไม่ได้ในอุปกรณ์ที่ไม่ใช่ counterflow สมบูรณ์ ตรวจว่าสลับ sensor หรือต่อท่อผิดทิศ`);
+  add(0,'ตรวจก่อนล้าง: ต่อท่อผิดทิศหรือไม่',
+    `การต่อเป็น parallel flow แทน counterflow ทำให้สมรรถนะตกทันที 20–40 % โดยไม่มีอะไรสกปรกเลย
+     พบบ่อยหลังงานซ่อมหรือย้ายท่อ ตรวจง่ายมากแต่มักถูกมองข้าม — ล้างไปก็ไม่ดีขึ้น`);
+  const ic=['fa-circle-check','fa-triangle-exclamation','fa-circle-exclamation'];
+  const bg=['var(--ok)','var(--warn)','var(--danger)'];
+  $('dxOut').innerHTML=out.map(o=>
+    `<div class="zone"><div class="zi" style="background:${bg[o.l]}"><i class="fas ${ic[o.l]}"></i></div>
+     <div class="zt"><b>${o.t}</b><span>${o.d}</span></div></div>`).join('');
+}
+
+function report(){
+  const S2=S;
+  $('repOut').innerHTML=`<pre class="mono" id="repTxt" style="white-space:pre-wrap;font-size:.78rem;
+   background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto">${
+`ผลวิเคราะห์การเสื่อมสภาพของอุปกรณ์แลกเปลี่ยนความร้อน
+
+ชนิด / รูปแบบการไหล   ${$('hxType').selectedOptions[0].text}
+พื้นที่ผิว A          ${fmt(S2.A,1)} m²
+
+อุณหภูมิ
+  ฝั่งร้อน  เข้า/ออก   ${fmt(S2.T1,1)} / ${fmt(S2.T2,1)} °C
+  ฝั่งเย็น  เข้า/ออก   ${fmt(S2.t1,1)} / ${fmt(S2.t2,1)} °C
+
+สมดุลพลังงาน
+  Q ฝั่งร้อน           ${fmt(S2.Qh,0)} kW
+  Q ฝั่งเย็น           ${fmt(S2.Qc,0)} kW
+  ส่วนต่าง             ${fmt(S2.closure,1)} %
+
+ผลการคำนวณ
+  LMTD                ${fmt(S2.lmtd,2)} °C
+  ตัวประกอบแก้ F       ${S2.F===null?'–':fmt(S2.F,3)}
+  ΔT เฉลี่ยที่ใช้จริง    ${fmt(S2.dTm,2)} °C
+  U สะอาดอ้างอิง       ${fmt(S2.Uc,0)} W/m²·K
+  U ที่วัดได้           ${fmt(S2.U,0)} W/m²·K
+  สมรรถนะคงเหลือ       ${fmt(S2.pct,1)} %
+  Fouling factor Rf   ${S2.Rf===null?'–':S2.Rf.toExponential(3)} m²·K/W
+
+เศรษฐศาสตร์
+  U ที่ตกไปแล้ว        ${fmt(S2.nowLoss,1)} %
+  ต้นทุนล้างต่อครั้ง     ${money(S2.totalClean)} บาท (รวมหยุดเครื่อง)
+  รอบล้างที่คุ้มที่สุด    ${S2.best?S2.best.m+' เดือน':'–'}
+
+หมายเหตุ: ก่อนสรุปว่าสกปรก ต้องตัดสาเหตุอื่นออกก่อน — สมดุลพลังงานที่ไม่ปิด
+อัตราการไหลที่ต่ำกว่าออกแบบ ก๊าซที่ไม่ควบแน่นค้างในระบบ และการต่อท่อผิดทิศ
+ล้วนทำให้ U ที่วัดได้ตกโดยที่ผิวแลกเปลี่ยนยังสะอาดอยู่`}</pre>`;
+}
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  document.querySelector(`.panel[data-p="${t.dataset.t}"]`).classList.add('on');
+}));
+document.querySelectorAll('input,select').forEach(x=>{
+  x.addEventListener('input',calc); x.addEventListener('change',calc);
+});
+$('btnCopy').addEventListener('click',()=>{
+  const t=$('repTxt'); if(!t) return;
+  navigator.clipboard.writeText(t.textContent).then(()=>{
+    $('btnCopy').innerHTML='<i class="fas fa-check"></i> คัดลอกแล้ว';
+    setTimeout(()=>$('btnCopy').innerHTML='<i class="fas fa-copy"></i> คัดลอกสรุป',1800);
+  }).catch(()=>{});
+});
+calc();
+</script>
+</body>
+</html>

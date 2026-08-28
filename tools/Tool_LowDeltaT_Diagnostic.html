@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chilled Water ΔT Diagnostic — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root{
+  --navy:#0f2a4a; --teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa; --card:#fff; --ink:#1c2b3a; --muted:#5b6b7b; --line:#e2e8f0;
+  --accent:#12a4a4; --warn:#e08a00; --ok:#1e9e5a; --danger:#d1495b; --sev4:#8e1b2e;
+  --radius:14px; --shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+h1,h2,h3,.bc{font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+header{background:var(--header-grad);color:#fff;padding:26px 20px 30px}
+header .wrap{max-width:1180px;margin:0 auto}
+header .kicker{font-size:.78rem;letter-spacing:2px;text-transform:uppercase;opacity:.8}
+header h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:700;margin-top:4px}
+header p{font-size:.92rem;opacity:.88;max-width:760px;margin-top:6px}
+header .back{color:#fff;text-decoration:none;font-size:.82rem;opacity:.85;display:inline-block;margin-bottom:10px}
+header .back:hover{opacity:1}
+
+main{max-width:1180px;margin:0 auto;padding:0 16px 60px}
+
+/* ── sticky verdict strip ── */
+.verdict{position:sticky;top:0;z-index:40;background:var(--card);border:1px solid var(--line);
+  border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;overflow:hidden;margin-bottom:18px}
+.vcell{padding:12px 14px;background:var(--card);text-align:center;border-left:1px solid var(--line)}
+.vcell:first-child{border-left:none}
+.vcell .vlab{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.vcell .vnum{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:700;line-height:1.05}
+.vcell .vband{font-size:.8rem;font-weight:600}
+.vbar{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.vbar i{display:block;height:100%;border-radius:3px;transition:width .35s}
+.s0{color:var(--ok)} .s1{color:var(--warn)} .s2{color:var(--danger)} .s3{color:var(--sev4)}
+.b0{background:var(--ok)} .b1{background:var(--warn)} .b2{background:var(--danger)} .b3{background:var(--sev4)}
+
+/* ── tabs ── */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:9px 16px;border:1px solid var(--line);background:var(--card);border-radius:10px;
+  cursor:pointer;font-size:.88rem;font-weight:500;color:var(--muted);transition:.15s;white-space:nowrap}
+.tab:hover{border-color:var(--accent)}
+.tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.panel{display:none} .panel.on{display:block}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card > h2{font-size:1.12rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.card > .sub{font-size:.83rem;color:var(--muted);margin-bottom:14px}
+.card h3{font-size:1rem;color:var(--navy);margin:16px 0 8px}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+
+label.f{display:block;font-size:.8rem;color:var(--muted);margin-bottom:3px;font-weight:500}
+input[type=number],select,input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);
+  border-radius:9px;font-family:'IBM Plex Mono',monospace;font-size:.9rem;background:#fff;color:var(--ink)}
+input[type=number]:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(18,164,164,.13)}
+select{font-family:'IBM Plex Sans Thai',sans-serif}
+input[readonly]{background:#f1f5f9;color:var(--muted)}
+.fld{margin-bottom:10px}
+.unit{font-size:.72rem;color:var(--muted);font-weight:400}
+
+.btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:22px;
+  font-family:'IBM Plex Sans Thai',sans-serif;font-size:.87rem;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent);filter:none}
+.btn.sm{padding:5px 12px;font-size:.79rem}
+
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left}
+th{background:#f8fafc;font-weight:600;color:var(--navy);font-size:.8rem}
+td.n,th.n{text-align:right;font-family:'IBM Plex Mono',monospace}
+tr.hl td{background:#fffbeb}
+.tbl-wrap{overflow-x:auto}
+
+.note{font-size:.82rem;color:var(--muted);background:#f8fafc;border-left:3px solid var(--line);
+  padding:9px 13px;border-radius:0 8px 8px 0;margin-top:10px;line-height:1.6}
+.note.warn{background:#fff8e6;border-left-color:var(--warn)}
+.note.bad{background:#fdeef0;border-left-color:var(--danger)}
+.note.good{background:#eaf7f0;border-left-color:var(--ok)}
+.note b{color:var(--ink)}
+
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.74rem;font-weight:600}
+.p0{background:#eaf7f0;color:#14663b} .p1{background:#fff4de;color:#8a5300}
+.p2{background:#fdeef0;color:#9e2333} .p3{background:#8e1b2e;color:#fff}
+.pn{background:#eef2f7;color:var(--muted)}
+
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.87rem}
+.kv:last-child{border-bottom:none}
+.kv b{font-family:'IBM Plex Mono',monospace;font-weight:500}
+
+.big{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:700;line-height:1;color:var(--navy)}
+.bigu{font-size:.85rem;color:var(--muted);font-family:'IBM Plex Sans Thai',sans-serif}
+
+.oxgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.oxgrid .fld{margin-bottom:0}
+
+details.ox{border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-top:10px;background:#fcfdfe}
+details.ox summary{cursor:pointer;font-weight:600;font-size:.87rem;color:var(--navy)}
+details.ox[open] summary{margin-bottom:10px}
+
+.fuelbox{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fcfdfe}
+.fuelbox > h3{margin-top:0}
+
+.legend{font-size:.76rem;color:var(--muted);margin-top:8px}
+.zone{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;margin-bottom:5px;font-size:.85rem;border:1px solid var(--line)}
+.zone .zi{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;font-size:.8rem}
+.zone .zt{flex:1}
+.zone .zt b{display:block;font-size:.88rem}
+.zone .zt span{font-size:.77rem;color:var(--muted)}
+
+.srcbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.srcbar span{font-size:.72rem;background:#eef2f7;color:var(--muted);padding:2px 8px;border-radius:20px}
+
+footer{text-align:center;padding:22px;font-size:.8rem;color:var(--muted);
+  border-top:1px solid var(--line);background:#fff}
+footer b{color:var(--navy)}
+
+@media(max-width:640px){
+  .verdict{grid-template-columns:1fr;gap:0}
+  .vcell{border-left:none;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;text-align:left}
+  .vcell:first-child{border-top:none}
+  .vcell .vnum{font-size:1.6rem}
+  .vcell > div:last-child{flex:1}
+  .card{padding:15px}
+}
+@media print{
+  header,.tabs,.btn,footer{display:none}
+  .panel{display:block!important}
+  .card{box-shadow:none;break-inside:avoid}
+  .verdict{position:static}
+}
+
+/* ── shared extras for the diagnostic suite ── */
+.rowbtn{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+table input{padding:5px 7px;font-size:.82rem;border-radius:7px;min-width:70px}
+table td{vertical-align:middle}
+.del{background:none;border:none;color:var(--danger);cursor:pointer;font-size:.95rem}
+.gauge{height:9px;border-radius:5px;background:var(--line);overflow:hidden;margin-top:5px}
+.gauge i{display:block;height:100%;border-radius:5px;transition:width .3s}
+.stat{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fcfdfe}
+.stat .big{font-size:1.9rem}
+.verdict2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.verdict2 .vcell{border-left:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a href="../index.html" class="back"><i class="fas fa-arrow-left"></i> กลับหน้ารวมเครื่องมือ</a>
+    <div class="kicker"><i class="fas fa-stethoscope"></i> Troubleshooting · Triple E Technology</div>
+    <h1>Chilled Water ΔT Diagnostic</h1>
+    <p>วินิจฉัย Low Delta T Syndrome ของระบบน้ำเย็น — หาว่าน้ำส่วนไหนไหลผ่านอุปกรณ์
+       โดยไม่ได้แลกเปลี่ยนความร้อนตามที่ควร แล้วแปลงเป็นพลังงานปั๊มที่เสียไป</p>
+  </div>
+</header>
+
+<main>
+
+<div class="verdict2" id="verdict">
+  <div class="vcell"><div class="vlab">ΔT ที่ Plant</div>
+    <div class="vnum mono" id="vDT">–</div><div class="vband" id="vDTb">°C</div></div>
+  <div class="vcell"><div class="vlab">Flow ส่วนเกิน</div>
+    <div class="vnum mono" id="vXF">–</div><div class="vband" id="vXFb">%</div></div>
+  <div class="vcell"><div class="vlab">พลังงานปั๊มส่วนเกิน</div>
+    <div class="vnum mono" id="vXP">–</div><div class="vband" id="vXPb">kW</div></div>
+  <div class="vcell"><div class="vlab">น้ำที่ไม่รับความร้อน</div>
+    <div class="vnum mono" id="vBP">–</div><div class="vband" id="vBPb">% ของ flow</div></div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-t="1"><i class="fas fa-industry"></i> 1 · Plant</div>
+  <div class="tab" data-t="2"><i class="fas fa-shuffle"></i> 2 · หา Bypass</div>
+  <div class="tab" data-t="3"><i class="fas fa-table-list"></i> 3 · ไล่ AHU / FCU</div>
+  <div class="tab" data-t="4"><i class="fas fa-chart-line"></i> 4 · Coil Curve</div>
+  <div class="tab" data-t="5"><i class="fas fa-gauge-high"></i> 5 · DP Reset &amp; Staging</div>
+</div>
+
+<!-- ═══ TAB 1 ═══ -->
+<section class="panel on" data-p="1">
+  <div class="card">
+    <h2>ค่าออกแบบ เทียบ ค่าที่วัดได้จริง</h2>
+    <div class="sub">ใส่ค่าที่ Plant (หลัง header ก่อนออกอาคาร) — ยังไม่ต้องลงราย AHU</div>
+    <div class="grid2">
+      <div class="fuelbox">
+        <h3>Design</h3>
+        <div class="grid3">
+          <div class="fld"><label class="f">CHWS <span class="unit">°C</span></label><input type="number" id="dS" value="7" step="0.1"></div>
+          <div class="fld"><label class="f">CHWR <span class="unit">°C</span></label><input type="number" id="dR" value="12" step="0.1"></div>
+          <div class="fld"><label class="f">Cooling load <span class="unit">kW</span></label><input type="number" id="dQ" value="2000" step="10"></div>
+        </div>
+        <div class="kv"><span>ΔT design</span><b id="kDdt">–</b></div>
+        <div class="kv"><span>Flow ที่ควรเป็น</span><b id="kDfl">–</b></div>
+      </div>
+      <div class="fuelbox">
+        <h3>Actual (วัดจริง)</h3>
+        <div class="grid3">
+          <div class="fld"><label class="f">CHWS <span class="unit">°C</span></label><input type="number" id="aS" value="7" step="0.1"></div>
+          <div class="fld"><label class="f">CHWR <span class="unit">°C</span></label><input type="number" id="aR" value="9.5" step="0.1"></div>
+          <div class="fld"><label class="f">Flow ที่วัดได้ <span class="unit">L/s</span></label><input type="number" id="aF" value="180" step="1"></div>
+        </div>
+        <div class="kv"><span>ΔT actual</span><b id="kAdt">–</b></div>
+        <div class="kv"><span>Load ที่ขนได้จริง</span><b id="kAq">–</b></div>
+      </div>
+    </div>
+    <div id="plantOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>พลังงานปั๊มที่เสียไปกับ flow ส่วนเกิน</h2>
+    <div class="sub">flow ที่เกินความจำเป็นไม่ได้เพิ่มความเย็น แต่กินไฟปั๊มเต็ม ๆ</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">กำลังปั๊มที่วัดได้ตอนนี้ <span class="unit">kW</span></label><input type="number" id="pkW" value="55" step="0.5"></div>
+      <div class="fld"><label class="f">เลขชี้กำลัง n <span class="unit">P ∝ Q ⁿ</span></label><input type="number" id="pN" value="2.4" step="0.1" min="1" max="3"></div>
+      <div class="fld"><label class="f">ชั่วโมงเดินเครื่อง <span class="unit">ชม./ปี</span></label><input type="number" id="pH" value="4000" step="100"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ค่าไฟ <span class="unit">บาท/kWh</span></label><input type="number" id="pRate" value="4.2" step="0.1"></div>
+      <div class="fld"><label class="f">kW/RT ของ Plant ตอนนี้ <span class="unit">kW/RT</span></label><input type="number" id="kwrt" value="1.05" step="0.01"></div>
+    </div>
+    <div id="pumpOut"></div>
+  </div>
+</section>
+
+<!-- ═══ TAB 2 ═══ -->
+<section class="panel" data-p="2">
+  <div class="card">
+    <h2>Plant ΔT เทียบ Chiller ΔT — ตัวชี้ Bypass ที่เร็วที่สุด</h2>
+    <div class="sub">ถ้าน้ำทุกลิตรที่ออกจาก chiller ผ่านคอยล์จริง สองค่านี้ต้องเท่ากัน
+      ต่างกันเมื่อไรแปลว่ามีน้ำวนกลับโดยไม่รับความร้อน</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">Chiller ΔT (ที่เครื่อง) <span class="unit">°C</span></label><input type="number" id="bCh" value="4.5" step="0.1"></div>
+      <div class="fld"><label class="f">Plant ΔT (ที่ header) <span class="unit">°C</span></label><input type="number" id="bPl" value="2.5" step="0.1" readonly></div>
+      <div class="fld"><label class="f">ชนิดระบบ</label>
+        <select id="bSys">
+          <option value="vpf">Variable Primary Flow (VPF)</option>
+          <option value="ps">Primary–Secondary (มี Decoupler)</option>
+          <option value="cpf">Constant Primary Flow</option>
+        </select></div>
+    </div>
+    <div id="bypOut"></div>
+  </div>
+  <div class="card">
+    <h2>ไล่หาจุด bypass</h2>
+    <div class="sub">น้ำเย็นทุกลิตรที่ไหลจาก supply กลับ return โดยไม่รับ heat load ทำให้ Plant ΔT ตก</div>
+    <div id="bypList"></div>
+  </div>
+</section>
+
+<!-- ═══ TAB 3 ═══ -->
+<section class="panel" data-p="3">
+  <div class="card">
+    <h2>ตาราง Performance ราย AHU / FCU</h2>
+    <div class="sub">หาตัวที่ <b>Flow สูง + ΔT ต่ำ</b> — มักมีไม่กี่ตัวที่ลาก Plant ΔT ลงทั้งระบบ
+      แก้ตัวใหญ่ไม่กี่ตัวก็เห็นผลชัด ไม่ต้องแก้ทุกตัวพร้อมกัน</div>
+    <div class="rowbtn">
+      <button class="btn sm" id="addRow"><i class="fas fa-plus"></i> เพิ่มแถว</button>
+      <button class="btn sm ghost" id="demoRow"><i class="fas fa-flask"></i> ใส่ข้อมูลตัวอย่าง</button>
+      <button class="btn sm ghost" id="clrRow"><i class="fas fa-eraser"></i> ล้างตาราง</button>
+    </div>
+    <div class="tbl-wrap"><table id="ahuTbl"></table></div>
+    <div id="ahuOut"></div>
+  </div>
+</section>
+
+<!-- ═══ TAB 4 ═══ -->
+<section class="panel" data-p="4">
+  <div class="card">
+    <h2>เส้นโค้ง Capacity เทียบ Flow ของคอยล์</h2>
+    <div class="sub">เหตุผลเชิงฟิสิกส์ว่าทำไมการเพิ่ม flow เข้าคอยล์ถึงแทบไม่ได้ความเย็นเพิ่ม
+      คำนวณด้วยวิธี ε-NTU ของคอยล์ไหลขวาง</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">EWT ออกแบบ <span class="unit">°C</span></label><input type="number" id="cEWT" value="7" step="0.1"></div>
+      <div class="fld"><label class="f">LWT ออกแบบ <span class="unit">°C</span></label><input type="number" id="cLWT" value="12" step="0.1"></div>
+      <div class="fld"><label class="f">EAT ออกแบบ <span class="unit">°C</span></label><input type="number" id="cEAT" value="26" step="0.1"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">LAT ออกแบบ <span class="unit">°C</span></label><input type="number" id="cLAT" value="13" step="0.1"></div>
+      <div class="fld"><label class="f">สัดส่วนความต้านทานฝั่งน้ำ <span class="unit">0–1</span></label><input type="number" id="cRw" value="0.25" step="0.05" min="0.05" max="0.9"></div>
+      <div class="fld"><label class="f">Flow จริงที่คอยล์ <span class="unit">% ของ design</span></label><input type="number" id="cX" value="180" step="5" min="20" max="300"></div>
+    </div>
+    <div id="coilOut"></div>
+  </div>
+</section>
+
+<!-- ═══ TAB 5 ═══ -->
+<section class="panel" data-p="5">
+  <div class="card">
+    <h2>ศักยภาพ DP Reset (Trim &amp; Respond)</h2>
+    <div class="sub">ถ้า valve ทุกตัวเปิดแค่ 20–40 % แปลว่าปั๊มสร้างแรงดันเกินความจำเป็น</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">DP setpoint ปัจจุบัน <span class="unit">kPa</span></label><input type="number" id="dpNow" value="220" step="5"></div>
+      <div class="fld"><label class="f">Valve ที่เปิดกว้างที่สุดตอนนี้ <span class="unit">%</span></label><input type="number" id="vMax" value="45" step="1" min="1" max="100"></div>
+      <div class="fld"><label class="f">เป้าหมาย valve เปิด <span class="unit">%</span></label><input type="number" id="vTgt" value="90" step="1" min="50" max="100"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">DP ต่ำสุดที่ยอมได้ <span class="unit">kPa</span></label><input type="number" id="dpMin" value="70" step="5"></div>
+      <div class="fld"><label class="f">สัดส่วน DP ที่เป็น static (ไม่ลดตาม flow) <span class="unit">0–1</span></label><input type="number" id="dpStat" value="0.3" step="0.05" min="0" max="0.9"></div>
+    </div>
+    <div id="dpOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>Chiller Staging — เปิดเครื่องเพราะ Load หรือเพราะ Flow?</h2>
+    <div class="sub">อาการคลาสสิกของ Low ΔT คือ chiller ถูกสั่งเปิดเพิ่มทั้งที่ load จริงยังไม่ถึง</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">จำนวน chiller ที่เดินอยู่</label><input type="number" id="nCh" value="2" step="1" min="1" max="12"></div>
+      <div class="fld"><label class="f">Design flow ต่อเครื่อง <span class="unit">L/s</span></label><input type="number" id="chFl" value="100" step="1"></div>
+      <div class="fld"><label class="f">Capacity ต่อเครื่อง <span class="unit">kW</span></label><input type="number" id="chCap" value="2100" step="10"></div>
+    </div>
+    <div id="stgOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>สรุปสำหรับใส่รายงาน</h2>
+    <button class="btn ghost sm" id="btnCopy"><i class="fas fa-copy"></i> คัดลอกสรุป</button>
+    <button class="btn ghost sm" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์ / บันทึก PDF</button>
+    <div id="repOut" style="margin-top:12px"></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><b>Triple E Technology Co., Ltd.</b> — Chilled Water ΔT Diagnostic</p>
+  <p style="margin-top:5px">ตรวจสอบและสอบเทียบ sensor ก่อนสรุปผลเสมอ — sensor คลาดเคลื่อน ±0.5 °C บนระบบ ΔT = 5 °C
+     คือความคลาดเคลื่อนของผลลัพธ์ถึง ±14–20 %</p>
+</footer>
+
+<script>
+const $=id=>document.getElementById(id);
+const V=id=>parseFloat($(id).value)||0;
+const CPV=4.19;                      // kJ per litre per K ที่ 7–12 °C
+const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed(d===undefined?2:d);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pill=(i,t)=>`<span class="pill p${i}">${t}</span>`;
+const money=v=>isFinite(v)?Math.round(v).toLocaleString('th-TH'):'–';
+
+/* ── ε-NTU คอยล์ไหลขวาง (ทั้งสองฝั่งไม่ผสม) ── */
+function effCross(NTU,Cr){
+  if(NTU<=0) return 0;
+  if(Cr<1e-6) return 1-Math.exp(-NTU);
+  const e=1-Math.exp((1/Cr)*Math.pow(NTU,0.22)*(Math.exp(-Cr*Math.pow(NTU,0.78))-1));
+  return clamp(e,0,1);
+}
+function ntuFromEff(eps,Cr){       // bisection
+  let lo=0.001, hi=25;
+  for(let i=0;i<80;i++){ const m=(lo+hi)/2; (effCross(m,Cr)<eps)?lo=m:hi=m; }
+  return (lo+hi)/2;
+}
+/* คำนวณเส้นโค้ง capacity vs flow */
+function coilCurve(EWT,LWT,EAT,LAT,Rw){
+  const dTw=LWT-EWT, dTa=EAT-LAT, dTmax=EAT-EWT;
+  if(!(dTw>0&&dTa>0&&dTmax>0)) return null;
+  const Cw=1/dTw, Ca=1/dTa;                      // ต่อ Q = 1
+  const Cmin=Math.min(Cw,Ca), Cmax=Math.max(Cw,Ca);
+  const Cr=Cmin/Cmax;
+  const eps=1/(Cmin*dTmax);
+  if(eps>=1) return null;
+  const NTU=ntuFromEff(eps,Cr), UA=NTU*Cmin;
+  const pts=[];
+  for(let x=0.2;x<=3.001;x+=0.05){
+    const Cw2=Cw*x;
+    const UA2=UA/(Rw*Math.pow(x,-0.8)+(1-Rw));
+    const Cmin2=Math.min(Cw2,Ca), Cmax2=Math.max(Cw2,Ca);
+    const e2=effCross(UA2/Cmin2, Cmin2/Cmax2);
+    const Q2=e2*Cmin2*dTmax;
+    const lwt2=EWT+Q2/Cw2;
+    pts.push({x, q:Q2, dt:lwt2-EWT, lwt:lwt2});
+  }
+  return {NTU,UA,Cr,eps,Cw,Ca,pts,dTw,dTmax};
+}
+function atX(cc,x){
+  let best=cc.pts[0];
+  cc.pts.forEach(p=>{ if(Math.abs(p.x-x)<Math.abs(best.x-x)) best=p; });
+  return best;
+}
+
+/* ── SVG กราฟเส้นเล็ก ── */
+function lineChart(series,opt){
+  const W=680,H=260,L=52,R=14,T=14,B=34;
+  const xs=[].concat(...series.map(s=>s.p.map(q=>q[0])));
+  const ys=[].concat(...series.map(s=>s.p.map(q=>q[1])));
+  const x0=opt.x0!==undefined?opt.x0:Math.min(...xs), x1=opt.x1!==undefined?opt.x1:Math.max(...xs);
+  const y0=opt.y0!==undefined?opt.y0:0, y1=opt.y1!==undefined?opt.y1:Math.max(...ys)*1.1;
+  const px=v=>L+(v-x0)/(x1-x0)*(W-L-R), py=v=>H-B-(v-y0)/(y1-y0)*(H-T-B);
+  let g='';
+  for(let i=0;i<=4;i++){
+    const yv=y0+(y1-y0)*i/4, xv=x0+(x1-x0)*i/4;
+    g+=`<line x1="${L}" y1="${py(yv).toFixed(1)}" x2="${W-R}" y2="${py(yv).toFixed(1)}" stroke="#e2e8f0"/>`;
+    g+=`<text x="${L-6}" y="${(py(yv)+4).toFixed(1)}" text-anchor="end" font-size="10" fill="#5b6b7b">${fmt(yv,opt.yd||0)}</text>`;
+    g+=`<text x="${px(xv).toFixed(1)}" y="${H-B+16}" text-anchor="middle" font-size="10" fill="#5b6b7b">${fmt(xv,opt.xd||0)}</text>`;
+  }
+  series.forEach(s=>{
+    g+=`<polyline fill="none" stroke="${s.c}" stroke-width="2.2" points="${
+      s.p.map(q=>`${px(q[0]).toFixed(1)},${py(q[1]).toFixed(1)}`).join(' ')}"/>`;
+  });
+  (opt.marks||[]).forEach(m=>{
+    g+=`<line x1="${px(m.x).toFixed(1)}" y1="${T}" x2="${px(m.x).toFixed(1)}" y2="${H-B}"
+         stroke="${m.c}" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <text x="${(px(m.x)+5).toFixed(1)}" y="${T+12}" font-size="10" fill="${m.c}">${m.t}</text>`;
+  });
+  const leg=series.filter(s=>s.n).map((s,i)=>
+    `<rect x="${L+i*140}" y="${H-10}" width="12" height="3" fill="${s.c}"/>
+     <text x="${L+i*140+17}" y="${H-6}" font-size="10" fill="#5b6b7b">${s.n}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H+8}" style="width:100%;height:auto;font-family:'IBM Plex Mono',monospace">
+    <text x="6" y="${T+2}" font-size="10" fill="#5b6b7b" transform="rotate(-90 10 ${H/2})">${opt.yl||''}</text>
+    ${g}${leg}
+    <text x="${W/2}" y="${H+4}" text-anchor="middle" font-size="10" fill="#5b6b7b">${opt.xl||''}</text></svg>`;
+}
+
+/* ── ตาราง AHU ── */
+const AHUCOLS=['ชื่อ','Design flow L/s','Actual flow L/s','EWT °C','LWT °C','Valve %'];
+let AHU=[];
+function drawAhu(){
+  const t=$('ahuTbl');
+  t.innerHTML=`<tr>${AHUCOLS.map((c,i)=>`<th class="${i?'n':''}">${c}</th>`).join('')}
+    <th class="n">ΔT</th><th class="n">Flow/Design</th><th>สถานะ</th><th></th></tr>`+
+    AHU.map((r,i)=>{
+      const dt=(+r[4])-(+r[3]);
+      const fr=(+r[1])>0?(+r[2])/(+r[1]):null;
+      let lvl=0,txt='ปกติ';
+      if(fr!==null){
+        if(fr>1.3&&dt<3){lvl=3;txt='Overflow รุนแรง';}
+        else if(fr>1.15&&dt<4){lvl=2;txt='Overflow';}
+        else if(fr<0.6&&dt>6){lvl=1;txt='Starved';}
+        else if(dt<3){lvl=1;txt='ΔT ต่ำ';}
+      }
+      return `<tr${lvl>=2?' class="hl"':''}>
+        ${r.map((v,j)=>`<td${j?' class="n"':''}><input type="${j?'number':'text'}" data-i="${i}" data-j="${j}" value="${v}" step="0.1"></td>`).join('')}
+        <td class="n">${fmt(dt,1)}</td><td class="n">${fr===null?'–':fmt(fr,2)}</td>
+        <td>${pill(lvl,txt)}</td>
+        <td><button class="del" data-del="${i}"><i class="fas fa-xmark"></i></button></td></tr>`;
+    }).join('');
+  t.querySelectorAll('input').forEach(x=>x.addEventListener('input',e=>{
+    AHU[+e.target.dataset.i][+e.target.dataset.j]=e.target.value; calc();
+  }));
+  t.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{
+    AHU.splice(+e.currentTarget.dataset.del,1); drawAhu(); calc();
+  }));
+}
+
+/* ══════════ MAIN ══════════ */
+function calc(){
+  /* -- Plant -- */
+  const dS=V('dS'),dR=V('dR'),dQ=V('dQ'),aS=V('aS'),aR=V('aR'),aF=V('aF');
+  const dDT=dR-dS, aDT=aR-aS;
+  const dFlow=dDT>0?dQ/(CPV*dDT):0;
+  const aQ=CPV*aF*aDT;
+  const reqFlow=dDT>0?aQ/(CPV*dDT):0;              // flow ที่ควรใช้ขน load เดียวกัน
+  const xsFlow=reqFlow>0?(aF-reqFlow)/reqFlow*100:0;
+  $('kDdt').textContent=fmt(dDT,2)+' °C';
+  $('kDfl').textContent=fmt(dFlow,1)+' L/s';
+  $('kAdt').textContent=fmt(aDT,2)+' °C';
+  $('kAq').textContent=fmt(aQ,0)+' kW  ('+fmt(aQ/3.517,0)+' RT)';
+  $('bPl').value=aDT.toFixed(2);
+
+  const dtRatio=dDT>0?aDT/dDT:0;
+  let lvl = dtRatio>=0.9?0 : (dtRatio>=0.75?1 : (dtRatio>=0.55?2:3));
+  const LAB=['ปกติ','เริ่มเสื่อม','Low ΔT ชัดเจน','Low ΔT รุนแรง'];
+  $('plantOut').innerHTML=`
+   <div class="grid4" style="margin-top:14px">
+     <div class="stat"><div class="big s${lvl}">${fmt(aDT,1)}</div><div class="bigu">ΔT actual · °C</div>
+       <div class="gauge"><i class="b${lvl}" style="width:${clamp(dtRatio*100,0,100)}%"></i></div></div>
+     <div class="stat"><div class="big">${fmt(dtRatio*100,0)}</div><div class="bigu">% ของ ΔT ออกแบบ</div></div>
+     <div class="stat"><div class="big">${fmt(reqFlow,1)}</div><div class="bigu">Flow ที่ควรใช้ · L/s</div></div>
+     <div class="stat"><div class="big s${xsFlow>15?2:0}">${xsFlow>0?'+':''}${fmt(xsFlow,0)}</div><div class="bigu">Flow ส่วนเกิน · %</div></div>
+   </div>
+   <div class="note ${lvl>=2?'bad':(lvl===1?'warn':'good')}">
+     <b>${LAB[lvl]}</b> — ระบบขน load ได้ ${fmt(aQ,0)} kW ด้วย flow ${fmt(aF,1)} L/s
+     ถ้า ΔT ทำได้ตามออกแบบ (${fmt(dDT,1)} °C) load เท่านี้ต้องการเพียง ${fmt(reqFlow,1)} L/s
+     ${xsFlow>5?`— ส่วนเกิน <b>${fmt(aF-reqFlow,1)} L/s (${fmt(xsFlow,0)} %)</b> คือน้ำที่ไหลผ่านระบบโดยแทบไม่ได้รับความร้อน`:''}
+   </div>
+   ${lvl>=2?`<div class="note warn"><b>สิ่งที่ไม่ควรทำเป็นอย่างแรก</b> — อย่าเพิ่งเพิ่มรอบปั๊ม
+     เพราะ flow ที่มากขึ้นจะทำให้น้ำแต่ละกิโลกรัมรับความร้อนน้อยลงอีก ΔT จะยิ่งตก
+     กลายเป็นวงจร: ΔT ต่ำ → เพิ่ม flow → DP สูง → coil overflow → ΔT ต่ำกว่าเดิม</div>`:''}`;
+
+  /* -- Pump -- */
+  const pk=V('pkW'), n=V('pN'), hrs=V('pH'), rate=V('pRate');
+  const ratio=aF>0?reqFlow/aF:1;
+  const idealkW=pk*Math.pow(clamp(ratio,0.05,1),n);
+  const savekW=pk-idealkW;
+  const saveBaht=savekW*hrs*rate;
+  const rt=aQ/3.517, kwrt=V('kwrt');
+  const pumpShareRT=rt>0?savekW/rt:0;
+  $('pumpOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${fmt(idealkW,1)}</div><div class="bigu">กำลังปั๊มถ้า flow พอดี · kW</div></div>
+     <div class="stat"><div class="big s${savekW>2?2:0}">${fmt(savekW,1)}</div><div class="bigu">กำลังที่เสียเปล่า · kW</div></div>
+     <div class="stat"><div class="big">${fmt(savekW/pk*100,0)}</div><div class="bigu">% ของกำลังปั๊ม</div></div>
+     <div class="stat"><div class="big">${money(saveBaht)}</div><div class="bigu">บาท/ปี</div></div>
+   </div>
+   <div class="note">
+     <b>สมมุติฐาน</b> — ใช้ P ∝ Q<sup>${fmt(n,1)}</sup> ไม่ใช่ Q³ เต็มรูป เพราะระบบที่คุมด้วย DP setpoint คงที่
+     จะมีส่วน static head ที่ไม่ลดตาม flow เส้นโค้งจริงจึงชันน้อยกว่ากฎ affinity
+     (ใช้ 2.2–2.6 สำหรับระบบ DP คงที่, 2.7–3.0 สำหรับระบบที่ทำ DP reset ดีแล้ว)<br>
+     ${pumpShareRT>0.01?`คิดเป็น <b>${fmt(pumpShareRT,3)} kW/RT</b> จากค่า plant ปัจจุบัน ${fmt(kwrt,2)} kW/RT
+     หรือประมาณ ${fmt(pumpShareRT/kwrt*100,1)} % ของประสิทธิภาพรวมทั้ง plant`:''}
+   </div>`;
+
+  /* -- Bypass -- */
+  const chDT=V('bCh'), sys=$('bSys').value;
+  const byp=chDT>0?clamp(1-aDT/chDT,0,1):0;
+  const bypFlow=byp*aF;
+  let bl = byp<0.05?0 : (byp<0.15?1 : (byp<0.3?2:3));
+  const sysTxt={
+    vpf:`ระบบ VPF ไม่ควรมี bypass เลยยกเว้น minimum-flow line ตอนโหลดต่ำ
+         ถ้าเจอ bypass ตอนโหลดกลาง-สูง ให้สงสัย minimum flow valve ที่ modulate ค้างหรือรั่วเป็นอันดับแรก`,
+    ps:`ระบบ Primary–Secondary: ถ้า secondary flow สูงกว่า primary น้ำ return จะถูกดูดย้อนผ่าน decoupler
+        มาผสมกับ supply ทำให้อุณหภูมิ supply ที่ส่งไปอาคารสูงขึ้น ระบบควบคุมจึงสั่งเปิด chiller เพิ่ม
+        — เป็นการเปิดเพราะ flow demand ไม่ใช่ cooling load demand`,
+    cpf:`ระบบ Constant Primary Flow ที่ใช้ three-way valve จะมี bypass ตามธรรมชาติเมื่อโหลดลด
+         ค่าที่คำนวณได้จึงสะท้อนสัดส่วนน้ำที่ผ่าน bypass port ของ three-way ทั้งระบบ`};
+  $('bypOut').innerHTML=`
+   <div class="grid3" style="margin-top:12px">
+     <div class="stat"><div class="big s${bl}">${fmt(byp*100,1)}</div><div class="bigu">% น้ำที่ไม่ได้รับความร้อน</div>
+       <div class="gauge"><i class="b${bl}" style="width:${clamp(byp*100,0,100)}%"></i></div></div>
+     <div class="stat"><div class="big">${fmt(bypFlow,1)}</div><div class="bigu">Bypass flow · L/s</div></div>
+     <div class="stat" style="display:flex;align-items:center">${pill(bl,['ไม่พบ bypass','เล็กน้อย','ชัดเจน','รุนแรง'][bl])}</div>
+   </div>
+   <div class="note ${bl>=2?'bad':(bl===1?'warn':'good')}">
+     Chiller ΔT = ${fmt(chDT,2)} °C แต่ Plant ΔT = ${fmt(aDT,2)} °C
+     ${bl===0?'— สองค่าใกล้กัน แสดงว่าน้ำเกือบทั้งหมดผ่านคอยล์จริง ปัญหา ΔT ต่ำน่าจะอยู่ที่คอยล์ ไม่ใช่ bypass'
+      :`— ส่วนต่างนี้แปลว่ามีน้ำประมาณ <b>${fmt(bypFlow,1)} L/s</b> ที่วิ่งจาก supply กลับ return
+        โดยไม่ผ่าน load ใด ๆ`}
+   </div>
+   <div class="note">${sysTxt[sys]}</div>`;
+
+  const bypItems=[
+    ['Three-way valve ที่ AHU/FCU','เมื่อโหลดลด valve เปลี่ยนทิศให้น้ำ bypass คอยล์แล้วไหลกลับ return โดยตรง น้ำส่วนนี้แทบไม่ได้รับความร้อนเลย'],
+    ['Minimum flow bypass ของ VPF','ถ้า modulate ค้างหรือ seat รั่ว จะเป็น decoupler จำลองที่ลาก ΔT ลงตลอด 24 ชั่วโมง'],
+    ['Decoupler / common pipe','ตรวจทิศทางการไหล ถ้าไหลย้อนแปลว่า secondary flow เกิน primary'],
+    ['Valve seat leakage','คำสั่งเป็น 0 % ไม่ได้แปลว่า flow เป็นศูนย์ — ตรวจ close-off rating เทียบ DP จริงที่ตัว valve'],
+    ['Drain / flushing bypass ที่เปิดค้าง','จากงาน commissioning หรือซ่อมบำรุงแล้วลืมปิด พบบ่อยกว่าที่คิด'],
+    ['คอยล์ที่ต่อท่อผิดทิศ (parallel แทน counterflow)','ทำ ΔT ตกทันที 30–40 % โดยไม่มีอะไรเสียเลย ตรวจง่ายมากแต่มักถูกมองข้าม']];
+  $('bypList').innerHTML=bypItems.map(x=>
+    `<div class="zone"><div class="zi" style="background:var(--accent)"><i class="fas fa-magnifying-glass"></i></div>
+     <div class="zt"><b>${x[0]}</b><span>${x[1]}</span></div></div>`).join('');
+
+  /* -- AHU -- */
+  if(AHU.length){
+    const rows=AHU.map(r=>({name:r[0],df:+r[1],af:+r[2],ewt:+r[3],lwt:+r[4],vp:+r[5]}))
+      .filter(r=>r.af>0);
+    let tf=0, tq=0, over=[];
+    rows.forEach(r=>{ r.dt=r.lwt-r.ewt; r.q=CPV*r.af*r.dt; r.fr=r.df>0?r.af/r.df:null;
+      r.excess=r.df>0?Math.max(0,r.af-r.df):0; tf+=r.af; tq+=r.q; });
+    const mixDT=tf>0?tq/(CPV*tf):0;
+    rows.sort((a,b)=>b.excess-a.excess);
+    const top=rows.slice(0,3);
+    const totalExcess=rows.reduce((a,r)=>a+r.excess,0);
+    // ΔT ที่จะได้ถ้าจำกัด flow ทุกตัวไม่ให้เกิน design
+    let tf2=0,tq2=0;
+    rows.forEach(r=>{ const f=r.df>0?Math.min(r.af,r.df):r.af; tf2+=f; tq2+=r.q; });
+    const dt2=tf2>0?tq2/(CPV*tf2):0;
+    $('ahuOut').innerHTML=`
+     <div class="grid4" style="margin-top:14px">
+       <div class="stat"><div class="big">${fmt(tf,1)}</div><div class="bigu">Flow รวม · L/s</div></div>
+       <div class="stat"><div class="big">${fmt(mixDT,2)}</div><div class="bigu">ΔT ผสมที่ได้ · °C</div></div>
+       <div class="stat"><div class="big s2">${fmt(totalExcess,1)}</div><div class="bigu">Flow ส่วนเกินรวม · L/s</div></div>
+       <div class="stat"><div class="big s0">${fmt(dt2,2)}</div><div class="bigu">ΔT ถ้าจำกัด flow · °C</div></div>
+     </div>
+     ${top.length&&totalExcess>0?`<div class="note warn">
+       <b>สามตัวที่ลาก ΔT ลงมากที่สุด</b><br>
+       ${top.map((r,i)=>`${i+1}. <b>${r.name||'(ไม่ระบุชื่อ)'}</b> — flow เกิน ${fmt(r.excess,1)} L/s
+         (${fmt(r.fr*100,0)} % ของ design) ที่ ΔT เพียง ${fmt(r.dt,1)} °C`).join('<br>')}
+       <br><br>รวมสามตัวนี้คิดเป็น ${fmt(top.reduce((a,r)=>a+r.excess,0)/totalExcess*100,0)} % ของ flow ส่วนเกินทั้งหมด
+       — แก้เฉพาะกลุ่มนี้ก็เห็นผลที่ Plant ΔT ชัดแล้ว ไม่ต้องไล่ทุกตัวพร้อมกัน</div>`:''}
+     <div class="note">ถ้าจำกัดไม่ให้คอยล์รับน้ำเกิน design flow (balancing valve, PICV หรือ flow limiter)
+       ΔT ผสมจะขึ้นจาก ${fmt(mixDT,2)} เป็น ${fmt(dt2,2)} °C
+       และ flow รวมลดจาก ${fmt(tf,1)} เหลือ ${fmt(tf2,1)} L/s</div>`;
+  } else $('ahuOut').innerHTML='<div class="note">ยังไม่มีข้อมูล — กด “ใส่ข้อมูลตัวอย่าง” เพื่อดูวิธีใช้</div>';
+
+  /* -- Coil curve -- */
+  const cc=coilCurve(V('cEWT'),V('cLWT'),V('cEAT'),V('cLAT'),V('cRw'));
+  if(cc){
+    const x=clamp(V('cX')/100,0.2,3);
+    const at=atX(cc,x), at1=atX(cc,1), at05=atX(cc,0.5), at15=atX(cc,1.5);
+    $('coilOut').innerHTML=`
+     <div style="margin-top:14px">${lineChart(
+       [{p:cc.pts.map(p=>[p.x*100,p.q/at1.q*100]),c:'#12a4a4',n:'Capacity (% ของ design)'},
+        {p:cc.pts.map(p=>[p.x*100,p.dt/cc.dTw*100]),c:'#d1495b',n:'ΔT น้ำ (% ของ design)'}],
+       {x0:20,x1:300,y0:0,y1:170,xl:'Flow ที่คอยล์ (% ของ design)',yl:'',xd:0,yd:0,
+        marks:[{x:100,c:'#5b6b7b',t:'design'},{x:x*100,c:'#e08a00',t:'ตอนนี้'}]})}</div>
+     <div class="grid4" style="margin-top:12px">
+       <div class="stat"><div class="big">${fmt(at.q/at1.q*100,1)}</div><div class="bigu">Capacity ที่ได้ · % ของ design</div></div>
+       <div class="stat"><div class="big s2">${fmt(at.dt,2)}</div><div class="bigu">ΔT น้ำที่ได้ · °C</div></div>
+       <div class="stat"><div class="big">${fmt(at.lwt,2)}</div><div class="bigu">LWT · °C</div></div>
+       <div class="stat"><div class="big">${fmt(cc.NTU,2)}</div><div class="bigu">NTU ออกแบบ</div></div>
+     </div>
+     <div class="note bad">
+       <b>นี่คือหัวใจของเรื่องทั้งหมด</b> — ที่ flow ${fmt(x*100,0)} % ของ design
+       คอยล์ให้ capacity ${fmt(at.q/at1.q*100,1)} % เท่านั้น
+       ขณะที่ที่ flow 50 % ยังให้ได้ถึง ${fmt(at05.q/at1.q*100,1)} %
+       และที่ flow 150 % ได้เพียง ${fmt(at15.q/at1.q*100,1)} %<br>
+       แปลว่าน้ำที่เกิน design ไปครึ่งหนึ่ง แลกมาด้วย capacity เพิ่มแค่
+       ${fmt(at15.q/at1.q*100-100,1)} % — แต่กินพลังงานปั๊มเต็มจำนวน
+       เพราะ capacity ของคอยล์ถูกจำกัดด้วย UA และฝั่งอากาศ ไม่ใช่ปริมาณน้ำ
+     </div>
+     <div class="note">
+       <b>วิธีคำนวณ</b> — ε-NTU สำหรับคอยล์ไหลขวางทั้งสองฝั่งไม่ผสม
+       โดยความต้านทานฝั่งน้ำแปรตาม h ∝ v<sup>0.8</sup> (Dittus–Boelter)
+       ตั้งต้นด้วยสัดส่วนความต้านทานฝั่งน้ำ ${fmt(V('cRw')*100,0)} % ของทั้งหมด
+       (คอยล์น้ำเย็นทั่วไปอยู่ที่ 15–35 % — ยิ่งต่ำแปลว่าฝั่งอากาศเป็นตัวจำกัดมากขึ้น
+       และการเพิ่ม flow ยิ่งไร้ประโยชน์)
+     </div>`;
+  } else $('coilOut').innerHTML='<div class="note bad">ค่าที่ใส่ไม่สมเหตุสมผล — ตรวจว่า EAT &gt; LAT &gt; LWT &gt; EWT</div>';
+
+  /* -- DP reset -- */
+  const dpN=V('dpNow'), vM=V('vMax'), vT=V('vTgt'), dpMn=V('dpMin'), st=V('dpStat');
+  const dpNew=clamp(dpN*Math.pow(vM/vT,2),dpMn,dpN);
+  const dyn0=dpN*(1-st), dyn1=Math.max(dpNew-dpN*st,0);
+  const flowRatio=dyn0>0?Math.sqrt(clamp(dyn1/dyn0,0,1)):1;
+  const pkW2=V('pkW')*Math.pow(flowRatio,V('pN'));
+  const dpSave=(V('pkW')-pkW2)*V('pH')*V('pRate');
+  $('dpOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${fmt(dpNew,0)}</div><div class="bigu">DP setpoint ใหม่ · kPa</div></div>
+     <div class="stat"><div class="big">${fmt((dpN-dpNew)/dpN*100,0)}</div><div class="bigu">ลดลง · %</div></div>
+     <div class="stat"><div class="big s0">${fmt(V('pkW')-pkW2,1)}</div><div class="bigu">ประหยัดปั๊ม · kW</div></div>
+     <div class="stat"><div class="big">${money(dpSave)}</div><div class="bigu">บาท/ปี</div></div>
+   </div>
+   <div class="note ${vM<70?'warn':'good'}">
+     ${vM<70?`<b>Valve ที่เปิดกว้างที่สุดเปิดแค่ ${fmt(vM,0)} %</b> — แปลว่าปั๊มสร้าง DP เกินความจำเป็น
+       ทุกตัวจึงต้องหรี่ตัวเองลงเพื่อกันน้ำเกิน ซึ่งเป็นการเผาพลังงานปั๊มทิ้งที่ตัว valve โดยตรง
+       และทำให้ valve ทำงานในช่วงที่ควบคุมยาก (hunting)`
+      :`Valve เปิดกว้างพอสมควรแล้ว ศักยภาพจาก DP reset จึงจำกัด — ไปดูที่ balancing และ valve sizing แทน`}
+   </div>
+   <div class="note">
+     <b>แนวคิด Trim &amp; Respond</b> — ค่อย ๆ ลด DP setpoint ลงทีละน้อยจนกระทั่ง valve ที่ต้องการน้ำมากที่สุด
+     เปิดประมาณ ${fmt(vT,0)} % แล้วหยุด ถ้ามี valve ตัวใดร้องขอเพิ่ม ค่อยดัน setpoint กลับขึ้น
+     ผลพลอยได้คือ overflow ลดลงเอง ΔT จึงดีขึ้นพร้อมกับที่ปั๊มกินไฟน้อยลง — แก้สองเรื่องด้วยมาตรการเดียว
+   </div>`;
+
+  /* -- Staging -- */
+  const nc=V('nCh'), cf=V('chFl'), cap=V('chCap');
+  const nByFlow=cf>0?Math.ceil(aF/cf):0, nByLoad=cap>0?Math.ceil(aQ/cap):0;
+  const extra=Math.max(0,nByFlow-nByLoad);
+  $('stgOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${nByLoad}</div><div class="bigu">ต้องการตาม Cooling Load</div></div>
+     <div class="stat"><div class="big s${extra>0?2:0}">${nByFlow}</div><div class="bigu">ต้องการตาม Flow</div></div>
+     <div class="stat"><div class="big">${nc}</div><div class="bigu">ที่เดินอยู่จริง</div></div>
+     <div class="stat"><div class="big">${fmt(cap>0?aQ/(nc*cap)*100:0,0)}</div><div class="bigu">Part load เฉลี่ย · %</div></div>
+   </div>
+   <div class="note ${extra>0?'bad':'good'}">
+     ${extra>0?`<b>Premature Chiller Staging — เปิดเกินมา ${extra} เครื่องเพราะ flow ไม่ใช่เพราะ load</b><br>
+       Cooling load จริง ${fmt(aQ,0)} kW ต้องการ chiller เพียง ${nByLoad} เครื่อง
+       แต่ flow ${fmt(aF,1)} L/s บังคับให้ต้องเปิด ${nByFlow} เครื่องเพื่อรองรับ flow demand<br>
+       ผลที่ตามมาไม่ใช่แค่ที่ chiller — CHWP, CDWP และ cooling tower fan ของเครื่องที่เปิดเกิน
+       ต้องเดินตามทั้งชุด ซึ่งมักเป็นต้นทุนที่ใหญ่กว่าตัว chiller เอง`
+      :`จำนวน chiller ที่ต้องการตาม flow และตาม load ตรงกัน — ไม่พบอาการ premature staging`}
+   </div>
+   <div class="note">
+     <b>ข้อควรระวังในการตีความ part load</b> — centrifugal chiller ที่มี VSD หลายรุ่นมี kW/RT
+     ดีที่สุดที่ราว 40–70 % PLR เมื่ออุณหภูมิน้ำหล่อเย็นต่ำ ดังนั้น part load ต่ำไม่ได้แปลว่าแย่เสมอไป
+     โทษที่แท้จริงของ premature staging คือ fixed loss ที่เพิ่มตามจำนวนเครื่อง
+     บวกกับปั๊มและหอผึ่งที่เดินเพิ่มทั้งชุด และความเสี่ยง surge ที่ PLR ต่ำมาก
+   </div>`;
+
+  /* -- verdict strip -- */
+  $('vDT').textContent=fmt(aDT,2); $('vDT').className='vnum mono s'+lvl;
+  $('vDTb').innerHTML=`ออกแบบ ${fmt(dDT,1)} °C · ${pill(lvl,LAB[lvl])}`;
+  const xl = xsFlow<10?0:(xsFlow<30?1:(xsFlow<60?2:3));
+  $('vXF').textContent=(xsFlow>0?'+':'')+fmt(xsFlow,0); $('vXF').className='vnum mono s'+xl;
+  $('vXFb').textContent=`${fmt(aF,1)} L/s ที่ควรเป็น ${fmt(reqFlow,1)}`;
+  const pl = savekW/pk<0.1?0:(savekW/pk<0.3?1:(savekW/pk<0.55?2:3));
+  $('vXP').textContent=fmt(savekW,1); $('vXP').className='vnum mono s'+pl;
+  $('vXPb').textContent=`kW · ${money(saveBaht)} บาท/ปี`;
+  $('vBP').textContent=fmt(byp*100,1); $('vBP').className='vnum mono s'+bl;
+  $('vBPb').textContent=`% · ${fmt(bypFlow,1)} L/s ที่ไม่รับความร้อน`;
+
+  /* -- report -- */
+  $('repOut').innerHTML=`<pre class="mono" id="repTxt" style="white-space:pre-wrap;font-size:.78rem;
+   background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto">${
+`ผลวินิจฉัย Low Delta T Syndrome — ระบบน้ำเย็น
+
+ค่าออกแบบ    CHWS ${fmt(dS,1)} / CHWR ${fmt(dR,1)} °C   ΔT ${fmt(dDT,2)} °C   Load ${fmt(dQ,0)} kW
+ค่าที่วัดได้  CHWS ${fmt(aS,1)} / CHWR ${fmt(aR,1)} °C   ΔT ${fmt(aDT,2)} °C   Flow ${fmt(aF,1)} L/s
+
+  ΔT เทียบออกแบบ         ${fmt(dtRatio*100,0)} %   (${LAB[lvl]})
+  Load ที่ขนได้จริง        ${fmt(aQ,0)} kW  (${fmt(aQ/3.517,0)} RT)
+  Flow ที่ควรใช้           ${fmt(reqFlow,1)} L/s
+  Flow ส่วนเกิน            ${fmt(aF-reqFlow,1)} L/s  (${fmt(xsFlow,0)} %)
+  กำลังปั๊มที่เสียเปล่า      ${fmt(savekW,1)} kW  =  ${money(saveBaht)} บาท/ปี
+
+Bypass
+  Chiller ΔT              ${fmt(chDT,2)} °C
+  Plant ΔT                ${fmt(aDT,2)} °C
+  น้ำที่ไม่รับความร้อน       ${fmt(byp*100,1)} %  (${fmt(bypFlow,1)} L/s)
+
+DP Reset
+  DP ปัจจุบัน / เป้าหมาย    ${fmt(dpN,0)} → ${fmt(dpNew,0)} kPa
+  ประหยัดเพิ่ม             ${fmt(V('pkW')-pkW2,1)} kW  =  ${money(dpSave)} บาท/ปี
+
+Chiller Staging
+  ต้องการตาม load          ${nByLoad} เครื่อง
+  ต้องการตาม flow          ${nByFlow} เครื่อง
+  เดินอยู่จริง              ${nc} เครื่อง${extra>0?`   ← เปิดเกิน ${extra} เครื่องเพราะ flow`:''}
+
+หมายเหตุ: ก่อนสรุปผล ต้องสอบเทียบ CHWS/CHWR sensor, flow meter, DP sensor และ valve
+position feedback ก่อนเสมอ — ข้อมูลผิดนำไปสู่การวินิจฉัยผิดได้ทุกครั้ง`}</pre>`;
+}
+
+/* ── init ── */
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  document.querySelector(`.panel[data-p="${t.dataset.t}"]`).classList.add('on');
+}));
+document.querySelectorAll('input,select').forEach(x=>{
+  x.addEventListener('input',calc); x.addEventListener('change',calc);
+});
+$('addRow').addEventListener('click',()=>{ AHU.push(['AHU-'+(AHU.length+1),5,5,7,12,50]); drawAhu(); calc(); });
+$('clrRow').addEventListener('click',()=>{ AHU=[]; drawAhu(); calc(); });
+$('demoRow').addEventListener('click',()=>{
+  AHU=[['AHU-1 ชั้น 3',12,21,7.1,9.0,38],['AHU-2 ชั้น 3',12,13,7.1,11.4,62],
+       ['AHU-3 โถง',20,34,7.2,8.8,41],['AHU-4 ห้องประชุม',6,6.2,7.1,11.8,70],
+       ['FCU กลุ่มโซน A',9,15,7.2,8.9,45],['AHU-5 ครัว',15,9,7.1,13.2,95]];
+  drawAhu(); calc();
+});
+$('btnCopy').addEventListener('click',()=>{
+  const t=$('repTxt'); if(!t) return;
+  navigator.clipboard.writeText(t.textContent).then(()=>{
+    $('btnCopy').innerHTML='<i class="fas fa-check"></i> คัดลอกแล้ว';
+    setTimeout(()=>$('btnCopy').innerHTML='<i class="fas fa-copy"></i> คัดลอกสรุป',1800);
+  }).catch(()=>{});
+});
+$('demoRow').click();
+</script>
+</body>
+</html>

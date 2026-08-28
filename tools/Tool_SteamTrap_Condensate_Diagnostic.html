@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steam Trap &amp; Condensate Diagnostic — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root{
+  --navy:#0f2a4a; --teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa; --card:#fff; --ink:#1c2b3a; --muted:#5b6b7b; --line:#e2e8f0;
+  --accent:#12a4a4; --warn:#e08a00; --ok:#1e9e5a; --danger:#d1495b; --sev4:#8e1b2e;
+  --radius:14px; --shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+h1,h2,h3,.bc{font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+header{background:var(--header-grad);color:#fff;padding:26px 20px 30px}
+header .wrap{max-width:1180px;margin:0 auto}
+header .kicker{font-size:.78rem;letter-spacing:2px;text-transform:uppercase;opacity:.8}
+header h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:700;margin-top:4px}
+header p{font-size:.92rem;opacity:.88;max-width:760px;margin-top:6px}
+header .back{color:#fff;text-decoration:none;font-size:.82rem;opacity:.85;display:inline-block;margin-bottom:10px}
+header .back:hover{opacity:1}
+
+main{max-width:1180px;margin:0 auto;padding:0 16px 60px}
+
+/* ── sticky verdict strip ── */
+.verdict{position:sticky;top:0;z-index:40;background:var(--card);border:1px solid var(--line);
+  border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;overflow:hidden;margin-bottom:18px}
+.vcell{padding:12px 14px;background:var(--card);text-align:center;border-left:1px solid var(--line)}
+.vcell:first-child{border-left:none}
+.vcell .vlab{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.vcell .vnum{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:700;line-height:1.05}
+.vcell .vband{font-size:.8rem;font-weight:600}
+.vbar{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.vbar i{display:block;height:100%;border-radius:3px;transition:width .35s}
+.s0{color:var(--ok)} .s1{color:var(--warn)} .s2{color:var(--danger)} .s3{color:var(--sev4)}
+.b0{background:var(--ok)} .b1{background:var(--warn)} .b2{background:var(--danger)} .b3{background:var(--sev4)}
+
+/* ── tabs ── */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:9px 16px;border:1px solid var(--line);background:var(--card);border-radius:10px;
+  cursor:pointer;font-size:.88rem;font-weight:500;color:var(--muted);transition:.15s;white-space:nowrap}
+.tab:hover{border-color:var(--accent)}
+.tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.panel{display:none} .panel.on{display:block}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card > h2{font-size:1.12rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.card > .sub{font-size:.83rem;color:var(--muted);margin-bottom:14px}
+.card h3{font-size:1rem;color:var(--navy);margin:16px 0 8px}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+
+label.f{display:block;font-size:.8rem;color:var(--muted);margin-bottom:3px;font-weight:500}
+input[type=number],select,input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);
+  border-radius:9px;font-family:'IBM Plex Mono',monospace;font-size:.9rem;background:#fff;color:var(--ink)}
+input[type=number]:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(18,164,164,.13)}
+select{font-family:'IBM Plex Sans Thai',sans-serif}
+input[readonly]{background:#f1f5f9;color:var(--muted)}
+.fld{margin-bottom:10px}
+.unit{font-size:.72rem;color:var(--muted);font-weight:400}
+
+.btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:22px;
+  font-family:'IBM Plex Sans Thai',sans-serif;font-size:.87rem;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent);filter:none}
+.btn.sm{padding:5px 12px;font-size:.79rem}
+
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left}
+th{background:#f8fafc;font-weight:600;color:var(--navy);font-size:.8rem}
+td.n,th.n{text-align:right;font-family:'IBM Plex Mono',monospace}
+tr.hl td{background:#fffbeb}
+.tbl-wrap{overflow-x:auto}
+
+.note{font-size:.82rem;color:var(--muted);background:#f8fafc;border-left:3px solid var(--line);
+  padding:9px 13px;border-radius:0 8px 8px 0;margin-top:10px;line-height:1.6}
+.note.warn{background:#fff8e6;border-left-color:var(--warn)}
+.note.bad{background:#fdeef0;border-left-color:var(--danger)}
+.note.good{background:#eaf7f0;border-left-color:var(--ok)}
+.note b{color:var(--ink)}
+
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.74rem;font-weight:600}
+.p0{background:#eaf7f0;color:#14663b} .p1{background:#fff4de;color:#8a5300}
+.p2{background:#fdeef0;color:#9e2333} .p3{background:#8e1b2e;color:#fff}
+.pn{background:#eef2f7;color:var(--muted)}
+
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.87rem}
+.kv:last-child{border-bottom:none}
+.kv b{font-family:'IBM Plex Mono',monospace;font-weight:500}
+
+.big{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:700;line-height:1;color:var(--navy)}
+.bigu{font-size:.85rem;color:var(--muted);font-family:'IBM Plex Sans Thai',sans-serif}
+
+.oxgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.oxgrid .fld{margin-bottom:0}
+
+details.ox{border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-top:10px;background:#fcfdfe}
+details.ox summary{cursor:pointer;font-weight:600;font-size:.87rem;color:var(--navy)}
+details.ox[open] summary{margin-bottom:10px}
+
+.fuelbox{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fcfdfe}
+.fuelbox > h3{margin-top:0}
+
+.legend{font-size:.76rem;color:var(--muted);margin-top:8px}
+.zone{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;margin-bottom:5px;font-size:.85rem;border:1px solid var(--line)}
+.zone .zi{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;font-size:.8rem}
+.zone .zt{flex:1}
+.zone .zt b{display:block;font-size:.88rem}
+.zone .zt span{font-size:.77rem;color:var(--muted)}
+
+.srcbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.srcbar span{font-size:.72rem;background:#eef2f7;color:var(--muted);padding:2px 8px;border-radius:20px}
+
+footer{text-align:center;padding:22px;font-size:.8rem;color:var(--muted);
+  border-top:1px solid var(--line);background:#fff}
+footer b{color:var(--navy)}
+
+@media(max-width:640px){
+  .verdict{grid-template-columns:1fr;gap:0}
+  .vcell{border-left:none;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;text-align:left}
+  .vcell:first-child{border-top:none}
+  .vcell .vnum{font-size:1.6rem}
+  .vcell > div:last-child{flex:1}
+  .card{padding:15px}
+}
+@media print{
+  header,.tabs,.btn,footer{display:none}
+  .panel{display:block!important}
+  .card{box-shadow:none;break-inside:avoid}
+  .verdict{position:static}
+}
+
+/* ── shared extras for the diagnostic suite ── */
+.rowbtn{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+table input{padding:5px 7px;font-size:.82rem;border-radius:7px;min-width:70px}
+table td{vertical-align:middle}
+.del{background:none;border:none;color:var(--danger);cursor:pointer;font-size:.95rem}
+.gauge{height:9px;border-radius:5px;background:var(--line);overflow:hidden;margin-top:5px}
+.gauge i{display:block;height:100%;border-radius:5px;transition:width .3s}
+.stat{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fcfdfe}
+.stat .big{font-size:1.9rem}
+.verdict2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.verdict2 .vcell{border-left:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a href="../index.html" class="back"><i class="fas fa-arrow-left"></i> กลับหน้ารวมเครื่องมือ</a>
+    <div class="kicker"><i class="fas fa-stethoscope"></i> Troubleshooting · Triple E Technology</div>
+    <h1>Steam Trap &amp; Condensate Diagnostic</h1>
+    <p>แยก Flash Steam ปกติ ออกจาก Live Steam ที่รั่วผ่านดัก — ความผิดพลาดที่พบบ่อยที่สุดหน้างาน
+       พร้อมคิดมูลค่าการรั่วและอัตราการนำคอนเดนเสทกลับ</p>
+  </div>
+</header>
+
+<main>
+
+<div class="verdict2">
+  <div class="vcell"><div class="vlab">Flash ที่ควรเห็น</div>
+    <div class="vnum mono" id="vFl">–</div><div class="vband">% โดยมวล</div></div>
+  <div class="vcell"><div class="vlab">ไอน้ำที่รั่วรวม</div>
+    <div class="vnum mono" id="vLk">–</div><div class="vband">kg/ชม.</div></div>
+  <div class="vcell"><div class="vlab">มูลค่าที่สูญเสีย</div>
+    <div class="vnum mono" id="vCost" style="font-size:1.5rem">–</div><div class="vband">บาท/ปี</div></div>
+  <div class="vcell"><div class="vlab">คอนเดนเสทที่นำกลับ</div>
+    <div class="vnum mono" id="vRet">–</div><div class="vband" id="vRetb">%</div></div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-t="1"><i class="fas fa-cloud"></i> 1 · Flash หรือ Live</div>
+  <div class="tab" data-t="2"><i class="fas fa-droplet-slash"></i> 2 · คิดค่าการรั่ว</div>
+  <div class="tab" data-t="3"><i class="fas fa-clipboard-list"></i> 3 · สำรวจดักไอน้ำ</div>
+  <div class="tab" data-t="4"><i class="fas fa-recycle"></i> 4 · คอนเดนเสท &amp; Waterlogging</div>
+</div>
+
+<!-- ═══ 1 ═══ -->
+<section class="panel on" data-p="1">
+  <div class="card">
+    <h2>คำนวณ Flash Steam ที่ควรเกิดตามธรรมชาติ</h2>
+    <div class="sub">คอนเดนเสทร้อนที่ลดความดันลงจะระเหยตัวเองส่วนหนึ่งเสมอ — นี่คือของปกติ ไม่ใช่การรั่ว</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ความดันก่อนดัก (ต้นน้ำ) <span class="unit">bar g</span></label><input type="number" id="p1" value="7" step="0.1" min="0"></div>
+      <div class="fld"><label class="f">ความดันหลังดัก (ปลายน้ำ) <span class="unit">bar g</span></label><input type="number" id="p2" value="0.5" step="0.1" min="0"></div>
+      <div class="fld"><label class="f">อุณหภูมิคอนเดนเสทจริง <span class="unit">°C</span></label><input type="number" id="tCond" value="0" step="1"></div>
+    </div>
+    <div class="note">ใส่ 0 ในช่องอุณหภูมิถ้าไม่ได้วัด ระบบจะถือว่าคอนเดนเสทอยู่ที่จุดอิ่มตัวของความดันต้นน้ำ
+      ถ้าวัดได้จริงให้ใส่ — คอนเดนเสทที่เย็นกว่าจุดอิ่มตัว (sub-cooled) จะให้ flash น้อยลงมาก</div>
+    <div id="flashOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>เทียบกับสิ่งที่เห็นหน้างาน</h2>
+    <div class="sub">คำถามเดียวที่ตัดสินได้: ไอที่เห็นเป็นพวยต่อเนื่องแรง หรือเป็นกลุ่มขาวฟูแล้วจางหาย</div>
+    <div id="obsOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 2 ═══ -->
+<section class="panel" data-p="2">
+  <div class="card">
+    <h2>อัตราการรั่วผ่านรูเปิด (สูตร Napier)</h2>
+    <div class="grid3">
+      <div class="fld"><label class="f">เส้นผ่านศูนย์กลางรู <span class="unit">mm</span></label><input type="number" id="dOr" value="3" step="0.5" min="0.1"></div>
+      <div class="fld"><label class="f">ความดันไอน้ำ <span class="unit">bar g</span></label><input type="number" id="pLeak" value="7" step="0.1" min="0"></div>
+      <div class="fld"><label class="f">สัมประสิทธิ์การไหล C<sub>d</sub></label><input type="number" id="cd" value="0.7" step="0.05" min="0.2" max="1"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ต้นทุนไอน้ำ <span class="unit">บาท/ตัน</span></label><input type="number" id="sCost" value="850" step="10"></div>
+      <div class="fld"><label class="f">ชั่วโมงเดินเครื่อง <span class="unit">ชม./ปี</span></label><input type="number" id="hrs" value="7200" step="100"></div>
+      <div class="fld"><label class="f">Emission factor ไอน้ำ <span class="unit">kgCO₂e/ตัน</span></label><input type="number" id="ef" value="230" step="5"></div>
+    </div>
+    <div id="leakOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 3 ═══ -->
+<section class="panel" data-p="3">
+  <div class="card">
+    <h2>สรุปผลสำรวจดักไอน้ำทั้งโรงงาน</h2>
+    <div class="sub">ใส่จำนวนดักแยกตามความดันและผลการตรวจ</div>
+    <div class="rowbtn">
+      <button class="btn sm" id="addRow"><i class="fas fa-plus"></i> เพิ่มกลุ่ม</button>
+      <button class="btn sm ghost" id="demoRow"><i class="fas fa-flask"></i> ข้อมูลตัวอย่าง</button>
+      <button class="btn sm ghost" id="clrRow"><i class="fas fa-eraser"></i> ล้างตาราง</button>
+    </div>
+    <div class="tbl-wrap"><table id="tTbl"></table></div>
+    <div id="surveyOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 4 ═══ -->
+<section class="panel" data-p="4">
+  <div class="card">
+    <h2>อัตราการนำคอนเดนเสทกลับ</h2>
+    <div class="grid3">
+      <div class="fld"><label class="f">ไอน้ำที่ผลิต <span class="unit">ตัน/ชม.</span></label><input type="number" id="steamProd" value="12" step="0.1"></div>
+      <div class="fld"><label class="f">คอนเดนเสทที่กลับถัง <span class="unit">ตัน/ชม.</span></label><input type="number" id="condRet" value="6.5" step="0.1"></div>
+      <div class="fld"><label class="f">อุณหภูมิคอนเดนเสทที่กลับ <span class="unit">°C</span></label><input type="number" id="tRet" value="85" step="1"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">อุณหภูมิน้ำเติม <span class="unit">°C</span></label><input type="number" id="tMake" value="28" step="1"></div>
+      <div class="fld"><label class="f">ค่าน้ำ + เคมี <span class="unit">บาท/ตัน</span></label><input type="number" id="wCost" value="35" step="1"></div>
+      <div class="fld"><label class="f">ประสิทธิภาพหม้อไอน้ำ <span class="unit">%</span></label><input type="number" id="bEff" value="82" step="1"></div>
+    </div>
+    <div id="condOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>ตรวจ Waterlogging จาก ΔT คร่อมดัก</h2>
+    <div class="sub">อุปกรณ์ที่ระบายคอนเดนเสทไม่ทันจะมีน้ำท่วมพื้นที่แลกเปลี่ยนความร้อน</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">อุณหภูมิท่อก่อนเข้าดัก <span class="unit">°C</span></label><input type="number" id="tIn" value="128" step="1"></div>
+      <div class="fld"><label class="f">ความดันที่อุปกรณ์ <span class="unit">bar g</span></label><input type="number" id="pEq" value="4" step="0.1" min="0"></div>
+      <div class="fld"><label class="f">อุณหภูมิท่อหลังดัก <span class="unit">°C</span></label><input type="number" id="tOut" value="105" step="1"></div>
+    </div>
+    <div id="wlOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>สรุปสำหรับใส่รายงาน</h2>
+    <button class="btn ghost sm" id="btnCopy"><i class="fas fa-copy"></i> คัดลอกสรุป</button>
+    <button class="btn ghost sm" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์ / บันทึก PDF</button>
+    <div id="repOut" style="margin-top:12px"></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><b>Triple E Technology Co., Ltd.</b> — Steam Trap &amp; Condensate Diagnostic</p>
+  <p style="margin-top:5px">คุณสมบัติไอน้ำอิ่มตัวจากตารางภายในเครื่องมือ · อัตราการรั่วตามสูตร Napier พร้อมสัมประสิทธิ์การไหล</p>
+</footer>
+
+<script>
+const $=id=>document.getElementById(id);
+const V=id=>parseFloat($(id).value)||0;
+const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed(d===undefined?2:d);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pill=(i,t)=>`<span class="pill p${i}">${t}</span>`;
+const money=v=>isFinite(v)?Math.round(v).toLocaleString('th-TH'):'–';
+
+/* ── ตารางไอน้ำอิ่มตัว: P(bar abs), Tsat °C, hf, hfg, hg (kJ/kg) ── */
+const ST=[
+ [0.5,81.32,340.5,2304.7,2645.2],[0.7,89.95,376.8,2283.3,2660.1],
+ [1.0,99.61,417.5,2257.5,2675.0],[1.5,111.35,467.1,2226.0,2693.1],
+ [2.0,120.21,504.7,2201.6,2706.3],[2.5,127.41,535.3,2181.2,2716.5],
+ [3.0,133.53,561.4,2163.5,2724.9],[3.5,138.86,584.3,2147.7,2732.0],
+ [4.0,143.61,604.7,2133.4,2738.1],[5.0,151.84,640.1,2107.9,2748.0],
+ [6.0,158.83,670.5,2085.6,2756.1],[7.0,164.95,697.1,2065.6,2762.7],
+ [8.0,170.41,721.0,2047.3,2768.3],[9.0,175.36,742.7,2030.3,2773.0],
+ [10.0,179.89,762.6,2014.4,2777.0],[12.0,187.96,798.4,1985.2,2783.6],
+ [14.0,195.04,830.1,1958.6,2788.7],[16.0,201.37,858.6,1934.1,2792.7],
+ [18.0,207.11,884.6,1911.1,2795.7],[20.0,212.38,908.6,1889.4,2798.0],
+ [25.0,223.95,962.0,1839.9,2801.9],[30.0,233.85,1008.4,1795.7,2804.1],
+ [35.0,242.56,1049.8,1753.7,2803.5],[40.0,250.36,1087.4,1713.5,2800.9]];
+function sat(pAbs){
+  const P=clamp(pAbs,0.5,40);
+  for(let i=0;i<ST.length-1;i++){
+    if(P>=ST[i][0]&&P<=ST[i+1][0]){
+      const f=(P-ST[i][0])/(ST[i+1][0]-ST[i][0]);
+      const o={};
+      ['T','hf','hfg','hg'].forEach((k,j)=>o[k]=ST[i][j+1]+f*(ST[i+1][j+1]-ST[i][j+1]));
+      o.P=P; return o;
+    }
+  }
+  const L=ST[ST.length-1]; return {P,T:L[1],hf:L[2],hfg:L[3],hg:L[4]};
+}
+const hfOfT=T=>{                                  // เอนทาลปีน้ำอิ่มตัวโดยประมาณจากอุณหภูมิ
+  return 4.19*T - 0.0009*T*T;
+};
+/* Napier: ṁ(kg/h) = 0.002472 · P_abs(kPa) · A(mm²) · Cd */
+const napier=(dmm,pBarG,cd)=>0.002472*((pBarG+1.01325)*100)*(Math.PI*dmm*dmm/4)*cd;
+
+/* ── ตารางสำรวจ ── */
+const COLS=['ตำแหน่ง / กลุ่ม','ความดัน bar g','จำนวนดัก','รั่วเปิดค้าง (ตัว)','ขนาดรูเทียบเท่า mm'];
+let T=[];
+function drawT(){
+  const tb=$('tTbl');
+  tb.innerHTML=`<tr>${COLS.map((c,i)=>`<th class="${i?'n':''}">${c}</th>`).join('')}
+    <th class="n">รั่ว %</th><th class="n">kg/ชม.</th><th class="n">บาท/ปี</th><th></th></tr>`+
+    T.map((r,i)=>{
+      const n=+r[2]||0, f=+r[3]||0;
+      const pctF=n>0?f/n*100:0;
+      const kg=f*napier(+r[4]||0,+r[1]||0,V('cd'));
+      const baht=kg/1000*V('sCost')*V('hrs');
+      const lvl=pctF>20?3:(pctF>10?2:(pctF>5?1:0));
+      return `<tr${lvl>=2?' class="hl"':''}>
+        ${r.map((v,j)=>`<td${j?' class="n"':''}><input type="${j?'number':'text'}" data-i="${i}" data-j="${j}" value="${v}" step="0.1"></td>`).join('')}
+        <td class="n"><span class="s${lvl}">${fmt(pctF,1)}</span></td>
+        <td class="n">${fmt(kg,1)}</td><td class="n">${money(baht)}</td>
+        <td><button class="del" data-del="${i}"><i class="fas fa-xmark"></i></button></td></tr>`;
+    }).join('');
+  tb.querySelectorAll('input').forEach(x=>x.addEventListener('input',e=>{
+    T[+e.target.dataset.i][+e.target.dataset.j]=e.target.value; calc();
+  }));
+  tb.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{
+    T.splice(+e.currentTarget.dataset.del,1); drawT(); calc();
+  }));
+}
+
+let S={};
+function calc(){
+  /* ── flash ── */
+  const p1=V('p1')+1.01325, p2=V('p2')+1.01325;
+  const s1=sat(p1), s2=sat(p2);
+  const tC=V('tCond');
+  const hIn = tC>0 ? hfOfT(tC) : s1.hf;
+  const flash = s2.hfg>0 ? clamp((hIn-s2.hf)/s2.hfg,0,1) : 0;
+  const subcool = tC>0 ? Math.max(0,s1.T-tC) : 0;
+  $('vFl').textContent=fmt(flash*100,1);
+
+  $('flashOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${fmt(s1.T,1)}</div><div class="bigu">T อิ่มตัว ต้นน้ำ · °C</div></div>
+     <div class="stat"><div class="big">${fmt(s2.T,1)}</div><div class="bigu">T อิ่มตัว ปลายน้ำ · °C</div></div>
+     <div class="stat"><div class="big s1">${fmt(flash*100,1)}</div><div class="bigu">Flash โดยมวล · %</div></div>
+     <div class="stat"><div class="big">${fmt(flash*100*(s2.hg/s2.hf)*4,0)}</div><div class="bigu">ปริมาตรที่เห็นโดยประมาณ · เท่า</div></div>
+   </div>
+   <div class="tbl-wrap" style="margin-top:12px"><table>
+     <tr><th>รายการ</th><th class="n">ต้นน้ำ</th><th class="n">ปลายน้ำ</th><th>หน่วย</th></tr>
+     <tr><td>ความดันสัมบูรณ์</td><td class="n">${fmt(p1,2)}</td><td class="n">${fmt(p2,2)}</td><td>bar abs</td></tr>
+     <tr><td>อุณหภูมิอิ่มตัว</td><td class="n">${fmt(s1.T,1)}</td><td class="n">${fmt(s2.T,1)}</td><td>°C</td></tr>
+     <tr><td>เอนทาลปีน้ำอิ่มตัว h<sub>f</sub></td><td class="n">${fmt(s1.hf,1)}</td><td class="n">${fmt(s2.hf,1)}</td><td>kJ/kg</td></tr>
+     <tr><td>ความร้อนแฝง h<sub>fg</sub></td><td class="n">${fmt(s1.hfg,1)}</td><td class="n">${fmt(s2.hfg,1)}</td><td>kJ/kg</td></tr>
+   </table></div>
+   <div class="note ${subcool>10?'warn':''}">
+     <b>คอนเดนเสท 100 kg ที่ผ่านดักตัวนี้จะกลายเป็นไอ ${fmt(flash*100,1)} kg โดยอัตโนมัติ</b>
+     — ความร้อนสัมผัสส่วนเกิน (${fmt(hIn,0)} − ${fmt(s2.hf,0)} = ${fmt(hIn-s2.hf,0)} kJ/kg)
+     ไม่มีที่ไปนอกจากทำให้น้ำส่วนหนึ่งระเหยตัวเอง<br>
+     แม้มวลจะแค่ ${fmt(flash*100,1)} % แต่ไอมีปริมาตรจำเพาะสูงกว่าน้ำหลายร้อยเท่า
+     พวยที่เห็นจึงดู<b>เยอะมาก</b> — นี่คือเหตุผลที่ช่างมักเข้าใจผิดว่าดักรั่ว
+     ${subcool>10?`<br><br><b>คอนเดนเสท sub-cooled อยู่ ${fmt(subcool,0)} °C</b> ต่ำกว่าจุดอิ่มตัวของความดันต้นน้ำ
+       — ถ้าเป็นดักแบบ thermostatic นี่คือพฤติกรรมปกติ แต่ถ้าเป็นอุปกรณ์แลกเปลี่ยนความร้อน
+       อาจแปลว่าคอนเดนเสทค้างในอุปกรณ์นานเกินไป (ดู waterlogging ในแท็บ 4)`:''}
+   </div>`;
+
+  const obs=[
+   [0,'กลุ่มไอขาวฟู ลอยขึ้นช้า แล้วจางหายในระยะสั้น','Flash steam ปกติ — ไม่ต้องทำอะไร',
+    'ไอควบแน่นกลับเป็นละอองน้ำเมื่อเจออากาศ จึงมองเห็นเป็นสีขาวและจางหายไปเอง'],
+   [2,'พวยใสแรงต่อเนื่อง มีเสียงดังคล้ายลมรั่ว','Live steam รั่วผ่านดัก — ต้องซ่อม/เปลี่ยน',
+    'ไอน้ำอิ่มตัวความดันสูงที่พุ่งออกจะใสในช่วงแรกก่อนจะควบแน่น และมีความเร็วสูงจนได้ยินเสียง'],
+   [1,'ไอออกเป็นจังหวะตามรอบเปิด-ปิดของดัก','ปกติสำหรับดักแบบ thermodynamic และ inverted bucket',
+    'ถ้ารอบถี่ผิดปกติ (เร็วกว่า 6 ครั้ง/นาที) แปลว่าดักเริ่มสึก'],
+   [1,'ไม่มีไอออกเลยขณะที่อุปกรณ์ควรระบายคอนเดนเสท','สงสัยดักตันหรือ waterlogging',
+    'อันตรายกว่าดักรั่ว เพราะทำให้อุปกรณ์สูญเสียกำลังการผลิตโดยไม่มีอาการที่เห็นชัด'],
+   [2,'ไอออกทั้งที่ไม่มีภาระความร้อน (เครื่องหยุด)','แทบยืนยันได้ว่าเป็น live steam',
+    'ไม่มีคอนเดนเสทให้ flash ตอนเครื่องหยุด สิ่งที่ออกมาจึงต้องเป็นไอน้ำสด — วิธีตรวจที่ชี้ขาดที่สุด']];
+  const bg=['var(--ok)','var(--warn)','var(--danger)'];
+  $('obsOut').innerHTML=obs.map(o=>
+   `<div class="zone"><div class="zi" style="background:${bg[o[0]]}"><i class="fas fa-eye"></i></div>
+    <div class="zt"><b>${o[1]} → ${o[2]}</b><span>${o[3]}</span></div></div>`).join('')+
+   `<div class="note good"><b>วิธีตรวจที่ชี้ขาดที่สุดและไม่ต้องใช้เครื่องมือ</b> — ปิดวาล์วต้นทางของอุปกรณ์
+     รอให้คอนเดนเสทที่ค้างระบายหมด (2–3 นาที) ถ้ายังมีไอออกต่อเนื่อง แปลว่า live steam แน่นอน
+     เพราะไม่เหลือคอนเดนเสทให้ flash แล้ว<br>
+     ถ้ามีเครื่องมือ: วัดอุณหภูมิท่อปลายน้ำ ถ้าใกล้อุณหภูมิอิ่มตัวของความดันต้นน้ำ
+     (${fmt(s1.T,0)} °C) แทนที่จะเป็นของปลายน้ำ (${fmt(s2.T,0)} °C) คือกำลังรั่ว
+     หรือใช้ ultrasonic ฟังเสียงการไหลต่อเนื่อง</div>`;
+
+  /* ── leak ── */
+  const d=V('dOr'), pL=V('pLeak'), cd=V('cd');
+  const kgh=napier(d,pL,cd);
+  const sCost=V('sCost'), hrs=V('hrs'), ef=V('ef');
+  const bahtY=kgh/1000*sCost*hrs, co2=kgh/1000*ef*hrs/1000;
+  const sizes=[1,2,3,4,5,6,8];
+  $('leakOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big s2">${fmt(kgh,1)}</div><div class="bigu">ไอน้ำที่รั่ว · kg/ชม.</div></div>
+     <div class="stat"><div class="big">${fmt(kgh*hrs/1000,1)}</div><div class="bigu">รวมทั้งปี · ตัน</div></div>
+     <div class="stat"><div class="big">${money(bahtY)}</div><div class="bigu">บาท/ปี ต่อ 1 จุด</div></div>
+     <div class="stat"><div class="big">${fmt(co2,1)}</div><div class="bigu">tCO₂e/ปี</div></div>
+   </div>
+   <div class="tbl-wrap" style="margin-top:12px"><table>
+     <tr><th class="n">รูเทียบเท่า mm</th>${sizes.map(x=>`<th class="n">${x}</th>`).join('')}</tr>
+     <tr><td class="n">kg/ชม. ที่ ${fmt(pL,1)} bar g</td>${sizes.map(x=>`<td class="n">${fmt(napier(x,pL,cd),1)}</td>`).join('')}</tr>
+     <tr><td class="n">บาท/ปี ต่อจุด</td>${sizes.map(x=>`<td class="n">${money(napier(x,pL,cd)/1000*sCost*hrs)}</td>`).join('')}</tr>
+   </table></div>
+   <div class="note">
+     <b>สูตร Napier</b> — ṁ = 0.002472 × P<sub>abs</sub>(kPa) × A(mm²) × C<sub>d</sub>
+     เป็นการไหลแบบ choked ของไอน้ำอิ่มตัวแห้งผ่านรู ให้ค่าตามทฤษฎี
+     C<sub>d</sub> ที่ใช้ทั่วไปคือ 0.7 สำหรับรูที่สึกจากการกัดเซาะ<br>
+     <b>ข้อจำกัดที่ต้องเข้าใจ</b> — ของจริงที่ผ่านดักที่เสียมักเป็นของผสมสองเฟส (ไอ + น้ำ)
+     ไม่ใช่ไอแห้งล้วน ตัวเลขนี้จึงเป็น<b>ขอบบน</b>ของการสูญเสีย
+     ใช้จัดลำดับความสำคัญและประเมินความคุ้มค่าได้ดี แต่อย่านำไปอ้างเป็นตัวเลขที่แม่นยำ
+     ถ้าต้องการความแม่น ให้วัดด้วย ultrasonic ที่มีการสอบเทียบหรือใช้ condensate meter
+   </div>`;
+
+  /* ── survey ── */
+  let tKg=0,tN=0,tF=0;
+  T.forEach(r=>{ const n=+r[2]||0,f=+r[3]||0;
+    tN+=n; tF+=f; tKg+=f*napier(+r[4]||0,+r[1]||0,cd); });
+  const failPct=tN>0?tF/tN*100:0;
+  const tBaht=tKg/1000*sCost*hrs, tCO2=tKg/1000*ef*hrs/1000;
+  const fl=failPct>20?3:(failPct>10?2:(failPct>5?1:0));
+  $('vLk').textContent=fmt(tKg,0);
+  $('vCost').textContent=money(tBaht);
+  $('surveyOut').innerHTML=T.length?`
+   <div class="grid4" style="margin-top:14px">
+     <div class="stat"><div class="big">${tN}</div><div class="bigu">ดักทั้งหมด · ตัว</div></div>
+     <div class="stat"><div class="big s${fl}">${fmt(failPct,1)}</div><div class="bigu">รั่วเปิดค้าง · %</div>
+       <div class="gauge"><i class="b${fl}" style="width:${clamp(failPct*3,2,100)}%"></i></div></div>
+     <div class="stat"><div class="big s2">${fmt(tKg,0)}</div><div class="bigu">ไอน้ำที่รั่วรวม · kg/ชม.</div></div>
+     <div class="stat"><div class="big">${money(tBaht)}</div><div class="bigu">บาท/ปี</div></div>
+   </div>
+   <div class="note ${fl>=2?'bad':(fl===1?'warn':'good')}">
+     อัตราการเสียหาย ${fmt(failPct,1)} % —
+     ${fl===0?'อยู่ในเกณฑ์ดี แสดงว่ามีโปรแกรมตรวจสอบที่ทำงานอยู่จริง'
+      :(fl===1?'เริ่มสูง ควรตั้งรอบตรวจประจำปี'
+       :`สูงกว่าเกณฑ์มาก โรงงานที่ไม่มีโปรแกรมตรวจสอบมักอยู่ที่ 15–30 %
+         การตรวจและเปลี่ยนทั้งชุดมักคืนทุนภายใน 3–9 เดือน`)}<br>
+     คิดเป็น ${fmt(tKg*hrs/1000,0)} ตันไอน้ำ/ปี หรือ ${fmt(tCO2,1)} tCO₂e/ปี
+   </div>`
+   :'<div class="note">ยังไม่มีข้อมูล — กด “ข้อมูลตัวอย่าง” เพื่อดูวิธีใช้</div>';
+
+  /* ── condensate ── */
+  const sp=V('steamProd'), cr=V('condRet'), tR=V('tRet'), tM=V('tMake');
+  const retPct=sp>0?cr/sp*100:0;
+  const rl=retPct>70?0:(retPct>50?1:(retPct>30?2:3));
+  $('vRet').textContent=fmt(retPct,0); $('vRet').className='vnum mono s'+rl;
+  $('vRetb').innerHTML=`% · ${pill(rl,['ดีมาก','พอใช้','ต่ำ','ต่ำมาก'][rl])}`;
+  const bEff=V('bEff')/100, wCost=V('wCost');
+  const dH=4.19*(tR-tM);                             // kJ/kg ที่ประหยัดได้จากคอนเดนเสท
+  const perTon=dH*1000/1000/bEff;                    // kJ ต่อ ตัน ที่หม้อไอน้ำไม่ต้องจ่าย
+  const fuelSaveBaht=cr*hrs*(dH/ (2100) )*(sCost)/1000*1000/bEff*0+0;  // ใช้วิธีสัดส่วนด้านล่างแทน
+  const steamEnth=2100;                              // ~ hfg เฉลี่ยที่ความดันใช้งาน kJ/kg
+  const heatSaved=cr*1000*dH;                        // kJ/ชม.
+  const steamEquiv=heatSaved/(steamEnth+4.19*(sat(V('p1')+1.01325).T-tM));  // ตัน/ชม. เทียบเท่า
+  const energyBaht=steamEquiv*sCost*hrs;
+  const waterBaht=cr*hrs*wCost;
+  const potential=sp*0.8-cr;
+  $('condOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big s${rl}">${fmt(retPct,1)}</div><div class="bigu">อัตราการนำกลับ · %</div>
+       <div class="gauge"><i class="b${rl}" style="width:${clamp(retPct,0,100)}%"></i></div></div>
+     <div class="stat"><div class="big">${money(energyBaht)}</div><div class="bigu">มูลค่าความร้อนที่ได้กลับ · บาท/ปี</div></div>
+     <div class="stat"><div class="big">${money(waterBaht)}</div><div class="bigu">ค่าน้ำและเคมีที่ประหยัด · บาท/ปี</div></div>
+     <div class="stat"><div class="big s${potential>0.5?1:0}">${fmt(Math.max(0,potential),2)}</div><div class="bigu">ศักยภาพเพิ่ม · ตัน/ชม.</div></div>
+   </div>
+   <div class="note ${rl>=2?'warn':'good'}">
+     คอนเดนเสทที่กลับมาที่ ${fmt(tR,0)} °C พาความร้อนกลับมา ${fmt(dH,0)} kJ/kg
+     เทียบกับน้ำเติมที่ ${fmt(tM,0)} °C
+     ${potential>0.3?`<br><b>ถ้ายกอัตราการนำกลับขึ้นเป็น 80 %</b> จะได้เพิ่มอีก ${fmt(potential,2)} ตัน/ชม.
+       คิดเป็นมูลค่ารวมประมาณ ${money(potential/cr*(energyBaht+waterBaht))} บาท/ปี
+       — ไล่หาจุดที่ทิ้งคอนเดนเสทลงท่อระบาย ถังเปิดที่ระเหยทิ้ง และ flash vessel ที่ไม่ได้เก็บไอกลับ`:''}
+   </div>
+   <div class="note">
+     <b>อย่าลืมนับ flash steam ที่ถังคอนเดนเสท</b> — คอนเดนเสทที่ ${fmt(tR,0)} °C
+     เมื่อเข้าถังความดันบรรยากาศจะ flash ออกอีกส่วนหนึ่งและมักถูกระบายทิ้งทางปล่อง
+     ตรงนี้คือความสูญเสียที่มองเห็นได้ด้วยตาแต่แทบไม่มีใครคิดเป็นตัวเลข
+     ทางแก้คือใช้ flash vessel แยกความดันเพื่อนำไอไปใช้ที่ระบบความดันต่ำ
+     หรือใช้ condensate heat recovery กับน้ำเติม
+   </div>`;
+
+  /* ── waterlogging ── */
+  const tI=V('tIn'), pE=V('pEq'), tO=V('tOut');
+  const sE=sat(pE+1.01325);
+  const dev=sE.T-tI, dTrap=tI-tO;
+  let wl,wlL;
+  if(dev>25){ wlL=3; wl='สงสัย waterlogging รุนแรง'; }
+  else if(dev>12){ wlL=2; wl='สงสัย waterlogging'; }
+  else if(dev>5){ wlL=1; wl='เฝ้าระวัง'; }
+  else { wlL=0; wl='ระบายคอนเดนเสทได้ปกติ'; }
+  $('wlOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${fmt(sE.T,1)}</div><div class="bigu">T อิ่มตัวที่ความดันอุปกรณ์ · °C</div></div>
+     <div class="stat"><div class="big s${wlL}">${fmt(dev,1)}</div><div class="bigu">ต่ำกว่าอิ่มตัว · °C</div></div>
+     <div class="stat"><div class="big">${fmt(dTrap,1)}</div><div class="bigu">ΔT คร่อมดัก · °C</div></div>
+     <div class="stat" style="display:flex;align-items:center">${pill(wlL,wl)}</div>
+   </div>
+   <div class="note ${wlL>=2?'bad':(wlL===1?'warn':'good')}">
+     ${wlL>=2?`ท่อก่อนเข้าดักอยู่ที่ ${fmt(tI,0)} °C ขณะที่ควรอยู่ใกล้อุณหภูมิอิ่มตัว ${fmt(sE.T,0)} °C
+       — ส่วนต่าง ${fmt(dev,0)} °C แปลว่ามีคอนเดนเสทค้างอยู่ในอุปกรณ์และท่อ
+       ทำให้พื้นที่แลกเปลี่ยนความร้อนส่วนหนึ่งจมน้ำและใช้งานไม่ได้<br>
+       <b>สาเหตุที่พบบ่อยเรียงตามลำดับ</b> — ดักมีขนาดเล็กเกินไปสำหรับภาระตอน start-up ·
+       ความดันปลายน้ำสูงเกินจนกำลังขับไม่พอ · ท่อระบายเดินขึ้นเนินโดยไม่มีการชดเชย ·
+       อากาศค้างในอุปกรณ์เพราะไม่มี air vent · ดักตันจากสิ่งสกปรกที่ไม่มี strainer ดักไว้<br>
+       <b>ผลกระทบ</b> — อุปกรณ์ให้กำลังการผลิตต่ำกว่าที่ควร ระบบจะพยายามชดเชยด้วยการเพิ่มความดันไอน้ำ
+       ซึ่งซ่อนปัญหาไว้และเพิ่มการสูญเสียทั้งระบบ`
+      :`อุณหภูมิก่อนเข้าดักใกล้เคียงอุณหภูมิอิ่มตัวที่ความดันอุปกรณ์ — ระบายคอนเดนเสทได้ทัน`}
+   </div>`;
+
+  S={flash,s1,s2,kgh,tKg,tN,tF,failPct,tBaht,tCO2,retPct,energyBaht,waterBaht,dev,wl};
+  report();
+}
+
+function report(){
+  $('repOut').innerHTML=`<pre class="mono" id="repTxt" style="white-space:pre-wrap;font-size:.78rem;
+   background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto">${
+`ผลวินิจฉัยระบบดักไอน้ำและคอนเดนเสท
+
+Flash steam
+  ความดัน ต้นน้ำ / ปลายน้ำ   ${fmt(V('p1'),1)} / ${fmt(V('p2'),1)} bar g
+  T อิ่มตัว                  ${fmt(S.s1.T,1)} / ${fmt(S.s2.T,1)} °C
+  Flash โดยมวล              ${fmt(S.flash*100,1)} %
+  → คอนเดนเสท 100 kg จะกลายเป็นไอ ${fmt(S.flash*100,1)} kg โดยธรรมชาติ ไม่ใช่การรั่ว
+
+การสำรวจดักไอน้ำ
+  จำนวนดักทั้งหมด            ${S.tN} ตัว
+  รั่วเปิดค้าง               ${S.tF} ตัว  (${fmt(S.failPct,1)} %)
+  ไอน้ำที่รั่วรวม             ${fmt(S.tKg,1)} kg/ชม.
+  มูลค่าที่สูญเสีย            ${money(S.tBaht)} บาท/ปี
+  ก๊าซเรือนกระจก             ${fmt(S.tCO2,1)} tCO2e/ปี
+
+คอนเดนเสท
+  อัตราการนำกลับ             ${fmt(S.retPct,1)} %
+  มูลค่าความร้อนที่ได้กลับ    ${money(S.energyBaht)} บาท/ปี
+  ค่าน้ำและเคมีที่ประหยัด     ${money(S.waterBaht)} บาท/ปี
+
+Waterlogging
+  ต่ำกว่าอุณหภูมิอิ่มตัว      ${fmt(S.dev,1)} °C
+  การประเมิน                ${S.wl}
+
+หมายเหตุ: อัตราการรั่วคำนวณตามสูตร Napier ซึ่งเป็นการไหลของไอน้ำอิ่มตัวแห้ง
+ของจริงที่ผ่านดักที่เสียเป็นของผสมสองเฟส ตัวเลขนี้จึงเป็นขอบบนของการสูญเสีย
+ใช้จัดลำดับความสำคัญได้ดี แต่ไม่ควรอ้างเป็นค่าที่แม่นยำ`}</pre>`;
+}
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  document.querySelector(`.panel[data-p="${t.dataset.t}"]`).classList.add('on');
+}));
+document.querySelectorAll('input,select').forEach(x=>{
+  x.addEventListener('input',()=>{drawT();calc();}); x.addEventListener('change',calc);
+});
+$('addRow').addEventListener('click',()=>{ T.push(['กลุ่มใหม่',7,20,2,3]); drawT(); calc(); });
+$('clrRow').addEventListener('click',()=>{ T=[]; drawT(); calc(); });
+$('demoRow').addEventListener('click',()=>{
+  T=[['ท่อจ่ายหลัก (drip legs)',10,45,6,3],
+     ['อุปกรณ์แลกเปลี่ยนความร้อน',7,68,9,4],
+     ['Tracing / heating coil',4,120,21,2],
+     ['ถังกวน / เครื่องอบ',5,32,3,5]];
+  drawT(); calc();
+});
+$('btnCopy').addEventListener('click',()=>{
+  const t=$('repTxt'); if(!t) return;
+  navigator.clipboard.writeText(t.textContent).then(()=>{
+    $('btnCopy').innerHTML='<i class="fas fa-check"></i> คัดลอกแล้ว';
+    setTimeout(()=>$('btnCopy').innerHTML='<i class="fas fa-copy"></i> คัดลอกสรุป',1800);
+  }).catch(()=>{});
+});
+$('demoRow').click();
+</script>
+</body>
+</html>

@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cooling Water Loop Diagnostic — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root{
+  --navy:#0f2a4a; --teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa; --card:#fff; --ink:#1c2b3a; --muted:#5b6b7b; --line:#e2e8f0;
+  --accent:#12a4a4; --warn:#e08a00; --ok:#1e9e5a; --danger:#d1495b; --sev4:#8e1b2e;
+  --radius:14px; --shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+h1,h2,h3,.bc{font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+header{background:var(--header-grad);color:#fff;padding:26px 20px 30px}
+header .wrap{max-width:1180px;margin:0 auto}
+header .kicker{font-size:.78rem;letter-spacing:2px;text-transform:uppercase;opacity:.8}
+header h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:700;margin-top:4px}
+header p{font-size:.92rem;opacity:.88;max-width:760px;margin-top:6px}
+header .back{color:#fff;text-decoration:none;font-size:.82rem;opacity:.85;display:inline-block;margin-bottom:10px}
+header .back:hover{opacity:1}
+
+main{max-width:1180px;margin:0 auto;padding:0 16px 60px}
+
+/* ── sticky verdict strip ── */
+.verdict{position:sticky;top:0;z-index:40;background:var(--card);border:1px solid var(--line);
+  border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;overflow:hidden;margin-bottom:18px}
+.vcell{padding:12px 14px;background:var(--card);text-align:center;border-left:1px solid var(--line)}
+.vcell:first-child{border-left:none}
+.vcell .vlab{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.vcell .vnum{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:700;line-height:1.05}
+.vcell .vband{font-size:.8rem;font-weight:600}
+.vbar{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.vbar i{display:block;height:100%;border-radius:3px;transition:width .35s}
+.s0{color:var(--ok)} .s1{color:var(--warn)} .s2{color:var(--danger)} .s3{color:var(--sev4)}
+.b0{background:var(--ok)} .b1{background:var(--warn)} .b2{background:var(--danger)} .b3{background:var(--sev4)}
+
+/* ── tabs ── */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:9px 16px;border:1px solid var(--line);background:var(--card);border-radius:10px;
+  cursor:pointer;font-size:.88rem;font-weight:500;color:var(--muted);transition:.15s;white-space:nowrap}
+.tab:hover{border-color:var(--accent)}
+.tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.panel{display:none} .panel.on{display:block}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card > h2{font-size:1.12rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.card > .sub{font-size:.83rem;color:var(--muted);margin-bottom:14px}
+.card h3{font-size:1rem;color:var(--navy);margin:16px 0 8px}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+
+label.f{display:block;font-size:.8rem;color:var(--muted);margin-bottom:3px;font-weight:500}
+input[type=number],select,input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);
+  border-radius:9px;font-family:'IBM Plex Mono',monospace;font-size:.9rem;background:#fff;color:var(--ink)}
+input[type=number]:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(18,164,164,.13)}
+select{font-family:'IBM Plex Sans Thai',sans-serif}
+input[readonly]{background:#f1f5f9;color:var(--muted)}
+.fld{margin-bottom:10px}
+.unit{font-size:.72rem;color:var(--muted);font-weight:400}
+
+.btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:22px;
+  font-family:'IBM Plex Sans Thai',sans-serif;font-size:.87rem;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent);filter:none}
+.btn.sm{padding:5px 12px;font-size:.79rem}
+
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left}
+th{background:#f8fafc;font-weight:600;color:var(--navy);font-size:.8rem}
+td.n,th.n{text-align:right;font-family:'IBM Plex Mono',monospace}
+tr.hl td{background:#fffbeb}
+.tbl-wrap{overflow-x:auto}
+
+.note{font-size:.82rem;color:var(--muted);background:#f8fafc;border-left:3px solid var(--line);
+  padding:9px 13px;border-radius:0 8px 8px 0;margin-top:10px;line-height:1.6}
+.note.warn{background:#fff8e6;border-left-color:var(--warn)}
+.note.bad{background:#fdeef0;border-left-color:var(--danger)}
+.note.good{background:#eaf7f0;border-left-color:var(--ok)}
+.note b{color:var(--ink)}
+
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.74rem;font-weight:600}
+.p0{background:#eaf7f0;color:#14663b} .p1{background:#fff4de;color:#8a5300}
+.p2{background:#fdeef0;color:#9e2333} .p3{background:#8e1b2e;color:#fff}
+.pn{background:#eef2f7;color:var(--muted)}
+
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.87rem}
+.kv:last-child{border-bottom:none}
+.kv b{font-family:'IBM Plex Mono',monospace;font-weight:500}
+
+.big{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:700;line-height:1;color:var(--navy)}
+.bigu{font-size:.85rem;color:var(--muted);font-family:'IBM Plex Sans Thai',sans-serif}
+
+.oxgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.oxgrid .fld{margin-bottom:0}
+
+details.ox{border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-top:10px;background:#fcfdfe}
+details.ox summary{cursor:pointer;font-weight:600;font-size:.87rem;color:var(--navy)}
+details.ox[open] summary{margin-bottom:10px}
+
+.fuelbox{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fcfdfe}
+.fuelbox > h3{margin-top:0}
+
+.legend{font-size:.76rem;color:var(--muted);margin-top:8px}
+.zone{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;margin-bottom:5px;font-size:.85rem;border:1px solid var(--line)}
+.zone .zi{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;font-size:.8rem}
+.zone .zt{flex:1}
+.zone .zt b{display:block;font-size:.88rem}
+.zone .zt span{font-size:.77rem;color:var(--muted)}
+
+.srcbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.srcbar span{font-size:.72rem;background:#eef2f7;color:var(--muted);padding:2px 8px;border-radius:20px}
+
+footer{text-align:center;padding:22px;font-size:.8rem;color:var(--muted);
+  border-top:1px solid var(--line);background:#fff}
+footer b{color:var(--navy)}
+
+@media(max-width:640px){
+  .verdict{grid-template-columns:1fr;gap:0}
+  .vcell{border-left:none;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;text-align:left}
+  .vcell:first-child{border-top:none}
+  .vcell .vnum{font-size:1.6rem}
+  .vcell > div:last-child{flex:1}
+  .card{padding:15px}
+}
+@media print{
+  header,.tabs,.btn,footer{display:none}
+  .panel{display:block!important}
+  .card{box-shadow:none;break-inside:avoid}
+  .verdict{position:static}
+}
+
+/* ── shared extras for the diagnostic suite ── */
+.rowbtn{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+table input{padding:5px 7px;font-size:.82rem;border-radius:7px;min-width:70px}
+table td{vertical-align:middle}
+.del{background:none;border:none;color:var(--danger);cursor:pointer;font-size:.95rem}
+.gauge{height:9px;border-radius:5px;background:var(--line);overflow:hidden;margin-top:5px}
+.gauge i{display:block;height:100%;border-radius:5px;transition:width .3s}
+.stat{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fcfdfe}
+.stat .big{font-size:1.9rem}
+.verdict2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.verdict2 .vcell{border-left:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a href="../index.html" class="back"><i class="fas fa-arrow-left"></i> กลับหน้ารวมเครื่องมือ</a>
+    <div class="kicker"><i class="fas fa-stethoscope"></i> Troubleshooting · Triple E Technology</div>
+    <h1>Cooling Water Loop Diagnostic</h1>
+    <p>ตอบคำถามว่า “น้ำหล่อเย็นร้อนขึ้นเพราะอากาศร้อน หรือเพราะหอผึ่งเสื่อม”
+       แล้วจำลองว่าการเพิ่ม flow (L) กับการเพิ่มลม (G) ให้ผลต่างกันอย่างไร</p>
+  </div>
+</header>
+
+<main>
+
+<div class="verdict2">
+  <div class="vcell"><div class="vlab">Wet Bulb</div>
+    <div class="vnum mono" id="vWB">–</div><div class="vband">°C — ขีดจำกัดทางฟิสิกส์</div></div>
+  <div class="vcell"><div class="vlab">Approach จริง</div>
+    <div class="vnum mono" id="vAP">–</div><div class="vband" id="vAPb">°C</div></div>
+  <div class="vcell"><div class="vlab">Range</div>
+    <div class="vnum mono" id="vRG">–</div><div class="vband">°C</div></div>
+  <div class="vcell"><div class="vlab">สาเหตุหลัก</div>
+    <div class="vnum mono" id="vDX" style="font-size:1.1rem">–</div><div class="vband" id="vDXb"></div></div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-t="1"><i class="fas fa-temperature-half"></i> 1 · ข้อมูลตรวจวัด</div>
+  <div class="tab" data-t="2"><i class="fas fa-scale-balanced"></i> 2 · วินิจฉัย</div>
+  <div class="tab" data-t="3"><i class="fas fa-sliders"></i> 3 · จำลอง L เทียบ G</div>
+  <div class="tab" data-t="4"><i class="fas fa-screwdriver-wrench"></i> 4 · มาตรการ</div>
+</div>
+
+<!-- ═══ 1 ═══ -->
+<section class="panel on" data-p="1">
+  <div class="card">
+    <h2>อากาศเข้าหอผึ่ง</h2>
+    <div class="sub">หอผึ่งไม่มีทางทำน้ำเย็นกว่า Wet Bulb ได้เลย ไม่ว่าจะปั๊มแรงแค่ไหน
+      ค่านี้จึงเป็นเพดานของทั้งระบบ</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">อุณหภูมิกระเปาะแห้ง DBT <span class="unit">°C</span></label><input type="number" id="dbt" value="38" step="0.1"></div>
+      <div class="fld"><label class="f">ความชื้นสัมพัทธ์ RH <span class="unit">%</span></label><input type="number" id="rh" value="55" step="1" min="1" max="100"></div>
+      <div class="fld"><label class="f">ความดันบรรยากาศ <span class="unit">kPa</span></label><input type="number" id="patm" value="101.325" step="0.1"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">WBT ออกแบบ <span class="unit">°C</span></label><input type="number" id="wbD" value="27" step="0.1"></div>
+      <div class="fld"><label class="f">Approach ออกแบบ <span class="unit">°C</span></label><input type="number" id="apD" value="5" step="0.1"></div>
+      <div class="fld"><label class="f">Range ออกแบบ <span class="unit">°C</span></label><input type="number" id="rgD" value="8" step="0.1"></div>
+    </div>
+    <div id="airOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>น้ำหล่อเย็นและหอผึ่ง</h2>
+    <div class="grid3">
+      <div class="fld"><label class="f">น้ำร้อนเข้าหอ (CW hot) <span class="unit">°C</span></label><input type="number" id="tHot" value="44" step="0.1"></div>
+      <div class="fld"><label class="f">น้ำเย็นออกหอ (CW cold) <span class="unit">°C</span></label><input type="number" id="tCold" value="36" step="0.1"></div>
+      <div class="fld"><label class="f">อัตราการไหลน้ำ <span class="unit">m³/h</span></label><input type="number" id="wFlow" value="900" step="10"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">จำนวนเซลล์ที่เดิน</label><input type="number" id="nCell" value="3" step="1" min="1" max="20"></div>
+      <div class="fld"><label class="f">จำนวนเซลล์ทั้งหมด</label><input type="number" id="nCellT" value="4" step="1" min="1" max="20"></div>
+      <div class="fld"><label class="f">กำลังพัดลมต่อเซลล์ <span class="unit">kW</span></label><input type="number" id="fkW" value="30" step="1"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">L/G ออกแบบ <span class="unit">kg/kg</span></label><input type="number" id="lgD" value="1.3" step="0.05"></div>
+      <div class="fld"><label class="f">เลขชี้กำลัง n ของหอ <span class="unit">KaV/L ∝ (L/G)⁻ⁿ</span></label><input type="number" id="expN" value="0.6" step="0.05" min="0.3" max="1"></div>
+      <div class="fld"><label class="f">กำลังปั๊มน้ำหล่อเย็น <span class="unit">kW</span></label><input type="number" id="pkW" value="110" step="1"></div>
+    </div>
+    <div id="ctOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 2 ═══ -->
+<section class="panel" data-p="2">
+  <div class="card">
+    <h2>อากาศร้อน หรือ หอเสื่อม</h2>
+    <div class="sub">แยกสองสาเหตุนี้ให้ออกก่อน เพราะวิธีแก้คนละทางกันโดยสิ้นเชิง</div>
+    <div id="dxOut"></div>
+  </div>
+  <div class="card">
+    <h2>สมรรถนะหอผึ่งเทียบค่าออกแบบ</h2>
+    <div class="sub">เทียบ NTU (Merkel number) ที่ต้องการ กับที่หอทำได้จริง</div>
+    <div id="perfOut"></div>
+  </div>
+  <div class="card">
+    <h2>ฝั่งกระบวนการ (โรงงาน / เครื่องจักร)</h2>
+    <div class="sub">อุณหภูมิ supply ที่สูงขึ้นกระทบกระบวนการอย่างไร</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">อุณหภูมิ supply ที่กระบวนการรับได้สูงสุด <span class="unit">°C</span></label><input type="number" id="tLimit" value="35" step="0.5"></div>
+      <div class="fld"><label class="f">ภาระความร้อนที่ต้องระบาย <span class="unit">kW</span></label><input type="number" id="qProc" value="8000" step="100" readonly></div>
+      <div class="fld"><label class="f">ชั่วโมงเดินเครื่อง <span class="unit">ชม./ปี</span></label><input type="number" id="hrs" value="7000" step="100"></div>
+    </div>
+    <div id="procOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 3 ═══ -->
+<section class="panel" data-p="3">
+  <div class="card">
+    <h2>จำลอง: เพิ่ม Flow (L) เทียบ เพิ่มลม (G) เทียบ เปิดเซลล์เพิ่ม</h2>
+    <div class="sub">คำถามหลักของงานนี้ — การเพิ่มปั๊มช่วยจริงหรือทำให้แย่ลง</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">เพิ่ม Flow น้ำ <span class="unit">% จากปัจจุบัน</span></label><input type="number" id="dL" value="25" step="5" min="-50" max="100"></div>
+      <div class="fld"><label class="f">เพิ่มรอบพัดลม <span class="unit">% จากปัจจุบัน</span></label><input type="number" id="dG" value="15" step="5" min="-50" max="60"></div>
+      <div class="fld"><label class="f">ค่าไฟ <span class="unit">บาท/kWh</span></label><input type="number" id="rate" value="4.2" step="0.1"></div>
+    </div>
+    <div id="simOut"></div>
+  </div>
+  <div class="card">
+    <h2>Adiabatic Pre-cooling ที่ทางเข้าอากาศ</h2>
+    <div class="sub">มาตรการชั่วคราวสำหรับช่วงคลื่นความร้อน — ลด DBT ลงตามเส้นเอนทาลปีคงที่</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ประสิทธิผลของแผง / หัวพ่นละออง <span class="unit">%</span></label><input type="number" id="adEff" value="70" step="5" min="0" max="95"></div>
+    </div>
+    <div id="adOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 4 ═══ -->
+<section class="panel" data-p="4">
+  <div class="card">
+    <h2>มาตรการเรียงตามความคุ้มค่า</h2>
+    <div id="mitOut"></div>
+  </div>
+  <div class="card">
+    <h2>สรุปสำหรับใส่รายงาน</h2>
+    <button class="btn ghost sm" id="btnCopy"><i class="fas fa-copy"></i> คัดลอกสรุป</button>
+    <button class="btn ghost sm" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์ / บันทึก PDF</button>
+    <div id="repOut" style="margin-top:12px"></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><b>Triple E Technology Co., Ltd.</b> — Cooling Water Loop Diagnostic</p>
+  <p style="margin-top:5px">คำนวณด้วยทฤษฎี Merkel (Chebyshev 4 จุด) และเส้นคุณลักษณะหอผึ่ง KaV/L ∝ (L/G)⁻ⁿ</p>
+</footer>
+
+<script>
+const $=id=>document.getElementById(id);
+const V=id=>parseFloat($(id).value)||0;
+const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed(d===undefined?2:d);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pill=(i,t)=>`<span class="pill p${i}">${t}</span>`;
+const money=v=>isFinite(v)?Math.round(v).toLocaleString('th-TH'):'–';
+const CPW=4.186;
+
+/* ── ไซโครเมตริก ── */
+function pws(T){                                   // kPa, ASHRAE over water
+  const Tk=T+273.15;
+  const c=[-5800.2206,1.3914993,-0.048640239,4.1764768e-5,-1.4452093e-8,6.5459673];
+  return Math.exp(c[0]/Tk + c[1] + c[2]*Tk + c[3]*Tk*Tk + c[4]*Tk*Tk*Tk + c[5]*Math.log(Tk))/1000;
+}
+const Wof=(pv,P)=>0.621945*pv/(P-pv);
+const Hof=(T,W)=>1.006*T + W*(2501+1.86*T);
+const Wsat=(T,P)=>Wof(pws(T),P);
+const Hsat=(T,P)=>Hof(T,Wsat(T,P));
+
+function wetBulb(db,rh,P){
+  const W=Wof(pws(db)*rh/100,P);
+  let lo=-20,hi=db;
+  for(let i=0;i<60;i++){
+    const m=(lo+hi)/2, Ws=Wsat(m,P);
+    const Wc=((2501-2.326*m)*Ws-1.006*(db-m))/(2501+1.86*db-4.186*m);
+    (Wc<W)?lo=m:hi=m;
+  }
+  return (lo+hi)/2;
+}
+/* DBT หลัง adiabatic pre-cool (เอนทาลปีคงที่ → WBT คงที่) */
+function adiabatic(db,wb,eff){ return db-(db-wb)*eff/100; }
+
+/* ── Merkel: NTU ที่ระบบต้องการ (Chebyshev 4 จุด) ── */
+function ntuRequired(tCold,tHot,wb,LG,P){
+  const R=tHot-tCold;
+  if(R<=0) return null;
+  const hIn=Hsat(wb,P);                            // อากาศเข้าถือว่าอิ่มตัวที่ WBT
+  const pts=[0.1,0.4,0.6,0.9], sum=[];
+  for(const f of pts){
+    const T=tCold+R*f;
+    const hA=hIn+LG*CPW*(T-tCold);
+    const dh=Hsat(T,P)-hA;
+    if(dh<=0.5) return null;                       // เข้าใกล้/ตัดเส้นอิ่มตัว — เป็นไปไม่ได้ทางกายภาพ
+    sum.push(1/dh);
+  }
+  return (R/4)*sum.reduce((a,b)=>a+b,0)*CPW;
+}
+/* หา cold water temp ที่ทำให้ NTU_required = NTU_available */
+function solveCold(ntuAvail,range,wb,LG,P){
+  let lo=wb+0.05, hi=wb+40;
+  for(let i=0;i<80;i++){
+    const m=(lo+hi)/2;
+    const n=ntuRequired(m,m+range,wb,LG,P);
+    if(n===null||n>ntuAvail) lo=m; else hi=m;      // approach กว้างขึ้น → NTU ต้องการน้อยลง
+  }
+  return (lo+hi)/2;
+}
+
+/* ── SVG กราฟ ── */
+function bars(items,unit,dec){
+  const max=Math.max(...items.map(i=>Math.abs(i.v)),0.001);
+  return `<div style="margin-top:10px">`+items.map(i=>`
+    <div style="margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;font-size:.85rem">
+        <span>${i.n}</span><b class="mono ${i.c||''}">${i.v>0?'+':''}${fmt(i.v,dec===undefined?2:dec)} ${unit}</b></div>
+      <div class="gauge"><i class="${i.b||'b1'}" style="width:${clamp(Math.abs(i.v)/max*100,2,100)}%"></i></div>
+    </div>`).join('')+`</div>`;
+}
+
+/* ══════════ MAIN ══════════ */
+let S={};
+function calc(){
+  const P=V('patm')||101.325;
+  const db=V('dbt'), rh=clamp(V('rh'),1,100);
+  const wb=wetBulb(db,rh,P);
+  const tHot=V('tHot'), tCold=V('tCold'), Q=V('wFlow');
+  const range=tHot-tCold, approach=tCold-wb;
+  const wbD=V('wbD'), apD=V('apD'), rgD=V('rgD');
+  const nC=V('nCell'), nCT=V('nCellT'), fkW=V('fkW');
+  const lgD=V('lgD'), n=V('expN'), pkW=V('pkW');
+
+  const mW=Q*1000/3600;                             // kg/s น้ำ
+  const heat=mW*CPW*range;                          // kW
+  $('qProc').value=Math.round(heat);
+
+  /* L/G ปัจจุบัน: อนุมานจาก L/G ออกแบบ ปรับตามจำนวนเซลล์และ flow เทียบออกแบบ
+     ใช้ flow ออกแบบต่อเซลล์จาก range ออกแบบและ heat ปัจจุบัน — ที่นี่ใช้วิธีตรง:
+     G รวม ∝ จำนวนเซลล์ × รอบพัดลม (สมมุติเดินเต็มรอบ) */
+  const gPerCell = (Q/nCT)/lgD;                     // m³/h น้ำ ต่อเซลล์ ÷ L/G → มวลอากาศเทียบเคียง
+  const LG = lgD*(Q/nC)/(Q/nCT);                    // = lgD*nCT/nC
+  const ntuReq = ntuRequired(tCold,tHot,wb,LG,P);
+  const ntuDes = ntuRequired(wbD+apD,wbD+apD+rgD,wbD,lgD,P);
+  const cChar  = ntuReq!==null ? ntuReq*Math.pow(LG,n) : null;   // ค่าคงที่หอจากสภาพจริง
+  const cDes   = ntuDes!==null ? ntuDes*Math.pow(lgD,n) : null;
+  const capRatio = (cChar!==null&&cDes!==null)?cChar/cDes:null;
+
+  /* approach ที่หอ "ควรทำได้" ถ้ายังสมบูรณ์ ที่ WBT และ L/G ปัจจุบัน */
+  const coldIfGood = cDes!==null ? solveCold(cDes*Math.pow(LG,-n),range,wb,LG,P) : null;
+  const apIfGood   = coldIfGood!==null ? coldIfGood-wb : null;
+  const apExcess   = apIfGood!==null ? approach-apIfGood : null;
+
+  S={P,db,rh,wb,tHot,tCold,Q,range,approach,wbD,apD,rgD,nC,nCT,fkW,lgD,n,pkW,
+     mW,heat,LG,ntuReq,ntuDes,cChar,cDes,capRatio,apIfGood,apExcess};
+
+  /* verdict */
+  $('vWB').textContent=fmt(wb,1);
+  $('vAP').textContent=fmt(approach,1);
+  $('vRG').textContent=fmt(range,1);
+  const apRatio=apD>0?approach/apD:1;
+  const apLvl = apRatio<1.15?0 : (apRatio<1.5?1 : (apRatio<2.2?2:3));
+  $('vAPb').innerHTML=`ออกแบบ ${fmt(apD,1)} °C · ${pill(apLvl,['ปกติ','กว้างขึ้น','กว้างมาก','กว้างผิดปกติ'][apLvl])}`;
+  $('vAPb').className='vband';
+  let dx,dxb,dxl;
+  if(apExcess===null){ dx='คำนวณไม่ได้'; dxb=''; dxl=1; }
+  else if(apExcess<1.0){ dx='อากาศ'; dxb='หอยังทำงานได้ตามสภาพ'; dxl=0; }
+  else if(apExcess<3.0){ dx='ทั้งสองอย่าง'; dxb='หอเสื่อมบางส่วน + อากาศร้อน'; dxl=1; }
+  else { dx='หอเสื่อม'; dxb='approach กว้างเกินที่อากาศอธิบายได้'; dxl=2; }
+  $('vDX').textContent=dx; $('vDX').className='vnum mono s'+dxl;
+  $('vDXb').textContent=dxb;
+
+  /* air */
+  const wbSpread=wb-wbD;
+  $('airOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${fmt(wb,1)}</div><div class="bigu">Wet Bulb จริง · °C</div></div>
+     <div class="stat"><div class="big s${wbSpread>2?2:(wbSpread>0.5?1:0)}">${wbSpread>0?'+':''}${fmt(wbSpread,1)}</div><div class="bigu">สูงกว่า WBT ออกแบบ · °C</div></div>
+     <div class="stat"><div class="big">${fmt(db-wb,1)}</div><div class="bigu">ช่วง DBT − WBT · °C</div></div>
+     <div class="stat"><div class="big">${fmt(Wsat(wb,P)*1000,1)}</div><div class="bigu">อัตราส่วนความชื้นอิ่มตัว · g/kg</div></div>
+   </div>
+   <div class="note ${wbSpread>2?'warn':''}">
+     <b>Wet Bulb คือเพดานของทั้งระบบ</b> — น้ำที่ออกจากหอผึ่งจะเย็นกว่า ${fmt(wb,1)} °C ไม่ได้เลย
+     ไม่ว่าจะเพิ่มปั๊ม เพิ่มพัดลม หรือล้าง fill แค่ไหน
+     ${wbSpread>1?`ตอนนี้ WBT สูงกว่าค่าออกแบบ ${fmt(wbSpread,1)} °C — เพียงเท่านี้ก็ดันน้ำเย็นขึ้นอย่างน้อย ${fmt(wbSpread,1)} °C แล้วโดยที่หอไม่ได้เสียอะไรเลย`:''}<br>
+     ช่วง DBT − WBT ที่กว้าง (${fmt(db-wb,1)} °C) เป็นสัญญาณว่าอากาศยังแห้งพอ
+     ${db-wb>8?'— มี<b>ศักยภาพสูง</b>สำหรับ adiabatic pre-cooling (ดูแท็บ 3)':'— ศักยภาพ adiabatic pre-cooling จำกัดเพราะอากาศชื้นอยู่แล้ว'}
+   </div>`;
+
+  /* CT */
+  $('ctOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${fmt(heat/1000,2)}</div><div class="bigu">ภาระความร้อนที่ระบายจริง · MW</div></div>
+     <div class="stat"><div class="big">${fmt(LG,2)}</div><div class="bigu">L/G ปัจจุบัน (ออกแบบ ${fmt(lgD,2)})</div></div>
+     <div class="stat"><div class="big">${fmt(Q/nC,0)}</div><div class="bigu">Flow ต่อเซลล์ · m³/h</div></div>
+     <div class="stat"><div class="big">${fmt(nC*fkW+pkW,0)}</div><div class="bigu">กำลังไฟรวม พัดลม+ปั๊ม · kW</div></div>
+   </div>
+   ${nC<nCT?`<div class="note good"><b>มีเซลล์ว่างอยู่ ${nCT-nC} เซลล์</b> —
+     การกระจาย flow เดิมลงเซลล์เพิ่มโดยไม่เพิ่ม flow รวม จะลด L/G ลงทันที
+     ซึ่งทำให้ approach แคบลงโดยแทบไม่เสียพลังงานปั๊มเพิ่มเลย นี่มักเป็นมาตรการที่คุ้มที่สุด (ดูแท็บ 3)</div>`:''}`;
+
+  /* diagnosis */
+  const dxRows=[
+    ['WBT สูงกว่าออกแบบ', wbSpread, '°C', wbSpread>0.5?'ดันน้ำเย็นขึ้นโดยตรงเท่ากับส่วนต่างนี้':'ไม่มีนัย'],
+    ['Approach กว้างกว่าออกแบบ', approach-apD, '°C', 'ส่วนนี้คือสิ่งที่หอผึ่งควรรับผิดชอบ'],
+    ['ส่วนที่ L/G สูงอธิบายได้', apIfGood!==null?apIfGood-apD:null, '°C', 'มาจาก flow ต่อเซลล์ที่สูงกว่าออกแบบ'],
+    ['ส่วนที่เหลือ = หอเสื่อมจริง', apExcess, '°C', 'fill สกปรก หัวฉีดอุด ลมลัดวงจร พัดลมไม่เต็มรอบ']];
+  $('dxOut').innerHTML=`
+   <div class="tbl-wrap"><table>
+     <tr><th>องค์ประกอบ</th><th class="n">ค่า</th><th>หน่วย</th><th>ความหมาย</th></tr>
+     ${dxRows.map(r=>`<tr${r[0].indexOf('หอเสื่อมจริง')>=0?' class="hl"':''}>
+       <td>${r[0]}</td><td class="n">${r[1]===null?'–':(r[1]>0?'+':'')+fmt(r[1],1)}</td>
+       <td>${r[2]}</td><td class="legend">${r[3]}</td></tr>`).join('')}
+   </table></div>
+   <div class="note ${dxl===0?'good':(dxl===1?'warn':'bad')}">
+     <b>${dx==='อากาศ'?'สาเหตุหลักคืออากาศ ไม่ใช่หอผึ่ง'
+        :(dx==='หอเสื่อม'?'หอผึ่งเสื่อมจริง — อากาศเป็นแค่ฟางเส้นสุดท้าย':'ทั้งอากาศและหอผึ่ง')}</b><br>
+     ${apExcess===null?'ข้อมูลไม่พอสำหรับแยกสาเหตุ'
+      :(apExcess<1?`หอผึ่งยังทำ approach ได้ใกล้เคียงกับที่ควรทำได้ที่ L/G และ WBT ปัจจุบัน
+         (ควรได้ ${fmt(apIfGood,1)} °C · ได้จริง ${fmt(approach,1)} °C)
+         — การล้าง fill หรือซ่อมหอจะได้ผลจำกัด ให้ไปดูมาตรการฝั่งอากาศและ L/G แทน`
+        :`หอทำ approach ได้ ${fmt(approach,1)} °C ขณะที่ควรทำได้ ${fmt(apIfGood,1)} °C
+         ที่ L/G และ WBT ปัจจุบัน — ส่วนต่าง <b>${fmt(apExcess,1)} °C</b> คือสมรรถนะที่หายไปจริง
+         ตรวจ fill ที่อุดตัน หัวฉีดที่หลุด/ตัน ลมลัดวงจรระหว่างเซลล์ และรอบพัดลมที่ไม่เต็ม`)}
+   </div>`;
+
+  /* performance */
+  $('perfOut').innerHTML=`
+   <div class="grid4">
+     <div class="stat"><div class="big">${fmt(ntuReq,2)}</div><div class="bigu">NTU ที่สภาพนี้ต้องการ</div></div>
+     <div class="stat"><div class="big">${fmt(ntuDes,2)}</div><div class="bigu">NTU ที่จุดออกแบบ</div></div>
+     <div class="stat"><div class="big s${capRatio===null?1:(capRatio>0.9?0:(capRatio>0.7?1:2))}">${fmt(capRatio===null?null:capRatio*100,0)}</div><div class="bigu">สมรรถนะเทียบออกแบบ · %</div></div>
+     <div class="stat"><div class="big">${fmt(cChar,2)}</div><div class="bigu">ค่าคงที่หอ c ปัจจุบัน</div></div>
+   </div>
+   <div class="note">
+     <b>อ่านอย่างไร</b> — NTU (Merkel number, KaV/L) คือ “งานถ่ายเทมวลและความร้อน” ที่หอต้องทำ
+     เพื่อให้ได้ range และ approach ที่ต้องการ ณ WBT นั้น ค่ายิ่งสูงยิ่งยาก<br>
+     เส้นคุณลักษณะของหอคือ KaV/L = c · (L/G)<sup>−${fmt(n,2)}</sup> — ค่า c สะท้อนสภาพจริงของ fill
+     หัวฉีด และการกระจายลม ถ้า c ต่ำกว่าออกแบบชัดเจน แปลว่าหอเสื่อม<br>
+     เลขชี้กำลัง n อยู่ที่ 0.5–0.8 ตามชนิด fill (film fill ประมาณ 0.6, splash fill สูงกว่าเล็กน้อย)
+     ถ้ามีเส้นโค้งจากผู้ผลิต ให้ใส่ค่าจริงแทน
+   </div>`;
+
+  /* process */
+  const tLim=V('tLimit'), hrs=V('hrs');
+  const over=tCold-tLim;
+  $('procOut').innerHTML=`
+   <div class="grid3" style="margin-top:12px">
+     <div class="stat"><div class="big s${over>0?2:0}">${over>0?'+':''}${fmt(over,1)}</div><div class="bigu">เกินขีดที่กระบวนการรับได้ · °C</div></div>
+     <div class="stat"><div class="big">${fmt(heat/1000,2)}</div><div class="bigu">ภาระที่ต้องระบาย · MW</div></div>
+     <div class="stat"><div class="big">${fmt(wb+apD,1)}</div><div class="bigu">น้ำเย็นที่ควรได้ถ้าหอสมบูรณ์ · °C</div></div>
+   </div>
+   <div class="note ${over>0?'bad':'good'}">
+     ${over>0?`น้ำ supply ${fmt(tCold,1)} °C สูงกว่าขีดที่กระบวนการรับได้ ${fmt(over,1)} °C<br>
+       <b>ถ้าเป็นน้ำที่สัมผัสชิ้นงานโดยตรง</b> (laminar cooling / spray ในโรงรีด)
+       อุณหภูมิและอัตราการไหลถูกกำหนดโดย cooling model เพื่อคุม coiling temperature
+       ซึ่งกระทบโครงสร้างจุลภาคและสมบัติเชิงกล — ไม่ใช่ตัวแปรที่ปรับได้อิสระ
+       ต้องแก้ที่ฝั่งหอผึ่งเท่านั้น<br>
+       <b>ถ้าเป็นวงจรอ้อม</b> (bearing, morgoil, hydraulic, furnace skid)
+       มี margin ให้ปรับได้มากกว่า แต่ยังต้องระวังผลข้อ 2 ในแท็บถัดไป`
+      :`น้ำ supply ยังอยู่ในเกณฑ์ที่กระบวนการรับได้`}
+   </div>`;
+
+  simulate();
+  adiab();
+  mitig();
+  report();
+}
+
+/* ── จำลอง L vs G ── */
+function simulate(){
+  const {P,wb,range,LG,cChar,n,nC,nCT,Q,fkW,pkW,tCold,approach}=S;
+  if(cChar===null){ $('simOut').innerHTML='<div class="note bad">คำนวณไม่ได้ที่สภาพนี้ — ตรวจอุณหภูมิน้ำเทียบ WBT</div>'; return; }
+  const rate=V('rate'), hrs=V('hrs');
+  const dL=V('dL')/100, dG=V('dG')/100;
+
+  const cases=[];
+  const push=(name,LGn,cN,pumpK,fanK,note)=>{
+    const ntuA=cN*Math.pow(LGn,-n);
+    const cold=solveCold(ntuA,range,wb,LGn,P);
+    cases.push({name,LG:LGn,cold,ap:cold-wb,d:cold-tCold,
+      dkW:(pumpK+fanK)-(pkW+nC*fkW), note});
+  };
+  push('ปัจจุบัน',LG,cChar,pkW,nC*fkW,'ค่าอ้างอิง');
+  push(`เพิ่ม Flow น้ำ ${fmt(dL*100,0)} %`, LG*(1+dL), cChar,
+       pkW*Math.pow(1+dL,3), nC*fkW,
+       'L/G สูงขึ้น → หอต้องทำงานหนักขึ้นต่อหน่วยอากาศ · ปั๊มกินไฟตามกฎ affinity ≈ กำลังสาม');
+  push(`เพิ่มรอบพัดลม ${fmt(dG*100,0)} %`, LG/(1+dG), cChar,
+       pkW, nC*fkW*Math.pow(1+dG,3),
+       'G สูงขึ้น → L/G ลดลง → approach แคบลงโดยตรง');
+  if(nCT>nC) push(`เปิดเซลล์เพิ่มเป็น ${nCT} (flow เท่าเดิม)`, LG*nC/nCT, cChar,
+       pkW, nCT*fkW,
+       'กระจาย flow เดิมลงเซลล์มากขึ้น → L/G ลดโดยไม่เพิ่มพลังงานปั๊มเลย');
+  push('ล้าง fill / ซ่อมหอให้กลับสภาพออกแบบ', LG, S.cDes===null?cChar:S.cDes, pkW, nC*fkW,
+       'คืนค่าคงที่หอ c กลับสู่ค่าออกแบบ');
+
+  const base=cases[0];
+  $('simOut').innerHTML=`
+   <div class="tbl-wrap"><table>
+     <tr><th>ทางเลือก</th><th class="n">L/G</th><th class="n">น้ำเย็นออก °C</th><th class="n">Approach °C</th>
+         <th class="n">Δ อุณหภูมิ</th><th class="n">Δ กำลังไฟ kW</th><th class="n">Δ บาท/ปี</th></tr>
+     ${cases.map((c,i)=>{
+       const good=c.d<-0.05, bad=c.d>0.05;
+       return `<tr${i===0?'':(good?' class="hl"':'')}>
+         <td>${c.name}</td><td class="n">${fmt(c.LG,2)}</td><td class="n">${fmt(c.cold,2)}</td>
+         <td class="n">${fmt(c.ap,2)}</td>
+         <td class="n"><span class="s${good?0:(bad?2:1)}">${c.d>0?'+':''}${fmt(c.d,2)}</span></td>
+         <td class="n">${c.dkW>0?'+':''}${fmt(c.dkW,1)}</td>
+         <td class="n">${c.dkW===0?'–':(c.dkW>0?'+':'')+money(c.dkW*hrs*rate)}</td></tr>`;
+     }).join('')}
+   </table></div>
+   ${bars(cases.slice(1).map(c=>({n:c.name,v:c.d,b:c.d<0?'b0':'b2'})),'°C',2)}
+   <div class="note ${cases[1].d>0?'bad':'warn'}">
+     <b>คำตอบของคำถามหลัก</b> — การเพิ่ม flow น้ำ ${fmt(dL*100,0)} %
+     ${cases[1].d>0
+       ?`ทำให้น้ำที่ส่งไปกระบวนการ <b>ร้อนขึ้น ${fmt(cases[1].d,2)} °C</b> ไม่ใช่เย็นลง
+         และยังต้องจ่ายค่าไฟปั๊มเพิ่ม ${money(cases[1].dkW*hrs*rate)} บาท/ปี<br>
+         เหตุผลคือที่ภาระความร้อนเท่าเดิมและลมเท่าเดิม การเพิ่ม L ทำให้ L/G สูงขึ้น
+         หอจึงมีอากาศไม่พอต่อปริมาณน้ำ approach กว้างขึ้น ขณะที่ range แคบลงตาม Q/(ṁc<sub>p</sub>)
+         — นี่คือ pattern เดียวกับ Low ΔT Syndrome ในระบบน้ำเย็น เพียงแต่คอขวดย้ายจากคอยล์มาอยู่ที่หอผึ่ง`
+       :`ให้ผลเปลี่ยนแปลง ${fmt(cases[1].d,2)} °C ที่สภาพนี้`}
+   </div>
+   <div class="note good">
+     <b>คันโยกที่ถูกต้องอยู่ฝั่งอากาศ</b> — ${nCT>nC
+       ?`ที่คุ้มที่สุดคือเปิดเซลล์ที่ว่างอยู่โดยไม่เพิ่ม flow รวม
+         ได้ ${fmt(Math.abs(cases[3].d),2)} °C โดยจ่ายเพิ่มเพียงพัดลม ${fmt(cases[3].dkW,0)} kW`
+       :`เพิ่มรอบพัดลมหรือปรับ blade pitch — ปรับ approach ได้โดยตรง`}
+     และอย่าลืมตรวจว่าพัดลมทำงานครบทุกเซลล์จริง สายพานไม่หย่อน ทิศหมุนถูก
+   </div>`;
+}
+
+/* ── adiabatic ── */
+function adiab(){
+  const {P,db,wb,range,LG,cChar,n,tCold}=S;
+  if(cChar===null){ $('adOut').innerHTML=''; return; }
+  const eff=V('adEff');
+  const db2=adiabatic(db,wb,eff);
+  /* เอนทาลปีคงที่ → WBT ไม่เปลี่ยน; ประโยชน์จริงเกิดเมื่ออากาศเข้าหอ "ไม่อิ่มตัว" ทำให้
+     หอต้องใช้ศักยภาพระเหยน้อยลง — จำลองโดยลด WBT ที่มีผลลงตามสัดส่วนที่เข้าใกล้อิ่มตัว */
+  const wb2=wb;                                     // WBT ไม่เปลี่ยนตามทฤษฎี
+  const gain=(db-db2);
+  $('adOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${fmt(db,1)}</div><div class="bigu">DBT เข้าหอ ปัจจุบัน · °C</div></div>
+     <div class="stat"><div class="big s0">${fmt(db2,1)}</div><div class="bigu">DBT หลัง pre-cool · °C</div></div>
+     <div class="stat"><div class="big">${fmt(gain,1)}</div><div class="bigu">ลดลง · °C</div></div>
+     <div class="stat"><div class="big">${fmt(wb2,1)}</div><div class="bigu">WBT · °C (ไม่เปลี่ยน)</div></div>
+   </div>
+   <div class="note warn">
+     <b>ข้อควรเข้าใจที่สำคัญที่สุด</b> — adiabatic pre-cooling ลด <b>DBT</b> ลง ${fmt(gain,1)} °C
+     แต่ <b>ไม่ได้ลด WBT</b> เพราะกระบวนการเดินตามเส้นเอนทาลปีคงที่
+     ในเมื่อหอผึ่งเปียกทำงานตาม WBT ประโยชน์ที่ได้จึงไม่ได้มาจากการกดเพดานลง
+     แต่มาจากสองทางอ้อม: (1) ถ้าหอมีปัญหา <b>ลมลัดวงจร</b> อากาศร้อนที่วนกลับเข้าหอจะเย็นลง
+     (2) สำหรับ dry cooler หรือ air-cooled condenser ที่ทำงานตาม DBT ล้วน จะได้ผลเต็ม ๆ<br>
+     ${db-wb>8?`ที่สภาพอากาศตอนนี้ช่วง DBT − WBT กว้างถึง ${fmt(db-wb,1)} °C
+       จึงมีศักยภาพชัดเจนสำหรับอุปกรณ์ที่ทำงานตาม DBT`
+      :`ช่วง DBT − WBT แคบเพียง ${fmt(db-wb,1)} °C — อากาศชื้นอยู่แล้ว ศักยภาพจำกัด`}<br>
+     ผลข้างเคียงที่ต้องคุม: น้ำที่ใช้เพิ่ม การเกิดตะกรันบนแผง และความเสี่ยงเชื้อโรคถ้าดูแลไม่ดี
+   </div>`;
+}
+
+/* ── มาตรการ ── */
+function mitig(){
+  const {nC,nCT,apExcess,approach,apD,wb,wbD,db,LG,lgD,tCold}=S;
+  const out=[];
+  const add=(t,tt,d)=>out.push({t,tt,d});
+  if(nCT>nC) add(1,'เปิดเซลล์หอผึ่งที่ว่างอยู่ โดยไม่เพิ่ม flow รวม',
+    `มีเซลล์ว่าง ${nCT-nC} เซลล์ — กระจาย flow เดิมลงเซลล์มากขึ้นทำให้ L/G ลดจาก ${fmt(LG,2)} เหลือ ${fmt(LG*nC/nCT,2)}
+     approach แคบลงทันทีโดยไม่เพิ่มพลังงานปั๊มเลย จ่ายเพิ่มแค่พัดลม นี่มักเป็นมาตรการที่คุ้มที่สุดและทำได้วันนี้`);
+  add(1,'ตรวจว่าพัดลมทำงานครบและเต็มรอบจริง',
+    `เช็คทิศหมุน สายพาน/คัปปลิ้ง มุม blade pitch และกระแสมอเตอร์เทียบพิกัด
+     พัดลมที่หมุนกลับทิศหรือ pitch ผิดทำให้ปริมาณลมหายไป 20–40 % โดยไม่มีอาการอื่นเลย`);
+  add(1,'ตรวจลมลัดวงจรและสิ่งกีดขวางทางลม',
+    `ในวันลมนิ่ง อากาศร้อนที่ออกจากหอวนกลับเข้าทางดูดได้ ทำให้ WBT ที่เข้าหอจริงสูงกว่าอากาศแวดล้อม 2–3 °C
+     ตรวจระยะห่างระหว่างเซลล์ กำแพง อาคาร และ louver ที่อุดตัน — วัด WBT ที่ทางเข้าหอจริง ไม่ใช่ที่สนาม`);
+  if(apExcess!==null&&apExcess>1.5) add(2,'ล้าง fill และตรวจการกระจายน้ำ',
+    `สมรรถนะที่หายไป ${fmt(apExcess,1)} °C ชี้ว่า fill อุดตันหรือน้ำกระจายไม่ทั่ว
+     หัวฉีดที่ตันทำให้บางส่วนของ fill ไม่มีน้ำ ส่วนที่เหลือรับน้ำเกิน — ตรวจด้วยตาจากด้านบนขณะเดินเครื่อง
+     และวัดความสม่ำเสมอด้วยถาดเก็บน้ำแบบสุ่มจุด`);
+  add(2,'ตรวจ approach คร่อมเครื่องแลกเปลี่ยนความร้อน',
+    `ถ้าเป็นระบบวงปิด ตะกรัน คราบน้ำมัน และ mill scale ที่ PHE กินอุณหภูมิได้หลายองศา
+     ก่อนโทษหอผึ่ง ให้เทียบอุณหภูมิสองฝั่งของ PHE ก่อน — ใช้เครื่องมือ Heat Exchanger Fouling Diagnostic`);
+  add(2,'หาน้ำวนกลับที่ไม่ผ่านภาระ',
+    `three-way valve, bypass ที่เปิดค้าง, minimum flow line — เทียบ ΔT ที่กระบวนการกับ range ที่หอผึ่ง
+     ถ้าสองค่าต่างกันมาก แปลว่ามีน้ำส่วนหนึ่งวนกลับโดยไม่รับความร้อน หลักการเดียวกับ bypass ในระบบน้ำเย็น`);
+  add(3,'Adiabatic pre-cooling สำหรับช่วง peak',
+    `ได้ผลเต็มที่กับอุปกรณ์ที่ทำงานตาม DBT และช่วยกรณีลมลัดวงจร
+     แต่ไม่ลด WBT จึงไม่ได้ยกเพดานของหอผึ่งเปียก — ใช้เป็นมาตรการชั่วคราวช่วงคลื่นความร้อน`);
+  add(3,'Side-stream filtration และคุมเคมีน้ำ',
+    `คลื่นความร้อนทำให้อัตราการระเหยสูงขึ้น cycle of concentration พุ่งเร็ว เสี่ยงตะกรันเร่งตัวพอดี
+     ช่วงอากาศร้อนจึงเป็นช่วงที่ต้องเฝ้าค่าการนำไฟฟ้าและ blowdown ถี่ขึ้น ไม่ใช่ปล่อยตามปกติ`);
+  const tn={1:'ทำได้ทันที ต้นทุนต่ำ',2:'ต้องตรวจสอบ / บำรุงรักษา',3:'ระยะกลาง'};
+  let h='';
+  [1,2,3].forEach(t=>{
+    const g=out.filter(x=>x.t===t); if(!g.length) return;
+    h+=`<h3>${tn[t]}</h3>`+g.map(x=>`<div class="note ${t===1?'good':(t===2?'warn':'')}"><b>${x.tt}</b><br>${x.d}</div>`).join('');
+  });
+  $('mitOut').innerHTML=h;
+}
+
+function report(){
+  const S2=S, dx=$('vDX').textContent;
+  $('repOut').innerHTML=`<pre class="mono" id="repTxt" style="white-space:pre-wrap;font-size:.78rem;
+   background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto">${
+`ผลวินิจฉัยระบบน้ำหล่อเย็นและหอผึ่ง
+
+สภาพอากาศ
+  DBT / RH               ${fmt(S2.db,1)} °C / ${fmt(S2.rh,0)} %
+  Wet Bulb คำนวณได้       ${fmt(S2.wb,1)} °C   (ออกแบบ ${fmt(S2.wbD,1)} °C, ต่าง ${fmt(S2.wb-S2.wbD,1)} °C)
+
+น้ำหล่อเย็น
+  เข้าหอ / ออกหอ          ${fmt(S2.tHot,1)} / ${fmt(S2.tCold,1)} °C
+  Range                  ${fmt(S2.range,2)} °C  (ออกแบบ ${fmt(S2.rgD,1)})
+  Approach               ${fmt(S2.approach,2)} °C  (ออกแบบ ${fmt(S2.apD,1)})
+  อัตราการไหล             ${fmt(S2.Q,0)} m³/h    เซลล์ที่เดิน ${S2.nC}/${S2.nCT}
+  ภาระความร้อน            ${fmt(S2.heat/1000,2)} MW
+  L/G                    ${fmt(S2.LG,2)}  (ออกแบบ ${fmt(S2.lgD,2)})
+
+สมรรถนะหอผึ่ง
+  NTU ที่ต้องการ          ${fmt(S2.ntuReq,2)}
+  NTU ที่จุดออกแบบ        ${fmt(S2.ntuDes,2)}
+  สมรรถนะเทียบออกแบบ      ${fmt(S2.capRatio===null?null:S2.capRatio*100,0)} %
+
+การแยกสาเหตุ
+  WBT สูงกว่าออกแบบ        ${fmt(S2.wb-S2.wbD,1)} °C
+  Approach กว้างกว่าออกแบบ ${fmt(S2.approach-S2.apD,1)} °C
+  ส่วนที่ L/G อธิบายได้     ${fmt(S2.apIfGood===null?null:S2.apIfGood-S2.apD,1)} °C
+  ส่วนที่เป็นหอเสื่อมจริง    ${fmt(S2.apExcess,1)} °C
+  สรุปสาเหตุหลัก           ${dx}
+
+หมายเหตุ: หอผึ่งไม่มีทางทำน้ำเย็นกว่า Wet Bulb ได้ การเพิ่มอัตราการไหลน้ำโดยไม่เพิ่มลม
+ทำให้ L/G สูงขึ้นและ approach กว้างขึ้น น้ำ supply จึงร้อนขึ้น ไม่ใช่เย็นลง`}</pre>`;
+}
+
+/* init */
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  document.querySelector(`.panel[data-p="${t.dataset.t}"]`).classList.add('on');
+}));
+document.querySelectorAll('input,select').forEach(x=>{
+  x.addEventListener('input',calc); x.addEventListener('change',calc);
+});
+$('btnCopy').addEventListener('click',()=>{
+  const t=$('repTxt'); if(!t) return;
+  navigator.clipboard.writeText(t.textContent).then(()=>{
+    $('btnCopy').innerHTML='<i class="fas fa-check"></i> คัดลอกแล้ว';
+    setTimeout(()=>$('btnCopy').innerHTML='<i class="fas fa-copy"></i> คัดลอกสรุป',1800);
+  }).catch(()=>{});
+});
+calc();
+</script>
+</body>
+</html>

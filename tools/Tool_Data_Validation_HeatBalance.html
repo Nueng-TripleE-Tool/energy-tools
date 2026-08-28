@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Validation &amp; Heat Balance — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root{
+  --navy:#0f2a4a; --teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa; --card:#fff; --ink:#1c2b3a; --muted:#5b6b7b; --line:#e2e8f0;
+  --accent:#12a4a4; --warn:#e08a00; --ok:#1e9e5a; --danger:#d1495b; --sev4:#8e1b2e;
+  --radius:14px; --shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+h1,h2,h3,.bc{font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+header{background:var(--header-grad);color:#fff;padding:26px 20px 30px}
+header .wrap{max-width:1180px;margin:0 auto}
+header .kicker{font-size:.78rem;letter-spacing:2px;text-transform:uppercase;opacity:.8}
+header h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:700;margin-top:4px}
+header p{font-size:.92rem;opacity:.88;max-width:760px;margin-top:6px}
+header .back{color:#fff;text-decoration:none;font-size:.82rem;opacity:.85;display:inline-block;margin-bottom:10px}
+header .back:hover{opacity:1}
+
+main{max-width:1180px;margin:0 auto;padding:0 16px 60px}
+
+/* ── sticky verdict strip ── */
+.verdict{position:sticky;top:0;z-index:40;background:var(--card);border:1px solid var(--line);
+  border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;overflow:hidden;margin-bottom:18px}
+.vcell{padding:12px 14px;background:var(--card);text-align:center;border-left:1px solid var(--line)}
+.vcell:first-child{border-left:none}
+.vcell .vlab{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.vcell .vnum{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:700;line-height:1.05}
+.vcell .vband{font-size:.8rem;font-weight:600}
+.vbar{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.vbar i{display:block;height:100%;border-radius:3px;transition:width .35s}
+.s0{color:var(--ok)} .s1{color:var(--warn)} .s2{color:var(--danger)} .s3{color:var(--sev4)}
+.b0{background:var(--ok)} .b1{background:var(--warn)} .b2{background:var(--danger)} .b3{background:var(--sev4)}
+
+/* ── tabs ── */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:9px 16px;border:1px solid var(--line);background:var(--card);border-radius:10px;
+  cursor:pointer;font-size:.88rem;font-weight:500;color:var(--muted);transition:.15s;white-space:nowrap}
+.tab:hover{border-color:var(--accent)}
+.tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.panel{display:none} .panel.on{display:block}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card > h2{font-size:1.12rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.card > .sub{font-size:.83rem;color:var(--muted);margin-bottom:14px}
+.card h3{font-size:1rem;color:var(--navy);margin:16px 0 8px}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+
+label.f{display:block;font-size:.8rem;color:var(--muted);margin-bottom:3px;font-weight:500}
+input[type=number],select,input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);
+  border-radius:9px;font-family:'IBM Plex Mono',monospace;font-size:.9rem;background:#fff;color:var(--ink)}
+input[type=number]:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(18,164,164,.13)}
+select{font-family:'IBM Plex Sans Thai',sans-serif}
+input[readonly]{background:#f1f5f9;color:var(--muted)}
+.fld{margin-bottom:10px}
+.unit{font-size:.72rem;color:var(--muted);font-weight:400}
+
+.btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:22px;
+  font-family:'IBM Plex Sans Thai',sans-serif;font-size:.87rem;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent);filter:none}
+.btn.sm{padding:5px 12px;font-size:.79rem}
+
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left}
+th{background:#f8fafc;font-weight:600;color:var(--navy);font-size:.8rem}
+td.n,th.n{text-align:right;font-family:'IBM Plex Mono',monospace}
+tr.hl td{background:#fffbeb}
+.tbl-wrap{overflow-x:auto}
+
+.note{font-size:.82rem;color:var(--muted);background:#f8fafc;border-left:3px solid var(--line);
+  padding:9px 13px;border-radius:0 8px 8px 0;margin-top:10px;line-height:1.6}
+.note.warn{background:#fff8e6;border-left-color:var(--warn)}
+.note.bad{background:#fdeef0;border-left-color:var(--danger)}
+.note.good{background:#eaf7f0;border-left-color:var(--ok)}
+.note b{color:var(--ink)}
+
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.74rem;font-weight:600}
+.p0{background:#eaf7f0;color:#14663b} .p1{background:#fff4de;color:#8a5300}
+.p2{background:#fdeef0;color:#9e2333} .p3{background:#8e1b2e;color:#fff}
+.pn{background:#eef2f7;color:var(--muted)}
+
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.87rem}
+.kv:last-child{border-bottom:none}
+.kv b{font-family:'IBM Plex Mono',monospace;font-weight:500}
+
+.big{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:700;line-height:1;color:var(--navy)}
+.bigu{font-size:.85rem;color:var(--muted);font-family:'IBM Plex Sans Thai',sans-serif}
+
+.oxgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.oxgrid .fld{margin-bottom:0}
+
+details.ox{border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-top:10px;background:#fcfdfe}
+details.ox summary{cursor:pointer;font-weight:600;font-size:.87rem;color:var(--navy)}
+details.ox[open] summary{margin-bottom:10px}
+
+.fuelbox{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fcfdfe}
+.fuelbox > h3{margin-top:0}
+
+.legend{font-size:.76rem;color:var(--muted);margin-top:8px}
+.zone{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;margin-bottom:5px;font-size:.85rem;border:1px solid var(--line)}
+.zone .zi{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;font-size:.8rem}
+.zone .zt{flex:1}
+.zone .zt b{display:block;font-size:.88rem}
+.zone .zt span{font-size:.77rem;color:var(--muted)}
+
+.srcbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.srcbar span{font-size:.72rem;background:#eef2f7;color:var(--muted);padding:2px 8px;border-radius:20px}
+
+footer{text-align:center;padding:22px;font-size:.8rem;color:var(--muted);
+  border-top:1px solid var(--line);background:#fff}
+footer b{color:var(--navy)}
+
+@media(max-width:640px){
+  .verdict{grid-template-columns:1fr;gap:0}
+  .vcell{border-left:none;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;text-align:left}
+  .vcell:first-child{border-top:none}
+  .vcell .vnum{font-size:1.6rem}
+  .vcell > div:last-child{flex:1}
+  .card{padding:15px}
+}
+@media print{
+  header,.tabs,.btn,footer{display:none}
+  .panel{display:block!important}
+  .card{box-shadow:none;break-inside:avoid}
+  .verdict{position:static}
+}
+
+/* ── shared extras for the diagnostic suite ── */
+.rowbtn{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+table input{padding:5px 7px;font-size:.82rem;border-radius:7px;min-width:70px}
+table td{vertical-align:middle}
+.del{background:none;border:none;color:var(--danger);cursor:pointer;font-size:.95rem}
+.gauge{height:9px;border-radius:5px;background:var(--line);overflow:hidden;margin-top:5px}
+.gauge i{display:block;height:100%;border-radius:5px;transition:width .3s}
+.stat{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fcfdfe}
+.stat .big{font-size:1.9rem}
+.verdict2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.verdict2 .vcell{border-left:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a href="../index.html" class="back"><i class="fas fa-arrow-left"></i> กลับหน้ารวมเครื่องมือ</a>
+    <div class="kicker"><i class="fas fa-stethoscope"></i> Troubleshooting · Triple E Technology</div>
+    <h1>Data Validation &amp; Heat Balance</h1>
+    <p>ด่านหน้าของทุกการวินิจฉัย — ตรวจว่าข้อมูลที่วัดมา “สมเหตุสมผล” ก่อนจะสรุปอาการ
+       เพราะข้อมูลที่ผิดนำไปสู่การวินิจฉัยที่ผิดได้ทุกครั้ง</p>
+  </div>
+</header>
+
+<main>
+
+<div class="verdict2">
+  <div class="vcell"><div class="vlab">สมดุลพลังงานปิดที่</div>
+    <div class="vnum mono" id="vCl">–</div><div class="vband" id="vClb">%</div></div>
+  <div class="vcell"><div class="vlab">ความไม่แน่นอนของผล</div>
+    <div class="vnum mono" id="vU">–</div><div class="vband">± % ของ Q</div></div>
+  <div class="vcell"><div class="vlab">สมดุลอยู่ในช่วงคลาดเคลื่อนไหม</div>
+    <div class="vnum mono" id="vOK" style="font-size:1.2rem">–</div><div class="vband" id="vOKb"></div></div>
+  <div class="vcell"><div class="vlab">ข้อสรุป</div>
+    <div class="vnum mono" id="vVd" style="font-size:1.2rem">–</div><div class="vband" id="vVdb"></div></div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-t="1"><i class="fas fa-scale-balanced"></i> 1 · ปิดสมดุลสองฝั่ง</div>
+  <div class="tab" data-t="2"><i class="fas fa-plus-minus"></i> 2 · ความไม่แน่นอน</div>
+  <div class="tab" data-t="3"><i class="fas fa-ruler"></i> 3 · ตรวจ Sensor</div>
+  <div class="tab" data-t="4"><i class="fas fa-clipboard-check"></i> 4 · สรุปและ Checklist</div>
+</div>
+
+<!-- ═══ 1 ═══ -->
+<section class="panel on" data-p="1">
+  <div class="card">
+    <h2>เลือกคู่สมดุลที่จะตรวจ</h2>
+    <div class="sub">หลักการเดียว — วัดพลังงานเดียวกันจากสองฝั่งที่เป็นอิสระต่อกัน ถ้าตัวเลขไม่ตรงกัน แสดงว่าอย่างน้อยหนึ่งตัวผิด</div>
+    <div class="fld"><label class="f">คู่สมดุล</label>
+      <select id="pair">
+        <option value="wa">คอยล์น้ำเย็น — ฝั่งน้ำ เทียบ ฝั่งอากาศ</option>
+        <option value="ww">อุปกรณ์แลกเปลี่ยนความร้อน — ฝั่งร้อน เทียบ ฝั่งเย็น</option>
+        <option value="fs">หม้อไอน้ำ — เชื้อเพลิงเข้า เทียบ ไอน้ำออก</option>
+        <option value="ct">หอผึ่ง — ฝั่งน้ำ เทียบ ฝั่งอากาศ</option>
+        <option value="ee">มอเตอร์/ปั๊ม — ไฟฟ้าเข้า เทียบ กำลังของไหล</option>
+      </select></div>
+    <div class="grid2">
+      <div class="fuelbox"><h3 id="hA">ฝั่ง A</h3><div id="inA"></div>
+        <div class="kv" style="margin-top:8px"><span>Q ที่คำนวณได้</span><b id="qA">–</b></div></div>
+      <div class="fuelbox"><h3 id="hB">ฝั่ง B</h3><div id="inB"></div>
+        <div class="kv" style="margin-top:8px"><span>Q ที่คำนวณได้</span><b id="qB">–</b></div></div>
+    </div>
+    <div id="balOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 2 ═══ -->
+<section class="panel" data-p="2">
+  <div class="card">
+    <h2>การกระจายความไม่แน่นอน</h2>
+    <div class="sub">Q = ṁ · c<sub>p</sub> · ΔT — ความคลาดเคลื่อนของแต่ละตัวส่งผลต่อผลลัพธ์ไม่เท่ากัน
+      และตัวที่คนมองข้ามมากที่สุดคือ ΔT</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ΔT ที่ใช้งานจริง <span class="unit">°C</span></label><input type="number" id="uDT" value="2.5" step="0.1"></div>
+      <div class="fld"><label class="f">ความคลาดเคลื่อนของ sensor แต่ละตัว <span class="unit">± °C</span></label><input type="number" id="uT" value="0.5" step="0.1"></div>
+      <div class="fld"><label class="f">ชนิดของ sensor</label>
+        <select id="uPair">
+          <option value="ind">สอง sensor แยกกัน (ไม่ matched)</option>
+          <option value="matched">Matched pair</option>
+        </select></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ความคลาดเคลื่อนของอัตราการไหล <span class="unit">± %</span></label><input type="number" id="uF" value="3" step="0.5"></div>
+      <div class="fld"><label class="f">ความคลาดเคลื่อนของ c<sub>p</sub> และความหนาแน่น <span class="unit">± %</span></label><input type="number" id="uCp" value="0.5" step="0.1"></div>
+    </div>
+    <div id="uncOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>ΔT ต่ำสุดที่ยังวัดได้อย่างมีความหมาย</h2>
+    <div class="sub">ที่ ΔT ต่ำกว่าค่านี้ ผลลัพธ์จะจมอยู่ในความคลาดเคลื่อนของเครื่องมือเอง</div>
+    <div id="minOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 3 ═══ -->
+<section class="panel" data-p="3">
+  <div class="card">
+    <h2>ตรวจความสมเหตุสมผลของค่าที่วัดได้</h2>
+    <div class="sub">การตรวจเชิงตรรกะที่ทำได้ทันทีก่อนส่งเครื่องมือไปสอบเทียบ</div>
+    <div id="sanOut"></div>
+  </div>
+  <div class="card">
+    <h2>ตรวจซ้ำด้วยค่าที่วัดคนละวิธี</h2>
+    <div class="sub">ถ้ามีทางวัดปริมาณเดียวกันได้สองทาง ให้เทียบกันเสมอ</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ค่าจากวิธีที่ 1</label><input type="number" id="x1" value="180" step="0.1"></div>
+      <div class="fld"><label class="f">ค่าจากวิธีที่ 2</label><input type="number" id="x2" value="168" step="0.1"></div>
+      <div class="fld"><label class="f">หน่วย</label><input type="text" id="xu" value="L/s"></div>
+    </div>
+    <div id="crossOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 4 ═══ -->
+<section class="panel" data-p="4">
+  <div class="card">
+    <h2>Checklist ก่อนเริ่มวินิจฉัย</h2>
+    <div id="chkOut"></div>
+  </div>
+  <div class="card">
+    <h2>สรุปสำหรับใส่รายงาน</h2>
+    <button class="btn ghost sm" id="btnCopy"><i class="fas fa-copy"></i> คัดลอกสรุป</button>
+    <button class="btn ghost sm" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์ / บันทึก PDF</button>
+    <div id="repOut" style="margin-top:12px"></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><b>Triple E Technology Co., Ltd.</b> — Data Validation &amp; Heat Balance</p>
+  <p style="margin-top:5px">การกระจายความไม่แน่นอนแบบ RSS (root-sum-square) ตามแนวทาง ASHRAE Guideline 2 และ ISO/IEC Guide 98 (GUM)</p>
+</footer>
+
+<script>
+const $=id=>document.getElementById(id);
+const V=id=>{const e=$(id);return e?(parseFloat(e.value)||0):0;};
+const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed(d===undefined?2:d);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pill=(i,t)=>`<span class="pill p${i}">${t}</span>`;
+
+/* ── นิยามคู่สมดุล ── */
+const PAIRS={
+ wa:{a:{n:'ฝั่งน้ำ (Chilled Water)',f:[
+      ['wFlow','อัตราการไหลน้ำ','L/s',18],['wIn','น้ำเข้าคอยล์ EWT','°C',7.1],['wOut','น้ำออกคอยล์ LWT','°C',9.4]],
+     calc:()=>4.19*V('wFlow')*(V('wOut')-V('wIn'))},
+     b:{n:'ฝั่งอากาศ (Air)',f:[
+      ['aFlow','อัตราการไหลอากาศ','m³/s',6.4],['aIn','อากาศเข้า EAT','°C',26],['aOut','อากาศออก LAT','°C',14],
+      ['aRhIn','RH เข้า','%',60],['aRhOut','RH ออก','%',92]],
+     calc:()=>{const rho=1.18,P=101.325;
+       const h=(T,rh)=>{const pw=0.61121*Math.exp((18.678-T/234.5)*(T/(257.14+T)))*rh/100;
+         const W=0.621945*pw/(P-pw); return 1.006*T+W*(2501+1.86*T);};
+       return V('aFlow')*rho*(h(V('aIn'),V('aRhIn'))-h(V('aOut'),V('aRhOut')));}},
+     note:'ฝั่งอากาศต้องคิดเอนทาลปีรวม (sensible + latent) ไม่ใช่แค่ผลต่างอุณหภูมิ — คอยล์น้ำเย็นมี latent load เสมอ'},
+ ww:{a:{n:'ฝั่งร้อน',f:[['h1','อัตราการไหล','m³/h',900],['h2','เข้า','°C',45],['h3','ออก','°C',37]],
+      calc:()=>V('h1')*993/3600*4.186*(V('h2')-V('h3'))},
+     b:{n:'ฝั่งเย็น',f:[['c1','อัตราการไหล','m³/h',960],['c2','เข้า','°C',32],['c3','ออก','°C',39.5]],
+      calc:()=>V('c1')*994/3600*4.186*(V('c3')-V('c2'))},
+     note:'ในระบบวงปิดที่หุ้มฉนวนดี สองฝั่งควรต่างกันไม่เกิน 3–5 % ถ้าเกินกว่านั้นให้สงสัย flow meter ก่อนเสมอ'},
+ fs:{a:{n:'พลังงานเชื้อเพลิงเข้า',f:[
+      ['fRate','อัตราป้อนเชื้อเพลิง','kg/h',1800],['fLhv','LHV as-fired','MJ/kg',14.5]],
+     calc:()=>V('fRate')*V('fLhv')*1000/3600},
+     b:{n:'พลังงานไอน้ำออก',f:[
+      ['sRate','อัตราการผลิตไอน้ำ','kg/h',9000],['sH','เอนทาลปีไอน้ำ','kJ/kg',2762],['fwH','เอนทาลปีน้ำป้อน','kJ/kg',419]],
+     calc:()=>V('sRate')*(V('sH')-V('fwH'))/3600},
+     note:'อัตราส่วน B/A คือประสิทธิภาพหม้อไอน้ำแบบ input–output ถ้าได้เกิน 90 % บนฐาน LHV กับเชื้อเพลิงแข็ง ให้สงสัยข้อมูลทันที'},
+ ct:{a:{n:'ฝั่งน้ำหล่อเย็น',f:[
+      ['ctF','อัตราการไหลน้ำ','m³/h',900],['ctH','น้ำเข้าหอ','°C',44],['ctC','น้ำออกหอ','°C',36]],
+     calc:()=>V('ctF')*1000/3600*4.186*(V('ctH')-V('ctC'))},
+     b:{n:'ภาระจากอุปกรณ์ต้นทาง',f:[
+      ['ldQ','ภาระความร้อนที่ควรระบาย','kW',8400],['ldAux','ความร้อนจากปั๊มและอุปกรณ์ช่วย','kW',110]],
+     calc:()=>V('ldQ')+V('ldAux')},
+     note:'อย่าลืมบวกความร้อนจากปั๊มน้ำหล่อเย็นเข้าไปในภาระด้วย และในระบบ chiller ต้องบวกกำลังไฟของ chiller เข้ากับ cooling load'},
+ ee:{a:{n:'ไฟฟ้าเข้า',f:[['ekW','กำลังไฟฟ้าที่วัดได้','kW',110],['eEff','ประสิทธิภาพมอเตอร์','%',93]],
+     calc:()=>V('ekW')*V('eEff')/100},
+     b:{n:'กำลังของไหล',f:[
+      ['pQ','อัตราการไหล','m³/h',900],['pH','เฮดรวม','m',32],['pEff','ประสิทธิภาพปั๊ม','%',78]],
+     calc:()=>V('pQ')/3600*1000*9.81*V('pH')/1000/(V('pEff')/100)},
+     note:'ใช้ตรวจว่าค่าประสิทธิภาพที่สมมุติไว้สมเหตุสมผลไหม ถ้าสองฝั่งต่างกันมาก แปลว่าเฮด อัตราการไหล หรือประสิทธิภาพที่ใช้ตัวใดตัวหนึ่งผิด'}
+};
+
+function buildInputs(){
+  const p=PAIRS[$('pair').value];
+  $('hA').textContent=p.a.n; $('hB').textContent=p.b.n;
+  const mk=side=>side.f.map(f=>
+    `<div class="fld"><label class="f">${f[1]} <span class="unit">${f[2]}</span></label>
+     <input type="number" id="${f[0]}" value="${f[3]}" step="0.1"></div>`).join('');
+  $('inA').innerHTML=`<div class="grid3">${mk(p.a)}</div>`;
+  $('inB').innerHTML=`<div class="grid3">${mk(p.b)}</div>`;
+  $('inA').querySelectorAll('input').forEach(x=>x.addEventListener('input',calc));
+  $('inB').querySelectorAll('input').forEach(x=>x.addEventListener('input',calc));
+}
+
+let S={};
+function calc(){
+  const p=PAIRS[$('pair').value];
+  let qa=0,qb=0;
+  try{ qa=p.a.calc(); qb=p.b.calc(); }catch(e){}
+  const mean=(qa+qb)/2;
+  const closure=mean!==0?Math.abs(qa-qb)/Math.abs(mean)*100:null;
+  $('qA').textContent=fmt(qa,1)+' kW';
+  $('qB').textContent=fmt(qb,1)+' kW';
+
+  /* uncertainty */
+  const dT=Math.abs(V('uDT')), uT=Math.abs(V('uT'));
+  const matched=$('uPair').value==='matched';
+  const uDTrss = matched ? uT : Math.sqrt(2)*uT;
+  const uDTworst = matched ? uT : 2*uT;
+  const relDT = dT>0? uDTrss/dT*100 : Infinity;
+  const relDTw= dT>0? uDTworst/dT*100 : Infinity;
+  const uF=Math.abs(V('uF')), uCp=Math.abs(V('uCp'));
+  const uQ = Math.sqrt(relDT*relDT + uF*uF + uCp*uCp);
+  const uQw= relDTw + uF + uCp;
+
+  /* verdict */
+  $('vU').textContent='±'+fmt(uQ,1);
+  const cl = closure===null?3:(closure<uQ?0:(closure<uQ*2?1:(closure<uQ*4?2:3)));
+  $('vCl').textContent=fmt(closure,1); $('vCl').className='vnum mono s'+cl;
+  $('vClb').innerHTML=`% · ${pill(cl,['อยู่ในช่วงคลาดเคลื่อน','ใกล้ขอบ','เกินคลาดเคลื่อน','เกินมาก'][cl])}`;
+  $('vOK').textContent = closure===null?'–':(closure<uQ?'ใช่':'ไม่');
+  $('vOK').className='vnum mono s'+(closure!==null&&closure<uQ?0:2);
+  $('vOKb').textContent=`สมดุล ${fmt(closure,1)} % เทียบคลาดเคลื่อน ±${fmt(uQ,1)} %`;
+  const wide = uQ>15;   // tolerance กว้างจนการปิดสมดุลได้แทบไม่เป็นหลักฐาน
+  const vd = cl===0 ? (wide?'ใช้ได้อย่างระวัง':'ใช้วินิจฉัยได้')
+             : (cl===1?'ใช้ได้อย่างระวัง':'ต้องสอบเทียบก่อน');
+  $('vVd').textContent=vd; $('vVd').className='vnum mono s'+(cl===0?(wide?1:0):cl);
+  $('vVdb').textContent = cl===0?(wide?'ปิดสมดุลได้ แต่เพราะช่วงคลาดเคลื่อนกว้างมาก':'ข้อมูลชุดนี้เชื่อถือได้'):'อย่าเพิ่งสรุปอาการจากข้อมูลชุดนี้';
+
+  $('balOut').innerHTML=`
+   <div class="grid4" style="margin-top:14px">
+     <div class="stat"><div class="big">${fmt(qa,1)}</div><div class="bigu">Q ฝั่ง A · kW</div></div>
+     <div class="stat"><div class="big">${fmt(qb,1)}</div><div class="bigu">Q ฝั่ง B · kW</div></div>
+     <div class="stat"><div class="big s${cl}">${fmt(closure,1)}</div><div class="bigu">ส่วนต่าง · %</div>
+       <div class="gauge"><i class="b${cl}" style="width:${clamp(closure===null?0:closure*4,2,100)}%"></i></div></div>
+     <div class="stat"><div class="big">${fmt(qb!==0?qa/qb:null,3)}</div><div class="bigu">อัตราส่วน A/B</div></div>
+   </div>
+   <div class="note ${cl<=1?'good':(cl===2?'warn':'bad')}">
+     <b>${cl<=1?'สมดุลปิดได้ภายในความคลาดเคลื่อนของเครื่องมือ'
+        :'สมดุลไม่ปิด — ส่วนต่างใหญ่กว่าที่ความคลาดเคลื่อนของเครื่องมืออธิบายได้'}</b><br>
+     ส่วนต่าง ${fmt(closure,1)} % เทียบกับความไม่แน่นอนที่คำนวณได้ ±${fmt(uQ,1)} %
+     ${cl<=1?`— ข้อมูลชุดนี้ใช้วินิจฉัยต่อได้ ผลที่ได้จะมีความหมาย`
+      :`— แปลว่ามีอย่างน้อยหนึ่งค่าที่ผิดจริง ไม่ใช่แค่ความคลาดเคลื่อนปกติ
+        <b>ตัวที่ควรสงสัยก่อนเสมอคืออัตราการไหล</b> เพราะ flow meter เป็นเครื่องมือที่คลาดเคลื่อนง่ายที่สุด
+        (ติดตั้งใกล้ข้องอเกินไป ท่อไม่เต็ม อากาศปน สัมประสิทธิ์ตั้งค่าผิด)
+        รองลงมาคือ sensor อุณหภูมิที่ติดตั้งไม่ลึกพอหรืออยู่ในจุดที่น้ำแยกชั้น`}
+   </div>
+   ${wide?`<div class="note warn"><b>ข้อควรระวังที่สำคัญกว่าตัวเลขสมดุล</b> —
+     ความไม่แน่นอนของการวัดอยู่ที่ ±${fmt(uQ,1)} % ซึ่งกว้างมาก
+     ที่ช่วงกว้างขนาดนี้ สมดุลจะปิดได้ง่ายแม้ข้อมูลจะผิดพอสมควร —
+     การปิดสมดุลได้จึง<b>ไม่ใช่หลักฐานที่หนักแน่นว่าข้อมูลถูก</b>
+     ถ้าจะใช้ข้อมูลชุดนี้ตัดสินใจสำคัญ ต้องลดความไม่แน่นอนลงก่อน (ดูแท็บ 2)</div>`:''}
+   <div class="note">${p.note}</div>`;
+
+  /* uncertainty detail */
+  const terms=[
+    ['ΔT (ผลต่างอุณหภูมิ)',relDT,'ΔT = '+fmt(dT,2)+' °C, sensor ±'+fmt(uT,2)+' °C'+(matched?' (matched pair)':' (แยกกัน → ×√2)')],
+    ['อัตราการไหล',uF,'ตามสเปกเครื่องมือ'],
+    ['c'+'\u209A'+' และความหนาแน่น',uCp,'จากตารางคุณสมบัติ']];
+  const dom=terms.reduce((a,b)=>b[1]>a[1]?b:a);
+  $('uncOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big s${uQ>15?2:(uQ>8?1:0)}">±${fmt(uQ,1)}</div><div class="bigu">ความไม่แน่นอนรวม (RSS) · %</div></div>
+     <div class="stat"><div class="big">±${fmt(uQw,1)}</div><div class="bigu">กรณีเลวร้ายสุด (บวกตรง) · %</div></div>
+     <div class="stat"><div class="big s${relDT>10?2:(relDT>5?1:0)}">±${fmt(relDT,1)}</div><div class="bigu">เฉพาะจาก ΔT · %</div></div>
+     <div class="stat"><div class="big">±${fmt(uDTrss,2)}</div><div class="bigu">ความคลาดเคลื่อนของ ΔT · °C</div></div>
+   </div>
+   <div class="tbl-wrap" style="margin-top:12px"><table>
+     <tr><th>ตัวแปร</th><th class="n">สัดส่วนความคลาดเคลื่อน %</th><th class="n">สัดส่วนของทั้งหมด</th><th>ที่มา</th></tr>
+     ${terms.map(t=>`<tr${t[0]===dom[0]?' class="hl"':''}><td>${t[0]}</td>
+       <td class="n">±${fmt(t[1],2)}</td>
+       <td class="n">${fmt(t[1]*t[1]/(uQ*uQ)*100,0)} %</td><td class="legend">${t[2]}</td></tr>`).join('')}
+   </table></div>
+   <div class="note ${relDT>10?'bad':'warn'}">
+     <b>ตัวที่ครองความคลาดเคลื่อนคือ ${dom[0]}</b> — คิดเป็น ${fmt(dom[1]*dom[1]/(uQ*uQ)*100,0)} % ของความไม่แน่นอนทั้งหมด<br>
+     ${relDT>8?`นี่คือกับดักที่พบบ่อยที่สุดในงานระบบน้ำเย็น: sensor ที่ความคลาดเคลื่อน ±${fmt(uT,1)} °C
+       ฟังดูดีมากในสเปก แต่เมื่อนำไปหาผลต่างของสองค่า ความคลาดเคลื่อนจะรวมกันเป็น ±${fmt(uDTrss,2)} °C
+       และเมื่อ ΔT ที่วัดมีเพียง ${fmt(dT,2)} °C ผลลัพธ์จึงคลาดเคลื่อนได้ถึง <b>±${fmt(relDT,1)} %</b><br>
+       <b>ทางแก้ที่ได้ผลจริง</b> — ใช้ matched pair (ลดเหลือ ±${fmt(uT/Math.sqrt(2)/uT*uT,2)} °C เพราะ bias ร่วมหักล้างกันในผลต่าง)
+       และวัด ΔT ด้วย sensor คู่เดียวกันที่สอบเทียบพร้อมกัน ไม่ใช่หยิบสองตัวจากคนละล็อต`
+      :`สัดส่วนความคลาดเคลื่อนจาก ΔT อยู่ในเกณฑ์ที่ยอมรับได้`}
+   </div>`;
+
+  /* min ΔT */
+  const targets=[5,10,15,20];
+  $('minOut').innerHTML=`
+   <div class="tbl-wrap"><table>
+     <tr><th>ถ้าต้องการความแม่นระดับ</th><th class="n">ΔT ต่ำสุดที่ต้องมี (matched pair)</th>
+         <th class="n">ΔT ต่ำสุด (sensor แยกกัน)</th></tr>
+     ${targets.map(t=>{
+       const eff=Math.sqrt(Math.max(t*t-uF*uF-uCp*uCp,0.01));
+       return `<tr${t===10?' class="hl"':''}><td>±${t} % ของ Q</td>
+         <td class="n">${fmt(uT/(eff/100),2)} °C</td>
+         <td class="n">${fmt(Math.sqrt(2)*uT/(eff/100),2)} °C</td></tr>`;}).join('')}
+   </table></div>
+   <div class="note">
+     <b>ความหมายในทางปฏิบัติ</b> — ระบบที่กำลังเกิด Low ΔT Syndrome มักมี ΔT เหลือเพียง 2–3 °C
+     ซึ่งเป็นช่วงที่การวัดยากที่สุดพอดี ถ้าใช้ sensor ทั่วไป ±0.5 °C แยกกันสองตัว
+     ผลที่ได้จะคลาดเคลื่อน ±${fmt(Math.sqrt(2)*0.5/2.5*100,0)} % ที่ ΔT = 2.5 °C<br>
+     <b>ยิ่งระบบมีปัญหา ยิ่งต้องใช้เครื่องมือที่ดี</b> — นี่คือความย้อนแย้งที่ทำให้หลายโครงการวินิจฉัยผิดทาง
+     ทางออกคือใช้ matched pair สอบเทียบ ณ จุดใช้งาน และยืนยันด้วยการปิดสมดุลอีกฝั่งเสมอ
+   </div>`;
+
+  /* sanity */
+  const chk=[];
+  const add=(ok,t,d)=>chk.push({ok,t,d});
+  const pk=$('pair').value;
+  if(pk==='wa'){
+    add(V('wOut')>V('wIn'),'น้ำต้องร้อนขึ้นเมื่อผ่านคอยล์เย็น','LWT ต้องมากกว่า EWT เสมอ ถ้ากลับกันแปลว่าสลับ sensor');
+    add(V('aOut')<V('aIn'),'อากาศต้องเย็นลงเมื่อผ่านคอยล์','LAT ต้องน้อยกว่า EAT');
+    add(V('aOut')>V('wIn'),'อากาศออกต้องไม่เย็นกว่าน้ำเข้า','เป็นไปไม่ได้ทางเทอร์โมไดนามิกส์ — LAT ต้องมากกว่า EWT');
+    add(V('aRhOut')>=80,'RH หลังคอยล์ควรสูง (85–95 %)','อากาศที่ผ่านคอยล์เย็นจะเข้าใกล้อิ่มตัว ถ้าอ่านได้ต่ำให้สงสัย sensor');
+  } else if(pk==='ww'){
+    add(V('h2')>V('h3'),'ฝั่งร้อนต้องเย็นลง','อุณหภูมิออกต้องน้อยกว่าเข้า');
+    add(V('c3')>V('c2'),'ฝั่งเย็นต้องร้อนขึ้น','อุณหภูมิออกต้องมากกว่าเข้า');
+    add(V('h2')>V('c3'),'ไม่มี temperature cross ที่เป็นไปไม่ได้','ฝั่งร้อนเข้าต้องร้อนกว่าฝั่งเย็นออก');
+    add(V('h3')>V('c2'),'ฝั่งร้อนออกต้องร้อนกว่าฝั่งเย็นเข้า','ถ้าไม่ใช่ แปลว่าสลับ sensor หรือเป็นไปไม่ได้');
+  } else if(pk==='fs'){
+    const eff=qa>0?qb/qa*100:0;
+    add(eff>50&&eff<92,'ประสิทธิภาพอยู่ในช่วงที่เป็นไปได้',`คำนวณได้ ${fmt(eff,1)} % บนฐาน LHV — เชื้อเพลิงแข็งปกติ 65–85 %`);
+    add(V('sH')>V('fwH'),'เอนทาลปีไอน้ำต้องมากกว่าน้ำป้อน','ตรวจว่าใช้ค่าจากตารางไอน้ำที่ความดันถูกต้อง');
+    add(V('fLhv')>5&&V('fLhv')<35,'ค่าความร้อนอยู่ในช่วงที่เป็นไปได้','ชีวมวล 7–17, ถ่านหิน 12–28 MJ/kg (as-fired)');
+  } else if(pk==='ct'){
+    add(V('ctH')>V('ctC'),'น้ำเข้าหอต้องร้อนกว่าน้ำออก','ถ้ากลับกันแปลว่าสลับ sensor');
+    add(V('ctH')-V('ctC')<20,'Range อยู่ในช่วงที่สมเหตุสมผล','หอผึ่งอุตสาหกรรมทั่วไปมี range 5–12 °C');
+  } else {
+    add(V('eEff')>70&&V('eEff')<98,'ประสิทธิภาพมอเตอร์สมเหตุสมผล','มอเตอร์อุตสาหกรรม 85–96 %');
+    add(V('pEff')>30&&V('pEff')<92,'ประสิทธิภาพปั๊มสมเหตุสมผล','ปั๊มหอยโข่ง 55–85 % ที่จุดใช้งานที่ดี');
+  }
+  $('sanOut').innerHTML=chk.map(c=>
+   `<div class="zone"><div class="zi" style="background:${c.ok?'var(--ok)':'var(--danger)'}">
+      <i class="fas ${c.ok?'fa-check':'fa-xmark'}"></i></div>
+    <div class="zt"><b>${c.t}</b><span>${c.d}</span></div></div>`).join('');
+
+  /* cross check */
+  const a=V('x1'), b=V('x2'), u=$('xu').value;
+  const dev=(a+b)/2!==0?Math.abs(a-b)/Math.abs((a+b)/2)*100:0;
+  const dl=dev<3?0:(dev<7?1:(dev<15?2:3));
+  $('crossOut').innerHTML=`
+   <div class="grid3" style="margin-top:12px">
+     <div class="stat"><div class="big s${dl}">${fmt(dev,1)}</div><div class="bigu">ต่างกัน · %</div></div>
+     <div class="stat"><div class="big">${fmt((a+b)/2,2)}</div><div class="bigu">ค่าเฉลี่ย · ${u}</div></div>
+     <div class="stat" style="display:flex;align-items:center">${pill(dl,['ตรงกันดี','ยอมรับได้','ต่างมาก','ต่างมากผิดปกติ'][dl])}</div>
+   </div>
+   <div class="note ${dl>=2?'bad':'good'}">
+     ${dl>=2?`สองวิธีให้ค่าต่างกัน ${fmt(dev,1)} % — ต้องหาว่าตัวไหนถูกก่อนใช้งาน
+       อย่าใช้ค่าเฉลี่ยเพื่อ “ประนีประนอม” เพราะถ้าตัวหนึ่งผิดจริง ค่าเฉลี่ยก็ผิดครึ่งหนึ่งอยู่ดี`
+      :`สองวิธีให้ค่าใกล้เคียงกัน เพิ่มความมั่นใจในข้อมูลชุดนี้`}<br>
+     <b>ตัวอย่างการวัดซ้ำที่ทำได้จริง</b> — อัตราการไหล: flow meter ติดตั้งถาวร เทียบ ultrasonic แบบหนีบ
+     เทียบกับ pump curve ที่เฮดที่วัดได้ · กำลังไฟ: power meter เทียบ กระแส × แรงดัน × PF ·
+     ภาระความเย็น: ฝั่งน้ำ เทียบ ฝั่งอากาศ เทียบ กำลังไฟ chiller หารด้วย kW/RT ที่รับรอง
+   </div>`;
+
+  /* checklist */
+  const items=[
+   ['สอบเทียบ sensor อุณหภูมิเป็นคู่ ณ จุดใช้งาน','ไม่ใช่สอบเทียบทีละตัวแยกกัน เพราะสิ่งที่เราต้องการคือผลต่างที่แม่น ไม่ใช่ค่าสัมบูรณ์ที่แม่น'],
+   ['ตรวจตำแหน่งติดตั้ง sensor','ต้องจุ่มลึกพอ (อย่างน้อย 1/3 ของเส้นผ่านศูนย์กลางท่อ) ไม่อยู่ใกล้ tee ที่น้ำยังผสมไม่ทั่ว ไม่อยู่ใน dead leg และมีสารนำความร้อนใน thermowell'],
+   ['ตรวจ flow meter: ระยะท่อตรงต้นน้ำและปลายน้ำ','โดยทั่วไปต้องการ 10D ต้นน้ำและ 5D ปลายน้ำ ถ้าน้อยกว่านี้ค่าที่อ่านได้จะคลาดเคลื่อนอย่างเป็นระบบ'],
+   ['ยืนยันว่าท่อเต็มและไม่มีอากาศปน','ultrasonic และ magnetic meter จะอ่านผิดมากเมื่อท่อไม่เต็มหรือมีฟองอากาศ'],
+   ['บันทึกที่สภาวะคงตัว','เก็บข้อมูลหลังจากระบบเดินคงที่อย่างน้อย 15–30 นาที และเฉลี่ยอย่างน้อย 10–15 นาที ไม่ใช่ค่าชั่วขณะ'],
+   ['ตรวจ valve position feedback เทียบตำแหน่งจริง','คำสั่ง 0 % ไม่ได้แปลว่า valve ปิดสนิท ต้องดูที่ก้าน valve จริง'],
+   ['บันทึกภาระและสภาพอากาศพร้อมกัน','ข้อมูลที่ไม่มีบริบทของภาระเทียบกันข้ามวันไม่ได้ โดยเฉพาะ approach และ ΔT'],
+   ['ปิดสมดุลอีกฝั่งเสมอก่อนสรุป','ถ้าปิดสมดุลไม่ได้ อย่าเพิ่งไปสรุปอาการ — กลับมาที่เครื่องมือวัดก่อน']];
+  $('chkOut').innerHTML=items.map(i=>
+   `<div class="zone"><div class="zi" style="background:var(--accent)"><i class="fas fa-list-check"></i></div>
+    <div class="zt"><b>${i[0]}</b><span>${i[1]}</span></div></div>`).join('');
+
+  S={qa,qb,closure,uQ,uQw,relDT,uDTrss,dT,uT,matched,vd,dev};
+  report();
+}
+
+function report(){
+  $('repOut').innerHTML=`<pre class="mono" id="repTxt" style="white-space:pre-wrap;font-size:.78rem;
+   background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto">${
+`ผลตรวจสอบความน่าเชื่อถือของข้อมูลตรวจวัด
+
+คู่สมดุลที่ตรวจ        ${$('pair').selectedOptions[0].text}
+  Q ฝั่ง A             ${fmt(S.qa,1)} kW
+  Q ฝั่ง B             ${fmt(S.qb,1)} kW
+  ส่วนต่าง             ${fmt(S.closure,1)} %
+
+การกระจายความไม่แน่นอน
+  ΔT ที่ใช้งาน          ${fmt(S.dT,2)} °C
+  ความคลาดเคลื่อน sensor ±${fmt(S.uT,2)} °C ${S.matched?'(matched pair)':'(แยกกัน)'}
+  ความคลาดเคลื่อนของ ΔT  ±${fmt(S.uDTrss,2)} °C  =  ±${fmt(S.relDT,1)} % ของ ΔT
+  ความไม่แน่นอนรวม RSS   ±${fmt(S.uQ,1)} %
+  กรณีเลวร้ายสุด         ±${fmt(S.uQw,1)} %
+
+ข้อสรุป: ${S.vd}
+${S.closure<S.uQ
+ ?'สมดุลปิดได้ภายในความคลาดเคลื่อนของเครื่องมือ ข้อมูลชุดนี้ใช้วินิจฉัยต่อได้'
+ :'สมดุลไม่ปิดภายในความคลาดเคลื่อน — มีอย่างน้อยหนึ่งค่าที่ผิดจริง\nให้สอบเทียบอัตราการไหลและ sensor อุณหภูมิก่อนสรุปอาการใด ๆ'}
+
+หมายเหตุ: ความไม่แน่นอนรวมคำนวณแบบ RSS ตามแนวทาง ASHRAE Guideline 2 และ GUM
+sensor สองตัวที่แยกกันจะให้ความคลาดเคลื่อนของผลต่างเป็น √2 เท่าของตัวเดียว
+ขณะที่ matched pair จะหักล้าง bias ร่วมออกไปได้ จึงเหมาะกับงานที่ ΔT ต่ำ`}</pre>`;
+}
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  document.querySelector(`.panel[data-p="${t.dataset.t}"]`).classList.add('on');
+}));
+$('pair').addEventListener('change',()=>{buildInputs();calc();});
+document.querySelectorAll('input,select').forEach(x=>{
+  x.addEventListener('input',calc); x.addEventListener('change',calc);
+});
+$('btnCopy').addEventListener('click',()=>{
+  const t=$('repTxt'); if(!t) return;
+  navigator.clipboard.writeText(t.textContent).then(()=>{
+    $('btnCopy').innerHTML='<i class="fas fa-check"></i> คัดลอกแล้ว';
+    setTimeout(()=>$('btnCopy').innerHTML='<i class="fas fa-copy"></i> คัดลอกสรุป',1800);
+  }).catch(()=>{});
+});
+buildInputs(); calc();
+</script>
+</body>
+</html>
