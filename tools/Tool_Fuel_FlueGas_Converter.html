@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fuel &amp; Flue Gas Converter — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root{
+  --navy:#0f2a4a; --teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa; --card:#fff; --ink:#1c2b3a; --muted:#5b6b7b; --line:#e2e8f0;
+  --accent:#12a4a4; --warn:#e08a00; --ok:#1e9e5a; --danger:#d1495b; --sev4:#8e1b2e;
+  --radius:14px; --shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+h1,h2,h3,.bc{font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+header{background:var(--header-grad);color:#fff;padding:26px 20px 30px}
+header .wrap{max-width:1180px;margin:0 auto}
+header .kicker{font-size:.78rem;letter-spacing:2px;text-transform:uppercase;opacity:.8}
+header h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:700;margin-top:4px}
+header p{font-size:.92rem;opacity:.88;max-width:760px;margin-top:6px}
+header .back{color:#fff;text-decoration:none;font-size:.82rem;opacity:.85;display:inline-block;margin-bottom:10px}
+header .back:hover{opacity:1}
+
+main{max-width:1180px;margin:0 auto;padding:0 16px 60px}
+
+/* ── sticky verdict strip ── */
+.verdict{position:sticky;top:0;z-index:40;background:var(--card);border:1px solid var(--line);
+  border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;overflow:hidden;margin-bottom:18px}
+.vcell{padding:12px 14px;background:var(--card);text-align:center;border-left:1px solid var(--line)}
+.vcell:first-child{border-left:none}
+.vcell .vlab{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.vcell .vnum{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:700;line-height:1.05}
+.vcell .vband{font-size:.8rem;font-weight:600}
+.vbar{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.vbar i{display:block;height:100%;border-radius:3px;transition:width .35s}
+.s0{color:var(--ok)} .s1{color:var(--warn)} .s2{color:var(--danger)} .s3{color:var(--sev4)}
+.b0{background:var(--ok)} .b1{background:var(--warn)} .b2{background:var(--danger)} .b3{background:var(--sev4)}
+
+/* ── tabs ── */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:9px 16px;border:1px solid var(--line);background:var(--card);border-radius:10px;
+  cursor:pointer;font-size:.88rem;font-weight:500;color:var(--muted);transition:.15s;white-space:nowrap}
+.tab:hover{border-color:var(--accent)}
+.tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.panel{display:none} .panel.on{display:block}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card > h2{font-size:1.12rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.card > .sub{font-size:.83rem;color:var(--muted);margin-bottom:14px}
+.card h3{font-size:1rem;color:var(--navy);margin:16px 0 8px}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+
+label.f{display:block;font-size:.8rem;color:var(--muted);margin-bottom:3px;font-weight:500}
+input[type=number],select,input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);
+  border-radius:9px;font-family:'IBM Plex Mono',monospace;font-size:.9rem;background:#fff;color:var(--ink)}
+input[type=number]:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(18,164,164,.13)}
+select{font-family:'IBM Plex Sans Thai',sans-serif}
+input[readonly]{background:#f1f5f9;color:var(--muted)}
+.fld{margin-bottom:10px}
+.unit{font-size:.72rem;color:var(--muted);font-weight:400}
+
+.btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:22px;
+  font-family:'IBM Plex Sans Thai',sans-serif;font-size:.87rem;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent);filter:none}
+.btn.sm{padding:5px 12px;font-size:.79rem}
+
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left}
+th{background:#f8fafc;font-weight:600;color:var(--navy);font-size:.8rem}
+td.n,th.n{text-align:right;font-family:'IBM Plex Mono',monospace}
+tr.hl td{background:#fffbeb}
+.tbl-wrap{overflow-x:auto}
+
+.note{font-size:.82rem;color:var(--muted);background:#f8fafc;border-left:3px solid var(--line);
+  padding:9px 13px;border-radius:0 8px 8px 0;margin-top:10px;line-height:1.6}
+.note.warn{background:#fff8e6;border-left-color:var(--warn)}
+.note.bad{background:#fdeef0;border-left-color:var(--danger)}
+.note.good{background:#eaf7f0;border-left-color:var(--ok)}
+.note b{color:var(--ink)}
+
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.74rem;font-weight:600}
+.p0{background:#eaf7f0;color:#14663b} .p1{background:#fff4de;color:#8a5300}
+.p2{background:#fdeef0;color:#9e2333} .p3{background:#8e1b2e;color:#fff}
+.pn{background:#eef2f7;color:var(--muted)}
+
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.87rem}
+.kv:last-child{border-bottom:none}
+.kv b{font-family:'IBM Plex Mono',monospace;font-weight:500}
+
+.big{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:700;line-height:1;color:var(--navy)}
+.bigu{font-size:.85rem;color:var(--muted);font-family:'IBM Plex Sans Thai',sans-serif}
+
+.oxgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.oxgrid .fld{margin-bottom:0}
+
+details.ox{border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-top:10px;background:#fcfdfe}
+details.ox summary{cursor:pointer;font-weight:600;font-size:.87rem;color:var(--navy)}
+details.ox[open] summary{margin-bottom:10px}
+
+.fuelbox{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fcfdfe}
+.fuelbox > h3{margin-top:0}
+
+.legend{font-size:.76rem;color:var(--muted);margin-top:8px}
+.zone{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;margin-bottom:5px;font-size:.85rem;border:1px solid var(--line)}
+.zone .zi{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;font-size:.8rem}
+.zone .zt{flex:1}
+.zone .zt b{display:block;font-size:.88rem}
+.zone .zt span{font-size:.77rem;color:var(--muted)}
+
+.srcbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.srcbar span{font-size:.72rem;background:#eef2f7;color:var(--muted);padding:2px 8px;border-radius:20px}
+
+footer{text-align:center;padding:22px;font-size:.8rem;color:var(--muted);
+  border-top:1px solid var(--line);background:#fff}
+footer b{color:var(--navy)}
+
+@media(max-width:640px){
+  .verdict{grid-template-columns:1fr;gap:0}
+  .vcell{border-left:none;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;text-align:left}
+  .vcell:first-child{border-top:none}
+  .vcell .vnum{font-size:1.6rem}
+  .vcell > div:last-child{flex:1}
+  .card{padding:15px}
+}
+@media print{
+  header,.tabs,.btn,footer{display:none}
+  .panel{display:block!important}
+  .card{box-shadow:none;break-inside:avoid}
+  .verdict{position:static}
+}
+
+/* ── shared extras for the diagnostic suite ── */
+.rowbtn{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+table input{padding:5px 7px;font-size:.82rem;border-radius:7px;min-width:70px}
+table td{vertical-align:middle}
+.del{background:none;border:none;color:var(--danger);cursor:pointer;font-size:.95rem}
+.gauge{height:9px;border-radius:5px;background:var(--line);overflow:hidden;margin-top:5px}
+.gauge i{display:block;height:100%;border-radius:5px;transition:width .3s}
+.stat{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fcfdfe}
+.stat .big{font-size:1.9rem}
+.verdict2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.verdict2 .vcell{border-left:none}
+
+:root{ --accent:#1e88e5; --conv-dark:#0b3d91; }
+header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
+.btn{background:#1e88e5}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a href="../index.html" class="back"><i class="fas fa-arrow-left"></i> กลับหน้ารวมเครื่องมือ</a>
+    <div class="kicker"><i class="fas fa-flask"></i> Conversion &amp; Properties · Triple E Technology</div>
+    <h1>Fuel &amp; Flue Gas Converter</h1>
+    <p>แปลงค่าความร้อน LHV/HHV · ปริมาณเชื้อเพลิงเป็นพลังงาน · <b>ราคาเชื้อเพลิงเป็นบาทต่อ GJ และต่อ MJ</b>
+       · แก้ค่ามลพิษที่ O₂ อ้างอิง · หน่วยไอเสียแห้ง–เปียก</p>
+  </div>
+</header>
+
+<main>
+
+<div class="verdict2">
+  <div class="vcell"><div class="vlab">ค่าความร้อนที่ใช้</div>
+    <div class="vnum mono" id="vLHV">–</div><div class="vband" id="vLHVb">MJ/kg</div></div>
+  <div class="vcell"><div class="vlab">ราคาต่อพลังงาน</div>
+    <div class="vnum mono" id="vGJ">–</div><div class="vband">บาท/GJ</div></div>
+  <div class="vcell"><div class="vlab">ราคาต่อ MJ</div>
+    <div class="vnum mono" id="vMJ">–</div><div class="vband">บาท/MJ</div></div>
+  <div class="vcell"><div class="vlab">ต้นทุนความร้อนใช้งาน</div>
+    <div class="vnum mono" id="vUse">–</div><div class="vband" id="vUseb">บาท/GJ หลังหักประสิทธิภาพ</div></div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-t="1"><i class="fas fa-coins"></i> 1 · ราคาเชื้อเพลิง</div>
+  <div class="tab" data-t="2"><i class="fas fa-ranking-star"></i> 2 · เปรียบเทียบเชื้อเพลิง</div>
+  <div class="tab" data-t="3"><i class="fas fa-fire"></i> 3 · LHV ↔ HHV</div>
+  <div class="tab" data-t="4"><i class="fas fa-right-left"></i> 4 · ปริมาณ ↔ พลังงาน</div>
+  <div class="tab" data-t="5"><i class="fas fa-smog"></i> 5 · ไอเสีย &amp; O₂ Correction</div>
+</div>
+
+<!-- ═══ 1 ═══ -->
+<section class="panel on" data-p="1">
+  <div class="card">
+    <h2>ข้อมูลเชื้อเพลิง</h2>
+    <div class="sub">เลือกจากคลังเพื่อเติมค่าตั้งต้น แล้วแก้เป็นค่าของล็อตจริงได้ทุกช่อง</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">เชื้อเพลิง</label><select id="fuel"></select></div>
+      <div class="fld"><label class="f">ค่าความร้อน</label><input type="number" id="hv" value="16.5" step="0.01"></div>
+      <div class="fld"><label class="f">หน่วยค่าความร้อน</label>
+        <select id="hvU">
+          <option value="MJ/kg">MJ/kg</option>
+          <option value="kcal/kg">kcal/kg</option>
+          <option value="BTU/lb">BTU/lb</option>
+          <option value="kWh/kg">kWh/kg</option>
+          <option value="MJ/L">MJ/L</option>
+          <option value="MJ/Nm3">MJ/Nm³</option>
+          <option value="kcal/Nm3">kcal/Nm³</option>
+          <option value="MJ/Sm3">MJ/Sm³</option>
+          <option value="BTU/scf">BTU/scf</option>
+          <option value="MMBTU/ton">MMBTU/ตัน</option>
+        </select></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ความหนาแน่น <span class="unit">สำหรับแปลงปริมาตร ↔ มวล</span></label><input type="number" id="rho" value="0" step="0.0001"></div>
+      <div class="fld"><label class="f">หน่วยความหนาแน่น</label>
+        <select id="rhoU">
+          <option value="kg/L">kg/L (ของเหลว/ของแข็ง)</option>
+          <option value="kg/m3">kg/m³ (bulk density)</option>
+          <option value="kg/Nm3">kg/Nm³ (ก๊าซ)</option>
+        </select></div>
+      <div class="fld"><label class="f">สภาวะอ้างอิงของ Sm³</label>
+        <select id="sref">
+          <option value="15">15 °C · 101.325 kPa</option>
+          <option value="15.56">15.56 °C (60 °F) · 101.325 kPa</option>
+          <option value="20">20 °C · 101.325 kPa</option>
+          <option value="25">25 °C · 101.325 kPa</option>
+        </select></div>
+    </div>
+    <div class="note">
+      <b>Nm³ กับ Sm³ ไม่เท่ากัน</b> — Nm³ อ้างอิงที่ 0 °C ส่วน Sm³ อ้างอิงที่อุณหภูมิสูงกว่า
+      ก๊าซ 1 Sm³ จึงมีจำนวนโมลน้อยกว่า 1 Nm³ และให้พลังงานน้อยกว่าตามอัตราส่วน 273.15/(273.15 + t)
+      ที่ 15 °C คิดเป็น <b id="srefFac">0.9479</b> เท่า — ถ้าสลับสองหน่วยนี้จะคลาดเคลื่อนราว 5 %
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>ราคาที่ซื้อจริง</h2>
+    <div class="grid3">
+      <div class="fld"><label class="f">ราคา</label><input type="number" id="price" value="2800" step="1"></div>
+      <div class="fld"><label class="f">หน่วยราคา</label>
+        <select id="priceU">
+          <option value="THB/kg">บาท/kg</option>
+          <option value="THB/ton" selected>บาท/ตัน</option>
+          <option value="THB/L">บาท/ลิตร</option>
+          <option value="THB/Nm3">บาท/Nm³</option>
+          <option value="THB/Sm3">บาท/Sm³</option>
+          <option value="THB/m3">บาท/m³ (ปริมาตรกอง)</option>
+          <option value="THB/MMBTU">บาท/MMBTU</option>
+          <option value="THB/kWh">บาท/kWh</option>
+          <option value="THB/GJ">บาท/GJ</option>
+        </select></div>
+      <div class="fld"><label class="f">ประสิทธิภาพอุปกรณ์ <span class="unit">%</span></label><input type="number" id="eff" value="82" step="0.5" min="1" max="100"></div>
+    </div>
+    <div id="priceOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>ตารางราคาในทุกหน่วย</h2>
+    <div class="sub">ค่าที่แปลงได้จากข้อมูลที่ใส่ — ช่องที่เป็น “–” แปลว่ายังขาดความหนาแน่นหรือค่าความร้อนในฐานนั้น</div>
+    <div class="tbl-wrap"><table id="allTbl"></table></div>
+  </div>
+</section>
+
+<!-- ═══ 2 ═══ -->
+<section class="panel" data-p="2">
+  <div class="card">
+    <h2>เปรียบเทียบต้นทุนความร้อนของเชื้อเพลิงหลายชนิด</h2>
+    <div class="sub">เทียบบนฐานเดียวกันคือ <b>บาทต่อ GJ ความร้อนที่ใช้งานได้จริง</b> หลังหักประสิทธิภาพอุปกรณ์แล้ว
+      — นี่คือฐานเดียวที่เทียบข้ามเชื้อเพลิงได้อย่างเป็นธรรม</div>
+    <div class="rowbtn">
+      <button class="btn sm" id="addRow"><i class="fas fa-plus"></i> เพิ่มแถว</button>
+      <button class="btn sm ghost" id="demoRow"><i class="fas fa-flask"></i> ข้อมูลตัวอย่าง</button>
+      <button class="btn sm ghost" id="clrRow"><i class="fas fa-eraser"></i> ล้างตาราง</button>
+    </div>
+    <div class="tbl-wrap"><table id="cmpTbl"></table></div>
+    <div id="cmpOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 3 ═══ -->
+<section class="panel" data-p="3">
+  <div class="card">
+    <h2>แปลง LHV ↔ HHV</h2>
+    <div class="sub">ผลต่างมาจากความร้อนแฝงของน้ำที่เกิดจากไฮโดรเจนในเชื้อเพลิงและความชื้นที่ติดมา</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ทิศทางการแปลง</label>
+        <select id="hDir">
+          <option value="h2l">HHV → LHV</option>
+          <option value="l2h">LHV → HHV</option>
+        </select></div>
+      <div class="fld"><label class="f">ค่าตั้งต้น <span class="unit">MJ/kg</span></label><input type="number" id="hIn" value="19.5" step="0.01"></div>
+      <div class="fld"><label class="f">ฐานของค่าตั้งต้น</label>
+        <select id="hBasis">
+          <option value="ar">As-received (ตามที่รับมา)</option>
+          <option value="dry">Dry (ฐานแห้ง)</option>
+          <option value="daf">Dry ash-free</option>
+        </select></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ไฮโดรเจน H <span class="unit">% ฐานแห้ง</span></label><input type="number" id="hH" value="6.0" step="0.01"></div>
+      <div class="fld"><label class="f">ความชื้น M <span class="unit">% as-received</span></label><input type="number" id="hM" value="15" step="0.1"></div>
+      <div class="fld"><label class="f">เถ้า A <span class="unit">% ฐานแห้ง</span></label><input type="number" id="hA" value="3" step="0.1"></div>
+    </div>
+    <div id="hvOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 4 ═══ -->
+<section class="panel" data-p="4">
+  <div class="card">
+    <h2>ปริมาณเชื้อเพลิง ↔ พลังงาน</h2>
+    <div class="sub">ใช้ค่าความร้อนและความหนาแน่นจากแท็บที่ 1</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ปริมาณ</label><input type="number" id="qty" value="1000" step="1"></div>
+      <div class="fld"><label class="f">หน่วย</label>
+        <select id="qtyU">
+          <option value="kg">kg</option>
+          <option value="ton" selected>ตัน</option>
+          <option value="L">ลิตร</option>
+          <option value="Nm3">Nm³</option>
+          <option value="Sm3">Sm³</option>
+          <option value="m3">m³ (ปริมาตรกอง)</option>
+        </select></div>
+      <div class="fld"><label class="f">ระยะเวลา <span class="unit">ชม. (ใส่ 0 ถ้าไม่คิดอัตรา)</span></label><input type="number" id="qtyH" value="0" step="1"></div>
+    </div>
+    <div id="qtyOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 5 ═══ -->
+<section class="panel" data-p="5">
+  <div class="card">
+    <h2>แก้ค่ามลพิษไปที่ O₂ อ้างอิง</h2>
+    <div class="grid3">
+      <div class="fld"><label class="f">ค่าที่วัดได้</label><input type="number" id="cMeas" value="320" step="0.1"></div>
+      <div class="fld"><label class="f">O₂ ที่วัดได้ <span class="unit">% ฐานแห้ง</span></label><input type="number" id="o2m" value="11.5" step="0.1" min="0" max="20.9"></div>
+      <div class="fld"><label class="f">O₂ อ้างอิง <span class="unit">%</span></label><input type="number" id="o2r" value="7" step="0.5" min="0" max="20"></div>
+    </div>
+    <div id="o2Out"></div>
+  </div>
+
+  <div class="card">
+    <h2>แปลง ppm ↔ mg/Nm³</h2>
+    <div class="grid3">
+      <div class="fld"><label class="f">ก๊าซ</label><select id="gas"></select></div>
+      <div class="fld"><label class="f">ค่า</label><input type="number" id="gVal" value="320" step="0.1"></div>
+      <div class="fld"><label class="f">หน่วยของค่าที่ใส่</label>
+        <select id="gU"><option value="ppm">ppm (โดยปริมาตร)</option><option value="mg">mg/Nm³</option></select></div>
+    </div>
+    <div id="gasOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>ไอเสียฐานแห้ง ↔ ฐานเปียก</h2>
+    <div class="grid3">
+      <div class="fld"><label class="f">ค่าที่มี</label><input type="number" id="wVal" value="320" step="0.1"></div>
+      <div class="fld"><label class="f">ฐานของค่าที่มี</label>
+        <select id="wBase"><option value="dry">ฐานแห้ง (dry)</option><option value="wet">ฐานเปียก (wet)</option></select></div>
+      <div class="fld"><label class="f">ความชื้นในไอเสีย <span class="unit">% โดยปริมาตร</span></label><input type="number" id="wH2O" value="12" step="0.1" min="0" max="60"></div>
+    </div>
+    <div id="wetOut"></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><b>Triple E Technology Co., Ltd.</b> — Fuel &amp; Flue Gas Converter</p>
+  <p style="margin-top:5px">ค่าความร้อนและความหนาแน่นในคลังเป็นค่ากลางตามวรรณกรรม ใช้ประเมินเบื้องต้น
+     งานจริงต้องใช้ผลวิเคราะห์ของล็อตจริง และตรวจสอบค่า O₂ อ้างอิงจากประกาศกระทรวงที่บังคับใช้อยู่เสมอ</p>
+</footer>
+
+<script>
+const $=id=>document.getElementById(id);
+const V=id=>{const e=$(id);return e?(parseFloat(e.value)||0):0;};
+const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed(d===undefined?2:d);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const money=v=>isFinite(v)?Math.round(v).toLocaleString('th-TH'):'–';
+const num=v=>isFinite(v)?v.toLocaleString('th-TH',{maximumFractionDigits:2}):'–';
+
+/* ── คลังเชื้อเพลิง: hv (MJ/kg ar) หรือ hvVol (MJ/Nm³), rho (kg/L หรือ kg/Nm³) ── */
+const FUELS={
+ custom  :{n:'— กำหนดเอง —'},
+ woodchip:{n:'ไม้สับ (ความชื้น 40 %)', hv:11.5, rho:0,     rhoU:'kg/L', eff:80},
+ pellet  :{n:'Wood pellet',            hv:17.0, rho:0.65,  rhoU:'kg/L', eff:85},
+ husk    :{n:'แกลบ',                   hv:13.8, rho:0.12,  rhoU:'kg/L', eff:78},
+ bagasse :{n:'ชานอ้อย (ความชื้น 50 %)',hv:7.8,  rho:0,     rhoU:'kg/L', eff:72},
+ pks     :{n:'กะลาปาล์ม (PKS)',        hv:16.5, rho:0.62,  rhoU:'kg/L', eff:82},
+ efb     :{n:'ทะลายปาล์มเปล่า (EFB)',  hv:8.0,  rho:0,     rhoU:'kg/L', eff:70},
+ cassava :{n:'เหง้ามันสำปะหลัง',        hv:14.0, rho:0,     rhoU:'kg/L', eff:76},
+ corncob :{n:'ซังข้าวโพด',             hv:15.0, rho:0,     rhoU:'kg/L', eff:78},
+ lignite :{n:'ถ่านหินลิกไนต์',          hv:12.0, rho:0.85,  rhoU:'kg/L', eff:80},
+ bitum   :{n:'ถ่านหินบิทูมินัส',        hv:26.0, rho:0.85,  rhoU:'kg/L', eff:84},
+ rdf     :{n:'RDF',                    hv:15.0, rho:0.25,  rhoU:'kg/L', eff:75},
+ fo      :{n:'น้ำมันเตา',              hv:40.2, rho:0.96,  rhoU:'kg/L', eff:87},
+ diesel  :{n:'น้ำมันดีเซล',            hv:42.7, rho:0.84,  rhoU:'kg/L', eff:88},
+ lpg     :{n:'LPG',                    hv:46.1, rho:0.54,  rhoU:'kg/L', eff:90},
+ ng      :{n:'ก๊าซธรรมชาติ',           hvVol:36.0, rho:0.78, rhoU:'kg/Nm3', eff:90},
+ biogas  :{n:'ก๊าซชีวภาพ (CH₄ 60 %)',  hvVol:21.5, rho:1.15, rhoU:'kg/Nm3', eff:85},
+ elec    :{n:'ไฟฟ้า (เพื่อเปรียบเทียบ)',hv:0,   rho:0,     rhoU:'kg/L', eff:98}
+};
+
+/* ── ก๊าซสำหรับ ppm ↔ mg/Nm³ ── */
+const GASES={
+ NO2:{n:'NOx (คิดเป็น NO₂)',mw:46.01}, NO:{n:'NO',mw:30.01},
+ SO2:{n:'SO₂',mw:64.06},  CO:{n:'CO',mw:28.01},
+ HCl:{n:'HCl',mw:36.46},  NH3:{n:'NH₃',mw:17.03},
+ H2S:{n:'H₂S',mw:34.08},  CO2:{n:'CO₂',mw:44.01},
+ CH4:{n:'CH₄',mw:16.04},  O2:{n:'O₂',mw:32.00}
+};
+const VM=22.414;                         // ปริมาตรโมลาร์ที่ 0 °C, 101.325 kPa (Nm³/kmol)
+
+/* ── ตัวแปลงค่าความร้อนเป็น MJ ต่อหน่วยฐาน ── */
+function hvToBase(val,unit,srefT){
+  const sFac=273.15/(273.15+srefT);      // 1 Sm³ เทียบ 1 Nm³
+  switch(unit){
+    case 'MJ/kg'   : return {mass:val};
+    case 'kcal/kg' : return {mass:val*4.1868/1000};
+    case 'BTU/lb'  : return {mass:val*1.055056/0.45359237/1000};
+    case 'kWh/kg'  : return {mass:val*3.6};
+    case 'MMBTU/ton': return {mass:val*1055.056/1000};
+    case 'MJ/L'    : return {liq:val};
+    case 'MJ/Nm3'  : return {gas:val};
+    case 'kcal/Nm3': return {gas:val*4.1868/1000};
+    case 'MJ/Sm3'  : return {gas:val/sFac};
+    case 'BTU/scf' : return {gas:val*1.055056/0.0283168/1000/sFac};
+    default        : return {mass:val};
+  }
+}
+
+let CMP=[];
+const CMPCOLS=['เชื้อเพลิง','ค่าความร้อน MJ/kg','ราคา','หน่วยราคา','ความหนาแน่น','ประสิทธิภาพ %'];
+const PU=['THB/kg','THB/ton','THB/L','THB/Nm3','THB/Sm3','THB/MMBTU','THB/kWh','THB/GJ'];
+const PULAB={'THB/kg':'บาท/kg','THB/ton':'บาท/ตัน','THB/L':'บาท/ลิตร','THB/Nm3':'บาท/Nm³',
+             'THB/Sm3':'บาท/Sm³','THB/m3':'บาท/m³','THB/MMBTU':'บาท/MMBTU','THB/kWh':'บาท/kWh','THB/GJ':'บาท/GJ'};
+
+/* ══════════ แกนคำนวณราคา ══════════ */
+function priceEngine(hv,hvU,rho,rhoU,srefT,price,priceU){
+  const sFac=273.15/(273.15+srefT);
+  const b=hvToBase(hv,hvU,srefT);
+  /* สร้างค่าความร้อนในทุกฐานเท่าที่อนุมานได้ */
+  let mjKg=b.mass||null, mjL=b.liq||null, mjNm3=b.gas||null;
+  const rhoKgL   = rhoU==='kg/L'  ? rho : (rhoU==='kg/m3' ? rho/1000 : null);
+  const rhoKgNm3 = rhoU==='kg/Nm3'? rho : null;
+  if(mjKg===null && mjL!==null && rhoKgL>0)     mjKg=mjL/rhoKgL;
+  if(mjKg===null && mjNm3!==null && rhoKgNm3>0) mjKg=mjNm3/rhoKgNm3;
+  if(mjL===null   && mjKg!==null && rhoKgL>0)   mjL=mjKg*rhoKgL;
+  if(mjNm3===null && mjKg!==null && rhoKgNm3>0) mjNm3=mjKg*rhoKgNm3;
+  const mjSm3 = mjNm3!==null ? mjNm3*sFac : null;
+
+  /* แปลงราคาที่ป้อน → บาทต่อ MJ */
+  let perMJ=null;
+  switch(priceU){
+    case 'THB/kg'   : if(mjKg>0)  perMJ=price/mjKg; break;
+    case 'THB/ton'  : if(mjKg>0)  perMJ=price/1000/mjKg; break;
+    case 'THB/L'    : if(mjL>0)   perMJ=price/mjL; break;
+    case 'THB/m3'   : if(mjL>0)   perMJ=price/1000/mjL; break;
+    case 'THB/Nm3'  : if(mjNm3>0) perMJ=price/mjNm3; break;
+    case 'THB/Sm3'  : if(mjSm3>0) perMJ=price/mjSm3; break;
+    case 'THB/MMBTU': perMJ=price/1055.056; break;
+    case 'THB/kWh'  : perMJ=price/3.6; break;
+    case 'THB/GJ'   : perMJ=price/1000; break;
+  }
+  return {mjKg,mjL,mjNm3,mjSm3,rhoKgL,rhoKgNm3,sFac,perMJ,
+          perGJ: perMJ===null?null:perMJ*1000,
+          perkWh:perMJ===null?null:perMJ*3.6,
+          perMMBTU:perMJ===null?null:perMJ*1055.056};
+}
+
+/* ══════════ MAIN ══════════ */
+let S={};
+function calc(){
+  const srefT=parseFloat($('sref').value);
+  $('srefFac').textContent=(273.15/(273.15+srefT)).toFixed(4);
+  const r=priceEngine(V('hv'),$('hvU').value,V('rho'),$('rhoU').value,srefT,V('price'),$('priceU').value);
+  const eff=clamp(V('eff'),1,100)/100;
+  const useGJ=r.perGJ===null?null:r.perGJ/eff;
+  const usekWh=r.perkWh===null?null:r.perkWh/eff;
+  S={...r,eff,useGJ,usekWh,srefT};
+
+  /* verdict */
+  $('vLHV').textContent=fmt(r.mjKg!==null?r.mjKg:(r.mjNm3!==null?r.mjNm3:r.mjL),2);
+  $('vLHVb').textContent=r.mjKg!==null?'MJ/kg':(r.mjNm3!==null?'MJ/Nm³':'MJ/L');
+  $('vGJ').textContent=r.perGJ===null?'–':num(r.perGJ);
+  $('vMJ').textContent=r.perMJ===null?'–':fmt(r.perMJ,4);
+  $('vUse').textContent=useGJ===null?'–':num(useGJ);
+  $('vUseb').textContent=`บาท/GJ ที่ประสิทธิภาพ ${fmt(eff*100,0)} %`;
+
+  renderPrice(r,eff,useGJ,usekWh);
+  renderAll(r);
+  renderCmp();
+  renderHV(); renderQty(r); renderO2(); renderGas(); renderWet();
+}
+
+function renderPrice(r,eff,useGJ,usekWh){
+  const missing=[];
+  if(r.mjKg===null) missing.push('ค่าความร้อนต่อมวล (MJ/kg)');
+  if(r.mjL===null)  missing.push('ค่าความร้อนต่อลิตร หรือความหนาแน่น kg/L');
+  if(r.mjNm3===null)missing.push('ค่าความร้อนต่อ Nm³ หรือความหนาแน่น kg/Nm³');
+  $('priceOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${r.perGJ===null?'–':num(r.perGJ)}</div><div class="bigu">บาท/GJ (ความร้อนที่ซื้อ)</div></div>
+     <div class="stat"><div class="big">${r.perMJ===null?'–':fmt(r.perMJ,4)}</div><div class="bigu">บาท/MJ</div></div>
+     <div class="stat"><div class="big">${r.perkWh===null?'–':fmt(r.perkWh,3)}</div><div class="bigu">บาท/kWh ความร้อน</div></div>
+     <div class="stat"><div class="big s0">${useGJ===null?'–':num(useGJ)}</div><div class="bigu">บาท/GJ ความร้อนใช้งานจริง</div></div>
+   </div>
+   <div class="tbl-wrap" style="margin-top:14px"><table>
+     <tr><th>รายการ</th><th class="n">ค่า</th><th>หน่วย</th><th>หมายเหตุ</th></tr>
+     <tr><td>ค่าความร้อนต่อมวล</td><td class="n">${fmt(r.mjKg,3)}</td><td>MJ/kg</td>
+         <td class="legend">${fmt(r.mjKg===null?null:r.mjKg*1000,0)} MJ/ตัน</td></tr>
+     <tr><td>ค่าความร้อนต่อลิตร</td><td class="n">${fmt(r.mjL,3)}</td><td>MJ/L</td>
+         <td class="legend">${r.rhoKgL?`ที่ความหนาแน่น ${fmt(r.rhoKgL,3)} kg/L`:'ต้องใส่ความหนาแน่น'}</td></tr>
+     <tr><td>ค่าความร้อนต่อ Nm³</td><td class="n">${fmt(r.mjNm3,3)}</td><td>MJ/Nm³</td>
+         <td class="legend">อ้างอิง 0 °C</td></tr>
+     <tr><td>ค่าความร้อนต่อ Sm³</td><td class="n">${fmt(r.mjSm3,3)}</td><td>MJ/Sm³</td>
+         <td class="legend">อ้างอิง ${fmt(S.srefT,2)} °C · ตัวคูณ ${fmt(r.sFac,4)}</td></tr>
+     <tr class="hl"><td><b>ราคาต่อพลังงาน</b></td><td class="n"><b>${r.perGJ===null?'–':num(r.perGJ)}</b></td><td>บาท/GJ</td>
+         <td class="legend">= ${r.perMJ===null?'–':fmt(r.perMJ,4)} บาท/MJ</td></tr>
+     <tr><td>ราคาต่อ MMBTU</td><td class="n">${r.perMMBTU===null?'–':num(r.perMMBTU)}</td><td>บาท/MMBTU</td>
+         <td class="legend">1 MMBTU = 1,055.056 MJ</td></tr>
+     <tr><td>ราคาต่อ kWh ความร้อน</td><td class="n">${r.perkWh===null?'–':fmt(r.perkWh,3)}</td><td>บาท/kWh</td>
+         <td class="legend">1 kWh = 3.6 MJ</td></tr>
+     <tr class="hl"><td><b>ต้นทุนความร้อนใช้งานจริง</b></td><td class="n"><b>${useGJ===null?'–':num(useGJ)}</b></td><td>บาท/GJ</td>
+         <td class="legend">หารด้วยประสิทธิภาพ ${fmt(eff*100,0)} % · = ${usekWh===null?'–':fmt(usekWh,3)} บาท/kWh</td></tr>
+   </table></div>
+   ${missing.length?`<div class="note warn"><b>ยังแปลงบางหน่วยไม่ได้</b> — ขาด ${missing.join(' · ')}
+     ใส่ความหนาแน่นเพิ่มแล้วช่องที่เป็น “–” จะเติมให้เอง</div>`:''}
+   <div class="note">
+     <b>ทำไมต้องดูบาทต่อ GJ ไม่ใช่บาทต่อตัน</b> — ราคาต่อตันเทียบข้ามเชื้อเพลิงไม่ได้เลย
+     เพราะแต่ละชนิดให้พลังงานต่อกิโลกรัมต่างกันหลายเท่า
+     ชีวมวลเปียกที่ราคาถูกต่อตันอาจแพงกว่าถ่านหินเมื่อคิดต่อ GJ<br>
+     และ<b>ตัวเลขที่ควรใช้ตัดสินใจจริง ๆ คือบรรทัดสุดท้าย</b> — ต้นทุนความร้อนใช้งานจริง
+     ซึ่งรวมประสิทธิภาพของอุปกรณ์เข้าไปแล้ว เพราะเชื้อเพลิงความชื้นสูงไม่ได้แค่ให้พลังงานน้อย
+     แต่ยังทำให้หม้อไอน้ำมีประสิทธิภาพต่ำลงด้วย เป็นการถูกลงโทษสองต่อ
+   </div>`;
+}
+
+function renderAll(r){
+  const rows=[
+    ['บาท/kg',       r.mjKg!==null&&r.perMJ!==null ? r.perMJ*r.mjKg : null, 3],
+    ['บาท/ตัน',      r.mjKg!==null&&r.perMJ!==null ? r.perMJ*r.mjKg*1000 : null, 0],
+    ['บาท/ลิตร',     r.mjL!==null&&r.perMJ!==null ? r.perMJ*r.mjL : null, 3],
+    ['บาท/Nm³',      r.mjNm3!==null&&r.perMJ!==null ? r.perMJ*r.mjNm3 : null, 3],
+    ['บาท/Sm³',      r.mjSm3!==null&&r.perMJ!==null ? r.perMJ*r.mjSm3 : null, 3],
+    ['บาท/MJ',       r.perMJ, 4],
+    ['บาท/GJ',       r.perGJ, 2],
+    ['บาท/MMBTU',    r.perMMBTU, 2],
+    ['บาท/kWh ความร้อน', r.perkWh, 4],
+    ['บาท/toe',      r.perMJ===null?null:r.perMJ*41868, 0]
+  ];
+  $('allTbl').innerHTML=`<tr><th>หน่วย</th><th class="n">ราคา</th><th>คำอธิบาย</th></tr>`+
+    rows.map(x=>`<tr${x[0]==='บาท/GJ'||x[0]==='บาท/MJ'?' class="hl"':''}>
+      <td>${x[0]}</td><td class="n">${x[1]===null?'–':num(Number(x[1].toFixed(x[2])))}</td>
+      <td class="legend">${x[0]==='บาท/toe'?'1 toe = 41,868 MJ (ใช้ในรายงานการจัดการพลังงาน)':''}</td></tr>`).join('');
+}
+
+/* ── ตารางเปรียบเทียบ ── */
+function drawCmp(){
+  const t=$('cmpTbl');
+  t.innerHTML=`<tr><th>เชื้อเพลิง</th><th class="n">MJ/kg</th><th class="n">ราคา</th><th>หน่วย</th>
+    <th class="n">ρ kg/L</th><th class="n">η %</th><th class="n">บาท/GJ</th><th class="n">บาท/GJ ใช้งาน</th><th></th></tr>`+
+   CMP.map((r,i)=>{
+     const res=priceEngine(+r[1],'MJ/kg',+r[4],'kg/L',parseFloat($('sref').value),+r[2],r[3]);
+     const u=res.perGJ===null?null:res.perGJ/(clamp(+r[5],1,100)/100);
+     return `<tr>
+      <td><input type="text" data-i="${i}" data-j="0" value="${r[0]}"></td>
+      <td class="n"><input type="number" data-i="${i}" data-j="1" value="${r[1]}" step="0.1"></td>
+      <td class="n"><input type="number" data-i="${i}" data-j="2" value="${r[2]}" step="1"></td>
+      <td><select data-i="${i}" data-j="3">${PU.map(p=>`<option value="${p}"${p===r[3]?' selected':''}>${PULAB[p]}</option>`).join('')}</select></td>
+      <td class="n"><input type="number" data-i="${i}" data-j="4" value="${r[4]}" step="0.01"></td>
+      <td class="n"><input type="number" data-i="${i}" data-j="5" value="${r[5]}" step="1"></td>
+      <td class="n">${res.perGJ===null?'–':num(res.perGJ)}</td>
+      <td class="n"><b>${u===null?'–':num(u)}</b></td>
+      <td><button class="del" data-del="${i}"><i class="fas fa-xmark"></i></button></td></tr>`;
+   }).join('');
+  t.querySelectorAll('input,select').forEach(x=>x.addEventListener('input',e=>{
+    CMP[+e.target.dataset.i][+e.target.dataset.j]=e.target.value; drawCmp(); renderCmp();
+  }));
+  t.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{
+    CMP.splice(+e.currentTarget.dataset.del,1); drawCmp(); renderCmp();
+  }));
+}
+function renderCmp(){
+  if(!CMP.length){ $('cmpOut').innerHTML='<div class="note">ยังไม่มีข้อมูล — กด “ข้อมูลตัวอย่าง” เพื่อดูวิธีใช้</div>'; return; }
+  const sref=parseFloat($('sref').value);
+  const rows=CMP.map(r=>{
+    const res=priceEngine(+r[1],'MJ/kg',+r[4],'kg/L',sref,+r[2],r[3]);
+    return {n:r[0], gj:res.perGJ, use:res.perGJ===null?null:res.perGJ/(clamp(+r[5],1,100)/100)};
+  }).filter(x=>x.use!==null).sort((a,b)=>a.use-b.use);
+  if(!rows.length){ $('cmpOut').innerHTML='<div class="note warn">ยังคำนวณไม่ได้ — ตรวจค่าความร้อนและความหนาแน่น</div>'; return; }
+  const best=rows[0], worst=rows[rows.length-1];
+  const max=worst.use;
+  $('cmpOut').innerHTML=`
+   <div style="margin-top:12px">${rows.map((x,i)=>`
+     <div style="margin-bottom:9px">
+       <div style="display:flex;justify-content:space-between;font-size:.86rem">
+         <span>${i+1}. ${x.n}</span><b class="mono">${num(x.use)} บาท/GJ</b></div>
+       <div class="gauge"><i class="${i===0?'b0':(i===rows.length-1?'b2':'b1')}" style="width:${clamp(x.use/max*100,3,100)}%"></i></div>
+     </div>`).join('')}</div>
+   <div class="note good">
+     <b>ถูกที่สุดคือ ${best.n}</b> ที่ ${num(best.use)} บาท/GJ ความร้อนใช้งานจริง
+     ขณะที่แพงที่สุดคือ ${worst.n} ที่ ${num(worst.use)} บาท/GJ
+     — ต่างกัน <b>${fmt(worst.use/best.use,2)} เท่า</b><br>
+     ถ้าโรงงานใช้ความร้อนปีละ 100,000 GJ การเปลี่ยนจากตัวแพงที่สุดมาเป็นตัวถูกที่สุด
+     จะต่างกันประมาณ ${money((worst.use-best.use)*100000)} บาท/ปี
+   </div>
+   <div class="note warn">
+     <b>ราคาต่อ GJ ไม่ใช่ปัจจัยเดียวในการตัดสินใจ</b> — ต้องพิจารณาร่วมกับ
+     ความเสถียรของอุปทานและราคาตามฤดูกาล ต้นทุนการจัดการเถ้าและพื้นที่กองเก็บ
+     ความเสี่ยง slagging และ fouling ที่ทำให้ต้องหยุดเครื่องบ่อยขึ้น
+     ข้อจำกัดของใบอนุญาตและค่ามาตรฐานการระบาย และค่าขนส่งที่บางครั้งสูงกว่าตัวเชื้อเพลิงเอง<br>
+     เชื้อเพลิงที่ถูกที่สุดต่อ GJ แต่ทำให้เกิด clinker ทุกสัปดาห์ มักแพงกว่าเมื่อคิดต้นทุนรวมทั้งปี
+   </div>`;
+}
+
+/* ── LHV ↔ HHV ── */
+function renderHV(){
+  const dir=$('hDir').value, val=V('hIn'), basis=$('hBasis').value;
+  const H=V('hH'), M=V('hM'), A=V('hA');
+  /* แปลงค่าตั้งต้นเป็นฐาน as-received ก่อน */
+  let arVal=val;
+  if(basis==='dry') arVal=val*(1-M/100);
+  else if(basis==='daf') arVal=val*(1-M/100)*(1-A/100);
+  const Har=H*(1-M/100);                       // ไฮโดรเจนฐาน as-received
+  const water=9*Har/100 + M/100;               // kg น้ำ ต่อ kg เชื้อเพลิง ar
+  const dH=2.443*water;                        // MJ/kg ที่ 25 °C
+  const hhv=dir==='h2l'?arVal:arVal+dH;
+  const lhv=dir==='h2l'?arVal-dH:arVal;
+  const dryF=1-M/100;
+  $('hvOut').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${fmt(hhv,3)}</div><div class="bigu">HHV as-received · MJ/kg</div></div>
+     <div class="stat"><div class="big s0">${fmt(lhv,3)}</div><div class="bigu">LHV as-received · MJ/kg</div></div>
+     <div class="stat"><div class="big">${fmt(dH,3)}</div><div class="bigu">ผลต่าง · MJ/kg</div></div>
+     <div class="stat"><div class="big">${fmt(hhv>0?dH/hhv*100:null,1)}</div><div class="bigu">ผลต่างคิดเป็น · % ของ HHV</div></div>
+   </div>
+   <div class="tbl-wrap" style="margin-top:12px"><table>
+     <tr><th>ฐาน</th><th class="n">HHV MJ/kg</th><th class="n">LHV MJ/kg</th></tr>
+     <tr><td>As-received</td><td class="n">${fmt(hhv,3)}</td><td class="n">${fmt(lhv,3)}</td></tr>
+     <tr><td>Dry</td><td class="n">${fmt(dryF>0?hhv/dryF:null,3)}</td><td class="n">${fmt(dryF>0?(lhv+2.443*M/100)/dryF:null,3)}</td></tr>
+     <tr><td>Dry ash-free</td><td class="n">${fmt(dryF>0&&A<100?hhv/dryF/(1-A/100):null,3)}</td>
+         <td class="n">${fmt(dryF>0&&A<100?(lhv+2.443*M/100)/dryF/(1-A/100):null,3)}</td></tr>
+   </table></div>
+   <div class="note">
+     <b>สูตร</b> — LHV = HHV − 2.443 × (9H/100 + M/100) เมื่อ H และ M เป็น % โดยน้ำหนักฐาน as-received
+     ตัวเลข 2.443 MJ/kg คือความร้อนแฝงของการกลายเป็นไอที่ 25 °C
+     ส่วนตัวคูณ 9 มาจากอัตราส่วนมวล H₂O ต่อ H₂ (18/2)<br>
+     <b>ที่ต้องระวังในทางปฏิบัติ</b> — ผลต่างในเคสนี้คือ ${fmt(hhv>0?dH/hhv*100:null,1)} % ของ HHV
+     ${dH/hhv>0.08?`ซึ่ง<b>สูงมาก</b>เพราะความชื้น ${fmt(M,0)} %`:''}
+     ประสิทธิภาพหม้อไอน้ำบนฐาน HHV กับ LHV จึงต่างกันเท่านี้เสมอ
+     เวลาอ่านรายงานต้องดูว่าใช้ฐานไหน มิฉะนั้นจะเปรียบเทียบผิด<br>
+     มาตรฐานยุโรปและงานชีวมวลส่วนใหญ่ใช้ LHV · มาตรฐานอเมริกา (ASME PTC 4) ใช้ HHV เป็นหลัก
+   </div>`;
+}
+
+/* ── ปริมาณ ↔ พลังงาน ── */
+function renderQty(r){
+  const q=V('qty'), u=$('qtyU').value, hrs=V('qtyH');
+  let MJ=null;
+  if(u==='kg')   MJ=r.mjKg!==null?q*r.mjKg:null;
+  if(u==='ton')  MJ=r.mjKg!==null?q*1000*r.mjKg:null;
+  if(u==='L')    MJ=r.mjL!==null?q*r.mjL:null;
+  if(u==='m3')   MJ=r.mjL!==null?q*1000*r.mjL:null;
+  if(u==='Nm3')  MJ=r.mjNm3!==null?q*r.mjNm3:null;
+  if(u==='Sm3')  MJ=r.mjSm3!==null?q*r.mjSm3:null;
+  const cost=(MJ!==null&&r.perMJ!==null)?MJ*r.perMJ:null;
+  $('qtyOut').innerHTML=MJ===null
+   ?'<div class="note warn">ยังแปลงหน่วยนี้ไม่ได้ — ต้องใส่ความหนาแน่นหรือค่าความร้อนในฐานที่ตรงกัน (ดูแท็บที่ 1)</div>'
+   :`<div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${num(MJ)}</div><div class="bigu">MJ</div></div>
+     <div class="stat"><div class="big">${num(MJ/1000)}</div><div class="bigu">GJ</div></div>
+     <div class="stat"><div class="big">${num(MJ/3.6)}</div><div class="bigu">kWh</div></div>
+     <div class="stat"><div class="big">${fmt(MJ/41868,4)}</div><div class="bigu">toe</div></div>
+   </div>
+   <div class="tbl-wrap" style="margin-top:12px"><table>
+     <tr><th>หน่วย</th><th class="n">ค่า</th><th>หมายเหตุ</th></tr>
+     <tr><td>MJ</td><td class="n">${num(MJ)}</td><td class="legend"></td></tr>
+     <tr class="hl"><td>GJ</td><td class="n">${num(MJ/1000)}</td><td class="legend">หน่วยหลักของรายงานพลังงาน</td></tr>
+     <tr><td>kWh</td><td class="n">${num(MJ/3.6)}</td><td class="legend">1 kWh = 3.6 MJ</td></tr>
+     <tr><td>MMBTU</td><td class="n">${num(MJ/1055.056)}</td><td class="legend">1 MMBTU = 1,055.056 MJ</td></tr>
+     <tr><td>toe</td><td class="n">${fmt(MJ/41868,4)}</td><td class="legend">1 toe = 41,868 MJ (ใช้ในรายงานตาม พ.ร.บ.อนุรักษ์พลังงาน)</td></tr>
+     <tr><td>ktoe</td><td class="n">${fmt(MJ/41868/1000,6)}</td><td class="legend">ใช้ในระดับประเทศ</td></tr>
+     <tr><td>kcal</td><td class="n">${num(MJ/4.1868*1000)}</td><td class="legend">1 kcal = 4.1868 kJ</td></tr>
+     ${cost!==null?`<tr class="hl"><td>มูลค่า</td><td class="n">${money(cost)}</td><td class="legend">บาท ที่ราคาในแท็บที่ 1</td></tr>`:''}
+   </table></div>
+   ${hrs>0?`<div class="note">
+     คิดเป็นอัตรา <b>${fmt(MJ/hrs/3.6*1000/1000,1)} kW ความร้อน</b> ตลอด ${fmt(hrs,0)} ชั่วโมง
+     หรือ ${fmt(q/hrs,3)} ${u==='ton'?'ตัน':u}/ชม.
+     ${cost!==null?`· ค่าเชื้อเพลิง ${money(cost/hrs)} บาท/ชม.`:''}
+   </div>`:''}`;
+}
+
+/* ── O₂ correction ── */
+function renderO2(){
+  const c=V('cMeas'), o2m=clamp(V('o2m'),0,20.8), o2r=clamp(V('o2r'),0,20.8);
+  const f=(21-o2r)/(21-o2m);
+  const cr=c*f;
+  const ea=o2m<20.9?o2m/(20.9-o2m)*100:null;
+  $('o2Out').innerHTML=`
+   <div class="grid4" style="margin-top:12px">
+     <div class="stat"><div class="big">${num(cr)}</div><div class="bigu">ค่าที่แก้แล้ว</div></div>
+     <div class="stat"><div class="big">${fmt(f,4)}</div><div class="bigu">ตัวคูณแก้ค่า</div></div>
+     <div class="stat"><div class="big">${fmt(ea,0)}</div><div class="bigu">อากาศส่วนเกินโดยประมาณ · %</div></div>
+     <div class="stat"><div class="big">${fmt(o2m<20.9?20.9/(20.9-o2m):null,2)}</div><div class="bigu">ตัวประกอบการเจือจาง</div></div>
+   </div>
+   <div class="note">
+     <b>สูตร</b> — C<sub>ref</sub> = C<sub>วัดได้</sub> × (21 − O₂<sub>อ้างอิง</sub>) / (21 − O₂<sub>วัดได้</sub>)<br>
+     ในเคสนี้ ${num(c)} × (21 − ${fmt(o2r,1)}) / (21 − ${fmt(o2m,1)}) = <b>${num(cr)}</b>
+   </div>
+   <div class="note warn">
+     <b>เหตุผลที่ต้องแก้ค่า</b> — ถ้าไม่แก้ ผู้ประกอบการเพียงเปิดอากาศส่วนเกินให้มากขึ้น
+     ก็เจือจางความเข้มข้นให้ผ่านเกณฑ์ได้ทันทีโดยที่ปริมาณมลพิษที่ปล่อยจริงไม่ลดลงเลย
+     การแก้ที่ O₂ อ้างอิงจึงทำให้ทุกโรงเทียบกันได้บนฐานเดียวกัน<br>
+     <b>ค่า O₂ อ้างอิงต้องดูจากประกาศที่บังคับใช้กับแหล่งกำเนิดนั้นโดยตรง</b>
+     เพราะแตกต่างกันตามชนิดเชื้อเพลิง ชนิดแหล่งกำเนิด และปีที่ติดตั้ง
+     รวมทั้งมีการแก้ไขประกาศเป็นระยะ — อย่าใช้ค่าที่จำมาหรือค่าจากโรงอื่น
+     ให้เปิดประกาศกระทรวงฉบับที่บังคับใช้อยู่ทุกครั้ง และระบุเลขที่ประกาศไว้ในรายงานด้วย
+   </div>`;
+}
+
+/* ── ppm ↔ mg/Nm³ ── */
+function renderGas(){
+  const g=GASES[$('gas').value], v=V('gVal'), u=$('gU').value;
+  const ppm=u==='ppm'?v:v*VM/g.mw;
+  const mg =u==='ppm'?v*g.mw/VM:v;
+  $('gasOut').innerHTML=`
+   <div class="grid3" style="margin-top:12px">
+     <div class="stat"><div class="big">${num(ppm)}</div><div class="bigu">ppm โดยปริมาตร</div></div>
+     <div class="stat"><div class="big">${num(mg)}</div><div class="bigu">mg/Nm³</div></div>
+     <div class="stat"><div class="big">${fmt(g.mw,2)}</div><div class="bigu">มวลโมเลกุล · kg/kmol</div></div>
+   </div>
+   <div class="note">
+     <b>สูตร</b> — mg/Nm³ = ppm × MW / 22.414 โดย 22.414 คือปริมาตรโมลาร์ที่ 0 °C และ 101.325 kPa<br>
+     <b>จุดที่ผิดกันบ่อยที่สุด</b> — NOx ต้องคิดมวลโมเลกุลเป็น NO₂ (46.01) เสมอ
+     แม้ในไอเสียจริงส่วนใหญ่จะอยู่ในรูป NO (30.01) ก็ตาม เพราะมาตรฐานทั่วโลกกำหนดให้รายงานในรูป NO₂
+     ถ้าใช้ 30.01 ค่าจะต่ำกว่าความจริงถึง 35 %<br>
+     และต้องระวังว่าปริมาตรโมลาร์ที่ 25 °C คือ 24.45 ไม่ใช่ 22.414 — ต้องดูว่ามาตรฐานอ้างอิงที่อุณหภูมิใด
+   </div>`;
+}
+
+/* ── แห้ง ↔ เปียก ── */
+function renderWet(){
+  const v=V('wVal'), base=$('wBase').value, h2o=clamp(V('wH2O'),0,60)/100;
+  const dry=base==='dry'?v:v/(1-h2o);
+  const wet=base==='dry'?v*(1-h2o):v;
+  $('wetOut').innerHTML=`
+   <div class="grid3" style="margin-top:12px">
+     <div class="stat"><div class="big">${num(dry)}</div><div class="bigu">ฐานแห้ง (dry)</div></div>
+     <div class="stat"><div class="big">${num(wet)}</div><div class="bigu">ฐานเปียก (wet)</div></div>
+     <div class="stat"><div class="big">${fmt((1-h2o)*100,1)}</div><div class="bigu">สัดส่วนก๊าซแห้ง · %</div></div>
+   </div>
+   <div class="note">
+     <b>สูตร</b> — C<sub>เปียก</sub> = C<sub>แห้ง</sub> × (1 − H₂O) เมื่อ H₂O เป็นสัดส่วนโดยปริมาตร<br>
+     ค่าที่วัดด้วยเครื่องวิเคราะห์แบบมี condenser หรือ chiller จะเป็น<b>ฐานแห้ง</b>
+     ส่วนเครื่องแบบ hot-wet extractive และ in-situ จะเป็น<b>ฐานเปียก</b>
+     ต้องรู้ก่อนว่าเครื่องที่ใช้อยู่ให้ค่าฐานไหน มิฉะนั้นจะคลาดเคลื่อนตามปริมาณความชื้นในไอเสียทั้งหมด
+     ซึ่งสำหรับชีวมวลเปียกอาจสูงถึง 25–30 % โดยปริมาตร
+   </div>`;
+}
+
+/* ── init ── */
+function init(){
+  $('fuel').innerHTML=Object.keys(FUELS).map(k=>`<option value="${k}">${FUELS[k].n}</option>`).join('');
+  $('fuel').value='pks';
+  $('gas').innerHTML=Object.keys(GASES).map(k=>`<option value="${k}">${GASES[k].n}</option>`).join('');
+  $('gas').value='NO2';
+  loadFuel('pks');
+
+  $('fuel').addEventListener('change',e=>{ loadFuel(e.target.value); calc(); });
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');
+    document.querySelector(`.panel[data-p="${t.dataset.t}"]`).classList.add('on');
+  }));
+  document.querySelectorAll('input,select').forEach(x=>{
+    if(x.dataset.i!==undefined) return;
+    x.addEventListener('input',calc); x.addEventListener('change',calc);
+  });
+  $('addRow').addEventListener('click',()=>{ CMP.push(['เชื้อเพลิงใหม่',16,2500,'THB/ton',0.6,80]); drawCmp(); renderCmp(); });
+  $('clrRow').addEventListener('click',()=>{ CMP=[]; drawCmp(); renderCmp(); });
+  $('demoRow').addEventListener('click',()=>{
+    CMP=[['กะลาปาล์ม (PKS)',16.5,2800,'THB/ton',0.62,82],
+         ['ไม้สับ ชื้น 40 %',11.5,1100,'THB/ton',0.35,80],
+         ['แกลบ',13.8,1600,'THB/ton',0.12,78],
+         ['ถ่านหินบิทูมินัส',26.0,4800,'THB/ton',0.85,84],
+         ['น้ำมันเตา',40.2,22.5,'THB/L',0.96,87],
+         ['LPG',46.1,28.0,'THB/kg',0.54,90],
+         ['ไฟฟ้า',1,4.2,'THB/kWh',1,98]];
+    drawCmp(); renderCmp();
+  });
+  $('demoRow').click();
+  calc();
+}
+function loadFuel(k){
+  const f=FUELS[k];
+  if(!f||k==='custom') return;
+  if(f.hvVol!==undefined){ $('hv').value=f.hvVol; $('hvU').value='MJ/Nm3'; }
+  else { $('hv').value=f.hv; $('hvU').value='MJ/kg'; }
+  $('rho').value=f.rho||0; $('rhoU').value=f.rhoU||'kg/L';
+  if(f.eff) $('eff').value=f.eff;
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
