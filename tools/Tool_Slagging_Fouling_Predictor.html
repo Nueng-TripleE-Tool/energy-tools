@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slagging &amp; Fouling Predictor — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root{
+  --navy:#0f2a4a; --teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa; --card:#fff; --ink:#1c2b3a; --muted:#5b6b7b; --line:#e2e8f0;
+  --accent:#12a4a4; --warn:#e08a00; --ok:#1e9e5a; --danger:#d1495b; --sev4:#8e1b2e;
+  --radius:14px; --shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+h1,h2,h3,.bc{font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+header{background:var(--header-grad);color:#fff;padding:26px 20px 30px}
+header .wrap{max-width:1180px;margin:0 auto}
+header .kicker{font-size:.78rem;letter-spacing:2px;text-transform:uppercase;opacity:.8}
+header h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:700;margin-top:4px}
+header p{font-size:.92rem;opacity:.88;max-width:760px;margin-top:6px}
+header .back{color:#fff;text-decoration:none;font-size:.82rem;opacity:.85;display:inline-block;margin-bottom:10px}
+header .back:hover{opacity:1}
+
+main{max-width:1180px;margin:0 auto;padding:0 16px 60px}
+
+/* ── sticky verdict strip ── */
+.verdict{position:sticky;top:0;z-index:40;background:var(--card);border:1px solid var(--line);
+  border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;overflow:hidden;margin-bottom:18px}
+.vcell{padding:12px 14px;background:var(--card);text-align:center;border-left:1px solid var(--line)}
+.vcell:first-child{border-left:none}
+.vcell .vlab{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.vcell .vnum{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:700;line-height:1.05}
+.vcell .vband{font-size:.8rem;font-weight:600}
+.vbar{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.vbar i{display:block;height:100%;border-radius:3px;transition:width .35s}
+.s0{color:var(--ok)} .s1{color:var(--warn)} .s2{color:var(--danger)} .s3{color:var(--sev4)}
+.b0{background:var(--ok)} .b1{background:var(--warn)} .b2{background:var(--danger)} .b3{background:var(--sev4)}
+
+/* ── tabs ── */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:9px 16px;border:1px solid var(--line);background:var(--card);border-radius:10px;
+  cursor:pointer;font-size:.88rem;font-weight:500;color:var(--muted);transition:.15s;white-space:nowrap}
+.tab:hover{border-color:var(--accent)}
+.tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.panel{display:none} .panel.on{display:block}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card > h2{font-size:1.12rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.card > .sub{font-size:.83rem;color:var(--muted);margin-bottom:14px}
+.card h3{font-size:1rem;color:var(--navy);margin:16px 0 8px}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+
+label.f{display:block;font-size:.8rem;color:var(--muted);margin-bottom:3px;font-weight:500}
+input[type=number],select,input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);
+  border-radius:9px;font-family:'IBM Plex Mono',monospace;font-size:.9rem;background:#fff;color:var(--ink)}
+input[type=number]:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(18,164,164,.13)}
+select{font-family:'IBM Plex Sans Thai',sans-serif}
+input[readonly]{background:#f1f5f9;color:var(--muted)}
+.fld{margin-bottom:10px}
+.unit{font-size:.72rem;color:var(--muted);font-weight:400}
+
+.btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:22px;
+  font-family:'IBM Plex Sans Thai',sans-serif;font-size:.87rem;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent);filter:none}
+.btn.sm{padding:5px 12px;font-size:.79rem}
+
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left}
+th{background:#f8fafc;font-weight:600;color:var(--navy);font-size:.8rem}
+td.n,th.n{text-align:right;font-family:'IBM Plex Mono',monospace}
+tr.hl td{background:#fffbeb}
+.tbl-wrap{overflow-x:auto}
+
+.note{font-size:.82rem;color:var(--muted);background:#f8fafc;border-left:3px solid var(--line);
+  padding:9px 13px;border-radius:0 8px 8px 0;margin-top:10px;line-height:1.6}
+.note.warn{background:#fff8e6;border-left-color:var(--warn)}
+.note.bad{background:#fdeef0;border-left-color:var(--danger)}
+.note.good{background:#eaf7f0;border-left-color:var(--ok)}
+.note b{color:var(--ink)}
+
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.74rem;font-weight:600}
+.p0{background:#eaf7f0;color:#14663b} .p1{background:#fff4de;color:#8a5300}
+.p2{background:#fdeef0;color:#9e2333} .p3{background:#8e1b2e;color:#fff}
+.pn{background:#eef2f7;color:var(--muted)}
+
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.87rem}
+.kv:last-child{border-bottom:none}
+.kv b{font-family:'IBM Plex Mono',monospace;font-weight:500}
+
+.big{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:700;line-height:1;color:var(--navy)}
+.bigu{font-size:.85rem;color:var(--muted);font-family:'IBM Plex Sans Thai',sans-serif}
+
+.oxgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.oxgrid .fld{margin-bottom:0}
+
+details.ox{border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-top:10px;background:#fcfdfe}
+details.ox summary{cursor:pointer;font-weight:600;font-size:.87rem;color:var(--navy)}
+details.ox[open] summary{margin-bottom:10px}
+
+.fuelbox{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fcfdfe}
+.fuelbox > h3{margin-top:0}
+
+.legend{font-size:.76rem;color:var(--muted);margin-top:8px}
+.zone{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;margin-bottom:5px;font-size:.85rem;border:1px solid var(--line)}
+.zone .zi{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;font-size:.8rem}
+.zone .zt{flex:1}
+.zone .zt b{display:block;font-size:.88rem}
+.zone .zt span{font-size:.77rem;color:var(--muted)}
+
+.srcbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.srcbar span{font-size:.72rem;background:#eef2f7;color:var(--muted);padding:2px 8px;border-radius:20px}
+
+footer{text-align:center;padding:22px;font-size:.8rem;color:var(--muted);
+  border-top:1px solid var(--line);background:#fff}
+footer b{color:var(--navy)}
+
+@media(max-width:640px){
+  .verdict{grid-template-columns:1fr;gap:0}
+  .vcell{border-left:none;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;text-align:left}
+  .vcell:first-child{border-top:none}
+  .vcell .vnum{font-size:1.6rem}
+  .vcell > div:last-child{flex:1}
+  .card{padding:15px}
+}
+@media print{
+  header,.tabs,.btn,footer{display:none}
+  .panel{display:block!important}
+  .card{box-shadow:none;break-inside:avoid}
+  .verdict{position:static}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a href="../index.html" class="back"><i class="fas fa-arrow-left"></i> กลับหน้ารวมเครื่องมือ</a>
+    <div class="kicker"><i class="fas fa-stethoscope"></i> Troubleshooting · Triple E Technology</div>
+    <h1>Slagging &amp; Fouling Predictor</h1>
+    <p>ทำนายการเกิดและความรุนแรงของตะกรัน (slagging) การพอกติด (fouling) และการกัดกร่อนอุณหภูมิสูง
+       สำหรับเชื้อเพลิงแข็งและชีวมวล รวมผลของมลทินที่ติดมากับเชื้อเพลิง เช่น ดิน ทราย หิน</p>
+  </div>
+</header>
+
+<main>
+
+<!-- ── verdict strip ── -->
+<div class="verdict" id="verdict">
+  <div class="vcell">
+    <div class="vlab">Slagging · ตะกรัน</div>
+    <div><div class="vnum mono" id="vSlagN">–</div>
+    <div class="vband" id="vSlagB">รอข้อมูล</div>
+    <div class="vbar"><i id="vSlagBar" style="width:0%"></i></div></div>
+  </div>
+  <div class="vcell">
+    <div class="vlab">Fouling · พอกติดท่อ</div>
+    <div><div class="vnum mono" id="vFoulN">–</div>
+    <div class="vband" id="vFoulB">รอข้อมูล</div>
+    <div class="vbar"><i id="vFoulBar" style="width:0%"></i></div></div>
+  </div>
+  <div class="vcell">
+    <div class="vlab">Corrosion · กัดกร่อน</div>
+    <div><div class="vnum mono" id="vCorrN">–</div>
+    <div class="vband" id="vCorrB">รอข้อมูล</div>
+    <div class="vbar"><i id="vCorrBar" style="width:0%"></i></div></div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-t="1"><i class="fas fa-seedling"></i> 1 · เชื้อเพลิง &amp; มลทิน</div>
+  <div class="tab" data-t="2"><i class="fas fa-flask"></i> 2 · ดัชนีความเสี่ยง</div>
+  <div class="tab" data-t="3"><i class="fas fa-fire"></i> 3 · AFT &amp; อุณหภูมิเตา</div>
+  <div class="tab" data-t="4"><i class="fas fa-gauge-high"></i> 4 · ทำนายความรุนแรง</div>
+  <div class="tab" data-t="5"><i class="fas fa-screwdriver-wrench"></i> 5 · มาตรการ</div>
+</div>
+
+<!-- ════════ TAB 1 ════════ -->
+<section class="panel on" data-p="1">
+
+  <div class="card">
+    <h2>เชื้อเพลิงที่ป้อน</h2>
+    <div class="sub">ผสมได้ 2 ชนิด โดยระบุ <b>สัดส่วนเชิงพลังงาน</b> (ตามหลัก fuel blending ไม่ใช่สัดส่วนน้ำหนัก)
+      ระบบจะแปลงเป็นสัดส่วนน้ำหนักให้อัตโนมัติ</div>
+
+    <div class="grid2">
+      <!-- Fuel A -->
+      <div class="fuelbox">
+        <h3>เชื้อเพลิงหลัก (A)</h3>
+        <div class="fld">
+          <label class="f">เลือกจากคลัง</label>
+          <select id="fuelA"></select>
+        </div>
+        <div class="grid4">
+          <div class="fld"><label class="f">ความชื้น ar <span class="unit">%</span></label><input type="number" id="A_mc" step="0.1"></div>
+          <div class="fld"><label class="f">เถ้า dry <span class="unit">%</span></label><input type="number" id="A_ash" step="0.1"></div>
+          <div class="fld"><label class="f">LHV ar <span class="unit">MJ/kg</span></label><input type="number" id="A_lhv" step="0.1"></div>
+        </div>
+        <div class="grid4">
+          <div class="fld"><label class="f">S dry <span class="unit">%</span></label><input type="number" id="A_s" step="0.01"></div>
+          <div class="fld"><label class="f">Cl dry <span class="unit">%</span></label><input type="number" id="A_cl" step="0.01"></div>
+          <div class="fld"><label class="f">IDT reducing <span class="unit">°C</span></label><input type="number" id="A_idt" step="10"></div>
+        </div>
+        <details class="ox">
+          <summary>องค์ประกอบเถ้า A (% ในเถ้า) <span class="unit" id="A_oxsum"></span></summary>
+          <div class="oxgrid" id="A_ox"></div>
+        </details>
+      </div>
+
+      <!-- Fuel B -->
+      <div class="fuelbox">
+        <h3>เชื้อเพลิงผสม (B)</h3>
+        <div class="fld">
+          <label class="f">เลือกจากคลัง</label>
+          <select id="fuelB"></select>
+        </div>
+        <div class="fld">
+          <label class="f">สัดส่วนพลังงานของ B <span class="unit">% ของพลังงานรวม</span></label>
+          <input type="number" id="B_share" value="0" step="1" min="0" max="100">
+        </div>
+        <div class="grid4">
+          <div class="fld"><label class="f">ความชื้น ar <span class="unit">%</span></label><input type="number" id="B_mc" step="0.1"></div>
+          <div class="fld"><label class="f">เถ้า dry <span class="unit">%</span></label><input type="number" id="B_ash" step="0.1"></div>
+          <div class="fld"><label class="f">LHV ar <span class="unit">MJ/kg</span></label><input type="number" id="B_lhv" step="0.1"></div>
+        </div>
+        <div class="grid4">
+          <div class="fld"><label class="f">S dry <span class="unit">%</span></label><input type="number" id="B_s" step="0.01"></div>
+          <div class="fld"><label class="f">Cl dry <span class="unit">%</span></label><input type="number" id="B_cl" step="0.01"></div>
+          <div class="fld"><label class="f">IDT reducing <span class="unit">°C</span></label><input type="number" id="B_idt" step="10"></div>
+        </div>
+        <details class="ox">
+          <summary>องค์ประกอบเถ้า B (% ในเถ้า) <span class="unit" id="B_oxsum"></span></summary>
+          <div class="oxgrid" id="B_ox"></div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>มลทินที่ติดมากับเชื้อเพลิง</h2>
+    <div class="sub">ดิน ทราย หิน ที่ปนมาจากการเก็บเกี่ยว การกอง หรือการขนถ่าย — เป็นแร่ธาตุเกือบทั้งหมด
+      จึงกลายเป็นเถ้าเกือบ 100 %</div>
+    <div class="grid3">
+      <div class="fld">
+        <label class="f">ชนิดมลทิน</label>
+        <select id="soilType"></select>
+      </div>
+      <div class="fld">
+        <label class="f">ปริมาณที่ปน <span class="unit">% ของน้ำหนักเชื้อเพลิงแห้ง</span></label>
+        <input type="number" id="soilPct" value="0" step="0.5" min="0" max="30">
+      </div>
+      <div class="fld">
+        <label class="f">สัดส่วนที่เหลือเป็นเถ้า <span class="unit">%</span></label>
+        <input type="number" id="soilYield" value="98" step="1" min="50" max="100">
+      </div>
+    </div>
+    <div class="note warn" style="margin-top:4px">
+      <b>มลทินมีผลสองทางที่สวนกัน</b> — ด้านหนึ่งมันเจือจาง K ในเถ้าลง ทำให้ดัชนีเคมีดูดีขึ้น
+      อีกด้านหนึ่งมันเติม SiO₂ อิสระเข้าไปในเตา ซึ่งจับกับ K กลายเป็น K-silicate จุดหลอมเพียง 700–900 °C
+      เครื่องมือนี้จึงแสดงผลทั้ง <b>ก่อน</b> และ <b>หลัง</b> ปนเปื้อนคู่กันเสมอ ไม่สรุปจากดัชนีเดียว
+    </div>
+    <div id="soilCompare"></div>
+  </div>
+
+  <div class="card">
+    <h2>สรุปเชื้อเพลิงที่เผาจริง (as-fired)</h2>
+    <div class="sub">ค่าที่ใช้คำนวณต่อในทุกแท็บ</div>
+    <div id="blendOut"></div>
+    <details class="ox">
+      <summary>นำเข้าข้อมูลจาก Solid Fuel Database (วางแถวข้อมูล)</summary>
+      <div class="note warn">
+        <b>ระวังหน่วยสองจุด</b> — ใน Solid Fuel Database ค่า <b>CL เก็บเป็น mg/kg</b> (ต้องหาร 10,000 เป็น %)
+        และ <b>LHV เป็นฐานแห้ง (dry)</b> ไม่ใช่ as-received ถ้านำมาใช้ตรง ๆ ผลจะเพี้ยนมาก
+        โดยเฉพาะเชื้อเพลิงเปียกอย่างชานอ้อยและ EFB
+      </div>
+      <div class="fld" style="margin-top:10px">
+        <label class="f">วางแถวข้อมูลรูปแบบ pipe (id|mat|cls|yr|M|ASH|VM|FC|C|H|O|N|S|CL|LHV|HHV|IDT|SOT|HT|FT|SiO2|…|SO3)</label>
+        <input type="text" id="pasteRow" placeholder="1234|Rice husk|12|2019|9.5|18.2|…">
+      </div>
+      <button class="btn sm" id="btnPasteA">นำเข้าเป็นเชื้อเพลิง A</button>
+      <button class="btn sm ghost" id="btnPasteB">นำเข้าเป็นเชื้อเพลิง B</button>
+      <div id="pasteMsg" class="legend"></div>
+    </details>
+  </div>
+</section>
+
+<!-- ════════ TAB 2 ════════ -->
+<section class="panel" data-p="2">
+  <div class="card">
+    <h2>ดัชนีความเสี่ยงจากเคมีของเถ้า</h2>
+    <div class="sub">คำนวณจากองค์ประกอบเถ้าที่เผาจริง (รวมมลทินแล้ว)</div>
+    <div class="tbl-wrap"><table id="idxTable"></table></div>
+    <div class="note">
+      <b>ข้อจำกัดที่ต้องรู้</b> — ดัชนีเหล่านี้เกือบทั้งหมดพัฒนาขึ้นจากเถ้า<b>ถ่านหิน</b>
+      ใช้กับชีวมวลได้เพียงเป็นเครื่องคัดกรองเบื้องต้น ตัวที่เชื่อถือได้ที่สุดสำหรับชีวมวลคือ
+      <b>Alkali Index</b> คู่กับ <b>ผล AFT จริง</b> และประวัติ clinker หน้างาน
+    </div>
+  </div>
+  <div class="card">
+    <h2>ธงเตือนเชิงกลไก</h2>
+    <div class="sub">สิ่งที่ดัชนีเชิงตัวเลขจับไม่ได้ แต่เป็นสาเหตุจริงที่พบหน้างานบ่อย</div>
+    <div id="flagsOut"></div>
+  </div>
+</section>
+
+<!-- ════════ TAB 3 ════════ -->
+<section class="panel" data-p="3">
+  <div class="card">
+    <h2>อุณหภูมิเตาและ bed</h2>
+    <div class="sub">เกณฑ์ทางฟิสิกส์ที่แท้จริงของ slagging คือ อุณหภูมิเฉพาะจุด เทียบกับ จุดอ่อนตัวของเถ้า</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ชนิดเตา / ระบบเผา</label>
+        <select id="furnType"></select></div>
+      <div class="fld"><label class="f">โหมดอุณหภูมิ</label>
+        <select id="tMode">
+          <option value="est">ประมาณจากเชื้อเพลิง + อากาศส่วนเกิน</option>
+          <option value="meas">ใส่ค่าที่วัดได้เอง</option>
+        </select></div>
+      <div class="fld"><label class="f">อากาศส่วนเกิน λ <span class="unit">(1.0 = พอดี)</span></label><input type="number" id="lambda" value="1.5" step="0.05" min="1"></div>
+      <div class="fld"><label class="f">ตัวประกอบสูญเสียรังสี <span class="unit">FEGT/T<sub>ad</sub></span></label><input type="number" id="radFac" value="0.78" step="0.01" min="0.4" max="1"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label class="f">อุณหภูมิ bed / เตา <span class="unit">°C</span></label><input type="number" id="tBed" step="10"></div>
+      <div class="fld"><label class="f">FEGT (ทางออกเตา) <span class="unit">°C</span></label><input type="number" id="tFegt" step="10"></div>
+      <div class="fld"><label class="f">อุณหภูมิผิวท่อ Superheater <span class="unit">°C</span></label><input type="number" id="tTube" value="440" step="5"></div>
+    </div>
+    <div id="tempOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>Ash Fusion Temperature และ margin</h2>
+    <div class="sub">ค่า IDT ที่ใช้ = IDT ตั้งต้น ลบด้วยผลของโซน reducing และผลของ eutectic</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">IDT ผสม (ก่อนหักลบ) <span class="unit">°C</span></label><input type="number" id="idtBlend" readonly></div>
+      <div class="fld"><label class="f">หักเผื่อ hotspot / โซนอับอากาศ <span class="unit">°C</span></label><input type="number" id="redPen" value="50" step="10" min="0" max="250"></div>
+      <div class="fld"><label class="f">หัก eutectic (คำนวณให้) <span class="unit">°C</span></label><input type="number" id="eutPen" readonly></div>
+    </div>
+    <div id="aftOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>แผนที่โซนเสี่ยง</h2>
+    <div class="sub">โรคคนละชนิดเกิดคนละที่ — ตำแหน่งคราบคือตัวแยกโรคที่เร็วที่สุดหน้างาน</div>
+    <div id="zoneOut"></div>
+  </div>
+</section>
+
+<!-- ════════ TAB 4 ════════ -->
+<section class="panel" data-p="4">
+  <div class="card">
+    <h2>ปัจจัยการเดินเครื่อง</h2>
+    <div class="sub">เคมีของเชื้อเพลิงกำหนดว่า "เสี่ยงแค่ไหน" แต่การเดินเครื่องกำหนดว่า "จะเกิดจริงหรือไม่"</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">ความสม่ำเสมอของ bed บนตะกรับ</label>
+        <select id="opBed">
+          <option value="0">สม่ำเสมอดี ไม่มีจุดหนา-บาง</option>
+          <option value="0.5" selected>ปานกลาง มีจุดหนาบ้าง</option>
+          <option value="1">ไม่สม่ำเสมอ เห็น channeling / จุดอับอากาศ</option>
+        </select></div>
+      <div class="fld"><label class="f">ความสามารถ soot blowing</label>
+        <select id="opSoot">
+          <option value="0">มีระบบครบ เดินตามสภาพ</option>
+          <option value="0.5" selected>มีระบบ แต่เดินตามเวลาอย่างเดียว</option>
+          <option value="1">ไม่มี / ใช้งานไม่ได้</option>
+        </select></div>
+      <div class="fld"><label class="f">ภาระความร้อนบนตะกรับ q<sub>F</sub> <span class="unit">MW/m²</span></label><input type="number" id="qF" value="1.5" step="0.1" min="0"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>คะแนนความรุนแรง แยกรายโรค</h2>
+    <div class="sub">ไม่รวมเป็นคะแนนเดียว เพราะสามโรคนี้คนละกลไกและคนละวิธีแก้</div>
+    <div id="scoreOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>ผลตามมาที่คาดการณ์ และมูลค่า</h2>
+    <div class="sub">แปลงความเสี่ยงเป็นตัวเลขที่ฝ่ายบริหารตัดสินใจได้</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">อัตราป้อนเชื้อเพลิง <span class="unit">ตัน/ชม. (as-fired)</span></label><input type="number" id="fuelRate" value="5" step="0.1" min="0"></div>
+      <div class="fld"><label class="f">ชั่วโมงเดินเครื่อง <span class="unit">ชม./ปี</span></label><input type="number" id="opHours" value="7200" step="100" min="0"></div>
+      <div class="fld"><label class="f">ราคาเชื้อเพลิง <span class="unit">บาท/ตัน</span></label><input type="number" id="fuelPrice" value="1200" step="50" min="0"></div>
+    </div>
+    <div id="consqOut"></div>
+  </div>
+</section>
+
+<!-- ════════ TAB 5 ════════ -->
+<section class="panel" data-p="5">
+  <div class="card">
+    <h2>ตัวช่วยหาสัดส่วนผสม (Blend Solver)</h2>
+    <div class="sub">ย้อนกลับหาว่า เผาเชื้อเพลิง A ได้มากที่สุดกี่ % จึงจะยังผ่านเกณฑ์</div>
+    <div class="grid3">
+      <div class="fld"><label class="f">เป้า Alkali Index สูงสุด <span class="unit">kg/GJ</span></label><input type="number" id="tgtAI" value="0.17" step="0.01" min="0.05"></div>
+      <div class="fld"><label class="f">เป้า S/Cl ต่ำสุด <span class="unit">molar</span></label><input type="number" id="tgtSCl" value="4" step="0.5" min="0"></div>
+      <div class="fld" style="display:flex;align-items:flex-end"><button class="btn" id="btnSolve" style="width:100%">คำนวณสัดส่วนสูงสุด</button></div>
+    </div>
+    <div id="solveOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>มาตรการเรียงตามต้นทุน</h2>
+    <div class="sub">ทำจากถูกไปแพงเสมอ — ระดับเชื้อเพลิงถูกที่สุดและได้ผลเร็วที่สุด</div>
+    <div id="mitOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>สรุปสำหรับใส่รายงาน</h2>
+    <div class="sub">คัดลอกไปวางในรายงานตรวจวัดได้ทันที</div>
+    <button class="btn ghost sm" id="btnCopy"><i class="fas fa-copy"></i> คัดลอกสรุป</button>
+    <button class="btn ghost sm" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์ / บันทึก PDF</button>
+    <div id="reportOut" style="margin-top:12px"></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><b>Triple E Technology Co., Ltd.</b> — Slagging &amp; Fouling Predictor</p>
+  <p style="margin-top:5px">ค่าคุณสมบัติเชื้อเพลิงในคลังเป็นค่าช่วงตามวรรณกรรม ใช้ประเมินเบื้องต้น
+     งานจริงต้องใช้ผลวิเคราะห์ของล็อตจริงเสมอ</p>
+</footer>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   Slagging & Fouling Predictor — calculation engine
+   Triple E Technology Co., Ltd.
+   ทุกค่าภายในทำงานบน "ฐานแห้ง" แล้วแปลงกลับเป็น as-received ตอนแสดงผล
+   ══════════════════════════════════════════════════════════════ */
+
+const OXK = ['SiO2','Al2O3','TiO2','Fe2O3','CaO','MgO','Na2O','K2O','P2O5','SO3'];
+const OXLAB = {SiO2:'SiO₂',Al2O3:'Al₂O₃',TiO2:'TiO₂',Fe2O3:'Fe₂O₃',CaO:'CaO',
+               MgO:'MgO',Na2O:'Na₂O',K2O:'K₂O',P2O5:'P₂O₅',SO3:'SO₃'};
+const M_S = 32.06, M_CL = 35.45, H_FG = 2.443;
+
+/* ── คลังเชื้อเพลิง (ค่ากลางตามวรรณกรรม + KM Triple E) ──
+   mc = ความชื้น as-received %  |  ash, s, cl = % ฐานแห้ง
+   lhv = MJ/kg as-received      |  idt = IDT บรรยากาศ reducing, °C   */
+const FUELS = {
+  woodchip:{n:'ไม้สับ / ไม้ยางพารา',mc:40,ash:2.0,s:0.03,cl:0.01,lhv:11.5,idt:1300,
+    ox:{SiO2:24,Al2O3:5,TiO2:0.3,Fe2O3:2.5,CaO:34,MgO:5,Na2O:1.3,K2O:9,P2O5:4.5,SO3:2.5}},
+  pellet:{n:'Wood pellet',mc:8,ash:0.7,s:0.03,cl:0.02,lhv:17.0,idt:1250,
+    ox:{SiO2:15,Al2O3:3,TiO2:0.2,Fe2O3:2,CaO:40,MgO:6,Na2O:1,K2O:16,P2O5:5,SO3:3}},
+  sawdust:{n:'ขี้เลื่อย',mc:45,ash:1.2,s:0.03,cl:0.01,lhv:9.5,idt:1280,
+    ox:{SiO2:20,Al2O3:4,TiO2:0.3,Fe2O3:2,CaO:36,MgO:5,Na2O:1.2,K2O:12,P2O5:4.5,SO3:2.5}},
+  husk:{n:'แกลบ',mc:10,ash:18,s:0.05,cl:0.12,lhv:13.8,idt:1400,
+    ox:{SiO2:90.4,Al2O3:0.5,TiO2:0.02,Fe2O3:0.3,CaO:2.3,MgO:0.3,Na2O:0.3,K2O:4.4,P2O5:0.7,SO3:0.7}},
+  straw:{n:'ฟางข้าว',mc:12,ash:15,s:0.10,cl:0.45,lhv:12.8,idt:1000,
+    ox:{SiO2:62,Al2O3:1.5,TiO2:0.1,Fe2O3:0.8,CaO:4,MgO:2.5,Na2O:1.5,K2O:22,P2O5:2.5,SO3:3}},
+  bagasse:{n:'ชานอ้อย',mc:50,ash:4.0,s:0.06,cl:0.05,lhv:7.8,idt:1200,
+    ox:{SiO2:55,Al2O3:12,TiO2:1.5,Fe2O3:8,CaO:6,MgO:3,Na2O:1,K2O:8,P2O5:2.5,SO3:2}},
+  canetrash:{n:'ใบและยอดอ้อย',mc:20,ash:8,s:0.08,cl:0.35,lhv:13.0,idt:1050,
+    ox:{SiO2:55,Al2O3:3,TiO2:0.3,Fe2O3:2,CaO:6,MgO:3,Na2O:1.5,K2O:22,P2O5:3,SO3:3}},
+  efb:{n:'ทะลายปาล์มเปล่า (EFB)',mc:50,ash:5.5,s:0.08,cl:0.70,lhv:8.0,idt:950,
+    ox:{SiO2:25,Al2O3:2,TiO2:0.2,Fe2O3:3,CaO:8,MgO:5,Na2O:2,K2O:38,P2O5:4,SO3:6}},
+  pks:{n:'กะลาปาล์ม (PKS)',mc:15,ash:2.5,s:0.05,cl:0.08,lhv:16.5,idt:1300,
+    ox:{SiO2:38,Al2O3:6,TiO2:0.3,Fe2O3:5,CaO:14,MgO:6,Na2O:1.5,K2O:9,P2O5:3.5,SO3:3}},
+  fiber:{n:'เส้นใยปาล์ม (mesocarp)',mc:35,ash:6.5,s:0.08,cl:0.30,lhv:11.0,idt:1100,
+    ox:{SiO2:45,Al2O3:4,TiO2:0.3,Fe2O3:5,CaO:10,MgO:5,Na2O:2,K2O:20,P2O5:4,SO3:4}},
+  corncob:{n:'ซังข้าวโพด',mc:12,ash:2.2,s:0.05,cl:0.20,lhv:15.0,idt:1000,
+    ox:{SiO2:30,Al2O3:2,TiO2:0.2,Fe2O3:2,CaO:6,MgO:4,Na2O:1.5,K2O:35,P2O5:5,SO3:3}},
+  cassava:{n:'เหง้ามันสำปะหลัง',mc:25,ash:6.0,s:0.06,cl:0.20,lhv:14.0,idt:1050,
+    ox:{SiO2:45,Al2O3:6,TiO2:0.5,Fe2O3:5,CaO:10,MgO:4,Na2O:1.5,K2O:18,P2O5:7,SO3:2.5}},
+  cocoshell:{n:'กะลามะพร้าว',mc:12,ash:1.5,s:0.05,cl:0.05,lhv:17.0,idt:1350,
+    ox:{SiO2:55,Al2O3:8,TiO2:0.3,Fe2O3:6,CaO:5,MgO:3,Na2O:4,K2O:12,P2O5:2,SO3:1.5}},
+  coir:{n:'ใย / ขุยมะพร้าว',mc:25,ash:4.5,s:0.06,cl:0.50,lhv:12.0,idt:1050,
+    ox:{SiO2:30,Al2O3:3,TiO2:0.2,Fe2O3:3,CaO:7,MgO:4,Na2O:5,K2O:32,P2O5:3,SO3:4}},
+  napier:{n:'หญ้าเนเปียร์ (ตากแล้ว)',mc:25,ash:9.0,s:0.10,cl:0.50,lhv:12.5,idt:980,
+    ox:{SiO2:50,Al2O3:2,TiO2:0.2,Fe2O3:2,CaO:8,MgO:4,Na2O:1.5,K2O:30,P2O5:5,SO3:3}},
+  lignite:{n:'ถ่านหินลิกไนต์',mc:32,ash:25,s:2.50,cl:0.02,lhv:12.0,idt:1150,
+    ox:{SiO2:40,Al2O3:20,TiO2:0.8,Fe2O3:8,CaO:15,MgO:3,Na2O:1,K2O:1.5,P2O5:0.3,SO3:10}},
+  subbit:{n:'ถ่านหินซับบิทูมินัส',mc:30,ash:5.0,s:0.30,cl:0.02,lhv:18.0,idt:1250,
+    ox:{SiO2:45,Al2O3:22,TiO2:1,Fe2O3:10,CaO:10,MgO:2.5,Na2O:1.5,K2O:1.5,P2O5:0.5,SO3:5}},
+  bitum:{n:'ถ่านหินบิทูมินัส',mc:10,ash:12,s:0.80,cl:0.05,lhv:26.0,idt:1300,
+    ox:{SiO2:50,Al2O3:27,TiO2:1.2,Fe2O3:9,CaO:4,MgO:1.5,Na2O:0.8,K2O:1.5,P2O5:0.5,SO3:3}},
+  rdf:{n:'RDF',mc:20,ash:15,s:0.40,cl:0.80,lhv:15.0,idt:1100,
+    ox:{SiO2:32,Al2O3:12,TiO2:3,Fe2O3:4,CaO:28,MgO:3,Na2O:5,K2O:3,P2O5:1.5,SO3:5}}
+};
+
+/* ── มลทิน: เป็นแร่เกือบทั้งหมด จึงกลายเป็นเถ้าเกือบ 100 % ── */
+const SOILS = {
+  none:{n:'— ไม่มีมลทิน —',ox:null,idt:0},
+  laterite:{n:'ดินลูกรัง (Fe สูง)',idt:1350,
+    ox:{SiO2:45,Al2O3:22,TiO2:1.5,Fe2O3:25,CaO:1,MgO:0.8,Na2O:0.3,K2O:1.2,P2O5:0.3,SO3:0.1}},
+  sandyloam:{n:'ดินร่วนทราย',idt:1450,
+    ox:{SiO2:78,Al2O3:10,TiO2:0.8,Fe2O3:4,CaO:1.5,MgO:1,Na2O:0.7,K2O:2,P2O5:0.2,SO3:0.1}},
+  riversand:{n:'ทราย (ควอตซ์)',idt:1550,
+    ox:{SiO2:92,Al2O3:4,TiO2:0.3,Fe2O3:1.5,CaO:0.6,MgO:0.3,Na2O:0.5,K2O:1.2,P2O5:0.1,SO3:0.05}},
+  clay:{n:'ดินเหนียว / ดินขาว (Al สูง)',idt:1500,
+    ox:{SiO2:50,Al2O3:33,TiO2:1.2,Fe2O3:5,CaO:0.8,MgO:0.6,Na2O:0.3,K2O:1.5,P2O5:0.2,SO3:0.1}},
+  limestone:{n:'หินปูน / เศษปูน',idt:1400,
+    ox:{SiO2:5,Al2O3:1.5,TiO2:0.1,Fe2O3:1,CaO:88,MgO:2,Na2O:0.2,K2O:0.3,P2O5:0.1,SO3:0.5}}
+};
+
+/* ── ชนิดเตา: กำหนดอุณหภูมิ bed ตั้งต้นและช่วง q_F ── */
+const FURNACES = {
+  chain: {n:'Chain grate stoker', bed:950, qfMax:1.5, rad:0.70},
+  recip: {n:'ตะกรับขั้นบันได / สั่น', bed:1000, qfMax:2.0, rad:0.72},
+  fb:    {n:'Fluidized bed (BFB / CFB)', bed:860, qfMax:3.0, rad:0.68},
+  spread:{n:'Spreader stoker / เผากึ่งลอย', bed:1050, qfMax:2.5, rad:0.74},
+  pc:    {n:'Pulverized / suspension', bed:1400, qfMax:0, rad:0.80}
+};
+
+/* ── helpers ── */
+function normOx(ox){
+  const s = OXK.reduce((a,k)=>a+(+ox[k]||0),0);
+  if(s<=0) return OXK.reduce((o,k)=>(o[k]=0,o),{});
+  return OXK.reduce((o,k)=>(o[k]=(+ox[k]||0)*100/s,o),{});
+}
+function band(v,cuts){ for(let i=0;i<cuts.length;i++) if(v<cuts[i]) return i; return cuts.length; }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function fmt(v,d){ return (v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed(d===undefined?2:d); }
+function lhvDryOf(f){ return f.mc<100 ? (f.lhv + H_FG*f.mc/100)/(1-f.mc/100) : f.lhv; }
+function lhvArOf(lhvDry, mc){ return lhvDry*(1-mc/100) - H_FG*mc/100; }
+
+/* AFT ของ "ส่วนผสม" ไม่ใช่ค่าเฉลี่ยเลขคณิต — เฟสจุดหลอมต่ำเพียงส่วนน้อย
+   ก็เคลือบและดึงทั้งกองให้อ่อนตัวได้ (eutectic wetting) จึงถ่วงเข้าหาตัวต่ำสุด */
+function blendIdt(wavg, idtMin, shareMin){
+  if(!(wavg>0)) return 0;
+  if(!isFinite(idtMin) || idtMin<=0 || shareMin<=0) return wavg;
+  return idtMin + (wavg-idtMin)*Math.pow(clamp(1-shareMin,0,1), 1.5);
+}
+
+/* ══════════════════════════════════════════════════════════
+   ผสมเชื้อเพลิง + มลทิน
+   ══════════════════════════════════════════════════════════ */
+function blend(fuels, soil){
+  let tot = 0;
+  const raw = fuels.map(f=>{
+    const ld = lhvDryOf(f);
+    const w  = ld>0 ? (f.eShare||0)/ld : 0;
+    tot += w; return w;
+  });
+  const massDry = raw.map(w=> tot>0 ? w/tot : 0);
+  const sp  = (soil && soil.ox) ? (+soil.pct||0) : 0;
+  const yld = (soil && soil.yield!==undefined) ? +soil.yield : 98;
+  return {
+    massDry,
+    soilPct: sp,
+    clean: mix(fuels, massDry, null, 0, yld, 0),
+    dirty: mix(fuels, massDry, soil&&soil.ox?soil.ox:null, sp, yld, soil?soil.idt:0)
+  };
+}
+
+/* ฐาน 100 kg เชื้อเพลิงแห้ง + sp kg มลทิน */
+function mix(fuels, massDry, soilOx, sp, yld, soilIdt){
+  const base = 100;
+  let ashKg=0, sKg=0, clKg=0, energy=0, water=0, idtSum=0, idtW=0;
+  let idtMin=Infinity, idtMinAsh=0;
+  const oxKg = OXK.reduce((o,k)=>(o[k]=0,o),{});
+
+  fuels.forEach((f,i)=>{
+    const m = base*massDry[i];
+    if(!(m>0)) return;
+    const a = m*(+f.ash||0)/100;
+    ashKg += a; sKg += m*(+f.s||0)/100; clKg += m*(+f.cl||0)/100;
+    energy += m*lhvDryOf(f);
+    water  += m*(f.mc/100)/(1-f.mc/100);
+    const oxn = normOx(f.ox);
+    OXK.forEach(k=> oxKg[k] += a*oxn[k]/100);
+    if(f.idt>0){ idtSum += a*f.idt; idtW += a;
+      if(f.idt<idtMin){ idtMin=f.idt; idtMinAsh=a; } else if(f.idt===idtMin){ idtMinAsh+=a; } }
+  });
+
+  if(soilOx && sp>0){
+    const a = sp*yld/100;
+    ashKg += a;
+    const oxn = normOx(soilOx);
+    OXK.forEach(k=> oxKg[k] += a*oxn[k]/100);
+    if(soilIdt>0){ idtSum += a*soilIdt; idtW += a;
+      if(soilIdt<idtMin){ idtMin=soilIdt; idtMinAsh=a; } else if(soilIdt===idtMin){ idtMinAsh+=a; } }
+  }
+
+  const dryMass = base + sp;
+  const wetMass = dryMass + water;
+  const ox = ashKg>0 ? OXK.reduce((o,k)=>(o[k]=oxKg[k]*100/ashKg,o),{})
+                     : OXK.reduce((o,k)=>(o[k]=0,o),{});
+  const lhvDry = dryMass>0 ? energy/dryMass : 0;
+  const mc     = wetMass>0 ? water*100/wetMass : 0;
+
+  return {
+    ash: dryMass>0 ? ashKg*100/dryMass : 0,
+    s:   dryMass>0 ? sKg*100/dryMass : 0,
+    cl:  dryMass>0 ? clKg*100/dryMass : 0,
+    lhvDry, mc,
+    lhvAr: lhvArOf(lhvDry, mc),
+    idt: blendIdt(idtW>0?idtSum/idtW:0, idtMin, idtW>0?idtMinAsh/idtW:0),
+    idtWavg: idtW>0 ? idtSum/idtW : 0,
+    idtMin: isFinite(idtMin) ? idtMin : 0,
+    ashLoad: lhvDry>0 ? (ashKg/dryMass)/(lhvDry/1000) : 0,
+    ox
+  };
+}
+
+/* ══════════════════════════════════════════════════════════
+   ดัชนี — ใช้ฐานแห้งสอดคล้องกันทั้งหมด
+   ══════════════════════════════════════════════════════════ */
+function indices(p){
+  const o = p.ox;
+  const acid = o.SiO2 + o.Al2O3 + o.TiO2;
+  const base = o.Fe2O3 + o.CaO + o.MgO + o.K2O + o.Na2O;
+  const alk  = o.K2O + o.Na2O;
+  const ba   = acid>0 ? base/acid : null;
+  const rs   = (ba!==null) ? ba*p.s : null;
+  const fu   = (ba!==null) ? ba*alk : null;
+  const ai   = p.lhvDry>0 ? (p.ash/100)*(alk/100)/(p.lhvDry/1000) : null;
+
+  /* K availability: ในเถ้าที่ SiO₂ สูงมาก K ถูกตรึงเป็นซิลิเกตในเนื้อเถ้า
+     จึงระเหยไปเกาะท่อได้น้อยกว่าที่ AI ดิบบอก (กรณีคลาสสิกคือแกลบ)
+     — ตัวปรับเชิงคัดกรองของ Triple E ไม่ใช่ค่าจากมาตรฐาน */
+  const fAvail = o.SiO2>60 ? clamp(1-(o.SiO2-60)/60, 0.35, 1) : 1;
+  const aiEff  = ai===null ? null : ai*fAvail;
+
+  const scl  = p.cl>0 ? (p.s/M_S)/(p.cl/M_CL) : (p.s>0 ? Infinity : null);
+  const srD  = o.SiO2 + o.Fe2O3 + o.CaO + o.MgO;
+  const sr   = srD>0 ? o.SiO2*100/srD : null;
+  const feca = o.CaO>0 ? o.Fe2O3/o.CaO : null;
+  const bai  = alk>0 ? o.Fe2O3/alk : null;
+  return {acid,base,alk,ba,rs,fu,ai,aiEff,fAvail,scl,sr,feca,bai,
+          cl:p.cl, s:p.s, ash:p.ash, ashLoad:p.ashLoad, ox:o};
+}
+
+/* ══════════════════════════════════════════════════════════
+   AFT — โทษ eutectic (heuristic คัดกรอง ไม่ใช่ค่าจาก lab)
+   ══════════════════════════════════════════════════════════ */
+function eutecticPenalty(ox){
+  let pen = 0; const why = [];
+  const si=ox.SiO2, k=ox.K2O+ox.Na2O, p=ox.P2O5, al=ox.Al2O3;
+  // ramp แบบต่อเนื่อง — หลีกเลี่ยงการกระโดดที่เส้นเกณฑ์ตายตัว
+  const fSi = clamp((si-25)/25, 0, 1);
+  const fK  = clamp((k-6)/8, 0, 1);
+  if(fSi>0 && fK>0){
+    let v = 500*Math.sqrt((si/100)*(k/100))*fSi*fK;
+    v *= clamp(1-al/40, 0.35, 1);          // Al₂O₃ ตรึง K เป็น aluminosilicate จุดหลอมสูง
+    if(v>=8){ pen += v;
+      why.push(`K-silicate — SiO₂ ${si.toFixed(0)} % ร่วมกับด่าง ${k.toFixed(0)} % เกิดแก้วจุดหลอมเพียง 700–900 °C`); }
+  }
+  const fP = clamp((p-6)/6, 0, 1), fK2 = clamp((k-15)/15, 0, 1);
+  if(fP>0 && fK2>0){
+    const v = 260*Math.sqrt((p/25)*(k/45))*fP*fK2;
+    if(v>=8){ pen += v;
+      why.push(`K-phosphate — P₂O₅ ${p.toFixed(1)} % ร่วมกับด่างสูง (ดัชนีที่พัฒนาจากถ่านหินจับกลไกนี้ไม่ได้)`); }
+  }
+  return {pen: Math.min(pen,300), why};
+}
+
+/* ══════════════════════════════════════════════════════════
+   อุณหภูมิ: อากาศทฤษฎี ≈ 0.33 kg ต่อ MJ (LHV)
+   ══════════════════════════════════════════════════════════ */
+function tempEstimate(lhvAr, lambda, radFac){
+  if(!(lhvAr>0)) return {tad:0, fegt:0};
+  const mGas = 1 + 0.33*lhvAr*lambda;
+  const tad  = 25 + lhvAr*1000/(mGas*1.25);
+  return {tad, fegt: 25 + (tad-25)*radFac};
+}
+
+/* ══════════════════════════════════════════════════════════
+   คะแนนความรุนแรง 0–100 แยกสามโรค
+   ══════════════════════════════════════════════════════════ */
+function scores(ix, aft, temps, op){
+  const parts = {slag:[], foul:[], corr:[]};
+  const add=(g,lab,v,max,d)=>parts[g].push({lab,v:clamp(v,0,max),max,detail:d});
+
+  const m = aft.margin;
+  let vM;
+  if(m===null||!isFinite(m)) vM=22;
+  else if(m<=-50) vM=45;
+  else if(m>=250) vM=0;
+  else vM=45*(250-m)/300;
+  add('slag','AFT margin (IDT ใช้งาน − อุณหภูมิ bed)', vM, 45,
+      (m===null||!isFinite(m))?'ไม่มีข้อมูล':`${fmt(m,0)} °C`);
+  add('slag','Eutectic จุดหลอมต่ำ', 15*clamp(aft.eut/250,0,1), 15,
+      aft.eut>0?`หัก ${fmt(aft.eut,0)} °C`:'ไม่พบ');
+  add('slag','ปริมาณเถ้าต่อพลังงาน', 10*clamp((ix.ashLoad-1)/9,0,1), 10,
+      `${fmt(ix.ashLoad,2)} kg/GJ`);
+  const qfN = op.qFmax>0 ? clamp((op.qF-op.qFmax*0.6)/(op.qFmax*1.2),0,1) : 0;
+  add('slag','ภาระความร้อนบนตะกรับ q_F', 12*qfN, 12,
+      op.qFmax>0?`${fmt(op.qF,1)} MW/m² (พิกัด ~${fmt(op.qFmax,1)})`:'ไม่ใช้กับเตาแบบนี้');
+  add('slag','ความสม่ำเสมอของ bed / จุดอับอากาศ', 18*op.bed, 18,
+      op.bed>=1?'ไม่สม่ำเสมอ · มี channeling':(op.bed>0?'ปานกลาง':'สม่ำเสมอดี'));
+
+  add('foul','Alkali Index (ปรับ K availability)',
+      ix.aiEff===null?0:50*clamp(ix.aiEff/0.55,0,1), 50,
+      ix.aiEff===null?'–':`${fmt(ix.aiEff,3)} kg/GJ`);
+  add('foul','Fouling index Fu', ix.fu===null?0:5*clamp(ix.fu/40,0,1), 5,
+      ix.fu===null?'–':fmt(ix.fu));
+  add('foul','คลอรีนในเชื้อเพลิง', 15*clamp(ix.cl/0.6,0,1), 15, `${fmt(ix.cl,3)} % dry`);
+  let vF=0, dF='ไม่มีข้อมูล';
+  if(temps.fegt>0 && aft.idtEff>0){
+    const d = aft.idtEff - temps.fegt;
+    vF = 20*clamp((300-d)/450, 0, 1);
+    dF = `FEGT ${fmt(temps.fegt,0)} °C · IDT ใช้งาน ${fmt(aft.idtEff,0)} °C · ห่าง ${fmt(d,0)} °C`;
+  }
+  add('foul','FEGT เทียบจุดอ่อนตัวเถ้า', vF, 20, dF);
+  add('foul','ความสามารถ soot blowing', 10*op.soot, 10,
+      op.soot>=1?'ไม่มี / ใช้งานไม่ได้':(op.soot>0?'เดินตามเวลาอย่างเดียว':'เดินตามสภาพ'));
+
+  // S/Cl มีความหมายก็ต่อเมื่อมี Cl มากพอ — อัตราส่วนต่ำที่ Cl ≈ 0 ไม่ได้แปลว่าเสี่ยง
+  const gCl = clamp((ix.cl-0.03)/0.25, 0, 1);
+  let vS=0, dS='Cl ต่ำมาก → กลไกคลอไรด์ไม่ทำงาน';
+  if(ix.scl!==null && isFinite(ix.scl)){
+    vS = 40*clamp((6-ix.scl)/6,0,1)*gCl;
+    dS = gCl<=0 ? `S/Cl = ${fmt(ix.scl)} (Cl ต่ำมาก อัตราส่วนไม่มีนัย)` : `S/Cl = ${fmt(ix.scl)}`;
+  }
+  add('corr','S/Cl molar ratio', vS, 40, dS);
+  add('corr','ปริมาณคลอรีน', 25*clamp(ix.cl/0.8,0,1), 25, `${fmt(ix.cl,3)} % dry`);
+  add('corr','อุณหภูมิผิวท่อ superheater', 25*clamp((op.tube-400)/150,0,1), 25, `${fmt(op.tube,0)} °C`);
+  add('corr','ปริมาณด่างในเถ้า (K+Na)', 10*clamp(ix.alk/40,0,1), 10, `${fmt(ix.alk,1)} %`);
+
+  const sum=g=>parts[g].reduce((a,x)=>a+x.v,0);
+  return {slag:sum('slag'), foul:sum('foul'), corr:sum('corr'), parts};
+}
+
+const BANDS=[25,50,75], BANDLAB=['ต่ำ','ปานกลาง','สูง','รุนแรง'];
+function sevBand(v){ return band(v,BANDS); }
+
+function consequence(sc, inp){
+  const rate  = (sc.foul/100)*35;
+  const dT    = rate*inp.hours/1000;
+  const dEff  = dT/20;
+  const fuelYr= inp.rate*inp.hours;
+  const cost  = fuelYr*inp.price*dEff/100;
+  const sootHr= rate>0 ? 15/rate*1000 : null;
+  return {rate,dT,dEff,fuelYr,cost,sootHr};
+}
+
+function solveBlend(fA, fB, soil, tgtAI, tgtSCl){
+  const trace=[]; let best=null, at0=null;
+  for(let x=100;x>=0;x--){
+    const a=Object.assign({},fA,{eShare:x/100});
+    const b=Object.assign({},fB,{eShare:1-x/100});
+    const ix=indices(blend([a,b],soil).dirty);
+    const okAI  = ix.aiEff!==null && ix.aiEff<=tgtAI;
+    const okSCl = ix.scl===null || !isFinite(ix.scl) || ix.scl>=tgtSCl;
+    if(x%10===0) trace.push({x, ai:ix.aiEff, scl:ix.scl, okAI, okSCl});
+    if(x===0) at0={ai:ix.aiEff, scl:ix.scl, okAI, okSCl};
+    if(best===null && okAI && okSCl) best={x, ai:ix.aiEff, scl:ix.scl};
+  }
+  return {best, at0, trace:trace.reverse()};
+}
+
+/* kaolin ที่ต้องใช้ตรึง K เป็น K-aluminosilicate (โดยประมาณ)
+   Al2Si2O5(OH)4 (M=258) 1 โมล ตรึง K2O (M=94.2) 1 โมล */
+function kaolinDose(ix, tph, excess){
+  const kPerTonDry = (ix.ash/100)*(ix.alk/100)*1000;
+  const kg = kPerTonDry*(258/94.2)*(excess||2.0);
+  return {kgPerTon:kg, kgPerHr:kg*(tph||0)};
+}
+
+/* module export (node test only) */
+if(typeof module!=='undefined') module.exports =
+  {FUELS,SOILS,FURNACES,OXK,OXLAB,normOx,blend,mix,indices,eutecticPenalty,
+   tempEstimate,scores,consequence,solveBlend,kaolinDose,lhvDryOf,lhvArOf,
+   sevBand,BANDLAB,BANDS,fmt,clamp,band};
+
+</script>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   Slagging & Fouling Predictor — UI layer
+   ══════════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const el = (t,c,h)=>{const e=document.createElement(t); if(c)e.className=c; if(h!==undefined)e.innerHTML=h; return e;};
+const esc = s => String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+
+/* ── สร้าง input ── */
+function buildSelects(){
+  ['fuelA','fuelB'].forEach(id=>{
+    $(id).innerHTML = Object.keys(FUELS).map(k=>`<option value="${k}">${FUELS[k].n}</option>`).join('');
+  });
+  $('fuelA').value='efb'; $('fuelB').value='pks';
+  $('soilType').innerHTML = Object.keys(SOILS).map(k=>`<option value="${k}">${SOILS[k].n}</option>`).join('');
+  $('furnType').innerHTML = Object.keys(FURNACES).map(k=>`<option value="${k}">${FURNACES[k].n}</option>`).join('');
+  ['A','B'].forEach(P=>{
+    $(P+'_ox').innerHTML = OXK.map(k=>
+      `<div class="fld"><label class="f">${OXLAB[k]} <span class="unit">%</span></label>
+       <input type="number" id="${P}_${k}" step="0.1"></div>`).join('');
+  });
+}
+function loadFuel(P, key){
+  const f = FUELS[key];
+  $(P+'_mc').value=f.mc; $(P+'_ash').value=f.ash; $(P+'_lhv').value=f.lhv;
+  $(P+'_s').value=f.s; $(P+'_cl').value=f.cl; $(P+'_idt').value=f.idt;
+  OXK.forEach(k=> $(`${P}_${k}`).value = f.ox[k]||0);
+}
+function readFuel(P, share){
+  const v=id=>parseFloat($(P+'_'+id).value)||0;
+  const ox={}; OXK.forEach(k=> ox[k]=parseFloat($(`${P}_${k}`).value)||0);
+  return {mc:v('mc'), ash:v('ash'), lhv:v('lhv'), s:v('s'), cl:v('cl'), idt:v('idt'), ox, eShare:share};
+}
+
+/* ── คำนวณทั้งหมด ── */
+let STATE = null;
+function computeAll(){
+  const shB = clamp(parseFloat($('B_share').value)||0, 0, 100)/100;
+  const A = readFuel('A', 1-shB), B = readFuel('B', shB);
+  const sk = $('soilType').value, S = SOILS[sk];
+  const soil = {pct:parseFloat($('soilPct').value)||0,
+                yield:parseFloat($('soilYield').value)||98, ox:S.ox, idt:S.idt};
+  const bl = blend([A,B], soil);
+  const p = bl.dirty, pc = bl.clean;
+  const ix = indices(p), ixc = indices(pc);
+  const eu = eutecticPenalty(p.ox);
+
+  const F = FURNACES[$('furnType').value];
+  const lam = parseFloat($('lambda').value)||1.5;
+  const rad = parseFloat($('radFac').value)||F.rad;
+  const est = tempEstimate(p.lhvAr, lam, rad);
+  const auto = $('tMode').value==='est';
+  if(auto){ $('tBed').value = Math.round(F.bed); $('tFegt').value = Math.round(est.fegt); }
+  $('tBed').readOnly = auto; $('tFegt').readOnly = auto;
+
+  const tBed  = parseFloat($('tBed').value)||F.bed;
+  const tFegt = parseFloat($('tFegt').value)||est.fegt;
+  const tTube = parseFloat($('tTube').value)||440;
+
+  const redPen = parseFloat($('redPen').value)||0;
+  $('idtBlend').value = Math.round(p.idt);
+  $('eutPen').value   = Math.round(eu.pen);
+  const idtEff = p.idt - redPen - eu.pen;
+  const aft = {idtEff, eut:eu.pen, why:eu.why, margin:(p.idt>0? idtEff-tBed : null)};
+
+  const op = {qF:parseFloat($('qF').value)||0, qFmax:F.qfMax,
+              bed:parseFloat($('opBed').value)||0, soot:parseFloat($('opSoot').value)||0, tube:tTube};
+  const sc = scores(ix, aft, {fegt:tFegt, tad:est.tad}, op);
+  const cq = consequence(sc, {rate:parseFloat($('fuelRate').value)||0,
+                              hours:parseFloat($('opHours').value)||0,
+                              price:parseFloat($('fuelPrice').value)||0});
+
+  STATE = {A,B,shB,soil,soilKey:sk,bl,p,pc,ix,ixc,eu,aft,F,est,tBed,tFegt,tTube,op,sc,cq,redPen};
+  renderAll();
+}
+
+/* ── ตัวช่วยแสดงผล ── */
+function pillFor(i,txt){ return `<span class="pill p${i}">${txt}</span>`; }
+function sevPill(v){ const i=sevBand(v); return pillFor(i, BANDLAB[i]); }
+function oxSumNote(P){
+  let s=0; OXK.forEach(k=> s += parseFloat($(`${P}_${k}`).value)||0);
+  $(P+'_oxsum').textContent = `· รวม ${s.toFixed(1)} % (ระบบ normalize เป็น 100 ให้อัตโนมัติ)`;
+}
+
+function renderAll(){
+  const S=STATE;
+  ['A','B'].forEach(oxSumNote);
+  renderVerdict(S); renderSoil(S); renderBlend(S);
+  renderIdx(S); renderFlags(S);
+  renderTemp(S); renderAft(S); renderZones(S);
+  renderScores(S); renderConsq(S);
+  renderMit(S); renderReport(S);
+}
+
+function renderVerdict(S){
+  [['Slag',S.sc.slag],['Foul',S.sc.foul],['Corr',S.sc.corr]].forEach(([k,v])=>{
+    const i=sevBand(v);
+    $('v'+k+'N').textContent = Math.round(v);
+    $('v'+k+'N').className = 'vnum mono s'+i;
+    $('v'+k+'B').textContent = BANDLAB[i];
+    $('v'+k+'B').className = 'vband s'+i;
+    const bar=$('v'+k+'Bar'); bar.style.width = clamp(v,0,100)+'%'; bar.className='b'+i;
+  });
+}
+
+function renderSoil(S){
+  const box=$('soilCompare');
+  if(!S.soil.ox || S.soil.pct<=0){ box.innerHTML=''; return; }
+  const rows=[
+    ['เถ้ารวม (ฐานแห้ง)', S.pc.ash, S.p.ash, '%', 1],
+    ['SiO₂ ในเถ้า', S.pc.ox.SiO2, S.p.ox.SiO2, '%', 1],
+    ['K₂O + Na₂O ในเถ้า', S.ixc.alk, S.ix.alk, '%', 1],
+    ['Al₂O₃ ในเถ้า', S.pc.ox.Al2O3, S.p.ox.Al2O3, '%', 1],
+    ['Alkali Index (ปรับแล้ว)', S.ixc.aiEff, S.ix.aiEff, 'kg/GJ', 3],
+    ['เถ้าต่อพลังงาน', S.ixc.ashLoad, S.ix.ashLoad, 'kg/GJ', 2],
+    ['LHV as-received', S.pc.lhvAr, S.p.lhvAr, 'MJ/kg', 2],
+    ['IDT ผสม', S.pc.idt, S.p.idt, '°C', 0]
+  ];
+  const arrow=(a,b,goodDown)=>{
+    if(a===null||b===null||!isFinite(a)||!isFinite(b)||Math.abs(b-a)<1e-9) return '<span class="pill pn">คงเดิม</span>';
+    const up=b>a, good = goodDown? !up : up;
+    return `<span class="pill ${good?'p0':'p2'}">${up?'▲':'▼'} ${fmt(Math.abs((b-a)/(a||1)*100),0)} %</span>`;
+  };
+  box.innerHTML = `<h3>เปรียบเทียบ ก่อน–หลัง ปนมลทิน (${SOILS[S.soilKey].n} ${fmt(S.soil.pct,1)} %)</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>รายการ</th><th class="n">ก่อนปน</th><th class="n">หลังปน</th><th>ผล</th></tr>
+    ${rows.map(r=>`<tr><td>${r[0]}</td><td class="n">${fmt(r[1],r[4])}</td>
+      <td class="n">${fmt(r[2],r[4])}</td><td>${arrow(r[1],r[2],
+        (r[0].indexOf('IDT')>=0||r[0].indexOf('LHV')>=0)?false:true)}</td></tr>`).join('')}
+  </table></div>
+  <div class="note ${S.p.ox.SiO2>S.pc.ox.SiO2+8?'bad':'warn'}">
+    <b>อ่านผลอย่างไร</b> — Alkali Index ที่ลดลงหลังปนมลทิน <b>ไม่ได้แปลว่าปลอดภัยขึ้น</b>
+    มันลดเพราะถูกเจือจางเท่านั้น ปริมาณ K ที่เข้าเตาต่อชั่วโมงยังเท่าเดิม
+    สิ่งที่เปลี่ยนจริงคือ <b>เถ้าต่อพลังงานเพิ่มขึ้น</b> (ต้องจัดการเถ้ามากขึ้น สึกหรอมากขึ้น)
+    และ <b>SiO₂ อิสระเพิ่มขึ้น</b> ซึ่งเป็นวัตถุดิบของ K-silicate โดยตรง
+    ให้ดูคะแนน Slagging ประกอบเสมอ ไม่ตัดสินจากดัชนีเดียว
+  </div>`;
+}
+
+function renderBlend(S){
+  const massA = S.bl.massDry[0]*100, massB = S.bl.massDry[1]*100;
+  $('blendOut').innerHTML = `
+  <div class="grid3">
+    <div><div class="big">${fmt(S.p.lhvAr,2)}</div><div class="bigu">LHV as-fired · MJ/kg</div></div>
+    <div><div class="big">${fmt(S.p.ash,2)}</div><div class="bigu">เถ้า ฐานแห้ง · %</div></div>
+    <div><div class="big">${fmt(S.p.mc,1)}</div><div class="bigu">ความชื้น as-fired · %</div></div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div>
+      <div class="kv"><span>สัดส่วนพลังงาน A : B</span><b>${fmt(100-S.shB*100,0)} : ${fmt(S.shB*100,0)} %</b></div>
+      <div class="kv"><span>สัดส่วนน้ำหนักแห้ง A : B</span><b>${fmt(massA,1)} : ${fmt(massB,1)} %</b></div>
+      <div class="kv"><span>มลทินที่เติม</span><b>${fmt(S.soil.pct,1)} % ของมวลแห้ง</b></div>
+      <div class="kv"><span>LHV ฐานแห้ง</span><b>${fmt(S.p.lhvDry,2)} MJ/kg</b></div>
+    </div>
+    <div>
+      <div class="kv"><span>กำมะถัน S (dry)</span><b>${fmt(S.p.s,3)} %</b></div>
+      <div class="kv"><span>คลอรีน Cl (dry)</span><b>${fmt(S.p.cl,3)} %</b></div>
+      <div class="kv"><span>เถ้าต่อพลังงาน</span><b>${fmt(S.ix.ashLoad,2)} kg/GJ</b></div>
+      <div class="kv"><span>IDT ผสม (ถ่วงเข้าหาตัวต่ำสุด)</span><b>${fmt(S.p.idt,0)} °C</b></div>
+    </div>
+  </div>
+  <h3>องค์ประกอบเถ้าที่เผาจริง</h3>
+  <div class="tbl-wrap"><table><tr>${OXK.map(k=>`<th class="n">${OXLAB[k]}</th>`).join('')}</tr>
+    <tr>${OXK.map(k=>`<td class="n">${fmt(S.p.ox[k],1)}</td>`).join('')}</tr></table></div>
+  <div class="legend">หน่วยทั้งหมดเป็น % โดยน้ำหนักในเถ้า normalize ให้รวม 100 แล้ว</div>`;
+}
+
+function renderIdx(S){
+  const ix=S.ix;
+  const rows=[
+    ['Base / Acid ratio (B/A)', ix.ba, 2, '–',
+      ix.ba===null?null:band(ix.ba,[0.5,1.0]),
+      ['< 0.5 ต่ำ','0.5–1.0 ปานกลาง–สูง (จุดหลอมต่ำสุดแถว 0.75)','> 1.0 สูง'],
+      'slagging · เกณฑ์ถ่านหิน'],
+    ['Slagging index R<sub>s</sub> = B/A × S', ix.rs, 2, '–',
+      ix.rs===null?null:band(ix.rs,[0.6,2.0,2.6]),
+      ['< 0.6 ต่ำ','0.6–2.0 ปานกลาง','2.0–2.6 สูง','> 2.6 รุนแรง'],
+      'ใช้ได้กับถ่านหิน S ≥ 0.6 % เท่านั้น'],
+    ['Fouling index F<sub>u</sub> = B/A × (K₂O+Na₂O)', ix.fu, 2, '–',
+      ix.fu===null?null:band(ix.fu,[0.6,40]),
+      ['< 0.6 ต่ำ','0.6–40 ปานกลาง','> 40 สูง'],
+      'เกณฑ์ถ่านหิน · ชีวมวลให้ดู AI แทน'],
+    ['Alkali Index (ดิบ)', ix.ai, 3, 'kg/GJ',
+      ix.ai===null?null:band(ix.ai,[0.17,0.34]),
+      ['< 0.17 ต่ำ','0.17–0.34 เริ่มเสี่ยง','> 0.34 สูง'],
+      'ตัวหลักของชีวมวล'],
+    ['Alkali Index (ปรับ K availability)', ix.aiEff, 3, 'kg/GJ',
+      ix.aiEff===null?null:band(ix.aiEff,[0.17,0.34]),
+      ['< 0.17 ต่ำ','0.17–0.34 เริ่มเสี่ยง','> 0.34 สูง'],
+      `ตัวคูณ ${fmt(ix.fAvail,2)} — ${ix.fAvail<1?'SiO₂ สูงตรึง K ไว้ในเนื้อเถ้า':'ไม่มีการตรึง'}`],
+    ['S / Cl molar ratio', ix.scl, 2, '–',
+      (ix.scl===null||!isFinite(ix.scl))?0:band(ix.scl,[2,4]),
+      ['< 2 สูง — คลอไรด์เกาะท่อ','2–4 ปานกลาง','> 4 ต่ำ'].reverse().reverse(),
+      'corrosion · ยิ่งสูงยิ่งดี'],
+    ['Silica ratio', ix.sr, 1, '%',
+      ix.sr===null?null:band(ix.sr,[65,72]),
+      ['< 65 สูง','65–72 ปานกลาง','> 72 ต่ำ'],
+      'slagging · เกณฑ์ถ่านหิน'],
+    ['Bed agglomeration index Fe₂O₃/(K+Na)', ix.bai, 2, '–',
+      ix.bai===null?null:band(ix.bai,[0.15]),
+      ['< 0.15 เสี่ยงจับก้อนใน FB','≥ 0.15 ปกติ'],
+      'ใช้กับ fluidized bed'],
+    ['เถ้าต่อพลังงาน', ix.ashLoad, 2, 'kg/GJ',
+      band(ix.ashLoad,[1.5,4,10]),
+      ['< 1.5 ต่ำ','1.5–4 ปานกลาง','4–10 สูง','> 10 สูงมาก'],
+      'ปริมาณวัสดุที่พร้อมจะไปเกาะ']
+  ];
+  const sclFix = r => r;   // เกณฑ์ S/Cl กลับด้าน จัดการด้านล่าง
+  $('idxTable').innerHTML = `<tr><th>ดัชนี</th><th class="n">ค่า</th><th>หน่วย</th><th>เกณฑ์</th><th>หมายเหตุ</th></tr>` +
+    rows.map(r=>{
+      const [lab,val,dec,unit,bi,labs,note]=r;
+      let pi = bi;
+      if(lab.indexOf('S / Cl')===0){                 // ยิ่งสูงยิ่งดี → กลับสี
+        pi = (val===null)?null:(!isFinite(val)?0:(val<2?2:(val<4?1:0)));
+      } else if(lab.indexOf('Silica')===0){
+        pi = (val===null)?null:(val<65?2:(val<72?1:0));
+      } else if(lab.indexOf('Bed agg')===0){
+        pi = (val===null)?null:(val<0.15?2:0);
+      }
+      const txt = (bi===null||bi===undefined)?'–':(labs[Math.min(bi,labs.length-1)]||'–');
+      return `<tr><td>${lab}</td><td class="n">${fmt(val,dec)}</td><td>${unit}</td>
+        <td>${pi===null||pi===undefined?'<span class="pill pn">–</span>':pillFor(Math.min(pi,3),txt)}</td>
+        <td class="legend">${note}</td></tr>`;
+    }).join('');
+}
+
+function renderFlags(S){
+  const o=S.p.ox, ix=S.ix, out=[];
+  const push=(lvl,t,d)=>out.push({lvl,t,d});
+  if(o.SiO2>=40 && ix.alk>=10)
+    push(2,'K-silicate eutectic',
+      `SiO₂ ${fmt(o.SiO2,0)} % ร่วมกับด่าง ${fmt(ix.alk,0)} % — เกิดแก้วโพแทสเซียมซิลิเกตจุดหลอม 700–900 °C
+       ต่ำกว่าจุดหลอมของส่วนประกอบแต่ละตัวมาก นี่คือกลไกที่ทำให้ "เชื้อเพลิงสองชนิดที่แยกกันไม่มีปัญหา พอผสมกลับเกิด clinker"`);
+  if(o.P2O5>=6 && ix.alk>=15)
+    push(2,'K-phosphate จุดหลอมต่ำ',
+      `P₂O₅ ${fmt(o.P2O5,1)} % — พบในเชื้อเพลิงเกษตรอย่างเหง้ามันและกากตะกอน
+       ดัชนีที่พัฒนาจากถ่านหินจับกลไกนี้ไม่ได้เลย ต้องดู P₂O₅ ประกอบเสมอ`);
+  if(o.SiO2>=75)
+    push(1,'เถ้าซิลิกาสูง — ความเสี่ยงกัดสึก',
+      `SiO₂ ${fmt(o.SiO2,0)} % เถ้าบินแข็งและคม กัดสึกท่อโซน convection ใบพัด ID fan และ cyclone
+       ควรคุมความเร็วก๊าซและตรวจความหนาท่อ/ใบพัดตามรอบ (ไม่ใช่ปัญหา slagging แต่เป็นปัญหาอายุอุปกรณ์)`);
+  if(ix.ashLoad>=8)
+    push(1,'ปริมาณเถ้าสูงมาก',
+      `${fmt(ix.ashLoad,1)} kg เถ้าต่อ GJ — ระบบลำเลียงและกำจัดเถ้าต้องรองรับได้
+       และเถ้าที่สะสมบนตะกรับจะบังอากาศ ทำให้เกิดจุดอับอากาศตามมา`);
+  if(ix.cl>=0.3)
+    push(2,'คลอรีนสูง',
+      `Cl ${fmt(ix.cl,2)} % — KCl ระเหยแล้วควบแน่นบนผิวท่อที่เย็นกว่า เป็นชั้นเหนียวที่จับเถ้าต่อ
+       และกัดกร่อนใต้คราบโดยตรง จำกัดอุณหภูมิผิวท่อ superheater ให้ต่ำกว่า 450–480 °C`);
+  if(ix.scl!==null && isFinite(ix.scl) && ix.scl<2 && ix.cl>=0.1)
+    push(2,'S/Cl ต่ำ — คลอไรด์ครองผิวท่อ',
+      `S/Cl = ${fmt(ix.scl)} กำมะถันไม่พอที่จะเปลี่ยน KCl เป็น K₂SO₄ ซึ่งกัดกร่อนน้อยกว่า
+       การเผาผสมกับเชื้อเพลิงกำมะถันสูง (ถ่านหิน/ลิกไนต์) เป็นวิธีแก้ที่ตรงกลไกที่สุด`);
+  if(o.CaO>=25 && o.SO3>0){
+    const free = o.CaO - o.SO3*(56.077/80.066);
+    if(free>23) push(1,'แคลเซียมอิสระสูง',
+      `CaO อิสระประมาณ ${fmt(free,1)} % — ส่วนที่ไม่ถูกจับเป็นซัลเฟตจะทำตัวเป็น fluxing agent
+       ร่วมกับกรด (โดยเฉพาะ P₂O₅) กดจุดหลอมเถ้าลง เกิดสแลกบนตะกรับได้ง่าย`);
+  }
+  if(S.F.qfMax>0 && S.op.qF > S.F.qfMax)
+    push(2,'ภาระความร้อนบนตะกรับเกินพิกัด',
+      `q_F = ${fmt(S.op.qF,1)} MW/m² สูงกว่าพิกัดของ ${S.F.n} (~${fmt(S.F.qfMax,1)})
+       การกระจายอากาศลอดชั้นเชื้อเพลิงจะไม่สม่ำเสมอ เกิดจุดความร้อนสะสมและตะกรันอุดรูจ่ายอากาศ`);
+  if(S.op.bed>=1)
+    push(1,'bed ไม่สม่ำเสมอ',
+      `อากาศจะวิ่งผ่านจุดที่บางที่สุด (channeling) ทำให้จุดที่หนากลายเป็นโซน reducing
+       ซึ่ง Fe อยู่ในรูป FeO และกดจุดหลอมลงอีก 100–200 °C — clinker จึงเกิดที่จุดนั้นก่อน
+       ทั้งที่อุณหภูมิเฉลี่ยยังดูปลอดภัย`);
+  if(ix.fAvail<0.7)
+    push(0,'K ถูกตรึงในเนื้อเถ้า',
+      `SiO₂ ${fmt(o.SiO2,0)} % สูงมากจน K ส่วนใหญ่ถูกตรึงเป็นซิลิเกตในอนุภาคเถ้า
+       ระเหยไปเกาะท่อได้น้อยกว่าที่ Alkali Index ดิบบอก — นี่คือเหตุผลที่แกลบเผาเดี่ยว ๆ ไม่ค่อยมีปัญหา fouling
+       <b>แต่ข้อได้เปรียบนี้หายทันทีเมื่อผสมกับเชื้อเพลิง K สูง</b>`);
+  if(!out.length) out.push({lvl:0,t:'ไม่พบธงเตือนเชิงกลไก',d:'องค์ประกอบเถ้าไม่เข้าเงื่อนไขกลไกจุดหลอมต่ำที่รู้จัก'});
+
+  const ic=['fa-circle-check','fa-triangle-exclamation','fa-circle-exclamation'];
+  const bg=['var(--ok)','var(--warn)','var(--danger)'];
+  $('flagsOut').innerHTML = out.map(f=>`
+    <div class="zone"><div class="zi" style="background:${bg[f.lvl]}"><i class="fas ${ic[f.lvl]}"></i></div>
+    <div class="zt"><b>${f.t}</b><span>${f.d}</span></div></div>`).join('');
+}
+
+function renderTemp(S){
+  $('tempOut').innerHTML = `
+  <div class="grid3" style="margin-top:12px">
+    <div><div class="big">${fmt(S.est.tad,0)}</div><div class="bigu">อุณหภูมิเปลวไฟ adiabatic · °C</div></div>
+    <div><div class="big">${fmt(S.tFegt,0)}</div><div class="bigu">FEGT ทางออกเตา · °C</div></div>
+    <div><div class="big">${fmt(S.tBed,0)}</div><div class="bigu">อุณหภูมิ bed · °C</div></div>
+  </div>
+  <div class="note">
+    <b>สมมุติฐาน</b> — อากาศทฤษฎีประมาณ 0.33 kg ต่อ MJ (LHV) ของเชื้อเพลิงแข็งทั่วไป,
+    c<sub>p</sub> ก๊าซไอเสียเฉลี่ย 1.25 kJ/kg·K, FEGT = 25 + (T<sub>ad</sub> − 25) × ตัวประกอบสูญเสียรังสี<br>
+    อุณหภูมิ bed <b>ไม่ได้</b> คำนวณจากเปลวไฟ เพราะชั้นเชื้อเพลิงบนตะกรับเผาแบบขาดอากาศ (sub-stoichiometric)
+    จึงเย็นกว่าก๊าซมาก ค่าตั้งต้นมาจากชนิดเตาที่เลือก (${S.F.n} ≈ ${S.F.bed} °C)
+    ถ้ามีค่าที่วัดจริงให้สลับเป็นโหมด "ใส่ค่าที่วัดได้เอง" เสมอ
+  </div>`;
+}
+
+function renderAft(S){
+  const m=S.aft.margin;
+  let lvl,txt;
+  if(m===null){ lvl=1; txt='ไม่มีข้อมูล IDT'; }
+  else if(m<0){ lvl=3; txt='อันตราย — bed ร้อนเกินจุดอ่อนตัวเถ้าแล้ว คาดว่าเกิด clinker แน่นอน'; }
+  else if(m<100){ lvl=2; txt='เสี่ยงสูง — จุดร้อนเฉพาะที่จะเกิด clinker แม้ค่าเฉลี่ยยังผ่าน'; }
+  else if(m<200){ lvl=1; txt='เฝ้าระวัง — พอรับได้ที่โหลดปกติ แต่ไม่มี margin สำหรับโหลดสูงหรือ bed ไม่สม่ำเสมอ'; }
+  else { lvl=0; txt='ปลอดภัย — ห่างจากจุดอ่อนตัวเถ้าพอสมควร'; }
+  $('aftOut').innerHTML = `
+  <div class="grid3" style="margin-top:12px">
+    <div><div class="big">${fmt(S.aft.idtEff,0)}</div><div class="bigu">IDT ใช้งาน · °C</div></div>
+    <div><div class="big s${lvl}">${m===null?'–':(m>0?'+':'')+fmt(m,0)}</div><div class="bigu">margin เทียบ bed · °C</div></div>
+    <div style="display:flex;align-items:center">${pillFor(lvl,BANDLAB[Math.min(lvl,3)])}</div>
+  </div>
+  <div class="note ${lvl>=2?'bad':(lvl===1?'warn':'good')}"><b>${esc(txt)}</b></div>
+  <div class="kv" style="margin-top:10px"><span>IDT ผสม (ถ่วงเข้าหาตัวต่ำสุด)</span><b>${fmt(S.p.idt,0)} °C</b></div>
+  <div class="kv"><span>หักเผื่อ hotspot / โซนอับอากาศ</span><b>− ${fmt(S.redPen,0)} °C</b></div>
+  <div class="kv"><span>หัก eutectic</span><b>− ${fmt(S.aft.eut,0)} °C</b></div>
+  <div class="kv"><span><b>IDT ใช้งาน</b></span><b>${fmt(S.aft.idtEff,0)} °C</b></div>
+  ${S.aft.why.length?`<div class="note warn"><b>ที่มาของการหัก eutectic</b><br>${S.aft.why.map(w=>'· '+w).join('<br>')}</div>`:''}
+  <div class="note">
+    <b>สองข้อควรระวังเรื่อง AFT</b> — (1) AFT ของ<b>ส่วนผสม</b>ไม่ใช่ค่าเฉลี่ยเลขคณิต
+    เฟสจุดหลอมต่ำเพียงส่วนน้อยก็เคลือบและดึงทั้งกองให้อ่อนตัวได้ เครื่องมือนี้จึงถ่วงเข้าหาตัวที่ต่ำที่สุด
+    (2) สำหรับชีวมวล K สูง ค่า AFT ที่วัดตามวิธีของถ่านหินมัก<b>สูงเกินจริง</b>
+    เพราะ K ระเหยไปบางส่วนระหว่างเตรียมตัวอย่าง — ถ้าหน้างานเห็น clinker จริงแต่ผล lab ดูสูง ให้เชื่อหน้างาน
+  </div>`;
+}
+
+function renderZones(S){
+  const ix=S.ix, o=S.p.ox;
+  const z=[
+    {n:'ตะกรับ / bed', d:'clinker ก้อนแข็ง ผิวมันวาว เก็บออกยาก',
+     v:S.sc.slag, w:'slag'},
+    {n:'ผนังเตา (โซนรับรังสี)', d:'สแลกไหลเคลือบผนัง ลดการรับความร้อนแผ่รังสี ดัน FEGT สูงขึ้น',
+     v:S.sc.slag*0.85, w:'slag'},
+    {n:'Superheater แถวแรก', d:'คราบผสมระหว่าง slag กับ fouling · เป็นจุดที่ทั้งสองโรคทับกัน',
+     v:(S.sc.slag+S.sc.foul)/2, w:'mix'},
+    {n:'Convection bank', d:'คราบด่างควบแน่น ชั้นนุ่มแล้วแข็งตัว ทำให้ ΔP ฝั่งก๊าซเพิ่ม',
+     v:S.sc.foul, w:'foul'},
+    {n:'Economizer / ท้ายหม้อ', d:'คราบเถ้าละเอียด · trend อุณหภูมิไอเสียที่โหลดคงที่คือ KPI ที่ดีที่สุด',
+     v:S.sc.foul*0.8, w:'foul'},
+    {n:'ใต้คราบบนผิวท่อ SH', d:'ท่อบางลง ผิวเป็นหลุม — ตรวจด้วย NDT วัดความหนา',
+     v:S.sc.corr, w:'corr'}
+  ];
+  const bg=['var(--ok)','var(--warn)','var(--danger)','var(--sev4)'];
+  $('zoneOut').innerHTML = z.map(x=>{
+    const i=sevBand(x.v);
+    return `<div class="zone"><div class="zi" style="background:${bg[i]}">${Math.round(x.v)}</div>
+      <div class="zt"><b>${x.n} ${pillFor(i,BANDLAB[i])}</b><span>${x.d}</span></div></div>`;
+  }).join('') + `<div class="note">
+    <b>ตำแหน่งคราบคือตัวแยกโรคที่เร็วที่สุดหน้างาน</b> — ก้อนแข็งมันวาวในโซนรับรังสีคือ slagging
+    (เถ้าอ่อนตัวเพราะอุณหภูมิเกินจุดหลอม) ส่วนคราบนุ่มสีขาว-เทาบนท่อโซนพาความร้อนคือ fouling
+    (ไอด่างควบแน่นบนผิวที่เย็นกว่า) สองโรคนี้แก้คนละวิธี อย่าเหมารวม</div>`;
+}
+
+function renderScores(S){
+  const g=[['slag','Slagging · ตะกรัน',S.sc.slag],
+           ['foul','Fouling · พอกติดท่อ',S.sc.foul],
+           ['corr','Corrosion · กัดกร่อนอุณหภูมิสูง',S.sc.corr]];
+  $('scoreOut').innerHTML = g.map(([k,lab,v])=>{
+    const i=sevBand(v);
+    return `<h3>${lab} — <span class="s${i}">${Math.round(v)}</span> / 100 ${pillFor(i,BANDLAB[i])}</h3>
+    <div class="tbl-wrap"><table>
+      <tr><th>องค์ประกอบ</th><th class="n">คะแนน</th><th class="n">เต็ม</th><th>ค่าที่ใช้</th></tr>
+      ${S.sc.parts[k].map(p=>`<tr${p.v/p.max>0.6?' class="hl"':''}><td>${p.lab}</td>
+        <td class="n">${fmt(p.v,1)}</td><td class="n">${p.max}</td>
+        <td class="legend">${p.detail}</td></tr>`).join('')}
+    </table></div>`;
+  }).join('') + `<div class="note">
+    <b>คะแนนนี้คืออะไร</b> — เป็นการรวมดัชนีเคมี เกณฑ์อุณหภูมิ และปัจจัยเดินเครื่องเข้าเป็นตัวเลขเดียว
+    เพื่อ<b>จัดลำดับความเร่งด่วนและเทียบทางเลือกเชื้อเพลิง</b> ไม่ใช่ค่าที่มีมาตรฐานสากลรองรับ
+    แถวที่ไฮไลต์คือองค์ประกอบที่ผลักคะแนนขึ้นมากที่สุด — ให้แก้ตรงนั้นก่อน</div>`;
+}
+
+function renderConsq(S){
+  const c=S.cq;
+  $('consqOut').innerHTML = `
+  <div class="grid4" style="margin-top:12px">
+    <div><div class="big">${fmt(c.rate,1)}</div><div class="bigu">อุณหภูมิไอเสียเพิ่ม · °C ต่อ 1,000 ชม.</div></div>
+    <div><div class="big">${fmt(c.dEff,2)}</div><div class="bigu">ประสิทธิภาพที่หายไป · %</div></div>
+    <div><div class="big">${c.sootHr?fmt(c.sootHr,0):'–'}</div><div class="bigu">รอบ soot blow ที่แนะนำ · ชม.</div></div>
+    <div><div class="big">${c.cost>0?Math.round(c.cost).toLocaleString('th-TH'):'–'}</div><div class="bigu">ต้นทุนที่สูญไป · บาท/ปี</div></div>
+  </div>
+  <div class="kv" style="margin-top:12px"><span>เชื้อเพลิงที่ใช้ทั้งปี</span><b>${Math.round(c.fuelYr).toLocaleString('th-TH')} ตัน</b></div>
+  <div class="kv"><span>อุณหภูมิไอเสียที่สูงขึ้นสะสม ถ้าไม่ทำความสะอาด</span><b>${fmt(c.dT,0)} °C/ปี</b></div>
+  <div class="note">
+    <b>ที่มา</b> — คราบ slag/fouling ทำตัวเป็นฉนวนบนผิวแลกเปลี่ยนความร้อน (การนำความร้อนเพียง 0.1–0.3 W/m·K)
+    ความร้อนจึงถูกพาออกไปทางปล่องแทน ใช้เกณฑ์เชิงปฏิบัติว่าอุณหภูมิไอเสียที่สูงขึ้นทุก <b>20 °C
+    ≈ ประสิทธิภาพหม้อไอน้ำลดลง 1 %</b><br>
+    อัตราการเพิ่มเป็นการประมาณจากคะแนน fouling ใช้เพื่อ<b>เทียบทางเลือก</b>และตั้งรอบทำความสะอาด
+    ตัวเลขจริงต้องมาจากการ trend อุณหภูมิไอเสียที่โหลดคงที่ของหม้อไอน้ำเครื่องนั้นเอง
+    ซึ่งเป็น KPI เฝ้าระวัง fouling ที่ดีที่สุดและแปลงเป็นเงินได้ตรง ๆ
+  </div>`;
+}
+
+function renderMit(S){
+  const ix=S.ix, o=S.p.ox, out=[];
+  const kd = kaolinDose(ix, parseFloat($('fuelRate').value)||0, 2.0);
+  const add=(tier,t,d)=>out.push({tier,t,d});
+
+  if(S.soil.pct>0)
+    add(1,'ลดมลทินที่ปนมากับเชื้อเพลิง',
+      `ตอนนี้มีมลทินปน ${fmt(S.soil.pct,1)} % ทำให้เถ้าเพิ่มจาก ${fmt(S.pc.ash,1)} % เป็น ${fmt(S.p.ash,1)} %
+       และ LHV ลดจาก ${fmt(S.pc.lhvAr,2)} เหลือ ${fmt(S.p.lhvAr,2)} MJ/kg
+       — จัดการที่กองเก็บ (ปูพื้นคอนกรีต ไม่ตักติดดิน) ร่อนตะแกรงก่อนป้อน หรือล้างสำหรับเชื้อเพลิงที่คุ้ม
+       ได้ผลทั้งลด SiO₂ อิสระและได้พลังงานคืน`);
+  if(ix.aiEff!==null && ix.aiEff>0.17)
+    add(1,'ผสมเชื้อเพลิงให้ Alkali Index ลดลง',
+      `AI ปัจจุบัน ${fmt(ix.aiEff,3)} kg/GJ (เป้า < 0.17) — เจือด้วยเชื้อเพลิงเถ้าทน เช่น กะลาปาล์ม
+       ไม้สับ หรือกะลามะพร้าว ใช้ Blend Solver ด้านบนหาสัดส่วนสูงสุดที่ยังผ่านเกณฑ์
+       และทดลองที่โหลดต่ำ-กลางก่อนไล่ขึ้น พร้อมเฝ้า trend อุณหภูมิไอเสีย 1–2 สัปดาห์`);
+  if(ix.scl!==null && isFinite(ix.scl) && ix.scl<4 && ix.cl>=0.1)
+    add(1,'เพิ่มกำมะถันสัมพัทธ์เพื่อ sulfation',
+      `S/Cl = ${fmt(ix.scl)} (เป้า > 4) — การเผาผสมกับเชื้อเพลิงกำมะถันสูง (ถ่านหิน ลิกไนต์)
+       ทำให้ KCl ถูกเปลี่ยนเป็น K₂SO₄ ซึ่งกัดกร่อนน้อยกว่ามาก
+       นี่คือเหตุผลเชิงกลไกที่ co-firing ถ่านหินกับชีวมวลช่วยลดการกัดกร่อน
+       (ต้องชั่งกับ SO₂ ที่เพิ่มขึ้นและข้อกำหนดการระบาย)`);
+  if(S.sc.slag>=40 || S.aft.margin===null || S.aft.margin<150)
+    add(2,'จัดการ hotspot บนตะกรับ',
+      `ทำให้ความหนา bed สม่ำเสมอและโซนอากาศตรงกับโซนการเผาไหม้จริง
+       จุดที่ bed หนากว่าจะขาดอากาศ กลายเป็นโซน reducing ซึ่ง Fe อยู่ในรูป FeO
+       กดจุดหลอมลงอีก 100–200 °C — clinker จึงเกิดที่จุดนั้นก่อน
+       สังเกต burnout line ว่าอยู่ตำแหน่งเดิมตลอดความกว้างตะกรับหรือไม่`);
+  if(S.tFegt>0 && S.aft.idtEff-S.tFegt<250)
+    add(2,'ลดอุณหภูมิทางออกเตา (FEGT)',
+      `FEGT ${fmt(S.tFegt,0)} °C ห่างจาก IDT ใช้งานเพียง ${fmt(S.aft.idtEff-S.tFegt,0)} °C
+       — เถ้าจะยังอ่อนตัวอยู่ตอนเข้าโซน convection แล้วเกาะทันที
+       ใช้ flue gas recirculation ปรับสัดส่วน secondary air หรือลดโหลดชั่วคราว
+       ให้เถ้าแข็งตัวก่อนสัมผัสท่อ`);
+  if(ix.alk>=10 && ix.ash>0)
+    add(2,'เติมสารเติมแต่ง kaolin / ดินขาว',
+      `kaolin ตรึง K เป็น K-aluminosilicate ซึ่งจุดหลอมสูงกว่า K-silicate มาก
+       ปริมาณโดยประมาณตามสตอยคิโอเมตรี (เผื่อ 2 เท่า) ≈ <b>${fmt(kd.kgPerTon,1)} kg ต่อตันเชื้อเพลิงแห้ง</b>
+       ${kd.kgPerHr>0?`หรือ ${fmt(kd.kgPerHr,1)} kg/ชม. ที่อัตราป้อนปัจจุบัน`:''}
+       — ทดลองสัดส่วนเล็กก่อนขยาย และเฝ้าปริมาณเถ้ารวมที่เพิ่มขึ้น
+       ทางเลือกอื่น: หินปูน dolomite หรือ MgO`);
+  if(S.op.tube>440 && ix.cl>=0.1)
+    add(3,'จำกัดอุณหภูมิผิวท่อ superheater',
+      `ปัจจุบัน ${fmt(S.op.tube,0)} °C — เมื่อเผาเชื้อเพลิงคลอรีนสูงควรคุมให้ต่ำกว่า 450–480 °C
+       ถ้าจำเป็นต้องเดินสูงกว่านั้น ให้พิจารณาวัสดุทนกัดกร่อนหรือ coating เฉพาะแถวเสี่ยง`);
+  add(3,'Soot blowing ตามสภาพ ไม่ใช่ตามเวลา',
+    `${S.cq.sootHr?`รอบที่ทำให้อุณหภูมิไอเสียไม่ขึ้นเกิน 15 °C ≈ ทุก ${fmt(S.cq.sootHr,0)} ชม.`:'ตั้งรอบจาก trend อุณหภูมิไอเสีย'}
+     — ใช้ trend อุณหภูมิไอเสียที่โหลดคงที่เป็นตัวสั่ง ไม่ใช่ตารางเวลา
+     เป่าถี่เกินไปสิ้นเปลืองไอน้ำและกัดสึกท่อ เป่าห่างเกินไปคราบแข็งจนเป่าไม่ออก`);
+  add(3,'ตรวจความหนาท่อในโซนเสี่ยงประจำปี',
+    `วัด NDT ที่ superheater โซนที่มีคราบ และที่ convection bank ด้านที่ก๊าซปะทะตรง
+     ${o.SiO2>=75?'เถ้าซิลิกาสูงทำให้อัตราการสึกจากการขัดสีสูงกว่าปกติมาก ควรตรวจใบพัด ID fan และ cyclone ด้วย':''}`);
+
+  const tierName={1:'ระดับเชื้อเพลิง — ถูกที่สุด ได้ผลเร็วที่สุด',
+                  2:'ระดับการเผาไหม้ — ปรับการเดินเครื่อง',
+                  3:'ระดับปฏิบัติการและบำรุงรักษา'};
+  let html='';
+  [1,2,3].forEach(t=>{
+    const g=out.filter(x=>x.tier===t);
+    if(!g.length) return;
+    html += `<h3>${tierName[t]}</h3>` + g.map(x=>
+      `<div class="note ${t===1?'good':(t===2?'warn':'')}"><b>${x.t}</b><br>${x.d}</div>`).join('');
+  });
+  $('mitOut').innerHTML = html;
+}
+
+function renderReport(S){
+  const b=v=>BANDLAB[sevBand(v)];
+  const fa=$('fuelA').selectedOptions[0].text, fb=$('fuelB').selectedOptions[0].text;
+  const mix = S.shB>0 ? `${fa} ${fmt(100-S.shB*100,0)} % + ${fb} ${fmt(S.shB*100,0)} % (สัดส่วนพลังงาน)` : fa;
+  const soil = S.soil.pct>0 ? `${SOILS[S.soilKey].n} ${fmt(S.soil.pct,1)} % โดยน้ำหนักแห้ง` : 'ไม่มี';
+  const txt =
+`ผลประเมินความเสี่ยง Slagging & Fouling
+เชื้อเพลิง: ${mix}
+มลทินที่ปน: ${soil}
+ชนิดเตา: ${S.F.n}
+
+คุณสมบัติที่เผาจริง (as-fired)
+  LHV (ar)            ${fmt(S.p.lhvAr,2)} MJ/kg
+  ความชื้น (ar)        ${fmt(S.p.mc,1)} %
+  เถ้า (dry)           ${fmt(S.p.ash,2)} %
+  กำมะถัน S (dry)      ${fmt(S.p.s,3)} %
+  คลอรีน Cl (dry)      ${fmt(S.p.cl,3)} %
+  เถ้าต่อพลังงาน       ${fmt(S.ix.ashLoad,2)} kg/GJ
+
+ดัชนีหลัก
+  Base/Acid ratio     ${fmt(S.ix.ba)}
+  Alkali Index        ${fmt(S.ix.ai,3)} kg/GJ (ปรับ K availability: ${fmt(S.ix.aiEff,3)})
+  S/Cl molar ratio    ${fmt(S.ix.scl)}
+  Fouling index Fu    ${fmt(S.ix.fu)}
+
+เกณฑ์อุณหภูมิ
+  IDT ผสม             ${fmt(S.p.idt,0)} °C
+  หัก hotspot          ${fmt(S.redPen,0)} °C
+  หัก eutectic         ${fmt(S.aft.eut,0)} °C
+  IDT ใช้งาน           ${fmt(S.aft.idtEff,0)} °C
+  อุณหภูมิ bed         ${fmt(S.tBed,0)} °C
+  margin              ${fmt(S.aft.margin,0)} °C
+  FEGT                ${fmt(S.tFegt,0)} °C
+
+คะแนนความรุนแรง
+  Slagging            ${Math.round(S.sc.slag)}/100  (${b(S.sc.slag)})
+  Fouling             ${Math.round(S.sc.foul)}/100  (${b(S.sc.foul)})
+  Corrosion           ${Math.round(S.sc.corr)}/100  (${b(S.sc.corr)})
+
+ผลตามมาที่ประเมินได้
+  อุณหภูมิไอเสียเพิ่ม   ${fmt(S.cq.rate,1)} °C ต่อ 1,000 ชม.
+  ประสิทธิภาพที่หายไป   ${fmt(S.cq.dEff,2)} %
+  ต้นทุนที่สูญไป        ${S.cq.cost>0?Math.round(S.cq.cost).toLocaleString('th-TH'):'–'} บาท/ปี
+  รอบ soot blow แนะนำ  ${S.cq.sootHr?fmt(S.cq.sootHr,0)+' ชม.':'–'}
+
+หมายเหตุ: ดัชนีเคมีเกือบทั้งหมดพัฒนาจากเถ้าถ่านหิน ใช้กับชีวมวลเป็นเครื่องคัดกรอง
+คะแนนความรุนแรงเป็นเกณฑ์ภายในของ Triple E สำหรับจัดลำดับความเร่งด่วนและเทียบทางเลือก
+การตัดสินใจจริงต้องประกอบผล AFT ของล็อตจริงและประวัติ clinker หน้างาน`;
+  $('reportOut').innerHTML = `<pre class="mono" id="reportTxt" style="white-space:pre-wrap;font-size:.78rem;
+    background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto">${esc(txt)}</pre>`;
+}
+
+/* ── Blend solver ── */
+function runSolve(){
+  const S=STATE;
+  const tgtAI=parseFloat($('tgtAI').value)||0.17, tgtSCl=parseFloat($('tgtSCl').value)||0;
+  const r=solveBlend(S.A, S.B, S.soil, tgtAI, tgtSCl);
+  const fa=$('fuelA').selectedOptions[0].text, fb=$('fuelB').selectedOptions[0].text;
+  let head;
+  if(r.best && r.best.x>=100)
+    head=`<div class="note good"><b>ผ่านเกณฑ์ได้แม้เผา ${esc(fa)} 100 %</b> — ไม่จำเป็นต้องผสมเพื่อวัตถุประสงค์นี้</div>`;
+  else if(r.best)
+    head=`<div class="grid3"><div><div class="big">${r.best.x}</div><div class="bigu">% พลังงานสูงสุดของ ${esc(fa)}</div></div>
+      <div><div class="big">${fmt(r.best.ai,3)}</div><div class="bigu">Alkali Index ที่ได้ · kg/GJ</div></div>
+      <div><div class="big">${fmt(r.best.scl,2)}</div><div class="bigu">S/Cl ที่ได้</div></div></div>
+      <div class="note good">ที่สัดส่วนนี้ต้องใช้ <b>${esc(fb)} ${100-r.best.x} %</b> ของพลังงานรวมเป็นตัวเจือ</div>`;
+  else {
+    const fail=[];
+    if(!r.at0.okAI)  fail.push(`Alkali Index — แม้เผา ${esc(fb)} ล้วน ก็ยังได้ ${fmt(r.at0.ai,3)} kg/GJ ซึ่งเกินเป้า ${tgtAI}`);
+    if(!r.at0.okSCl) fail.push(`S/Cl — แม้เผา ${esc(fb)} ล้วน ก็ยังได้ ${fmt(r.at0.scl,2)} ซึ่งต่ำกว่าเป้า ${tgtSCl}`);
+    head=`<div class="note bad"><b>ไม่มีสัดส่วนใดผ่านเกณฑ์</b><br>${fail.map(f=>'· '+f).join('<br>')}
+      <br><br>ทางออก: ${!r.at0.okSCl?`เกณฑ์ S/Cl > 4 แทบเป็นไปไม่ได้ถ้าเจือด้วยชีวมวลด้วยกัน เพราะทั้งคู่กำมะถันต่ำ
+      — ต้องเลือกตัวเจือที่<b>กำมะถันสูง</b> เช่น ลิกไนต์หรือถ่านหิน หรือผ่อนเกณฑ์ S/Cl ลงแล้วไปคุมอุณหภูมิผิวท่อแทน`
+      :`เปลี่ยนตัวเจือเป็นเชื้อเพลิงที่เถ้าสะอาดกว่า (กะลาปาล์ม ไม้สับ กะลามะพร้าว) หรือผ่อนเป้า AI`}</div>`;
+  }
+  $('solveOut').innerHTML = head + `
+    <h3>ตารางกวาดสัดส่วน</h3>
+    <div class="tbl-wrap"><table>
+      <tr><th class="n">% พลังงาน ${esc(fa)}</th><th class="n">Alkali Index</th><th class="n">S/Cl</th><th>ผ่านเกณฑ์</th></tr>
+      ${r.trace.map(t=>`<tr${(r.best&&t.x===r.best.x)?' class="hl"':''}>
+        <td class="n">${t.x}</td><td class="n">${fmt(t.ai,3)}</td><td class="n">${fmt(t.scl,2)}</td>
+        <td>${(t.okAI&&t.okSCl)?pillFor(0,'ผ่าน'):pillFor(2, !t.okAI&&!t.okSCl?'ไม่ผ่านทั้งคู่':(!t.okAI?'AI เกิน':'S/Cl ต่ำ'))}</td></tr>`).join('')}
+    </table></div>
+    <div class="note">สัดส่วนคำนวณตาม<b>พลังงาน</b>ตามหลักการผสมเชื้อเพลิง ไม่ใช่ตามน้ำหนัก
+    และคำนวณบนมลทินระดับปัจจุบัน (${fmt(S.soil.pct,1)} %) — ถ้าลดมลทินได้ ผลจะเปลี่ยน</div>`;
+}
+
+/* ── นำเข้าจาก Solid Fuel Database ── */
+const DBCOLS=['id','mat','cls','yr','M','ASH','VM','FC','C','H','O','N','S','CL','LHV','HHV',
+              'IDT','SOT','HT','FT','SiO2','Al2O3','TiO2','Fe2O3','CaO','MgO','Na2O','K2O','P2O5','SO3'];
+function importRow(P){
+  const raw=$('pasteRow').value.trim();
+  if(!raw){ $('pasteMsg').innerHTML='<span class="pill p2">ยังไม่ได้วางข้อมูล</span>'; return; }
+  const p=raw.split('|');
+  if(p.length<20){ $('pasteMsg').innerHTML='<span class="pill p2">รูปแบบไม่ถูกต้อง — ต้องมีอย่างน้อย 20 ช่องคั่นด้วย |</span>'; return; }
+  const g=n=>{const i=DBCOLS.indexOf(n); const v=p[i]; return (v===undefined||v==='')?null:parseFloat(v);};
+  const mc=g('M'), ashDry=g('ASH'), lhvDry=g('LHV'), clPpm=g('CL');
+  const notes=[];
+  if(mc!==null) $(P+'_mc').value=mc;
+  if(ashDry!==null) $(P+'_ash').value=ashDry;
+  if(lhvDry!==null && mc!==null){
+    $(P+'_lhv').value = lhvArOf(lhvDry, mc).toFixed(2);
+    notes.push(`แปลง LHV ${lhvDry} MJ/kg (ฐานแห้ง) → ${lhvArOf(lhvDry,mc).toFixed(2)} MJ/kg (as-received) ที่ความชื้น ${mc} %`);
+  } else if(lhvDry!==null){ $(P+'_lhv').value=lhvDry; notes.push('ไม่มีค่าความชื้น จึงใส่ LHV ตามที่ให้มาโดยไม่แปลงฐาน — ตรวจสอบเอง'); }
+  if(g('S')!==null) $(P+'_s').value=g('S');
+  if(clPpm!==null){ $(P+'_cl').value=(clPpm/10000).toFixed(4);
+    notes.push(`แปลง Cl ${clPpm} mg/kg → ${(clPpm/10000).toFixed(4)} %`); }
+  if(g('IDT')!==null) $(P+'_idt').value=g('IDT');
+  let oxN=0; OXK.forEach(k=>{ const v=g(k); if(v!==null){ $(`${P}_${k}`).value=v; oxN++; } });
+  if(oxN<10) notes.push(`มีข้อมูลออกไซด์เพียง ${oxN} จาก 10 ตัว — ช่องที่ขาดยังเป็นค่าเดิม ควรตรวจสอบ`);
+  if(g('IDT')===null) notes.push('แถวนี้ไม่มีค่า IDT — ใส่เองหรือใช้ค่าจากคลัง มิฉะนั้นเกณฑ์ AFT จะใช้ไม่ได้');
+  $('pasteMsg').innerHTML = `<span class="pill p0">นำเข้าเป็นเชื้อเพลิง ${P} แล้ว</span>` +
+    (notes.length?`<div class="note warn" style="margin-top:8px">${notes.map(n=>'· '+n).join('<br>')}</div>`:'');
+  computeAll();
+}
+
+/* ── init ── */
+function init(){
+  buildSelects();
+  loadFuel('A', $('fuelA').value);
+  loadFuel('B', $('fuelB').value);
+  $('redPen').value = 50;
+
+  $('fuelA').addEventListener('change', e=>{ loadFuel('A', e.target.value); computeAll(); });
+  $('fuelB').addEventListener('change', e=>{ loadFuel('B', e.target.value); computeAll(); });
+  $('furnType').addEventListener('change', e=>{
+    const F=FURNACES[e.target.value];
+    $('radFac').value=F.rad;
+    $('qF').value = F.qfMax>0 ? (F.qfMax*0.7).toFixed(1) : 0;
+    computeAll();
+  });
+  document.querySelectorAll('input,select').forEach(x=>{
+    if(x.id==='pasteRow') return;
+    x.addEventListener('input', computeAll);
+    x.addEventListener('change', computeAll);
+  });
+  document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');
+    document.querySelector(`.panel[data-p="${t.dataset.t}"]`).classList.add('on');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }));
+  $('btnSolve').addEventListener('click', runSolve);
+  $('btnPasteA').addEventListener('click', ()=>importRow('A'));
+  $('btnPasteB').addEventListener('click', ()=>importRow('B'));
+  $('btnCopy').addEventListener('click', ()=>{
+    const t=$('reportTxt'); if(!t) return;
+    navigator.clipboard.writeText(t.textContent).then(()=>{
+      $('btnCopy').innerHTML='<i class="fas fa-check"></i> คัดลอกแล้ว';
+      setTimeout(()=>$('btnCopy').innerHTML='<i class="fas fa-copy"></i> คัดลอกสรุป',1800);
+    }).catch(()=>{});
+  });
+
+  const F=FURNACES[$('furnType').value];
+  $('radFac').value=F.rad; $('qF').value=(F.qfMax*0.7).toFixed(1);
+  computeAll();
+  runSolve();
+}
+document.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>
