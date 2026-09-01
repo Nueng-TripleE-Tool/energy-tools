@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cooling Load & HVAC Selector — โหลดความเย็น เลือกแอร์/ชิลเลอร์ + CDD</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0f2a4a;--teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa;--card:#fff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;
+  --accent:#12a4a4;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;
+  --radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Sans Thai",sans-serif;line-height:1.55}
+header{background:var(--header-grad);color:#fff;padding:22px 20px}
+header h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;
+  font-size:1.9rem;margin:0;letter-spacing:.3px}
+header p{margin:.25rem 0 0;opacity:.9;font-size:.95rem}
+.wrap{max-width:1100px;margin:20px auto;padding:0 16px;display:grid;gap:16px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px}
+.card h2{font-family:"Barlow Condensed",sans-serif;color:var(--navy);margin:.1rem 0 1rem;font-size:1.35rem}
+.card h3{font-family:"Barlow Condensed",sans-serif;color:var(--navy);margin:1rem 0 .5rem;font-size:1.1rem}
+label{display:block;font-size:.85rem;color:var(--muted);margin:.6rem 0 .25rem}
+input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--line);
+  border-radius:10px;font-family:"IBM Plex Mono",monospace;font-size:.92rem;background:#fff}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+button{background:var(--accent);color:#fff;border:0;border-radius:10px;
+  padding:11px 18px;font-weight:600;cursor:pointer;font-size:.98rem;margin-top:12px;
+  font-family:"IBM Plex Sans Thai",sans-serif}
+button.sec{background:#fff;color:var(--navy);border:1.5px solid var(--line)}
+button.warn{background:var(--warn)}
+button.danger{background:var(--danger)}
+button:disabled{opacity:.5;cursor:not-allowed}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.9rem}
+th,td{border-bottom:1px solid var(--line);padding:6px 9px;text-align:left}
+th{background:#f0f4f8;font-weight:600;color:var(--navy)}
+td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
+.assump{color:var(--muted);font-size:.82rem;margin-top:10px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--line);margin-bottom:4px}
+.tab{padding:10px 16px;cursor:pointer;font-weight:600;color:var(--muted);
+  border-bottom:3px solid transparent;margin-bottom:-2px;font-size:.95rem}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.status-ok{color:var(--ok)}.status-warn{color:var(--warn)}.status-bad{color:var(--danger)}
+.kpirow{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:10px 0}
+.kpi{background:#f7fafc;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kpi .v{font-family:"Barlow Condensed",sans-serif;font-size:1.7rem;color:var(--navy)}
+.kpi .l{font-size:.78rem;color:var(--muted)}
+.note{background:#fff8ec;border:1px solid #f0dcb0;border-radius:10px;padding:10px 14px;font-size:.85rem;margin-top:10px}
+.reco{background:#eef8f4;border:1px solid #bfe4d4;border-radius:10px;padding:12px 14px;font-size:.9rem;margin-top:10px}
+.scroll-x{overflow-x:auto}
+.hint{font-size:.78rem;color:var(--muted);margin-top:4px;line-height:1.5;
+  background:#f7fafc;border-left:3px solid #cfe0ea;padding:4px 9px;border-radius:0 8px 8px 0}
+body.nohints .hint{display:none}
+.mode-toggle{display:flex;gap:0;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;width:fit-content}
+.mode-toggle div{padding:9px 20px;cursor:pointer;font-weight:600;color:var(--muted);font-size:.92rem}
+.mode-toggle div.active{background:var(--accent);color:#fff}
+.chip{display:inline-block;background:#eef6f6;color:var(--teal);border-radius:20px;padding:2px 10px;font-size:.78rem;margin:2px;font-family:"IBM Plex Mono",monospace}
+.orient-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.orient-grid .ob{border:1px solid var(--line);border-radius:10px;padding:8px}
+.orient-grid .ob b{font-size:.85rem;color:var(--navy)}
+.chartbox{overflow-x:auto;margin-top:10px}
+@media(max-width:720px){.grid2,.grid3,.grid4,.orient-grid{grid-template-columns:1fr}}
+@media print{
+  body{background:#fff}
+  header{padding:12px 16px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .no-print,.tabs{display:none!important}
+  .card{box-shadow:none;border:1px solid var(--line);page-break-inside:avoid}
+  .tabpane{display:block!important}
+  .tabpane.print-hide{display:none!important}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>COOLING LOAD &amp; HVAC SELECTOR</h1>
+  <p>คำนวณโหลดความเย็นรายห้อง · เลือกเครื่องปรับอากาศ/เครื่องทำน้ำเย็น · ประมาณพลังงานรายปีด้วย CDD · Triple E</p>
+</header>
+<div class="wrap">
+
+<div class="tabs no-print">
+  <div class="tab active" data-tab="load" onclick="showTab('load')">1) คำนวณโหลด</div>
+  <div class="tab" data-tab="proj" onclick="showTab('proj')">2) โครงการ (รวมห้อง)</div>
+  <div class="tab" data-tab="sel" onclick="showTab('sel')">3) เลือกเครื่อง</div>
+  <div class="tab" data-tab="cdd" onclick="showTab('cdd')">4) พลังงาน &amp; CDD</div>
+  <div class="tab" data-tab="ref" onclick="showTab('ref')">5) ตารางอ้างอิง</div>
+</div>
+
+<!-- ============ TAB 1 : LOAD ============ -->
+<div class="tabpane" id="pane-load">
+  <div class="card">
+    <h2>ข้อมูลห้อง (Room Input)
+      <button class="sec no-print" style="float:right;padding:6px 14px;font-size:.85rem;margin:0" onclick="toggleHints()">❓ ซ่อน/แสดงคำอธิบาย</button></h2>
+    <div class="grid3">
+      <div><label>ชื่อห้อง (ใช้ในรายงาน)</label><input id="roomName" value="ห้องตัวอย่าง 1"></div>
+      <div><label>ประเภทห้อง (Room type)</label><select id="roomType" onchange="applyPreset()"></select></div>
+      <div><label>โหมดคำนวณ</label>
+        <div class="mode-toggle" id="modeTgl">
+          <div class="active" data-m="quick" onclick="setMode('quick')">Quick (W/m²)</div>
+          <div data-m="det" onclick="setMode('det')">Detailed (แยกองค์ประกอบ)</div>
+        </div></div>
+    </div>
+    <div class="grid4">
+      <div><label>กว้าง (m)</label><input type="number" id="rw" value="4" min="0.5" step="0.1" oninput="calc()"></div>
+      <div><label>ยาว (m)</label><input type="number" id="rl" value="6" min="0.5" step="0.1" oninput="calc()"></div>
+      <div><label>สูง (m)</label><input type="number" id="rh" value="2.8" min="2" step="0.1" oninput="calc()"></div>
+      <div><label>พื้นที่ (m²) — คำนวณอัตโนมัติ</label><input id="rarea" disabled></div>
+    </div>
+    <div class="grid4">
+      <div><label>จำนวนคน</label><input type="number" id="npeople" value="2" min="0" step="1" oninput="calc()"></div>
+      <div><label>ไฟแสงสว่าง (W/m²)</label><input type="number" id="wLight" value="10" min="0" step="0.5" oninput="calc()"></div>
+      <div><label>อุปกรณ์ทั่วไป (W/m²)</label><input type="number" id="wEquip" value="15" min="0" step="0.5" oninput="calc()"></div>
+      <div><label>โหลด IT/อุปกรณ์พิเศษ (kW) <span id="itHint"></span></label><input type="number" id="kwIT" value="0" min="0" step="0.1" oninput="calc()"></div>
+    </div>
+    <div class="grid4">
+      <div><label>อุณหภูมิห้องออกแบบ (°C)</label><input type="number" id="tIn" value="25" step="0.5" oninput="calc()"></div>
+      <div><label>ความชื้นห้อง (%RH)</label><input type="number" id="rhIn" value="55" min="20" max="80" step="5" oninput="calc()"></div>
+      <div><label>อากาศภายนอกออกแบบ DB (°C)</label><input type="number" id="tOut" value="35" step="0.5" oninput="calc()"></div>
+      <div><label>อากาศภายนอก WB (°C)</label><input type="number" id="twbOut" value="27.5" step="0.5" oninput="calc()"></div>
+    </div>
+    <p class="assump" style="margin-top:4px">💡 ค่าอากาศภายนอกดึงอัตโนมัติได้จากแท็บ 4 (พลังงาน &amp; CDD) เมื่อเลือกจังหวัดและโหลดข้อมูลแล้ว — สถานะ: <span id="odaStatus" class="status-warn">ใช้ค่า default (≈ กรุงเทพฯ)</span></p>
+
+    <div id="detBlock" style="display:none">
+      <h3 id="envH3">กรอบอาคาร (Envelope — เฉพาะโหมด Detailed)</h3>
+      <div class="orient-grid">
+        <div class="ob"><b>ทิศเหนือ (N)</b>
+          <label>ผนังโดนแดด/อากาศภายนอก?</label><select id="expN" onchange="calc()"><option value="1">ใช่</option><option value="0">ไม่ (ติดห้องแอร์อื่น)</option></select>
+          <label>กระจก (m²)</label><input type="number" id="glN" value="0" min="0" step="0.5" oninput="calc()"></div>
+        <div class="ob"><b>ทิศใต้ (S)</b>
+          <label>ผนังโดนแดด/อากาศภายนอก?</label><select id="expS" onchange="calc()"><option value="1">ใช่</option><option value="0">ไม่</option></select>
+          <label>กระจก (m²)</label><input type="number" id="glS" value="0" min="0" step="0.5" oninput="calc()"></div>
+        <div class="ob"><b>ทิศตะวันออก (E)</b>
+          <label>ผนังโดนแดด/อากาศภายนอก?</label><select id="expE" onchange="calc()"><option value="1">ใช่</option><option value="0">ไม่</option></select>
+          <label>กระจก (m²)</label><input type="number" id="glE" value="2" min="0" step="0.5" oninput="calc()"></div>
+        <div class="ob"><b>ทิศตะวันตก (W)</b>
+          <label>ผนังโดนแดด/อากาศภายนอก?</label><select id="expW" onchange="calc()"><option value="1">ใช่</option><option value="0">ไม่</option></select>
+          <label>กระจก (m²)</label><input type="number" id="glW" value="0" min="0" step="0.5" oninput="calc()"></div>
+      </div>
+      <div class="grid4">
+        <div><label>ชนิดผนัง</label>
+          <select id="wallType" onchange="calc()">
+            <option value="2.3">ก่ออิฐฉาบปูน ไม่มีฉนวน (U≈2.3)</option>
+            <option value="0.9">ก่ออิฐ + ฉนวน (U≈0.9)</option>
+            <option value="0.7">ผนังเบา + ฉนวน (U≈0.7)</option>
+            <option value="2.8">Precast ไม่มีฉนวน (U≈2.8)</option>
+            <option value="1.0">Metal sheet + ฉนวน (U≈1.0)</option>
+          </select></div>
+        <div><label>ชนิดกระจก</label>
+          <select id="glassType" onchange="calc()">
+            <option value="5.7|0.95">กระจกใสชั้นเดียว (U 5.7, SC 0.95)</option>
+            <option value="5.7|0.70">กระจกสีตัดแสง (U 5.7, SC 0.70)</option>
+            <option value="2.8|0.55">กระจก 2 ชั้น (U 2.8, SC 0.55)</option>
+            <option value="2.8|0.40">Low-E 2 ชั้น (U 2.8, SC 0.40)</option>
+          </select></div>
+        <div><label>การบังแดดกระจก</label>
+          <select id="shade" onchange="calc()">
+            <option value="1.0">ไม่มี</option>
+            <option value="0.75">มีกันสาด/แผงบังแดด</option>
+            <option value="0.85">ม่าน/มู่ลี่ภายใน</option>
+            <option value="0.6">กันสาด + ม่าน</option>
+          </select></div>
+        <div><label>หลังคา/ฝ้าเพดาน</label>
+          <select id="roofType" onchange="calc()">
+            <option value="0">ไม่โดนแดด (มีชั้นบนปรับอากาศ)</option>
+            <option value="2.5">ดาดฟ้า คสล. ไม่มีฉนวน (U≈2.5)</option>
+            <option value="0.7">ดาดฟ้า + ฉนวน (U≈0.7)</option>
+            <option value="1.1">หลังคาเหล็ก+ฝ้า ไม่มีฉนวน (U≈1.1)</option>
+            <option value="0.5">หลังคา+ฝ้า+ฉนวนใยแก้ว (U≈0.5)</option>
+          </select></div>
+      </div>
+      <div class="grid4">
+        <div><label>อากาศระบาย (Fresh air, L/s·คน)</label><input type="number" id="oaPerP" value="8.5" min="0" step="0.5" oninput="calc()"></div>
+        <div><label>อากาศรั่วซึม (Infiltration, ACH)</label><input type="number" id="ach" value="0.3" min="0" step="0.1" oninput="calc()"></div>
+        <div><label>กิจกรรมของคน</label>
+          <select id="activity" onchange="calc()">
+            <option value="70|35">นอน/นั่งพัก (70S/35L W)</option>
+            <option value="75|55" selected>นั่งทำงานเบา (75S/55L W)</option>
+            <option value="80|80">ยืน/เดิน/เรียน (80S/80L W)</option>
+            <option value="90|160">งานหนัก/ครัว (90S/160L W)</option>
+          </select></div>
+        <div><label>Safety factor (%)</label><input type="number" id="sf" value="10" min="0" max="30" step="5" oninput="calc()"></div>
+      </div>
+    </div>
+
+    <div id="quickBlock">
+      <div class="grid3">
+        <div><label>สภาพห้อง (Quick mode)</label>
+          <select id="qCond" onchange="calc()">
+            <option value="1.0">ปกติ — ผนังโดนแดด 1–2 ด้าน</option>
+            <option value="0.85">โดนแดดน้อย / ชั้นกลาง ห้องใน</option>
+            <option value="1.15">โดนแดดมาก / กระจกเยอะ</option>
+            <option value="1.3">ชั้นบนสุดหลังคาไม่มีฉนวน / กระจกรอบด้าน</option>
+          </select></div>
+        <div><label>ค่าโหลดต่อพื้นที่ (W/m²) — จาก preset แก้ได้</label><input type="number" id="qWm2" value="180" min="50" step="5" oninput="calc()"></div>
+        <div><label>Safety factor (%)</label><input type="number" id="qsf" value="10" min="0" max="30" step="5" oninput="calc()"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>ผลการคำนวณ (Cooling Load Result)</h2>
+    <div class="kpirow" id="loadKPI"></div>
+    <div class="scroll-x" id="loadBreak"></div>
+    <div id="loadWarn"></div>
+    <button onclick="addRoom()">➕ เพิ่มห้องนี้เข้าโครงการ</button>
+    <button class="sec" onclick="printPane('load')">🖨 พิมพ์</button>
+    <p class="assump" id="loadAssump"></p>
+  </div>
+</div>
+
+<!-- ============ TAB 2 : PROJECT ============ -->
+<div class="tabpane" id="pane-proj" style="display:none">
+  <div class="card">
+    <h2>โครงการ — รวมโหลดทุกห้อง</h2>
+    <div class="grid3">
+      <div><label>ชื่อโครงการ/ลูกค้า</label><input id="projName" value="โครงการตัวอย่าง"></div>
+      <div><label>Diversity factor รวมระบบ (0.7–1.0)</label><input type="number" id="divF" value="0.9" min="0.5" max="1" step="0.05" onchange="renderProj()"></div>
+      <div><label>&nbsp;</label>
+        <button class="sec" style="margin-top:0" onclick="saveProject()">💾 บันทึกโครงการ (JSON)</button>
+        <button class="sec" onclick="document.getElementById('fileProj').click()">📂 โหลด</button>
+        <input type="file" id="fileProj" accept=".json" style="display:none" onchange="loadProject(event)"></div>
+    </div>
+    <div class="scroll-x" id="projTable"></div>
+    <div class="kpirow" id="projKPI"></div>
+    <div id="projReco"></div>
+    <button class="sec no-print" onclick="printPane('proj')">🖨 พิมพ์สรุปโครงการ</button>
+    <p class="assump">Diversity factor = สัดส่วนโหลดสูงสุดที่เกิดพร้อมกันจริงของทั้งระบบ (ห้องไม่พีคพร้อมกัน) ใช้กับการเลือกขนาดชิลเลอร์/ระบบรวม — ห้อง critical (Data Center/Server/Control) คิดที่ 1.0 เสมอ</p>
+  </div>
+</div>
+
+<!-- ============ TAB 3 : SELECTION ============ -->
+<div class="tabpane" id="pane-sel" style="display:none">
+  <div class="card">
+    <h2>คำแนะนำการเลือกเครื่อง (Equipment Selection)</h2>
+    <div id="selRooms"></div>
+    <h3>ระบบรวม (Plant level)</h3>
+    <div id="selPlant"></div>
+    <button class="sec no-print" onclick="printPane('sel')">🖨 พิมพ์</button>
+    <p class="assump">เกณฑ์แนะนำอิงแนวปฏิบัติทั่วไป: ขนาดจริงให้ยึด catalog ผู้ผลิตที่สภาวะออกแบบไทย (35°C DB) · ห้อง critical ควรมี redundancy N+1 และแยกวงจรไฟ · ค่า kW/ton เป็นค่า typical ที่สภาวะพิกัด ไม่ใช่ค่ารับประกัน</p>
+  </div>
+</div>
+
+<!-- ============ TAB 4 : CDD / ENERGY ============ -->
+<div class="tabpane" id="pane-cdd" style="display:none">
+  <div class="card">
+    <h2>ข้อมูลภูมิอากาศจังหวัด (จาก Thailand CDD Analyzer)</h2>
+    <div class="grid3">
+      <div><label>จังหวัดที่ตั้งโครงการ</label><select id="provSel"></select></div>
+      <div><label>โหลดข้อมูล</label>
+        <button style="margin-top:0;width:100%" onclick="fetchProv()" id="btnFetchP">⬇ ดึงข้อมูล 3 ปี (Open-Meteo)</button></div>
+      <div><label>หรือใช้ไฟล์จาก CDD Analyzer</label>
+        <button class="sec" style="margin-top:0;width:100%" onclick="document.getElementById('fileCDD').click()">📂 โหลด JSON จาก CDD Analyzer</button>
+        <input type="file" id="fileCDD" accept=".json" style="display:none" onchange="loadCDDJSON(event)"></div>
+    </div>
+    <p class="assump" id="cddStatus">ยังไม่มีข้อมูลภูมิอากาศ — ดึงจาก Open-Meteo (จังหวัดเดียว ~5 วินาที) หรือโหลดไฟล์ JSON ที่บันทึกจากเครื่องมือ Thailand CDD Analyzer (ได้ทั้ง 77 จังหวัด)</p>
+    <div class="kpirow" id="climKPI"></div>
+    <div class="note" id="designNote" style="display:none">
+      <b>สภาวะออกแบบที่คำนวณได้</b> (แก้ไขได้ในแท็บ 1): Design DB = P99 ของอุณหภูมิเฉลี่ยรายวัน + ค่าชดเชยพีคกลางวัน
+      <input type="number" id="diurnal" value="4.5" step="0.5" style="width:70px;display:inline-block" onchange="applyClimate()"> K ·
+      Design WB = P99 ของกระเปาะเปียกรายวัน + 1.5 K
+      <button class="sec" style="padding:5px 12px;font-size:.85rem;margin-left:8px" onclick="pushDesign()">✔ ใช้ค่านี้ในแท็บ 1</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>ประมาณการพลังงานรายปี &amp; เปรียบเทียบทางเลือกเครื่อง</h2>
+    <div class="grid3">
+      <div><label>ใช้โหลดจาก</label>
+        <select id="eSrc" onchange="renderEnergy()">
+          <option value="room">ห้องที่คำนวณในแท็บ 1</option>
+          <option value="proj">โครงการทั้งหมด (แท็บ 2)</option>
+        </select></div>
+      <div><label>ชั่วโมงใช้งาน/ปี (ห้อง comfort)</label><input type="number" id="hOp" value="3120" min="100" max="8760" step="100" onchange="renderEnergy()"></div>
+      <div><label>ค่าไฟฟ้า (บาท/kWh)</label><input type="number" id="tariff" value="4.2" min="1" step="0.1" onchange="renderEnergy()"></div>
+    </div>
+    <div class="scroll-x" id="energyTable"></div>
+    <p class="assump">แบบจำลอง: พลังงานส่วนกรอบอาคาร+อากาศระบาย ∝ CDD (base = อุณหภูมิห้อง) ผ่านชั่วโมงเทียบเท่าเต็มพิกัด EFLH = 24·CDD/ΔT<sub>design</sub> ·
+      ส่วนโหลดภายใน (คน/ไฟ/อุปกรณ์/IT) คิดตามชั่วโมงใช้งาน · หารด้วย COP ของแต่ละทางเลือก (ค่า typical รวม auxiliary) ·
+      เป็นการประมาณระดับ feasibility (±20–30%) เพื่อเทียบทางเลือก ไม่ใช่การจำลองรายชั่วโมง 8760 ชม.</p>
+  </div>
+</div>
+
+<!-- ============ TAB 5 : REFERENCE ============ -->
+<div class="tabpane" id="pane-ref" style="display:none">
+  <div class="card">
+    <h2>ตารางอ้างอิง Preset ประเภทห้อง</h2>
+    <div class="scroll-x" id="refTable"></div>
+    <p class="assump">ค่าอ้างอิงจาก ASHRAE Handbook–Fundamentals / ASHRAE 62.1 (อัตราอากาศระบาย) / ASHRAE TC9.9 (Data Center) ปรับให้เข้ากับแนวปฏิบัติในไทย ·
+      Quick W/m² เป็นช่วง typical สำหรับห้องเพดานสูงปกติ ≤3 ม. ในภูมิอากาศไทย · ทุกค่าแก้ไขได้ในหน้าคำนวณ</p>
+  </div>
+  <div class="card">
+    <h2>เกณฑ์เลือกประเภทเครื่องโดยสรุป</h2>
+    <div class="scroll-x" id="refEquip"></div>
+  </div>
+</div>
+
+<div class="card no-print" style="font-size:.82rem;color:var(--muted)">
+  Triple E Technology Co., Ltd. · Cooling Load &amp; HVAC Selector v1.1 · ใช้คู่กับ Thailand CDD Analyzer ·
+  คำนวณฝั่งผู้ใช้ทั้งหมด ข้อมูลไม่ถูกส่งออกภายนอก (ยกเว้นการดึงข้อมูลอากาศจาก Open-Meteo เมื่อกดปุ่ม)
+</div>
+</div>
+
+<script>
+"use strict";
+/* ============ Presets ประเภทห้อง ============ */
+/* qWm2=Quick load W/m², den=m²/คน, li=ไฟ W/m², eq=อุปกรณ์ W/m², act=กิจกรรม, oa=L/s·คน, ach,
+   ti/rhi=สภาวะห้อง, sf=safety%, hrs=ชม./ปี typical, cls=comfort|critical|electrical|latent, it=ใช้ช่อง IT kW */
+const PRESETS={
+ bed:    {th:"ห้องนอน (บ้านพักอาศัย)",qWm2:160,den:15,li:8, eq:5,  act:"70|35",oa:2.5,ach:0.5,ti:25,rhi:55,sf:10,hrs:2900,cls:"comfort"},
+ study:  {th:"ห้องทำงานส่วนตัว",      qWm2:180,den:10,li:10,eq:15, act:"75|55",oa:8.5,ach:0.3,ti:25,rhi:55,sf:10,hrs:2600,cls:"comfort"},
+ office: {th:"สำนักงาน (Open plan)",  qWm2:190,den:9, li:11,eq:14, act:"75|55",oa:8.5,ach:0.3,ti:24,rhi:55,sf:10,hrs:3120,cls:"comfort"},
+ meet:   {th:"ห้องประชุม",            qWm2:280,den:2.2,li:12,eq:8, act:"75|55",oa:8.5,ach:0.3,ti:24,rhi:55,sf:15,hrs:1500,cls:"latent"},
+ train:  {th:"ห้องฝึกอบรม/ห้องเรียน",  qWm2:260,den:2.5,li:12,eq:6, act:"80|80",oa:8.5,ach:0.3,ti:24,rhi:55,sf:15,hrs:2000,cls:"latent"},
+ dc:     {th:"Data Center",           qWm2:0,  den:40,li:12,eq:0,  act:"75|55",oa:2.5,ach:0.2,ti:24,rhi:50,sf:10,hrs:8760,cls:"critical",it:1},
+ server: {th:"ห้อง Server ขนาดเล็ก",   qWm2:0,  den:40,li:10,eq:0,  act:"75|55",oa:2.5,ach:0.2,ti:24,rhi:50,sf:15,hrs:8760,cls:"critical",it:1},
+ control:{th:"ห้อง Control Room",     qWm2:220,den:8, li:12,eq:40, act:"75|55",oa:8.5,ach:0.3,ti:23,rhi:55,sf:15,hrs:8760,cls:"critical"},
+ mdb:    {th:"ห้องไฟฟ้า MDB/Switchgear",qWm2:0,den:100,li:8,eq:0,  act:"75|55",oa:0,  ach:0.3,ti:30,rhi:60,sf:15,hrs:8760,cls:"electrical",it:1},
+ ups:    {th:"ห้อง UPS/Battery",      qWm2:0,  den:100,li:8,eq:0,  act:"75|55",oa:0,  ach:0.3,ti:25,rhi:55,sf:15,hrs:8760,cls:"electrical",it:1},
+ hotel:  {th:"ห้องพักโรงแรม",         qWm2:170,den:12,li:10,eq:10, act:"70|35",oa:5,  ach:0.5,ti:24,rhi:55,sf:10,hrs:4400,cls:"comfort"},
+ lobby:  {th:"Lobby/โถงต้อนรับ",      qWm2:250,den:4, li:15,eq:5,  act:"80|80",oa:5,  ach:1.0,ti:25,rhi:55,sf:15,hrs:5800,cls:"comfort"},
+ rest:   {th:"ร้านอาหาร/Food court",  qWm2:320,den:1.6,li:12,eq:15,act:"80|80",oa:10, ach:0.5,ti:24,rhi:55,sf:15,hrs:4400,cls:"latent"},
+ lab:    {th:"ห้องปฏิบัติการ (Lab)",   qWm2:280,den:6, li:14,eq:50, act:"80|80",oa:10, ach:0.5,ti:23,rhi:50,sf:15,hrs:3000,cls:"latent"},
+ clinic: {th:"ห้องพยาบาล/คลินิก",     qWm2:210,den:6, li:12,eq:15, act:"75|55",oa:10, ach:0.3,ti:24,rhi:55,sf:10,hrs:3000,cls:"comfort"},
+ prod:   {th:"โซนผลิต (Spot/Zone cooling)",qWm2:350,den:10,li:12,eq:30,act:"90|160",oa:10,ach:1.5,ti:27,rhi:60,sf:15,hrs:6000,cls:"comfort"},
+};
+/* จังหวัด (ชุดเดียวกับ CDD Analyzer) */
+const RGN={N:"เหนือ",NE:"ตะวันออกเฉียงเหนือ",C:"กลาง",E:"ตะวันออก",W:"ตะวันตก",S:"ใต้"};
+const PROVINCES=[
+{k:"CRI",th:"เชียงราย",rg:"N",lat:19.91,lon:99.83},{k:"CMI",th:"เชียงใหม่",rg:"N",lat:18.79,lon:98.98},
+{k:"NAN",th:"น่าน",rg:"N",lat:18.78,lon:100.77},{k:"PYO",th:"พะเยา",rg:"N",lat:19.17,lon:99.90},
+{k:"PRE",th:"แพร่",rg:"N",lat:18.14,lon:100.14},{k:"MSN",th:"แม่ฮ่องสอน",rg:"N",lat:19.30,lon:97.97},
+{k:"LPG",th:"ลำปาง",rg:"N",lat:18.29,lon:99.49},{k:"LPN",th:"ลำพูน",rg:"N",lat:18.57,lon:99.01},
+{k:"UTT",th:"อุตรดิตถ์",rg:"N",lat:17.63,lon:100.10},
+{k:"KSN",th:"กาฬสินธุ์",rg:"NE",lat:16.43,lon:103.51},{k:"KKN",th:"ขอนแก่น",rg:"NE",lat:16.44,lon:102.84},
+{k:"CPM",th:"ชัยภูมิ",rg:"NE",lat:15.81,lon:102.03},{k:"NPM",th:"นครพนม",rg:"NE",lat:17.39,lon:104.79},
+{k:"NMA",th:"นครราชสีมา",rg:"NE",lat:14.97,lon:102.10},{k:"BKN",th:"บึงกาฬ",rg:"NE",lat:18.36,lon:103.65},
+{k:"BRM",th:"บุรีรัมย์",rg:"NE",lat:14.99,lon:103.10},{k:"MKM",th:"มหาสารคาม",rg:"NE",lat:16.18,lon:103.30},
+{k:"MDH",th:"มุกดาหาร",rg:"NE",lat:16.54,lon:104.72},{k:"YST",th:"ยโสธร",rg:"NE",lat:15.79,lon:104.15},
+{k:"RET",th:"ร้อยเอ็ด",rg:"NE",lat:16.05,lon:103.65},{k:"LEI",th:"เลย",rg:"NE",lat:17.49,lon:101.72},
+{k:"SSK",th:"ศรีสะเกษ",rg:"NE",lat:15.12,lon:104.32},{k:"SNK",th:"สกลนคร",rg:"NE",lat:17.16,lon:104.15},
+{k:"SRN",th:"สุรินทร์",rg:"NE",lat:14.88,lon:103.49},{k:"NKI",th:"หนองคาย",rg:"NE",lat:17.88,lon:102.74},
+{k:"NBP",th:"หนองบัวลำภู",rg:"NE",lat:17.20,lon:102.44},{k:"ACR",th:"อำนาจเจริญ",rg:"NE",lat:15.86,lon:104.63},
+{k:"UDN",th:"อุดรธานี",rg:"NE",lat:17.41,lon:102.79},{k:"UBN",th:"อุบลราชธานี",rg:"NE",lat:15.25,lon:104.85},
+{k:"BKK",th:"กรุงเทพมหานคร",rg:"C",lat:13.75,lon:100.52},{k:"KPT",th:"กำแพงเพชร",rg:"C",lat:16.47,lon:99.52},
+{k:"CNT",th:"ชัยนาท",rg:"C",lat:15.19,lon:100.13},{k:"NYK",th:"นครนายก",rg:"C",lat:14.20,lon:101.21},
+{k:"NPT",th:"นครปฐม",rg:"C",lat:13.82,lon:100.06},{k:"NSN",th:"นครสวรรค์",rg:"C",lat:15.70,lon:100.12},
+{k:"NBI",th:"นนทบุรี",rg:"C",lat:13.86,lon:100.51},{k:"PTE",th:"ปทุมธานี",rg:"C",lat:14.02,lon:100.53},
+{k:"AYA",th:"พระนครศรีอยุธยา",rg:"C",lat:14.35,lon:100.57},{k:"PCT",th:"พิจิตร",rg:"C",lat:16.44,lon:100.35},
+{k:"PLK",th:"พิษณุโลก",rg:"C",lat:16.82,lon:100.26},{k:"PNB",th:"เพชรบูรณ์",rg:"C",lat:16.42,lon:101.16},
+{k:"LRI",th:"ลพบุรี",rg:"C",lat:14.80,lon:100.62},{k:"SPK",th:"สมุทรปราการ",rg:"C",lat:13.60,lon:100.60},
+{k:"SKM",th:"สมุทรสงคราม",rg:"C",lat:13.41,lon:100.00},{k:"SKN",th:"สมุทรสาคร",rg:"C",lat:13.55,lon:100.27},
+{k:"SBR",th:"สิงห์บุรี",rg:"C",lat:14.89,lon:100.40},{k:"STI",th:"สุโขทัย",rg:"C",lat:17.01,lon:99.82},
+{k:"SPB",th:"สุพรรณบุรี",rg:"C",lat:14.47,lon:100.12},{k:"SRI",th:"สระบุรี",rg:"C",lat:14.53,lon:100.91},
+{k:"ATG",th:"อ่างทอง",rg:"C",lat:14.59,lon:100.46},{k:"UTI",th:"อุทัยธานี",rg:"C",lat:15.38,lon:100.02},
+{k:"CTI",th:"จันทบุรี",rg:"E",lat:12.61,lon:102.10},{k:"CCO",th:"ฉะเชิงเทรา",rg:"E",lat:13.69,lon:101.07},
+{k:"CBI",th:"ชลบุรี",rg:"E",lat:13.36,lon:100.98},{k:"TRT",th:"ตราด",rg:"E",lat:12.24,lon:102.51},
+{k:"PRI",th:"ปราจีนบุรี",rg:"E",lat:14.05,lon:101.37},{k:"RYG",th:"ระยอง",rg:"E",lat:12.68,lon:101.28},
+{k:"SKW",th:"สระแก้ว",rg:"E",lat:13.82,lon:102.07},
+{k:"KRI",th:"กาญจนบุรี",rg:"W",lat:14.02,lon:99.53},{k:"TAK",th:"ตาก",rg:"W",lat:16.88,lon:99.13},
+{k:"PKN",th:"ประจวบคีรีขันธ์",rg:"W",lat:11.81,lon:99.80},{k:"PBI",th:"เพชรบุรี",rg:"W",lat:13.11,lon:99.94},
+{k:"RBR",th:"ราชบุรี",rg:"W",lat:13.53,lon:99.81},
+{k:"KBI",th:"กระบี่",rg:"S",lat:8.06,lon:98.92},{k:"CPN",th:"ชุมพร",rg:"S",lat:10.49,lon:99.18},
+{k:"TRG",th:"ตรัง",rg:"S",lat:7.56,lon:99.61},{k:"NRT",th:"นครศรีธรรมราช",rg:"S",lat:8.43,lon:99.96},
+{k:"NWT",th:"นราธิวาส",rg:"S",lat:6.43,lon:101.82},{k:"PTN",th:"ปัตตานี",rg:"S",lat:6.87,lon:101.25},
+{k:"PNA",th:"พังงา",rg:"S",lat:8.45,lon:98.53},{k:"PLG",th:"พัทลุง",rg:"S",lat:7.62,lon:100.07},
+{k:"PKT",th:"ภูเก็ต",rg:"S",lat:7.88,lon:98.39},{k:"YLA",th:"ยะลา",rg:"S",lat:6.54,lon:101.28},
+{k:"RNG",th:"ระนอง",rg:"S",lat:9.96,lon:98.63},{k:"SKA",th:"สงขลา",rg:"S",lat:7.19,lon:100.60},
+{k:"STN",th:"สตูล",rg:"S",lat:6.62,lon:100.07},{k:"SNI",th:"สุราษฎร์ธานี",rg:"S",lat:9.14,lon:99.33}];
+/* Solar peak ต่อทิศ (W/m² ของกระจก, ละติจูดไทย) และ CLTD adj ผนัง (K) */
+const SOLAR={N:130,S:300,E:480,W:520};
+const WALL_ADJ={N:2,S:6,E:9,W:10};
+const EQUIP_OPTS=[ /* ทางเลือกเครื่อง: cop = typical รวม aux */
+ {k:"split",  th:"Split inverter (เบอร์ 5)",       cop:3.6, use:"ห้องเดี่ยว ≤ 60,000 BTU"},
+ {k:"vrf",    th:"VRF/VRV",                        cop:4.1, use:"หลายห้อง โหลดหลากหลาย"},
+ {k:"airch",  th:"Air-cooled chiller + FCU/AHU",   cop:2.9, use:"รวมศูนย์ ~80–300 TR ไม่มีน้ำ/พื้นที่ tower"},
+ {k:"watch",  th:"Water-cooled chiller + cooling tower",cop:4.6,use:"รวมศูนย์ > 200 TR (รวมปั๊ม+tower)"},
+ {k:"crac",   th:"Precision air (CRAC/CRAH)",      cop:3.2, use:"Data Center/Server — คุม T,RH แม่น SHR สูง"},
+];
+
+/* ============ state ============ */
+let rooms=[];            // ห้องในโครงการ
+let lastCalc=null;       // ผลคำนวณห้องปัจจุบัน
+let clim=null;           // {provTh, dailyT:[], dailyWB:[], months:[{y,m,cdd..}], designDB, designWB, cddYear(base f)}
+let climAll=null;        // JSON เต็มจาก CDD Analyzer (77 จังหวัด)
+
+/* ============ Psychrometrics (P=101.325 kPa) ============ */
+const Psat=T=>610.94*Math.exp(17.625*T/(243.04+T));                 // Pa
+const wFromRH=(T,RH)=>{const pv=RH/100*Psat(T);return 0.622*pv/(101325-pv);}
+function wFromWB(T,Twb){const ws=wFromRH(Twb,100);
+  return ((2501-2.326*Twb)*ws-1.006*(T-Twb))/(2501+1.86*T-4.186*Twb);}
+const stullWB=(T,RH)=>{RH=Math.max(5,Math.min(99,RH));
+  return T*Math.atan(0.151977*Math.sqrt(RH+8.313659))+Math.atan(T+RH)-Math.atan(RH-1.676331)
+  +0.00391838*Math.pow(RH,1.5)*Math.atan(0.023101*RH)-4.686035;}
+
+/* ============ UI helpers ============ */
+const $=id=>document.getElementById(id);
+const fmt=(v,d)=>v.toLocaleString('en-US',{maximumFractionDigits:d===undefined?0:d});
+const kW2BTU=kw=>kw*3412.14, kW2TR=kw=>kw/3.517;
+function showTab(t){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
+  document.querySelectorAll('.tabpane').forEach(x=>x.style.display='none');
+  $('pane-'+t).style.display='block';
+  if(t==='sel')renderSel(); if(t==='cdd')renderEnergy(); if(t==='proj')renderProj();
+}
+function printPane(t){
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.toggle('print-hide',x.id!=='pane-'+t));
+  window.print();
+}
+let mode="quick";
+function setMode(m){mode=m;
+  document.querySelectorAll('#modeTgl div').forEach(x=>x.classList.toggle('active',x.dataset.m===m));
+  $('detBlock').style.display=m==='det'?'block':'none';
+  $('quickBlock').style.display=m==='quick'?'block':'none';
+  calc();
+}
+function fillRoomTypes(){
+  const sel=$('roomType');sel.innerHTML='';
+  Object.entries(PRESETS).forEach(([k,p])=>{
+    const o=document.createElement('option');o.value=k;o.textContent=p.th;sel.appendChild(o);});
+  sel.value='office';
+  const ps=$('provSel');ps.innerHTML='';
+  Object.keys(RGN).forEach(r=>{
+    const og=document.createElement('optgroup');og.label='ภาค'+RGN[r];
+    PROVINCES.filter(p=>p.rg===r).forEach(p=>{const o=document.createElement('option');
+      o.value=p.k;o.textContent=p.th;og.appendChild(o);});
+    ps.appendChild(og);});
+  ps.value='BKK';
+}
+function applyPreset(){
+  const p=PRESETS[$('roomType').value];
+  $('qWm2').value=(p.qWm2!==undefined?p.qWm2:200);
+  $('wLight').value=p.li;$('wEquip').value=p.eq;
+  $('tIn').value=p.ti;$('rhIn').value=p.rhi;
+  $('sf').value=p.sf;$('qsf').value=p.sf;
+  $('oaPerP').value=p.oa;$('ach').value=p.ach;
+  $('activity').value=p.act;
+  const area=(+$('rw').value||0)*(+$('rl').value||0);
+  $('npeople').value=Math.max(p.it?1:0, Math.round(area/p.den))||(p.it?1:2);
+  $('kwIT').value=p.it?( $('roomType').value==='dc'?50: $('roomType').value==='server'?8:
+                        $('roomType').value==='mdb'?5:6 ):0;
+  $('itHint').textContent=p.it?( ['dc','server'].includes($('roomType').value)?'(โหลด IT จริง)':'(heat loss อุปกรณ์ไฟฟ้า)' ):'';
+  $('hOp').value=p.hrs;
+  calc();
+}
+
+/* ============ คำนวณโหลด ============ */
+function calc(){
+  const p=PRESETS[$('roomType').value];
+  const W=+$('rw').value||0,L=+$('rl').value||0,H=+$('rh').value||2.8;
+  const area=W*L,vol=area*H;
+  $('rarea').value=area.toFixed(1);
+  const n=+$('npeople').value||0;
+  const ti=+$('tIn').value,rhi=+$('rhIn').value;
+  const to=+$('tOut').value,twb=+$('twbOut').value;
+  const kwIT=+$('kwIT').value||0;
+  const [qsP,qlP]=$('activity').value.split('|').map(Number);
+  let out={area,vol,type:$('roomType').value,typeTh:p.th,name:$('roomName').value,cls:p.cls,
+    ti,rhi,to,twb,n,kwIT,mode};
+
+  if(mode==='quick'){
+    const f=+$('qCond').value,wm2=+$('qWm2').value,sf=1+(+$('qsf').value||0)/100;
+    let qs=area*wm2*f/1000;                     // kW (รวม sensible+latent แบบเหมา)
+    let tot=(qs+kwIT*1.05)*sf;                  // IT +5% พัดลม/UPS loss เผื่อ
+    out.sens=tot*0.75;out.lat=tot*0.25;         // สมมุติ SHR 0.75 สำหรับ comfort
+    if(p.cls==='critical'||p.cls==='electrical'){out.sens=tot*0.97;out.lat=tot*0.03;}
+    out.total=tot;out.parts=null;out.sf=sf;
+  }else{
+    const Uw=+$('wallType').value;
+    const [Ug,SC]=$('glassType').value.split('|').map(Number);
+    const shade=+$('shade').value;
+    const Ur=+$('roofType').value;
+    const dT=to-ti;
+    const parts={};
+    let qWall=0,qGlassC=0,qSolar=0;
+    ['N','S','E','W'].forEach(o=>{
+      const exp=+$('exp'+o).value,gl=+$('gl'+o).value||0;
+      const wlen=(o==='N'||o==='S')?W:L;
+      const wallA=Math.max(0,wlen*H-gl);
+      if(exp){qWall+=Uw*wallA*(dT+WALL_ADJ[o]);
+        qGlassC+=Ug*gl*dT;
+        qSolar+=SOLAR[o]*SC*shade*gl;}
+    });
+    parts["ผนังทึบ (นำความร้อน+แดด)"]=qWall/1000;
+    parts["กระจก — นำความร้อน"]=qGlassC/1000;
+    parts["กระจก — รังสีแดด"]=qSolar/1000;
+    parts["หลังคา/ฝ้า"]=Ur>0?Ur*area*(dT+20)/1000:0;
+    parts["คน — sensible"]=n*qsP/1000;
+    parts["คน — latent"]=n*qlP/1000;
+    parts["ไฟแสงสว่าง"]=area*(+$('wLight').value)/1000;
+    parts["อุปกรณ์ทั่วไป"]=area*(+$('wEquip').value)/1000;
+    parts["โหลด IT/อุปกรณ์พิเศษ"]=kwIT*1.05;
+    // อากาศระบาย + รั่วซึม
+    const Voa=n*(+$('oaPerP').value||0);                  // L/s
+    const Vinf=(+$('ach').value||0)*vol*1000/3600;        // L/s
+    const V=Voa+Vinf;
+    const wOut=wFromWB(to,twb),wIn=wFromRH(ti,rhi);
+    parts["อากาศระบาย+รั่วซึม — sensible"]=1.2*V*dT/1000;
+    parts["อากาศระบาย+รั่วซึม — latent"]=Math.max(0,3010*V*(wOut-wIn))/1000;
+    const sf=1+(+$('sf').value||0)/100;
+    const latKeys=["คน — latent","อากาศระบาย+รั่วซึม — latent"];
+    let sens=0,lat=0;
+    Object.entries(parts).forEach(([k,v])=>{if(latKeys.includes(k))lat+=v;else sens+=v;});
+    out.sens=sens*sf;out.lat=lat*sf;out.total=(sens+lat)*sf;out.parts=parts;out.sf=sf;out.V=V;
+  }
+  out.shr=out.total>0?out.sens/out.total:1;
+  lastCalc=out;renderLoad();return out;
+}
+function renderLoad(){
+  const o=lastCalc;if(!o)return;
+  const btuh=kW2BTU(o.total),tr=kW2TR(o.total);
+  $('loadKPI').innerHTML=
+    '<div class="kpi"><div class="v">'+fmt(o.total,1)+'</div><div class="l">โหลดรวม (kW)</div></div>'+
+    '<div class="kpi"><div class="v">'+fmt(btuh)+'</div><div class="l">BTU/hr</div></div>'+
+    '<div class="kpi"><div class="v">'+fmt(tr,2)+'</div><div class="l">ตันความเย็น (TR)</div></div>'+
+    '<div class="kpi"><div class="v">'+fmt(o.sens,1)+' / '+fmt(o.lat,1)+'</div><div class="l">Sensible / Latent (kW)</div></div>'+
+    '<div class="kpi"><div class="v">'+o.shr.toFixed(2)+'</div><div class="l">SHR</div></div>'+
+    '<div class="kpi"><div class="v">'+(o.area?fmt(o.total*1000/o.area):'–')+'</div><div class="l">W/m²</div></div>';
+  let h='';
+  if(o.parts){
+    h='<h3>รายละเอียดองค์ประกอบโหลด</h3><table><tr><th>องค์ประกอบ</th><th class="num">kW</th><th class="num">%</th></tr>';
+    const tot=Object.values(o.parts).reduce((a,b)=>a+b,0)||1;
+    Object.entries(o.parts).filter(([k,v])=>v>0.0005).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>{
+      h+='<tr><td>'+k+'</td><td class="num">'+v.toFixed(2)+'</td><td class="num">'+(v/tot*100).toFixed(0)+'%</td></tr>';});
+    h+='<tr><th>รวม × Safety '+((o.sf-1)*100).toFixed(0)+'%</th><th class="num">'+o.total.toFixed(2)+'</th><th></th></tr></table>';
+  }
+  $('loadBreak').innerHTML=h;
+  // ตรวจความสมเหตุสมผล
+  const p=PRESETS[o.type];let warn='';
+  if(o.area>0&&p.qWm2>0){
+    const wm2=o.total*1000/o.area,lo=p.qWm2*0.55,hi=p.qWm2*1.9;
+    if(o.mode==='det'&&(wm2<lo||wm2>hi))
+      warn='<div class="note">⚠ โหลดที่ได้ '+fmt(wm2)+' W/m² ต่างจากช่วง typical ของ'+p.th+' ('+fmt(lo)+'–'+fmt(hi)+' W/m²) มาก — ตรวจกระจก/ทิศ/จำนวนคนอีกครั้ง</div>';
+  }
+  if((o.type==='dc'||o.type==='server')&&o.kwIT===0)
+    warn+='<div class="note">⚠ Data Center/Server ต้องกรอกโหลด IT (kW) — โหลดหลักมาจากอุปกรณ์ IT</div>';
+  $('loadWarn').innerHTML=warn;
+  $('loadAssump').textContent=o.mode==='quick'
+    ?'Quick mode: โหลด = พื้นที่ × W/m² × ตัวคูณสภาพห้อง + โหลด IT×1.05 ทั้งหมด × Safety — เหมาะกับการประเมินเบื้องต้น/เสนองาน; งานออกแบบจริงให้ใช้โหมด Detailed'
+    :'Detailed: CLTD อย่างง่าย — ผนัง U·A·(ΔT+ค่าชดเชยแดดรายทิศ), กระจก U·A·ΔT + Solar·SC·Shading, คน/ไฟ/อุปกรณ์ตามจริง, อากาศระบาย Qs=1.2·V·ΔT, Ql=3010·V·Δw (psychrometrics Magnus/Stull) · สภาวะออกแบบ: ใน '+o.ti+'°C/'+o.rhi+'%RH, นอก '+o.to+'°C DB/'+o.twb+'°C WB';
+}
+
+/* ============ โครงการ ============ */
+function addRoom(){
+  if(!lastCalc||!(lastCalc.total>0)){alert('ยังไม่มีผลคำนวณ');return;}
+  rooms.push(JSON.parse(JSON.stringify(lastCalc)));
+  renderProj();showTab('proj');
+}
+function delRoom(i){rooms.splice(i,1);renderProj();}
+function renderProj(){
+  let h='<table><tr><th>#</th><th>ห้อง</th><th>ประเภท</th><th class="num">พื้นที่ (m²)</th><th class="num">kW</th><th class="num">BTU/hr</th><th class="num">TR</th><th class="num">SHR</th><th>Class</th><th class="no-print"></th></tr>';
+  let tot=0,totCrit=0;
+  rooms.forEach((r,i)=>{tot+=r.total;if(r.cls==='critical')totCrit+=r.total;
+    h+='<tr><td>'+(i+1)+'</td><td>'+r.name+'</td><td>'+r.typeTh+'</td><td class="num">'+r.area.toFixed(0)+
+    '</td><td class="num">'+r.total.toFixed(1)+'</td><td class="num">'+fmt(kW2BTU(r.total))+
+    '</td><td class="num">'+kW2TR(r.total).toFixed(1)+'</td><td class="num">'+r.shr.toFixed(2)+
+    '</td><td>'+r.cls+'</td><td class="no-print"><button class="danger" style="padding:4px 10px;margin:0" onclick="delRoom('+i+')">ลบ</button></td></tr>';});
+  h+='</table>';
+  $('projTable').innerHTML=rooms.length?h:'<p class="assump">ยังไม่มีห้อง — คำนวณในแท็บ 1 แล้วกด "เพิ่มห้องนี้เข้าโครงการ"</p>';
+  if(!rooms.length){$('projKPI').innerHTML='';$('projReco').innerHTML='';return;}
+  const div=+$('divF').value||0.9;
+  const design=totCrit+(tot-totCrit)*div;   // critical ไม่ลดตาม diversity
+  $('projKPI').innerHTML=
+    '<div class="kpi"><div class="v">'+rooms.length+'</div><div class="l">จำนวนห้อง</div></div>'+
+    '<div class="kpi"><div class="v">'+fmt(tot,1)+'</div><div class="l">โหลดรวมทุกห้อง (kW)</div></div>'+
+    '<div class="kpi"><div class="v">'+fmt(design,1)+'</div><div class="l">โหลดออกแบบระบบรวม × diversity (kW)</div></div>'+
+    '<div class="kpi"><div class="v">'+fmt(kW2TR(design),1)+'</div><div class="l">ขนาดระบบรวม (TR)</div></div>'+
+    '<div class="kpi"><div class="v">'+fmt(kW2BTU(tot))+'</div><div class="l">BTU/hr (รวมทุกห้อง)</div></div>';
+  $('projReco').innerHTML=plantReco(design,tot);
+}
+
+/* ============ เลือกเครื่อง ============ */
+const SPLIT_SIZES=[9,12,13,18,24,25,30,36,40,48,60]; // kBTU มาตรฐานตลาดไทย
+function splitSize(btuh){
+  const kb=btuh/1000;
+  for(const s of SPLIT_SIZES)if(s>=kb)return s;
+  return null;
+}
+function roomReco(r){
+  const btuh=kW2BTU(r.total),tr=kW2TR(r.total);
+  let rec=[];
+  if(r.cls==='critical'){
+    if(r.type==='dc'){
+      rec.push('<b>Precision air (CRAH น้ำเย็น หรือ CRAC DX)</b> ขนาดรวม ≥ '+fmt(r.total,1)+' kW sensible — จัดรูปแบบ <b>N+1</b> (เช่น '+Math.ceil(r.total/30)+'+1 เครื่อง × 30 kW)');
+      rec.push('จัด hot/cold aisle, ตั้ง supply ตาม ASHRAE TC9.9 (แนะนำ 18–27 °C @ inlet), ห้ามใช้แอร์บ้านเป็นระบบหลัก');
+      if(r.total>150)rec.push('โหลดระดับนี้ควรพิจารณา chilled water + CRAH หรือ InRow cooling พร้อม chiller N+1');
+    }else if(r.type==='server'){
+      rec.push('<b>Precision air ขนาดเล็ก หรือ split inverter คู่ (duty/standby สลับกัน)</b> ขนาดเครื่องละ ≥ '+fmt(btuh)+' BTU/hr — ทำงาน 24 ชม. ต้องมีสำรอง 100%');
+      rec.push('ติด alarm อุณหภูมิสูง + สลับเครื่องอัตโนมัติ (sequencer)');
+    }else{
+      rec.push('<b>Control Room:</b> split/ducted inverter <b>2 ชุด duty/standby</b> ('+fmt(btuh)+' BTU/hr ต่อชุด) หรือต่อจากระบบน้ำเย็นกลางพร้อม FCU สำรอง — งาน 24 ชม.');
+    }
+  }else if(r.cls==='electrical'){
+    rec.push('<b>ห้องไฟฟ้า:</b> ระบายความร้อน '+fmt(r.total,1)+' kW — พิจารณา<b>พัดลมระบายอากาศก่อน</b> (ยอมรับอุณหภูมิ ≤ 35–40 °C ได้ถ้าไม่มีอุปกรณ์อิเล็กทรอนิกส์ไว) ถ้ามี VSD/PLC/UPS ให้ใช้ split inverter '+(splitSize(btuh)?splitSize(btuh)+',000 BTU/hr':'ขนาด '+fmt(btuh)+' BTU/hr')+' ×2 (duty/standby)');
+    if(r.type==='ups')rec.push('ห้อง Battery VRLA: คุม 25±2 °C — อายุแบตลดครึ่งทุก ๆ +8–10 K · ระวังการระบาย H₂');
+  }else{
+    const s=splitSize(btuh);
+    if(btuh<=60000&&s){
+      rec.push('<b>Split type inverter '+s+',000 BTU/hr</b> (โหลดจริง '+fmt(btuh)+' BTU/hr) — เลือกเบอร์ 5 ★★★, SEER ≥ 18');
+      if(r.shr<0.7)rec.push('SHR ต่ำ ('+r.shr.toFixed(2)+') คนแน่น/อากาศระบายมาก — ระวังเครื่อง oversize จะคุมความชื้นไม่อยู่ เลือกเครื่องที่ latent capacity เพียงพอ หรือลด oversize');
+    }else if(tr<=25){
+      rec.push('<b>Cassette/Ducted split หลายชุด หรือ VRF</b> ('+fmt(tr,1)+' TR) — VRF เหมาะเมื่อหลายห้องใช้พร้อมกันไม่หมด (diversity)');
+    }else{
+      rec.push('โหลด '+fmt(tr,1)+' TR — ระดับนี้ควรเข้า<b>ระบบน้ำเย็นรวม (chiller + AHU/FCU)</b> ดูคำแนะนำระดับ plant ด้านล่าง');
+    }
+    if(r.type==='rest'||r.type==='lab')rec.push('มี exhaust มาก — คิด makeup air unit แยก และตรวจสมดุลอากาศ');
+  }
+  return rec;
+}
+function plantReco(designKW,totKW){
+  const tr=kW2TR(designKW);
+  let h='<div class="reco"><b>ขนาดระบบรวมที่ต้องการ ≈ '+fmt(designKW,0)+' kW ('+fmt(tr,0)+' TR)</b><br>';
+  if(tr<20)h+='โหลดรวมเล็ก — ใช้ split/VRF รายห้องคุ้มกว่าระบบน้ำเย็น';
+  else if(tr<80)h+='ช่วง 20–80 TR: <b>VRF หลายระบบ</b> หรือ <b>air-cooled chiller ขนาดเล็ก</b> — เทียบราคา+ค่าซ่อมบำรุง; VRF ประหยัดไฟที่โหลดบางส่วนดีกว่า';
+  else if(tr<300)h+='ช่วง 80–300 TR: <b>Air-cooled screw chiller</b> (ไม่มีน้ำ/tower, kW/ton ~0.95–1.1) เทียบกับ <b>water-cooled screw</b> (kW/ton ~0.65–0.75 แต่ต้องมี cooling tower + ระบบน้ำ) — ถ้าค่าไฟแพงและมีพื้นที่/น้ำ เลือก water-cooled';
+  else h+='> 300 TR: <b>Water-cooled centrifugal / magnetic-bearing chiller</b> (kW/ton 0.45–0.65) + cooling tower · จัด N+1 และ VSD อย่างน้อย 1 เครื่องสำหรับโหลดบางส่วน';
+  const crit=rooms.filter(r=>r.cls==='critical').reduce((a,r)=>a+r.total,0);
+  if(crit>0)h+='<br>⚠ มีโหลด critical '+fmt(crit,1)+' kW — แยกระบบ/วงจรจากส่วน comfort และมี redundancy N+1 เสมอ';
+  h+='</div>';
+  return h;
+}
+function renderSel(){
+  const list=rooms.length?rooms:(lastCalc?[lastCalc]:[]);
+  if(!list.length){$('selRooms').innerHTML='<p class="assump">ยังไม่มีห้อง — คำนวณโหลดในแท็บ 1 ก่อน</p>';$('selPlant').innerHTML='';return;}
+  let h='';
+  list.forEach((r,i)=>{
+    h+='<div class="reco"><b>'+(i+1)+'. '+r.name+'</b> — '+r.typeTh+' · '+fmt(r.total,1)+' kW ('+fmt(kW2BTU(r.total))+' BTU/hr, '+kW2TR(r.total).toFixed(1)+' TR, SHR '+r.shr.toFixed(2)+')<ul style="margin:.4rem 0 0 1.2rem;padding:0">'+
+      roomReco(r).map(x=>'<li style="margin:.25rem 0">'+x+'</li>').join('')+'</ul></div>';
+  });
+  $('selRooms').innerHTML=h;
+  const tot=list.reduce((a,r)=>a+r.total,0);
+  const crit=list.filter(r=>r.cls==='critical').reduce((a,r)=>a+r.total,0);
+  const div=rooms.length?(+$('divF').value||0.9):1;
+  $('selPlant').innerHTML=plantReco(crit+(tot-crit)*div,tot);
+}
+
+/* ============ CDD / Climate ============ */
+async function fetchProv(){
+  const p=PROVINCES.find(x=>x.k===$('provSel').value);
+  const btn=$('btnFetchP');btn.disabled=true;
+  const st=m=>$('cddStatus').textContent=m;
+  try{
+    const t=new Date(Date.now()-6*864e5);
+    const endM=new Date(t.getFullYear(),t.getMonth(),0);
+    const start=new Date(endM.getFullYear()-3,endM.getMonth()+1,1);
+    const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    // แบ่งรายปีกัน rate limit
+    const chunks=[];let cs=new Date(start);
+    while(cs<=endM){const ye=new Date(cs.getFullYear(),11,31);
+      chunks.push([iso(cs),iso(ye<endM?ye:endM)]);cs=new Date(cs.getFullYear()+1,0,1);}
+    let dates=[],T=[],RH=[];
+    for(const [s,e] of chunks){
+      st('กำลังดึง '+p.th+' ปี '+(+s.slice(0,4)+543)+' …');
+      let r=await fetch("https://archive-api.open-meteo.com/v1/archive?latitude="+p.lat+"&longitude="+p.lon+
+        "&start_date="+s+"&end_date="+e+"&daily=temperature_2m_mean,relative_humidity_2m_mean&timezone=Asia%2FBangkok");
+      if(r.status===429){st('ติด rate limit — รอ 65 วินาทีแล้วลองต่ออัตโนมัติ…');
+        await new Promise(x=>setTimeout(x,65000));
+        r=await fetch("https://archive-api.open-meteo.com/v1/archive?latitude="+p.lat+"&longitude="+p.lon+
+        "&start_date="+s+"&end_date="+e+"&daily=temperature_2m_mean,relative_humidity_2m_mean&timezone=Asia%2FBangkok");}
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const j=await r.json();
+      dates.push(...j.daily.time);T.push(...j.daily.temperature_2m_mean);RH.push(...j.daily.relative_humidity_2m_mean);
+      await new Promise(x=>setTimeout(x,400));
+    }
+    buildClimate(p.th,dates,T,RH);
+    st('ได้ข้อมูล '+p.th+' '+dates.length+' วัน ('+dates[0]+' → '+dates[dates.length-1]+') จาก Open-Meteo ERA5 ✓');
+  }catch(e){st('ดึงข้อมูลไม่สำเร็จ: '+e.message+' — ลองใหม่ หรือโหลด JSON จาก CDD Analyzer แทน');}
+  btn.disabled=false;
+}
+function loadCDDJSON(ev){
+  const f=ev.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{try{
+    const j=JSON.parse(rd.result);
+    if(!j.dates||!j.temps)throw new Error('โครงสร้างไฟล์ไม่ใช่ JSON ของ CDD Analyzer');
+    climAll=j;
+    useCDDProvince();
+    $('cddStatus').textContent='โหลด JSON สำเร็จ ('+j.dates.length+' วัน, '+Object.keys(j.temps).length+' จังหวัด'+(j.rh?', มี RH':'')+') — เปลี่ยนจังหวัดได้ทันทีไม่ต้องดึงใหม่ ✓';
+    $('provSel').onchange=useCDDProvince;
+  }catch(e){alert('อ่านไฟล์ไม่ได้: '+e.message);}};
+  rd.readAsText(f);
+}
+function useCDDProvince(){
+  if(!climAll)return;
+  const k=$('provSel').value,p=PROVINCES.find(x=>x.k===k);
+  const T=climAll.temps[k];if(!T){alert('ไฟล์ไม่มีข้อมูลจังหวัดนี้');return;}
+  const RH=climAll.rh?climAll.rh[k]:null;
+  buildClimate(p.th,climAll.dates,T,RH||T.map(()=>65));
+}
+function pct(arr,q){const a=arr.filter(v=>v!=null).slice().sort((x,y)=>x-y);
+  return a[Math.min(a.length-1,Math.floor(q*a.length))];}
+function buildClimate(provTh,dates,T,RH){
+  const wb=T.map((t,i)=>(t==null||RH[i]==null)?null:stullWB(t,RH[i]));
+  // CDD รายเดือน (คำนวณสดตาม base ภายหลัง) — เก็บ dailies
+  clim={provTh,dates,T,RH,wb,
+    designDB:Math.round((pct(T,0.99)+(+$('diurnal').value||4.5))*10)/10,
+    designWB:Math.round((pct(wb,0.99)+1.5)*10)/10};
+  $('designNote').style.display='block';
+  applyClimate();
+}
+function applyClimate(){
+  if(!clim)return;
+  clim.designDB=Math.round((pct(clim.T,0.99)+(+$('diurnal').value||4.5))*10)/10;
+  clim.designWB=Math.round((pct(clim.wb,0.99)+1.5)*10)/10;
+  const base=+$('tIn').value||25;
+  const cdd=cddYear(base);
+  $('climKPI').innerHTML=
+    '<div class="kpi"><div class="v">'+clim.designDB+'</div><div class="l">Design DB (°C) — '+clim.provTh+'</div></div>'+
+    '<div class="kpi"><div class="v">'+clim.designWB+'</div><div class="l">Design WB (°C)</div></div>'+
+    '<div class="kpi"><div class="v">'+fmt(cdd)+'</div><div class="l">CDD/ปี @ base '+base+' °C (°C·day)</div></div>'+
+    '<div class="kpi"><div class="v">'+fmt(pct(clim.T,0.5),1)+'</div><div class="l">อุณหภูมิเฉลี่ยรายวัน P50 (°C)</div></div>';
+  renderEnergy();
+}
+function cddYear(base){ // CDD เฉลี่ยต่อปีจาก daily means
+  if(!clim)return null;
+  let s=0,n=0;
+  clim.T.forEach(t=>{if(t!=null){n++;if(t>base)s+=t-base;}});
+  return n?Math.round(s*365/n):null;
+}
+function pushDesign(){
+  if(!clim)return;
+  $('tOut').value=clim.designDB;$('twbOut').value=clim.designWB;
+  $('odaStatus').textContent='ใช้สภาวะออกแบบของ '+clim.provTh+' ('+clim.designDB+'°C DB / '+clim.designWB+'°C WB) ✓';
+  $('odaStatus').className='status-ok';
+  calc();showTab('load');
+}
+
+/* ============ Energy comparison ============ */
+function energySplit(){ // แยกโหลดเป็นส่วนตาม CDD กับส่วนโหลดภายใน
+  const src=$('eSrc').value;
+  let list=src==='proj'&&rooms.length?rooms:(lastCalc?[lastCalc]:[]);
+  if(!list.length)return null;
+  let env=0,internal=0,internal247=0;
+  list.forEach(r=>{
+    const intr=r.kwIT*1.05*r.sf+(r.parts
+      ?((r.parts["คน — sensible"]||0)+(r.parts["คน — latent"]||0)+
+        (r.parts["ไฟแสงสว่าง"]||0)+(r.parts["อุปกรณ์ทั่วไป"]||0))*r.sf
+      :Math.max(0,(r.total-r.kwIT*1.05*r.sf))*0.45);
+    const e=Math.max(0,r.total-Math.max(0,intr));
+    if(r.cls==='critical'||r.cls==='electrical'){internal247+=Math.max(0,intr);env+=e;}
+    else{internal+=Math.max(0,intr);env+=e;}
+  });
+  return {env,internal,internal247,total:env+internal+internal247};
+}
+function renderEnergy(){
+  const es=energySplit();
+  if(!es){$('energyTable').innerHTML='<p class="assump">คำนวณโหลดในแท็บ 1 ก่อน จึงจะประมาณพลังงานได้</p>';return;}
+  const base=+$('tIn').value||25;
+  const cdd=clim?cddYear(base):null;
+  const dT=clim?Math.max(4,(clim.designDB-base)):10;
+  const hOp=+$('hOp').value||3120,tariff=+$('tariff').value||4.2;
+  const eflh=cdd!=null?24*cdd/dT:null;
+  let h='<table><tr><th>ทางเลือกเครื่อง</th><th>เหมาะกับ</th><th class="num">COP (typical)</th><th class="num">พลังงาน (kWh/ปี)</th><th class="num">ค่าไฟ (บาท/ปี)</th></tr>';
+  let rows=[];
+  EQUIP_OPTS.forEach(o=>{
+    // thermal kWh/ปี: ส่วน env × EFLH (จำกัดไม่เกิน hOp สำหรับ comfort), internal × hOp, internal247 × 8760
+    const envH=eflh!=null?Math.min(eflh,8760):hOp*0.65;
+    const th=es.env*envH+es.internal*hOp+es.internal247*8760;
+    const kwh=th/o.cop, cost=kwh*tariff;
+    rows.push({o,kwh,cost});
+  });
+  const minC=Math.min(...rows.map(r=>r.cost));
+  rows.forEach(({o,kwh,cost})=>{
+    h+='<tr'+(cost===minC?' style="background:#eef8f4"':'')+'><td>'+o.th+(cost===minC?' <b class="status-ok">← ค่าไฟต่ำสุด</b>':'')+'</td><td style="color:var(--muted)">'+o.use+
+      '</td><td class="num">'+o.cop.toFixed(1)+'</td><td class="num">'+fmt(kwh)+'</td><td class="num">'+fmt(cost)+'</td></tr>';});
+  h+='</table>';
+  h+='<p class="assump">โหลดที่ใช้: กรอบอาคาร+อากาศระบาย '+fmt(es.env,1)+' kW · ภายใน (ตามชั่วโมงใช้งาน) '+fmt(es.internal,1)+
+     ' kW · ภายใน 24 ชม. (critical/ไฟฟ้า) '+fmt(es.internal247,1)+' kW · '+
+     (cdd!=null?('CDD '+fmt(cdd)+' °C·day/ปี @ base '+base+' °C → EFLH ส่วนกรอบอาคาร = '+fmt(24*cdd/dT)+' ชม./ปี (ΔT design '+dT.toFixed(1)+' K)')
+     :'⚠ ยังไม่มีข้อมูล CDD — ใช้ค่าประมาณ 65% ของชั่วโมงใช้งานแทน EFLH (โหลดข้อมูลจังหวัดเพื่อความแม่น)')+'</p>';
+  $('energyTable').innerHTML=h;
+}
+
+/* ============ Save/Load project ============ */
+function saveProject(){
+  const data={v:"1.0",name:$('projName').value,divF:+$('divF').value,rooms,
+    clim:clim?{provTh:clim.provTh,designDB:clim.designDB,designWB:clim.designWB}:null};
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
+  a.download='CoolingLoad_'+($('projName').value||'project').replace(/[\\/:*?"<>| ]/g,'_')+'.json';a.click();
+}
+function loadProject(ev){
+  const f=ev.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{try{
+    const j=JSON.parse(rd.result);
+    if(!Array.isArray(j.rooms))throw new Error('ไม่ใช่ไฟล์โครงการของเครื่องมือนี้');
+    rooms=j.rooms;$('projName').value=j.name||'โครงการ';$('divF').value=j.divF||0.9;
+    renderProj();
+  }catch(e){alert('อ่านไฟล์ไม่ได้: '+e.message);}};
+  rd.readAsText(f);
+}
+
+/* ============ Reference tab ============ */
+function renderRef(){
+  let h='<table><tr><th>ประเภทห้อง</th><th class="num">Quick (W/m²)</th><th class="num">m²/คน</th><th class="num">ไฟ (W/m²)</th><th class="num">อุปกรณ์ (W/m²)</th><th class="num">Fresh air (L/s·คน)</th><th class="num">T ห้อง (°C)</th><th class="num">ชม./ปี</th><th>หมายเหตุ</th></tr>';
+  const notes={dc:'โหลด = IT kW เป็นหลัก · ASHRAE TC9.9',server:'ต้องมีเครื่องสำรอง 100%',
+    mdb:'โหลด = heat loss อุปกรณ์ · พิจารณาพัดลมก่อน',ups:'แบต VRLA ต้องการ 25 °C',
+    meet:'latent สูง คนแน่น',rest:'latent สูง + makeup air',prod:'มัก spot cooling/evaporative',
+    control:'24 ชม. N+1',lab:'ตรวจ fume hood/exhaust'};
+  Object.entries(PRESETS).forEach(([k,p])=>{
+    h+='<tr><td>'+p.th+'</td><td class="num">'+(p.qWm2||'ตาม kW')+'</td><td class="num">'+p.den+
+    '</td><td class="num">'+p.li+'</td><td class="num">'+p.eq+'</td><td class="num">'+p.oa+
+    '</td><td class="num">'+p.ti+'</td><td class="num">'+fmt(p.hrs)+'</td><td style="color:var(--muted)">'+(notes[k]||'')+'</td></tr>';});
+  h+='</table>';
+  $('refTable').innerHTML=h;
+  let e='<table><tr><th>ระบบ</th><th>ช่วงขนาดเหมาะสม</th><th class="num">ประสิทธิภาพ typical</th><th>จุดแข็ง / ข้อควรระวัง</th></tr>';
+  const eq=[
+    ['Split inverter','≤ 60,000 BTU/hr ต่อห้อง','SEER 18–25','ถูก ติดง่าย · คุมรายห้อง / ไม่เหมาะงาน 24 ชม.ต่อเนื่องโดยไม่มีสำรอง'],
+    ['VRF / VRV','5–120 TR ต่อระบบ','COP 3.8–4.5','ประหยัดที่ part load, ท่อยาว · ค่าซ่อมสูง ต้องช่างชำนาญ'],
+    ['Air-cooled chiller','30–400 TR','kW/ton 0.95–1.1','ไม่ใช้น้ำ ไม่มี tower · ประสิทธิภาพต่ำกว่า water-cooled'],
+    ['Water-cooled screw','80–500 TR','kW/ton 0.65–0.75','ประหยัดไฟ · ต้องมี tower/ระบบน้ำ + water treatment'],
+    ['Water-cooled centrifugal / magnetic','300 TR ขึ้นไป','kW/ton 0.45–0.65','ประหยัดสุดที่โหลดใหญ่ · magnetic-bearing ดีที่ part load'],
+    ['Precision (CRAC/CRAH/InRow)','ตามโหลด IT','SHR 0.9–1.0','คุม T/RH แม่น ทำงาน 24 ชม. N+1 · ราคาสูงกว่าแอร์ปกติ'],
+  ];
+  eq.forEach(r=>{e+='<tr><td><b>'+r[0]+'</b></td><td>'+r[1]+'</td><td class="num">'+r[2]+'</td><td style="color:var(--muted)">'+r[3]+'</td></tr>';});
+  e+='</table>';
+  $('refEquip').innerHTML=e;
+}
+
+/* ============ คำอธิบายการกรอกข้อมูล (Hints) ============ */
+const HINTS={
+ roomName:"ชื่อเรียกห้องที่จะแสดงในตารางโครงการ/รายงาน เช่น \"ห้องประชุมชั้น 2\" หรือ \"Server อาคาร B\"",
+ roomType:"เลือกแล้วระบบเติมค่า default ให้ทุกช่อง (คน ไฟ อุปกรณ์ อุณหภูมิ อากาศระบาย ชั่วโมงใช้งาน) — การเปลี่ยนประเภทจะเขียนทับค่าที่กรอกไว้ ควรเลือกก่อนแล้วค่อยแก้รายช่อง",
+ rw:"ขนาดภายในห้อง วัดผนังถึงผนัง (เมตร)",
+ rl:"ขนาดภายในห้อง วัดผนังถึงผนัง (เมตร)",
+ rh:"ความสูงพื้นถึงฝ้าเพดาน (ไม่ใช่ถึงหลังคา) — ทั่วไป 2.6–3.0 ม. · Lobby/โถงสูงให้กรอกตามจริงเพราะมีผลต่อปริมาตรอากาศรั่วซึม",
+ npeople:"จำนวนคนใช้งานพร้อมกันตามปกติ (ไม่ใช่ความจุสูงสุด) — ระบบประมาณจากพื้นที่ตาม preset ให้แล้ว แก้ตามการใช้งานจริง · คนหนึ่งคนปล่อยความร้อน 100–250 W ตามกิจกรรม",
+ wLight:"กำลังไฟแสงสว่างรวมของห้อง ÷ พื้นที่ — LED สำนักงาน 8–12 · บ้าน 5–8 · โชว์รูม/ร้านค้า 15–25 W/m² (ดูจากจำนวนโคม × วัตต์ต่อโคม)",
+ wEquip:"อุปกรณ์เสียบปลั๊กทั่วไป (คอมพิวเตอร์ จอ printer กาต้มน้ำ) — สำนักงาน 10–20 W/m² · ไม่รวมโหลด IT/อุปกรณ์พิเศษที่กรอกช่องถัดไป",
+ kwIT:"ความร้อนจากอุปกรณ์พิเศษเป็น kW: Data Center/Server = โหลด IT จริง (อ่านจากหน้าจอ UPS/PDU หรือ nameplate × สัดส่วนใช้งานจริง ~60–80%) · ห้องไฟฟ้า = heat loss โดยประมาณ: หม้อแปลง ~1%, VSD ~3%, UPS ~4–6% ของ kW ที่จ่ายจริง",
+ tIn:"อุณหภูมิที่ต้องการควบคุม (setpoint) — comfort ไทย 24–25.5 °C · Data Center 24–27 °C (ASHRAE TC9.9 วัดที่ทางเข้าอากาศเครื่อง IT) · ห้องแบตเตอรี่ VRLA 25 °C · ค่านี้ยังใช้เป็น base temperature ของ CDD ในแท็บ 4 ด้วย",
+ rhIn:"ความชื้นสัมพัทธ์เป้าหมาย — ทั่วไป 50–60% · Data Center/Lab 45–55% · ยิ่งตั้งต่ำ โหลด latent ยิ่งสูง",
+ tOut:"อุณหภูมิอากาศภายนอกที่ใช้ออกแบบ (ค่าพีคช่วงบ่ายฤดูร้อน ไม่ใช่ค่าเฉลี่ย) — ทั่วไทย 34–38 °C · แนะนำให้ดึงค่าจริงของจังหวัดจากแท็บ 4 แล้วกด \"ใช้ค่านี้ในแท็บ 1\"",
+ twbOut:"กระเปาะเปียกออกแบบ — ตัวกำหนดโหลด latent ของอากาศระบาย: ชายฝั่ง/ภาคใต้ 27–29 °C · ภาคกลาง 26.5–28 °C · เหนือ/อีสาน 25–27 °C",
+ wallType:"เลือกโครงสร้างใกล้เคียงที่สุด — U (W/m²·K) คือการนำความร้อนของผนัง ยิ่งต่ำยิ่งกันร้อนดี ไม่ทราบให้เลือกก่ออิฐฉาบปูนไม่มีฉนวน (ปลอดภัยต่อการออกแบบ)",
+ glassType:"ดูจากสเปกกระจกของอาคาร — ไม่ทราบให้ใช้กระจกใสชั้นเดียว (ค่าแย่สุด เผื่อปลอดภัย) · SC = สัดส่วนแดดที่ทะลุเข้ามาเทียบกระจกใส",
+ shade:"กันสาด/แผงบังแดดภายนอกลดแดดได้ดีกว่าม่านภายใน เพราะกันก่อนความร้อนเข้าห้อง",
+ roofType:"เลือก \"ไม่โดนแดด\" เมื่อชั้นบนเป็นพื้นที่ปรับอากาศ — ห้องใต้ดาดฟ้า/หลังคาไม่มีฉนวนคือแหล่งโหลดใหญ่ที่สุดจุดหนึ่ง",
+ oaPerP:"อากาศบริสุทธิ์ที่เติมเข้าห้องต่อคน (ASHRAE 62.1): สำนักงาน/ประชุม ~8.5 · ร้านอาหาร/Lab ~10 · ห้องนอน 2.5–5 L/s·คน — แม้ไม่มีพัดลมเติมอากาศ ควรคงค่าไว้แทนอากาศที่รั่วเข้าเมื่อเปิดประตู",
+ ach:"อากาศรั่วซึมผ่านขอบประตู/หน้าต่าง เป็นจำนวนเท่าของปริมาตรห้องต่อชั่วโมง: ห้องปิดสนิท 0.2–0.3 · เปิดประตูบ่อย 0.5–1.0 · โถงประตูเปิดตลอด 1–2 ACH",
+ activity:"ความร้อนจากร่างกายคนตามกิจกรรม — S (sensible) ทำให้อุณหภูมิสูงขึ้น, L (latent) คือความชื้นจากเหงื่อ/ลมหายใจ",
+ sf:"ตัวเผื่อความไม่แน่นอนของข้อมูล — ทั่วไป 10% · ห้อง critical หรือข้อมูลไม่ครบ 15% · อย่าเผื่อซ้อนหลายชั้น (เผื่อทั้งจำนวนคน ทั้ง W/m² ทั้ง SF) เพราะจะได้เครื่อง oversize คุมความชื้นไม่อยู่",
+ qCond:"ตัวคูณปรับตามการโดนแดดของห้อง — ห้องชั้นกลางที่มีห้องแอร์ล้อมรอบใช้ 0.85 · ห้องกระจกรอบด้าน/ใต้หลังคาร้อนใช้ 1.15–1.3",
+ qWm2:"ค่าโหลดต่อพื้นที่จาก preset (ช่วง typical ภูมิอากาศไทย เพดาน ≤3 ม.) — ปรับได้ตามประสบการณ์/ข้อมูลอาคารจริง · ห้อง IT (Data Center/Server/MDB/UPS) ค่านี้เป็น 0 เพราะคิดจากโหลด kW โดยตรง",
+ qsf:"ตัวเผื่อความไม่แน่นอน — ทั่วไป 10%, งานข้อมูลน้อย 15%",
+ projName:"ชื่อโครงการ/ลูกค้า จะแสดงหัวรายงานและชื่อไฟล์ JSON",
+ divF:"Diversity factor = โอกาสที่ทุกห้องพีคพร้อมกัน ใช้ลดขนาดระบบรวม: สำนักงานรวม 0.85–0.95 · โรงแรม 0.7–0.85 · บ้าน 0.7–0.8 — ห้อง critical (DC/Server/Control) ระบบคิดเต็ม 1.0 ให้เสมอไม่ว่าตั้งค่าใด",
+ provSel:"จังหวัดที่ตั้งโครงการ — ใช้ดึงข้อมูลอากาศเพื่อหา Design DB/WB และ CDD ของพื้นที่จริง",
+ diurnal:"ค่าชดเชยพีคช่วงบ่าย: ข้อมูล ERA5 เป็นค่าเฉลี่ยรายวัน จึงบวกผลต่างพีคบ่าย-ค่าเฉลี่ย — พื้นที่ตอนในแห้ง 5–6 K · ชายฝั่ง/เกาะ 3.5–4.5 K",
+ eSrc:"เลือกว่าจะประมาณพลังงานจากห้องเดียวที่กำลังคำนวณ หรือรวมทุกห้องในโครงการ (แท็บ 2)",
+ hOp:"ชั่วโมงเปิดใช้เครื่องปรับอากาศจริงต่อปีของส่วน comfort: สำนักงาน 10 ชม.×6 วัน ≈ 3,120 · ร้านค้า ~4,400 · โรงแรม 4,500–6,000 — ห้อง critical/ไฟฟ้า ระบบคิด 8,760 ชม. ให้อัตโนมัติ",
+ tariff:"ค่าไฟฟ้าเฉลี่ยรวมทุกองค์ประกอบ (พลังงาน+demand+Ft) — โรงงาน TOU ~3.9–4.3 · อาคาร/บ้าน ~4.2–4.7 บาท/kWh ดูจากบิลจริง: ยอดจ่าย ÷ หน่วย",
+};
+function injectHints(){
+  Object.entries(HINTS).forEach(([id,txt])=>{
+    const el=$(id);if(!el)return;
+    el.insertAdjacentHTML('afterend','<div class="hint">'+txt+'</div>');
+  });
+  $('envH3').insertAdjacentHTML('afterend',
+    '<div class="hint">เลือก "ใช่" เฉพาะด้านที่ผนังสัมผัสอากาศภายนอกหรือโดนแดด (ผนังที่ติดห้องปรับอากาศอื่นเลือก "ไม่" เพราะไม่มีความร้อนผ่าน) แล้วกรอกพื้นที่กระจกของด้านนั้น = กว้าง × สูงของหน้าต่าง/ผนังกระจก (m²) — ทิศตะวันตกโดนแดดบ่ายแรงที่สุด ตามด้วยตะวันออก</div>');
+}
+function toggleHints(){document.body.classList.toggle('nohints');}
+
+/* ============ init ============ */
+fillRoomTypes();
+renderRef();
+injectHints();
+applyPreset();
+setMode('quick');
+</script>
+</body>
+</html>
