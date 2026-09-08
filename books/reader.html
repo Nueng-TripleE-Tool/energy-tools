@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0">
+<title>E-Book Reader — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+  :root{
+    --primary:#1a5276; --primary-dark:#0e3550; --gold:#d4ac0d;
+    --bg:#37474f; --panel:#ffffff; --text:#2c3e50; --subtext:#90a4ae;
+    --bar-h:56px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);
+    overflow:hidden;
+    -webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;
+    -webkit-touch-callout:none;
+  }
+
+  /* ── ปิดการสั่งพิมพ์ทุกช่องทาง ── */
+  @media print{
+    html,body{display:none !important;visibility:hidden !important}
+    *{display:none !important}
+  }
+
+  /* ── Top bar ── */
+  .bar{
+    height:var(--bar-h);background:linear-gradient(90deg,var(--primary-dark),var(--primary));
+    display:flex;align-items:center;gap:10px;padding:0 12px;color:#fff;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);position:relative;z-index:40;
+  }
+  .bar .home{color:#fff;text-decoration:none;font-size:1.05rem;opacity:.9;padding:6px 8px;border-radius:6px}
+  .bar .home:hover{background:rgba(255,255,255,.14);opacity:1}
+  .bar .titles{flex:1;min-width:0}
+  .bar .titles b{display:block;font-size:.95rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar .titles span{display:block;font-size:.72rem;color:rgba(255,255,255,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ctrl{display:flex;align-items:center;gap:4px}
+  .ctrl button{
+    background:rgba(255,255,255,.12);border:none;color:#fff;cursor:pointer;
+    width:34px;height:34px;border-radius:7px;font-size:.9rem;transition:background .15s;
+  }
+  .ctrl button:hover{background:rgba(255,255,255,.3)}
+  .ctrl button:disabled{opacity:.35;cursor:default}
+  .ctrl button.on{background:var(--gold);color:#3e2c00}
+  .pageind{
+    background:rgba(0,0,0,.28);border-radius:7px;padding:5px 9px;font-size:.82rem;
+    display:flex;align-items:center;gap:5px;white-space:nowrap;
+  }
+  .pageind input{
+    width:44px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);
+    color:#fff;border-radius:4px;text-align:center;font-family:inherit;font-size:.82rem;padding:2px 0;
+  }
+  .zoomlbl{font-size:.78rem;min-width:44px;text-align:center;color:rgba(255,255,255,.85)}
+
+  /* ── Layout ── */
+  .wrap{display:flex;height:calc(100% - var(--bar-h));position:relative}
+
+  /* ── Sidebar ── */
+  .side{
+    width:270px;flex-shrink:0;background:#eceff1;border-right:1px solid #cfd8dc;
+    overflow-y:auto;transition:margin-left .22s;
+  }
+  .side.hidden{margin-left:-270px}
+  .side h4{
+    font-size:.78rem;text-transform:uppercase;letter-spacing:1px;color:var(--primary);
+    padding:12px 14px 8px;border-bottom:1px solid #cfd8dc;background:#e0e5e8;position:sticky;top:0;
+  }
+  .toc-item{
+    display:block;width:100%;text-align:left;background:none;border:none;cursor:pointer;
+    font-family:inherit;font-size:.84rem;color:var(--text);padding:8px 14px;
+    border-bottom:1px solid #e0e5e8;line-height:1.45;
+  }
+  .toc-item:hover{background:#dbe4ea}
+  .toc-item.lv2{padding-left:28px;font-size:.8rem;color:#546e7a}
+  .toc-item.lv3{padding-left:42px;font-size:.78rem;color:#78909c}
+  .toc-item .pg{float:right;color:var(--subtext);font-size:.75rem;margin-left:8px}
+  .side .empty{padding:16px 14px;color:var(--subtext);font-size:.82rem;line-height:1.6}
+
+  /* ── Search ── */
+  .searchbox{padding:10px 12px;background:#e0e5e8;border-bottom:1px solid #cfd8dc}
+  .searchbox input{
+    width:100%;padding:7px 10px;border:1px solid #b0bec5;border-radius:6px;
+    font-family:inherit;font-size:.84rem;
+  }
+  .hits{font-size:.78rem;color:var(--subtext);padding:6px 12px 0}
+  .hit{
+    display:block;width:100%;text-align:left;background:#fff;border:1px solid #dfe6ea;
+    border-radius:6px;margin:6px 12px;padding:7px 9px;cursor:pointer;font-family:inherit;
+    font-size:.78rem;line-height:1.5;color:#455a64;width:calc(100% - 24px)
+  }
+  .hit:hover{border-color:var(--primary)}
+  .hit b{color:var(--primary)}
+  .hit mark{background:#fff59d;padding:0 1px}
+
+  /* ── Viewer ── */
+  .viewer{flex:1;overflow:auto;padding:22px 0 60px;-webkit-overflow-scrolling:touch;position:relative}
+  .pagebox{
+    margin:0 auto 20px;background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.4);
+    position:relative;display:flex;align-items:center;justify-content:center;
+  }
+  .pagebox canvas{display:block;width:100%;height:100%;pointer-events:none}
+  .pagebox .ph{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#b0bec5;font-size:.85rem;gap:8px;
+  }
+  .pagebox .num{
+    position:absolute;bottom:-17px;right:2px;font-size:.7rem;color:rgba(255,255,255,.5);
+  }
+  /* โล่กันคลิกขวา/ลากภาพลงบนหน้ากระดาษ */
+  .shield{position:absolute;inset:0;z-index:5;background:transparent}
+
+  /* ── Loading / error ── */
+  .center{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;color:#cfd8dc;text-align:center;padding:24px;z-index:20;
+  }
+  .center i{font-size:2.4rem;color:var(--gold)}
+  .center .msg{font-size:.95rem;line-height:1.7;max-width:420px}
+  .center small{color:#90a4ae;font-size:.8rem}
+  .spin{animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .prog{width:220px;height:5px;background:rgba(255,255,255,.15);border-radius:3px;overflow:hidden}
+  .prog i{display:block;height:100%;width:0;background:var(--gold);transition:width .2s}
+
+  .notice{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(90px);
+    background:rgba(0,0,0,.86);color:#fff;padding:11px 18px;border-radius:24px;
+    font-size:.84rem;z-index:90;transition:transform .25s;box-shadow:0 4px 18px rgba(0,0,0,.4);
+    display:flex;align-items:center;gap:9px;max-width:90vw;
+  }
+  .notice.show{transform:translateX(-50%) translateY(0)}
+  .notice i{color:var(--gold)}
+
+  @media (max-width:820px){
+    .side{position:absolute;top:0;bottom:0;left:0;z-index:30;box-shadow:4px 0 18px rgba(0,0,0,.35)}
+    .bar .titles span{display:none}
+    .zoomlbl{display:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <a class="home" href="../index.html" title="กลับหน้าหลัก"><i class="fas fa-arrow-left"></i></a>
+  <div class="ctrl">
+    <button id="btn-side" class="on" title="สารบัญ / ค้นหา"><i class="fas fa-list"></i></button>
+  </div>
+  <div class="titles">
+    <b id="t-title">กำลังโหลด…</b>
+    <span id="t-sub"></span>
+  </div>
+
+  <div class="pageind">
+    <input id="pg-in" type="text" value="1" inputmode="numeric"> / <span id="pg-tot">–</span>
+  </div>
+  <div class="ctrl">
+    <button id="btn-prev" title="หน้าก่อน"><i class="fas fa-chevron-up"></i></button>
+    <button id="btn-next" title="หน้าถัดไป"><i class="fas fa-chevron-down"></i></button>
+  </div>
+  <div class="ctrl">
+    <button id="btn-zo" title="ย่อ"><i class="fas fa-search-minus"></i></button>
+    <span class="zoomlbl" id="zlbl">พอดี</span>
+    <button id="btn-zi" title="ขยาย"><i class="fas fa-search-plus"></i></button>
+    <button id="btn-fit" title="พอดีความกว้าง"><i class="fas fa-arrows-left-right-to-line"></i></button>
+  </div>
+  <div class="ctrl">
+    <button id="btn-fs" title="เต็มจอ"><i class="fas fa-expand"></i></button>
+  </div>
+</div>
+
+<div class="wrap">
+  <aside class="side" id="side">
+    <div class="searchbox">
+      <input id="q" type="search" placeholder="ค้นหาในเล่ม… (กด Enter)" autocomplete="off">
+    </div>
+    <div id="hits"></div>
+    <h4><i class="fas fa-bookmark"></i> สารบัญ</h4>
+    <div id="toc"><div class="empty">— ยังไม่มีข้อมูลสารบัญ —</div></div>
+  </aside>
+
+  <div class="viewer" id="viewer">
+    <div class="center" id="boot">
+      <i class="fas fa-book-open spin"></i>
+      <div class="msg" id="bootmsg">กำลังเตรียมหนังสือ…</div>
+      <div class="prog"><i id="bar"></i></div>
+    </div>
+  </div>
+</div>
+
+<div class="notice" id="notice"><i class="fas fa-lock"></i><span id="notice-t"></span></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   E-Book Reader — Triple E Technology
+   อ่านอย่างเดียว: ไม่มีปุ่มดาวน์โหลด ไม่มีปุ่มพิมพ์ ไม่มี text layer
+   ══════════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+
+const COUNTER_API = 'https://energy-tools-counter.nk-triplee.workers.dev';
+const SALT = 'TripleE-EnergyTools-EBook-v1';
+
+const $ = id => document.getElementById(id);
+const viewer = $('viewer');
+
+let pdf = null, meta = null, pageCount = 0, boxes = [], rendered = new Set();
+let scaleMode = 'fit', scaleVal = 1, current = 1, textCache = {};
+let baseRatio = 0, ratios = {}, searchIndex = null, bookDir = '';
+
+/* ─────────── แจ้งเตือนแบบ toast ─────────── */
+let noticeTimer;
+function notice(txt, icon){
+  $('notice-t').textContent = txt;
+  $('notice').querySelector('i').className = 'fas ' + (icon || 'fa-lock');
+  $('notice').classList.add('show');
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(()=>$('notice').classList.remove('show'), 2600);
+}
+
+/* ─────────── มาตรการป้องกันการคัดลอก / บันทึก / พิมพ์ ─────────── */
+function harden(){
+  const block = e => { e.preventDefault(); return false; };
+  document.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    notice('เอกสารนี้สงวนสิทธิ์ — ไม่อนุญาตให้บันทึกภาพ');
+  });
+  ['dragstart','selectstart','copy','cut'].forEach(ev =>
+    document.addEventListener(ev, block));
+
+  document.addEventListener('keydown', e => {
+    const k = (e.key || '').toLowerCase();
+    const mod = e.ctrlKey || e.metaKey;
+
+    if (mod && k === 'p'){ block(e); notice('ไม่อนุญาตให้สั่งพิมพ์เอกสารนี้','fa-print'); return; }
+    if (mod && k === 's'){ block(e); notice('ไม่อนุญาตให้บันทึกเอกสารนี้','fa-floppy-disk'); return; }
+    if (mod && (k === 'u' || k === 'c' || k === 'a')){ block(e); return; }
+    if (mod && e.shiftKey && (k === 'i' || k === 'j' || k === 'c')){ block(e); return; }
+    if (k === 'f12'){ block(e); return; }
+
+    /* ปุ่มลัดที่อนุญาต */
+    if (k === 'arrowdown' || k === 'pagedown'){ e.preventDefault(); goto(current + 1); }
+    if (k === 'arrowup'   || k === 'pageup'  ){ e.preventDefault(); goto(current - 1); }
+    if (k === 'home'){ e.preventDefault(); goto(1); }
+    if (k === 'end' ){ e.preventDefault(); goto(pageCount); }
+  }, true);
+
+  window.addEventListener('beforeprint', () => {
+    notice('ไม่อนุญาตให้สั่งพิมพ์เอกสารนี้','fa-print');
+  });
+}
+
+/* ─────────── ถอดรหัสไฟล์ .eeb (ต้องตรงกับ pack_book.py) ─────────── */
+function fnv1a32(str){
+  let h = 0x811C9DC5;
+  const b = new TextEncoder().encode(str);
+  for (let i = 0; i < b.length; i++){
+    h ^= b[i];
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+function unpack(buf, slug){
+  const u = new Uint8Array(buf);
+  const isEeb = u[0]===69 && u[1]===69 && u[2]===66 && u[3]===49;   /* "EEB1" */
+  if (!isEeb) return u;                                            /* เป็น PDF ธรรมดา */
+  const len  = u[5] | (u[6]<<8) | (u[7]<<16) | (u[8]<<24);
+  const out  = new Uint8Array(len);
+  let s = fnv1a32(slug + '|' + SALT) >>> 0;
+  for (let i = 0; i < len; i++){
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    out[i] = u[9 + i] ^ ((s >>> 24) & 0xFF);
+  }
+  return out;
+}
+
+/* ─────────── ลายน้ำ — วาดฝังลงบน canvas โดยตรง ─────────── */
+function watermark(ctx, w, h, text){
+  ctx.save();
+  ctx.globalAlpha = 0.07;
+  ctx.fillStyle   = '#1a5276';
+  ctx.textAlign   = 'center';
+  ctx.textBaseline= 'middle';
+  const step = Math.max(w, h) / 4.2;
+  const fs   = Math.max(11, w / 48);
+  ctx.font   = '600 ' + fs + 'px Sarabun, sans-serif';
+  ctx.translate(w/2, h/2);
+  ctx.rotate(-Math.PI / 6);
+  const span = Math.max(w, h) * 1.15;
+  for (let y = -span; y <= span; y += step){
+    for (let x = -span; x <= span; x += step * 1.6){
+      ctx.fillText(text, x, y);
+    }
+  }
+  ctx.restore();
+
+  /* แถบลิขสิทธิ์ที่ขอบล่างของทุกหน้า */
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = '#78909c';
+  ctx.font = '400 ' + Math.max(9, w/85) + 'px Sarabun, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('© ' + text + ' — สงวนลิขสิทธิ์ ห้ามทำซ้ำหรือเผยแพร่',
+               w - w*0.045, h - h*0.018);
+  ctx.restore();
+}
+
+/* ─────────── การจัดวางและ render หน้า ─────────── */
+function targetWidth(){
+  const avail = viewer.clientWidth - 44;
+  if (scaleMode === 'fit') return Math.min(avail, 1180);
+  return Math.min(avail * scaleVal, 2200);
+}
+
+/* สร้างกล่องหน้าทั้งเล่มโดยใช้สัดส่วนจากหน้าแรกเป็นค่าตั้งต้น
+   (เล่มหนา 600+ หน้าจึงไม่ต้องเรียก getPage ทีละหน้าตอนเปิด)
+   สัดส่วนจริงของแต่ละหน้าจะถูกแก้ให้ถูกต้องตอน render หน้านั้น        */
+async function buildBoxes(){
+  if (io) io.disconnect();
+  viewer.innerHTML = '';
+  boxes = []; rendered.clear(); order.length = 0;
+
+  const w = targetWidth();
+  if (!baseRatio){
+    const vp = (await pdf.getPage(1)).getViewport({ scale: 1 });
+    baseRatio = vp.height / vp.width;
+  }
+  const h0 = Math.round(w * baseRatio);
+
+  const frag = document.createDocumentFragment();
+  for (let i = 1; i <= pageCount; i++){
+    const box = document.createElement('div');
+    box.className = 'pagebox';
+    box.style.width  = w + 'px';
+    box.style.height = (ratios[i] ? Math.round(w * ratios[i]) : h0) + 'px';
+    box.dataset.page = i;
+    box.innerHTML =
+      '<div class="ph"><i class="fas fa-circle-notch spin"></i> หน้า ' + i + '</div>' +
+      '<div class="shield"></div>' +
+      '<div class="num">' + i + ' / ' + pageCount + '</div>';
+    frag.appendChild(box);
+    boxes.push(box);
+  }
+  viewer.appendChild(frag);
+  observe();
+}
+
+let io;
+function observe(){
+  if (io) io.disconnect();
+  io = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      const n = +en.target.dataset.page;
+      if (en.isIntersecting){
+        renderPage(n);
+        renderPage(n + 1);
+        if (en.intersectionRatio > 0.35) setCurrent(n);
+      }
+    });
+  }, { root: viewer, rootMargin: '600px 0px', threshold: [0, 0.35, 0.8] });
+  boxes.forEach(b => io.observe(b));
+}
+
+/* ── รีไซเคิล canvas: เก็บไว้เฉพาะหน้าที่อยู่ใกล้จอ ──
+   หน้ากระดาษ A4 ที่ dpr 2 กินหน่วยความจำ ~25 MB ต่อหน้า
+   ถ้าไม่ปล่อยคืน เล่ม 600 หน้าจะทำให้เบราว์เซอร์ค้างแน่นอน            */
+const KEEP = 12;
+const order = [];
+function recycle(){
+  while (order.length > KEEP){
+    const old = order.shift();
+    if (Math.abs(old - current) <= 3){ order.push(old); continue; }  /* ยังอยู่ใกล้จอ */
+    const box = boxes[old - 1];
+    if (box){
+      const cv = box.querySelector('canvas');
+      if (cv){ cv.width = 0; cv.height = 0; cv.remove(); }
+      if (!box.querySelector('.ph')){
+        const ph = document.createElement('div');
+        ph.className = 'ph';
+        ph.innerHTML = '<i class="fas fa-circle-notch spin"></i> หน้า ' + old;
+        box.insertBefore(ph, box.firstChild);
+      }
+    }
+    rendered.delete(old);
+  }
+}
+
+async function renderPage(n){
+  if (n < 1 || n > pageCount) return;
+  const box = boxes[n - 1];
+  if (!box || rendered.has(n)) return;
+  rendered.add(n);
+  order.push(n);
+
+  try{
+    const page = await pdf.getPage(n);
+    const dpr  = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = box.clientWidth;
+    const vp1  = page.getViewport({ scale: 1 });
+
+    /* แก้ความสูงกล่องให้ตรงสัดส่วนจริงของหน้านี้ (เผื่อเล่มมีหน้าแนวนอนปน) */
+    const r = vp1.height / vp1.width;
+    if (!ratios[n]){
+      ratios[n] = r;
+      if (Math.abs(r - baseRatio) > 0.01) box.style.height = Math.round(cssW * r) + 'px';
+    }
+
+    const vp = page.getViewport({ scale: (cssW / vp1.width) * dpr });
+    const cv  = document.createElement('canvas');
+    cv.width  = Math.round(vp.width);
+    cv.height = Math.round(vp.height);
+    const ctx = cv.getContext('2d');
+
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    watermark(ctx, cv.width, cv.height, (meta && meta.watermark) || 'Triple E Technology');
+
+    if (!rendered.has(n)){ cv.width = 0; cv.height = 0; return; }  /* ถูกรีไซเคิลไปแล้ว */
+    const ph = box.querySelector('.ph');
+    if (ph) ph.remove();
+    box.insertBefore(cv, box.firstChild);
+    recycle();
+  }catch(e){
+    rendered.delete(n);
+    console.warn('render page ' + n + ' failed', e);
+  }
+}
+
+function setCurrent(n){
+  if (n === current) return;
+  current = n;
+  $('pg-in').value = n;
+  $('btn-prev').disabled = (n <= 1);
+  $('btn-next').disabled = (n >= pageCount);
+}
+
+function goto(n){
+  n = Math.max(1, Math.min(pageCount, n | 0));
+  const box = boxes[n - 1];
+  if (!box) return;
+  renderPage(n);
+  viewer.scrollTo({ top: box.offsetTop - 16, behavior: 'smooth' });
+  setCurrent(n);
+}
+
+async function rescale(){
+  const keep = current;
+  await buildBoxes();
+  requestAnimationFrame(() => goto(keep));
+  $('zlbl').textContent = scaleMode === 'fit' ? 'พอดี' : Math.round(scaleVal * 100) + '%';
+}
+
+/* ─────────── ค้นหาในเล่ม (ไม่มี text layer ให้เลือก/คัดลอก) ───────────
+   ภาษาไทยไม่มีช่องว่างระหว่างคำ และ pdf.js มักตัด text item กลางคำ
+   จึงต้องเทียบบน "สตริงย่อ" ที่ตัดช่องว่างออกทั้งหมด แล้ว map ตำแหน่ง
+   กลับไปยังสตริงจริงเพื่อแสดงข้อความตัวอย่าง                              */
+async function pageText(n){
+  if (textCache[n]) return textCache[n];
+  let disp = '';
+
+  if (searchIndex){                       /* ใช้ index ที่สร้างไว้ตอน pack (เร็วมาก) */
+    disp = searchIndex[n] || '';
+  } else {                                /* ไม่มี index → ดึงสดจาก pdf.js */
+    try{
+      const tc = await (await pdf.getPage(n)).getTextContent();
+      disp = tc.items.map(i => i.str).join(' ').replace(/\s+/g, ' ').trim();
+    }catch(e){ disp = ''; }
+  }
+
+  let comp = '', map = [];
+  for (let i = 0; i < disp.length; i++){
+    if (!SKIP.test(disp[i])){ comp += disp[i].toLowerCase(); map.push(i); }
+  }
+  textCache[n] = { disp: disp, comp: comp, map: map };
+  return textCache[n];
+}
+
+/* ช่องว่าง + สระบน-ล่าง + วรรณยุกต์ไทย + โซน Private Use (U+F700–F71F)
+   ที่ฟอนต์ไทยหลายตัวใช้แทนวรรณยุกต์เวลาฝังใน PDF — ตัดทิ้งทั้งฝั่งเนื้อหา
+   และฝั่งคำค้น เพื่อให้ค้นเจอแม้ต้นฉบับ map ตัวอักษรมาไม่ครบ            */
+const SKIP = /[\s\u0E31\u0E34-\u0E3A\u0E47-\u0E4E\uF700-\uF71F\u200B-\u200D\uFEFF]/;
+function normQ(s){
+  let o = '';
+  for (let i = 0; i < s.length; i++) if (!SKIP.test(s[i])) o += s[i].toLowerCase();
+  return o;
+}
+
+/* PDF ไทยมักถูกตัดเป็นชิ้นย่อยจนมีช่องว่างแทรกกลางคำ
+   ตัดช่องว่างที่คั่นระหว่างอักษรไทยสองตัวออก เพื่อให้ข้อความตัวอย่างอ่านรู้เรื่อง */
+const THAI = /[\u0E00-\u0E7F\uF700-\uF71F]/;
+function tidy(s){
+  let o = '';
+  for (let i = 0; i < s.length; i++){
+    if (s[i] === ' ' && THAI.test(s[i-1] || '') && THAI.test(s[i+1] || '')) continue;
+    o += s[i];
+  }
+  return escapeHtml(o);
+}
+
+/* โหลด search index ที่ pack_book.py สร้างไว้ (ถ้ามี) — ครั้งเดียวต่อการเปิดเล่ม */
+let indexTried = false, searchToken = 0;
+async function loadIndex(){
+  if (indexTried || !meta || meta.searchIndex === false) return;
+  indexTried = true;
+  try{
+    const r = await fetch(bookDir + '/search.json', { cache: 'force-cache' });
+    if (!r.ok) return;
+    const j = await r.json();
+    searchIndex = j.pages || null;
+  }catch(e){ /* ไม่มี index ก็ค้นสดแทน */ }
+}
+
+async function search(q){
+  const host = $('hits');
+  q = (q || '').trim();
+  if (q.length < 2){ host.innerHTML = ''; return; }
+  host.innerHTML = '<div class="hits"><i class="fas fa-circle-notch spin"></i> กำลังค้นหา…</div>';
+
+  const needle = normQ(q);
+  if (!needle){ host.innerHTML = '<div class="hits">พิมพ์คำที่ต้องการค้นหา</div>'; return; }
+
+  await loadIndex();
+  const found = [];
+  const token = ++searchToken;
+
+  for (let n = 1; n <= pageCount; n++){
+    if (token !== searchToken) return;          /* มีการค้นหาใหม่แทรกเข้ามา */
+    if (!searchIndex && n % 25 === 0){          /* เล่มหนา + ไม่มี index → รายงานความคืบหน้า */
+      host.innerHTML = '<div class="hits"><i class="fas fa-circle-notch spin"></i> กำลังค้นหา… ' +
+                       Math.round(n / pageCount * 100) + '%  (พบแล้ว ' + found.length + ' หน้า)</div>';
+      await new Promise(r => setTimeout(r, 0));
+    }
+    const t = await pageText(n);
+    const ci = t.comp.indexOf(needle);
+    if (ci >= 0){
+      const a = t.map[ci];
+      const b = t.map[Math.min(t.map.length - 1, ci + needle.length - 1)] + 1;
+      const s = Math.max(0, a - 40);
+      const snippet = (s > 0 ? '…' : '') +
+        tidy(t.disp.slice(s, a)) +
+        '<mark>' + tidy(t.disp.slice(a, b)) + '</mark>' +
+        tidy(t.disp.slice(b, b + 50)) + '…';
+      found.push({ n: n, snippet: snippet });
+      if (found.length >= 60) break;
+    }
+  }
+
+  if (!found.length){
+    host.innerHTML = '<div class="hits">ไม่พบคำที่ค้นหา</div>';
+    return;
+  }
+  host.innerHTML = '<div class="hits">พบ ' + found.length + ' หน้า</div>' +
+    found.map(f =>
+      '<button class="hit" data-p="' + f.n + '"><b>หน้า ' + f.n + '</b><br>' + f.snippet + '</button>'
+    ).join('');
+  host.querySelectorAll('.hit').forEach(b =>
+    b.addEventListener('click', () => goto(+b.dataset.p)));
+}
+
+/* ─────────── สารบัญ ─────────── */
+function buildToc(){
+  const host = $('toc');
+  const toc  = (meta && meta.toc) || [];
+  if (!toc.length){
+    host.innerHTML = '<div class="empty">เอกสารนี้ไม่มี bookmark สารบัญ<br>' +
+                     'ใช้ช่องค้นหาด้านบน หรือพิมพ์เลขหน้าที่แถบด้านบนแทนได้</div>';
+    return;
+  }
+  host.innerHTML = toc.map(t =>
+    '<button class="toc-item lv' + Math.min(3, t.level || 1) + '" data-p="' + t.page + '">' +
+    '<span class="pg">' + t.page + '</span>' + escapeHtml(t.title) + '</button>'
+  ).join('');
+  host.querySelectorAll('.toc-item').forEach(b =>
+    b.addEventListener('click', () => goto(+b.dataset.p)));
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+/* ─────────── โหลดหนังสือ ─────────── */
+function fail(msg, sub){
+  $('boot').innerHTML =
+    '<i class="fas fa-triangle-exclamation" style="color:#ef9a9a"></i>' +
+    '<div class="msg">' + msg + '</div>' +
+    (sub ? '<small>' + sub + '</small>' : '') +
+    '<small><a href="../index.html" style="color:#d4ac0d">กลับหน้าหลัก</a></small>';
+}
+
+async function boot(){
+  harden();
+
+  const slug = new URLSearchParams(location.search).get('b');
+  if (!slug || !/^[a-z0-9._-]+$/i.test(slug)){
+    fail('ไม่ได้ระบุหนังสือที่ต้องการเปิด',
+         'ตัวอย่างการเรียกใช้: reader.html?b=demo-boiler-basics');
+    return;
+  }
+
+  bookDir = slug;
+  try{
+    meta = await (await fetch(slug + '/book.json', { cache: 'no-cache' })).json();
+  }catch(e){
+    fail('ไม่พบข้อมูลหนังสือ “' + escapeHtml(slug) + '”',
+         'ตรวจสอบว่ามีไฟล์ books/' + escapeHtml(slug) + '/book.json อยู่จริง');
+    return;
+  }
+
+  $('t-title').textContent = meta.title || 'ไม่ระบุชื่อ';
+  $('t-sub').textContent   = [meta.subtitle, meta.author].filter(Boolean).join('  ·  ');
+  document.title = (meta.title || 'E-Book') + ' — Triple E';
+
+  /* ดาวน์โหลดไฟล์เล่มพร้อมแสดงความคืบหน้า */
+  $('bootmsg').textContent = 'กำลังโหลดเนื้อหา…';
+  let buf;
+  try{
+    const res = await fetch(slug + '/' + (meta.file || 'book.eeb'), { cache: 'force-cache' });
+    if (!res.ok) throw new Error(res.status);
+    const total = +res.headers.get('content-length') || 0;
+    const reader = res.body && res.body.getReader ? res.body.getReader() : null;
+
+    if (reader && total){
+      const chunks = []; let got = 0;
+      for(;;){
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value); got += value.length;
+        $('bar').style.width = Math.round(got / total * 100) + '%';
+      }
+      buf = new Uint8Array(got); let off = 0;
+      chunks.forEach(c => { buf.set(c, off); off += c.length; });
+      buf = buf.buffer;
+    } else {
+      buf = await res.arrayBuffer();
+      $('bar').style.width = '100%';
+    }
+  }catch(e){
+    fail('โหลดไฟล์หนังสือไม่สำเร็จ',
+         'ตรวจสอบว่าไฟล์ books/' + escapeHtml(slug) + '/' + escapeHtml(meta.file || 'book.eeb') + ' ถูกอัปโหลดแล้ว');
+    return;
+  }
+
+  $('bootmsg').textContent = 'กำลังเปิดเอกสาร…';
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdf = await pdfjsLib.getDocument({
+      data: unpack(buf, slug),
+      disableAutoFetch: false,
+      isEvalSupported: false
+    }).promise;
+  }catch(e){
+    fail('เปิดเอกสารไม่สำเร็จ', 'ไฟล์อาจเสียหายหรือแปลงมาไม่ถูกต้อง');
+    return;
+  }
+
+  pageCount = pdf.numPages;
+  $('pg-tot').textContent = pageCount;
+  buildToc();
+  await buildBoxes();
+  renderPage(1); renderPage(2);
+  setCurrent(1);
+  track(meta.slug || slug);
+}
+
+/* ─────────── นับสถิติการเปิดอ่าน ─────────── */
+function track(slug){
+  try{
+    fetch(COUNTER_API + '/increment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tool: 'Book_' + slug })
+    }).catch(()=>{});
+  }catch(e){}
+}
+
+/* ─────────── ผูกปุ่มควบคุม ─────────── */
+$('btn-side').addEventListener('click', () => {
+  $('side').classList.toggle('hidden');
+  $('btn-side').classList.toggle('on');
+  setTimeout(rescale, 240);
+});
+$('btn-prev').addEventListener('click', () => goto(current - 1));
+$('btn-next').addEventListener('click', () => goto(current + 1));
+$('btn-zi').addEventListener('click', () => {
+  scaleMode = 'manual';
+  scaleVal = Math.min(2.5, (scaleMode === 'fit' ? 1 : scaleVal) + 0.2);
+  rescale();
+});
+$('btn-zo').addEventListener('click', () => {
+  scaleMode = 'manual';
+  scaleVal = Math.max(0.5, scaleVal - 0.2);
+  rescale();
+});
+$('btn-fit').addEventListener('click', () => { scaleMode = 'fit'; scaleVal = 1; rescale(); });
+$('btn-fs').addEventListener('click', () => {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen().catch(()=>{});
+});
+$('pg-in').addEventListener('change', e => goto(parseInt(e.target.value, 10) || 1));
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') search(e.target.value); });
+
+let rz;
+window.addEventListener('resize', () => {
+  clearTimeout(rz);
+  rz = setTimeout(() => { if (pdf) rescale(); }, 260);
+});
+
+if (window.innerWidth < 820) $('side').classList.add('hidden'), $('btn-side').classList.remove('on');
+
+boot();
+})();
+</script>
+</body>
+</html>
