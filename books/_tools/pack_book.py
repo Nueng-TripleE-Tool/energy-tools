@@ -203,8 +203,10 @@ def main():
         except Exception:
             pass
 
+    import time as _time
     meta = {
         "slug": args.slug,
+        "built": _time.strftime("%Y%m%d-%H%M%S"),   # ใช้เป็นตัวล้างแคชเบราว์เซอร์
         "title": args.title,
         "subtitle": args.subtitle,
         "author": args.author,
