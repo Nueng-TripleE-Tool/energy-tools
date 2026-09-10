@@ -4,6 +4,81 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Waste Heat Recovery Calculator — Triple E Technology</title>
+<script>/* TE_STEAM [ระยะ 4 10 ก.ย. 2569] engine ไอน้ำกลาง IAPWS-IF97 แทนตาราง STEAM_SAT + cp_st fit ในโหมด HRSG */
+/* ══ TE_STEAM — IAPWS-IF97 Region 1/2/4 engine กลางของ Triple E (ระยะ 4, 10 ก.ย. 2569) — คัดจาก Tool_GT_CCGT_Master_v3 + ส่วนขยาย; หน่วย public: bar a, °C, kJ/kg, kJ/kg·K, m³/kg ══ */
+var TE_STEAM=(function(){
+  var R=0.461526;
+  var R1I=[0,0,0,0,0,0,0,0,1,1,1,1,1,1,2,2,2,2,2,3,3,3,4,4,4,5,8,8,21,23,29,30,31,32];
+  var R1J=[-2,-1,0,1,2,3,4,5,-9,-7,-1,0,1,3,-3,0,1,3,17,-4,0,6,-5,-2,10,-8,-11,-6,-29,-31,-38,-39,-40,-41];
+  var R1n=[0.14632971213167,-0.84548187169114,-3.756360367204,3.3855169168385,-0.95791963387872,0.15772038513228,-0.016616417199501,8.1214629983568e-4,2.8319080123804e-4,-6.0706301565874e-4,-0.018990068218419,-0.032529748770505,-0.021841717175414,-5.283835796993e-5,-4.7184321073267e-4,-3.0001780793026e-4,4.7661393906987e-5,-4.4141845330846e-6,-7.2694996297594e-16,-3.1679644845054e-5,-2.8270797985312e-6,-8.5205128120103e-10,-2.2425281908e-6,-6.5171222895601e-7,-1.4341729937924e-13,-4.0516996860117e-7,-1.2734301741641e-9,-1.7424871230634e-10,-6.8762131295531e-19,1.4478307828521e-20,2.6335781662795e-23,-1.1947622640071e-23,1.8228094581404e-24,-9.3537087292458e-26];
+  function r1gt(p,T){var pi=p/16.53,tau=1386/T,g=0;for(var i=0;i<34;i++)g+=R1n[i]*Math.pow(7.1-pi,R1I[i])*R1J[i]*Math.pow(tau-1.222,R1J[i]-1);return g;}
+  function r1g(p,T){var pi=p/16.53,tau=1386/T,g=0;for(var i=0;i<34;i++)g+=R1n[i]*Math.pow(7.1-pi,R1I[i])*Math.pow(tau-1.222,R1J[i]);return g;}
+  function h1(p,T){return R*T*(1386/T)*r1gt(p,T);}
+  function s1(p,T){var tau=1386/T;return R*(tau*r1gt(p,T)-r1g(p,T));}
+  var R2J0=[0,1,-5,-4,-3,-2,-1,2,3];
+  var R2n0=[-9.6927686500217,10.086655968018,-0.005608791128302,0.071452738081455,-0.40710498223928,1.4240819171444,-4.383951131945,-0.28408632460772,0.021268463753307];
+  var R2I=[1,1,1,1,1,2,2,2,2,2,3,3,3,3,3,4,4,4,5,6,6,6,7,7,7,8,8,9,10,10,10,16,16,18,20,20,20,21,22,23,24,24,24];
+  var R2J=[0,1,2,3,6,1,2,4,7,36,0,1,3,6,35,1,2,3,7,3,16,35,0,11,25,8,36,13,4,10,14,29,50,57,20,35,48,21,53,39,26,40,58];
+  var R2n=[-1.7731742473213e-3,-0.017834862292358,-0.045996013696365,-0.057581259083432,-0.05032527872793,-3.3032641670203e-5,-1.8948987516315e-4,-3.9392777243355e-3,-0.043797295650573,-2.6674547914087e-5,2.0481737692309e-8,4.3870667284435e-7,-3.227767723857e-5,-1.5033924542148e-3,-0.040668253562649,-7.8847309559367e-10,1.2790717852285e-8,4.8225372718507e-7,2.2922076337661e-6,-1.6714766451061e-11,-2.1171472321355e-3,-23.895741934104,-5.905956432427e-18,-1.2621808899101e-6,-0.038946842435739,1.1256211360459e-11,-8.2311340897998,1.9809712802088e-8,1.0406965210174e-19,-1.0234747095929e-13,-1.0018179379511e-9,-8.0882908646985e-11,0.10693031879409,-0.33662250574171,8.9185845355421e-25,3.0629316876232e-13,-4.2002467698208e-6,-5.9056029685639e-26,3.7826947613457e-6,-1.2768608934681e-15,7.3087610595061e-29,5.5414715350778e-17,-9.436970724121e-7];
+  function r2g0t(p,T){var tau=540/T,g=0;for(var i=0;i<9;i++)g+=R2n0[i]*R2J0[i]*Math.pow(tau,R2J0[i]-1);return g;}
+  function r2g0(p,T){var tau=540/T,g=Math.log(p);for(var i=0;i<9;i++)g+=R2n0[i]*Math.pow(tau,R2J0[i]);return g;}
+  function r2grt(p,T){var tau=540/T,g=0;for(var i=0;i<43;i++)g+=R2n[i]*Math.pow(p,R2I[i])*R2J[i]*Math.pow(tau-0.5,R2J[i]-1);return g;}
+  function r2gr(p,T){var tau=540/T,g=0;for(var i=0;i<43;i++)g+=R2n[i]*Math.pow(p,R2I[i])*Math.pow(tau-0.5,R2J[i]);return g;}
+  function h2(p,T){return R*T*(540/T)*(r2g0t(p,T)+r2grt(p,T));}
+  function s2(p,T){var tau=540/T;return R*(tau*(r2g0t(p,T)+r2grt(p,T))-(r2g0(p,T)+r2gr(p,T)));}
+  var R4n=[1167.0521452767,-724213.16703206,-17.073846940092,12020.82470247,-3232555.0322333,14.91510861353,-4823.2657361591,405113.40542057,-0.23855557567849,650.17534844798];
+  function Tsat(p){var beta=Math.pow(p,0.25),E=beta*beta+R4n[2]*beta+R4n[5],F=R4n[0]*beta*beta+R4n[3]*beta+R4n[6],G=R4n[1]*beta*beta+R4n[4]*beta+R4n[7];var D=2*G/(-F-Math.sqrt(F*F-4*E*G));return (R4n[9]+D-Math.sqrt((R4n[9]+D)*(R4n[9]+D)-4*(R4n[8]+R4n[9]*D)))/2;}
+  // public: bar & °C
+  function hSup(Pbar,TC){return h2(Pbar/10,TC+273.15);}
+  function sSup(Pbar,TC){return s2(Pbar/10,TC+273.15);}
+  function hLiq(Pbar,TC){return h1(Pbar/10,TC+273.15);}
+  function TsatC(Pbar){return Tsat(Pbar/10)-273.15;}
+  function sat(Pbar){var p=Pbar/10,Ts=Tsat(p);return{TsC:Ts-273.15,hf:h1(p,Ts),hg:h2(p,Ts),sf:s1(p,Ts),sg:s2(p,Ts)};}
+  // isentropic expansion from (Pin,Tin superheated) to Pout
+  function isoOut(Pin,Tin,Pout){
+    var sIn=sSup(Pin,Tin),sp=sat(Pout),p=Pout/10;
+    if(sIn>=sp.sg){
+      var T=sp.TsC+50;
+      for(var it=0;it<60;it++){var f=s2(p,T+273.15)-sIn,df=(s2(p,T+273.15+0.1)-s2(p,T+273.15-0.1))/0.2,dT=f/df;T-=dT;if(Math.abs(dT)<1e-4)break;}
+      return{h:h2(p,T+273.15),x:1,TC:T,phase:'sup'};
+    }
+    var x=Math.max(0,Math.min(1,(sIn-sp.sf)/(sp.sg-sp.sf)));
+    return{h:sp.hf+x*(sp.hg-sp.hf),x:x,TC:sp.TsC,phase:'wet'};
+  }
+
+  // ── ส่วนขยาย [ระยะ 4] : Psat(T) (IF97 eq.30), ปริมาตรจำเพาะ v (region 1/2), คุณภาพไอ x ──
+  function Psat(T){var th=T+R4n[8]/(T-R4n[9]),A=th*th+R4n[0]*th+R4n[1],B=R4n[2]*th*th+R4n[3]*th+R4n[4],C=R4n[5]*th*th+R4n[6]*th+R4n[7];return Math.pow(2*C/(-B+Math.sqrt(B*B-4*A*C)),4);}
+  function r1gp(p,T){var pi=p/16.53,tau=1386/T,g=0;for(var i=0;i<34;i++)g+=-R1n[i]*R1I[i]*Math.pow(7.1-pi,R1I[i]-1)*Math.pow(tau-1.222,R1J[i]);return g;}
+  function v1(p,T){return R*T/(p*1000)*(p/16.53)*r1gp(p,T);}
+  function r2grp(p,T){var tau=540/T,g=0;for(var i=0;i<43;i++)g+=R2n[i]*R2I[i]*Math.pow(p,R2I[i]-1)*Math.pow(tau-0.5,R2J[i]);return g;}
+  function v2(p,T){return R*T/(p*1000)*(1+p*r2grp(p,T));}   // m³/kg (p MPa)
+  function PsatBar(TC){return Psat(TC+273.15)*10;}
+  function satT(TC){var T=TC+273.15,p=Psat(T);return{Pbar:p*10,TsC:TC,hf:h1(p,T),hg:h2(p,T),hfg:h2(p,T)-h1(p,T),sf:s1(p,T),sg:s2(p,T),vf:v1(p,T),vg:v2(p,T)};}
+  function satP(Pbar){var p=Pbar/10,Ts=Tsat(p);return{Pbar:Pbar,TsC:Ts-273.15,hf:h1(p,Ts),hg:h2(p,Ts),hfg:h2(p,Ts)-h1(p,Ts),sf:s1(p,Ts),sg:s2(p,Ts),vf:v1(p,Ts),vg:v2(p,Ts)};}
+  function vSup(Pbar,TC){return v2(Pbar/10,TC+273.15);}
+  function vLiq(Pbar,TC){return v1(Pbar/10,TC+273.15);}
+  function hMix(Pbar,x){var s=satP(Pbar);return s.hf+x*s.hfg;}
+  // h ของไอน้ำที่ (P,T) ไม่ว่าอิ่มตัว/ร้อนยวดยิ่ง/น้ำอัด: ถ้า T ≤ Tsat → น้ำ (region 1), ถ้า T > Tsat → ไอ (region 2)
+  function hAuto(Pbar,TC){var Ts=TsatC(Pbar);return TC>Ts+1e-6?hSup(Pbar,TC):hLiq(Pbar,TC);}
+  // flash fraction เมื่อคอนเดนเสทที่ P1 (อิ่มตัว) ลดความดันไป P2
+  function flashFrac(P1bar,P2bar){var a=satP(P1bar),b=satP(P2bar);return Math.max(0,(a.hf-b.hf)/b.hfg);}
+  return{hSup:hSup,sSup:sSup,hLiq:hLiq,TsatC:TsatC,sat:sat,isoOut:isoOut,PsatBar:PsatBar,satT:satT,satP:satP,vSup:vSup,vLiq:vLiq,hMix:hMix,hAuto:hAuto,flashFrac:flashFrac,_ver:'TE_STEAM IF97 r4-2569'};
+})();
+
+</script>
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"><!-- [ระยะ 4 10 ก.ย. 2569] ฟอนต์มาตรฐาน Triple E -->
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Bebas+Neue&display=swap');
 
@@ -24,7 +99,15 @@
     --purple:     #8250df;
     --glow:       rgba(207,79,42,0.10);
     --r:          8px;
+    /* [ระยะ 4 10 ก.ย. 2569] Triple E design tokens (คง --bg/--accent เดิม) */
+    --navy:#0f2a4a;--teal:#12a4a4;--header-grad:linear-gradient(135deg,var(--navy),var(--teal));--card:#ffffff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;--radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
   }
+  /* [ระยะ 4 10 ก.ย. 2569] JSON header control + ป้ายชนิดค่า + hint */
+  .te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+  .fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+  .fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+  .fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+  .hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -38,7 +121,7 @@
 
   /* ─── HEADER ─── */
   header {
-    background: linear-gradient(135deg, #fff3ee 0%, #ffffff 60%);
+    background: var(--header-grad); /* [ระยะ 4 10 ก.ย. 2569] */
     border-bottom: 1px solid var(--border);
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     padding: 16px 24px;
@@ -58,11 +141,13 @@
   }
   .logo-text { line-height:1.1; }
   .logo-text .title {
-    font-family:'Bebas Neue',sans-serif;
-    font-size:22px; letter-spacing:2px;
-    color: var(--accent);
+    font-family:'Barlow Condensed','Bebas Neue',sans-serif; /* [ระยะ 4 10 ก.ย. 2569] */
+    font-size:24px; letter-spacing:1.5px; font-weight:700;
+    color: #fff;
   }
-  .logo-text .sub { font-size:11px; color: var(--text3); letter-spacing:1px; }
+  .logo-text .sub { font-size:11px; color: rgba(255,255,255,.8); letter-spacing:1px; }
+  header .badge{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#fff}
+  header .badge.active{background:rgba(255,255,255,.2);border-color:#fff;color:#fff}
   .header-right { margin-left:auto; display:flex; gap:8px; align-items:center; }
   .badge {
     background: var(--surface2); border: 1px solid var(--border);
@@ -478,6 +563,10 @@
   <div class="header-right">
     <span class="badge active">v1.0</span>
     <span class="badge">KMUTT WHR Guide / JIS B8222</span>
+    <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
   </div>
 </header>
 
@@ -618,11 +707,11 @@ Cp แก้ไขได้: Mineral / Synthetic / Custom</div>
               <optgroup label="⚙️ Custom">
                 <option value="custom">Custom (กรอกเอง)</option>
               </optgroup>
-            </select>
+            </select><div class="hint">เลือกชนิดเชื้อเพลิงหลักของเตา/หม้อไอน้ำ — โปรแกรมดึง NCV, EF และ Cp ไอเสียให้อัตโนมัติ (ตรวจกับใบส่งของ/ผล lab)</div>
           </div>
           <div class="field">
             <label id="g_flow_label">อัตราการไหลเชื้อเพลิง <span>(Nm³/hr)</span></label>
-            <input type="number" id="g_fuel_flow" value="3.0" step="0.1" onchange="syncGlobal()">
+            <input type="number" id="g_fuel_flow" value="3.0" step="0.1" onchange="syncGlobal()"><div class="hint">อัตราการใช้เชื้อเพลิงจริงขณะตรวจวัด (kg/hr หรือ Nm³/hr ตามชนิด) — มิเตอร์ก๊าซ/น้ำมัน หรือชั่งน้ำหนักเชื้อเพลิงแข็ง ÷ ชั่วโมง</div>
           </div>
           <div class="field">
             <label>หน่วยเชื้อเพลิง &nbsp;
@@ -635,15 +724,15 @@ Cp แก้ไขได้: Mineral / Synthetic / Custom</div>
           </div>
           <div class="field">
             <label>%O₂ ในไอเสีย <span>(%vol dry)</span></label>
-            <input type="number" id="g_o2" value="4.5" step="0.1" min="0" max="20" onchange="syncGlobal()">
+            <input type="number" id="g_o2" value="4.5" step="0.1" min="0" max="20" onchange="syncGlobal()"><div class="hint">O₂ ในไอเสียแห้ง (%vol) จาก testo/analyzer ที่ทางออกเตา — NG/LPG 2–5 %, น้ำมัน 3–6 %, ชีวมวล 6–10 %; ใช้คำนวณอากาศส่วนเกินและปริมาณไอเสีย</div>
           </div>
           <div class="field">
             <label>อุณหภูมิไอเสียออกจากเตา Tfg₁ <span>(°C)</span></label>
-            <input type="number" id="g_tfg_in" value="745" step="1" onchange="syncGlobal()">
+            <input type="number" id="g_tfg_in" value="745" step="1" onchange="syncGlobal()"><div class="hint">อุณหภูมิไอเสียออกจากเตา/หม้อไอน้ำก่อนเข้าอุปกรณ์ WHR (°C) — thermocouple/DCS; เตาหลอม 600–900 °C, หม้อไอน้ำ 180–300 °C</div>
           </div>
           <div class="field">
             <label>อุณหภูมิอากาศ/ห้อง Ta <span>(°C)</span></label>
-            <input type="number" id="g_tamb" value="33" step="0.5" onchange="syncGlobal()">
+            <input type="number" id="g_tamb" value="33" step="0.5" onchange="syncGlobal()"><div class="hint">อุณหภูมิอากาศแวดล้อม/ห้องเครื่อง (°C) — เทอร์โมมิเตอร์ ทั่วไป 30–38 °C ใช้เป็นฐานคำนวณความร้อนที่กู้คืนได้</div>
           </div>
         </div>
         <!-- Computed results column -->
@@ -745,15 +834,15 @@ Cp แก้ไขได้: Mineral / Synthetic / Custom</div>
           <div class="grid-3">
             <div class="field">
               <label>Tfg₁ — ออกจากเตา <span title="ก่อนเข้า Recuperator ชั้น 1">(°C)</span></label>
-              <input type="number" id="a_tfg1" value="745" step="1">
+              <input type="number" id="a_tfg1" value="745" step="1"><div class="hint">อุณหภูมิไอเสียออกจากเตาเข้า Recuperator ตัวที่ 1 (°C) — วัดจริงหน้างาน (ค่าเริ่มต้นดึงจาก Global)</div>
             </div>
             <div class="field">
               <label>Tfg₂ — ออก Recup.1 <span>(°C)</span></label>
-              <input type="number" id="a_tfg2" value="527" step="1">
+              <input type="number" id="a_tfg2" value="527" step="1"><div class="hint">อุณหภูมิไอเสียออกจาก Recuperator 1 (°C) — วัดจริงหลัง HX; ต่ำกว่า Tfg₁ 150–300 °C สำหรับ recuperator โลหะ</div>
             </div>
             <div id="tfg3_wrap" class="field">
               <label>Tfg₃ — ออก Recup.2 <span>(°C)</span></label>
-              <input type="number" id="a_tfg3" value="330" step="1">
+              <input type="number" id="a_tfg3" value="330" step="1"><div class="hint">อุณหภูมิไอเสียออกจาก Recuperator 2 (°C) — ใช้เมื่อเลือก 2 ขั้น; ต้องสูงกว่า acid dew point (~130–160 °C)</div>
             </div>
           </div>
 
@@ -763,38 +852,38 @@ Cp แก้ไขได้: Mineral / Synthetic / Custom</div>
           <div class="grid-3">
             <div class="field">
               <label>Tair₁ — อากาศเข้า <span>(°C)</span></label>
-              <input type="number" id="a_tair1" value="33" step="1">
+              <input type="number" id="a_tair1" value="33" step="1"><div class="hint">อุณหภูมิอากาศเผาไหม้เข้า Recuperator (°C) — วัดที่ทางดูดพัดลม ทั่วไปเท่ากับอุณหภูมิห้อง 30–38 °C</div>
             </div>
             <div class="field">
               <label>Tair₂ — ออก Recup.1 <span>(°C)</span></label>
-              <input type="number" id="a_tair2" value="275" step="1">
+              <input type="number" id="a_tair2" value="275" step="1"><div class="hint">อุณหภูมิอากาศออก Recuperator 1 (°C) — วัดจริงที่ท่อลมร้อน; recuperator ทั่วไปอุ่นได้ 200–400 °C</div>
             </div>
             <div id="tair3_wrap" class="field">
               <label>Tair₃ — ออก Recup.2 / เข้าหัวเผา <span>(°C)</span></label>
-              <input type="number" id="a_tair3" value="463" step="1">
+              <input type="number" id="a_tair3" value="463" step="1"><div class="hint">อุณหภูมิอากาศออก Recuperator 2 เข้าหัวเผา (°C) — จำกัดโดยวัสดุหัวเผา/ท่อ ทั่วไป ≤ 500–600 °C</div>
             </div>
           </div>
 
           <div class="grid-2">
             <div class="field">
               <label>อัตราการไหลอากาศ ṁ_air <span>(Nm³/hr)</span></label>
-              <input type="number" id="a_mair" value="115" step="1">
+              <input type="number" id="a_mair" value="115" step="1"><div class="hint">อัตราการไหลอากาศเผาไหม้ (Nm³/hr) — anemometer/pitot × พื้นที่ท่อ แปลงเป็น Nm³ หรือคำนวณจากเชื้อเพลิง × อากาศทฤษฎี × (1+EA)</div>
             </div>
             <div class="field">
               <label>Cp อากาศ (เฉลี่ย) <span>(kJ/Nm³·K)</span></label>
-              <input type="number" id="a_cpair" value="1.30" step="0.01">
+              <input type="number" id="a_cpair" value="1.30" step="0.01"><div class="hint">ความจุความร้อนอากาศเฉลี่ย (kJ/Nm³·K) — 1.30 ที่ ~25–300 °C, 1.33 ที่ 500 °C (ตาราง JIS B8222)</div>
             </div>
             <div class="field">
               <label>Cp ไอเสีย (เฉลี่ย) <span>(kJ/Nm³·K)</span></label>
-              <input type="number" id="a_cpfg" value="1.42" step="0.01">
+              <input type="number" id="a_cpfg" value="1.42" step="0.01"><div class="hint">ความจุความร้อนไอเสียเฉลี่ย (kJ/Nm³·K) — โปรแกรมเติมตามชนิดเชื้อเพลิง (1.38–1.45); แก้ได้ถ้ามีค่าจากองค์ประกอบไอเสียจริง</div>
             </div>
             <div class="field">
               <label>ṁ_fg (คำนวณจากด้านบน) <span>(Nm³/hr)</span></label>
-              <input type="number" id="a_mfg" value="128" step="1">
+              <input type="number" id="a_mfg" value="128" step="1"><div class="hint">อัตราไหลไอเสีย (Nm³/hr) คำนวณจาก Global (เชื้อเพลิง × ปริมาณไอเสียทฤษฎี × อากาศส่วนเกิน) — แก้ได้ถ้ามีค่าวัดจริง</div>
             </div>
             <div class="field">
               <label>ชั่วโมงทำงานต่อปี <span>(hr/yr)</span></label>
-              <input type="number" id="a_hrs" value="8000" step="100">
+              <input type="number" id="a_hrs" value="8000" step="100"><div class="hint">ชั่วโมงเดินเครื่องต่อปีของเตา (hr/yr) — บันทึกฝ่ายผลิต; 3 กะ ≈ 7,000–8,000, 2 กะ ≈ 5,000</div>
             </div>
           </div>
 
@@ -898,19 +987,19 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
           <div class="grid-2">
             <div class="field">
               <label>Tfg_in — ไอเสียเข้า Economizer <span>(°C)</span></label>
-              <input type="number" id="w_tfg_in" value="280" step="1">
+              <input type="number" id="w_tfg_in" value="280" step="1"><div class="hint">อุณหภูมิไอเสียเข้า Economizer (°C) — วัดจริงหลังหม้อไอน้ำ ทั่วไป 200–300 °C</div>
             </div>
             <div class="field">
               <label>Tfg_out — ไอเสียออก <span>(°C)</span></label>
-              <input type="number" id="w_tfg_out" value="180" step="1">
+              <input type="number" id="w_tfg_out" value="180" step="1"><div class="hint">อุณหภูมิไอเสียออก Economizer (°C) — เป้าหมาย/วัดจริง; ต้องไม่ต่ำกว่า acid dew point (NG ~130 °C, น้ำมันกำมะถัน ~150–160 °C)</div>
             </div>
             <div class="field">
               <label>ṁ_fg — อัตราไหลไอเสีย <span>(Nm³/hr)</span></label>
-              <input type="number" id="w_mfg" value="128" step="1">
+              <input type="number" id="w_mfg" value="128" step="1"><div class="hint">อัตราไหลไอเสีย (Nm³/hr) ดึงจาก Global อัตโนมัติ — แก้ได้ถ้ามีค่าวัดจริงจาก pitot</div>
             </div>
             <div class="field">
               <label>Cp_fg ค่าเฉลี่ย <span>(kJ/Nm³·K)</span></label>
-              <input type="number" id="w_cpfg" value="1.40" step="0.01">
+              <input type="number" id="w_cpfg" value="1.40" step="0.01"><div class="hint">Cp ไอเสียเฉลี่ย (kJ/Nm³·K) เติมจากชนิดเชื้อเพลิง ~1.40–1.45</div>
             </div>
           </div>
           <div class="info-box" style="margin-top:8px">
@@ -929,27 +1018,27 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
                 <option value="fw">น้ำป้อนหม้อไอน้ำ (Feedwater)</option>
                 <option value="proc">น้ำกระบวนการผลิต</option>
                 <option value="hw">น้ำร้อนสำหรับใช้งาน</option>
-              </select>
+              </select><div class="hint">เลือกน้ำป้อนหม้อไอน้ำ (feedwater) หรือน้ำร้อนกระบวนการ — มีผลต่ออุณหภูมิเป้าหมายและ Cp</div>
             </div>
             <div class="field">
               <label>Cp น้ำ <span>(kJ/kg·K, auto f(T))</span></label>
-              <input type="number" id="w_cp" value="4.181" step="0.001" readonly style="background:#eef1f5">
+              <input type="number" id="w_cp" value="4.181" step="0.001" readonly style="background:#eef1f5"><div class="hint">ความจุความร้อนน้ำ (kJ/kg·K) โปรแกรมปรับตามอุณหภูมิเฉลี่ย 4.18–4.22 — ไม่ต้องแก้</div>
             </div>
             <div class="field">
               <label>Tw_in — น้ำเข้า <span>(°C)</span></label>
-              <input type="number" id="w_tw_in" value="25" step="1">
+              <input type="number" id="w_tw_in" value="25" step="1"><div class="hint">อุณหภูมิน้ำเข้า Economizer (°C) — วัดจริงที่ท่อน้ำป้อน/ถังพัก ทั่วไป 25–105 °C (หลัง deaerator ≈ 105 °C)</div>
             </div>
             <div class="field">
               <label>Tw_out — น้ำออก (เป้าหมาย) <span>(°C)</span></label>
-              <input type="number" id="w_tw_out" value="80" step="1">
+              <input type="number" id="w_tw_out" value="80" step="1"><div class="hint">อุณหภูมิน้ำออกเป้าหมาย (°C) — ออกแบบให้ต่ำกว่า Tsat ของหม้อไอน้ำอย่างน้อย 15–20 °C กันน้ำเดือดใน economizer</div>
             </div>
             <div class="field">
               <label>ṁ_water ที่ต้องการ <span>(kg/hr)</span></label>
-              <input type="number" id="w_mwater" value="0" step="10" placeholder="0 = คำนวณให้">
+              <input type="number" id="w_mwater" value="0" step="10" placeholder="0 = คำนวณให้"><div class="hint">อัตราน้ำที่ต้องอุ่น (kg/hr) — 0 = ให้โปรแกรมคำนวณจากความร้อนไอเสียที่มี; ใส่ค่าถ้าจำกัดโดยน้ำป้อนจริง (≈ ปริมาณไอน้ำ × 1.05)</div>
             </div>
             <div class="field">
               <label>ชั่วโมงทำงานต่อปี <span>(hr/yr)</span></label>
-              <input type="number" id="w_hrs" value="8000" step="100">
+              <input type="number" id="w_hrs" value="8000" step="100"><div class="hint">ชั่วโมงเดินหม้อไอน้ำต่อปี (hr/yr) — บันทึกฝ่ายผลิต ทั่วไป 6,000–8,000</div>
             </div>
           </div>
           <div class="btn-group">
@@ -1025,7 +1114,7 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
               <option value="cu">ทองแดง (Copper)</option>
               <option value="cast_iron">เหล็กหล่อ (Cast Iron)</option>
               <option value="custom">Custom (กรอกเอง)</option>
-            </select>
+            </select><div class="hint">ชนิดโลหะที่อุ่นก่อนเข้าเตา — โปรแกรมเติม Cp ให้ (เหล็ก 0.49, อลูมิเนียม 0.90, ทองแดง 0.39 kJ/kg·K)</div>
           </div>
           <div class="grid-2">
             <div class="result-item gold" style="margin-bottom:12px">
@@ -1043,19 +1132,19 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
           <div class="grid-2">
             <div class="field">
               <label>Cp โลหะ <span>(kJ/kg·K)</span></label>
-              <input type="number" id="m_cp" value="0.49" step="0.01">
+              <input type="number" id="m_cp" value="0.49" step="0.01"><div class="hint">ความจุความร้อนโลหะเฉลี่ย (kJ/kg·K) — ตาราง/handbook; เหล็ก 0.46–0.55 ในช่วง 25–400 °C</div>
             </div>
             <div class="field">
               <label>อัตราป้อนโลหะ <span>(kg/hr)</span></label>
-              <input type="number" id="m_rate" value="500" step="10">
+              <input type="number" id="m_rate" value="500" step="10"><div class="hint">อัตราป้อนวัตถุดิบโลหะเข้าเตา (kg/hr) — บันทึกการผลิต (ตัน/วัน ÷ ชั่วโมงเดิน)</div>
             </div>
             <div class="field">
               <label>Tmetal_in — อุณหภูมิก่อนอุ่น <span>(°C)</span></label>
-              <input type="number" id="m_tin" value="25" step="1">
+              <input type="number" id="m_tin" value="25" step="1"><div class="hint">อุณหภูมิโลหะก่อนอุ่น (°C) — วัดด้วยเทอร์โมมิเตอร์ผิว/IR ทั่วไปเท่าอุณหภูมิห้อง</div>
             </div>
             <div class="field">
               <label>Tmetal_out — อุณหภูมิหลังอุ่น <span title="ก่อนเข้าเตาหลัก">(°C)</span></label>
-              <input type="number" id="m_tout" value="250" step="1">
+              <input type="number" id="m_tout" value="250" step="1"><div class="hint">อุณหภูมิโลหะหลังอุ่นเป้าหมาย (°C) — ออกแบบ; เหล็ก 200–400 °C, อลูมิเนียม ≤ 300 °C กันออกซิเดชัน/บิดงอ</div>
             </div>
           </div>
         </div>
@@ -1067,19 +1156,19 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
           <div class="grid-2">
             <div class="field">
               <label>Tfg_in เข้า Load Preheater <span>(°C)</span></label>
-              <input type="number" id="m_tfg_in" value="400" step="1">
+              <input type="number" id="m_tfg_in" value="400" step="1"><div class="hint">อุณหภูมิไอเสียเข้า Load Preheater (°C) — วัดจริง; มักเป็นไอเสียหลัง recuperator 300–500 °C</div>
             </div>
             <div class="field">
               <label>Tfg_out ออก Load Preheater <span>(°C)</span></label>
-              <input type="number" id="m_tfg_out" value="200" step="1">
+              <input type="number" id="m_tfg_out" value="200" step="1"><div class="hint">อุณหภูมิไอเสียออก Load Preheater (°C) — วัดจริง/เป้าหมาย; ต้องสูงกว่าโลหะเข้าอย่างน้อย 30–50 °C</div>
             </div>
             <div class="field">
               <label>ṁ_fg <span>(Nm³/hr)</span></label>
-              <input type="number" id="m_mfg" value="128" step="1">
+              <input type="number" id="m_mfg" value="128" step="1"><div class="hint">อัตราไหลไอเสีย (Nm³/hr) ดึงจาก Global — แก้ได้ถ้าวัดจริง</div>
             </div>
             <div class="field">
               <label>ชั่วโมงต่อปี <span>(hr/yr)</span></label>
-              <input type="number" id="m_hrs" value="6000" step="100">
+              <input type="number" id="m_hrs" value="6000" step="100"><div class="hint">ชั่วโมงเดินเตาต่อปี (hr/yr) — บันทึกฝ่ายผลิต</div>
             </div>
           </div>
           <div class="btn-group">
@@ -1212,37 +1301,37 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
           <div class="grid-2">
             <div class="field">
               <label>ความชื้นเริ่มต้น MC_in <span>(% wet basis)</span></label>
-              <input type="number" id="d_mc_in" value="50" step="0.5" min="1" max="90" onchange="dryCalcAuto()">
+              <input type="number" id="d_mc_in" value="50" step="0.5" min="1" max="90" onchange="dryCalcAuto()"><div class="hint">ความชื้นวัสดุสดเข้าตู้อบ (% wet basis) — ผล lab/เครื่องวัดความชื้น; ไม้สับ 40–55 %, ทะลายปาล์ม 60–65 %, แกลบ 10–12 %</div>
             </div>
             <div class="field">
               <label>ความชื้นเป้าหมาย MC_out <span>(% wet basis)</span></label>
-              <input type="number" id="d_mc_out" value="15" step="0.5" min="1" max="89" onchange="dryCalcAuto()">
+              <input type="number" id="d_mc_out" value="15" step="0.5" min="1" max="89" onchange="dryCalcAuto()"><div class="hint">ความชื้นเป้าหมายหลังอบ (% wet basis) — ออกแบบ; เชื้อเพลิงหม้อไอน้ำ 15–25 %, เม็ดชีวมวล ≤ 10 %</div>
             </div>
             <div class="field">
               <label>อัตราวัสดุสดเข้า ṁ_wet <span>(kg/hr)</span></label>
-              <input type="number" id="d_m_wet" value="1000" step="50" min="1" onchange="dryCalcAuto()">
+              <input type="number" id="d_m_wet" value="1000" step="50" min="1" onchange="dryCalcAuto()"><div class="hint">อัตราวัสดุสดเข้าตู้อบ (kg/hr) — ชั่งน้ำหนัก/บันทึกการผลิต</div>
             </div>
             <div class="field">
               <label>อุณหภูมิอากาศแห้ง T_dry <span>(°C) — อากาศในตู้อบ</span></label>
-              <input type="number" id="d_tdry" value="80" step="1" min="30" max="250" onchange="dryCalcAuto()">
+              <input type="number" id="d_tdry" value="80" step="1" min="30" max="250" onchange="dryCalcAuto()"><div class="hint">อุณหภูมิอากาศร้อนในตู้อบ (°C) — ออกแบบตามวัสดุ; ชีวมวล 70–120 °C (สูงกว่านี้เสี่ยงไฟไหม้/สูญเสียสารระเหย)</div>
             </div>
             <div class="field">
               <label>อุณหภูมิอากาศเข้า T_air_in <span>(°C)</span></label>
-              <input type="number" id="d_tair_in" value="33" step="0.5" onchange="dryCalcAuto()">
+              <input type="number" id="d_tair_in" value="33" step="0.5" onchange="dryCalcAuto()"><div class="hint">อุณหภูมิอากาศแวดล้อมเข้าตู้อบ (°C) — วัดจริง ทั่วไป 30–35 °C</div>
             </div>
             <div class="field">
               <label>ชั่วโมงทำงานต่อปี <span>(hr/yr)</span></label>
-              <input type="number" id="d_hrs" value="6000" step="100" onchange="dryCalcAuto()">
+              <input type="number" id="d_hrs" value="6000" step="100" onchange="dryCalcAuto()"><div class="hint">ชั่วโมงเดินตู้อบต่อปี (hr/yr) — บันทึกฝ่ายผลิต</div>
             </div>
           </div>
           <div class="grid-2" style="margin-top:10px">
             <div class="field">
               <label>NCV วัสดุ (dry basis) <span>(MJ/kg_dry)</span></label>
-              <input type="number" id="d_ncv_dry" value="16.0" step="0.1" onchange="dryCalcAuto()">
+              <input type="number" id="d_ncv_dry" value="16.0" step="0.1" onchange="dryCalcAuto()"><div class="hint">ค่าความร้อนต่ำวัสดุแห้ง (MJ/kg dry) — ผล lab หรือฐานข้อมูลเชื้อเพลิงแข็ง; ไม้ 17–19, แกลบ 15–16, ทะลายปาล์ม 17–18</div>
             </div>
             <div class="field">
               <label>ค่าไฟหรือเชื้อเพลิงทดแทน <span>(บาท/GJ)</span></label>
-              <input type="number" id="d_fuel_price_gj" value="350" step="10" onchange="dryCalcAuto()">
+              <input type="number" id="d_fuel_price_gj" value="350" step="10" onchange="dryCalcAuto()"><div class="hint">ราคาพลังงานทดแทนที่ประหยัดได้ (บาท/GJ) — ชีวมวล 150–350, LPG ≈ 600–700, ไฟฟ้า ≈ 1,100–1,250 (4–4.5 บาท/kWh)</div>
             </div>
           </div>
 
@@ -1254,7 +1343,7 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
             </label>
             <input type="range" id="d_eta" min="40" max="95" value="70" step="1"
               oninput="document.getElementById('d_eta_val').textContent=this.value+'%'; dryCalcAuto()"
-              style="width:100%;accent-color:#2d9a4e">
+              style="width:100%;accent-color:#2d9a4e"><div class="hint">ประสิทธิภาพตู้อบ = ความร้อนระเหยน้ำ ÷ ความร้อนอากาศร้อนที่จ่าย — rotary dryer 50–70 %, belt dryer 60–80 %</div>
             <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)">
               <span>40% (Low)</span><span>65–75% (Typical)</span><span>95% (High)</span>
             </div>
@@ -1398,19 +1487,19 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
           <div class="grid-2">
             <div class="field">
               <label>Tfg_in — ไอเสียเข้า HX <span>(°C)</span></label>
-              <input type="number" id="oil_tfg_in" value="350" step="1">
+              <input type="number" id="oil_tfg_in" value="350" step="1"><div class="hint">อุณหภูมิไอเสียเข้า HX น้ำมันร้อน (°C) — วัดจริง ทั่วไป 300–450 °C</div>
             </div>
             <div class="field">
               <label>Tfg_out — ไอเสียออก <span>(°C)</span></label>
-              <input type="number" id="oil_tfg_out" value="200" step="1">
+              <input type="number" id="oil_tfg_out" value="200" step="1"><div class="hint">อุณหภูมิไอเสียออก HX (°C) — เป้าหมาย/วัดจริง; ต้องสูงกว่า T_out ของน้ำมัน 30–50 °C และเหนือ dew point</div>
             </div>
             <div class="field">
               <label>ṁ_fg — อัตราไหลไอเสีย <span>(Nm³/hr)</span> <span style="color:var(--accent2);font-size:10px">⚡ จาก Global</span></label>
-              <input type="number" id="oil_mfg" value="155" step="1">
+              <input type="number" id="oil_mfg" value="155" step="1"><div class="hint">อัตราไหลไอเสีย (Nm³/hr) ดึงจาก Global — แก้ได้ถ้าวัดจริง</div>
             </div>
             <div class="field">
               <label>Cp_fg ค่าเฉลี่ย <span>(kJ/Nm³·K)</span></label>
-              <input type="number" id="oil_cpfg" value="1.42" step="0.01">
+              <input type="number" id="oil_cpfg" value="1.42" step="0.01"><div class="hint">Cp ไอเสียเฉลี่ย (kJ/Nm³·K) เติมจากชนิดเชื้อเพลิง ~1.40–1.45</div>
             </div>
           </div>
           <div class="info-box" style="margin-top:8px">
@@ -1430,27 +1519,27 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
                 <option value="synthetic">น้ำมันร้อนสังเคราะห์ (Synthetic / Therminol)</option>
                 <option value="hotwater">น้ำร้อนความดัน (Pressurized Hot Water)</option>
                 <option value="custom">Custom (กรอก Cp เอง)</option>
-              </select>
+              </select><div class="hint">ชนิดของไหลนำความร้อน — โปรแกรมเติม Cp ตามอุณหภูมิเฉลี่ย (mineral oil 2.3–2.7, synthetic 2.0–2.4 kJ/kg·K)</div>
             </div>
             <div class="field">
               <label>Cp ของไหล <span>(kJ/kg·K, แก้ไขได้)</span></label>
-              <input type="number" id="oil_cp" value="2.30" step="0.01">
+              <input type="number" id="oil_cp" value="2.30" step="0.01"><div class="hint">ความจุความร้อนของไหล (kJ/kg·K) ที่อุณหภูมิเฉลี่ย — datasheet ผู้ผลิต; แก้ได้</div>
             </div>
             <div class="field">
               <label>T_in — ของไหลเข้า <span>(°C)</span></label>
-              <input type="number" id="oil_tin" value="150" step="1">
+              <input type="number" id="oil_tin" value="150" step="1"><div class="hint">อุณหภูมิของไหลเข้า HX (°C) — วัดจริงท่อกลับ ทั่วไป 150–250 °C</div>
             </div>
             <div class="field">
               <label>T_out — ของไหลออก (เป้าหมาย) <span>(°C)</span></label>
-              <input type="number" id="oil_tout" value="280" step="1">
+              <input type="number" id="oil_tout" value="280" step="1"><div class="hint">อุณหภูมิของไหลออกเป้าหมาย (°C) — ออกแบบ ต้องไม่เกิน film temperature ของน้ำมัน (mineral ≤ 300–320 °C)</div>
             </div>
             <div class="field">
               <label>ṁ_fluid ที่ต้องการ <span>(kg/hr)</span></label>
-              <input type="number" id="oil_mfluid" value="0" step="10" placeholder="0 = คำนวณให้">
+              <input type="number" id="oil_mfluid" value="0" step="10" placeholder="0 = คำนวณให้"><div class="hint">อัตราไหลของไหล (kg/hr) — 0 = คำนวณจากความร้อนไอเสียที่มี; ใส่ค่าจาก pump/flow meter ถ้าจำกัดโดยระบบจริง</div>
             </div>
             <div class="field">
               <label>ชั่วโมงทำงานต่อปี <span>(hr/yr)</span></label>
-              <input type="number" id="oil_hrs" value="8000" step="100">
+              <input type="number" id="oil_hrs" value="8000" step="100"><div class="hint">ชั่วโมงเดินต่อปี (hr/yr) — บันทึกฝ่ายผลิต</div>
             </div>
           </div>
           <div class="info-box" style="margin-top:8px;font-size:11px">
@@ -1488,19 +1577,19 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
           <div class="grid-2">
             <div class="field">
               <label>Tgas_in — ไอเสียเข้า HRSG <span>(°C)</span></label>
-              <input type="number" id="hr_tgas_in" value="520" step="1">
+              <input type="number" id="hr_tgas_in" value="520" step="1"><div class="hint">อุณหภูมิไอเสียเข้า HRSG (°C) — วัดจริง; ไอเสีย GT 450–550 °C, เตาหลอม/เตาเผา 400–700 °C</div>
             </div>
             <div class="field">
               <label>ṁ_fg — อัตราไหลไอเสีย <span>(Nm³/hr)</span> <span style="color:var(--accent2);font-size:10px">⚡ จาก Global</span></label>
-              <input type="number" id="hr_mfg" value="20000" step="100">
+              <input type="number" id="hr_mfg" value="20000" step="100"><div class="hint">อัตราไหลไอเสีย (Nm³/hr) ดึงจาก Global — แก้ได้ถ้าวัดจริง (HRSG ต้องการปริมาณมาก ≥ 10,000 Nm³/hr)</div>
             </div>
             <div class="field">
               <label>Cp_fg ค่าเฉลี่ย <span>(kJ/Nm³·K)</span></label>
-              <input type="number" id="hr_cpfg" value="1.40" step="0.01">
+              <input type="number" id="hr_cpfg" value="1.40" step="0.01"><div class="hint">Cp ไอเสียเฉลี่ย (kJ/Nm³·K) เติมจากชนิดเชื้อเพลิง ~1.38–1.45</div>
             </div>
             <div class="field">
               <label>η_boiler อ้างอิง (ที่ HRSG แทนที่) <span>(0–1)</span></label>
-              <input type="number" id="hr_eta" value="0.85" step="0.01">
+              <input type="number" id="hr_eta" value="0.85" step="0.01"><div class="hint">ประสิทธิภาพหม้อไอน้ำเดิมที่ HRSG จะทดแทน (สัดส่วน 0–1) — ผลตรวจวัด BS 845 ฐาน LHV ทั่วไป 0.78–0.88</div>
             </div>
           </div>
         </div>
@@ -1512,31 +1601,31 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
           <div class="grid-2">
             <div class="field">
               <label>P — ความดันไอน้ำ <span>(bar abs)</span></label>
-              <input type="number" id="hr_p" value="10" step="0.5">
+              <input type="number" id="hr_p" value="10" step="0.5"><div class="hint">ความดันไอน้ำที่ต้องการผลิต (bar abs = bar g + 1.013) — ออกแบบตามความดันใช้งานกระบวนการ ทั่วไป 5–15 bar a</div>
             </div>
             <div class="field">
               <label>T_fw — น้ำป้อนเข้า Economizer <span>(°C)</span></label>
-              <input type="number" id="hr_tfw" value="105" step="1">
+              <input type="number" id="hr_tfw" value="105" step="1"><div class="hint">อุณหภูมิน้ำป้อนเข้า Economizer (°C) — วัดจริง; หลัง deaerator ≈ 105 °C, ถังน้ำป้อนธรรมดา 60–90 °C</div>
             </div>
             <div class="field">
               <label>T_sup — ไอน้ำ Superheat ออก <span>(°C, ≤Tsat = อิ่มตัว)</span></label>
-              <input type="number" id="hr_tsup" value="0" step="1" placeholder="0 = ไอน้ำอิ่มตัว">
+              <input type="number" id="hr_tsup" value="0" step="1" placeholder="0 = ไอน้ำอิ่มตัว"><div class="hint">อุณหภูมิไอดงออก (°C) — ออกแบบ; ใส่ 0 หรือ ≤ Tsat = ไอน้ำอิ่มตัว; ไอดงจะลดปริมาณไอน้ำแต่เพิ่มเอนทัลปี</div>
             </div>
             <div class="field">
-              <label>Cp ไอน้ำ Superheat <span>(kJ/kg·K)</span></label>
-              <input type="number" id="hr_cpsteam" value="2.10" step="0.01">
+              <label>Cp ไอน้ำ Superheat (เฉลี่ย — คำนวณย้อนจาก IF97) <span>(kJ/kg·K)</span></label>
+              <input type="number" id="hr_cpsteam" value="2.10" step="0.01" readonly style="background:var(--surface2)"><!-- [ระยะ 4 10 ก.ย. 2569] ไม่ใช้คำนวณแล้ว คง id ไว้ --><div class="hint">Cp ไอดงเฉลี่ยในช่วง Tsat→Tsup ที่โปรแกรมคำนวณย้อนจาก IAPWS-IF97 (ทั่วไป 2.0–2.5 kJ/kg·K) — ไม่ต้องกรอก</div>
             </div>
             <div class="field">
               <label>ΔT_pinch — Pinch Point <span>(°C)</span></label>
-              <input type="number" id="hr_pinch" value="20" step="1">
+              <input type="number" id="hr_pinch" value="20" step="1"><div class="hint">Pinch point = Tgas ออก evaporator − Tsat (°C) — ออกแบบ; HRSG ทั่วไป 10–25 °C (ต่ำ = พื้นที่ HX มาก/แพง)</div>
             </div>
             <div class="field">
               <label>ΔT_approach — Approach (subcool) <span>(°C)</span></label>
-              <input type="number" id="hr_approach" value="10" step="1">
+              <input type="number" id="hr_approach" value="10" step="1"><div class="hint">Approach = Tsat − T น้ำออก economizer (°C) — ออกแบบ 5–15 °C กันน้ำเดือดใน economizer</div>
             </div>
             <div class="field">
               <label>ชั่วโมงทำงานต่อปี <span>(hr/yr)</span></label>
-              <input type="number" id="hr_hrs" value="8000" step="100">
+              <input type="number" id="hr_hrs" value="8000" step="100"><div class="hint">ชั่วโมงเดิน HRSG ต่อปี (hr/yr) — ตามชั่วโมงเดินแหล่งไอเสีย 6,000–8,000</div>
             </div>
           </div>
           <div class="info-box" style="margin-top:8px;font-size:11px">
@@ -1630,19 +1719,19 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
       <div class="grid-4">
         <div class="field">
           <label id="p_fuel_price_label">ค่าเชื้อเพลิง <span>(บาท/Nm³ หรือ บาท/kg)</span></label>
-          <input type="number" id="p_fuel_price" value="18.5" step="0.5">
+          <input type="number" id="p_fuel_price" value="18.5" step="0.5"><div class="hint">ราคาเชื้อเพลิงที่ประหยัดได้ (บาท/Nm³ หรือ บาท/kg) — ใบแจ้งหนี้ล่าสุด; NG ≈ 12–18 บาท/Nm³, LPG ≈ 18–25 บาท/kg, น้ำมันเตา ≈ 20–28 บาท/kg</div>
         </div>
         <div class="field">
           <label id="p_ncv_label">NCV เชื้อเพลิง <span>(MJ/Nm³ หรือ MJ/kg)</span></label>
-          <input type="number" id="p_ncv" value="93.6" step="0.1">
+          <input type="number" id="p_ncv" value="93.6" step="0.1"><div class="hint">ค่าความร้อนต่ำเชื้อเพลิง (MJ/Nm³ หรือ MJ/kg) — โปรแกรมเติมตามชนิดเชื้อเพลิง; แก้ตามผล lab/ใบรับรอง</div>
         </div>
         <div class="field">
           <label>Emission Factor <span>(kgCO₂/Nm³ หรือ kgCO₂/kg)</span></label>
-          <input type="number" id="p_ef" value="1.695" step="0.001">
+          <input type="number" id="p_ef" value="1.695" step="0.001"><div class="hint">Emission factor (kgCO₂/หน่วยเชื้อเพลิง) — โปรแกรมเติมตามชนิดเชื้อเพลิง (ตาราง TGO); ชีวมวลรายงาน biogenic แยก</div>
         </div>
         <div class="field">
           <label>ต้นทุน HX (ประมาณ) <span>(บาท)</span></label>
-          <input type="number" id="p_capex" value="500000" step="10000">
+          <input type="number" id="p_capex" value="500000" step="10000"><div class="hint">เงินลงทุนโดยประมาณของ HX/ระบบ WHR (บาท) — ใบเสนอราคาผู้ขาย; recuperator 0.5–3 ล้าน, economizer 0.3–1.5 ล้าน, HRSG 5–30 ล้านบาท</div>
         </div>
       </div>
       <div class="btn-group">
@@ -2095,6 +2184,7 @@ function selectHX(containerId, hxKey, q_kW, lmtd, tfg_in, tfg_out, t_cold_in, t_
   const hx = HX_TYPES[hxKey];
   document.getElementById('hxresult_' + containerId).innerHTML = renderHXResult(containerId, hxKey, q_kW, lmtd, hx);
   recalcFanPenalty(containerId, q_kW);   // auto-compute fan penalty on selection
+  if (typeof tagFieldKinds === 'function') tagFieldKinds(); // [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่าบนช่อง fan_* ที่สร้างใหม่
 }
 
 // ─── Calculation Trace toggle ─────────────────────────────────
@@ -2392,7 +2482,7 @@ function calcGlobal() {
 
   // แสดง fuel properties summary
   const unitStr = fuel.fuelUnit;
-  alert(
+  if (!_teSilent) alert( // [ระยะ 4 10 ก.ย. 2569] เงียบเมื่อเรียกจาก recalcAll
     `✅ อัพเดตค่า FG ทุก Mode เรียบร้อย\n\n` +
     `เชื้อเพลิง: ${fuel.name}\n` +
     `สถานะ: ${fuel.phase.toUpperCase()} (${unitStr})\n` +
@@ -2865,35 +2955,11 @@ function calcOil() {
 // ════════════════════════════════════════════════════════════
 // MODE 6: HRSG — STEAM GENERATION (Single-Pressure Pinch Method)
 // ════════════════════════════════════════════════════════════
-// Saturated steam table (IAPWS-IF97) — P[bar abs] → Tsat[°C], hf, hg [kJ/kg]
-const STEAM_SAT = [
-  [1.0,  99.6,  417.5, 2675.0], [1.5, 111.4, 467.1, 2693.1], [2.0, 120.2, 504.7, 2706.2],
-  [3.0, 133.5,  561.4, 2724.9], [4.0, 143.6, 604.7, 2738.1], [5.0, 151.8, 640.1, 2748.6],
-  [6.0, 158.8,  670.4, 2756.1], [7.0, 165.0, 697.1, 2762.8], [8.0, 170.4, 720.9, 2768.3],
-  [10.0,179.9,  762.6, 2776.2], [12.0,188.0, 798.4, 2782.7], [15.0,198.3, 844.7, 2789.9],
-  [20.0,212.4,  908.6, 2797.2], [25.0,224.0, 962.0, 2800.9], [30.0,233.9,1008.4, 2802.3],
-  [35.0,242.6, 1049.8, 2802.0], [40.0,250.4,1087.4, 2800.3], [45.0,257.4,1122.1, 2797.7],
-  [50.0,263.9, 1154.5, 2794.2], [60.0,275.6,1213.7, 2784.3], [70.0,285.8,1267.4, 2772.1],
-  [80.0,295.0, 1317.1, 2758.0], [90.0,303.3,1363.7, 2742.1], [100.0,311.0,1408.0, 2724.7],
-  [110.0,318.1,1450.3, 2705.6]
-];
-
-// Linear interpolation on pressure → { tsat, hf, hg, hfg }
+// [ระยะ 4 10 ก.ย. 2569] ตาราง STEAM_SAT (1–110 bar) ลบออก → adapter เรียก TE_STEAM.satP (IAPWS-IF97, ไม่มีการ clamp ที่ขอบตาราง)
 function satProps(P) {
-  const t = STEAM_SAT;
-  if (P <= t[0][0])  { const r=t[0];               return {tsat:r[1], hf:r[2], hg:r[3], hfg:r[3]-r[2], clamped:true}; }
-  if (P >= t[t.length-1][0]) { const r=t[t.length-1]; return {tsat:r[1], hf:r[2], hg:r[3], hfg:r[3]-r[2], clamped:true}; }
-  for (let i=0; i<t.length-1; i++) {
-    const a=t[i], b=t[i+1];
-    if (P >= a[0] && P <= b[0]) {
-      const f = (P - a[0]) / (b[0] - a[0]);
-      const tsat = a[1] + f*(b[1]-a[1]);
-      const hf   = a[2] + f*(b[2]-a[2]);
-      const hg   = a[3] + f*(b[3]-a[3]);
-      return { tsat, hf, hg, hfg: hg-hf, clamped:false };
-    }
-  }
-  return { tsat:NaN, hf:NaN, hg:NaN, hfg:NaN, clamped:false };
+  if (!isFinite(P) || P < 0.0062 || P > 1000) return { tsat:NaN, hf:NaN, hg:NaN, hfg:NaN, clamped:false };
+  const s = TE_STEAM.satP(P);
+  return { tsat: s.TsC, hf: s.hf, hg: s.hg, hfg: s.hfg, clamped:false };
 }
 
 function updateHRSGSatHint() {
@@ -2941,9 +3007,12 @@ function calcHRSG() {
 
   const tg_pinch = s.tsat + pinch;            // gas temp leaving evaporator
   const superheated = isFinite(tsup) && tsup > s.tsat;
-  const h_out = superheated ? s.hg + cp_st * (tsup - s.tsat) : s.hg;   // steam outlet enthalpy
-  const h_fw  = cpWater(tfw/2) * tfw;          // feedwater enthalpy (datum 0°C)
-  const h_eco = s.hf - cpWater(s.tsat - approach/2) * approach;        // econ outlet (subcooled)
+  // [ระยะ 4 10 ก.ย. 2569] เดิม h_out = hg + cp_st·ΔT, h_fw = cp·T, h_eco = hf − cp·approach → ใช้ IAPWS-IF97 (TE_STEAM) ทั้งหมด; cp_st เป็นค่าแสดงผลย้อนกลับ
+  const h_out = superheated ? TE_STEAM.hSup(P, tsup) : s.hg;   // steam outlet enthalpy (region 2)
+  const cp_st_eff = superheated ? (h_out - s.hg) / (tsup - s.tsat) : cp_st;
+  if (superheated) { const cpEl = document.getElementById('hr_cpsteam'); if (cpEl) cpEl.value = cp_st_eff.toFixed(3); }
+  const h_fw  = TE_STEAM.hLiq(P, tfw);                                // feedwater enthalpy (region 1, at P)
+  const h_eco = TE_STEAM.hLiq(P, s.tsat - approach);                  // econ outlet (subcooled liquid at P)
 
   // ── Feasibility checks ──
   if (!isFinite(s.tsat)) { document.getElementById('hrsg_result_body').innerHTML = '<div class="warn">⚠️ ความดันไม่ถูกต้อง</div>'; return; }
@@ -2985,19 +3054,19 @@ function calcHRSG() {
     : `<div class="ok">✅ Tgas_out = ${fmtN(tg_out,1)}°C เหนือ Dew Point (~${dewPoint}°C)</div>`;
 
   const traceSteps_hrsg = [
-    { num:1, color:'', title:'คุณสมบัติไอน้ำอิ่มตัว @P (ตาราง IAPWS)',
-      formula:'P → Tsat, hf, hg, hfg (interpolate)',
+    { num:1, color:'', title:'คุณสมบัติไอน้ำอิ่มตัว @P (IAPWS-IF97 / TE_STEAM)',
+      formula:'P → Tsat, hf, hg, hfg (IF97 region 1/2/4)',
       sub:`P=${P} bar(a) → Tsat=${fmtN(s.tsat,1)}°C | hf=${fmtN(s.hf,1)} | hg=${fmtN(s.hg,1)} | hfg=${fmtN(s.hfg,1)} kJ/kg`,
       result:`${superheated ? 'Superheated → '+tsup+'°C' : 'ไอน้ำอิ่มตัว (Saturated)'}`,
-      note: superheated ? `h_out = hg + Cp_st·(Tsup−Tsat) = ${fmtN(s.hg,1)} + ${cp_st}·(${tsup}−${fmtN(s.tsat,1)}) = ${fmtN(h_out,1)} kJ/kg` : `h_out = hg = ${fmtN(h_out,1)} kJ/kg` },
+      note: superheated ? `h_out = h(P,Tsup) IF97 = ${fmtN(h_out,1)} kJ/kg (≈ hg + Cp_st·ΔT: ${fmtN(s.hg,1)} + ${fmtN(cp_st_eff,3)}·(${tsup}−${fmtN(s.tsat,1)}))` : `h_out = hg = ${fmtN(h_out,1)} kJ/kg` },
     { num:2, color:'blue', title:'จุด Pinch ฝั่งไอเสีย',
       formula:'Tg_pinch = Tsat + ΔT_pinch',
       sub:`Tg_pinch = ${fmtN(s.tsat,1)} + ${pinch} = ${fmtN(tg_pinch,1)}°C`,
       result:`${fmtN(tg_pinch,1)} °C`,
       note:'อุณหภูมิไอเสียขณะออกจาก Evaporator (จุดที่ ΔT แคบสุด)' },
     { num:3, color:'blue', title:'เอนทาลปีน้ำออก Economizer (subcooled)',
-      formula:'h_eco = hf − Cp_w·ΔT_approach',
-      sub:`h_eco = ${fmtN(s.hf,1)} − Cp_w·${approach} = ${fmtN(h_eco,1)} kJ/kg ; h_fw = ${fmtN(h_fw,1)} kJ/kg`,
+      formula:'h_eco = h_liq(P, Tsat − ΔT_approach) [IF97]',
+      sub:`h_eco = h_liq(${P} bar, ${fmtN(s.tsat-approach,1)}°C) = ${fmtN(h_eco,1)} kJ/kg ; h_fw = h_liq(${P} bar, ${tfw}°C) = ${fmtN(h_fw,1)} kJ/kg`,
       result:`h_eco = ${fmtN(h_eco,1)} kJ/kg`,
       note:`น้ำป้อน ${tfw}°C → ออก economizer ที่ ~${fmtN(s.tsat-approach,1)}°C` },
     { num:4, color:'green', title:'อัตราการผลิตไอน้ำ (สมดุลเหนือ Pinch = SH+EVAP)',
@@ -3707,6 +3776,53 @@ function buildSankey(modes, total) {
     `<p style="font-size:11px;color:var(--text3);margin-bottom:6px">การกระจายพลังงานที่กู้คืนรวม ${fmtN(total, 2)} kW:</p>` +
     bar + legend;
 }
+
+// [ระยะ 4 10 ก.ย. 2569] recalcAll = ensureAllCalc: คำนวณทุกโหมดตามลำดับ (แต่ละโหมดครอบ try เพื่อไม่ให้โหมดที่ข้อมูลไม่ครบหยุดโหมดถัดไป)
+function recalcAll(){
+  const T=fn=>{try{fn();}catch(e){}};
+  // updateFuelProps/calcGlobal จะเขียนทับช่อง mfg/cpfg/ncv/ef ของทุกโหมด → เก็บค่าที่ผู้ใช้กรอก/โหลดไว้แล้วคืนหลังคำนวณ
+  const KEEP=['a_tfg1','a_mfg','a_cpfg','a_tair1','w_mfg','w_cpfg','m_mfg','oil_mfg','hr_mfg','oil_cpfg','hr_cpfg','p_ncv','p_ef'];
+  const snap={};KEEP.forEach(id=>{const e=document.getElementById(id);if(e)snap[id]=e.value;});
+  _teSilent=true;
+  T(updateFuelProps);T(calcGlobal);
+  _teSilent=false;
+  KEEP.forEach(id=>{const e=document.getElementById(id);if(e&&snap[id]!==undefined&&snap[id]!=='')e.value=snap[id];});
+  T(calcAir);T(calcWater);T(calcMetal);T(()=>calcDrying(true));T(calcOil);T(updateHRSGSatHint);T(calcHRSG);T(buildSummary);
+  T(tagFieldKinds);
+}
+var _teSilent=false; // [ระยะ 4 10 ก.ย. 2569] ปิด alert ของ calcGlobal ระหว่างโหลด JSON
+function teCollectExtra(){
+  const hxSel={};document.querySelectorAll('.hx-type-btn.selected[id^="hxbtn_"]').forEach(b=>{const m=b.id.match(/^hxbtn_(hx_panel_\w+)_(.+)$/);if(m)hxSel[m[1]]=m[2];});
+  const fan={};document.querySelectorAll('input[id^="fan_"]').forEach(e=>{fan[e.id]=e.value;});
+  return {recupStage:recupStage,currentDryMat:currentDryMat,hxSel:hxSel,fan:fan};
+}
+var _teExtra=null;
+function teRestoreSelections(){
+  if(!_teExtra)return;
+  const x=_teExtra;
+  Object.keys(x.hxSel||{}).forEach(pid=>{const b=document.getElementById('hxbtn_'+pid+'_'+x.hxSel[pid]);if(b&&!b.classList.contains('selected'))b.click();});
+  Object.keys(x.fan||{}).forEach(id=>{const e=document.getElementById(id);if(e){e.value=x.fan[id];e.dispatchEvent(new Event('input'));}});
+}
+function teSaveJSON(){TE_JSON.save('Tool_WHR_Calculator',teCollectExtra());}
+function teLoadJSON(file){
+  TE_JSON.load(file,function(){recalcAll();teRestoreSelections();},function(x){
+    _teExtra=x;
+    if(x.recupStage)setRecupStage(+x.recupStage);
+    if(x.currentDryMat&&DRY_MAT_DEFAULTS[x.currentDryMat]){currentDryMat=x.currentDryMat;document.querySelectorAll('#drying_mat_grid .hx-type-btn').forEach(b=>b.classList.toggle('selected',(b.getAttribute('onclick')||'').indexOf("'"+x.currentDryMat+"'")>=0));}
+  });
+}
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['w_tw_out','w_mwater','m_tout','d_mc_out','d_tdry','oil_tout','oil_mfluid','hr_p','hr_tsup','hr_pinch','hr_approach'],
+    FK_MEAS=['g_fuel_flow','g_o2','g_tfg_in','g_tamb','a_tfg1','a_tfg2','a_tfg3','a_tair1','a_tair2','a_tair3','a_mair','w_tfg_in','w_tfg_out','w_tw_in','m_rate','m_tin','m_tfg_in','m_tfg_out','d_mc_in','d_m_wet','d_tair_in','oil_tfg_in','oil_tfg_out','oil_tin','hr_tgas_in','hr_tfw'],
+    FK_SET=['g_fuel','a_cpair','a_hrs','w_type','w_cp','w_hrs','m_type','m_cp','m_hrs','d_hrs','d_ncv_dry','d_fuel_price_gj','d_eta','oil_fluid','oil_cp','oil_hrs','hr_eta','hr_hrs','p_fuel_price','p_capex'],
+    FK_CALC=['a_mfg','a_cpfg','w_mfg','w_cpfg','m_mfg','oil_mfg','oil_cpfg','hr_mfg','hr_cpfg','hr_cpsteam','p_ncv','p_ef'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(/^fan_(dp|flow|eta|hrs)_/.test(id))return'set';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(!l){var ps=e.previousElementSibling;if(ps&&ps.tagName==='LABEL')l=ps;}if(!l){var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
 
 // ════════════════════════════════════════════════════════════
 // INIT

@@ -12,6 +12,18 @@ window.MathJax = {
 };
 </script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root {
   --bg:#f0f4fb; --bg2:#e4eaf6; --bg3:#d5dff2;
@@ -27,13 +39,15 @@ window.MathJax = {
   --mono:'IBM Plex Mono',monospace;
   --sans:'IBM Plex Sans Thai',sans-serif;
   --display:'Barlow Condensed',sans-serif;
+  /* [ระยะ 4 10 ก.ย. 2569] design tokens Triple E (คง --bg/--teal เดิมของไฟล์ เพิ่มเฉพาะที่ขาด) */
+  --navy:#0f2a4a;--header-grad:linear-gradient(135deg,var(--navy),var(--teal));--card:#ffffff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;--accent:#12a4a4;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;--radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;min-height:100vh;overflow-x:hidden;}
 body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(30,80,200,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(30,80,200,0.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
 
 /* HEADER */
-.header{position:relative;z-index:10;background:linear-gradient(135deg,#0f2a6e 0%,#1a4fa0 55%,#176b3c 100%);padding:0 32px;height:64px;display:flex;align-items:center;gap:16px;box-shadow:0 3px 20px rgba(10,30,100,0.3);}
+.header{position:relative;z-index:10;background:var(--header-grad); /* [ระยะ 4 10 ก.ย. 2569] header ไล่สี navy→teal ตาม design system */padding:0 32px;height:64px;display:flex;align-items:center;gap:16px;box-shadow:0 3px 20px rgba(10,30,100,0.3);}
 .hdr-logo{width:42px;height:42px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:14px;font-weight:800;color:#fff;letter-spacing:1.5px;flex-shrink:0;}
 .hdr-text h1{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:2px;color:#fff;line-height:1;}
 .hdr-text p{font-size:11px;color:rgba(255,255,255,0.65);letter-spacing:1px;margin-top:2px;}
@@ -71,6 +85,13 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .form-group input:focus,.form-group select:focus{border-color:var(--blue3);box-shadow:0 0 0 3px rgba(30,100,210,0.12);}
 .form-group .unit{font-size:10px;color:var(--text3);margin-top:3px;}
 .form-group .hint{font-size:10px;color:var(--amber);margin-top:2px;}
+/* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า + hint คำอธิบายช่อง (คง .hint สีเหลืองเดิมไว้ ใช้ .hint.te สำหรับคำอธิบายทั่วไป) */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint.te{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5;font-family:var(--sans,'IBM Plex Sans Thai',sans-serif)}
+.form-group .hint.te{font-size:11px;color:var(--muted);margin-top:3px}
 
 /* BUTTONS */
 .btn{padding:10px 22px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:0.5px;transition:all 0.2s;font-family:var(--sans);display:inline-flex;align-items:center;gap:6px;}
@@ -152,6 +173,10 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
     <p>IEC 60034-2-1 METHOD B · AFFINITY LAWS · IE CLASS · M&V IPMVP</p>
   </div>
   <div class="hdr-badge">v1.0 · Triple E Technology</div>
+  <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
 </div>
 
 <!-- TABS -->
@@ -228,12 +253,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
       <div class="panel">
         <div class="panel-title">1. Nameplate Data</div>
         <div class="grid-2">
-          <div class="form-group"><label>Rated Power (P_rated)</label><input type="number" id="p_rated" value="75" step="0.1"><div class="unit">kW</div></div>
-          <div class="form-group"><label>Rated Voltage (V_rated)</label><input type="number" id="v_rated" value="400" step="1"><div class="unit">V (3-phase)</div></div>
-          <div class="form-group"><label>Rated Current (I_rated)</label><input type="number" id="i_rated" value="132" step="0.1"><div class="unit">A (nameplate FLA)</div></div>
-          <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="n_rated" value="1485" step="1"><div class="unit">RPM</div></div>
-          <div class="form-group"><label>Frequency (f)</label><input type="number" id="freq" value="50" step="1"><div class="unit">Hz</div></div>
-          <div class="form-group"><label>Nameplate Efficiency</label><input type="number" id="eta_plate" value="94.0" step="0.1"><div class="unit">%</div></div>
+          <div class="form-group"><label>Rated Power (P_rated)</label><input type="number" id="p_rated" value="75" step="0.1"><div class="unit">kW</div><div class="hint te">กำลังพิกัดจาก nameplate (kW) · มอเตอร์อุตสาหกรรมไทยทั่วไป 0.75–315 kW</div></div>
+          <div class="form-group"><label>Rated Voltage (V_rated)</label><input type="number" id="v_rated" value="400" step="1"><div class="unit">V (3-phase)</div><div class="hint te">แรงดันพิกัดจาก nameplate · ไทย 380–415 V (3 เฟส 50 Hz) หรือ 690 V/3.3 kV/6.6 kV สำหรับตัวใหญ่</div></div>
+          <div class="form-group"><label>Rated Current (I_rated)</label><input type="number" id="i_rated" value="132" step="0.1"><div class="unit">A (nameplate FLA)</div><div class="hint te">กระแสพิกัด FLA จาก nameplate · โดยประมาณ ≈ 1.8–2.0 A/kW ที่ 400 V</div></div>
+          <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="n_rated" value="1485" step="1"><div class="unit">RPM</div><div class="hint te">ความเร็วพิกัดจาก nameplate · 4 ขั้ว ≈ 1,450–1,490 rpm · 2 ขั้ว ≈ 2,900–2,970 rpm</div></div>
+          <div class="form-group"><label>Frequency (f)</label><input type="number" id="freq" value="50" step="1"><div class="unit">Hz</div><div class="hint te">ความถี่ระบบ · ไทย 50 Hz</div></div>
+          <div class="form-group"><label>Nameplate Efficiency</label><input type="number" id="eta_plate" value="94.0" step="0.1"><div class="unit">%</div><div class="hint te">ประสิทธิภาพเต็มโหลดจาก nameplate/แคตตาล็อก · IE2 ≈ 89–95 % · IE3 ≈ 91–96 % (ขึ้นกับขนาด)</div></div>
         </div>
       </div>
       <div class="panel">
@@ -241,19 +266,19 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           <span style="margin-left:8px;font-size:10px;background:var(--amber-lt);color:var(--amber);padding:2px 8px;border-radius:10px;font-family:var(--sans);">⚠️ ต้องหยุดเครื่อง + ถอดโหลด</span>
         </div>
         <div class="grid-2">
-          <div class="form-group"><label>No-Load Power (P_nl)</label><input type="number" id="p_nl" value="2150" step="1"><div class="unit">W (Power Meter, 3-phase)</div></div>
-          <div class="form-group"><label>No-Load Current (I_nl)</label><input type="number" id="i_nl" value="38.5" step="0.1"><div class="unit">A (Clamp Meter, per phase)</div></div>
-          <div class="form-group"><label>Stator Resistance (R_cold)</label><input type="number" id="r_cold" value="0.024" step="0.0001"><div class="unit">Ω (Micro-ohmmeter, per phase)</div></div>
-          <div class="form-group"><label>Winding Temp (T_cold)</label><input type="number" id="t_cold" value="20" step="1"><div class="unit">°C (ก่อนสตาร์ท)</div></div>
+          <div class="form-group"><label>No-Load Power (P_nl)</label><input type="number" id="p_nl" value="2150" step="1"><div class="unit">W (Power Meter, 3-phase)</div><div class="hint te">กำลังไฟฟ้าขาเข้าขณะไม่มีโหลด (ถอดคัปปลิ้ง) อ่านจาก power meter 3 เฟส · ทั่วไป 2–5 % ของ P_rated</div></div>
+          <div class="form-group"><label>No-Load Current (I_nl)</label><input type="number" id="i_nl" value="38.5" step="0.1"><div class="unit">A (Clamp Meter, per phase)</div><div class="hint te">กระแสไม่มีโหลดเฉลี่ย 3 เฟส (clamp meter) · ทั่วไป 25–40 % ของ FLA (มอเตอร์เล็กสูงกว่า)</div></div>
+          <div class="form-group"><label>Stator Resistance (R_cold)</label><input type="number" id="r_cold" value="0.024" step="0.0001"><div class="unit">Ω (Micro-ohmmeter, per phase)</div><div class="hint te">ความต้านทานขดลวดสเตเตอร์ต่อเฟสวัดด้วยไมโครโอห์มมิเตอร์ขณะเย็น (line-to-line ÷ 2 สำหรับ Y)</div></div>
+          <div class="form-group"><label>Winding Temp (T_cold)</label><input type="number" id="t_cold" value="20" step="1"><div class="unit">°C (ก่อนสตาร์ท)</div><div class="hint te">อุณหภูมิขดลวด/ห้องขณะวัด R_cold · ปกติ 20–35 °C</div></div>
         </div>
       </div>
       <div class="panel">
         <div class="panel-title">3. Operating Data</div>
         <div class="grid-2">
-          <div class="form-group"><label>Input Power (P_in)</label><input type="number" id="p_in" value="68.5" step="0.01"><div class="unit">kW (Power Meter)</div></div>
-          <div class="form-group"><label>Load Current (I_load)</label><input type="number" id="i_load" value="112.0" step="0.1"><div class="unit">A (Clamp Meter)</div></div>
-          <div class="form-group"><label>Load Speed (N_load)</label><input type="number" id="n_load" value="1488" step="1"><div class="unit">RPM (Tachometer)</div></div>
-          <div class="form-group"><label>Winding Temp (T_hot)</label><input type="number" id="t_hot" value="75" step="1"><div class="unit">°C (ขณะรับโหลด)</div></div>
+          <div class="form-group"><label>Input Power (P_in)</label><input type="number" id="p_in" value="68.5" step="0.01"><div class="unit">kW (Power Meter)</div><div class="hint te">กำลังไฟฟ้าขาเข้าขณะรับโหลดจริง (power meter/clamp power) · หน่วย kW</div></div>
+          <div class="form-group"><label>Load Current (I_load)</label><input type="number" id="i_load" value="112.0" step="0.1"><div class="unit">A (Clamp Meter)</div><div class="hint te">กระแสโหลดเฉลี่ย 3 เฟสจาก clamp meter · เทียบ FLA เพื่อดู load factor</div></div>
+          <div class="form-group"><label>Load Speed (N_load)</label><input type="number" id="n_load" value="1488" step="1"><div class="unit">RPM (Tachometer)</div><div class="hint te">ความเร็วขณะรับโหลดจาก tachometer/strobe · ต่ำกว่า synchronous (1,500 rpm) ตาม slip</div></div>
+          <div class="form-group"><label>Winding Temp (T_hot)</label><input type="number" id="t_hot" value="75" step="1"><div class="unit">°C (ขณะรับโหลด)</div><div class="hint te">อุณหภูมิขดลวดขณะรับโหลด (RTD/ประมาณจาก class ฉนวน) · ใช้ปรับ R ตาม IEC 60034-2-1 · ทั่วไป 60–95 °C</div></div>
         </div>
         <div class="btn-row" style="margin-top:8px;">
           <button class="btn btn-primary" onclick="calcMotorEff()">⟳ Calculate (Method B)</button>
@@ -318,12 +343,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
       <div class="panel">
         <div class="panel-title">📋 Nameplate (อ่านจากป้าย)</div>
         <div class="grid-2">
-          <div class="form-group"><label>Rated Power (P_rated)<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label><input type="number" id="m1_prated" value="75" step="0.5"><div class="unit">kW</div></div>
-          <div class="form-group"><label>Rated Current (I_rated)</label><input type="number" id="m1_irated" value="132" step="0.1"><div class="unit">A (FLA)</div></div>
-          <div class="form-group"><label>Nameplate Efficiency (η_FL)</label><input type="number" id="m1_etafl" value="94.0" step="0.1"><div class="unit">% (จาก Nameplate หรือ IE Class)</div></div>
-          <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="m1_nrated" value="1485" step="1"><div class="unit">RPM</div></div>
-          <div class="form-group"><label>Frequency (f)</label><input type="number" id="m1_freq" value="50" step="1"><div class="unit">Hz</div></div>
-          <div class="form-group"><label>Rated Voltage</label><input type="number" id="m1_vrated" value="400" step="1"><div class="unit">V</div></div>
+          <div class="form-group"><label>Rated Power (P_rated)<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label><input type="number" id="m1_prated" value="75" step="0.5"><div class="unit">kW</div><div class="hint te">เติมอัตโนมัติจากแท็บ Motor Efficiency · แก้ได้ถ้าเป็นมอเตอร์คนละตัว</div></div>
+          <div class="form-group"><label>Rated Current (I_rated)</label><input type="number" id="m1_irated" value="132" step="0.1"><div class="unit">A (FLA)</div><div class="hint te">FLA จาก nameplate (A)</div></div>
+          <div class="form-group"><label>Nameplate Efficiency (η_FL)</label><input type="number" id="m1_etafl" value="94.0" step="0.1"><div class="unit">% (จาก Nameplate หรือ IE Class)</div><div class="hint te">η เต็มโหลดจาก nameplate หรือตาราง IE (IE3 55–90 kW ≈ 95–96 %)</div></div>
+          <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="m1_nrated" value="1485" step="1"><div class="unit">RPM</div><div class="hint te">ความเร็วพิกัด (rpm) จาก nameplate</div></div>
+          <div class="form-group"><label>Frequency (f)</label><input type="number" id="m1_freq" value="50" step="1"><div class="unit">Hz</div><div class="hint te">ความถี่ระบบ · ไทย 50 Hz</div></div>
+          <div class="form-group"><label>Rated Voltage</label><input type="number" id="m1_vrated" value="400" step="1"><div class="unit">V</div><div class="hint te">แรงดันพิกัด (V) · ไทย 380–415 V</div></div>
         </div>
       </div>
       <div class="panel">
@@ -334,17 +359,17 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           <div class="form-group">
             <label>Load Current L1 (I_L1)</label>
             <input type="number" id="m1_il1" value="112" step="0.1">
-            <div class="unit">A (Clamp Meter)</div>
+            <div class="unit">A (Clamp Meter)</div><div class="hint te">กระแสเฟส L1 จาก clamp meter ขณะรับโหลดจริง</div>
           </div>
           <div class="form-group">
             <label>Load Current L2 (I_L2)</label>
             <input type="number" id="m1_il2" value="113" step="0.1">
-            <div class="unit">A</div>
+            <div class="unit">A</div><div class="hint te">กระแสเฟส L2 · ความไม่สมดุลกระแสควร &lt; 10 %</div>
           </div>
           <div class="form-group">
             <label>Load Current L3 (I_L3)</label>
             <input type="number" id="m1_il3" value="111" step="0.1">
-            <div class="unit">A</div>
+            <div class="unit">A</div><div class="hint te">กระแสเฟส L3</div>
           </div>
           <div class="form-group">
             <label>Input Power (P_in)</label>
@@ -355,12 +380,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           <div class="form-group">
             <label>Power Factor (PF)</label>
             <input type="number" id="m1_pf" value="0.85" step="0.01">
-            <div class="unit">— (จาก Power Meter หรือประมาณ 0.80–0.90)</div>
+            <div class="unit">— (จาก Power Meter หรือประมาณ 0.80–0.90)</div><div class="hint te">ตัวประกอบกำลังจาก power meter · มอเตอร์เหนี่ยวนำเต็มโหลด 0.80–0.90 · โหลดต่ำอาจ &lt; 0.6</div>
           </div>
           <div class="form-group">
             <label>Supply Voltage (V_meas)</label>
             <input type="number" id="m1_vmeas" value="400" step="1">
-            <div class="unit">V (Voltmeter)</div>
+            <div class="unit">V (Voltmeter)</div><div class="hint te">แรงดันไลน์ที่ขั้วมอเตอร์ (V) · เบี่ยงเบนจากพิกัดควร ±5 %</div>
           </div>
         </div>
         <div class="btn-row" style="margin-top:8px;">
@@ -423,12 +448,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
       <div class="panel">
         <div class="panel-title">📋 Nameplate (อ่านจากป้าย)</div>
         <div class="grid-2">
-          <div class="form-group"><label>Rated Power (P_rated)<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label><input type="number" id="m2_prated" value="75" step="0.5"><div class="unit">kW</div></div>
-          <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="m2_nrated" value="1485" step="1"><div class="unit">RPM (บน Nameplate)</div></div>
-          <div class="form-group"><label>Frequency (f)</label><input type="number" id="m2_freq" value="50" step="1"><div class="unit">Hz</div></div>
-          <div class="form-group"><label>Nameplate Efficiency (η_FL)</label><input type="number" id="m2_etafl" value="94.0" step="0.1"><div class="unit">% (Full-load)</div></div>
-          <div class="form-group"><label>Rated Current (I_rated)</label><input type="number" id="m2_irated" value="132" step="0.1"><div class="unit">A</div></div>
-          <div class="form-group"><label>Rated Voltage</label><input type="number" id="m2_vrated" value="400" step="1"><div class="unit">V</div></div>
+          <div class="form-group"><label>Rated Power (P_rated)<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label><input type="number" id="m2_prated" value="75" step="0.5"><div class="unit">kW</div><div class="hint te">เติมอัตโนมัติจากแท็บ Motor Efficiency</div></div>
+          <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="m2_nrated" value="1485" step="1"><div class="unit">RPM (บน Nameplate)</div><div class="hint te">ความเร็วพิกัดเต็มโหลดจาก nameplate (rpm) · ใช้หา slip พิกัด</div></div>
+          <div class="form-group"><label>Frequency (f)</label><input type="number" id="m2_freq" value="50" step="1"><div class="unit">Hz</div><div class="hint te">ความถี่ระบบ · ไทย 50 Hz (ถ้าผ่าน VFD ให้ใช้ความถี่ขาออก)</div></div>
+          <div class="form-group"><label>Nameplate Efficiency (η_FL)</label><input type="number" id="m2_etafl" value="94.0" step="0.1"><div class="unit">% (Full-load)</div><div class="hint te">η เต็มโหลดจาก nameplate (%)</div></div>
+          <div class="form-group"><label>Rated Current (I_rated)</label><input type="number" id="m2_irated" value="132" step="0.1"><div class="unit">A</div><div class="hint te">FLA จาก nameplate (A) · ใช้ cross-check</div></div>
+          <div class="form-group"><label>Rated Voltage</label><input type="number" id="m2_vrated" value="400" step="1"><div class="unit">V</div><div class="hint te">แรงดันพิกัด (V)</div></div>
         </div>
       </div>
       <div class="panel">
@@ -451,12 +476,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           <div class="form-group">
             <label>Load Current (I_load)</label>
             <input type="number" id="m2_iload" value="112" step="0.1">
-            <div class="unit">A (เสริม — ใช้ Cross-check)</div>
+            <div class="unit">A (เสริม — ใช้ Cross-check)</div><div class="hint te">กระแสโหลดเฉลี่ย 3 เฟส (A) · ใช้ตรวจสอบผล slip method</div>
           </div>
           <div class="form-group">
             <label>Power Factor (PF)</label>
             <input type="number" id="m2_pf" value="0.85" step="0.01">
-            <div class="unit">— (เสริม)</div>
+            <div class="unit">— (เสริม)</div><div class="hint te">PF จาก power meter (ถ้ามี) · ทั่วไป 0.80–0.90</div>
           </div>
         </div>
         <div class="btn-row" style="margin-top:8px;">
@@ -584,14 +609,14 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
         <div class="panel">
           <div class="panel-title">📋 Nameplate & Cold Resistance</div>
           <div class="grid-2">
-            <div class="form-group"><label>P_rated<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label><input type="number" id="dclab_prated" value="5000" step="10"><div class="unit">kW</div></div>
-            <div class="form-group"><label>V_a, rated</label><input type="number" id="dclab_varated" value="700" step="1"><div class="unit">V DC</div></div>
-            <div class="form-group"><label>I_a, rated</label><input type="number" id="dclab_iarated" value="7700" step="1"><div class="unit">A DC</div></div>
-            <div class="form-group"><label>N_rated</label><input type="number" id="dclab_nrated" value="600" step="1"><div class="unit">RPM</div></div>
-            <div class="form-group"><label>V_f, rated</label><input type="number" id="dclab_vf" value="310" step="1"><div class="unit">V DC</div></div>
-            <div class="form-group"><label>I_f, rated</label><input type="number" id="dclab_if" value="35" step="0.5"><div class="unit">A DC</div></div>
-            <div class="form-group"><label>R_a, cold (วัด @ T_cold)</label><input type="number" id="dclab_ra_cold" value="0.0020" step="0.0001"><div class="unit">Ω (4-wire method)</div></div>
-            <div class="form-group"><label>T_cold (ขณะวัด R)</label><input type="number" id="dclab_tcold" value="25" step="1"><div class="unit">°C</div></div>
+            <div class="form-group"><label>P_rated<!-- [ระยะ 4 10 ก.ย. 2569] ไม่ลิงก์จากแท็บ 1 (มอเตอร์ DC) --></label><input type="number" id="dclab_prated" value="5000" step="10"><div class="unit">kW</div><div class="hint te">พิกัดมอเตอร์ DC จาก nameplate (kW) · มอเตอร์ DC โรงรีด 1–7 MW · ไม่เติมอัตโนมัติจากแท็บ Motor Efficiency (คนละเครื่อง)</div></div>
+            <div class="form-group"><label>V_a, rated</label><input type="number" id="dclab_varated" value="700" step="1"><div class="unit">V DC</div><div class="hint te">แรงดันอาร์เมเจอร์พิกัด (V DC) จาก nameplate · ทั่วไป 440/600/700/800 V</div></div>
+            <div class="form-group"><label>I_a, rated</label><input type="number" id="dclab_iarated" value="7700" step="1"><div class="unit">A DC</div><div class="hint te">กระแสอาร์เมเจอร์พิกัด (A DC) จาก nameplate</div></div>
+            <div class="form-group"><label>N_rated</label><input type="number" id="dclab_nrated" value="600" step="1"><div class="unit">RPM</div><div class="hint te">ความเร็วฐาน (base speed) จาก nameplate (rpm)</div></div>
+            <div class="form-group"><label>V_f, rated</label><input type="number" id="dclab_vf" value="310" step="1"><div class="unit">V DC</div><div class="hint te">แรงดันฟิลด์พิกัด (V DC) จาก nameplate</div></div>
+            <div class="form-group"><label>I_f, rated</label><input type="number" id="dclab_if" value="35" step="0.5"><div class="unit">A DC</div><div class="hint te">กระแสฟิลด์พิกัด (A DC) จาก nameplate</div></div>
+            <div class="form-group"><label>R_a, cold (วัด @ T_cold)</label><input type="number" id="dclab_ra_cold" value="0.0020" step="0.0001"><div class="unit">Ω (4-wire method)</div><div class="hint te">ความต้านทานอาร์เมเจอร์ (รวมแปรง/interpole) วัด 4-wire ขณะเย็น · MW-class ≈ 0.001–0.003 Ω</div></div>
+            <div class="form-group"><label>T_cold (ขณะวัด R)</label><input type="number" id="dclab_tcold" value="25" step="1"><div class="unit">°C</div><div class="hint te">อุณหภูมิขณะวัด R_a (°C) · ปกติ 20–35 °C</div></div>
           </div>
         </div>
 
@@ -602,20 +627,20 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
             <div><strong>วิธีทดสอบ:</strong> เดินมอเตอร์เปล่า (ไม่มีโหลด) ที่ V_a rated และ N rated → วัด P_in เป็น <strong>P_rotational</strong> (Friction + Windage + Core Loss) — เป็นพื้นฐานหา η อย่างแม่นยำ</div>
           </div>
           <div class="grid-2">
-            <div class="form-group"><label>V_a (No-Load)</label><input type="number" id="dclab_va0" value="700" step="1"><div class="unit">V (= rated)</div></div>
-            <div class="form-group"><label>I_a (No-Load)</label><input type="number" id="dclab_ia0" value="62" step="1"><div class="unit">A (1-3% ของ I rated)</div></div>
-            <div class="form-group"><label>I_f (No-Load, full field)</label><input type="number" id="dclab_if0" value="35" step="0.5"><div class="unit">A</div></div>
-            <div class="form-group"><label>T_hot (Winding ขณะ run)</label><input type="number" id="dclab_thot" value="75" step="1"><div class="unit">°C (75 ตาม IEEE)</div></div>
+            <div class="form-group"><label>V_a (No-Load)</label><input type="number" id="dclab_va0" value="700" step="1"><div class="unit">V (= rated)</div><div class="hint te">แรงดันอาร์เมเจอร์ขณะไม่มีโหลด (V) จาก drive/มิเตอร์ · ≈ พิกัด</div></div>
+            <div class="form-group"><label>I_a (No-Load)</label><input type="number" id="dclab_ia0" value="62" step="1"><div class="unit">A (1-3% ของ I rated)</div><div class="hint te">กระแสอาร์เมเจอร์ไม่มีโหลด (A) · ทั่วไป 1–3 % ของพิกัด (แทน friction+windage+core)</div></div>
+            <div class="form-group"><label>I_f (No-Load, full field)</label><input type="number" id="dclab_if0" value="35" step="0.5"><div class="unit">A</div><div class="hint te">กระแสฟิลด์ขณะไม่มีโหลด (A) · full field</div></div>
+            <div class="form-group"><label>T_hot (Winding ขณะ run)</label><input type="number" id="dclab_thot" value="75" step="1"><div class="unit">°C (75 ตาม IEEE)</div><div class="hint te">อุณหภูมิขดลวดขณะรับโหลด (°C) · IEEE 113 อ้างอิง 75 °C (class B) / 115 °C (class F)</div></div>
           </div>
         </div>
 
         <div class="panel">
           <div class="panel-title">⚡ Load Point (จุดทำงานจริง)</div>
           <div class="grid-2">
-            <div class="form-group"><label>V_a (load)</label><input type="number" id="dclab_va_l" value="685" step="1"><div class="unit">V</div></div>
-            <div class="form-group"><label>I_a (load)</label><input type="number" id="dclab_ia_l" value="6200" step="10"><div class="unit">A</div></div>
-            <div class="form-group"><label>I_f (load)</label><input type="number" id="dclab_if_l" value="34" step="0.5"><div class="unit">A</div></div>
-            <div class="form-group"><label>N (load)</label><input type="number" id="dclab_n_l" value="580" step="1"><div class="unit">RPM</div></div>
+            <div class="form-group"><label>V_a (load)</label><input type="number" id="dclab_va_l" value="685" step="1"><div class="unit">V</div><div class="hint te">แรงดันอาร์เมเจอร์ขณะรับโหลด (V) จาก DC drive/มิเตอร์</div></div>
+            <div class="form-group"><label>I_a (load)</label><input type="number" id="dclab_ia_l" value="6200" step="10"><div class="unit">A</div><div class="hint te">กระแสอาร์เมเจอร์ขณะรับโหลด (A) จาก shunt/DC drive</div></div>
+            <div class="form-group"><label>I_f (load)</label><input type="number" id="dclab_if_l" value="34" step="0.5"><div class="unit">A</div><div class="hint te">กระแสฟิลด์ขณะรับโหลด (A) · ต่ำกว่าพิกัดถ้าอยู่ในช่วง field weakening</div></div>
+            <div class="form-group"><label>N (load)</label><input type="number" id="dclab_n_l" value="580" step="1"><div class="unit">RPM</div><div class="hint te">ความเร็วขณะรับโหลด (rpm) จาก tachogenerator/encoder</div></div>
           </div>
           <div class="btn-row" style="margin-top:14px;">
             <button class="btn btn-primary" onclick="calcDCLab()">⟳ Compute (IEEE 113)</button>
@@ -670,14 +695,14 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
         <div class="panel">
           <div class="panel-title">📋 DC Nameplate Data</div>
           <div class="grid-2">
-            <div class="form-group"><label>Rated Power (P_rated)<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label><input type="number" id="dc_prated" value="5000" step="10"><div class="unit">kW</div></div>
-            <div class="form-group"><label>Armature Voltage (V_a,rated)</label><input type="number" id="dc_varated" value="700" step="1"><div class="unit">V (DC) · ทั่วไป 440/600/700/800 V</div></div>
-            <div class="form-group"><label>Armature Current (I_a,rated)</label><input type="number" id="dc_iarated" value="7700" step="1"><div class="unit">A (DC)</div></div>
-            <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="dc_nrated" value="600" step="1"><div class="unit">RPM (Base Speed)</div></div>
-            <div class="form-group"><label>Field Voltage (V_f)</label><input type="number" id="dc_vf" value="310" step="1"><div class="unit">V (DC)</div></div>
-            <div class="form-group"><label>Field Current (I_f,rated)</label><input type="number" id="dc_ifrated" value="35" step="0.5"><div class="unit">A (DC)</div></div>
-            <div class="form-group"><label>η Rated (nameplate)</label><input type="number" id="dc_etafl" value="95.5" step="0.1"><div class="unit">% (ทั่วไป 92–97% สำหรับ MW class)</div></div>
-            <div class="form-group"><label>R_armature (R_a) @ 25°C</label><input type="number" id="dc_ra" value="0.0022" step="0.0001"><div class="unit">Ω (จาก Datasheet หรือวัด · 5MW class ≈ 0.001–0.003 Ω)</div></div>
+            <div class="form-group"><label>Rated Power (P_rated)<!-- [ระยะ 4 10 ก.ย. 2569] ไม่ลิงก์จากแท็บ 1 (มอเตอร์ DC) --></label><input type="number" id="dc_prated" value="5000" step="10"><div class="unit">kW</div><div class="hint te">พิกัดมอเตอร์ DC จาก nameplate (kW) · ไม่เติมอัตโนมัติจากแท็บ Motor Efficiency (คนละเครื่อง)</div></div>
+            <div class="form-group"><label>Armature Voltage (V_a,rated)</label><input type="number" id="dc_varated" value="700" step="1"><div class="unit">V (DC) · ทั่วไป 440/600/700/800 V</div><div class="hint te">แรงดันอาร์เมเจอร์พิกัดจาก nameplate</div></div>
+            <div class="form-group"><label>Armature Current (I_a,rated)</label><input type="number" id="dc_iarated" value="7700" step="1"><div class="unit">A (DC)</div><div class="hint te">กระแสอาร์เมเจอร์พิกัดจาก nameplate</div></div>
+            <div class="form-group"><label>Rated Speed (N_rated)</label><input type="number" id="dc_nrated" value="600" step="1"><div class="unit">RPM (Base Speed)</div><div class="hint te">ความเร็วฐานจาก nameplate (rpm) · เหนือกว่านี้เป็นช่วง field weakening</div></div>
+            <div class="form-group"><label>Field Voltage (V_f)</label><input type="number" id="dc_vf" value="310" step="1"><div class="unit">V (DC)</div><div class="hint te">แรงดันฟิลด์พิกัด (V DC)</div></div>
+            <div class="form-group"><label>Field Current (I_f,rated)</label><input type="number" id="dc_ifrated" value="35" step="0.5"><div class="unit">A (DC)</div><div class="hint te">กระแสฟิลด์พิกัด (A DC)</div></div>
+            <div class="form-group"><label>η Rated (nameplate)</label><input type="number" id="dc_etafl" value="95.5" step="0.1"><div class="unit">% (ทั่วไป 92–97% สำหรับ MW class)</div><div class="hint te">η พิกัดจาก nameplate/datasheet · MW-class 92–97 %</div></div>
+            <div class="form-group"><label>R_armature (R_a) @ 25°C</label><input type="number" id="dc_ra" value="0.0022" step="0.0001"><div class="unit">Ω (จาก Datasheet หรือวัด · 5MW class ≈ 0.001–0.003 Ω)</div><div class="hint te">R_a ที่ 25 °C จาก datasheet หรือวัด 4-wire · โปรแกรมปรับตามอุณหภูมิให้</div></div>
           </div>
           <div class="alert alert-warn" style="font-size:11px;margin-top:8px;">
             <span>📌</span>
@@ -688,12 +713,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
         <div class="panel">
           <div class="panel-title">⚡ Field Measurement (ขณะเดินเครื่อง)</div>
           <div class="grid-2">
-            <div class="form-group"><label>V_armature (วัดจริง)</label><input type="number" id="dc_va_meas" value="685" step="1"><div class="unit">V (DC)</div></div>
-            <div class="form-group"><label>I_armature (วัดจริง)</label><input type="number" id="dc_ia_meas" value="6200" step="1"><div class="unit">A (DC)</div></div>
-            <div class="form-group"><label>I_field (วัดจริง)</label><input type="number" id="dc_if_meas" value="34" step="0.5"><div class="unit">A (DC)</div></div>
-            <div class="form-group"><label>N_actual (Tachometer)</label><input type="number" id="dc_nactual" value="580" step="1"><div class="unit">RPM</div></div>
-            <div class="form-group"><label>Armature Temp (T_a)</label><input type="number" id="dc_temp" value="75" step="1"><div class="unit">°C (ปรับ R_a ตามอุณหภูมิ)</div></div>
-            <div class="form-group"><label>P_mechanical Output (ถ้ามี Dyno)</label><input type="number" id="dc_pmech" placeholder="optional" step="1"><div class="unit">kW (จาก Torque Sensor × ω, ถ้ามี)</div></div>
+            <div class="form-group"><label>V_armature (วัดจริง)</label><input type="number" id="dc_va_meas" value="685" step="1"><div class="unit">V (DC)</div><div class="hint te">แรงดันอาร์เมเจอร์วัดจริง (V) จากหน้าจอ DC drive หรือ DC voltmeter</div></div>
+            <div class="form-group"><label>I_armature (วัดจริง)</label><input type="number" id="dc_ia_meas" value="6200" step="1"><div class="unit">A (DC)</div><div class="hint te">กระแสอาร์เมเจอร์วัดจริง (A) จาก drive/shunt</div></div>
+            <div class="form-group"><label>I_field (วัดจริง)</label><input type="number" id="dc_if_meas" value="34" step="0.5"><div class="unit">A (DC)</div><div class="hint te">กระแสฟิลด์วัดจริง (A) จาก field exciter</div></div>
+            <div class="form-group"><label>N_actual (Tachometer)</label><input type="number" id="dc_nactual" value="580" step="1"><div class="unit">RPM</div><div class="hint te">ความเร็วจริง (rpm) จาก tachogenerator/encoder/strobe</div></div>
+            <div class="form-group"><label>Armature Temp (T_a)</label><input type="number" id="dc_temp" value="75" step="1"><div class="unit">°C (ปรับ R_a ตามอุณหภูมิ)</div><div class="hint te">อุณหภูมิอาร์เมเจอร์ขณะเดิน (°C) จาก RTD/IR · ใช้ปรับ R_a · ทั่วไป 60–110 °C</div></div>
+            <div class="form-group"><label>P_mechanical Output (ถ้ามี Dyno)</label><input type="number" id="dc_pmech" placeholder="optional" step="1"><div class="unit">kW (จาก Torque Sensor × ω, ถ้ามี)</div><div class="hint te">กำลังกลออก (kW) ถ้ามี torque sensor/ไดนาโมมิเตอร์ · เว้นว่างได้</div></div>
           </div>
           <div class="btn-row" style="margin-top:14px;">
             <button class="btn btn-primary" onclick="calcDCEfficiency()">⟳ Calculate DC Efficiency</button>
@@ -741,12 +766,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
             <div>ในมอเตอร์ DC แบบ Separately Excited: <strong>Torque แปรผันตรงกับกระแส Armature (I_a)</strong> ที่ field constant และ <strong>Speed แปรผันตรง V_a</strong> (ใต้ base speed) หรือ <strong>1/Φ</strong> (เหนือ base speed = Field Weakening)</div>
           </div>
           <div class="grid-2">
-            <div class="form-group"><label>V_armature</label><input type="number" id="dct_va" value="685" step="1"><div class="unit">V</div></div>
-            <div class="form-group"><label>I_armature</label><input type="number" id="dct_ia" value="6200" step="10"><div class="unit">A</div></div>
-            <div class="form-group"><label>R_armature (hot)</label><input type="number" id="dct_ra" value="0.0026" step="0.0001"><div class="unit">Ω (ปรับอุณหภูมิแล้ว @ 75°C)</div></div>
-            <div class="form-group"><label>N_actual</label><input type="number" id="dct_n" value="580" step="1"><div class="unit">RPM</div></div>
-            <div class="form-group"><label>I_field actual</label><input type="number" id="dct_if" value="34" step="0.5"><div class="unit">A</div></div>
-            <div class="form-group"><label>I_field rated</label><input type="number" id="dct_ifr" value="35" step="0.5"><div class="unit">A (full field)</div></div>
+            <div class="form-group"><label>V_armature</label><input type="number" id="dct_va" value="685" step="1"><div class="unit">V</div><div class="hint te">แรงดันอาร์เมเจอร์ (V) วัดจริงจาก drive</div></div>
+            <div class="form-group"><label>I_armature</label><input type="number" id="dct_ia" value="6200" step="10"><div class="unit">A</div><div class="hint te">กระแสอาร์เมเจอร์ (A) วัดจริง</div></div>
+            <div class="form-group"><label>R_armature (hot)</label><input type="number" id="dct_ra" value="0.0026" step="0.0001"><div class="unit">Ω (ปรับอุณหภูมิแล้ว @ 75°C)</div><div class="hint te">R_a ปรับอุณหภูมิแล้ว (Ω) · ใช้ค่าจากแท็บ Efficiency</div></div>
+            <div class="form-group"><label>N_actual</label><input type="number" id="dct_n" value="580" step="1"><div class="unit">RPM</div><div class="hint te">ความเร็วจริง (rpm)</div></div>
+            <div class="form-group"><label>I_field actual</label><input type="number" id="dct_if" value="34" step="0.5"><div class="unit">A</div><div class="hint te">กระแสฟิลด์จริง (A)</div></div>
+            <div class="form-group"><label>I_field rated</label><input type="number" id="dct_ifr" value="35" step="0.5"><div class="unit">A (full field)</div><div class="hint te">กระแสฟิลด์พิกัด full field (A) จาก nameplate</div></div>
           </div>
           <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="calcDCTorque()">⟳ Calculate Torque & Power</button>
         </div>
@@ -786,14 +811,14 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
             <div>DC Motor losses ประกอบด้วย: <strong>Cu Loss (Ia²Ra + If²Rf)</strong>, <strong>Core/Iron Loss</strong>, <strong>Brush Contact Loss (≈2V × Ia)</strong>, <strong>Friction & Windage</strong>, <strong>Stray Load Loss (≈1% P_rated)</strong></div>
           </div>
           <div class="grid-2">
-            <div class="form-group"><label>I_a operating</label><input type="number" id="dcl_ia" value="6200" step="10"><div class="unit">A</div></div>
-            <div class="form-group"><label>R_a (hot)</label><input type="number" id="dcl_ra" value="0.0026" step="0.0001"><div class="unit">Ω (@ 75°C)</div></div>
-            <div class="form-group"><label>I_f operating</label><input type="number" id="dcl_if" value="34" step="0.5"><div class="unit">A</div></div>
-            <div class="form-group"><label>R_field (R_f)</label><input type="number" id="dcl_rf" value="8.86" step="0.1"><div class="unit">Ω (= V_f/I_f, ที่นี่ 310/35)</div></div>
-            <div class="form-group"><label>Brush Voltage Drop</label><input type="number" id="dcl_vbrush" value="2" step="0.1"><div class="unit">V (Carbon ≈ 2V, Graphite ≈ 1V)</div></div>
-            <div class="form-group"><label>Rotational Loss (Friction+Wind+Core)</label><input type="number" id="dcl_prot" value="65" step="1"><div class="unit">kW (จาก No-Load Test)</div></div>
-            <div class="form-group"><label>P_rated (สำหรับ Stray Loss)</label><input type="number" id="dcl_prated" value="5000" step="10"><div class="unit">kW</div></div>
-            <div class="form-group"><label>Stray Load Loss</label><input type="number" id="dcl_stray" value="1.0" step="0.1"><div class="unit">% ของ P_rated (IEEE 113: 1%)</div></div>
+            <div class="form-group"><label>I_a operating</label><input type="number" id="dcl_ia" value="6200" step="10"><div class="unit">A</div><div class="hint te">กระแสอาร์เมเจอร์ที่จุดทำงาน (A) วัดจริง</div></div>
+            <div class="form-group"><label>R_a (hot)</label><input type="number" id="dcl_ra" value="0.0026" step="0.0001"><div class="unit">Ω (@ 75°C)</div><div class="hint te">R_a ขณะร้อน (Ω) · ปรับอุณหภูมิแล้ว</div></div>
+            <div class="form-group"><label>I_f operating</label><input type="number" id="dcl_if" value="34" step="0.5"><div class="unit">A</div><div class="hint te">กระแสฟิลด์ที่จุดทำงาน (A)</div></div>
+            <div class="form-group"><label>R_field (R_f)</label><input type="number" id="dcl_rf" value="8.86" step="0.1"><div class="unit">Ω (= V_f/I_f, ที่นี่ 310/35)</div><div class="hint te">ความต้านทานขดลวดฟิลด์ = V_f/I_f (Ω) จาก nameplate</div></div>
+            <div class="form-group"><label>Brush Voltage Drop</label><input type="number" id="dcl_vbrush" value="2" step="0.1"><div class="unit">V (Carbon ≈ 2V, Graphite ≈ 1V)</div><div class="hint te">แรงดันตกคร่อมแปรง (V) · แปรงคาร์บอน ≈ 2 V · กราไฟต์/โลหะ ≈ 1 V (IEEE 113)</div></div>
+            <div class="form-group"><label>Rotational Loss (Friction+Wind+Core)</label><input type="number" id="dcl_prot" value="65" step="1"><div class="unit">kW (จาก No-Load Test)</div><div class="hint te">ความสูญเสียหมุน (friction+windage+core) จาก no-load test (kW)</div></div>
+            <div class="form-group"><label>P_rated (สำหรับ Stray Loss)</label><input type="number" id="dcl_prated" value="5000" step="10"><div class="unit">kW</div><div class="hint te">กำลังพิกัด (kW) ใช้คิด stray loss</div></div>
+            <div class="form-group"><label>Stray Load Loss</label><input type="number" id="dcl_stray" value="1.0" step="0.1"><div class="unit">% ของ P_rated (IEEE 113: 1%)</div><div class="hint te">stray load loss (% ของ P_rated) · IEEE 113 กำหนด 1 % สำหรับมอเตอร์ชดเชย</div></div>
           </div>
           <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="calcDCLoss()">⟳ Compute Loss Breakdown</button>
         </div>
@@ -835,13 +860,13 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
       <div class="panel">
         <div class="panel-title">🌀 Field Weakening Calculator</div>
         <div class="grid-2">
-          <div class="form-group"><label>V_a, rated</label><input type="number" id="dcfw_va" value="700" step="1"><div class="unit">V (constant ใน FW region)</div></div>
-          <div class="form-group"><label>I_a, rated</label><input type="number" id="dcfw_ia" value="7700" step="10"><div class="unit">A</div></div>
-          <div class="form-group"><label>N_base</label><input type="number" id="dcfw_nbase" value="600" step="1"><div class="unit">RPM (@ full field)</div></div>
-          <div class="form-group"><label>I_f, rated (full field)</label><input type="number" id="dcfw_iframe" value="35" step="0.5"><div class="unit">A</div></div>
-          <div class="form-group"><label>I_f, reduced</label><input type="number" id="dcfw_ifred" value="18" step="0.5"><div class="unit">A (target operation)</div></div>
-          <div class="form-group"><label>Φ ratio (Φ_red/Φ_full)</label><input type="number" id="dcfw_phiratio" value="0.55" step="0.01"><div class="unit">— (ปกติ 0.4–0.7, ไม่ linear กับ I_f เพราะ saturation)</div></div>
-          <div class="form-group"><label>P_max @ base speed</label><input type="number" id="dcfw_pmax" value="5000" step="10"><div class="unit">kW (constant power line)</div></div>
+          <div class="form-group"><label>V_a, rated</label><input type="number" id="dcfw_va" value="700" step="1"><div class="unit">V (constant ใน FW region)</div><div class="hint te">แรงดันอาร์เมเจอร์พิกัด (V) · คงที่ในช่วง field weakening</div></div>
+          <div class="form-group"><label>I_a, rated</label><input type="number" id="dcfw_ia" value="7700" step="10"><div class="unit">A</div><div class="hint te">กระแสอาร์เมเจอร์พิกัด (A)</div></div>
+          <div class="form-group"><label>N_base</label><input type="number" id="dcfw_nbase" value="600" step="1"><div class="unit">RPM (@ full field)</div><div class="hint te">ความเร็วฐาน (rpm) ที่ full field</div></div>
+          <div class="form-group"><label>I_f, rated (full field)</label><input type="number" id="dcfw_iframe" value="35" step="0.5"><div class="unit">A</div><div class="hint te">กระแสฟิลด์พิกัด full field (A)</div></div>
+          <div class="form-group"><label>I_f, reduced</label><input type="number" id="dcfw_ifred" value="18" step="0.5"><div class="unit">A (target operation)</div><div class="hint te">กระแสฟิลด์ที่ลดลงจริงจาก field exciter (A) ณ จุดทำงาน</div></div>
+          <div class="form-group"><label>Φ ratio (Φ_red/Φ_full)</label><input type="number" id="dcfw_phiratio" value="0.55" step="0.01"><div class="unit">— (ปกติ 0.4–0.7, ไม่ linear กับ I_f เพราะ saturation)</div><div class="hint te">อัตราส่วนฟลักซ์ Φ_red/Φ_full · ตั้งค่าจาก saturation curve ของผู้ผลิต · ทั่วไป 0.4–0.7</div></div>
+          <div class="form-group"><label>P_max @ base speed</label><input type="number" id="dcfw_pmax" value="5000" step="10"><div class="unit">kW (constant power line)</div><div class="hint te">กำลังสูงสุดที่ base speed (kW) · เส้น constant power</div></div>
         </div>
         <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="calcFieldWeakening()">⟳ Calculate FW Operation</button>
       </div>
@@ -885,14 +910,14 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
         <div class="panel">
           <div class="panel-title">⚙️ DC Drive System (เดิม)</div>
           <div class="grid-2">
-            <div class="form-group"><label>P_rated (ขนาดมอเตอร์)<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label><input type="number" id="dcd_prated" value="5000" step="10"><div class="unit">kW</div></div>
-            <div class="form-group"><label>η DC Motor</label><input type="number" id="dcd_eta_m" value="93.5" step="0.1"><div class="unit">%</div></div>
-            <div class="form-group"><label>η Thyristor Bridge</label><input type="number" id="dcd_eta_d" value="97.5" step="0.1"><div class="unit">% (6-pulse ≈ 97%, 12-pulse ≈ 98%)</div></div>
-            <div class="form-group"><label>PF (cosφ_1) DC Drive</label><input type="number" id="dcd_pf" value="0.78" step="0.01"><div class="unit">— (ต่ำที่ Low Speed)</div></div>
-            <div class="form-group"><label>Brush+Maintenance/Year</label><input type="number" id="dcd_maint" value="180000" step="1000"><div class="unit">บาท/ปี (Brush, Commutator skim)</div></div>
-            <div class="form-group"><label>Load Factor (avg)</label><input type="number" id="dcd_lf" value="75" step="1"><div class="unit">%</div></div>
-            <div class="form-group"><label>Operation Hours</label><input type="number" id="dcd_hrs" value="7000" step="100"><div class="unit">h/year</div></div>
-            <div class="form-group"><label>Electricity Rate</label><input type="number" id="dcd_rate" value="4.20" step="0.01"><div class="unit">บาท/kWh</div></div>
+            <div class="form-group"><label>P_rated (ขนาดมอเตอร์)<!-- [ระยะ 4 10 ก.ย. 2569] ไม่ลิงก์จากแท็บ 1 (มอเตอร์ DC) --></label><input type="number" id="dcd_prated" value="5000" step="10"><div class="unit">kW</div><div class="hint te">พิกัดมอเตอร์ DC จาก nameplate (kW) · ไม่เติมอัตโนมัติจากแท็บ Motor Efficiency (คนละเครื่อง)</div></div>
+            <div class="form-group"><label>η DC Motor</label><input type="number" id="dcd_eta_m" value="93.5" step="0.1"><div class="unit">%</div><div class="hint te">η มอเตอร์ DC ที่จุดทำงาน (%) จากผลแท็บ Efficiency · ทั่วไป 92–96 %</div></div>
+            <div class="form-group"><label>η Thyristor Bridge</label><input type="number" id="dcd_eta_d" value="97.5" step="0.1"><div class="unit">% (6-pulse ≈ 97%, 12-pulse ≈ 98%)</div><div class="hint te">η สะพานไทริสเตอร์ · 6-pulse ≈ 97 % · 12-pulse ≈ 98 %</div></div>
+            <div class="form-group"><label>PF (cosφ_1) DC Drive</label><input type="number" id="dcd_pf" value="0.78" step="0.01"><div class="unit">— (ต่ำที่ Low Speed)</div><div class="hint te">PF ด้านไฟ AC ของ DC drive · ต่ำที่ความเร็วต่ำ · ทั่วไป 0.7–0.85</div></div>
+            <div class="form-group"><label>Brush+Maintenance/Year</label><input type="number" id="dcd_maint" value="180000" step="1000"><div class="unit">บาท/ปี (Brush, Commutator skim)</div><div class="hint te">ค่าบำรุงรักษาแปรง/คอมมิวเตเตอร์ต่อปี (บาท) จากบัญชีซ่อมบำรุง</div></div>
+            <div class="form-group"><label>Load Factor (avg)</label><input type="number" id="dcd_lf" value="75" step="1"><div class="unit">%</div><div class="hint te">load factor เฉลี่ยตลอดปี (%) จาก DCS/บันทึกผลิต · โรงรีด 50–80 %</div></div>
+            <div class="form-group"><label>Operation Hours</label><input type="number" id="dcd_hrs" value="7000" step="100"><div class="unit">h/year</div><div class="hint te">ชั่วโมงเดินเครื่องต่อปี · 3 กะ ≈ 7,000–8,000 h</div></div>
+            <div class="form-group"><label>Electricity Rate</label><input type="number" id="dcd_rate" value="4.20" step="0.01"><div class="unit">บาท/kWh</div><div class="hint te">ค่าไฟเฉลี่ย · โรงงานไทย 3.8–4.5 บาท/kWh</div></div>
           </div>
         </div>
       </div>
@@ -900,12 +925,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
         <div class="panel">
           <div class="panel-title">🔌 AC Induction + VFD (ทางเลือก)</div>
           <div class="grid-2">
-            <div class="form-group"><label>η AC Motor (IE3/IE4)</label><input type="number" id="dca_eta_m" value="96.5" step="0.1"><div class="unit">% (IE4 @ MW-class)</div></div>
-            <div class="form-group"><label>η VFD</label><input type="number" id="dca_eta_d" value="98.0" step="0.1"><div class="unit">% (Active Front-End)</div></div>
-            <div class="form-group"><label>PF VFD (with AFE)</label><input type="number" id="dca_pf" value="0.99" step="0.01"><div class="unit">— (AFE ≈ unity)</div></div>
-            <div class="form-group"><label>Maintenance/Year</label><input type="number" id="dca_maint" value="30000" step="1000"><div class="unit">บาท/ปี (Fan, capacitor)</div></div>
-            <div class="form-group"><label>Conversion Cost (CAPEX)</label><input type="number" id="dca_capex" value="18000000" step="100000"><div class="unit">บาท (Motor+VFD+Civil)</div></div>
-            <div class="form-group"><label>Drive Lifetime</label><input type="number" id="dca_life" value="15" step="1"><div class="unit">ปี</div></div>
+            <div class="form-group"><label>η AC Motor (IE3/IE4)</label><input type="number" id="dca_eta_m" value="96.5" step="0.1"><div class="unit">% (IE4 @ MW-class)</div><div class="hint te">η มอเตอร์ AC ทดแทน (%) · IE3/IE4 MW-class ≈ 96–97 %</div></div>
+            <div class="form-group"><label>η VFD</label><input type="number" id="dca_eta_d" value="98.0" step="0.1"><div class="unit">% (Active Front-End)</div><div class="hint te">η VFD · Active Front-End/MV drive ≈ 97–98.5 %</div></div>
+            <div class="form-group"><label>PF VFD (with AFE)</label><input type="number" id="dca_pf" value="0.99" step="0.01"><div class="unit">— (AFE ≈ unity)</div><div class="hint te">PF ด้านไฟเข้าของ VFD · AFE ≈ 0.98–1.0 · 6-pulse diode ≈ 0.95</div></div>
+            <div class="form-group"><label>Maintenance/Year</label><input type="number" id="dca_maint" value="30000" step="1000"><div class="unit">บาท/ปี (Fan, capacitor)</div><div class="hint te">ค่าบำรุงรักษา VFD+มอเตอร์ AC ต่อปี (บาท) · พัดลม/คาปาซิเตอร์</div></div>
+            <div class="form-group"><label>Conversion Cost (CAPEX)</label><input type="number" id="dca_capex" value="18000000" step="100000"><div class="unit">บาท (Motor+VFD+Civil)</div><div class="hint te">เงินลงทุนเปลี่ยนระบบ (บาท) จากใบเสนอราคา · มอเตอร์+VFD+โยธา+ติดตั้ง</div></div>
+            <div class="form-group"><label>Drive Lifetime</label><input type="number" id="dca_life" value="15" step="1"><div class="unit">ปี</div><div class="hint te">อายุใช้งานไดรฟ์ที่ใช้คิด LCC (ปี) · ทั่วไป 15–20 ปี</div></div>
           </div>
           <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="calcDCDrive()">⟳ Compare DC vs AC+VFD</button>
         </div>
@@ -962,10 +987,10 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
         <div class="panel" style="background:var(--purple-lt);border-color:var(--purple);">
           <div class="panel-title" style="color:var(--purple);">📊 Brush Life Estimator</div>
           <div class="grid-2">
-            <div class="form-group"><label>Brush Length (ใหม่)</label><input type="number" id="dcb_len_new" value="50" step="1"><div class="unit">mm</div></div>
-            <div class="form-group"><label>Brush Length (วัดได้)</label><input type="number" id="dcb_len_now" value="38" step="1"><div class="unit">mm</div></div>
-            <div class="form-group"><label>Operating Hours สะสม</label><input type="number" id="dcb_hrs" value="4200" step="100"><div class="unit">h</div></div>
-            <div class="form-group"><label>Min Length (เปลี่ยน)</label><input type="number" id="dcb_min" value="20" step="1"><div class="unit">mm (ปกติ 40% ของใหม่)</div></div>
+            <div class="form-group"><label>Brush Length (ใหม่)</label><input type="number" id="dcb_len_new" value="50" step="1"><div class="unit">mm</div><div class="hint te">ความยาวแปรงใหม่ (mm) จาก spec ผู้ผลิต</div></div>
+            <div class="form-group"><label>Brush Length (วัดได้)</label><input type="number" id="dcb_len_now" value="38" step="1"><div class="unit">mm</div><div class="hint te">ความยาวแปรงที่วัดได้ตอนนี้ (mm) ด้วยเวอร์เนียร์</div></div>
+            <div class="form-group"><label>Operating Hours สะสม</label><input type="number" id="dcb_hrs" value="4200" step="100"><div class="unit">h</div><div class="hint te">ชั่วโมงเดินสะสมตั้งแต่เปลี่ยนแปรง (h) จากบันทึกซ่อมบำรุง</div></div>
+            <div class="form-group"><label>Min Length (เปลี่ยน)</label><input type="number" id="dcb_min" value="20" step="1"><div class="unit">mm (ปกติ 40% ของใหม่)</div><div class="hint te">ความยาวต่ำสุดที่ต้องเปลี่ยน (mm) · ทั่วไป ≈ 40 % ของแปรงใหม่ หรือถึงเส้น wear mark</div></div>
           </div>
           <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="calcBrushLife()">⟳ Estimate Brush Life</button>
           <div id="dcBrushResult" style="margin-top:12px;"></div>
@@ -1001,48 +1026,48 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           <div class="form-group">
             <label>Motor Rated Power<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label>
             <input type="number" id="vfd_prated" value="75" step="0.5">
-            <div class="unit">kW</div>
+            <div class="unit">kW</div><div class="hint te">เติมอัตโนมัติจากแท็บ Motor Efficiency (kW)</div>
           </div>
           <div class="form-group">
             <label>Motor Efficiency (η_motor)</label>
             <input type="number" id="vfd_eta" value="94.0" step="0.1">
-            <div class="unit">%</div>
+            <div class="unit">%</div><div class="hint te">η มอเตอร์ที่ใช้แปลงกำลังไฟฟ้า↔เพลา (%) · nameplate หรือผลแท็บ 1</div>
           </div>
           <div class="form-group">
             <label>Base Speed (N₁)<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label>
             <input type="number" id="vfd_n1" value="1485" step="1">
-            <div class="unit">RPM (ปัจจุบัน)</div>
+            <div class="unit">RPM (ปัจจุบัน)</div><div class="hint te">ความเร็วปัจจุบัน (rpm) · เติมจากแท็บ 1 หรือวัดด้วย tachometer</div>
           </div>
           <div class="form-group">
             <label>Target Speed (N₂)</label>
             <input type="number" id="vfd_n2" value="1188" step="1">
-            <div class="unit">RPM (หลังติด VFD)</div>
+            <div class="unit">RPM (หลังติด VFD)</div><div class="hint te">ความเร็วเป้าหมายหลังติด VFD (rpm) · กำหนดจากอัตราไหล/ความดันที่ต้องการจริง (เช่น ลด 20 % → ×0.8)</div>
           </div>
           <div class="form-group">
             <label>Base Input Power (P₁)<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label>
             <input type="number" id="vfd_p1" value="68.5" step="0.5">
-            <div class="unit">kW (วัดจริงก่อนติด VFD)</div>
+            <div class="unit">kW (วัดจริงก่อนติด VFD)</div><div class="hint te">กำลังไฟฟ้าขาเข้าวัดจริงก่อนติด VFD (kW) จาก power meter</div>
           </div>
           <div class="form-group">
             <label>Operation Hours/Year</label>
             <input type="number" id="vfd_hrs" value="6000" step="100">
-            <div class="unit">h/year</div>
+            <div class="unit">h/year</div><div class="hint te">ชั่วโมงเดินต่อปี · 1 กะ ≈ 2,500 h · 2 กะ ≈ 5,000 h · 3 กะ ≈ 7,500–8,000 h</div>
           </div>
           <div class="form-group">
             <label>Electricity Rate</label>
             <input type="number" id="vfd_rate" value="4.20" step="0.01">
-            <div class="unit">บาท/kWh (MEA/PEA)</div>
+            <div class="unit">บาท/kWh (MEA/PEA)</div><div class="hint te">ค่าไฟเฉลี่ยรวม demand (บาท/kWh) · โรงงานไทย 3.8–4.5</div>
           </div>
           <div class="form-group">
             <label>VFD Investment Cost</label>
             <input type="number" id="vfd_cost" value="180000" step="1000">
-            <div class="unit">บาท (ราคา VFD + ติดตั้ง)</div>
+            <div class="unit">บาท (ราคา VFD + ติดตั้ง)</div><div class="hint te">ราคา VFD พร้อมติดตั้ง (บาท) จากใบเสนอราคา · LV ≈ 2,000–4,000 บาท/kW</div>
           </div>
           <!-- [แก้ไข 10 ก.ย. 2569] เพิ่มช่อง Grid EF (เดิม hard-code 0.4999) -->
           <div class="form-group">
             <label>Grid Emission Factor</label>
             <input type="number" id="ef_grid" value="0.4750" step="0.0001">
-            <div class="unit">kgCO₂e/kWh (TGO ปัจจุบัน 0.4750)</div>
+            <div class="unit">kgCO₂e/kWh (TGO ปัจจุบัน 0.4750)</div><div class="hint te">ค่า EF กริดไทย (TGO) · ปัจจุบัน 0.4750 kgCO₂e/kWh</div>
           </div>
         </div>
         <div class="form-group">
@@ -1051,7 +1076,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
             <option value="constant">Constant Speed (ไม่มี VFD ปัจจุบัน)</option>
             <option value="throttle">Throttle Control (Valve/Damper ปัจจุบัน)</option>
             <option value="onoff">On-Off Control (ปัจจุบัน)</option>
-          </select>
+          </select><div class="hint te">รูปแบบการควบคุมปัจจุบัน · เลือกตามวิธีปรับอัตราไหลที่ใช้อยู่จริง (วาล์ว/แดมเปอร์/ไม่ปรับ)</div>
         </div>
         <div class="form-group">
           <label>Load Type</label>
@@ -1059,7 +1084,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
             <option value="centrifugal">Centrifugal Pump/Fan (P∝N³)</option>
             <option value="positive">Positive Displacement (P∝N)</option>
             <option value="constant_torque">Constant Torque (Conveyor)</option>
-          </select>
+          </select><div class="hint te">ชนิดโหลด · ปั๊ม/พัดลมหอยโข่ง P∝N³ · สายพาน/คอมเพรสเซอร์ลูกสูบ P∝N · ตัดโลหะ P∝N²</div>
         </div>
         <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="calcVFD()">⟳ Calculate VFD Savings</button>
       </div>
@@ -1075,42 +1100,42 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           <div class="form-group">
             <label>Motor Rated Power<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label>
             <input type="number" id="rw_kw" value="22" step="0.5">
-            <div class="unit">kW</div>
+            <div class="unit">kW</div><div class="hint te">เติมอัตโนมัติจากแท็บ Motor Efficiency (kW)</div>
           </div>
           <div class="form-group">
             <label>Hours/Year</label>
             <input type="number" id="rw_hrs" value="5840" step="100">
-            <div class="unit">h/year (16h/d × 365d)</div>
+            <div class="unit">h/year (16h/d × 365d)</div><div class="hint te">ชั่วโมงเดินต่อปี (h)</div>
           </div>
           <div class="form-group">
             <label>Rewound Efficiency</label>
             <input type="number" id="rw_eff_old" value="84" step="0.1">
-            <div class="unit">% (หลังพันใหม่ ≈ ลด 1–3%)</div>
+            <div class="unit">% (หลังพันใหม่ ≈ ลด 1–3%)</div><div class="hint te">η หลังพันขดลวดใหม่ (%) · ปกติลดลง 1–3 % จาก nameplate เดิม (ขึ้นกับคุณภาพร้าน)</div>
           </div>
           <div class="form-group">
             <label>New Motor Efficiency (IE3)</label>
             <input type="number" id="rw_eff_new" value="92" step="0.1">
-            <div class="unit">%</div>
+            <div class="unit">%</div><div class="hint te">η มอเตอร์ใหม่ IE3 (%) จากแคตตาล็อก/ตาราง IE ด้านบน</div>
           </div>
           <div class="form-group">
             <label>Load Factor</label>
             <input type="number" id="rw_lf" value="80" step="5">
-            <div class="unit">%</div>
+            <div class="unit">%</div><div class="hint te">load factor เฉลี่ย (%) จากผลวัดหรือประมาณ 60–80 %</div>
           </div>
           <div class="form-group">
             <label>Electricity Rate</label>
             <input type="number" id="rw_rate" value="4.20" step="0.01">
-            <div class="unit">บาท/kWh</div>
+            <div class="unit">บาท/kWh</div><div class="hint te">ค่าไฟเฉลี่ย (บาท/kWh) · 3.8–4.5</div>
           </div>
           <div class="form-group">
             <label>Rewinding Cost</label>
             <input type="number" id="rw_cost_rewind" value="13000" step="1000">
-            <div class="unit">บาท</div>
+            <div class="unit">บาท</div><div class="hint te">ค่าพันขดลวดใหม่ (บาท) จากใบเสนอราคาร้านซ่อม</div>
           </div>
           <div class="form-group">
             <label>New IE3 Motor Price</label>
             <input type="number" id="rw_cost_new" value="43000" step="1000">
-            <div class="unit">บาท</div>
+            <div class="unit">บาท</div><div class="hint te">ราคามอเตอร์ IE3 ใหม่ (บาท) จากใบเสนอราคา</div>
           </div>
         </div>
         <button class="btn btn-amber" style="width:100%;margin-top:4px;" onclick="calcRewinding()">🔄 วิเคราะห์ Rewinding vs Replace</button>
@@ -1128,32 +1153,32 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           <div class="form-group">
             <label>Rated kW (Nameplate)</label>
             <input type="number" id="ms_kw" value="37" step="0.5">
-            <div class="unit">kW</div>
+            <div class="unit">kW</div><div class="hint te">กำลังพิกัดจาก nameplate (kW)</div>
           </div>
           <div class="form-group">
             <label>Full-Load Efficiency</label>
             <input type="number" id="ms_eff" value="90.5" step="0.1">
-            <div class="unit">% (Nameplate)</div>
+            <div class="unit">% (Nameplate)</div><div class="hint te">η เต็มโหลดจาก nameplate (%)</div>
           </div>
           <div class="form-group">
             <label>Full-Load PF</label>
             <input type="number" id="ms_pf_fl" value="0.87" step="0.01">
-            <div class="unit">— (Nameplate)</div>
+            <div class="unit">— (Nameplate)</div><div class="hint te">PF เต็มโหลดจาก nameplate · ทั่วไป 0.83–0.90</div>
           </div>
           <div class="form-group">
             <label>Measured Power (kW)</label>
             <input type="number" id="ms_pin" value="9.9" step="0.1">
-            <div class="unit">kW (วัดจริง)</div>
+            <div class="unit">kW (วัดจริง)</div><div class="hint te">กำลังไฟฟ้าวัดจริง (kW) จาก power meter · โหลดต่ำกว่า 40 % ควรพิจารณาลดขนาด</div>
           </div>
           <div class="form-group">
             <label>Measured PF</label>
             <input type="number" id="ms_pf_op" value="0.54" step="0.01">
-            <div class="unit">—</div>
+            <div class="unit">—</div><div class="hint te">PF วัดจริงที่จุดทำงาน · โหลดต่ำ PF จะตก (0.4–0.6)</div>
           </div>
           <div class="form-group">
             <label>Core Loss %</label>
             <input type="number" id="ms_core_pct" value="30" step="5">
-            <div class="unit">% ของ Total Loss (ทั่วไป 25–35%)</div>
+            <div class="unit">% ของ Total Loss (ทั่วไป 25–35%)</div><div class="hint te">สัดส่วน core loss ต่อความสูญเสียรวมที่เต็มโหลด (%) · ทั่วไป 25–35 %</div>
           </div>
         </div>
         <button class="btn btn-primary" style="width:100%;margin-top:4px;" onclick="calcMotorSizing()">📊 วิเคราะห์ Motor Sizing</button>
@@ -1167,12 +1192,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           <div class="form-group">
             <label>Demand Charge</label>
             <input type="number" id="vfd_demand" value="220" step="10">
-            <div class="unit">บาท/kW-month (MEA TOU)</div>
+            <div class="unit">บาท/kW-month (MEA TOU)</div><div class="hint te">ค่าความต้องการพลังไฟฟ้า (บาท/kW-เดือน) · MEA/PEA TOU ≈ 132–210 · ใช้คิดผลประหยัด demand</div>
           </div>
           <div class="form-group">
             <label>Power Factor (PF)</label>
             <input type="number" id="vfd_pf" value="0.85" step="0.01">
-            <div class="unit">— (ก่อนติด VFD)</div>
+            <div class="unit">— (ก่อนติด VFD)</div><div class="hint te">PF ก่อนติด VFD จาก power meter · ใช้ประเมิน kVA ที่ลดลง</div>
           </div>
         </div>
         <div style="font-size:11px;color:var(--text3);font-family:var(--mono);padding:8px 12px;background:var(--bg2);border-radius:6px;line-height:1.8;">
@@ -1222,52 +1247,52 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           <div class="form-group">
             <label>Input Power (P_in)</label>
             <input type="number" id="d_pin" value="68.5" step="0.1">
-            <div class="unit">kW</div>
+            <div class="unit">kW</div><div class="hint te">กำลังไฟฟ้าขาเข้าวัดจริง (kW)</div>
           </div>
           <div class="form-group">
             <label>Load Current (I_load)</label>
             <input type="number" id="d_iload" value="112" step="0.1">
-            <div class="unit">A</div>
+            <div class="unit">A</div><div class="hint te">กระแสโหลดเฉลี่ย 3 เฟส (A) clamp meter</div>
           </div>
           <div class="form-group">
             <label>Rated Current (I_rated)</label>
             <input type="number" id="d_irated" value="132" step="0.1">
-            <div class="unit">A (Nameplate)</div>
+            <div class="unit">A (Nameplate)</div><div class="hint te">FLA จาก nameplate (A)</div>
           </div>
           <div class="form-group">
             <label>Supply Voltage (V_meas)</label>
             <input type="number" id="d_vmeas" value="400" step="1">
-            <div class="unit">V (Line-to-Line)</div>
+            <div class="unit">V (Line-to-Line)</div><div class="hint te">แรงดัน line-to-line วัดจริง (V)</div>
           </div>
           <div class="form-group">
             <label>Rated Voltage (V_rated)</label>
             <input type="number" id="d_vrated" value="400" step="1">
-            <div class="unit">V</div>
+            <div class="unit">V</div><div class="hint te">แรงดันพิกัดจาก nameplate (V)</div>
           </div>
           <div class="form-group">
             <label>Voltage Unbalance</label>
             <input type="number" id="d_vunbal" value="1.2" step="0.1">
-            <div class="unit">% (NEMA limit: &lt;1%)</div>
+            <div class="unit">% (NEMA limit: &lt;1%)</div><div class="hint te">ความไม่สมดุลแรงดัน (%) = max dev/avg ×100 · NEMA แนะนำ &lt; 1 % · 3.5 % ลด η ราว 2 %</div>
           </div>
           <div class="form-group">
             <label>Power Factor (PF)</label>
             <input type="number" id="d_pf" value="0.85" step="0.01">
-            <div class="unit">— (target: &gt;0.85)</div>
+            <div class="unit">— (target: &gt;0.85)</div><div class="hint te">PF วัดจริง · เป้าหมาย &gt; 0.85 (กฟภ./กฟน. คิดค่า PF ต่ำกว่า 0.85)</div>
           </div>
           <div class="form-group">
             <label>Winding Temperature</label>
             <input type="number" id="d_temp" value="85" step="1">
-            <div class="unit">°C (limit: Class F = 155°C)</div>
+            <div class="unit">°C (limit: Class F = 155°C)</div><div class="hint te">อุณหภูมิขดลวด/โครง (°C) จาก IR/RTD · class F จำกัด 155 °C, hotspot ≈ 105 °C rise</div>
           </div>
           <div class="form-group">
             <label>Vibration Level</label>
             <input type="number" id="d_vib" value="2.5" step="0.1">
-            <div class="unit">mm/s RMS (limit: &lt;4.5 ISO 10816)</div>
+            <div class="unit">mm/s RMS (limit: &lt;4.5 ISO 10816)</div><div class="hint te">ความสั่นสะเทือนรวม (mm/s RMS) จาก vibration meter · ISO 10816-3 กลุ่ม 2: &lt; 2.8 ดี, &gt; 4.5 เตือน</div>
           </div>
           <div class="form-group">
             <label>Rated Power (kW)<!-- [แก้ไข 10 ก.ย. 2569] ลิงก์จากแท็บ 1 --><span style="font-size:10px;color:var(--amber);font-weight:400;margin-left:6px;">⚡ จาก Motor Efficiency</span></label>
             <input type="number" id="d_prated" value="75" step="0.5">
-            <div class="unit">kW</div>
+            <div class="unit">kW</div><div class="hint te">เติมอัตโนมัติจากแท็บ Motor Efficiency (kW)</div>
           </div>
         </div>
         <button class="btn btn-primary" style="width:100%;margin-top:4px;" onclick="runMotorDiag()">🔬 วิเคราะห์ปัญหา</button>
@@ -1398,40 +1423,40 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
       <div class="panel">
         <div class="panel-title">📋 ข้อมูลการตรวจสอบ</div>
         <div class="grid-2">
-          <div class="form-group"><label>ชื่อโรงงาน</label><input type="text" id="a_plant" placeholder="e.g. ABC Manufacturing"></div>
-          <div class="form-group"><label>วันที่ตรวจ</label><input type="date" id="a_date"></div>
-          <div class="form-group"><label>Equipment Tag</label><input type="text" id="a_tag" placeholder="e.g. MTR-P101"></div>
-          <div class="form-group"><label>ผู้ตรวจสอบ</label><input type="text" id="a_auditor" value="อ.หนึ่ง กลับทวี"></div>
-          <div class="form-group"><label>ยี่ห้อ / Brand</label><input type="text" id="a_brand" placeholder="e.g. ABB, Siemens, WEG"></div>
-          <div class="form-group"><label>Model / Frame</label><input type="text" id="a_model" placeholder="e.g. M3BP 315 SMB"></div>
-          <div class="form-group"><label>Rated kW / IE Class</label><input type="text" id="a_kw" placeholder="e.g. 75 kW / IE3"></div>
-          <div class="form-group"><label>Application</label><input type="text" id="a_app" placeholder="e.g. Cooling Water Pump"></div>
+          <div class="form-group"><label>ชื่อโรงงาน</label><input type="text" id="a_plant" placeholder="e.g. ABC Manufacturing"><div class="hint te">ชื่อโรงงาน/สถานประกอบการที่ตรวจ</div></div>
+          <div class="form-group"><label>วันที่ตรวจ</label><input type="date" id="a_date"><div class="hint te">วันที่ตรวจวัด (ค.ศ. ตามปฏิทินระบบ)</div></div>
+          <div class="form-group"><label>Equipment Tag</label><input type="text" id="a_tag" placeholder="e.g. MTR-P101"><div class="hint te">รหัสอุปกรณ์ตาม P&amp;ID/ทะเบียนเครื่องจักร เช่น MTR-P101</div></div>
+          <div class="form-group"><label>ผู้ตรวจสอบ</label><input type="text" id="a_auditor" value="อ.หนึ่ง กลับทวี"><div class="hint te">ชื่อผู้ตรวจวัด/ผู้รับผิดชอบด้านพลังงาน</div></div>
+          <div class="form-group"><label>ยี่ห้อ / Brand</label><input type="text" id="a_brand" placeholder="e.g. ABB, Siemens, WEG"><div class="hint te">ยี่ห้อจาก nameplate เช่น ABB, Siemens, WEG, Mitsubishi</div></div>
+          <div class="form-group"><label>Model / Frame</label><input type="text" id="a_model" placeholder="e.g. M3BP 315 SMB"><div class="hint te">รุ่น/ขนาดเฟรม IEC เช่น 280S</div></div>
+          <div class="form-group"><label>Rated kW / IE Class</label><input type="text" id="a_kw" placeholder="e.g. 75 kW / IE3"><div class="hint te">กำลังพิกัดและ IE class จาก nameplate เช่น 75 kW IE3</div></div>
+          <div class="form-group"><label>Application</label><input type="text" id="a_app" placeholder="e.g. Cooling Water Pump"><div class="hint te">อุปกรณ์ที่ขับ เช่น ปั๊มน้ำหล่อเย็น, พัดลม ID, คอมเพรสเซอร์</div></div>
         </div>
       </div>
 
       <div class="panel">
         <div class="panel-title">🔌 Electrical Measurements</div>
         <div class="grid-2">
-          <div class="form-group"><label>Voltage L1-L2</label><input type="number" id="m_v12" placeholder="400" step="1"><div class="unit">V</div></div>
-          <div class="form-group"><label>Voltage L2-L3</label><input type="number" id="m_v23" placeholder="401" step="1"><div class="unit">V</div></div>
-          <div class="form-group"><label>Voltage L3-L1</label><input type="number" id="m_v31" placeholder="399" step="1"><div class="unit">V</div></div>
-          <div class="form-group"><label>Current L1</label><input type="number" id="m_i1" placeholder="112" step="0.1"><div class="unit">A</div></div>
-          <div class="form-group"><label>Current L2</label><input type="number" id="m_i2" placeholder="113" step="0.1"><div class="unit">A</div></div>
-          <div class="form-group"><label>Current L3</label><input type="number" id="m_i3" placeholder="111" step="0.1"><div class="unit">A</div></div>
-          <div class="form-group"><label>Power Input (P_in)</label><input type="number" id="m_pin" placeholder="68.5" step="0.1"><div class="unit">kW</div></div>
-          <div class="form-group"><label>Power Factor (PF)</label><input type="number" id="m_pf" placeholder="0.85" step="0.01"><div class="unit">—</div></div>
+          <div class="form-group"><label>Voltage L1-L2</label><input type="number" id="m_v12" placeholder="400" step="1"><div class="unit">V</div><div class="hint te">แรงดัน L1-L2 (V) จากมิเตอร์/power analyzer</div></div>
+          <div class="form-group"><label>Voltage L2-L3</label><input type="number" id="m_v23" placeholder="401" step="1"><div class="unit">V</div><div class="hint te">แรงดัน L2-L3 (V) · ใช้คิด unbalance</div></div>
+          <div class="form-group"><label>Voltage L3-L1</label><input type="number" id="m_v31" placeholder="399" step="1"><div class="unit">V</div><div class="hint te">แรงดัน L3-L1 (V)</div></div>
+          <div class="form-group"><label>Current L1</label><input type="number" id="m_i1" placeholder="112" step="0.1"><div class="unit">A</div><div class="hint te">กระแส L1 (A) clamp meter</div></div>
+          <div class="form-group"><label>Current L2</label><input type="number" id="m_i2" placeholder="113" step="0.1"><div class="unit">A</div><div class="hint te">กระแส L2 (A)</div></div>
+          <div class="form-group"><label>Current L3</label><input type="number" id="m_i3" placeholder="111" step="0.1"><div class="unit">A</div><div class="hint te">กระแส L3 (A) · ความไม่สมดุลกระแสควร &lt; 10 %</div></div>
+          <div class="form-group"><label>Power Input (P_in)</label><input type="number" id="m_pin" placeholder="68.5" step="0.1"><div class="unit">kW</div><div class="hint te">กำลังไฟฟ้าขาเข้ารวม 3 เฟส (kW)</div></div>
+          <div class="form-group"><label>Power Factor (PF)</label><input type="number" id="m_pf" placeholder="0.85" step="0.01"><div class="unit">—</div><div class="hint te">PF จาก power meter</div></div>
         </div>
       </div>
 
       <div class="panel">
         <div class="panel-title">🔧 Mechanical Measurements</div>
         <div class="grid-2">
-          <div class="form-group"><label>Speed (Tachometer)</label><input type="number" id="m_rpm" placeholder="1488" step="1"><div class="unit">RPM</div></div>
-          <div class="form-group"><label>Vibration (Overall)</label><input type="number" id="m_vib" placeholder="2.5" step="0.1"><div class="unit">mm/s RMS</div></div>
-          <div class="form-group"><label>Bearing Temp (DE)</label><input type="number" id="m_tde" placeholder="55" step="1"><div class="unit">°C (limit: &lt;80°C)</div></div>
-          <div class="form-group"><label>Bearing Temp (NDE)</label><input type="number" id="m_tnde" placeholder="52" step="1"><div class="unit">°C</div></div>
-          <div class="form-group"><label>Winding Temp</label><input type="number" id="m_twin" placeholder="85" step="1"><div class="unit">°C</div></div>
-          <div class="form-group"><label>Insulation Resistance</label><input type="number" id="m_ir" placeholder="1000" step="1"><div class="unit">MΩ @ 1000V DC (ดี: &gt;100)</div></div>
+          <div class="form-group"><label>Speed (Tachometer)</label><input type="number" id="m_rpm" placeholder="1488" step="1"><div class="unit">RPM</div><div class="hint te">ความเร็ว (rpm) จาก tachometer/strobe</div></div>
+          <div class="form-group"><label>Vibration (Overall)</label><input type="number" id="m_vib" placeholder="2.5" step="0.1"><div class="unit">mm/s RMS</div><div class="hint te">ความสั่นสะเทือนรวม (mm/s RMS) · ISO 10816-3</div></div>
+          <div class="form-group"><label>Bearing Temp (DE)</label><input type="number" id="m_tde" placeholder="55" step="1"><div class="unit">°C (limit: &lt;80°C)</div><div class="hint te">อุณหภูมิแบริ่งฝั่งขับ (°C) จาก IR/contact · &lt; 80 °C ปกติ</div></div>
+          <div class="form-group"><label>Bearing Temp (NDE)</label><input type="number" id="m_tnde" placeholder="52" step="1"><div class="unit">°C</div><div class="hint te">อุณหภูมิแบริ่งฝั่งไม่ขับ (°C)</div></div>
+          <div class="form-group"><label>Winding Temp</label><input type="number" id="m_twin" placeholder="85" step="1"><div class="unit">°C</div><div class="hint te">อุณหภูมิขดลวด/โครงมอเตอร์ (°C)</div></div>
+          <div class="form-group"><label>Insulation Resistance</label><input type="number" id="m_ir" placeholder="1000" step="1"><div class="unit">MΩ @ 1000V DC (ดี: &gt;100)</div><div class="hint te">ความต้านทานฉนวน (MΩ) เมกเกอร์ 500/1000 V DC · ดี &gt; 100 MΩ · ต่ำสุด IEEE 43 ≈ (kV+1) MΩ</div></div>
         </div>
       </div>
 
@@ -2016,7 +2041,8 @@ function buildIETable(highlightKW, measuredEff) {
 //  [แก้ไข 10 ก.ย. 2569] LINK TAB-1 → DOWNSTREAM FIELDS
 //  เติมค่าจากผลคำนวณแท็บ Motor Efficiency ลงช่องแท็บอื่นอัตโนมัติ (ผู้ใช้แก้ทับได้)
 // ═══════════════════════════════════════════════
-const PRATED_LINK_IDS = ['m1_prated','m2_prated','vfd_prated','d_prated','dclab_prated','dc_prated','dcd_prated','rw_kw'];
+// [ระยะ 4 10 ก.ย. 2569] ตัดช่อง DC (dclab_prated/dc_prated/dcd_prated — มอเตอร์ DC โรงรีด คนละเครื่องกับ AC แท็บ 1) ออกจากการลิงก์ ไม่ให้ทับ 5000 → 75
+const PRATED_LINK_IDS = ['m1_prated','m2_prated','vfd_prated','d_prated','rw_kw'];
 function linkTab1ToDownstream(Pin_kW, Nload, Prated) {
   const setVal = (id, v) => { const el = document.getElementById(id); if (el && v > 0) el.value = Math.round(v*100)/100; };
   if (Pin_kW > 0) setVal('vfd_p1', Pin_kW);
@@ -3117,6 +3143,54 @@ function calcBrushLife() {
       <div style="text-align:center;color:${color};font-weight:700;">${status}</div>
     </div>`;
 }
+
+
+// ═══════════════════════════════════════════════
+//  [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า
+// ═══════════════════════════════════════════════
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['p_rated', 'v_rated', 'i_rated', 'n_rated', 'freq', 'eta_plate', 'm1_irated', 'm1_etafl', 'm1_nrated', 'm1_freq', 'm1_vrated', 'm2_nrated', 'm2_freq', 'm2_etafl', 'm2_irated', 'm2_vrated', 'dclab_varated', 'dclab_iarated', 'dclab_nrated', 'dclab_vf', 'dclab_if', 'dc_varated', 'dc_iarated', 'dc_nrated', 'dc_vf', 'dc_ifrated', 'dc_etafl', 'dc_ra', 'dct_ifr', 'dcl_rf', 'dcl_prated', 'dcfw_va', 'dcfw_ia', 'dcfw_nbase', 'dcfw_iframe', 'dcfw_pmax', 'dcd_eta_m', 'dcd_eta_d', 'dcd_pf', 'dca_eta_m', 'dca_eta_d', 'dca_pf', 'rw_eff_old', 'rw_eff_new', 'ms_kw', 'ms_eff', 'ms_pf_fl', 'd_irated', 'd_vrated', 'dcb_len_new', 'vfd_eta', 'a_kw', 'a_brand', 'a_model'], FK_MEAS=['p_nl', 'i_nl', 'r_cold', 't_cold', 'p_in', 'i_load', 'n_load', 't_hot', 'm1_il1', 'm1_il2', 'm1_il3', 'm1_pin', 'm1_pf', 'm1_vmeas', 'm2_nactual', 'm2_pin', 'm2_iload', 'm2_pf', 'dclab_ra_cold', 'dclab_tcold', 'dclab_va0', 'dclab_ia0', 'dclab_if0', 'dclab_thot', 'dclab_va_l', 'dclab_ia_l', 'dclab_if_l', 'dclab_n_l', 'dc_va_meas', 'dc_ia_meas', 'dc_if_meas', 'dc_nactual', 'dc_temp', 'dc_pmech', 'dct_va', 'dct_ia', 'dct_ra', 'dct_n', 'dct_if', 'dcl_ia', 'dcl_ra', 'dcl_if', 'dcl_prot', 'dcfw_ifred', 'ms_pin', 'ms_pf_op', 'd_pin', 'd_iload', 'd_vmeas', 'd_vunbal', 'd_pf', 'd_temp', 'd_vib', 'dcb_len_now', 'dcb_hrs', 'm_v12', 'm_v23', 'm_v31', 'm_i1', 'm_i2', 'm_i3', 'm_pin', 'm_pf', 'm_rpm', 'm_vib', 'm_tde', 'm_tnde', 'm_twin', 'm_ir', 'vfd_pf'], FK_SET=['vfd_n2', 'vfd_hrs', 'vfd_rate', 'vfd_cost', 'ef_grid', 'vfd_profile', 'vfd_loadtype', 'vfd_demand', 'rw_hrs', 'rw_lf', 'rw_rate', 'rw_cost_rewind', 'rw_cost_new', 'ms_core_pct', 'dcl_vbrush', 'dcl_stray', 'dcfw_phiratio', 'dcd_maint', 'dcd_lf', 'dcd_hrs', 'dcd_rate', 'dca_maint', 'dca_capex', 'dca_life', 'dcb_min', 'a_plant', 'a_date', 'a_tag', 'a_auditor', 'a_app'], FK_CALC=['m1_prated', 'm2_prated', 'vfd_prated', 'd_prated', 'dclab_prated', 'dc_prated', 'dcd_prated', 'rw_kw', 'vfd_n1', 'vfd_p1'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
+function teUIState(){
+  const disp=id=>{const e=document.getElementById(id);return !!e&&e.style.display!=='none';};
+  const mode=MODES.find(m=>disp('mode-'+m))||'lab';
+  const dcMode=['lab','field','fw'].find(m=>disp('dcmode-'+m))||'field';
+  const tab=(document.querySelector('.tab.active')||{}).id||'tab-eff';
+  return {motorType: disp('dcWrapper')?'dc':'ac', mode, dcMode, tab: tab.replace('tab-',''), auditShown: disp('auditReport')};
+}
+function teRestoreExtra(x){ // เรียกก่อน apply inputs: สร้าง DOM ของ DC checklist ให้ครบก่อน แล้วค่อยเติมค่า
+  if(!x) return; window.TE_ui=x;
+  try{ switchMotorType(x.motorType==='dc'?'dc':'ac'); }catch(e){}
+  try{ if(x.mode) switchMode(x.mode); }catch(e){}
+  try{ if(x.motorType==='dc'&&x.dcMode) switchDCMode(x.dcMode); }catch(e){}
+  try{ if(x.tab) switchTab(x.tab); }catch(e){}
+}
+function syncCheckClass(){ document.querySelectorAll('.check-item input[type=checkbox]').forEach(cb=>{ const w=cb.closest('.check-item'); if(w) w.classList.toggle('checked',cb.checked); }); }
+function recalcAll(){ // ensureAllCalc: เรียกทุกฟังก์ชันคำนวณตามลำดับ (ปิด alert ชั่วคราว — ส่วนที่ยังไม่กรอกจะข้ามไปเอง)
+  const _alert=window.alert; window.alert=function(){};
+  const T=f=>{try{f();}catch(e){}};
+  try{
+    // คงค่าช่องที่ลิงก์จากแท็บ 1 ตามที่บันทึกไว้ (ไม่ให้ linkTab1ToDownstream ทับตอนโหลด JSON)
+    const keep={}; PRATED_LINK_IDS.concat(['vfd_p1','vfd_n1']).forEach(id=>{const e=document.getElementById(id); if(e) keep[id]=e.value;});
+    T(calcMotorEff);
+    Object.keys(keep).forEach(id=>{ document.getElementById(id).value=keep[id]; });
+    T(calcFieldM1); T(calcFieldM2);
+    T(calcDCLab); T(calcFieldWeakening); T(calcDCEfficiency); T(calcDCTorque); T(calcDCLoss); T(calcDCDrive); T(calcBrushLife);
+    T(buildAffinityTable); T(calcVFD); T(calcRewinding); T(calcMotorSizing);
+    T(runMotorDiag);
+    T(buildChecklist); T(updateCheck); T(syncCheckClass);
+    T(()=>{ if(window.TE_ui&&window.TE_ui.auditShown) genReport(); });
+    T(tagFieldKinds);
+  } finally { window.alert=_alert; }
+}
+function teSaveJSON(){ TE_JSON.save('Tool_Motor_VFD_Audit', teUIState()); }
+function teLoadJSON(file){ TE_JSON.load(file, recalcAll, teRestoreExtra); }
 
 // ═══════════════════════════════════════════════
 //  INIT

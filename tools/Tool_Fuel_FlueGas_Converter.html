@@ -6,6 +6,18 @@
 <title>Fuel &amp; Flue Gas Converter — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root{
   --navy:#0f2a4a; --teal:#12a4a4;
@@ -156,6 +168,12 @@ table td{vertical-align:middle}
 .verdict2 .vcell{border-left:none}
 
 :root{ --accent:#1e88e5; --conv-dark:#0b3d91; }
+/* [ระยะ 4 10 ก.ย. 2569] ปุ่ม JSON + ป้ายชนิดค่า + hint */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}.te-json{margin-top:12px}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
 .btn{background:#1e88e5}
 </style>
@@ -169,6 +187,11 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
     <h1>Fuel &amp; Flue Gas Converter</h1>
     <p>แปลงค่าความร้อน LHV/HHV · ปริมาณเชื้อเพลิงเป็นพลังงาน · <b>ราคาเชื้อเพลิงเป็นบาทต่อ GJ และต่อ MJ</b>
        · แก้ค่ามลพิษที่ O₂ อ้างอิง · หน่วยไอเสียแห้ง–เปียก</p>
+    <!-- [ระยะ 4 10 ก.ย. 2569] บันทึก/โหลด JSON ทุกแท็บ (รวมตารางเปรียบเทียบ) -->
+    <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
   </div>
 </header>
 
@@ -199,8 +222,8 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
     <h2>ข้อมูลเชื้อเพลิง</h2>
     <div class="sub">เลือกจากคลังเพื่อเติมค่าตั้งต้น แล้วแก้เป็นค่าของล็อตจริงได้ทุกช่อง</div>
     <div class="grid3">
-      <div class="fld"><label class="f">เชื้อเพลิง</label><select id="fuel"></select></div>
-      <div class="fld"><label class="f">ค่าความร้อน</label><input type="number" id="hv" value="16.5" step="0.01"></div>
+      <div class="fld"><label class="f">เชื้อเพลิง</label><select id="fuel"></select><div class="hint">เลือกจากคลังเพื่อเติมค่าตั้งต้น (LHV as-received, ρ, η) — เลือก "กำหนดเอง" เมื่อมีผลวิเคราะห์ของล็อตจริง</div></div>
+      <div class="fld"><label class="f">ค่าความร้อน</label><input type="number" id="hv" value="16.5" step="0.01"><div class="hint">ค่าความร้อนต่ำ (LHV, as-received) ของล็อตที่ซื้อจริง · ที่มา: ใบรับรองผลวิเคราะห์ (COA) / ห้องแล็บ · ค่าทั่วไป: ไม้สับชื้น 40 % 10–12, PKS 16–17, บิทูมินัส 24–27 MJ/kg, NG 35–38 MJ/Nm³</div></div>
       <div class="fld"><label class="f">หน่วยค่าความร้อน</label>
         <select id="hvU">
           <option value="MJ/kg">MJ/kg</option>
@@ -213,23 +236,23 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
           <option value="MJ/Sm3">MJ/Sm³</option>
           <option value="BTU/scf">BTU/scf</option>
           <option value="MMBTU/ton">MMBTU/ตัน</option>
-        </select></div>
+        </select><div class="hint">ต้องตรงกับหน่วยในเอกสารแล็บ — kcal/kg ×0.004187 = MJ/kg · Btu/lb ×0.002326 = MJ/kg · ก๊าซใช้ MJ/Nm³ หรือ MJ/Sm³</div></div>
     </div>
     <div class="grid3">
-      <div class="fld"><label class="f">ความหนาแน่น <span class="unit">สำหรับแปลงปริมาตร ↔ มวล</span></label><input type="number" id="rho" value="0" step="0.0001"></div>
+      <div class="fld"><label class="f">ความหนาแน่น <span class="unit">สำหรับแปลงปริมาตร ↔ มวล</span></label><input type="number" id="rho" value="0" step="0.0001"><div class="hint">ใช้เมื่อราคาเป็นต่อปริมาตร (บาท/L, บาท/m³) แต่ค่าความร้อนเป็นต่อมวล · น้ำมันเตา 0.94–0.98 kg/L · ดีเซล 0.83–0.85 · LPG เหลว 0.52–0.55 · NG 0.72–0.80 kg/Nm³ · ใส่ 0 ถ้าไม่ต้องแปลง</div></div>
       <div class="fld"><label class="f">หน่วยความหนาแน่น</label>
         <select id="rhoU">
           <option value="kg/L">kg/L (ของเหลว/ของแข็ง)</option>
           <option value="kg/m3">kg/m³ (bulk density)</option>
           <option value="kg/Nm3">kg/Nm³ (ก๊าซ)</option>
-        </select></div>
+        </select><div class="hint">kg/L สำหรับของเหลว/ของแข็ง (bulk density) · kg/Nm³ สำหรับก๊าซที่ 0 °C</div></div>
       <div class="fld"><label class="f">สภาวะอ้างอิงของ Sm³</label>
         <select id="sref">
           <option value="15">15 °C · 101.325 kPa</option>
           <option value="15.56">15.56 °C (60 °F) · 101.325 kPa</option>
           <option value="20">20 °C · 101.325 kPa</option>
           <option value="25">25 °C · 101.325 kPa</option>
-        </select></div>
+        </select><div class="hint">ฐานอุณหภูมิของ Sm³ ที่ผู้ขายก๊าซใช้ — ปตท. ใช้ 15.56 °C (60 °F) · ISO 13443 ใช้ 15 °C · Nm³ = 0 °C เสมอ</div></div>
     </div>
     <div class="note">
       <b>Nm³ กับ Sm³ ไม่เท่ากัน</b> — Nm³ อ้างอิงที่ 0 °C ส่วน Sm³ อ้างอิงที่อุณหภูมิสูงกว่า
@@ -241,7 +264,7 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
   <div class="card">
     <h2>ราคาที่ซื้อจริง</h2>
     <div class="grid3">
-      <div class="fld"><label class="f">ราคา</label><input type="number" id="price" value="2800" step="1"></div>
+      <div class="fld"><label class="f">ราคา</label><input type="number" id="price" value="2800" step="1"><div class="hint">ราคาซื้อจริงรวม VAT/ค่าขนส่งถึงโรงงาน · ที่มา: ใบแจ้งหนี้/สัญญาซื้อขาย · ปี 2569 โดยประมาณ: PKS 2,500–3,200 บาท/ตัน · ไม้สับ 900–1,300 · น้ำมันเตา 20–25 บาท/L · NG 350–450 บาท/MMBtu</div></div>
       <div class="fld"><label class="f">หน่วยราคา</label>
         <select id="priceU">
           <option value="THB/kg">บาท/kg</option>
@@ -253,8 +276,8 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
           <option value="THB/MMBTU">บาท/MMBTU</option>
           <option value="THB/kWh">บาท/kWh</option>
           <option value="THB/GJ">บาท/GJ</option>
-        </select></div>
-      <div class="fld"><label class="f">ประสิทธิภาพอุปกรณ์ <span class="unit">%</span></label><input type="number" id="eff" value="82" step="0.5" min="1" max="100"></div>
+        </select><div class="hint">เลือกให้ตรงกับใบแจ้งหนี้ — โปรแกรมแปลงเป็นบาท/GJ และบาท/MJ อัตโนมัติ</div></div>
+      <div class="fld"><label class="f">ประสิทธิภาพอุปกรณ์ <span class="unit">%</span></label><input type="number" id="eff" value="82" step="0.5" min="1" max="100"><div class="hint">ประสิทธิภาพอุปกรณ์ที่ใช้เชื้อเพลิงนี้ (ฐาน LHV) · หม้อไอน้ำชีวมวล 70–82 % · ถ่านหิน 80–86 % · น้ำมัน/ก๊าซ 85–92 % · ที่มา: ผลตรวจวัดจริงหรือค่าประกันของผู้ผลิต</div></div>
     </div>
     <div id="priceOut"></div>
     <div id="hvLink" class="legend" style="display:none"></div><!-- [แก้ไข 10 ก.ย. 2569] แสดง HHV/LHV ที่คำนวณในแท็บ 3 ย้อนกลับมา -->
@@ -293,19 +316,19 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
         <select id="hDir">
           <option value="h2l">HHV → LHV</option>
           <option value="l2h">LHV → HHV</option>
-        </select></div>
-      <div class="fld"><label class="f">ค่าตั้งต้น <span class="unit">MJ/kg</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hIn" value="19.5" step="0.01" data-auto="1"></div><!-- [แก้ไข 10 ก.ย. 2569] เติมจากค่าความร้อนแท็บ 1 เมื่อยังไม่ได้แก้เอง -->
+        </select><div class="hint">LHV→HHV เมื่อมีผลแล็บเป็น LHV (Net) · HHV→LHV เมื่อผลแล็บเป็น HHV (Gross, bomb calorimeter) — โรงงานไทยส่วนใหญ่ได้ HHV จากแล็บ</div></div>
+      <div class="fld"><label class="f">ค่าตั้งต้น <span class="unit">MJ/kg</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hIn" value="19.5" step="0.01" data-auto="1"><div class="hint">ค่าความร้อนที่ต้องการแปลง (MJ/kg) — เติมจากแท็บ 1 อัตโนมัติ พิมพ์ทับได้เมื่อมีผลแล็บของล็อตจริง</div></div><!-- [แก้ไข 10 ก.ย. 2569] เติมจากค่าความร้อนแท็บ 1 เมื่อยังไม่ได้แก้เอง -->
       <div class="fld"><label class="f">ฐานของค่าตั้งต้น</label>
         <select id="hBasis">
           <option value="ar">As-received (ตามที่รับมา)</option>
           <option value="dry">Dry (ฐานแห้ง)</option>
           <option value="daf">Dry ash-free</option>
-        </select></div>
+        </select><div class="hint">ฐานของค่าที่ใส่: as-received (ar) = ตามที่รับจริง · dry = ฐานแห้ง · daf = ฐานแห้งไร้เถ้า — อ่านจากหัวตารางในผลวิเคราะห์</div></div>
     </div>
     <div class="grid3">
-      <div class="fld"><label class="f">ไฮโดรเจน H <span class="unit">% ฐานแห้ง</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hH" data-auto="1" value="6.0" step="0.01"></div>
-      <div class="fld"><label class="f">ความชื้น M <span class="unit">% as-received</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hM" data-auto="1" value="15" step="0.1"></div>
-      <div class="fld"><label class="f">เถ้า A <span class="unit">% ฐานแห้ง</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hA" data-auto="1" value="3" step="0.1"></div>
+      <div class="fld"><label class="f">ไฮโดรเจน H <span class="unit">% ฐานแห้ง</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hH" data-auto="1" value="6.0" step="0.01"><div class="hint">ไฮโดรเจนในเชื้อเพลิง ฐานแห้ง (ultimate analysis) · ชีวมวล 5.5–6.5 % · ถ่านหิน 4–5.5 % · น้ำมันเตา 11–12 % · ที่มา: ผลแล็บ ASTM D5373 / ค่าจากคลัง</div></div>
+      <div class="fld"><label class="f">ความชื้น M <span class="unit">% as-received</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hM" data-auto="1" value="15" step="0.1"><div class="hint">ความชื้นรวมตามที่รับจริง (total moisture, ar) · ไม้สับ 35–50 % · แกลบ 8–12 % · PKS 10–15 % · ทะลายปาล์ม 55–65 % · ที่มา: ASTM E871 / วัดหน้างานด้วย moisture meter</div></div>
+      <div class="fld"><label class="f">เถ้า A <span class="unit">% ฐานแห้ง</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hA" data-auto="1" value="3" step="0.1"><div class="hint">เถ้า ฐานแห้ง (proximate analysis) · แกลบ 15–20 % · ไม้สับ 1–3 % · ถ่านหิน 8–15 % · ที่มา: ASTM D3174 / ผลแล็บ</div></div>
     </div>
     <div id="hvOut"></div>
   </div>
@@ -317,7 +340,7 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
     <h2>ปริมาณเชื้อเพลิง ↔ พลังงาน</h2>
     <div class="sub">ใช้ค่าความร้อนและความหนาแน่นจากแท็บที่ 1</div>
     <div class="grid3">
-      <div class="fld"><label class="f">ปริมาณ</label><input type="number" id="qty" value="1000" step="1"></div>
+      <div class="fld"><label class="f">ปริมาณ</label><input type="number" id="qty" value="1000" step="1"><div class="hint">ปริมาณเชื้อเพลิงที่ต้องการแปลงเป็นพลังงาน · ที่มา: ใบชั่ง/ใบส่งของ/มิเตอร์ก๊าซ</div></div>
       <div class="fld"><label class="f">หน่วย</label>
         <select id="qtyU">
           <option value="kg">kg</option>
@@ -326,8 +349,8 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
           <option value="Nm3">Nm³</option>
           <option value="Sm3">Sm³</option>
           <option value="m3">m³ (ปริมาตรกอง)</option>
-        </select></div>
-      <div class="fld"><label class="f">ระยะเวลา <span class="unit">ชม. (ใส่ 0 ถ้าไม่คิดอัตรา)</span></label><input type="number" id="qtyH" value="0" step="1"></div>
+        </select><div class="hint">หน่วยของปริมาณ — ต้องมีค่าความร้อนหรือความหนาแน่นในฐานที่แปลงถึงกันได้ (ดูแท็บ 1)</div></div>
+      <div class="fld"><label class="f">ระยะเวลา <span class="unit">ชม. (ใส่ 0 ถ้าไม่คิดอัตรา)</span></label><input type="number" id="qtyH" value="0" step="1"><div class="hint">ชั่วโมงที่ใช้ปริมาณนี้ (เพื่อคิดอัตรา MW, kg/h) · ใส่ 0 ถ้าไม่ต้องการอัตรา · เช่น 1 กะ = 8 ชม., 1 เดือน ≈ 720 ชม.</div></div>
     </div>
     <div id="qtyOut"></div>
   </div>
@@ -338,9 +361,9 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
   <div class="card">
     <h2>แก้ค่ามลพิษไปที่ O₂ อ้างอิง</h2>
     <div class="grid3">
-      <div class="fld"><label class="f">ค่าที่วัดได้</label><input type="number" id="cMeas" value="320" step="0.1"></div>
-      <div class="fld"><label class="f">O₂ ที่วัดได้ <span class="unit">% ฐานแห้ง</span></label><input type="number" id="o2m" value="11.5" step="0.1" min="0" max="20.9"></div>
-      <div class="fld"><label class="f">O₂ อ้างอิง <span class="unit">%</span></label><input type="number" id="o2r" value="7" step="0.5" min="0" max="20"></div>
+      <div class="fld"><label class="f">ค่าที่วัดได้</label><input type="number" id="cMeas" value="320" step="0.1"><div class="hint">ความเข้มข้นมลพิษที่วัดได้ (mg/Nm³ หรือ ppm หน่วยเดียวกับผลลัพธ์) · ที่มา: CEMS / testo 350 / รายงานตรวจวัดปล่อง</div></div>
+      <div class="fld"><label class="f">O₂ ที่วัดได้ <span class="unit">% ฐานแห้ง</span></label><input type="number" id="o2m" value="11.5" step="0.1" min="0" max="20.9"><div class="hint">O₂ ในไอเสียขณะวัด ฐานแห้ง · ที่มา: testo/CEMS อ่านพร้อมกับค่ามลพิษ · ชีวมวล 6–10 % · ก๊าซ 3–5 % · ถ่านหิน 5–7 %</div></div>
+      <div class="fld"><label class="f">O₂ อ้างอิง <span class="unit">%</span></label><input type="number" id="o2r" value="7" step="0.5" min="0" max="20"><div class="hint">O₂ อ้างอิงตามกฎหมาย — หม้อไอน้ำเชื้อเพลิงแข็ง/ชีวมวล 7 % · เชื้อเพลิงเหลว/ก๊าซ 3 % (ประกาศ ทส.) · เตาเผาขยะ 11 % · ก๊าซเทอร์ไบน์ 15 %</div></div>
     </div>
     <div id="o2Out"></div>
   </div>
@@ -348,10 +371,10 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
   <div class="card">
     <h2>แปลง ppm ↔ mg/Nm³</h2>
     <div class="grid3">
-      <div class="fld"><label class="f">ก๊าซ</label><select id="gas"></select></div>
-      <div class="fld"><label class="f">ค่า</label><input type="number" id="gVal" value="320" step="0.1"></div>
+      <div class="fld"><label class="f">ก๊าซ</label><select id="gas"></select><div class="hint">เลือกก๊าซเพื่อใช้มวลโมเลกุลในการแปลง ppm ↔ mg/Nm³ · NOx รายงานเป็น NO₂ (MW 46.01) ตามกฎหมายไทย</div></div>
+      <div class="fld"><label class="f">ค่า</label><input type="number" id="gVal" value="320" step="0.1"><div class="hint">ค่าที่อ่านจากเครื่องมือ · testo/Horiba ให้ ppm · CEMS หรือรายงานราชการมักเป็น mg/Nm³</div></div>
       <div class="fld"><label class="f">หน่วยของค่าที่ใส่</label>
-        <select id="gU"><option value="ppm">ppm (โดยปริมาตร)</option><option value="mg">mg/Nm³</option></select></div>
+        <select id="gU"><option value="ppm">ppm (โดยปริมาตร)</option><option value="mg">mg/Nm³</option></select><div class="hint">หน่วยของค่าที่ใส่ — ผลลัพธ์จะแสดงอีกหน่วยที่ 0 °C, 101.325 kPa</div></div>
     </div>
     <div id="gasOut"></div>
   </div>
@@ -359,10 +382,10 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
   <div class="card">
     <h2>ไอเสียฐานแห้ง ↔ ฐานเปียก</h2>
     <div class="grid3">
-      <div class="fld"><label class="f">ค่าที่มี</label><input type="number" id="wVal" value="320" step="0.1"></div>
+      <div class="fld"><label class="f">ค่าที่มี</label><input type="number" id="wVal" value="320" step="0.1"><div class="hint">ความเข้มข้นที่มีอยู่ (หน่วยใดก็ได้ — โปรแกรมคูณ/หารด้วยสัดส่วนไอน้ำ)</div></div>
       <div class="fld"><label class="f">ฐานของค่าที่มี</label>
-        <select id="wBase"><option value="dry">ฐานแห้ง (dry)</option><option value="wet">ฐานเปียก (wet)</option></select></div>
-      <div class="fld"><label class="f">ความชื้นในไอเสีย <span class="unit">% โดยปริมาตร</span></label><input type="number" id="wH2O" value="12" step="0.1" min="0" max="60"></div>
+        <select id="wBase"><option value="dry">ฐานแห้ง (dry)</option><option value="wet">ฐานเปียก (wet)</option></select><div class="hint">เครื่องมือชนิด extractive มี cooler → อ่านค่าเป็นฐานแห้ง · in-situ/hot-wet → ฐานเปียก · มาตรฐานไทยรายงานฐานแห้ง</div></div>
+      <div class="fld"><label class="f">ความชื้นในไอเสีย <span class="unit">% โดยปริมาตร</span></label><input type="number" id="wH2O" value="12" step="0.1" min="0" max="60"><div class="hint">ไอน้ำในไอเสีย % ปริมาตร · ก๊าซธรรมชาติ 15–19 % · น้ำมันเตา 9–12 % · ถ่านหิน 6–9 % · ชีวมวลชื้น 15–25 % · วัดด้วย CEMS H₂O หรือคำนวณจาก H และ M ของเชื้อเพลิง</div></div>
     </div>
     <div id="wetOut"></div>
   </div>
@@ -853,6 +876,25 @@ function loadFuel(k){
   if(f.ult){ [['hH',f.ult.H],['hM',f.ult.M],['hA',f.ult.A]].forEach(([id,v])=>{
     const el=$(id); if(el&&(el.value===''||el.dataset.auto==='1')){ el.value=v; el.dataset.auto='1'; } }); }
 }
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=[], FK_MEAS=['cMeas', 'o2m', 'gVal', 'wVal', 'wH2O', 'hv', 'rho', 'hH', 'hM', 'hA'], FK_SET=['fuel', 'hvU', 'rhoU', 'sref', 'price', 'priceU', 'eff', 'hDir', 'hBasis', 'qty', 'qtyU', 'qtyH', 'o2r', 'gas', 'gU', 'wBase'], FK_CALC=['hIn'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(/^cmp/.test(id))return null;if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
+/* [ระยะ 4 10 ก.ย. 2569] JSON: ensureAllCalc ของไฟล์นี้คือ calc() (เรียกทุก render) + state เพิ่มเติม: ตาราง CMP และสถานะ auto ของช่องแท็บ 3 */
+function recalcAll(){ try{calc();}catch(e){console.warn(e);} try{tagFieldKinds();}catch(e){} }
+function teExtra(){ var auto={}; ['hIn','hH','hM','hA'].forEach(function(id){var el=$(id); if(el) auto[id]=el.dataset.auto||'0';});
+  var tab=document.querySelector('.tab.on'); return {cmp:JSON.parse(JSON.stringify(CMP)),auto:auto,tab:tab?tab.dataset.t:'1'}; }
+function teRestoreExtra(x){ if(!x) return;
+  if(Array.isArray(x.cmp)){ CMP=x.cmp.map(function(r){return r.slice();}); drawCmp(); renderCmp(); }
+  if(x.auto){ Object.keys(x.auto).forEach(function(id){var el=$(id); if(el) el.dataset.auto=x.auto[id];}); }
+  if(x.tab){ var t=document.querySelector('.tab[data-t="'+x.tab+'"]'); if(t) t.click(); } }
+function teSaveJSON(){ TE_JSON.save('Tool_Fuel_FlueGas_Converter',teExtra()); }
+function teLoadJSON(file){ TE_JSON.load(file,recalcAll,teRestoreExtra); }
 document.addEventListener('DOMContentLoaded',init);
 </script>
 </body>

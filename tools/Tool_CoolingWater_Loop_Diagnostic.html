@@ -6,6 +6,45 @@
 <title>Cooling Water Loop Diagnostic — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<script>/* TE_PSY */
+/* ══ TE_PSY — Psychrometric engine กลางของ Triple E (ระยะ 4, 10 ก.ย. 2569) — ASHRAE Fundamentals, Hyland–Wexler; คัดจาก Tool_Psychrometric_Chart
+   หน่วย public: °C, kPa, kg/kg_da, kJ/kg_da, m³/kg_da ══ */
+var TE_PSY=(function(){
+  function pwsPa(TK){ if(TK<173.15)TK=173.15; var l;
+    if(TK<273.15){ l=-5.6745359e3/TK+6.3925247-9.677843e-3*TK+6.2215701e-7*TK*TK+2.0747825e-9*Math.pow(TK,3)-9.484024e-13*Math.pow(TK,4)+4.1635019*Math.log(TK); }
+    else { l=-5.8002206e3/TK+1.3914993-4.8640239e-2*TK+4.1764768e-5*TK*TK-1.4452093e-8*Math.pow(TK,3)+6.5459673*Math.log(TK); }
+    return Math.exp(l); }
+  function Pws(t){return pwsPa(t+273.15)/1000;}                                   // kPa
+  function Ws(t,p){var s=Pws(t);return s>=p?1e6:0.621945*s/(p-s);}
+  function W_rh(t,rh,p){var pw=Math.min(rh*Pws(t),p*0.9999);return 0.621945*pw/(p-pw);}   // rh เป็นสัดส่วน 0–1
+  function Pw_W(W,p){return p*W/(0.621945+W);}
+  function RH_W(t,W,p){return Pw_W(W,p)/Pws(t);}                                  // สัดส่วน 0–1
+  function Hda(t,W){return 1.006*t+W*(2501+1.86*t);}                              // kJ/kg_da
+  function Vda(t,W,p){return 0.287042*(t+273.15)*(1+1.607858*W)/p;}               // m³/kg_da
+  function Tdp(W,p){var pw=Pw_W(W,p);if(pw<=0)return NaN;var lo=-90,hi=200;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(Pws(m)<pw)lo=m;else hi=m;}return (lo+hi)/2;}
+  function W_wb(t,twb,p){var ws=Ws(twb,p);return twb>=0?((2501-2.326*twb)*ws-1.006*(t-twb))/(2501+1.86*t-4.186*twb):((2830-0.24*twb)*ws-1.006*(t-twb))/(2830+1.86*t-2.1*twb);}
+  function Twb(t,W,p){var lo=-90,hi=t;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(W_wb(t,m,p)<W)lo=m;else hi=m;}return (lo+hi)/2;}
+  function Palt(z){return 101.325*Math.pow(1-2.25577e-5*z,5.2559);}
+  function state(t,W,p){W=Math.max(0,Math.min(W,Ws(t,p)));var h=Hda(t,W),v=Vda(t,W,p),pw=Pw_W(W,p),ws=Ws(t,p);
+    return{t:t,W:W,p:p,h:h,v:v,rh:100*pw/Pws(t),pw:pw,tdp:Tdp(W,p),twb:Twb(t,W,p),rho:(1+W)/v,mu:100*W/ws,ws:ws};}
+  function fromRH(t,rhPct,p){return state(t,W_rh(t,rhPct/100,p||101.325),p||101.325);}
+  function fromWB(t,twb,p){return state(t,W_wb(t,twb,p||101.325),p||101.325);}
+  return{Pws:Pws,Ws:Ws,W_rh:W_rh,Pw_W:Pw_W,RH_W:RH_W,Hda:Hda,Vda:Vda,Tdp:Tdp,W_wb:W_wb,Twb:Twb,Palt:Palt,state:state,fromRH:fromRH,fromWB:fromWB,_ver:'TE_PSY HW r4-2569'};
+})();
+
+</script>
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root{
   --navy:#0f2a4a; --teal:#12a4a4;
@@ -154,6 +193,12 @@ table td{vertical-align:middle}
 .verdict2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;
   background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
 .verdict2 .vcell{border-left:none}
+/* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า + hint */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -161,6 +206,10 @@ table td{vertical-align:middle}
 <header>
   <div class="wrap">
     <a href="../index.html" class="back"><i class="fas fa-arrow-left"></i> กลับหน้ารวมเครื่องมือ</a>
+    <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
     <div class="kicker"><i class="fas fa-stethoscope"></i> Troubleshooting · Triple E Technology</div>
     <h1>Cooling Water Loop Diagnostic</h1>
     <p>ตอบคำถามว่า “น้ำหล่อเย็นร้อนขึ้นเพราะอากาศร้อน หรือเพราะหอผึ่งเสื่อม”
@@ -310,25 +359,16 @@ const money=v=>isFinite(v)?Math.round(v).toLocaleString('th-TH'):'–';
 const CPW=4.186;
 
 /* ── ไซโครเมตริก ── */
-function pws(T){                                   // kPa, ASHRAE over water
-  const Tk=T+273.15;
-  const c=[-5800.2206,1.3914993,-0.048640239,4.1764768e-5,-1.4452093e-8,6.5459673];
-  return Math.exp(c[0]/Tk + c[1] + c[2]*Tk + c[3]*Tk*Tk + c[4]*Tk*Tk*Tk + c[5]*Math.log(Tk))/1000;
-}
+/* [ระยะ 4 10 ก.ย. 2569] pws เดิมเป็น Hyland–Wexler อยู่แล้ว → alias ไป TE_PSY engine กลาง (สูตรเดียวกัน ตัวเลขเท่าเดิม; TE_PSY เพิ่มสาขาเหนือน้ำแข็ง T<0 °C) */
+function pws(T){ return TE_PSY.Pws(T); }        // kPa, ASHRAE over water
 const Wof=(pv,P)=>0.621945*pv/(P-pv);
 const Hof=(T,W)=>1.006*T + W*(2501+1.86*T);
 const Wsat=(T,P)=>Wof(pws(T),P);
 const Hsat=(T,P)=>Hof(T,Wsat(T,P));
 
+/* [ระยะ 4 10 ก.ย. 2569] wetBulb → TE_PSY.Twb (สมดุลพลังงาน ASHRAE เดิม, bisection 90 รอบ) — คงชื่อ/หน่วยเดิม */
 function wetBulb(db,rh,P){
-  const W=Wof(pws(db)*rh/100,P);
-  let lo=-20,hi=db;
-  for(let i=0;i<60;i++){
-    const m=(lo+hi)/2, Ws=Wsat(m,P);
-    const Wc=((2501-2.326*m)*Ws-1.006*(db-m))/(2501+1.86*db-4.186*m);
-    (Wc<W)?lo=m:hi=m;
-  }
-  return (lo+hi)/2;
+  return TE_PSY.Twb(db, TE_PSY.W_rh(db,rh/100,P), P);
 }
 /* DBT หลัง adiabatic pre-cool (เอนทาลปีคงที่ → WBT คงที่) */
 function adiabatic(db,wb,eff){ return db-(db-wb)*eff/100; }
@@ -691,6 +731,48 @@ function report(){
 ทำให้ L/G สูงขึ้นและ approach กว้างขึ้น น้ำ supply จึงร้อนขึ้น ไม่ใช่เย็นลง`}</pre>`;
 }
 
+/* ══ [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า + hint ══ */
+function recalcAll(){ try{calc();}catch(e){} try{tagFieldKinds();}catch(e){} }   // calc() เรียก simulate/adiab/mitig/report ครบอยู่แล้ว
+function teSaveJSON(){ TE_JSON.save('Tool_CoolingWater_Loop_Diagnostic', null); }
+function teLoadJSON(file){ TE_JSON.load(file, recalcAll, null); }
+const TE_HINTS={
+  dbt:'อุณหภูมิกระเปาะแห้งอากาศเข้าหอ °C · วัดในร่มใกล้ช่องลมเข้า (ไม่โดนละอองน้ำ) · ไทยช่วงบ่าย 33–38',
+  rh:'ความชื้นสัมพัทธ์อากาศเข้า % · thermo-hygrometer · ไทยบ่ายร้อน 45–65 · ฤดูฝน 70–85 (WBT สูง ≈ 28–30)',
+  patm:'ความดันบรรยากาศ kPa · ระดับน้ำทะเล 101.325 · ที่สูง 300 m ≈ 97.8',
+  wbD:'WBT ออกแบบจาก datasheet หอผึ่ง °C · ไทยทั่วไป 28 (บางแห่ง 27–29)',
+  apD:'Approach ออกแบบ °C = T_cold − WBT ที่ design · ทั่วไป 4–6 · จาก datasheet',
+  rgD:'Range ออกแบบ °C = T_hot − T_cold · ทั่วไป 5–6 (chiller) · 8–10 (กระบวนการ)',
+  tHot:'อุณหภูมิน้ำร้อนเข้าหอ (return จากกระบวนการ/condenser) °C · gauge/thermometer ท่อขึ้นหอ',
+  tCold:'อุณหภูมิน้ำเย็นออกหอ (อ่างล่าง/ท่อดูดปั๊ม) °C · ไทยทั่วไป 30–34 · ห่างจาก WBT = approach',
+  wFlow:'อัตราไหลน้ำหล่อเย็นรวม m³/h · ultrasonic flow meter/pump curve · ออกแบบ ≈ 0.7–0.9 m³/h ต่อ RT ของหอ',
+  nCell:'จำนวนเซลล์ที่พัดลมเดินอยู่ขณะวัด — ใช้คิด L/G จริง',
+  nCellT:'จำนวนเซลล์ทั้งหมดของหอ (รวมที่หยุด)',
+  fkW:'กำลังพัดลมต่อเซลล์ kW · power meter หรือ nameplate มอเตอร์ × load · ทั่วไป 7.5–37 kW',
+  lgD:'อัตราส่วน L/G (น้ำ/อากาศ kg/kg) ออกแบบ · ทั่วไป 1.0–1.8 (counterflow) · จาก datasheet หรือคำนวณจาก flow น้ำ ÷ flow อากาศ',
+  expN:'เลขชี้กำลัง n ของเส้นคุณลักษณะ KaV/L ∝ (L/G)⁻ⁿ · film fill 0.5–0.7 · splash 0.6–0.8 · ไม่ทราบใช้ 0.6',
+  pkW:'กำลังปั๊มน้ำหล่อเย็นรวม kW · power meter (หรือ √3·V·I·PF) — ใช้คิดต้นทุนการเพิ่ม flow',
+  flowDesign:'อัตราไหลออกแบบต่อเซลล์ m³/h จาก datasheet — เว้นว่างได้ โปรแกรมใช้ค่าปัจจุบัน/จำนวนเซลล์',
+  pumpExp:'เลขชี้กำลัง k ของ P ∝ Qᵏ · VFD ตาม affinity ≈ 2.5–3 · หรี่วาล์ว/เปิดปั๊มเพิ่ม 1–1.5',
+  tLimit:'อุณหภูมิน้ำ supply สูงสุดที่กระบวนการ/condenser รับได้ °C · chiller ทั่วไป 32–35 · จาก spec เครื่อง',
+  qProc:'ภาระความร้อนที่ต้องระบาย kW = ṁ·Cp·Range หรือจาก chiller (Q_evap + W_comp) · 1 RT chiller ≈ 4.4 kW ที่หอ',
+  hrs:'ชั่วโมงเดินระบบต่อปี · โรงงาน 2 กะ ≈ 6,000 · 3 กะ ≈ 8,000 · อาคาร 3,000–4,000',
+  dL:'สมมุติเพิ่มอัตราไหลน้ำ % จากปัจจุบัน (ทดลอง 10–30) — โปรแกรมเทียบผลกับการเพิ่มลม',
+  dG:'สมมุติเพิ่มรอบพัดลม/ปริมาณลม % จากปัจจุบัน (ทดลอง 10–30) — กำลังพัดลมเพิ่มตาม (1+dG)³',
+  rate:'ค่าไฟฟ้าเฉลี่ย บาท/kWh · โรงงาน TOU 3.8–4.3 · อาคาร 4.2–4.7 · จากบิลค่าไฟ',
+  adEff:'ประสิทธิผลการทำ pre-cool อากาศเข้า (แผงเซลลูโลส/หัวพ่นละออง) % · แผง 100 mm ≈ 70–85 · หัวพ่น 40–60'
+};
+function teInjectHints(){ Object.keys(TE_HINTS).forEach(id=>{ const e=$(id); if(!e) return; const n=e.nextElementSibling; if(n&&n.classList&&n.classList.contains('hint')) return; const d=document.createElement('div'); d.className='hint'; d.textContent=TE_HINTS[id]; e.insertAdjacentElement('afterend',d); }); }
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['wbD', 'apD', 'rgD', 'nCellT', 'lgD', 'expN', 'flowDesign', 'tLimit'], FK_MEAS=['dbt', 'rh', 'patm', 'tHot', 'tCold', 'wFlow', 'nCell', 'fkW', 'pkW', 'qProc'], FK_SET=['pumpExp', 'hrs', 'dL', 'dG', 'rate', 'adEff'], FK_CALC=[];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
+teInjectHints();
+
 /* init */
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
@@ -709,6 +791,7 @@ $('btnCopy').addEventListener('click',()=>{
   }).catch(()=>{});
 });
 calc();
+tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า */
 </script>
 </body>
 </html>

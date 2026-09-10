@@ -6,6 +6,18 @@
 <title>Electrical Power Quality Diagnostic — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root{
   --navy:#0f2a4a; --teal:#12a4a4;
@@ -69,6 +81,13 @@ select{font-family:'IBM Plex Sans Thai',sans-serif}
 input[readonly]{background:#f1f5f9;color:var(--muted)}
 .fld{margin-bottom:10px}
 .unit{font-size:.72rem;color:var(--muted);font-weight:400}
+/* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า + hint คำอธิบายช่อง */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+.te-json{margin:10px 0 0}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 
 .btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:22px;
   font-family:'IBM Plex Sans Thai',sans-serif;font-size:.87rem;font-weight:600;cursor:pointer;transition:.15s}
@@ -165,6 +184,10 @@ table td{vertical-align:middle}
     <h1>Electrical Power Quality Diagnostic</h1>
     <p>วินิจฉัยคุณภาพไฟฟ้าในโรงงาน — ความไม่สมดุลของเฟส แรงดันและการปรับแท็ปหม้อแปลง
        ค่าเพาเวอร์แฟกเตอร์ตามอัตราของการไฟฟ้า ฮาร์มอนิก และกระแสนิวทรัล</p>
+    <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
   </div>
 </header>
 
@@ -204,37 +227,37 @@ table td{vertical-align:middle}
           <option value="416">416/240 V · 3 เฟส 4 สาย</option>
           <option value="22000">22 kV · 3 เฟส 3 สาย</option>
           <option value="33000">33 kV · 3 เฟส 3 สาย</option>
-        </select></div>
+        </select><div class="hint te">แรงดันระบบจำหน่ายในโรงงาน · ไทยส่วนใหญ่ 400/230 V (หม้อแปลง 22 kV/400 V) · เลือกตาม nameplate หม้อแปลง</div></div>
       <div class="fld"><label class="f">ค่าที่ป้อนเป็นแรงดัน</label>
         <select id="vType">
           <option value="ll">ระหว่างเฟส (line-to-line)</option>
           <option value="ln">เฟสกับนิวทรัล (line-to-neutral)</option>
-        </select></div>
-      <div class="fld"><label class="f">กระแสนิวทรัลที่วัดได้ <span class="unit">A (ใส่ 0 ถ้าไม่ได้วัด)</span></label><input type="number" id="iN" value="0" step="1"></div>
+        </select><div class="hint te">ระบุว่าค่า V₁–V₃ ที่กรอกเป็นแรงดันระหว่างเฟส (L-L) หรือเฟส-นิวทรัล (L-N) ตามที่วัด</div></div>
+      <div class="fld"><label class="f">กระแสนิวทรัลที่วัดได้ <span class="unit">A (ใส่ 0 ถ้าไม่ได้วัด)</span></label><input type="number" id="iN" value="0" step="1"><div class="hint te">กระแสสายนิวทรัลจาก clamp meter (A) · ระบบสมดุลไม่มีฮาร์มอนิกควร &lt; 10 % ของกระแสเฟส · ใส่ 0 ถ้าไม่ได้วัด</div></div>
     </div>
     <div class="grid3">
-      <div class="fld"><label class="f">แรงดัน V₁ (A-B) <span class="unit">V</span></label><input type="number" id="v1" value="392" step="0.1"></div>
-      <div class="fld"><label class="f">แรงดัน V₂ (B-C) <span class="unit">V</span></label><input type="number" id="v2" value="384" step="0.1"></div>
-      <div class="fld"><label class="f">แรงดัน V₃ (C-A) <span class="unit">V</span></label><input type="number" id="v3" value="399" step="0.1"></div>
+      <div class="fld"><label class="f">แรงดัน V₁ (A-B) <span class="unit">V</span></label><input type="number" id="v1" value="392" step="0.1"><div class="hint te">แรงดัน A-B (V) จาก power analyzer/มัลติมิเตอร์ที่บัสหลัก MDB · วัดพร้อมกันทั้ง 3 ค่า</div></div>
+      <div class="fld"><label class="f">แรงดัน V₂ (B-C) <span class="unit">V</span></label><input type="number" id="v2" value="384" step="0.1"><div class="hint te">แรงดัน B-C (V)</div></div>
+      <div class="fld"><label class="f">แรงดัน V₃ (C-A) <span class="unit">V</span></label><input type="number" id="v3" value="399" step="0.1"><div class="hint te">แรงดัน C-A (V) · ความไม่สมดุล NEMA MG-1 ควร &lt; 1 % (ยอมรับ ≤ 2 %)</div></div>
     </div>
     <div class="grid3">
-      <div class="fld"><label class="f">กระแส I<sub>A</sub> <span class="unit">A</span></label><input type="number" id="ia" value="620" step="1"></div>
-      <div class="fld"><label class="f">กระแส I<sub>B</sub> <span class="unit">A</span></label><input type="number" id="ib" value="742" step="1"></div>
-      <div class="fld"><label class="f">กระแส I<sub>C</sub> <span class="unit">A</span></label><input type="number" id="ic" value="560" step="1"></div>
+      <div class="fld"><label class="f">กระแส I<sub>A</sub> <span class="unit">A</span></label><input type="number" id="ia" value="620" step="1"><div class="hint te">กระแสเฟส A (A) จาก clamp/CT ของ power analyzer ขณะโหลดปกติ</div></div>
+      <div class="fld"><label class="f">กระแส I<sub>B</sub> <span class="unit">A</span></label><input type="number" id="ib" value="742" step="1"><div class="hint te">กระแสเฟส B (A)</div></div>
+      <div class="fld"><label class="f">กระแส I<sub>C</sub> <span class="unit">A</span></label><input type="number" id="ic" value="560" step="1"><div class="hint te">กระแสเฟส C (A) · ความไม่สมดุลกระแสควร &lt; 10 %</div></div>
     </div>
   </div>
 
   <div class="card">
     <h2>โหลดและการเรียกเก็บค่าไฟ</h2>
     <div class="grid3">
-      <div class="fld"><label class="f">ความต้องการพลังไฟฟ้า kW <span class="unit">15 นาทีสูงสุด</span></label><input type="number" id="kW" value="380" step="1"></div>
-      <div class="fld"><label class="f">ความต้องการ kVAR <span class="unit">15 นาทีสูงสุด</span></label><input type="number" id="kVAR" value="310" step="1"></div>
-      <div class="fld"><label class="f">พลังงานต่อเดือน <span class="unit">kWh</span></label><input type="number" id="kWh" value="140000" step="1000"></div>
+      <div class="fld"><label class="f">ความต้องการพลังไฟฟ้า kW <span class="unit">15 นาทีสูงสุด</span></label><input type="number" id="kW" value="380" step="1"><div class="hint te">ความต้องการพลังไฟฟ้าสูงสุด 15 นาที (kW) จากบิลไฟฟ้า/มิเตอร์ TOU</div></div>
+      <div class="fld"><label class="f">ความต้องการ kVAR <span class="unit">15 นาทีสูงสุด</span></label><input type="number" id="kVAR" value="310" step="1"><div class="hint te">ความต้องการ kVAR สูงสุด 15 นาที จากบิล (ช่อง "เพาเวอร์แฟกเตอร์") · ใช้คิดค่าปรับ</div></div>
+      <div class="fld"><label class="f">พลังงานต่อเดือน <span class="unit">kWh</span></label><input type="number" id="kWh" value="140000" step="1000"><div class="hint te">หน่วยพลังงานต่อเดือน (kWh) จากบิลไฟฟ้า</div></div>
     </div>
     <div class="grid3">
-      <div class="fld"><label class="f">อัตราค่าเพาเวอร์แฟกเตอร์ <span class="unit">บาท/kVAR</span></label><input type="number" id="pfRate" value="56.07" step="0.01"></div>
-      <div class="fld"><label class="f">ค่าพลังงานไฟฟ้าเฉลี่ย <span class="unit">บาท/kWh</span></label><input type="number" id="eRate" value="4.20" step="0.01"></div>
-      <div class="fld"><label class="f">ชั่วโมงเดินเครื่อง <span class="unit">ชม./ปี</span></label><input type="number" id="hrs" value="6000" step="100"></div>
+      <div class="fld"><label class="f">อัตราค่าเพาเวอร์แฟกเตอร์ <span class="unit">บาท/kVAR</span></label><input type="number" id="pfRate" value="56.07" step="0.01"><div class="hint te">ค่าปรับ PF ของ กฟภ./กฟน. · 56.07 บาท/kVAR ของส่วนที่เกิน 61.97 % ของ kW สูงสุด</div></div>
+      <div class="fld"><label class="f">ค่าพลังงานไฟฟ้าเฉลี่ย <span class="unit">บาท/kWh</span></label><input type="number" id="eRate" value="4.20" step="0.01"><div class="hint te">ค่าไฟเฉลี่ยรวม Ft/demand (บาท/kWh) จากบิล · โรงงานไทย 3.8–4.5</div></div>
+      <div class="fld"><label class="f">ชั่วโมงเดินเครื่อง <span class="unit">ชม./ปี</span></label><input type="number" id="hrs" value="6000" step="100"><div class="hint te">ชั่วโมงเดินเครื่องต่อปี · 1 กะ ≈ 2,500 · 2 กะ ≈ 5,000 · 3 กะ ≈ 7,500–8,000</div></div>
     </div>
     <div class="note">
       อัตรา 56.07 บาท/kVAR และเกณฑ์ร้อยละ 61.97 เป็นไปตามประกาศอัตราค่าไฟฟ้าของ กฟภ. และ กฟน.
@@ -253,12 +276,12 @@ table td{vertical-align:middle}
     <h2>ผลกระทบต่อมอเตอร์</h2>
     <div class="sub">มอเตอร์เหนี่ยวนำไวต่อความไม่สมดุลของแรงดันมากกว่าที่คนส่วนใหญ่คิด</div>
     <div class="grid3">
-      <div class="fld"><label class="f">พิกัดมอเตอร์ที่พิจารณา <span class="unit">kW</span></label><input type="number" id="mkW" value="75" step="1"></div>
-      <div class="fld"><label class="f">Locked rotor current <span class="unit">เท่าของพิกัด</span></label><input type="number" id="lrc" value="6" step="0.5"></div>
-      <div class="fld"><label class="f">ประสิทธิภาพมอเตอร์ <span class="unit">%</span></label><input type="number" id="mEff" value="94" step="0.5"></div>
+      <div class="fld"><label class="f">พิกัดมอเตอร์ที่พิจารณา <span class="unit">kW</span></label><input type="number" id="mkW" value="75" step="1"><div class="hint te">กำลังพิกัดมอเตอร์ตัวใหญ่/สำคัญที่วิเคราะห์ผล derating (kW) จาก nameplate</div></div>
+      <div class="fld"><label class="f">Locked rotor current <span class="unit">เท่าของพิกัด</span></label><input type="number" id="lrc" value="6" step="0.5"><div class="hint te">กระแสล็อกโรเตอร์ (เท่าของ FLA) จาก nameplate/code letter · มอเตอร์เหนี่ยวนำ 5–8 เท่า</div></div>
+      <div class="fld"><label class="f">ประสิทธิภาพมอเตอร์ <span class="unit">%</span></label><input type="number" id="mEff" value="94" step="0.5"><div class="hint te">ประสิทธิภาพเต็มโหลด (%) จาก nameplate · IE2 89–95 · IE3 91–96</div></div>
     </div>
     <div class="grid3">
-      <div class="fld"><label class="f">จำนวนมอเตอร์ขนาดใกล้เคียงกัน <span class="unit">ตัว</span></label><input type="number" id="nMot" value="1" step="1" min="1"></div>
+      <div class="fld"><label class="f">จำนวนมอเตอร์ขนาดใกล้เคียงกัน <span class="unit">ตัว</span></label><input type="number" id="nMot" value="1" step="1" min="1"><div class="hint te">จำนวนมอเตอร์ขนาดใกล้เคียงกันในกลุ่ม (ตัว) ใช้ขยายผลความสูญเสีย</div></div>
     </div>
     <div id="motOut"></div>
   </div>
@@ -273,9 +296,9 @@ table td{vertical-align:middle}
   <div class="card">
     <h2>ขนาดคาปาซิเตอร์ที่ต้องติดตั้ง</h2>
     <div class="grid3">
-      <div class="fld"><label class="f">PF เป้าหมาย</label><input type="number" id="pfTgt" value="0.92" step="0.01" min="0.7" max="1"></div>
-      <div class="fld"><label class="f">ราคาคาปาซิเตอร์พร้อมติดตั้ง <span class="unit">บาท/kVAR</span></label><input type="number" id="capCost" value="700" step="50"></div>
-      <div class="fld"><label class="f">อิมพีแดนซ์หม้อแปลง Z <span class="unit">%</span></label><input type="number" id="zPct" value="5" step="0.1"></div>
+      <div class="fld"><label class="f">PF เป้าหมาย</label><input type="number" id="pfTgt" value="0.92" step="0.01" min="0.7" max="1"><div class="hint te">PF เป้าหมายหลังปรับปรุง · ≥ 0.85 พ้นค่าปรับ · แนะนำ 0.90–0.95 (หลีกเลี่ยง &gt; 0.98 เสี่ยง leading)</div></div>
+      <div class="fld"><label class="f">ราคาคาปาซิเตอร์พร้อมติดตั้ง <span class="unit">บาท/kVAR</span></label><input type="number" id="capCost" value="700" step="50"><div class="hint te">ราคาคาปาซิเตอร์แบงก์รวมติดตั้ง (บาท/kVAR) จากใบเสนอราคา · LV 400 V ≈ 500–900 · มี detuned reactor ≈ 1,200–1,800</div></div>
+      <div class="fld"><label class="f">อิมพีแดนซ์หม้อแปลง Z <span class="unit">%</span></label><input type="number" id="zPct" value="5" step="0.1"><div class="hint te">อิมพีแดนซ์หม้อแปลง (%Z) จาก nameplate · หม้อแปลง 22 kV 500–2,000 kVA ≈ 4–6 %</div></div>
     </div>
     <div id="capOut"></div>
   </div>
@@ -286,15 +309,15 @@ table td{vertical-align:middle}
   <div class="card">
     <h2>หม้อแปลงและการปรับแท็ป</h2>
     <div class="grid3">
-      <div class="fld"><label class="f">พิกัดหม้อแปลง <span class="unit">kVA</span></label><input type="number" id="tkVA" value="800" step="10"></div>
+      <div class="fld"><label class="f">พิกัดหม้อแปลง <span class="unit">kVA</span></label><input type="number" id="tkVA" value="800" step="10"><div class="hint te">พิกัดหม้อแปลง (kVA) จาก nameplate</div></div>
       <!-- [แก้ไข 10 ก.ย. 2569] vSec ตาม sysV อัตโนมัติ (แก้เองได้ → หยุดตาม) -->
-      <div class="fld"><label class="f">แรงดันทุติยภูมิพิกัด <span class="unit">V</span> <span id="vSecHint" class="unit" style="color:var(--teal,#0d9488)">⚡ จาก แท็บ 1 ระบบแรงดัน</span></label><input type="number" id="vSec" value="400" step="1" data-auto="1" oninput="vSecManual()"></div>
-      <div class="fld"><label class="f">ขั้นละของแท็ป <span class="unit">%</span></label><input type="number" id="tapStep" value="2.5" step="0.5"></div>
+      <div class="fld"><label class="f">แรงดันทุติยภูมิพิกัด <span class="unit">V</span> <span id="vSecHint" class="unit" style="color:var(--teal,#0d9488)">⚡ จาก แท็บ 1 ระบบแรงดัน</span></label><input type="number" id="vSec" value="400" step="1" data-auto="1" oninput="vSecManual()"><div class="hint te">แรงดันทุติยภูมิพิกัด (V) จาก nameplate · เติมอัตโนมัติจากระบบแรงดันแท็บ 1 แก้ทับได้</div></div>
+      <div class="fld"><label class="f">ขั้นละของแท็ป <span class="unit">%</span></label><input type="number" id="tapStep" value="2.5" step="0.5"><div class="hint te">ขั้นละของ off-load tap changer (%) จาก nameplate · ทั่วไป ±2×2.5 %</div></div>
     </div>
     <div class="grid3">
-      <div class="fld"><label class="f">แท็ปที่ตั้งอยู่ปัจจุบัน <span class="unit">% เทียบ nominal ด้าน HV</span></label><input type="number" id="tapNow" value="0" step="2.5" min="-10" max="10"></div>
-      <div class="fld"><label class="f">No-load loss (P₀) <span class="unit">W</span></label><input type="number" id="p0" value="1200" step="50"></div>
-      <div class="fld"><label class="f">Load loss ที่พิกัด (P<sub>k</sub>) <span class="unit">W</span></label><input type="number" id="pk" value="9000" step="100"></div>
+      <div class="fld"><label class="f">แท็ปที่ตั้งอยู่ปัจจุบัน <span class="unit">% เทียบ nominal ด้าน HV</span></label><input type="number" id="tapNow" value="0" step="2.5" min="-10" max="10"><div class="hint te">ตำแหน่งแท็ปปัจจุบัน (% เทียบ nominal ด้าน HV) จากแผ่นป้ายแท็ป/บันทึกซ่อมบำรุง · 0 = nominal</div></div>
+      <div class="fld"><label class="f">No-load loss (P₀) <span class="unit">W</span></label><input type="number" id="p0" value="1200" step="50"><div class="hint te">ความสูญเสียไม่มีโหลด (W) จาก test report/nameplate · 800 kVA ≈ 900–1,500 W</div></div>
+      <div class="fld"><label class="f">Load loss ที่พิกัด (P<sub>k</sub>) <span class="unit">W</span></label><input type="number" id="pk" value="9000" step="100"><div class="hint te">ความสูญเสียโหลดที่พิกัด (W) จาก test report · 800 kVA ≈ 7,000–10,000 W</div></div>
     </div>
     <div id="tapOut"></div>
   </div>
@@ -318,11 +341,11 @@ table td{vertical-align:middle}
     </div>
     <div class="grid4" id="harmIn"></div>
     <div class="grid3" style="margin-top:10px">
-      <div class="fld"><label class="f">THD ของแรงดันที่วัดได้ <span class="unit">%</span></label><input type="number" id="thdv" value="4.2" step="0.1"></div>
-      <div class="fld"><label class="f">กระแสลัดวงจรที่จุดต่อ I<sub>SC</sub> <span class="unit">A</span></label><input type="number" id="isc" value="23000" step="500"></div>
+      <div class="fld"><label class="f">THD ของแรงดันที่วัดได้ <span class="unit">%</span></label><input type="number" id="thdv" value="4.2" step="0.1"><div class="hint te">THD_V (%) จาก power quality analyzer ที่ PCC · IEEE 519 ≤ 5 % (LV) · แต่ละฮาร์มอนิก ≤ 3 %</div></div>
+      <div class="fld"><label class="f">กระแสลัดวงจรที่จุดต่อ I<sub>SC</sub> <span class="unit">A</span></label><input type="number" id="isc" value="23000" step="500"><div class="hint te">กระแสลัดวงจรที่จุดต่อร่วม (A) จาก short-circuit study หรือประมาณ = kVA×1000/(√3·V·%Z)</div></div>
       <!-- [แก้ไข 10 ก.ย. 2569] I_L สำหรับ TDD ตาม IEEE 519 = กระแสโหลดสูงสุด (15-min demand) — ว่างไว้จะใช้กระแสเฉลี่ยที่วัดแทน (TDD ≈ THDi) -->
-      <div class="fld"><label class="f">กระแสโหลดสูงสุด I<sub>L</sub> <span class="unit">A · 15-min max demand (ว่าง = ใช้กระแสเฉลี่ยที่วัด)</span></label><input type="number" id="iMaxDemand" value="" step="10" min="0" placeholder="เช่น 1150"></div>
-      <div class="fld"><label class="f">P<sub>EC-R</sub> ของหม้อแปลง <span class="unit">pu ของ I²R</span></label><input type="number" id="pec" value="0.08" step="0.01" min="0.005" max="0.3"></div>
+      <div class="fld"><label class="f">กระแสโหลดสูงสุด I<sub>L</sub> <span class="unit">A · 15-min max demand (ว่าง = ใช้กระแสเฉลี่ยที่วัด)</span></label><input type="number" id="iMaxDemand" value="" step="10" min="0" placeholder="เช่น 1150"><div class="hint te">กระแสโหลดสูงสุดเฉลี่ย 15 นาที 12 เดือน (A) สำหรับ TDD ตาม IEEE 519 · ว่าง = ใช้กระแสวัดเฉลี่ย</div></div>
+      <div class="fld"><label class="f">P<sub>EC-R</sub> ของหม้อแปลง <span class="unit">pu ของ I²R</span></label><input type="number" id="pec" value="0.08" step="0.01" min="0.005" max="0.3"><div class="hint te">สัดส่วน eddy-current loss ต่อ I²R ของหม้อแปลง (pu) จากผู้ผลิต · dry-type 0.05–0.10 · oil 0.03–0.08 (IEEE C57.110)</div></div>
     </div>
     <div id="harmOut"></div>
   </div>
@@ -927,6 +950,23 @@ IEEE Std C57.110 (derating หม้อแปลงจากฮาร์มอ�
 อัตราค่าเพาเวอร์แฟกเตอร์ตามประกาศอัตราค่าไฟฟ้าของ กฟภ./กฟน.`}</pre>`;
 }
 
+/* [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า */
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['mkW', 'lrc', 'mEff', 'tkVA', 'vSec', 'tapStep', 'p0', 'pk', 'zPct', 'pec', 'isc'], FK_MEAS=['iN', 'v1', 'v2', 'v3', 'ia', 'ib', 'ic', 'kW', 'kVAR', 'kWh', 'thdv', 'iMaxDemand', 'tapNow'], FK_SET=['sysV', 'vType', 'pfRate', 'eRate', 'hrs', 'nMot', 'pfTgt', 'capCost'], FK_CALC=[];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(/^h\d+$/.test(id))return'meas';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
+function teUIState(){ const e=$('vSec'); const t=document.querySelector('.tab.on'); return { vSecAuto: e?(e.dataset.auto||'1'):'1', tab: t?t.dataset.t:null }; }
+function teRestoreExtra(x){ if(!x) return; const e=$('vSec'); if(e&&x.vSecAuto) e.dataset.auto=x.vSecAuto;
+  if(x.tab){ const t=document.querySelector('.tab[data-t="'+x.tab+'"]'); if(t) t.click(); } }
+function recalcAll(){ try{ calc(); }catch(e){} try{ tagFieldKinds(); }catch(e){} } // calc() คำนวณ+render ทุกส่วน (verdict/unb/mot/pf/cap/tap/loss/harm/neu/mit/report) ในตัว
+function teSaveJSON(){ TE_JSON.save('Tool_Electrical_PowerQuality', teUIState()); }
+function teLoadJSON(file){ TE_JSON.load(file, recalcAll, teRestoreExtra); }
+
 /* init */
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
@@ -935,6 +975,7 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelector(`.panel[data-p="${t.dataset.t}"]`).classList.add('on');
 }));
 buildHarm();
+tagFieldKinds(); // [ระยะ 4 10 ก.ย. 2569] ติดป้ายหลังสร้างช่องฮาร์มอนิก
 document.querySelectorAll('input,select').forEach(x=>{
   x.addEventListener('input',calc); x.addEventListener('change',calc);
 });

@@ -6,6 +6,18 @@
 <title>Slagging &amp; Fouling Predictor — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root{
   --navy:#0f2a4a; --teal:#12a4a4;
@@ -68,6 +80,12 @@ input[type=number]:focus,select:focus{outline:none;border-color:var(--accent);bo
 select{font-family:'IBM Plex Sans Thai',sans-serif}
 input[readonly]{background:#f1f5f9;color:var(--muted)}
 .fld{margin-bottom:10px}
+/* [ระยะ 4 10 ก.ย. 2569] ปุ่ม JSON + ป้ายชนิดค่า + hint */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}.te-json{margin-top:12px}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 .unit{font-size:.72rem;color:var(--muted);font-weight:400}
 
 .btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:22px;
@@ -152,6 +170,11 @@ footer b{color:var(--navy)}
     <h1>Slagging &amp; Fouling Predictor</h1>
     <p>ทำนายการเกิดและความรุนแรงของตะกรัน (slagging) การพอกติด (fouling) และการกัดกร่อนอุณหภูมิสูง
        สำหรับเชื้อเพลิงแข็งและชีวมวล รวมผลของมลทินที่ติดมากับเชื้อเพลิง เช่น ดิน ทราย หิน</p>
+    <!-- [ระยะ 4 10 ก.ย. 2569] บันทึก/โหลด JSON ทุกแท็บ -->
+    <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
   </div>
 </header>
 
@@ -201,17 +224,17 @@ footer b{color:var(--navy)}
         <h3>เชื้อเพลิงหลัก (A)</h3>
         <div class="fld">
           <label class="f">เลือกจากคลัง</label>
-          <select id="fuelA"></select>
+          <select id="fuelA"></select><div class="hint">เลือกเชื้อเพลิงหลัก (A)จากคลัง (ค่าเฉลี่ยชีวมวลไทย) แล้วแก้ทับด้วยผลวิเคราะห์ของล็อตจริง หรือวางแถวจากฐานข้อมูลเชื้อเพลิงแข็งด้านล่าง</div>
         </div>
         <div class="grid4">
-          <div class="fld"><label class="f">ความชื้น ar <span class="unit">%</span></label><input type="number" id="A_mc" step="0.1"></div>
-          <div class="fld"><label class="f">เถ้า dry <span class="unit">%</span></label><input type="number" id="A_ash" step="0.1"></div>
-          <div class="fld"><label class="f">LHV ar <span class="unit">MJ/kg</span></label><input type="number" id="A_lhv" step="0.1"></div>
+          <div class="fld"><label class="f">ความชื้น ar <span class="unit">%</span></label><input type="number" id="A_mc" step="0.1"><div class="hint">ความชื้นรวม as-received · ทะลายปาล์ม 55–65 % · ไม้สับ 35–50 % · แกลบ 8–12 % · PKS 10–15 % · ที่มา: ASTM E871 / moisture meter หน้างาน</div></div>
+          <div class="fld"><label class="f">เถ้า dry <span class="unit">%</span></label><input type="number" id="A_ash" step="0.1"><div class="hint">เถ้าฐานแห้ง · แกลบ 15–20 % · ฟางข้าว 12–18 % · ทะลายปาล์ม 4–7 % · ไม้สับ 1–3 % · ที่มา: ASTM D3174 / proximate analysis</div></div>
+          <div class="fld"><label class="f">LHV ar <span class="unit">MJ/kg</span></label><input type="number" id="A_lhv" step="0.1"><div class="hint">ค่าความร้อนต่ำ as-received (MJ/kg) — ใช้ถ่วงน้ำหนักสัดส่วนพลังงานและคำนวณ Alkali Index · ที่มา: bomb calorimeter (แปลง HHV→LHV) / COA</div></div>
         </div>
         <div class="grid4">
-          <div class="fld"><label class="f">S dry <span class="unit">%</span></label><input type="number" id="A_s" step="0.01"></div>
-          <div class="fld"><label class="f">Cl dry <span class="unit">%</span></label><input type="number" id="A_cl" step="0.01"></div>
-          <div class="fld"><label class="f">IDT reducing <span class="unit">°C</span></label><input type="number" id="A_idt" step="10"></div>
+          <div class="fld"><label class="f">S dry <span class="unit">%</span></label><input type="number" id="A_s" step="0.01"><div class="hint">กำมะถันฐานแห้ง · ชีวมวล 0.05–0.2 % · ถ่านหิน 0.5–3 % · ใช้คิด S/Cl ratio · ที่มา: ultimate analysis ASTM D4239</div></div>
+          <div class="fld"><label class="f">Cl dry <span class="unit">%</span></label><input type="number" id="A_cl" step="0.01"><div class="hint">คลอรีนฐานแห้ง · ทะลายปาล์ม/ฟางข้าว 0.3–0.8 % (สูง → กัดกร่อน) · ไม้ < 0.05 % · ที่มา: ASTM D6721 / ion chromatography — ถ้าได้ mg/kg ให้หาร 10,000</div></div>
+          <div class="fld"><label class="f">IDT reducing <span class="unit">°C</span></label><input type="number" id="A_idt" step="10"><div class="hint">Initial deformation temperature (reducing atmosphere) · ชีวมวล K สูง 750–1,000 °C · ถ่านหิน 1,100–1,400 °C · ที่มา: ASTM D1857 / ISO 540 ash fusion test</div></div>
         </div>
         <details class="ox">
           <summary>องค์ประกอบเถ้า A (% ในเถ้า) <span class="unit" id="A_oxsum"></span></summary>
@@ -224,21 +247,21 @@ footer b{color:var(--navy)}
         <h3>เชื้อเพลิงผสม (B)</h3>
         <div class="fld">
           <label class="f">เลือกจากคลัง</label>
-          <select id="fuelB"></select>
+          <select id="fuelB"></select><div class="hint">เลือกเชื้อเพลิงผสม (B)จากคลัง (ค่าเฉลี่ยชีวมวลไทย) แล้วแก้ทับด้วยผลวิเคราะห์ของล็อตจริง หรือวางแถวจากฐานข้อมูลเชื้อเพลิงแข็งด้านล่าง</div>
         </div>
         <div class="fld">
           <label class="f">สัดส่วนพลังงานของ B <span class="unit">% ของพลังงานรวม</span></label>
-          <input type="number" id="B_share" value="0" step="1" min="0" max="100">
+          <input type="number" id="B_share" value="0" step="1" min="0" max="100"><div class="hint">สัดส่วนพลังงานของเชื้อเพลิง B (% ของพลังงานรวม) · 0 = เผา A ล้วน · ที่มา: แผนการผสมหน้างาน (แปลงจากสัดส่วนน้ำหนักด้วย LHV)</div>
         </div>
         <div class="grid4">
-          <div class="fld"><label class="f">ความชื้น ar <span class="unit">%</span></label><input type="number" id="B_mc" step="0.1"></div>
-          <div class="fld"><label class="f">เถ้า dry <span class="unit">%</span></label><input type="number" id="B_ash" step="0.1"></div>
-          <div class="fld"><label class="f">LHV ar <span class="unit">MJ/kg</span></label><input type="number" id="B_lhv" step="0.1"></div>
+          <div class="fld"><label class="f">ความชื้น ar <span class="unit">%</span></label><input type="number" id="B_mc" step="0.1"><div class="hint">ความชื้นรวม as-received · ทะลายปาล์ม 55–65 % · ไม้สับ 35–50 % · แกลบ 8–12 % · PKS 10–15 % · ที่มา: ASTM E871 / moisture meter หน้างาน</div></div>
+          <div class="fld"><label class="f">เถ้า dry <span class="unit">%</span></label><input type="number" id="B_ash" step="0.1"><div class="hint">เถ้าฐานแห้ง · แกลบ 15–20 % · ฟางข้าว 12–18 % · ทะลายปาล์ม 4–7 % · ไม้สับ 1–3 % · ที่มา: ASTM D3174 / proximate analysis</div></div>
+          <div class="fld"><label class="f">LHV ar <span class="unit">MJ/kg</span></label><input type="number" id="B_lhv" step="0.1"><div class="hint">ค่าความร้อนต่ำ as-received (MJ/kg) — ใช้ถ่วงน้ำหนักสัดส่วนพลังงานและคำนวณ Alkali Index · ที่มา: bomb calorimeter (แปลง HHV→LHV) / COA</div></div>
         </div>
         <div class="grid4">
-          <div class="fld"><label class="f">S dry <span class="unit">%</span></label><input type="number" id="B_s" step="0.01"></div>
-          <div class="fld"><label class="f">Cl dry <span class="unit">%</span></label><input type="number" id="B_cl" step="0.01"></div>
-          <div class="fld"><label class="f">IDT reducing <span class="unit">°C</span></label><input type="number" id="B_idt" step="10"></div>
+          <div class="fld"><label class="f">S dry <span class="unit">%</span></label><input type="number" id="B_s" step="0.01"><div class="hint">กำมะถันฐานแห้ง · ชีวมวล 0.05–0.2 % · ถ่านหิน 0.5–3 % · ใช้คิด S/Cl ratio · ที่มา: ultimate analysis ASTM D4239</div></div>
+          <div class="fld"><label class="f">Cl dry <span class="unit">%</span></label><input type="number" id="B_cl" step="0.01"><div class="hint">คลอรีนฐานแห้ง · ทะลายปาล์ม/ฟางข้าว 0.3–0.8 % (สูง → กัดกร่อน) · ไม้ < 0.05 % · ที่มา: ASTM D6721 / ion chromatography — ถ้าได้ mg/kg ให้หาร 10,000</div></div>
+          <div class="fld"><label class="f">IDT reducing <span class="unit">°C</span></label><input type="number" id="B_idt" step="10"><div class="hint">Initial deformation temperature (reducing atmosphere) · ชีวมวล K สูง 750–1,000 °C · ถ่านหิน 1,100–1,400 °C · ที่มา: ASTM D1857 / ISO 540 ash fusion test</div></div>
         </div>
         <details class="ox">
           <summary>องค์ประกอบเถ้า B (% ในเถ้า) <span class="unit" id="B_oxsum"></span></summary>
@@ -255,15 +278,15 @@ footer b{color:var(--navy)}
     <div class="grid3">
       <div class="fld">
         <label class="f">ชนิดมลทิน</label>
-        <select id="soilType"></select>
+        <select id="soilType"></select><div class="hint">ชนิดมลทินที่ติดมากับเชื้อเพลิง (ดิน/ทราย/หินปูน) · ที่มา: สังเกตกองเชื้อเพลิง/ผลวิเคราะห์เถ้า — SiO₂ สูงผิดปกติบ่งชี้ทราย</div>
       </div>
       <div class="fld">
         <label class="f">ปริมาณที่ปน <span class="unit">% ของน้ำหนักเชื้อเพลิงแห้ง</span></label>
-        <input type="number" id="soilPct" value="0" step="0.5" min="0" max="30">
+        <input type="number" id="soilPct" value="0" step="0.5" min="0" max="30"><div class="hint">ปริมาณมลทิน % ของน้ำหนักเชื้อเพลิงแห้ง · เหง้ามัน/รากไม้ 5–15 % · ทะลายปาล์มกองพื้นดิน 1–3 % · ที่มา: ร่อนตัวอย่าง/ผลเถ้าที่สูงกว่าคลัง</div>
       </div>
       <div class="fld">
         <label class="f">สัดส่วนที่เหลือเป็นเถ้า <span class="unit">%</span></label>
-        <input type="number" id="soilYield" value="98" step="1" min="50" max="100">
+        <input type="number" id="soilYield" value="98" step="1" min="50" max="100"><div class="hint">สัดส่วนของมลทินที่เหลือเป็นเถ้าหลังเผา · ทราย/หิน 95–100 % · ดินเหนียวชื้น 80–90 % (เสีย LOI) · ที่มา: LOI ของตัวอย่างมลทิน</div>
       </div>
     </div>
     <div class="note warn" style="margin-top:4px">
@@ -287,7 +310,7 @@ footer b{color:var(--navy)}
       </div>
       <div class="fld" style="margin-top:10px">
         <label class="f">วางแถวข้อมูลรูปแบบ pipe (id|mat|cls|yr|M|ASH|VM|FC|C|H|O|N|S|CL|LHV|HHV|IDT|SOT|HT|FT|SiO2|…|SO3)</label>
-        <input type="text" id="pasteRow" placeholder="1234|Rice husk|12|2019|9.5|18.2|…">
+        <input type="text" id="pasteRow" placeholder="1234|Rice husk|12|2019|9.5|18.2|…"><div class="hint">คัดลอกแถวจาก Solid_Fuel_Database (รูปแบบ pipe 30 ช่อง) แล้วกดปุ่มนำเข้าเป็น A หรือ B — ระบบแปลง LHV ฐานแห้ง→ar และ Cl mg/kg→% ให้</div>
       </div>
       <button class="btn sm" id="btnPasteA">นำเข้าเป็นเชื้อเพลิง A</button>
       <button class="btn sm ghost" id="btnPasteB">นำเข้าเป็นเชื้อเพลิง B</button>
@@ -322,19 +345,19 @@ footer b{color:var(--navy)}
     <div class="sub">เกณฑ์ทางฟิสิกส์ที่แท้จริงของ slagging คือ อุณหภูมิเฉพาะจุด เทียบกับ จุดอ่อนตัวของเถ้า</div>
     <div class="grid3">
       <div class="fld"><label class="f">ชนิดเตา / ระบบเผา</label>
-        <select id="furnType"></select></div>
+        <select id="furnType"></select><div class="hint">ชนิดเตา — กำหนดตัวประกอบสูญเสียรังสี (FEGT/Tad) และภาระตะกรับสูงสุดอ้างอิง · ที่มา: สเปคหม้อไอน้ำ (stoker/FBC/CFB/pulverized)</div></div>
       <div class="fld"><label class="f">โหมดอุณหภูมิ</label>
         <select id="tMode">
           <option value="est">ประมาณจากเชื้อเพลิง + อากาศส่วนเกิน</option>
           <option value="meas">ใส่ค่าที่วัดได้เอง</option>
-        </select></div>
-      <div class="fld"><label class="f">อากาศส่วนเกิน λ <span class="unit">(1.0 = พอดี)</span></label><input type="number" id="lambda" value="1.5" step="0.05" min="1"></div>
-      <div class="fld"><label class="f">ตัวประกอบสูญเสียรังสี <span class="unit">FEGT/T<sub>ad</sub></span></label><input type="number" id="radFac" value="0.78" step="0.01" min="0.4" max="1"></div>
+        </select><div class="hint">ประมาณ = คำนวณ Tad จาก LHV และ λ แล้วคูณ radFac · วัดจริง = ใส่ค่าจาก thermocouple/pyrometer ที่ bed และทางออกเตา (แม่นกว่า)</div></div>
+      <div class="fld"><label class="f">อากาศส่วนเกิน λ <span class="unit">(1.0 = พอดี)</span></label><input type="number" id="lambda" value="1.5" step="0.05" min="1"><div class="hint">อัตราส่วนอากาศจริงต่ออากาศทฤษฎี = 20.9/(20.9−O₂) · stoker ชีวมวล 1.4–1.8 (O₂ 6–9 %) · FBC 1.2–1.4 · ที่มา: O₂ ไอเสียจาก testo/CEMS</div></div>
+      <div class="fld"><label class="f">ตัวประกอบสูญเสียรังสี <span class="unit">FEGT/T<sub>ad</sub></span></label><input type="number" id="radFac" value="0.78" step="0.01" min="0.4" max="1"><div class="hint">สัดส่วน FEGT ต่ออุณหภูมิเปลวอะเดียแบติก · stoker 0.70–0.80 · FBC 0.60–0.70 (bed ระบายความร้อน) · pulverized 0.80–0.85 · เติมอัตโนมัติจากชนิดเตา</div></div>
     </div>
     <div class="grid3">
-      <div class="fld"><label class="f">อุณหภูมิ bed / เตา <span class="unit">°C</span></label><input type="number" id="tBed" step="10"></div>
-      <div class="fld"><label class="f">FEGT (ทางออกเตา) <span class="unit">°C</span></label><input type="number" id="tFegt" step="10"></div>
-      <div class="fld"><label class="f">อุณหภูมิผิวท่อ Superheater <span class="unit">°C</span></label><input type="number" id="tTube" value="440" step="5"></div>
+      <div class="fld"><label class="f">อุณหภูมิ bed / เตา <span class="unit">°C</span></label><input type="number" id="tBed" step="10"><div class="hint">อุณหภูมิ bed/ในเตาที่วัดได้ (°C) · FBC 800–900 · stoker 900–1,100 · ที่มา: thermocouple bed / DCS</div></div>
+      <div class="fld"><label class="f">FEGT (ทางออกเตา) <span class="unit">°C</span></label><input type="number" id="tFegt" step="10"><div class="hint">อุณหภูมิก๊าซทางออกเตา (Furnace Exit Gas Temp) · ควรต่ำกว่า IDT ผสมอย่างน้อย 50–100 K · ที่มา: thermocouple/optical pyrometer ก่อน superheater</div></div>
+      <div class="fld"><label class="f">อุณหภูมิผิวท่อ Superheater <span class="unit">°C</span></label><input type="number" id="tTube" value="440" step="5"><div class="hint">อุณหภูมิผิวท่อ superheater ด้านก๊าซ ≈ T ไอน้ำ + 30–60 K · ไอน้ำ 400 °C → ผิว 440–460 °C · > 450 °C เสี่ยงกัดกร่อนคลอไรด์ · ที่มา: สเปคหม้อไอน้ำ/DCS</div></div>
     </div>
     <div id="tempOut"></div>
   </div>
@@ -343,9 +366,9 @@ footer b{color:var(--navy)}
     <h2>Ash Fusion Temperature และ margin</h2>
     <div class="sub">ค่า IDT ที่ใช้ = IDT ตั้งต้น ลบด้วยผลของโซน reducing และผลของ eutectic</div>
     <div class="grid3">
-      <div class="fld"><label class="f">IDT ผสม (ก่อนหักลบ) <span class="unit">°C</span></label><input type="number" id="idtBlend" readonly></div>
-      <div class="fld"><label class="f">หักเผื่อ hotspot / โซนอับอากาศ <span class="unit">°C</span></label><input type="number" id="redPen" value="50" step="10" min="0" max="250"></div>
-      <div class="fld"><label class="f">หัก eutectic (คำนวณให้) <span class="unit">°C</span></label><input type="number" id="eutPen" readonly></div>
+      <div class="fld"><label class="f">IDT ผสม (ก่อนหักลบ) <span class="unit">°C</span></label><input type="number" id="idtBlend" readonly><div class="hint">IDT ของเถ้าผสม (ถ่วงด้วยสัดส่วนเถ้า + มลทิน) — คำนวณอัตโนมัติ</div></div>
+      <div class="fld"><label class="f">หักเผื่อ hotspot / โซนอับอากาศ <span class="unit">°C</span></label><input type="number" id="redPen" value="50" step="10" min="0" max="250"><div class="hint">หักเผื่อจุดร้อน/channeling บนตะกรับที่อุณหภูมิเฉพาะจุดสูงกว่าค่าเฉลี่ย · bed สม่ำเสมอ 30–50 K · มี hotspot ชัด 100–150 K · ที่มา: ภาพ IR/สังเกตหน้างาน</div></div>
+      <div class="fld"><label class="f">หัก eutectic (คำนวณให้) <span class="unit">°C</span></label><input type="number" id="eutPen" readonly><div class="hint">หักเผื่อการหลอมยูเทกติกจาก K₂O–SiO₂ / Na₂O–SiO₂ / Fe ในเถ้า — คำนวณอัตโนมัติจากองค์ประกอบออกไซด์</div></div>
     </div>
     <div id="aftOut"></div>
   </div>
@@ -368,14 +391,14 @@ footer b{color:var(--navy)}
           <option value="0">สม่ำเสมอดี ไม่มีจุดหนา-บาง</option>
           <option value="0.5" selected>ปานกลาง มีจุดหนาบ้าง</option>
           <option value="1">ไม่สม่ำเสมอ เห็น channeling / จุดอับอากาศ</option>
-        </select></div>
+        </select><div class="hint">สภาพการกระจายตัวของเชื้อเพลิงบนตะกรับ · ที่มา: สังเกตผ่านช่องมอง/ภาพ IR — จุดหนา-บาง, channeling ทำให้เกิด hotspot และตะกรัน</div></div>
       <div class="fld"><label class="f">ความสามารถ soot blowing</label>
         <select id="opSoot">
           <option value="0">มีระบบครบ เดินตามสภาพ</option>
           <option value="0.5" selected>มีระบบ แต่เดินตามเวลาอย่างเดียว</option>
           <option value="1">ไม่มี / ใช้งานไม่ได้</option>
-        </select></div>
-      <div class="fld"><label class="f">ภาระความร้อนบนตะกรับ q<sub>F</sub> <span class="unit">MW/m²</span></label><input type="number" id="qF" value="1.5" step="0.1" min="0"></div>
+        </select><div class="hint">ระบบ soot blowing ของ superheater/economizer · เดินตามสภาพ (ΔP/ΔT) ดีที่สุด · ที่มา: สอบถามผู้ควบคุม/log การ soot blow</div></div>
+      <div class="fld"><label class="f">ภาระความร้อนบนตะกรับ q<sub>F</sub> <span class="unit">MW/m²</span></label><input type="number" id="qF" value="1.5" step="0.1" min="0"><div class="hint">ภาระความร้อนต่อพื้นที่ตะกรับ = LHV × อัตราป้อน / พื้นที่ตะกรับ · stoker ชีวมวล 1.0–2.0 MW/m² · เกินค่าออกแบบ → bed ร้อนเกิน · เติม 70 % ของค่าสูงสุดอ้างอิง</div></div>
     </div>
   </div>
 
@@ -389,9 +412,9 @@ footer b{color:var(--navy)}
     <h2>ผลตามมาที่คาดการณ์ และมูลค่า</h2>
     <div class="sub">แปลงความเสี่ยงเป็นตัวเลขที่ฝ่ายบริหารตัดสินใจได้</div>
     <div class="grid3">
-      <div class="fld"><label class="f">อัตราป้อนเชื้อเพลิง <span class="unit">ตัน/ชม. (as-fired)</span></label><input type="number" id="fuelRate" value="5" step="0.1" min="0"></div>
-      <div class="fld"><label class="f">ชั่วโมงเดินเครื่อง <span class="unit">ชม./ปี</span></label><input type="number" id="opHours" value="7200" step="100" min="0"></div>
-      <div class="fld"><label class="f">ราคาเชื้อเพลิง <span class="unit">บาท/ตัน</span></label><input type="number" id="fuelPrice" value="1200" step="50" min="0"></div>
+      <div class="fld"><label class="f">อัตราป้อนเชื้อเพลิง <span class="unit">ตัน/ชม. (as-fired)</span></label><input type="number" id="fuelRate" value="5" step="0.1" min="0"><div class="hint">อัตราป้อนเชื้อเพลิงเฉลี่ย as-fired · ที่มา: เครื่องชั่งสายพาน/ใบชั่งรายวัน ÷ ชั่วโมง · หม้อไอน้ำ 20 t/h ชีวมวล ≈ 4–6 ตัน/ชม.</div></div>
+      <div class="fld"><label class="f">ชั่วโมงเดินเครื่อง <span class="unit">ชม./ปี</span></label><input type="number" id="opHours" value="7200" step="100" min="0"><div class="hint">ชั่วโมงเดินหม้อไอน้ำต่อปี · 3 กะ 6 วัน ≈ 7,200 · ต่อเนื่อง 8,000+ · ที่มา: log การเดินเครื่อง</div></div>
+      <div class="fld"><label class="f">ราคาเชื้อเพลิง <span class="unit">บาท/ตัน</span></label><input type="number" id="fuelPrice" value="1200" step="50" min="0"><div class="hint">ราคาเชื้อเพลิงหลักส่งถึงโรงงาน (บาท/ตัน) · ปี 2569: ไม้สับ 900–1,300 · ทะลายปาล์ม 300–600 · PKS 2,500–3,200 · แกลบ 1,400–1,800 · ที่มา: ใบแจ้งหนี้</div></div>
     </div>
     <div id="consqOut"></div>
   </div>
@@ -403,8 +426,8 @@ footer b{color:var(--navy)}
     <h2>ตัวช่วยหาสัดส่วนผสม (Blend Solver)</h2>
     <div class="sub">ย้อนกลับหาว่า เผาเชื้อเพลิง A ได้มากที่สุดกี่ % จึงจะยังผ่านเกณฑ์</div>
     <div class="grid3">
-      <div class="fld"><label class="f">เป้า Alkali Index สูงสุด <span class="unit">kg/GJ</span></label><input type="number" id="tgtAI" value="0.17" step="0.01" min="0.05"></div>
-      <div class="fld"><label class="f">เป้า S/Cl ต่ำสุด <span class="unit">molar</span></label><input type="number" id="tgtSCl" value="4" step="0.5" min="0"></div>
+      <div class="fld"><label class="f">เป้า Alkali Index สูงสุด <span class="unit">kg/GJ</span></label><input type="number" id="tgtAI" value="0.17" step="0.01" min="0.05"><div class="hint">Alkali Index (kg (K₂O+Na₂O)/GJ) เป้าหมาย · < 0.17 = fouling น้อย · 0.17–0.34 = อาจเกิด · > 0.34 = แน่นอน (Miles et al. 1996)</div></div>
+      <div class="fld"><label class="f">เป้า S/Cl ต่ำสุด <span class="unit">molar</span></label><input type="number" id="tgtSCl" value="4" step="0.5" min="0"><div class="hint">อัตราส่วนโมล S/Cl ต่ำสุด · > 4 ลดการกัดกร่อนคลอไรด์ (ซัลเฟตจับ K) · < 2 เสี่ยงสูง (Salmenoja 2000) · เพิ่มได้ด้วยการผสมเชื้อเพลิง S สูง</div></div>
       <div class="fld" style="display:flex;align-items:flex-end"><button class="btn" id="btnSolve" style="width:100%">คำนวณสัดส่วนสูงสุด</button></div>
     </div>
     <div id="solveOut"></div>
@@ -1341,6 +1364,21 @@ function importRow(P){
   computeAll();
 }
 
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['tTube'], FK_MEAS=['A_mc', 'A_ash', 'A_lhv', 'A_s', 'A_cl', 'A_idt', 'B_mc', 'B_ash', 'B_lhv', 'B_s', 'B_cl', 'B_idt', 'soilPct', 'soilYield', 'lambda', 'tBed', 'tFegt', 'opBed', 'opSoot', 'fuelRate'], FK_SET=['fuelA', 'fuelB', 'B_share', 'soilType', 'pasteRow', 'furnType', 'tMode', 'radFac', 'redPen', 'qF', 'opHours', 'fuelPrice', 'tgtAI', 'tgtSCl'], FK_CALC=['idtBlend', 'eutPen'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(/^[AB]_(SiO2|Al2O3|TiO2|Fe2O3|CaO|MgO|Na2O|K2O|P2O5|SO3)$/.test(id))return'meas';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
+/* [ระยะ 4 10 ก.ย. 2569] JSON: recalcAll = computeAll() (คำนวณ+render ทุกแท็บ) + runSolve() (สัดส่วนสูงสุด) */
+function recalcAll(){ try{computeAll();}catch(e){console.warn(e);} try{runSolve();}catch(e){} try{tagFieldKinds();}catch(e){} }
+function teExtra(){ const t=document.querySelector('.tab.on'); return {tab:t?t.dataset.t:'1'}; }
+function teRestoreExtra(x){ if(x&&x.tab){ const t=document.querySelector('.tab[data-t="'+x.tab+'"]'); if(t) t.click(); } }
+function teSaveJSON(){ TE_JSON.save('Tool_Slagging_Fouling_Predictor',teExtra()); }
+function teLoadJSON(file){ TE_JSON.load(file,recalcAll,teRestoreExtra); }
 /* ── init ── */
 function init(){
   buildSelects();
@@ -1383,6 +1421,7 @@ function init(){
   $('radFac').value=F.rad; $('qF').value=(F.qfMax*0.7).toFixed(1);
   computeAll();
   runSolve();
+  tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า หลังสร้างช่องออกไซด์ */
 }
 document.addEventListener('DOMContentLoaded', init);
 

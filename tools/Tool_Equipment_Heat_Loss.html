@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Equipment Heat Loss &amp; Insulation Calculator v2 — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root{
   --navy:#0f2a4a;--teal:#12a4a4;
@@ -57,6 +69,12 @@ tr.tot td{background:var(--whr-light);font-weight:700}
   border-left:3px solid var(--whr-mid);padding:10px 12px;border-radius:0 8px 8px 0}
 .assump b{color:var(--navy)}
 .note{font-size:.77rem;color:var(--muted);margin-top:3px}
+/* [ระยะ 4 10 ก.ย. 2569] ปุ่ม JSON + ป้ายชนิดค่า + hint (ใช้สไตล์เดียวกับ .note) */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}.te-json{margin:10px 0 0}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:.77rem;color:var(--muted);margin-top:3px;line-height:1.5}
 .small{font-size:.82rem}
 .badge{display:inline-block;font-size:.7rem;padding:2px 8px;border-radius:12px;background:var(--whr-light);color:var(--whr-text);font-weight:600}
 .badge.ok{background:#e6f7ed;color:#12703f}
@@ -148,6 +166,11 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
   <p style="font-size:.82rem;opacity:.85;margin-top:.3rem">
     แนวทางการคำนวณ: ASTM C680 (heat loss &amp; surface temperature) · ISO 13732-1 &amp; ASTM C1055 (contact burn) ·
     ASTM C585 (ความหนาเชิงพาณิชย์) · ISO 12241 &nbsp;|&nbsp; v2.0</p>
+  <!-- [ระยะ 4 10 ก.ย. 2569] บันทึก/โหลด JSON ทุกแท็บ (รวม 20 ชิ้นส่วน + รูปทรง/มิติ) -->
+  <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
 </header>
 
 <div class="wrap">
@@ -166,7 +189,7 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
     <div class="card">
       <h2>ก) สภาวะการทำงาน (Operating Condition)</h2>
       <div class="grid4">
-        <div><label>ชื่ออุปกรณ์ (Equipment)</label><input id="eqName" type="text" value="ถังผสมสารเคมี MT-01" style="font-family:inherit"></div>
+        <div><label>ชื่ออุปกรณ์ (Equipment)</label><input id="eqName" type="text" value="ถังผสมสารเคมี MT-01" style="font-family:inherit"><div class="hint">ชื่อ/รหัสอุปกรณ์ตามป้ายหน้างาน ใช้พิมพ์บนรูปประกอบและรายงาน</div></div>
         <div><label>อุณหภูมิสาร/กระบวนการ T<sub>f</sub> (°C)</label><input id="Tf" type="number" step="1" value="150" oninput="calcAll()">
           <div class="note">อุณหภูมิของของไหลภายใน — อ่านจากเกจประจำเครื่อง หรือถ้าเป็นไอน้ำอิ่มตัวให้ใช้อุณหภูมิตามความดัน
             (7 bar g ≈ 170 °C · 10 bar g ≈ 184 °C)</div></div>
@@ -185,7 +208,7 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <option value="300">ของเหลวนิ่ง — พาความร้อนอิสระ (~300)</option>
             <option value="40">ก๊าซร้อนไหลผ่าน (~40)</option>
             <option value="12">ก๊าซนิ่ง / ช่องอากาศ (~12)</option>
-          </select></div>
+          </select><div class="hint">เลือกสภาพของไหลด้านใน — ส่วนใหญ่เลือก "ไม่คิดฟิล์มใน" ได้เพราะ R ด้านในเล็กมากเทียบกับฉนวน · ที่มา: ลักษณะกระบวนการ (ไอน้ำ/ของเหลวกวน/ก๊าซ)</div></div>
         <div><label>ค่า h<sub>i</sub> ที่ใช้ (W/m²·K)</label><input id="hi" type="number" step="1" value="99999" oninput="calcAll()">
           <div class="note" id="hiNote"></div></div>
         <div><label>ผนังโลหะ — ความหนา (mm)</label><input id="tWall" type="number" step="0.5" value="6" oninput="calcAll()">
@@ -198,7 +221,7 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <option value="52">เหล็กหล่อ (52)</option>
             <option value="205">อะลูมิเนียม (205)</option>
             <option value="386">ทองแดง (386)</option>
-          </select></div>
+          </select><div class="hint">วัสดุผนังอุปกรณ์ · ที่มา: แบบ/สเปคอุปกรณ์ (nameplate, drawing) · ค่า k จากตาราง ASHRAE/ASTM</div></div>
       </div>
       <div class="grid4">
         <div><label>ชั่วโมงทำงานต่อปี (h/ปี)</label><input id="hrs" type="number" step="10" value="6000" oninput="calcAll()">
@@ -210,7 +233,7 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <option value="0.90">ผิวทาสี / ผิวปูน (0.90)</option>
             <option value="0.28">ผิวเหล็กใหม่ ผิวมัน (0.28)</option>
             <option value="0.20">สเตนเลสขัดผิว (0.20)</option>
-          </select>
+          </select><div class="hint">ค่าการแผ่รังสีผิวปัจจุบันก่อนหุ้ม · ที่มา: สังเกตหน้างาน — เหล็กเก่ามีออกไซด์/สนิม 0.8–0.9, เหล็กใหม่มัน 0.25–0.3, สเตนเลสขัด 0.2</div>
           <div class="note">ค่าการแผ่รังสีของผิวก่อนหุ้ม — ถังเหล็กใช้งานแล้วมีสนิม/คราบ ให้ใช้ <b>0.79</b> (ค่าแนะนำ)</div></div>
         <div><label>สภาพผิวเมื่อ<b>หุ้มแล้ว</b> — วัสดุหุ้มนอก (Cladding)</label>
           <select id="emIns" onchange="onClad()">
@@ -220,10 +243,10 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <option value="0.20|0.5|16">แผ่นสเตนเลส (ε 0.20)</option>
             <option value="0.90|2.0|0.9">ผ้าใยแก้ว / ฉาบปูนซีเมนต์ (ε 0.90)</option>
             <option value="0.90|0.0|0.05">ผิวฉนวนเปลือย ไม่มีวัสดุหุ้ม (ε 0.90)</option>
-          </select>
+          </select><div class="hint">วัสดุหุ้มนอกหลังหุ้มฉนวน (cladding) — อะลูมิเนียม ε 0.15 ใช้มากที่สุดในโรงงานไทย · สังกะสี 0.25 · ที่มา: ใบเสนอราคาผู้รับเหมาฉนวน</div>
           <div class="note">แผ่นอะลูมิเนียม ε ต่ำ → แผ่รังสีน้อย ผิวจึงร้อนกว่าผิวทาสีเล็กน้อยที่ Q เท่ากัน
             <br>งานอุตสาหกรรมไทยส่วนใหญ่ใช้ <b>แผ่นอะลูมิเนียม ε 0.15</b> (ค่าแนะนำ)</div></div>
-        <div><label>ความหนาวัสดุหุ้มนอก (mm)</label><input id="tClad" type="number" step="0.1" value="0.5" oninput="calcAll()"></div>
+        <div><label>ความหนาวัสดุหุ้มนอก (mm)</label><input id="tClad" type="number" step="0.1" value="0.5" oninput="calcAll()"><div class="hint">ความหนาแผ่นหุ้มนอก · อะลูมิเนียม 0.5–0.8 mm · เหล็กชุบสังกะสี 0.4–0.6 mm · สเตนเลส 0.4–0.5 mm · ที่มา: ใบเสนอราคา/สเปค</div></div>
       </div>
     </div>
 
@@ -236,7 +259,7 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
           <select id="outdoor" onchange="onOutdoor()">
             <option value="0" selected>ในอาคาร / ใต้หลังคา — ไม่คิดแดดและท้องฟ้าโล่ง</option>
             <option value="1">กลางแจ้ง — คิดรังสีอาทิตย์ + การแผ่สู่ท้องฟ้า</option>
-          </select>
+          </select><div class="hint">ในอาคาร = ไม่มีรังสีอาทิตย์/ท้องฟ้า (ค่าปกติ) · กลางแจ้ง = คิดรังสีอาทิตย์ที่ดูดกลืนและแผ่รังสีสู่ท้องฟ้า · ที่มา: ตำแหน่งติดตั้งจริง</div>
           <div class="note">เลือก “กลางแจ้ง” จะเปลี่ยนสมดุลพลังงานที่ผิว: บวกรังสีที่ดูดกลืน และแผ่รังสีไปยัง
             ท้องฟ้าที่ T<sub>sky</sub> = T<sub>a</sub> − 20 K</div></div>
         <div id="oG"><label>ความเข้มรังสีอาทิตย์ G (W/m²)</label><input id="solG" type="number" step="50" value="800" oninput="calcAll()">
@@ -253,20 +276,20 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
     <div class="card">
       <h2>ข) ฉนวนความร้อน (Insulation) — ค่าเริ่มต้นของทั้งอุปกรณ์</h2>
       <div class="grid4">
-        <div><label>ชนิดฉนวน</label><select id="insMat" onchange="calcAll()"></select></div>
+        <div><label>ชนิดฉนวน</label><select id="insMat" onchange="calcAll()"></select><div class="hint">ชนิดฉนวนที่จะใช้ · ใยหิน (rockwool) ใช้ได้ถึง 650 °C ราคาถูกที่สุด · ใยแก้ว ≤ 350 °C · แคลเซียมซิลิเกต ≤ 650 °C · เซรามิกไฟเบอร์ > 800 °C · ที่มา: ใบเสนอราคา/datasheet ฉนวน</div></div>
         <div><label>ความหนาฉนวน (mm)</label><input id="insT" type="number" step="5" value="75" oninput="calcAll()">
           <div class="note">ค่าที่พบบ่อย: 50 (≤120 °C) · <b>75</b> (120–200 °C, ค่าแนะนำ) · 100 (200–350 °C) · 150–200 (&gt;400 °C)
             <br>ใส่ 0 = ยังไม่หุ้ม · ตรวจความหนาที่คุ้มค่าได้ในแท็บ 3</div></div>
-        <div><label>ค่า k ที่ใช้จริง (W/m·K) — คำนวณจากอุณหภูมิเฉลี่ย</label><input id="kShow" type="text" readonly style="background:#f7f8fa"></div>
-        <div><label>หรือกำหนด k เอง (W/m·K) — ใส่ 0 = ใช้ค่าจากตาราง</label><input id="kMan" type="number" step="0.001" value="0" oninput="calcAll()"></div>
+        <div><label>ค่า k ที่ใช้จริง (W/m·K) — คำนวณจากอุณหภูมิเฉลี่ย</label><input id="kShow" type="text" readonly style="background:#f7f8fa"><div class="hint">ค่า k ที่ระบบคำนวณจากสมการ k(T) ของฉนวนที่เลือก ณ อุณหภูมิเฉลี่ยของชั้นฉนวน (ไม่ต้องกรอก)</div></div>
+        <div><label>หรือกำหนด k เอง (W/m·K) — ใส่ 0 = ใช้ค่าจากตาราง</label><input id="kMan" type="number" step="0.001" value="0" oninput="calcAll()"><div class="hint">ใช้เมื่อมี datasheet ฉนวนของผู้ผลิตจริง (k ที่อุณหภูมิเฉลี่ยใช้งาน) — rockwool 100 kg/m³ ที่ 100 °C ≈ 0.045 W/m·K · ใส่ 0 = ใช้ตารางในโปรแกรม</div></div>
       </div>
       <div class="note" id="insNote"></div>
       <div class="grid4" style="margin-top:12px">
-        <div><label>ชั้นที่ 2 — ชนิดฉนวน (หุ้มทับชั้นที่ 1)</label><select id="ins2" onchange="calcAll()"></select></div>
+        <div><label>ชั้นที่ 2 — ชนิดฉนวน (หุ้มทับชั้นที่ 1)</label><select id="ins2" onchange="calcAll()"></select><div class="hint">ฉนวนชั้นที่ 2 หุ้มทับชั้นแรก — ใช้เมื่ออุณหภูมิสูงเกินขีดจำกัดของฉนวนราคาถูก (เช่น เซรามิกไฟเบอร์ชั้นใน + rockwool ชั้นนอก)</div></div>
         <div><label>ชั้นที่ 2 — ความหนา (mm) &nbsp;<b style="color:#b3302f">0 = ไม่ใช้</b></label>
-          <input id="insT2" type="number" step="5" value="0" oninput="calcAll()"></div>
-        <div><label>ชั้นที่ 3 — ชนิดฉนวน</label><select id="ins3" onchange="calcAll()"></select></div>
-        <div><label>ชั้นที่ 3 — ความหนา (mm)</label><input id="insT3" type="number" step="5" value="0" oninput="calcAll()"></div>
+          <input id="insT2" type="number" step="5" value="0" oninput="calcAll()"><div class="hint">ความหนาชั้นที่ 2 (mm) · ใส่ 0 ถ้าหุ้มชั้นเดียว · ความหนามาตรฐาน 25/38/50/75/100 mm</div></div>
+        <div><label>ชั้นที่ 3 — ชนิดฉนวน</label><select id="ins3" onchange="calcAll()"></select><div class="hint">ฉนวนชั้นที่ 3 (ถ้ามี) — งานอุณหภูมิสูงมากหรือฉนวนกันความชื้นชั้นนอก</div></div>
+        <div><label>ชั้นที่ 3 — ความหนา (mm)</label><input id="insT3" type="number" step="5" value="0" oninput="calcAll()"><div class="hint">ความหนาชั้นที่ 3 (mm) · ใส่ 0 ถ้าไม่ใช้</div></div>
       </div>
       <div class="note" style="margin-top:6px">
         <b>ฉนวนหลายชั้นใช้เมื่อไร:</b> เมื่ออุณหภูมิสูงเกินพิกัดของฉนวนราคาประหยัด — วางวัสดุ<b>ทนร้อน</b>ไว้ชั้นใน
@@ -293,9 +316,9 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
           <select id="baseMode" onchange="onBase()">
             <option value="bare" selected>ยังไม่มีฉนวนเลย — ผิวเปลือยสนิท (Bare)</option>
             <option value="ins">มีฉนวนอยู่แล้ว — คิดผลประหยัดแบบส่วนเพิ่ม (Incremental)</option>
-          </select></div>
-        <div id="bT"><label>ความหนาฉนวนเดิม (mm)</label><input id="baseT" type="number" step="5" value="25" oninput="calcAll()"></div>
-        <div id="bM"><label>ชนิดฉนวนเดิม</label><select id="baseMat" onchange="calcAll()"></select></div>
+          </select><div class="hint">สภาพหน้างานก่อนปรับปรุง · ที่มา: เดินสำรวจ/ภาพถ่าย — ถ้ามีฉนวนอยู่แล้วต้องคิดผลประหยัดแบบส่วนเพิ่ม มิฉะนั้นผลประหยัดจะสูงเกินจริง</div></div>
+        <div id="bT"><label>ความหนาฉนวนเดิม (mm)</label><input id="baseT" type="number" step="5" value="25" oninput="calcAll()"><div class="hint">ความหนาฉนวนเดิม · ที่มา: วัดหน้างาน (เจาะ/ดูที่ขอบ) หรือแบบเดิม · โรงงานไทยเก่ามัก 25–50 mm</div></div>
+        <div id="bM"><label>ชนิดฉนวนเดิม</label><select id="baseMat" onchange="calcAll()"></select><div class="hint">ชนิดฉนวนเดิม · ที่มา: สังเกตหน้างาน — ใยหิน/ใยแก้ว (สีเหลือง/เขียว) แคลเซียมซิลิเกต (แผ่นแข็งสีขาว)</div></div>
       </div>
       <div class="grid3" id="bRow2">
         <div><label>สภาพผิวฉนวนเดิม — ค่าการแผ่รังสี ε</label>
@@ -303,15 +326,15 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <option value="0.15">แผ่นอะลูมิเนียมสภาพดี (0.15)</option>
             <option value="0.25" selected>แผ่นเหล็กชุบสังกะสี (0.25)</option>
             <option value="0.90">ผิวฉนวนเปลือย/ฉาบปูน/ผ้าใย (0.90)</option>
-          </select></div>
+          </select><div class="hint">สภาพผิวหุ้มนอกเดิม · ที่มา: สังเกตหน้างาน — อะลูมิเนียมใหม่ 0.15, สังกะสี/อะลูมิเนียมหมอง 0.25, ผ้าใย/ปูนฉาบ 0.9</div></div>
         <div><label>ตัวคูณเสื่อมสภาพของฉนวนเดิม (Degradation)</label>
           <select id="baseDeg" onchange="calcAll()">
             <option value="1.0" selected>สภาพดี ไม่เปียก (× 1.00)</option>
             <option value="1.3">เก่า/ยุบตัวบางส่วน (× 1.30 ของค่า k)</option>
             <option value="1.8">เปียกชื้น/ฉีกขาดเป็นช่วง (× 1.80)</option>
             <option value="3.0">เสียหายหนัก มีจุดเปลือย (× 3.00)</option>
-          </select></div>
-        <div><label>ความหนาวัสดุหุ้มเดิม (mm)</label><input id="baseClad" type="number" step="0.1" value="0.5" oninput="calcAll()"></div>
+          </select><div class="hint">ระดับความเสื่อมของฉนวนเดิม · ที่มา: สำรวจหน้างาน/ภาพ IR — ฉนวนเปียกค่า k เพิ่ม 2–5 เท่า, ยุบตัว/ฉีกขาดเพิ่ม 30–80 %</div></div>
+        <div><label>ความหนาวัสดุหุ้มเดิม (mm)</label><input id="baseClad" type="number" step="0.1" value="0.5" oninput="calcAll()"><div class="hint">ความหนาแผ่นหุ้มเดิม (mm) · ที่มา: วัดหน้างาน · ทั่วไป 0.4–0.6 mm</div></div>
       </div>
       <div class="note" style="margin-top:8px">
         <b>ทำไมต้องมีช่องนี้:</b> ถ้าตั้งฐานเป็น “ผิวเปลือยสนิท” ทั้งที่หน้างานมีฉนวนอยู่แล้ว
@@ -374,12 +397,12 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
       <h2>ขั้นตอนการคำนวณและการแทนค่า (Step-by-step Calculation)</h2>
       <div class="grid3">
         <div><label>เลือกชิ้นส่วนที่ต้องการดูการคำนวณ</label>
-          <select id="stepSel" onchange="renderSteps()"></select></div>
+          <select id="stepSel" onchange="renderSteps()"></select><div class="hint">เลือกชิ้นส่วนที่ต้องการดูสมการและการแทนค่าทีละขั้น (สำหรับตรวจทาน/ใส่ในรายงาน)</div></div>
         <div><label>ระดับรายละเอียด</label>
           <select id="stepLv" onchange="renderSteps()">
             <option value="full" selected>เต็ม — แสดงสูตร + แทนค่า + ผลลัพธ์ทุกขั้น</option>
             <option value="short">ย่อ — แสดงเฉพาะสมการหลักและผลลัพธ์</option>
-          </select></div>
+          </select><div class="hint">เต็ม = แสดงสูตร + แทนค่า + ผล ทุกขั้น · ย่อ = เฉพาะผลลัพธ์หลัก</div></div>
         <div><label>&nbsp;</label>
           <button class="ghost" style="margin-top:0;width:100%" onclick="copySteps(event)">📋 คัดลอกไปวางในรายงาน</button></div>
       </div>
@@ -389,10 +412,10 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
     <div class="card">
       <h2>ต้นทุนพลังงานและผลประหยัด (Energy &amp; Economics)</h2>
       <div class="grid4">
-        <div><label>แหล่งพลังงานความร้อน</label><select id="fuel" onchange="onFuel()"></select></div>
-        <div><label>ค่าความร้อน LHV (MJ/หน่วย)</label><input id="lhv" type="number" step="0.01" value="39.77" oninput="calcAll()"></div>
-        <div><label>ราคาเชื้อเพลิง (บาท/หน่วย)</label><input id="price" type="number" step="0.01" value="22" oninput="calcAll()"></div>
-        <div><label>ประสิทธิภาพหม้อไอน้ำ/เครื่องกำเนิดความร้อน η (%)</label><input id="eff" type="number" step="1" value="85" oninput="calcAll()"></div>
+        <div><label>แหล่งพลังงานความร้อน</label><select id="fuel" onchange="onFuel()"></select><div class="hint">แหล่งความร้อนที่ผลิตความร้อนให้อุปกรณ์นี้ — เลือกแล้วระบบเติม LHV/ราคา/EF ให้ (แก้ทับได้) · ที่มา: ใบแจ้งหนี้เชื้อเพลิงของโรงงาน</div></div>
+        <div><label>ค่าความร้อน LHV (MJ/หน่วย)</label><input id="lhv" type="number" step="0.01" value="39.77" oninput="calcAll()"><div class="hint">ค่าความร้อนต่ำต่อหน่วยซื้อ · น้ำมันเตา 39.8 MJ/L · ดีเซล 36.4 MJ/L · LPG 46.1 MJ/kg · NG 36–38 MJ/Nm³ · ชีวมวล 10–17 MJ/kg · ไฟฟ้า 3.6 MJ/kWh · ที่มา: ใบรับรองผลวิเคราะห์/สเปคผู้ขาย</div></div>
+        <div><label>ราคาเชื้อเพลิง (บาท/หน่วย)</label><input id="price" type="number" step="0.01" value="22" oninput="calcAll()"><div class="hint">ราคาเชื้อเพลิงต่อหน่วยซื้อรวม VAT ส่งถึงโรงงาน · ปี 2569 โดยประมาณ: น้ำมันเตา 20–25 บาท/L · LPG 20–24 บาท/kg · NG 350–450 บาท/MMBtu · ไฟฟ้า 3.8–4.5 บาท/kWh · ที่มา: ใบแจ้งหนี้</div></div>
+        <div><label>ประสิทธิภาพหม้อไอน้ำ/เครื่องกำเนิดความร้อน η (%)</label><input id="eff" type="number" step="1" value="85" oninput="calcAll()"><div class="hint">ประสิทธิภาพของหม้อไอน้ำ/เตาที่ผลิตความร้อน (ฐาน LHV) — ทุก 1 kWh ที่รั่วผ่านผิวต้องเผาเชื้อเพลิง 1/η kWh · หม้อไอน้ำน้ำมัน/ก๊าซ 85–90 % · ชีวมวล 70–82 % · ไฟฟ้า 100 % · ที่มา: ผลตรวจวัดจริง</div></div>
       </div>
       <div class="grid4">
         <div><label>Emission Factor (kgCO₂e/หน่วย)</label><input id="ef" type="number" step="0.0001" value="3.1543" oninput="calcAll()">
@@ -404,7 +427,7 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <br>ปรับตามใบเสนอราคาจริงเพื่อให้ผลคืนทุนน่าเชื่อถือ</div></div>
         <div><label>อายุโครงการ (ปี) / อัตราคิดลด (%)</label>
           <div style="display:flex;gap:6px"><input id="life" type="number" step="1" value="10" oninput="calcAll()">
-          <input id="disc" type="number" step="0.5" value="7" oninput="calcAll()"></div></div>
+          <input id="disc" type="number" step="0.5" value="7" oninput="calcAll()"></div><div class="hint">อายุโครงการ (ปี) — ฉนวนใยหิน/แคลเซียมซิลิเกตทั่วไป 10–15 ปี · อัตราคิดลด (%) — ใช้ต้นทุนเงินทุนของบริษัท 6–10 % (ใส่ 0 = ไม่คิดลด)</div></div>
       </div>
       <div class="kpis" id="kpiEco" style="margin-top:14px"></div>
       <div style="overflow-x:auto"><table id="tblEco"><tbody></tbody></table></div>
@@ -423,21 +446,21 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
           <select id="ppMode" onchange="calcAll()">
             <option value="iso" selected>เส้นโค้งบาดเจ็บจากการสัมผัส (ตามเวลาสัมผัส)</option>
             <option value="fix">กำหนดอุณหภูมิผิวสูงสุดเอง (แนวปฏิบัติออกแบบ)</option>
-          </select></div>
+          </select><div class="hint">เกณฑ์ปลอดภัยผิวสัมผัส · ISO 13732-1/ASTM C1055 = ตามเวลาสัมผัสและวัสดุผิว · กำหนดเอง = แนวปฏิบัติโรงงาน (มักใช้ 60 °C) · ที่มา: มาตรฐานความปลอดภัยของโรงงาน</div></div>
         <div id="ppA"><label>เวลาสัมผัสที่ออกแบบ</label>
           <select id="ppT" onchange="calcAll()">
             <option value="1">1 วินาที — ปัดโดนโดยบังเอิญ</option>
             <option value="10" selected>10 วินาที — จับชั่วครู่ / ทำงานใกล้เครื่อง</option>
             <option value="60">60 วินาที — จับค้าง เช่น หมุนวาล์ว</option>
             <option value="600">10 นาที — สัมผัสต่อเนื่อง</option>
-          </select></div>
+          </select><div class="hint">เวลาที่พนักงานอาจสัมผัสผิวโดยไม่ตั้งใจ · บริเวณทางเดิน 1–10 s · จุดปฏิบัติงาน/วาล์ว 60 s · ที่มา: ประเมินความเสี่ยงหน้างาน</div></div>
         <div id="ppB"><label>ผิวที่คนสัมผัส (วัสดุหุ้มนอก)</label>
           <select id="ppM" onchange="calcAll()">
             <option value="metal" selected>โลหะเปลือย — อะลูมิเนียม / สังกะสี / สเตนเลส</option>
             <option value="coated">โลหะทาสีหรือเคลือบ (50–150 µm)</option>
             <option value="ceramic">ฉาบปูน / เซรามิก / แก้ว</option>
             <option value="plastic">พลาสติก / PVC / ผ้าใยแก้ว</option>
-          </select></div>
+          </select><div class="hint">วัสดุผิวนอกที่คนสัมผัส — โลหะนำความร้อนเร็ว บาดเจ็บที่อุณหภูมิต่ำกว่าผิวพลาสติก/สี · ที่มา: สเปควัสดุหุ้มนอก</div></div>
         <div id="ppC"><label>อุณหภูมิผิวสูงสุดที่ยอมรับ (°C)</label>
           <input id="ppFix" type="number" step="1" value="60" oninput="calcAll()">
           <div class="note">แนวปฏิบัติ: <b>60</b> ทั่วไปในไทย · 65.6 (150 °F, แนวปฏิบัติอเมริกา) ·
@@ -466,8 +489,8 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             ส่วนช่องนี้คือค่าที่ใช้<b>ออกแบบ</b>ความหนา ซึ่งต้องเผื่อสภาพเลวร้ายที่สุด</div></div>
         <div><label>ระยะเผื่อเหนือจุดน้ำค้าง (K)</label><input id="cdMar" type="number" step="0.5" value="2" oninput="calcAll()">
           <div class="note">เผื่อความไม่แน่นอนของ RH และรอยต่อ · แนะนำ <b>1–3 K</b></div></div>
-        <div><label>อุณหภูมิจุดน้ำค้าง T<sub>dp</sub></label><input id="cdDp" type="text" readonly style="background:#f7f8fa"></div>
-        <div><label>อุณหภูมิผิวเป้าหมาย</label><input id="cdTgt" type="text" readonly style="background:#f7f8fa"></div>
+        <div><label>อุณหภูมิจุดน้ำค้าง T<sub>dp</sub></label><input id="cdDp" type="text" readonly style="background:#f7f8fa"><div class="hint">คำนวณจาก T_a และ RH (ไม่ต้องกรอก) — ผิวเย็นต้องอุ่นกว่าค่านี้เพื่อไม่ให้เกิดหยดน้ำ</div></div>
+        <div><label>อุณหภูมิผิวเป้าหมาย</label><input id="cdTgt" type="text" readonly style="background:#f7f8fa"><div class="hint">= จุดน้ำค้าง + ระยะเผื่อ (คำนวณอัตโนมัติ) — อุณหภูมิผิวฉนวนต่ำสุดที่ยอมรับได้สำหรับงานเย็น</div></div>
       </div>
       <div class="kpis" id="kpiCd" style="margin-top:12px"></div>
       <div style="overflow-x:auto"><table id="tblCd">
@@ -512,30 +535,30 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <option value="pp">ความปลอดภัยผิวสัมผัส (Personnel Protection)</option>
             <option value="flux">ฟลักซ์ความร้อนไม่เกินค่าที่กำหนด</option>
             <option value="both">ค่าที่มากกว่าระหว่าง Economic กับ Personnel Protection</option>
-          </select>
+          </select><div class="hint">เกณฑ์ที่ใช้เลือกความหนาในตาราง · งานประหยัดพลังงานทั่วไปใช้ "คุ้มค่าที่สุด" · งานใกล้คนใช้ "ค่าที่มากกว่า" ระหว่าง Economic กับ Personnel Protection</div>
           <div class="note" id="ttCritNote"></div></div>
         <div><label>ชนิดผิว</label>
           <select id="ttGeo">
             <option value="pipe" selected>ท่อกลม — ไล่ตามขนาด NPS</option>
             <option value="flat">ผิวราบ / ผนังถังตั้ง (ต่อ 1 m²)</option>
-          </select></div>
-        <div><label>ชนิดฉนวน</label><select id="ttMat"></select></div>
+          </select><div class="hint">ท่อกลม = ไล่ตามขนาด NPS ½"–24" · ผิวราบ = ผนังถัง/หน้าแปลนขนาดใหญ่ (ต่อ 1 m²)</div></div>
+        <div><label>ชนิดฉนวน</label><select id="ttMat"></select><div class="hint">ชนิดฉนวนที่ใช้สร้างตารางความหนา · ที่มา: ฉนวนที่โรงงานมีอยู่/ใบเสนอราคา</div></div>
         <div><label>เกณฑ์ฟลักซ์ (W/m²)</label><input id="ttFlux" type="number" step="5" value="100">
           <div class="note">ใช้เมื่อเลือกเกณฑ์ฟลักซ์ · เกณฑ์ที่ดีสำหรับงานร้อน <b>&lt; 100</b> W/m²</div></div>
       </div>
       <div class="grid4">
         <div><label>อุณหภูมิที่ต้องการในตาราง (°C, คั่นด้วยจุลภาค)</label>
-          <input id="ttTemps" type="text" value="60, 100, 150, 200, 250, 300, 400, 500" style="font-family:'IBM Plex Mono',monospace"></div>
+          <input id="ttTemps" type="text" value="60, 100, 150, 200, 250, 300, 400, 500" style="font-family:'IBM Plex Mono',monospace"><div class="hint">รายการอุณหภูมิของไหลที่ต้องการในตาราง คั่นด้วยจุลภาค · ไอน้ำ 7 bar g ≈ 170 °C, 10 bar g ≈ 184 °C, น้ำมันร้อน 200–300 °C</div></div>
         <div><label>อุณหภูมิอากาศ (°C) / ความเร็วลม (m/s)</label>
           <div style="display:flex;gap:6px"><input id="ttTa" type="number" step="1" value="32">
-            <input id="ttV" type="number" step="0.5" value="0"></div></div>
+            <input id="ttV" type="number" step="0.5" value="0"></div><div class="hint">อุณหภูมิอากาศ (°C) — โรงงานไทย 30–38 · ความเร็วลม (m/s) — ในอาคาร 0, กลางแจ้ง 2–5 · ที่มา: วัดหน้างาน</div></div>
         <div><label>วัสดุหุ้มนอก (ε)</label>
           <select id="ttEm">
             <option value="0.15" selected>แผ่นอะลูมิเนียม (0.15)</option>
             <option value="0.25">แผ่นเหล็กชุบสังกะสี (0.25)</option>
             <option value="0.20">แผ่นสเตนเลส (0.20)</option>
             <option value="0.90">ฉาบปูน / ผ้าใยแก้ว (0.90)</option>
-          </select></div>
+          </select><div class="hint">วัสดุหุ้มนอกของตาราง · อะลูมิเนียม ε 0.15 (ผิวเย็นกว่าแต่แผ่รังสีน้อย) · ผ้าใย/ปูน 0.9</div></div>
         <div><label>&nbsp;</label>
           <button style="margin-top:0;width:100%" onclick="thTable()">▦ สร้างตารางความหนา</button></div>
       </div>
@@ -1611,7 +1634,7 @@ function buildComps(){
 function onShape(i,init){
   const key=$('sh'+i).value, sh=SHAPES[key];
   const btn=$('sb'+i); if(btn) btn.innerHTML=shapeBtnHTML(key);
-  $('sg'+i).innerHTML=sh.s;
+  $('sg'+i).innerHTML=sh.s; $('sg'+i).dataset.sh=key; /* [ระยะ 4 10 ก.ย. 2569] จำรูปทรงที่ render แล้ว (ใช้ตอนโหลด JSON) */
   $('fc'+i).innerHTML=facesHTML(key,true);
   if(!init) $('or'+i).value=sh.ori;
   $('oi'+i).innerHTML=oriHTML(key,$('or'+i).value);
@@ -2505,6 +2528,29 @@ function buildRefTables(){
   }).join('');
 }
 
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['tWall', 'kWall', 'emBare', 'emIns', 'tClad', 'insMat', 'insT', 'kMan', 'ins2', 'insT2', 'ins3', 'insT3', 'baseT', 'baseMat', 'baseEm', 'baseClad'], FK_MEAS=['Tf', 'Ta', 'wind', 'rh', 'solG', 'baseMode', 'baseDeg'], FK_SET=['eqName', 'hiSel', 'hi', 'hrs', 'outdoor', 'solAbs', 'solF', 'stepSel', 'stepLv', 'fuel', 'lhv', 'price', 'eff', 'ef', 'cA', 'cB', 'life', 'disc', 'ppMode', 'ppT', 'ppM', 'ppFix', 'cdRH', 'cdMar', 'ttCrit', 'ttGeo', 'ttMat', 'ttFlux', 'ttTemps', 'ttTa', 'ttV', 'ttEm'], FK_CALC=['kShow', 'cdDp', 'cdTgt'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(/^(d\d+_|sh\d+$|or\d+$|qt\d+$|ti\d+$)/.test(id))return'design';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
+/* [ระยะ 4 10 ก.ย. 2569] JSON: recalcAll = สร้างช่องมิติตามรูปทรงที่โหลด → สถานะ hi/baseline/outdoor → calcAll → ขั้นตอนคำนวณ (ตาราง sweep/ความหนา ยังกดปุ่มเองเหมือนเดิม) */
+function recalcAll(){
+  for(let i=0;i<NC;i++){ const key=$('sh'+i)&&$('sh'+i).value; if(key&&SHAPES[key]&&$('sg'+i).dataset.sh!==key) onShape(i,true); }
+  const hiV=$('hi').value; try{onHi(); if(!$('hi').disabled&&hiV!=='')$('hi').value=hiV;}catch(e){}
+  try{onBase();}catch(e){} try{onOutdoor();}catch(e){} try{ttNote();}catch(e){}
+  try{calcAll();}catch(e){console.warn(e);}
+  try{renderSteps();}catch(e){}
+  try{tagFieldKinds();}catch(e){}
+}
+function teExtra(){ const t=document.querySelector('.tab.active'); return {tab:t?t.dataset.p:'p1'}; }
+function teRestoreExtra(x){ if(x&&x.tab){ const t=document.querySelector('.tab[data-p="'+x.tab+'"]'); if(t) t.click(); } }
+function teSaveJSON(){ TE_JSON.save('Tool_Equipment_Heat_Loss',teExtra()); }
+function teLoadJSON(file){ TE_JSON.load(file,recalcAll,teRestoreExtra); }
+
 /* ════════════════ INIT ════════════════ */
 Object.keys(INS).forEach(k=>{['insMat','baseMat','ins2','ins3','ttMat'].forEach(id=>$(id).add(new Option(INS[k].n,k)))});
 Object.keys(FUELS).forEach(k=>$('fuel').add(new Option(FUELS[k].n,k)));
@@ -2512,6 +2558,7 @@ $('insMat').value='rockwool'; $('baseMat').value='rockwool'; $('fuel').value='fo
 $('ins2').value='rockwool'; $('ins3').value='rockwool'; $('ttMat').value='rockwool';
 buildComps(); buildCatalog(); buildFaceTable(); buildRefTables(); ttNote(); onOutdoor(); onBase(); onHi();
 $('eqName').oninput=()=>drawAsm(LAST?LAST.rows:[]);
+tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า หลังสร้าง 20 ชิ้นส่วน */
 </script>
 </body>
 </html>

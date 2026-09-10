@@ -5,6 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Compressed Air System Tool — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<script>/* TE_PSY */
+/* ══ TE_PSY — Psychrometric engine กลางของ Triple E (ระยะ 4, 10 ก.ย. 2569) — ASHRAE Fundamentals, Hyland–Wexler; คัดจาก Tool_Psychrometric_Chart
+   หน่วย public: °C, kPa, kg/kg_da, kJ/kg_da, m³/kg_da ══ */
+var TE_PSY=(function(){
+  function pwsPa(TK){ if(TK<173.15)TK=173.15; var l;
+    if(TK<273.15){ l=-5.6745359e3/TK+6.3925247-9.677843e-3*TK+6.2215701e-7*TK*TK+2.0747825e-9*Math.pow(TK,3)-9.484024e-13*Math.pow(TK,4)+4.1635019*Math.log(TK); }
+    else { l=-5.8002206e3/TK+1.3914993-4.8640239e-2*TK+4.1764768e-5*TK*TK-1.4452093e-8*Math.pow(TK,3)+6.5459673*Math.log(TK); }
+    return Math.exp(l); }
+  function Pws(t){return pwsPa(t+273.15)/1000;}                                   // kPa
+  function Ws(t,p){var s=Pws(t);return s>=p?1e6:0.621945*s/(p-s);}
+  function W_rh(t,rh,p){var pw=Math.min(rh*Pws(t),p*0.9999);return 0.621945*pw/(p-pw);}   // rh เป็นสัดส่วน 0–1
+  function Pw_W(W,p){return p*W/(0.621945+W);}
+  function RH_W(t,W,p){return Pw_W(W,p)/Pws(t);}                                  // สัดส่วน 0–1
+  function Hda(t,W){return 1.006*t+W*(2501+1.86*t);}                              // kJ/kg_da
+  function Vda(t,W,p){return 0.287042*(t+273.15)*(1+1.607858*W)/p;}               // m³/kg_da
+  function Tdp(W,p){var pw=Pw_W(W,p);if(pw<=0)return NaN;var lo=-90,hi=200;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(Pws(m)<pw)lo=m;else hi=m;}return (lo+hi)/2;}
+  function W_wb(t,twb,p){var ws=Ws(twb,p);return twb>=0?((2501-2.326*twb)*ws-1.006*(t-twb))/(2501+1.86*t-4.186*twb):((2830-0.24*twb)*ws-1.006*(t-twb))/(2830+1.86*t-2.1*twb);}
+  function Twb(t,W,p){var lo=-90,hi=t;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(W_wb(t,m,p)<W)lo=m;else hi=m;}return (lo+hi)/2;}
+  function Palt(z){return 101.325*Math.pow(1-2.25577e-5*z,5.2559);}
+  function state(t,W,p){W=Math.max(0,Math.min(W,Ws(t,p)));var h=Hda(t,W),v=Vda(t,W,p),pw=Pw_W(W,p),ws=Ws(t,p);
+    return{t:t,W:W,p:p,h:h,v:v,rh:100*pw/Pws(t),pw:pw,tdp:Tdp(W,p),twb:Twb(t,W,p),rho:(1+W)/v,mu:100*W/ws,ws:ws};}
+  function fromRH(t,rhPct,p){return state(t,W_rh(t,rhPct/100,p||101.325),p||101.325);}
+  function fromWB(t,twb,p){return state(t,W_wb(t,twb,p||101.325),p||101.325);}
+  return{Pws:Pws,Ws:Ws,W_rh:W_rh,Pw_W:Pw_W,RH_W:RH_W,Hda:Hda,Vda:Vda,Tdp:Tdp,W_wb:W_wb,Twb:Twb,Palt:Palt,state:state,fromRH:fromRH,fromWB:fromWB,_ver:'TE_PSY HW r4-2569'};
+})();
+
+</script>
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root{
   --bg:#f0f3f8;--bg2:#ffffff;--bg3:#e8edf5;--bg4:#f7f9fc;
@@ -20,12 +59,14 @@
   --mono:'IBM Plex Mono',monospace;
   --sans:'IBM Plex Sans Thai',sans-serif;
   --display:'Barlow Condensed',sans-serif;
+  /* [ระยะ 4 10 ก.ย. 2569] design tokens Triple E (คง --bg/--teal เดิมของไฟล์ไว้ เพิ่มเฉพาะที่ขาด) */
+  --navy:#0f2a4a;--header-grad:linear-gradient(135deg,var(--navy),var(--teal));--card:#ffffff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;--accent:#12a4a4;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;--radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;min-height:100vh;}
 
 /* HEADER */
-.hdr{background:var(--blue);padding:0 24px;height:56px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 12px rgba(10,30,80,.25);}
+.hdr{background:var(--header-grad); /* [ระยะ 4 10 ก.ย. 2569] header ไล่สี navy→teal ตาม design system */padding:0 24px;height:56px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 12px rgba(10,30,80,.25);}
 .hdr-logo{width:36px;height:36px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:13px;font-weight:800;color:#fff;letter-spacing:1px;}
 .hdr-title{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:1.5px;color:#fff;line-height:1;}
 .hdr-sub{font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.5px;margin-top:1px;}
@@ -161,6 +202,12 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
   .g2,.g3,.g4{grid-template-columns:1fr;}
   .kpi-grid{grid-template-columns:repeat(2,1fr);}
 }
+/* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า + hint */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -174,6 +221,10 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
   </div>
   <div class="hdr-btns">
     <button class="hbtn" onclick="window.print()">🖨 Print</button>
+    <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
   </div>
 </div>
 
@@ -191,32 +242,32 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
   <div class="ss">
     <div class="st">ข้อมูลทั่วไป</div>
     <label>ชื่อโรงงาน / โครงการ</label>
-    <input type="text" id="projName" value="โรงงาน A — ระบบอากาศอัด">
+    <input type="text" id="projName" value="โรงงาน A — ระบบอากาศอัด"><div class="hint">ชื่อโรงงาน/โครงการสำหรับหัวรายงาน</div>
     <label>หมายเลขเครื่อง / Tag</label>
-    <input type="text" id="machineTag" value="CAS-01">
+    <input type="text" id="machineTag" value="CAS-01"><div class="hint">รหัสเครื่อง/Tag ตามผังโรงงาน เช่น CAS-01, AC-02</div>
     <label>ผู้ตรวจสอบ</label>
-    <input type="text" id="auditorName" value="อ.หนึ่ง กลับทวี">
+    <input type="text" id="auditorName" value="อ.หนึ่ง กลับทวี"><div class="hint">ชื่อผู้ตรวจวัด — ปรากฏในรายงาน</div>
     <label>วันที่ทดสอบ</label>
-    <input type="text" id="testDate">
+    <input type="text" id="testDate"><div class="hint">วันที่ตรวจวัด (วว/ดด/ปปปป) — เติมอัตโนมัติเป็นวันนี้</div>
   </div>
 
   <div class="ss">
     <div class="st">สภาวะอากาศภายนอก (Ambient)</div>
     <label>อุณหภูมิ T_amb (°C) <span style="color:var(--amber);font-size:10px">★ วัดจริง</span></label>
-    <input type="number" id="t_amb" value="32" step="0.1" onchange="calcAmbient()">
+    <input type="number" id="t_amb" value="32" step="0.1" onchange="calcAmbient()"><div class="hint">อุณหภูมิอากาศบริเวณช่องดูดของเครื่อง °C · ไทยทั่วไป 28–38 °C ในห้องเครื่อง · วัดด้วย thermo-hygrometer</div>
     <label>ความดันบรรยากาศ P_atm (bar a)</label>
-    <input type="number" id="p_atm" value="1.013" step="0.001" onchange="calcAmbient()">
+    <input type="number" id="p_atm" value="1.013" step="0.001" onchange="calcAmbient()"><div class="hint">ความดันบรรยากาศ bar a · ระดับน้ำทะเล 1.013 · กรุงเทพ ≈1.010 · ที่สูง 500 m ≈0.955 · อ่านจาก barometer/สถานีอุตุ</div>
     <label>ความชื้นสัมพัทธ์ RH (%)</label>
-    <input type="number" id="rh_amb" value="70" step="1" onchange="calcAmbient()">
+    <input type="number" id="rh_amb" value="70" step="1" onchange="calcAmbient()"><div class="hint">ความชื้นสัมพัทธ์ % · ไทย 60–85 % · วัดด้วย hygrometer ใกล้ช่องดูดอากาศ</div>
     <div id="amb-result" class="info-box" style="margin-top:6px;display:none"></div>
   </div>
 
   <div class="ss">
     <div class="st">เครื่องอัดอากาศ (Compressor)</div>
     <label>กำลังไฟฟ้าที่วัด P_elec (kW) <span style="color:var(--amber);font-size:10px">★ Power Meter</span></label>
-    <input type="number" id="p_elec" value="75" step="0.1">
+    <input type="number" id="p_elec" value="75" step="0.1"><div class="hint">กำลังไฟฟ้าเฉลี่ยขณะ full load kW · อ่านจาก power meter/clamp (3 เฟส) ไม่ใช่ kW nameplate</div>
     <label>Motor Efficiency η_motor <span style="color:var(--amber);font-size:10px">★ Nameplate</span></label>
-    <input type="number" id="eta_motor" value="0.93" step="0.01" min="0.7" max="1.0">
+    <input type="number" id="eta_motor" value="0.93" step="0.01" min="0.7" max="1.0"><div class="hint">ประสิทธิภาพมอเตอร์ (สัดส่วน 0–1) · IE2 0.89–0.94 / IE3 0.91–0.96 · อ่านจาก nameplate มอเตอร์</div>
     <div class="unit-hint">15kW=0.91 / 22kW=0.92 / 37kW=0.93 / 55kW=0.94</div>
 
     <div style="background:var(--blue-lt);border:1px solid #93b8f0;border-radius:5px;padding:7px 9px;margin-top:8px;font-size:11px;color:var(--blue);line-height:1.8">
@@ -228,16 +279,16 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
 
     <label>① P_discharge จริง (bar g)
       <span style="color:var(--amber);font-size:10px">★ วัดจาก Gauge หน้า Receiver</span></label>
-    <input type="number" id="p_dis" value="7.0" step="0.1">
+    <input type="number" id="p_dis" value="7.0" step="0.1"><div class="hint">ความดันจ่ายจริง bar g · โรงงานทั่วไป 6–8 bar g · อ่านจาก gauge หน้าถังพัก ณ วันตรวจ</div>
     <div class="unit-hint">ความดันที่เครื่องจ่ายจริง ณ วันตรวจสอบ — อาจต่ำกว่า Rated ถ้า Set Point ต่ำกว่า</div>
 
     <label>② P_rated Nameplate (bar g)
       <span style="color:var(--text3);font-size:10px">อ่านจาก Nameplate</span></label>
-    <input type="number" id="p_design" value="8.0" step="0.1">
+    <input type="number" id="p_design" value="8.0" step="0.1"><div class="hint">ความดันพิกัด bar g · screw ทั่วไป 7.5 / 8 / 10 / 13 bar g · อ่านจาก nameplate</div>
     <div class="unit-hint">ความดันสูงสุดที่เครื่องออกแบบไว้ — ใช้คำนวณ SEC และ Efficiency ตาม Nameplate</div>
 
     <label>SEC ที่ Nameplate / Design (kW/(m³/min))</label>
-    <input type="number" id="spc_design" value="6.5" step="0.1">
+    <input type="number" id="spc_design" value="6.5" step="0.1"><div class="hint">SEC ตามแคตตาล็อก kW/(m³/min) · screw 7 bar g: 5.5–7.0 · จากใบเสนอราคา/datasheet ISO 1217</div>
     <div class="unit-hint">ค่าดี <6.5 / ปกติ 6.5–7.5 / ต้องปรับปรุง &gt;7.5</div>
   </div>
 </div>
@@ -250,34 +301,34 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
 
   <div class="card">
     <div class="card-title">🌡️ คุณสมบัติอากาศชื้น (Psychrometric Properties)</div>
-    <div class="card-sub">คำนวณจาก T, P, RH — ใช้สมการ Magnus-Tetens และ ASHRAE</div>
+    <div class="card-sub">คำนวณจาก T, P, RH — ใช้ ASHRAE Hyland–Wexler (TE_PSY engine กลาง) <!-- [ระยะ 4 10 ก.ย. 2569] --></div>
 
     <div class="g2" style="margin-bottom:12px">
       <div>
         <div style="font-size:11px;font-weight:600;color:var(--blue);margin-bottom:6px;font-family:var(--mono)">จุดที่ 1 — อากาศขาเข้า (Intake)</div>
-        <label>T_dry (°C)</label><input type="number" id="p1_T" value="32" step="0.1">
-        <label>P_abs (bar)</label><input type="number" id="p1_P" value="1.013" step="0.001">
+        <label>T_dry (°C)</label><input type="number" id="p1_T" value="32" step="0.1"><div class="hint">อุณหภูมิกระเปาะแห้งอากาศขาเข้า °C · วัดจริงหน้าช่องดูด · ไทย 28–40 °C</div>
+        <label>P_abs (bar)</label><input type="number" id="p1_P" value="1.013" step="0.001"><div class="hint">ความดันสัมบูรณ์ bar · ≈1.013 ระดับน้ำทะเล · จาก barometer</div>
         <label>ระบุด้วย</label>
         <select id="p1_mode" onchange="updLabel(1)">
           <option value="RH">RH (%)</option>
           <option value="Twb">Wet-bulb (°C)</option>
           <option value="Tdp">Dew Point (°C)</option>
-        </select>
+        </select><div class="hint">เลือกค่าความชื้นที่มีเครื่องมือวัด: RH (hygrometer) / wet-bulb (sling psychrometer) / dew point (dew-point meter)</div>
         <label id="lbl_p1">RH (%)</label>
-        <input type="number" id="p1_val" value="70" step="1">
+        <input type="number" id="p1_val" value="70" step="1"><div class="hint">ค่าความชื้นตามโหมดที่เลือก · RH 60–85 % / Twb 24–29 °C / Tdp 22–27 °C สำหรับอากาศไทย</div>
       </div>
       <div>
         <div style="font-size:11px;font-weight:600;color:var(--teal);margin-bottom:6px;font-family:var(--mono)">จุดที่ 2 — มาตรฐาน ISO 1217 (20°C, 65%)</div>
-        <label>T_dry (°C)</label><input type="number" id="p2_T" value="20" step="0.1">
-        <label>P_abs (bar)</label><input type="number" id="p2_P" value="1.01325" step="0.001">
+        <label>T_dry (°C)</label><input type="number" id="p2_T" value="20" step="0.1"><div class="hint">อุณหภูมิอ้างอิงมาตรฐาน ISO 1217 = 20 °C · ปกติไม่ต้องแก้</div>
+        <label>P_abs (bar)</label><input type="number" id="p2_P" value="1.01325" step="0.001"><div class="hint">ความดันอ้างอิง ISO 1217 = 1.01325 bar a · ปกติไม่ต้องแก้</div>
         <label>ระบุด้วย</label>
         <select id="p2_mode" onchange="updLabel(2)">
           <option value="RH">RH (%)</option>
           <option value="Twb">Wet-bulb (°C)</option>
           <option value="Tdp">Dew Point (°C)</option>
-        </select>
+        </select><div class="hint">โหมดความชื้นของสภาวะอ้างอิง · ISO 1217 กำหนดเป็น RH</div>
         <label id="lbl_p2">RH (%)</label>
-        <input type="number" id="p2_val" value="65" step="1">
+        <input type="number" id="p2_val" value="65" step="1"><div class="hint">ความชื้นอ้างอิง ISO 1217 = 65 % RH · ปกติไม่ต้องแก้</div>
       </div>
     </div>
     <button class="btn btn-p" onclick="calcProps()">🌡️ คำนวณคุณสมบัติอากาศ</button>
@@ -305,16 +356,16 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div class="g2" style="margin-bottom:10px">
       <div>
         <label>ความดันขาเข้า P₁ (bar a)</label>
-        <input type="number" id="pv_p1" value="1.013" step="0.001">
+        <input type="number" id="pv_p1" value="1.013" step="0.001"><div class="hint">ความดันดูด bar a สำหรับวาด P-V · ปกติ = P_atm ≈1.013</div>
         <label>ความดันขาออก P₂ (bar a)</label>
-        <input type="number" id="pv_p2" value="8.013" step="0.1">
+        <input type="number" id="pv_p2" value="8.013" step="0.1"><div class="hint">ความดันจ่ายสัมบูรณ์ bar a = P_discharge (bar g) + 1.013 · เช่น 7 bar g → 8.013</div>
       </div>
       <div>
         <label>Polytropic Index n</label>
-        <input type="number" id="pv_n" value="1.3" step="0.01">
+        <input type="number" id="pv_n" value="1.3" step="0.01"><div class="hint">ดัชนี polytropic จริง · screw ระบายความร้อนด้วยน้ำมัน ≈1.2–1.3 · reciprocating ≈1.3–1.35</div>
         <div class="unit-hint">Isothermal n=1.0 / Isentropic n=1.4 / Actual≈1.2–1.35</div>
         <label>Isentropic Index k (air)</label>
-        <input type="number" id="pv_k" value="1.4" step="0.01">
+        <input type="number" id="pv_k" value="1.4" step="0.01"><div class="hint">ดัชนี isentropic ของอากาศ = 1.4 (ค่าคงที่ ไม่ต้องแก้)</div>
       </div>
     </div>
     <button class="btn btn-p" onclick="drawPV()">📊 วาด P-V Diagram</button>
@@ -345,14 +396,14 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div class="g2">
       <div>
         <label>อัตราการจ่ายอากาศ FAD (m³/min) <span style="color:var(--amber);font-size:10px">★ วัดหรือจาก Pump-Up</span></label>
-        <input type="number" id="fad_direct" value="10.5" step="0.01">
-        <label>T_intake (°C)</label><input type="number" id="t_intake" value="32" step="0.1">
-        <label>RH_intake (%)</label><input type="number" id="rh_intake" value="70" step="1">
+        <input type="number" id="fad_direct" value="10.5" step="0.01"><div class="hint">อัตราจ่ายอากาศอิสระ m³/min · จาก flow meter ท่อจ่าย หรือ pump-up test ด้านล่าง (เติมอัตโนมัติ)</div>
+        <label>T_intake (°C)</label><input type="number" id="t_intake" value="32" step="0.1"><div class="hint">อุณหภูมิอากาศขาเข้าเครื่อง °C · วัดจริงที่ช่องกรอง · ทุก +3 °C SEC เพิ่ม ≈1 %</div>
+        <label>RH_intake (%)</label><input type="number" id="rh_intake" value="70" step="1"><div class="hint">ความชื้นสัมพัทธ์อากาศขาเข้า % · ไทย 60–85 % · hygrometer</div>
       </div>
       <div>
-        <label>P_discharge (bar g)</label><input type="number" id="pd_perf" value="7.0" step="0.1">
-        <label>P_intake (bar a)</label><input type="number" id="pi_perf" value="1.013" step="0.001">
-        <label>k (Isentropic index)</label><input type="number" id="k_perf" value="1.4" step="0.01">
+        <label>P_discharge (bar g)</label><input type="number" id="pd_perf" value="7.0" step="0.1"><div class="hint">ความดันจ่าย bar g · gauge ท่อจ่ายหลังเครื่อง · ทั่วไป 6–8 bar g</div>
+        <label>P_intake (bar a)</label><input type="number" id="pi_perf" value="1.013" step="0.001"><div class="hint">ความดันดูด bar a ≈ P_atm 1.013 · ถ้ามี inlet filter ตัน อาจต่ำกว่า 0.02–0.05 bar</div>
+        <label>k (Isentropic index)</label><input type="number" id="k_perf" value="1.4" step="0.01"><div class="hint">ดัชนี isentropic อากาศ = 1.4 (ค่าคงที่)</div>
       </div>
     </div>
     <div class="btn-row">
@@ -376,21 +427,21 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div class="g3">
       <div>
         <label>ปริมาตรถัง V (m³)</label>
-        <input type="number" id="pu_V" value="1.0" step="0.01">
+        <input type="number" id="pu_V" value="1.0" step="0.01"><div class="hint">ปริมาตรถังพัก + ท่อที่ปิดกั้น m³ · อ่านจาก nameplate ถัง (เช่น 1,000 L = 1 m³)</div>
         <label>เวลาทดสอบ t (วินาที)</label>
-        <input type="number" id="pu_t" value="120" step="1">
+        <input type="number" id="pu_t" value="120" step="1"><div class="hint">เวลาที่ใช้เติมความดันจาก P₁ ถึง P₂ วินาที · จับเวลาด้วยนาฬิกา · ควร ≥60 s เพื่อลดคลาดเคลื่อน</div>
       </div>
       <div>
         <label>P₁ เริ่มต้น (bar g)</label>
-        <input type="number" id="pu_p1" value="0.0" step="0.1">
+        <input type="number" id="pu_p1" value="0.0" step="0.1"><div class="hint">ความดันเริ่มต้นในถัง bar g · ปกติเริ่มที่ 0 หรือความดันต่ำสุดที่ยอมรับ</div>
         <label>P₂ สุดท้าย (bar g)</label>
-        <input type="number" id="pu_p2" value="7.0" step="0.1">
+        <input type="number" id="pu_p2" value="7.0" step="0.1"><div class="hint">ความดันสุดท้าย bar g เมื่อหยุดจับเวลา · ควรเป็นความดัน unload ของเครื่อง</div>
       </div>
       <div>
         <label>T_tank เฉลี่ย (°C)</label>
-        <input type="number" id="pu_Tt" value="45" step="0.5">
+        <input type="number" id="pu_Tt" value="45" step="0.5"><div class="hint">อุณหภูมิอากาศในถังเฉลี่ย °C · วัดด้วย thermocouple ในถัง · ไม่มี sensor ใช้ T_amb + 10–15 °C</div>
         <label>P_atm (bar a)</label>
-        <input type="number" id="pu_Patm" value="1.013" step="0.001">
+        <input type="number" id="pu_Patm" value="1.013" step="0.001"><div class="hint">ความดันบรรยากาศ bar a · ≈1.013 · barometer</div>
       </div>
     </div>
     <div class="warn-box">
@@ -408,15 +459,15 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div class="g2" style="margin-bottom:10px">
       <div>
         <label>Demand เฉลี่ย (m³/min)</label>
-        <input type="number" id="seq_demand" value="18" step="0.1">
+        <input type="number" id="seq_demand" value="18" step="0.1"><div class="hint">ความต้องการอากาศเฉลี่ยของโรงงาน m³/min · จาก flow meter หรือรวม FAD × load factor ของแต่ละเครื่อง</div>
         <label>ชั่วโมงทำงาน/ปี (h)</label>
-        <input type="number" id="seq_hours" value="6000" step="100">
+        <input type="number" id="seq_hours" value="6000" step="100"><div class="hint">ชั่วโมงเดินเครื่องต่อปี · 1 กะ ≈2,500 / 2 กะ ≈5,000 / 3 กะ ≈7,500–8,000 h</div>
       </div>
       <div>
         <label>ค่าไฟฟ้า (บาท/kWh)</label>
-        <input type="number" id="seq_rate" value="4.5" step="0.1">
+        <input type="number" id="seq_rate" value="4.5" step="0.1"><div class="hint">ค่าไฟฟ้าเฉลี่ย บาท/kWh · โรงงานไทย (TOU/TOD) 3.8–4.5 บาท/kWh · จากบิลค่าไฟ</div>
         <label>Leak % (ประมาณ)</label>
-        <input type="number" id="seq_leak" value="20" step="1">
+        <input type="number" id="seq_leak" value="20" step="1"><div class="hint">สัดส่วนอากาศรั่ว % ของ FAD · โรงงานทั่วไป 20–30 % · ดูแลดี <10 % · จาก pressure-drop test</div>
       </div>
     </div>
 
@@ -445,11 +496,11 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div class="g2">
       <div>
         <label>ความดันต้นทาง P₁ (bar g)</label>
-        <input type="number" id="lk_p1" value="7.0" step="0.1">
+        <input type="number" id="lk_p1" value="7.0" step="0.1"><div class="hint">ความดันในท่อที่จุดรั่ว bar g · gauge ใกล้จุดรั่ว · ทั่วไป 6–7 bar g</div>
         <label>อุณหภูมิอากาศ T (°C)</label>
-        <input type="number" id="lk_T" value="35" step="0.5">
+        <input type="number" id="lk_T" value="35" step="0.5"><div class="hint">อุณหภูมิอากาศในท่อ °C · หลัง aftercooler/dryer 30–40 °C</div>
         <label>ขนาดรูรั่ว D (mm) <span style="color:var(--amber);font-size:10px">★ ประมาณจากเสียง/ฟองสบู่</span></label>
-        <input type="number" id="lk_D" value="1.0" step="0.1">
+        <input type="number" id="lk_D" value="1.0" step="0.1"><div class="hint">เส้นผ่านศูนย์กลางรูรั่วสมมูล mm · ประมาณจากเสียง/ฟองสบู่ หรือค่าจาก ultrasonic detector</div>
         <div class="unit-hint">เกลียว≈0.5–2mm / รอยร้าว≈1–3mm / Fitting≈2–5mm</div>
       </div>
       <div>
@@ -459,13 +510,13 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
           <option value="0.95">รูมน/หัวฉีด (Cd=0.95)</option>
           <option value="0.40">รั่วตามเกลียว (Cd=0.40)</option>
           <option value="0.65">รอยปริแตก (Cd=0.65)</option>
-        </select>
+        </select><div class="hint">ลักษณะรูรั่วกำหนด Cd · ไม่ทราบให้ใช้ขอบคม Cd 0.61</div>
         <label>ค่า Cd (Auto จาก Geometry)</label>
-        <input type="number" id="lk_Cd" value="0.61" step="0.01">
+        <input type="number" id="lk_Cd" value="0.61" step="0.01"><div class="hint">สัมประสิทธิ์การไหล (เติมอัตโนมัติจาก geometry) · แก้ได้ 0.4–0.95</div>
         <label>ค่าไฟฟ้า (บาท/kWh)</label>
-        <input type="number" id="lk_rate" value="4.5" step="0.1">
+        <input type="number" id="lk_rate" value="4.5" step="0.1"><div class="hint">ค่าไฟฟ้า บาท/kWh · 3.8–4.5 · จากบิลค่าไฟ</div>
         <label>SEC ระบบ (kW/(m³/min))</label>
-        <input type="number" id="lk_SPC" value="7.0" step="0.1">
+        <input type="number" id="lk_SPC" value="7.0" step="0.1"><div class="hint">SEC ของระบบ kW/(m³/min) · ใช้ค่าวัดจริงจาก Tab Performance · ทั่วไป 6–7.5</div>
       </div>
     </div>
     <button class="btn btn-p" style="margin-top:6px" onclick="calcLeakage()">💨 คำนวณการรั่วไหล</button>
@@ -490,25 +541,25 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div class="g3">
       <div>
         <label>ความดันเริ่มต้น P₁ (bar g) <span style="color:var(--amber);font-size:10px">★ วัดจริง</span></label>
-        <input type="number" id="dp_p1" value="7.0" step="0.1" oninput="calcDPLeak()">
+        <input type="number" id="dp_p1" value="7.0" step="0.1" oninput="calcDPLeak()"><div class="hint">ความดันเริ่มต้นหลังปิด isolation valve bar g · อ่าน gauge ถังพัก</div>
         <label>ความดันสุดท้าย P₂ (bar g) <span style="color:var(--amber);font-size:10px">★ วัดจริง</span></label>
-        <input type="number" id="dp_p2" value="6.4" step="0.1" oninput="calcDPLeak()">
+        <input type="number" id="dp_p2" value="6.4" step="0.1" oninput="calcDPLeak()"><div class="hint">ความดันหลังเวลา t bar g · ควรตกอย่างน้อย 0.3–0.5 bar เพื่อความแม่นยำ</div>
       </div>
       <div>
         <label>เวลาทดสอบ t (นาที) <span style="color:var(--amber);font-size:10px">★ จับเวลา</span></label>
-        <input type="number" id="dp_t" value="10" step="0.5" oninput="calcDPLeak()">
+        <input type="number" id="dp_t" value="10" step="0.5" oninput="calcDPLeak()"><div class="hint">เวลาทดสอบ นาที · แนะนำ 5–15 นาที · ปิด compressor และไม่มีการใช้อากาศ</div>
         <label>ปริมาตรระบบ V_system (m³)</label>
-        <input type="number" id="dp_V" value="1.5" step="0.1" oninput="calcDPLeak()">
+        <input type="number" id="dp_V" value="1.5" step="0.1" oninput="calcDPLeak()"><div class="hint">ปริมาตรระบบที่ถูกกักไว้ m³ = ถังพัก + ท่อ (π D²/4 × L) · จาก nameplate ถัง + แบบท่อ</div>
         <div class="unit-hint">Receiver 1m³ + ท่อ ≈ 0.5m³ → ประมาณ 1.5m³ ถ้าไม่รู้ค่าจริง</div>
       </div>
       <div>
         <label>FAD รวมระบบ (m³/min)</label>
-        <input type="number" id="dp_fad" value="10.5" step="0.1" oninput="calcDPLeak()">
+        <input type="number" id="dp_fad" value="10.5" step="0.1" oninput="calcDPLeak()"><div class="hint">FAD รวมของเครื่องที่เดิน m³/min · จาก pump-up test หรือ datasheet</div>
         <div class="unit-hint">ใช้คำนวณ % Leak Rate เทียบกับ Capacity</div>
         <label>SEC ระบบ (kW/(m³/min))</label>
-        <input type="number" id="dp_spc" value="7.0" step="0.1" oninput="calcDPLeak()">
+        <input type="number" id="dp_spc" value="7.0" step="0.1" oninput="calcDPLeak()"><div class="hint">SEC ของระบบ kW/(m³/min) · เติมอัตโนมัติจาก Tab Performance (แก้ได้) · ทั่วไป 6–7.5</div>
         <label>ค่าไฟฟ้า (บาท/kWh)</label>
-        <input type="number" id="dp_rate" value="4.5" step="0.1" oninput="calcDPLeak()">
+        <input type="number" id="dp_rate" value="4.5" step="0.1" oninput="calcDPLeak()"><div class="hint">ค่าไฟฟ้า บาท/kWh · 3.8–4.5 · จากบิลค่าไฟ</div>
       </div>
     </div>
 
@@ -528,25 +579,25 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div class="g3">
       <div>
         <label>อัตราการไหล Q (m³/min @actual)</label>
-        <input type="number" id="pd_Q" value="10" step="0.1">
+        <input type="number" id="pd_Q" value="10" step="0.1"><div class="hint">อัตราการไหลในท่อที่สภาวะจริง m³/min (ไม่ใช่ FAD) · = FAD × P_atm/P_line · จาก flow meter</div>
         <label>ความดัน P_line (bar g)</label>
-        <input type="number" id="pd_Pline" value="7.0" step="0.1">
+        <input type="number" id="pd_Pline" value="7.0" step="0.1"><div class="hint">ความดันในท่อ bar g · gauge ต้นท่อ · ทั่วไป 6–7 bar g</div>
         <label>อุณหภูมิ T (°C)</label>
-        <input type="number" id="pd_T" value="35" step="1">
+        <input type="number" id="pd_T" value="35" step="1"><div class="hint">อุณหภูมิอากาศในท่อ °C · หลัง dryer 30–40 °C</div>
       </div>
       <div>
         <label>ขนาดท่อ ID (mm)</label>
-        <input type="number" id="pd_ID" value="50" step="1">
+        <input type="number" id="pd_ID" value="50" step="1"><div class="hint">เส้นผ่านศูนย์กลางภายในท่อ mm · จากแบบท่อ/ตาราง sch.40 · ความเร็วแนะนำ <8 m/s ท่อหลัก</div>
         <div class="unit-hint">ท่อ 1"=25mm / 1.5"=38mm / 2"=51mm / 3"=76mm / 4"=102mm</div>
         <label>ความยาวท่อ L (m)</label>
-        <input type="number" id="pd_L" value="50" step="1">
+        <input type="number" id="pd_L" value="50" step="1"><div class="hint">ความยาวท่อตรง m · วัดจากแบบหรือหน้างาน</div>
       </div>
       <div>
         <label>ความหยาบผิวท่อ ε (mm)</label>
-        <input type="number" id="pd_eps" value="0.046" step="0.001">
+        <input type="number" id="pd_eps" value="0.046" step="0.001"><div class="hint">ความหยาบผิวท่อ mm · เหล็กดำใหม่ 0.046 · เหล็กเก่าเป็นสนิม 0.1–0.5 · อลูมิเนียม 0.01</div>
         <div class="unit-hint">เหล็กดำ=0.046 / สแตนเลส=0.015 / อลูมิเนียม=0.01</div>
         <label>K-fitting รวม (Equivalent Length)</label>
-        <input type="number" id="pd_Leq" value="10" step="1">
+        <input type="number" id="pd_Leq" value="10" step="1"><div class="hint">ความยาวสมมูลของข้อต่อ/วาล์ว m · ข้องอ 90° ≈1–2 m ต่อตัว · gate valve เปิดเต็ม ≈0.5 m · ประมาณ 20 % ของ L</div>
         <div class="unit-hint">เพิ่ม L_equivalent สำหรับ Valve+Fitting ทั้งหมด</div>
       </div>
     </div>
@@ -589,7 +640,7 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
         <option value="high_moisture">ความชื้นใน Downstream สูง</option>
         <option value="vibration">Vibration / เสียงผิดปกติ</option>
         <option value="high_oil">น้ำมันปนในอากาศ</option>
-      </select>
+      </select><div class="hint">เลือกอาการที่พบหน้างานเพื่อดูสาเหตุและวิธีแก้ (ไม่มีผลต่อการคำนวณ)</div>
     </div>
     <div id="fault-display"></div>
   </div>
@@ -642,36 +693,36 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div class="g2" style="margin-bottom:12px">
       <div>
         <label>SEC วัดจริง (kW/(m³/min)) <span style="color:var(--green);font-size:10px">⚡ Auto จาก Tab 2</span></label>
-        <input type="number" id="a_spc" value="" placeholder="คำนวณจาก Tab 2" oninput="runAudit()">
+        <input type="number" id="a_spc" value="" placeholder="คำนวณจาก Tab 2" oninput="runAudit()"><div class="hint">SEC วัดจริง kW/(m³/min) · เติมอัตโนมัติจาก Tab Performance · เกณฑ์ดี <6.5 / ต้องแก้ >7.5</div>
         <label>FAD วัดจริง (m³/min)</label>
-        <input type="number" id="a_fad" value="" placeholder="จาก Pump-Up Test" oninput="runAudit()">
+        <input type="number" id="a_fad" value="" placeholder="จาก Pump-Up Test" oninput="runAudit()"><div class="hint">FAD วัดจริง m³/min · เติมอัตโนมัติจาก pump-up test</div>
         <label>T_intake (°C)</label>
-        <input type="number" id="a_Tin" value="32" oninput="runAudit()">
+        <input type="number" id="a_Tin" value="32" oninput="runAudit()"><div class="hint">อุณหภูมิอากาศขาเข้า °C · วัดจริงที่ช่องกรอง · ควร <35 °C</div>
       </div>
       <div>
         <label>P_discharge (bar g)</label>
-        <input type="number" id="a_Pdis" value="7.0" oninput="runAudit()">
+        <input type="number" id="a_Pdis" value="7.0" oninput="runAudit()"><div class="hint">ความดันจ่าย bar g · gauge ถังพัก</div>
         <label>P_plant ที่จุดใช้งาน (bar g)</label>
-        <input type="number" id="a_Pplant" value="6.0" oninput="runAudit()">
+        <input type="number" id="a_Pplant" value="6.0" oninput="runAudit()"><div class="hint">ความดันที่จุดใช้งานไกลสุด bar g · gauge ปลายท่อ · ΔP ดี <0.3 bar</div>
         <label>kW Full Load</label>
-        <input type="number" id="a_kwFL" value="75" oninput="runAudit()">
+        <input type="number" id="a_kwFL" value="75" oninput="runAudit()"><div class="hint">kW ขณะ full load · power meter · เทียบกับ nameplate ไม่ควรเกิน 110 %</div>
         <label>kW No Load (Unload)</label>
-        <input type="number" id="a_kwNL" value="18" oninput="runAudit()">
+        <input type="number" id="a_kwNL" value="18" oninput="runAudit()"><div class="hint">kW ขณะ unload · power meter · screw ทั่วไป 20–35 % ของ full load</div>
       </div>
     </div>
 
     <div class="g2">
       <div>
         <label>Leak Rate ประมาณ (%) <span style="color:var(--green);font-size:10px">⚡ Auto จาก Leak Test</span></label>
-        <input type="number" id="a_leak" value="" placeholder="จาก Pressure Drop Rate Test" oninput="runAudit()">
+        <input type="number" id="a_leak" value="" placeholder="จาก Pressure Drop Rate Test" oninput="runAudit()"><div class="hint">อัตรารั่ว % ของ FAD · เติมอัตโนมัติจาก pressure-drop test</div>
         <label>อุณหภูมิ Aftercooler Outlet (°C)</label>
-        <input type="number" id="a_Tac" value="" placeholder="ควร &lt; 40°C" oninput="runAudit()">
+        <input type="number" id="a_Tac" value="" placeholder="ควร &lt; 40°C" oninput="runAudit()"><div class="hint">อุณหภูมิอากาศออกจาก aftercooler °C · thermo/IR · ควร <40 °C (T_amb + 10 °C)</div>
       </div>
       <div>
         <label>Dew Point หลัง Dryer (°C)</label>
-        <input type="number" id="a_dp" value="" placeholder="Ref. Dryer spec" oninput="runAudit()">
+        <input type="number" id="a_dp" value="" placeholder="Ref. Dryer spec" oninput="runAudit()"><div class="hint">pressure dew point หลัง dryer °C · dew-point meter · refrigerant dryer +3 ถึง +10 °C · desiccant −20 ถึง −40 °C</div>
         <label>กำลังมอเตอร์ Nameplate (kW)</label>
-        <input type="number" id="a_kwNP" value="75" oninput="runAudit()">
+        <input type="number" id="a_kwNP" value="75" oninput="runAudit()"><div class="hint">กำลังมอเตอร์พิกัด kW · nameplate มอเตอร์ (เช่น 37/55/75/90 kW)</div>
       </div>
     </div>
   </div>
@@ -772,9 +823,9 @@ function goTab(n) {
 //  THERMODYNAMIC BASE FUNCTIONS
 // ══════════════════════════════════════════════════════════════
 
-// Saturation Vapor Pressure (bar) — Magnus-Tetens
+// Saturation Vapor Pressure (bar) — [ระยะ 4 10 ก.ย. 2569] เปลี่ยนจาก Magnus-Tetens เป็น TE_PSY (Hyland–Wexler, ASHRAE) คงชื่อ/หน่วยเดิม (bar)
 function getPsat(T_C) {
-  return 0.01 * 0.6112 * Math.exp((17.67 * T_C) / (T_C + 243.5));
+  return TE_PSY.Pws(T_C) / 100;
 }
 
 // Convert volume to Nm³ (ISO base: 20°C, 65% RH, 1.01325 bar)
@@ -817,8 +868,9 @@ class AirState {
     if (mode === 'RH') {
       this.RH = val; this.Pw = (val/100)*this.Pws;
     } else if (mode === 'Twb') {
-      const Pws_wb = getPsat(val) * 1e5;
-      this.Pw = Pws_wb - 6.66e-4 * this.P_Pa * (T_C - val) * (1 + 0.00115*val);
+      // [ระยะ 4 10 ก.ย. 2569] Twb → W ด้วยสมดุลพลังงาน ASHRAE (TE_PSY.W_wb) แทนสูตร psychrometer coefficient เดิม
+      const W_wb = Math.max(0, TE_PSY.W_wb(T_C, val, P_bar*100));
+      this.Pw = TE_PSY.Pw_W(W_wb, P_bar*100) * 1000;
       this.RH = (this.Pw/this.Pws)*100;
     } else { // Tdp
       this.Pw = getPsat(val) * 1e5;
@@ -826,9 +878,9 @@ class AirState {
     }
     this.Pw = Math.max(0, Math.min(this.Pw, this.Pws));
     this.RH = Math.max(0, Math.min(this.RH, 100));
-    const alpha = Math.log(this.Pw / (610.78));
-    this.Tdp = (237.3 * alpha) / (17.27 - alpha);
     this.W = 0.621945 * this.Pw / (this.P_Pa - this.Pw);
+    // [ระยะ 4 10 ก.ย. 2569] Dew point จาก TE_PSY.Tdp (ผกผัน Hyland–Wexler) แทน Magnus ผกผัน
+    this.Tdp = this.Pw > 0 ? TE_PSY.Tdp(this.W, P_bar*100) : NaN;
     const Tk = T_C + 273.15;
     this.v = 287.042 * Tk * (1 + 1.6078 * this.W) / this.P_Pa;
     this.h_kJ = 1.006 * T_C + this.W * (2501 + 1.86 * T_C);
@@ -2112,6 +2164,42 @@ function runAudit() {
     document.getElementById('ecm-card').style.display = 'none';
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+//  [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll (ensureAllCalc) + ป้ายชนิดค่า
+// ══════════════════════════════════════════════════════════════
+function teCompRows(){return Array.from(document.querySelectorAll('#comp-tbody tr')).map(r=>{const i=r.querySelectorAll('input'),s=r.querySelector('select');return{name:i[0].value,type:s.value,fad:+i[1].value,fl:+i[2].value,nl:+i[3].value};});}
+function tePmapRows(){return Array.from(document.querySelectorAll('#pmap-body tr')).map(r=>{const i=r.querySelectorAll('input');return{label:i[0].value,p:+i[1].value,dist:+i[2].value};});}
+function teExtra(){return{comps:teCompRows(),pmap:tePmapRows()};}
+function teRestoreExtra(x){
+  if(x&&x.comps){document.getElementById('comp-tbody').innerHTML='';x.comps.forEach(d=>_addCompRow(d));}
+  if(x&&x.pmap){document.getElementById('pmap-body').innerHTML='';x.pmap.forEach(d=>addPmapRow(d));}
+}
+function recalcAll(){
+  const T=f=>{try{f();}catch(e){}};
+  T(calcAmbient); T(calcProps); T(drawPV);
+  T(()=>{ const keep=document.getElementById('dp_spc').value; calcPerf(); document.getElementById('dp_spc').value=keep; }); // คำนวณ Performance เสมอ แต่ไม่ให้ autoLink ทับค่า dp_spc ที่โหลดมา
+  T(()=>{ if(document.getElementById('pumpup-result').style.display!=='none') calcPumpUp(); });
+  T(()=>{ if(document.getElementById('seq-result').style.display!=='none') calcSeq(); });
+  T(()=>{ if(document.getElementById('leak-result').style.display!=='none') calcLeakage(); });
+  T(calcDPLeak);
+  T(()=>{ if(document.getElementById('pipe-result').style.display!=='none') calcPipeDrop(); });
+  T(()=>{ if(document.getElementById('pmap-result').style.display!=='none') calcPmap(); });
+  T(showFault);
+  T(()=>{ document.querySelectorAll('[id^=chkwrap-]').forEach(w=>{const cb=w.querySelector('input[type=checkbox]');if(cb)w.classList.toggle('done',cb.checked);}); });
+  T(updateChkProgress); T(runAudit); T(tagFieldKinds);
+}
+function teSaveJSON(){TE_JSON.save('Tool_Compressed_Air_System',teExtra());}
+function teLoadJSON(file){TE_JSON.load(file,recalcAll,teRestoreExtra);}
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['eta_motor', 'p_design', 'spc_design', 'pu_V', 'dp_V', 'pd_ID', 'pd_L', 'a_kwNP'], FK_MEAS=['t_amb', 'p_atm', 'rh_amb', 'p_elec', 'p_dis', 'p1_T', 'p1_P', 'p1_val', 'fad_direct', 't_intake', 'rh_intake', 'pd_perf', 'pi_perf', 'pu_t', 'pu_p1', 'pu_p2', 'pu_Tt', 'pu_Patm', 'seq_demand', 'lk_p1', 'lk_T', 'lk_D', 'dp_p1', 'dp_p2', 'dp_t', 'dp_fad', 'pd_Q', 'pd_Pline', 'pd_T', 'a_Tin', 'a_Pdis', 'a_Pplant', 'a_kwFL', 'a_kwNL', 'a_Tac', 'a_dp'], FK_SET=['projName', 'machineTag', 'auditorName', 'testDate', 'p1_mode', 'p2_T', 'p2_P', 'p2_mode', 'p2_val', 'pv_p1', 'pv_p2', 'pv_n', 'pv_k', 'k_perf', 'seq_hours', 'seq_rate', 'seq_leak', 'lk_geo', 'lk_rate', 'lk_SPC', 'dp_rate', 'pd_eps', 'pd_Leq', 'fault-sel'], FK_CALC=['lk_Cd', 'dp_spc', 'a_spc', 'a_fad', 'a_leak'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
 
 // ══════════════════════════════════════════════════════════════
 //  JS SYNTAX CHECK: ensure no duplicate const declarations

@@ -5,6 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cooling Load & HVAC Selector — โหลดความเย็น เลือกแอร์/ชิลเลอร์ + CDD</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>/* TE_PSY */
+/* ══ TE_PSY — Psychrometric engine กลางของ Triple E (ระยะ 4, 10 ก.ย. 2569) — ASHRAE Fundamentals, Hyland–Wexler; คัดจาก Tool_Psychrometric_Chart
+   หน่วย public: °C, kPa, kg/kg_da, kJ/kg_da, m³/kg_da ══ */
+var TE_PSY=(function(){
+  function pwsPa(TK){ if(TK<173.15)TK=173.15; var l;
+    if(TK<273.15){ l=-5.6745359e3/TK+6.3925247-9.677843e-3*TK+6.2215701e-7*TK*TK+2.0747825e-9*Math.pow(TK,3)-9.484024e-13*Math.pow(TK,4)+4.1635019*Math.log(TK); }
+    else { l=-5.8002206e3/TK+1.3914993-4.8640239e-2*TK+4.1764768e-5*TK*TK-1.4452093e-8*Math.pow(TK,3)+6.5459673*Math.log(TK); }
+    return Math.exp(l); }
+  function Pws(t){return pwsPa(t+273.15)/1000;}                                   // kPa
+  function Ws(t,p){var s=Pws(t);return s>=p?1e6:0.621945*s/(p-s);}
+  function W_rh(t,rh,p){var pw=Math.min(rh*Pws(t),p*0.9999);return 0.621945*pw/(p-pw);}   // rh เป็นสัดส่วน 0–1
+  function Pw_W(W,p){return p*W/(0.621945+W);}
+  function RH_W(t,W,p){return Pw_W(W,p)/Pws(t);}                                  // สัดส่วน 0–1
+  function Hda(t,W){return 1.006*t+W*(2501+1.86*t);}                              // kJ/kg_da
+  function Vda(t,W,p){return 0.287042*(t+273.15)*(1+1.607858*W)/p;}               // m³/kg_da
+  function Tdp(W,p){var pw=Pw_W(W,p);if(pw<=0)return NaN;var lo=-90,hi=200;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(Pws(m)<pw)lo=m;else hi=m;}return (lo+hi)/2;}
+  function W_wb(t,twb,p){var ws=Ws(twb,p);return twb>=0?((2501-2.326*twb)*ws-1.006*(t-twb))/(2501+1.86*t-4.186*twb):((2830-0.24*twb)*ws-1.006*(t-twb))/(2830+1.86*t-2.1*twb);}
+  function Twb(t,W,p){var lo=-90,hi=t;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(W_wb(t,m,p)<W)lo=m;else hi=m;}return (lo+hi)/2;}
+  function Palt(z){return 101.325*Math.pow(1-2.25577e-5*z,5.2559);}
+  function state(t,W,p){W=Math.max(0,Math.min(W,Ws(t,p)));var h=Hda(t,W),v=Vda(t,W,p),pw=Pw_W(W,p),ws=Ws(t,p);
+    return{t:t,W:W,p:p,h:h,v:v,rh:100*pw/Pws(t),pw:pw,tdp:Tdp(W,p),twb:Twb(t,W,p),rho:(1+W)/v,mu:100*W/ws,ws:ws};}
+  function fromRH(t,rhPct,p){return state(t,W_rh(t,rhPct/100,p||101.325),p||101.325);}
+  function fromWB(t,twb,p){return state(t,W_wb(t,twb,p||101.325),p||101.325);}
+  return{Pws:Pws,Ws:Ws,W_rh:W_rh,Pw_W:Pw_W,RH_W:RH_W,Hda:Hda,Vda:Vda,Tdp:Tdp,W_wb:W_wb,Twb:Twb,Palt:Palt,state:state,fromRH:fromRH,fromWB:fromWB,_ver:'TE_PSY HW r4-2569'};
+})();
+
+</script>
 <style>
 :root{
   --navy:#0f2a4a;--teal:#12a4a4;
@@ -74,6 +101,10 @@ body.nohints .hint{display:none}
   .tabpane{display:block!important}
   .tabpane.print-hide{display:none!important}
 }
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า */
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
 </style>
 </head>
 <body>
@@ -389,13 +420,13 @@ let clim=null;           // {provTh, dailyT:[], dailyWB:[], months:[{y,m,cdd..}]
 let climAll=null;        // JSON เต็มจาก CDD Analyzer (77 จังหวัด)
 
 /* ============ Psychrometrics (P=101.325 kPa) ============ */
-const Psat=T=>610.94*Math.exp(17.625*T/(243.04+T));                 // Pa
-const wFromRH=(T,RH)=>{const pv=RH/100*Psat(T);return 0.622*pv/(101325-pv);}
-function wFromWB(T,Twb){const ws=wFromRH(Twb,100);
-  return ((2501-2.326*Twb)*ws-1.006*(T-Twb))/(2501+1.86*T-4.186*Twb);}
-const stullWB=(T,RH)=>{RH=Math.max(5,Math.min(99,RH));
-  return T*Math.atan(0.151977*Math.sqrt(RH+8.313659))+Math.atan(T+RH)-Math.atan(RH-1.676331)
-  +0.00391838*Math.pow(RH,1.5)*Math.atan(0.023101*RH)-4.686035;}
+/* [ระยะ 4 10 ก.ย. 2569] เปลี่ยน Magnus (Psat) / Stull (Twb) เป็น TE_PSY engine กลาง (ASHRAE Hyland–Wexler) — คงชื่อฟังก์ชัน/หน่วยเดิม (Psat เป็น Pa) */
+const TE_P0=101.325;                                                  // kPa
+const Psat=T=>TE_PSY.Pws(T)*1000;                                     // Pa
+const wFromRH=(T,RH)=>TE_PSY.W_rh(T,RH/100,TE_P0);
+function wFromWB(T,Twb){return TE_PSY.W_wb(T,Twb,TE_P0);}
+const stullWB=(T,RH)=>{RH=Math.max(5,Math.min(99,RH));                // คงชื่อเดิม แต่คำนวณ Twb ผกผันจาก HW แทนสูตร Stull (±1 °C)
+  return TE_PSY.Twb(T,TE_PSY.W_rh(T,RH/100,TE_P0),TE_P0);};
 
 /* ============ UI helpers ============ */
 const $=id=>document.getElementById(id);
@@ -543,7 +574,7 @@ function renderLoad(){
   $('loadWarn').innerHTML=warn;
   $('loadAssump').textContent=o.mode==='quick'
     ?'Quick mode: โหลด = พื้นที่ × W/m² × ตัวคูณสภาพห้อง + โหลด IT×1.05 ทั้งหมด × Safety — เหมาะกับการประเมินเบื้องต้น/เสนองาน; งานออกแบบจริงให้ใช้โหมด Detailed'
-    :'Detailed: CLTD อย่างง่าย — ผนัง U·A·(ΔT+ค่าชดเชยแดดรายทิศ), กระจก U·A·ΔT + Solar·SC·Shading, คน/ไฟ/อุปกรณ์ตามจริง, อากาศระบาย Qs=1.2·V·ΔT, Ql=3010·V·Δw (psychrometrics Magnus/Stull) · สภาวะออกแบบ: ใน '+o.ti+'°C/'+o.rhi+'%RH, นอก '+o.to+'°C DB/'+o.twb+'°C WB';
+    :'Detailed: CLTD อย่างง่าย — ผนัง U·A·(ΔT+ค่าชดเชยแดดรายทิศ), กระจก U·A·ΔT + Solar·SC·Shading, คน/ไฟ/อุปกรณ์ตามจริง, อากาศระบาย Qs=1.2·V·ΔT, Ql=3010·V·Δw (psychrometrics ASHRAE Hyland–Wexler, TE_PSY) · สภาวะออกแบบ: ใน '+o.ti+'°C/'+o.rhi+'%RH, นอก '+o.to+'°C DB/'+o.twb+'°C WB';
 }
 
 /* ============ โครงการ ============ */
@@ -875,6 +906,15 @@ const HINTS={
  qWm2:"ค่าโหลดต่อพื้นที่จาก preset (ช่วง typical ภูมิอากาศไทย เพดาน ≤3 ม.) — ปรับได้ตามประสบการณ์/ข้อมูลอาคารจริง · ห้อง IT (Data Center/Server/MDB/UPS) ค่านี้เป็น 0 เพราะคิดจากโหลด kW โดยตรง",
  qsf:"ตัวเผื่อความไม่แน่นอน — ทั่วไป 10%, งานข้อมูลน้อย 15%",
  projName:"ชื่อโครงการ/ลูกค้า จะแสดงหัวรายงานและชื่อไฟล์ JSON",
+ /* [ระยะ 4 10 ก.ย. 2569] hint เพิ่มสำหรับช่องที่ยังไม่มีคำอธิบาย */
+ roomName:"ชื่อห้องที่จะปรากฏในตารางโครงการ/รายงาน เช่น ห้องประชุม 2 ชั้น 3",
+ roomType:"ประเภทห้องกำหนดค่า preset (W/m², คน/m², ไฟ, อุปกรณ์, setpoint) — เลือกแล้วยังแก้ทุกช่องได้",
+ rw:"ความกว้างภายในห้อง m · วัดจากแบบแปลนหรือตลับเมตรหน้างาน",
+ rl:"ความยาวภายในห้อง m · วัดจากแบบแปลน/หน้างาน",
+ rh:"ความสูงพื้นถึงฝ้า m · ทั่วไป 2.6–3.0 · โถง/โรงงาน 4–8 m (ใช้คำนวณปริมาตรสำหรับ ACH)",
+ rarea:"พื้นที่ห้อง m² = กว้าง × ยาว (โปรแกรมคำนวณให้)",
+ npeople:"จำนวนคนสูงสุดที่อยู่พร้อมกัน · สำนักงาน ≈1 คน/10 m² · ประชุม ≈1 คน/2 m² · preset เติมให้แต่แก้ตามจริงได้",
+ wLight:"ความหนาแน่นไฟแสงสว่าง W/m² · LED สำนักงาน 6–10 · ฟลูออเรสเซนต์ 12–18 · อ่านจาก nameplate หลอด × จำนวน ÷ พื้นที่",
  divF:"Diversity factor = โอกาสที่ทุกห้องพีคพร้อมกัน ใช้ลดขนาดระบบรวม: สำนักงานรวม 0.85–0.95 · โรงแรม 0.7–0.85 · บ้าน 0.7–0.8 — ห้อง critical (DC/Server/Control) ระบบคิดเต็ม 1.0 ให้เสมอไม่ว่าตั้งค่าใด",
  provSel:"จังหวัดที่ตั้งโครงการ — ใช้ดึงข้อมูลอากาศเพื่อหา Design DB/WB และ CDD ของพื้นที่จริง",
  diurnal:"ค่าชดเชยพีคช่วงบ่าย: ข้อมูล ERA5 เป็นค่าเฉลี่ยรายวัน จึงบวกผลต่างพีคบ่าย-ค่าเฉลี่ย — พื้นที่ตอนในแห้ง 5–6 K · ชายฝั่ง/เกาะ 3.5–4.5 K",
@@ -893,6 +933,15 @@ function injectHints(){
 function toggleHints(){document.body.classList.toggle('nohints');}
 
 /* ============ init ============ */
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['rw', 'rl', 'rh', 'npeople', 'wLight', 'wEquip', 'tOut', 'twbOut', 'expN', 'glN', 'expS', 'glS', 'expE', 'glE', 'expW', 'glW', 'wallType', 'glassType', 'shade', 'roofType'], FK_MEAS=['kwIT'], FK_SET=['roomName', 'roomType', 'tIn', 'rhIn', 'oaPerP', 'ach', 'activity', 'sf', 'qCond', 'qWm2', 'qsf', 'projName', 'divF', 'provSel', 'diurnal', 'eSrc', 'hOp', 'tariff'], FK_CALC=['rarea'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
 fillRoomTypes();
 renderRef();
 injectHints();

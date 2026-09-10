@@ -8,17 +8,29 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+    <!-- [ระยะ 4 10 ก.ย. 2569] ฟอนต์ Triple E -->
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #004085; --secondary: #0056b3; --bg: #f4f7f6;
             --text: #333; --sig: #28a745; --var: #fd7e14; --out: #dc3545;
             --accent: #17a2b8; --gold: #856404;
+            /* [ระยะ 4 10 ก.ย. 2569] design tokens Triple E (คง --bg/--accent เดิมของไฟล์) */
+            --navy:#0f2a4a;--teal:#12a4a4;--header-grad:linear-gradient(135deg,var(--navy),var(--teal));--card:#ffffff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;--radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
         }
         * { box-sizing: border-box; }
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; line-height: 1.6; }
+        body { font-family: 'IBM Plex Sans Thai', 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; line-height: 1.6; } /* [ระยะ 4 10 ก.ย. 2569] ฟอนต์ตาม design system */
         .dashboard-container { max-width: 1400px; margin: auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
         h1, h2, h3 { color: var(--primary); text-align: center; }
         h1 { border-bottom: 3px solid var(--primary); padding-bottom: 12px; font-size: 1.5em; }
+        /* [ระยะ 4 10 ก.ย. 2569] หัวเรื่องเป็นแถบ header-grad + Barlow Condensed (โทน navy-teal) */
+        .dashboard-container > h1 { font-family: 'Barlow Condensed', 'IBM Plex Sans Thai', sans-serif; font-weight: 700; font-size: 1.9em; letter-spacing: .3px; color: #fff; background: var(--header-grad); border-bottom: 0; border-radius: 10px; padding: 18px 20px; margin: -10px 0 18px; }
+        .dashboard-container > h1 span { color: rgba(255,255,255,.85) !important; }
+        h2, h3 { font-family: 'Barlow Condensed', 'IBM Plex Sans Thai', sans-serif; letter-spacing: .3px; }
+        .input-item input[type=number], .input-item input[type=text] { font-family: 'IBM Plex Mono', monospace; }
+        .fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+        .fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+        .fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
 
         /* ===== TABS ===== */
         .tab-nav { display: flex; gap: 4px; margin-bottom: 0; flex-wrap: wrap; border-bottom: 3px solid var(--primary); }
@@ -721,9 +733,27 @@
     const THRESHOLD_SIG = 0.01;
     const THRESHOLD_VAR = 0.15;
     const STORAGE_KEY = 'iso50001_equations_v2';
+    /* [ระยะ 4 10 ก.ย. 2569] แก้ TDZ: ตัวแปร let/const เหล่านี้เดิมประกาศอยู่ท้ายสคริปต์ — ถ้า CDN (Chart.js ฯลฯ) โหลดไม่ได้ สคริปต์หยุดที่ new Chart()
+       ทำให้ตัวแปรยังไม่ initialize เมื่อผู้ใช้กดแท็บ (multi/scatter/saved) → "Cannot access 'multiData' before initialization" — ย้ายมาประกาศไว้บนสุด */
+    let cusumLineChart = null;
+    let eqLoaded = false;
+    let _memEquations = null;            // in-memory cache
+    let _fm = (v, d = 2) => (v === null || v === undefined || !isFinite(v)) ? '-' : v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+    let multiData = null, multiLabels = ['X1','X2','X3','X4','X5'], multiFit = null, multiMonRecords = [], multiCusumChart = null, _saveMode = 'single';
+    let scatterData = null, scatterChart1 = null, scatterChart2 = null;
 
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+    var FK_DESIGN=[], FK_MEAS=[], FK_SET=['yVariableSelect', 'priceElec', 'priceHeat', 'cusumSourceSelect', 'scatterXSelect', 'scatterYSelect', 'eqNameInput'], FK_CALC=['coeff_const', 'coeff_x1', 'coeff_x2', 'coeff_x3', 'coeff_x4', 'coeff_x5'];
+    var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+    function fieldKind(id){if(/^coeff_/.test(id))return'calc';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+    function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+    function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+      for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+      for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+    document.addEventListener('DOMContentLoaded',tagFieldKinds);
     // ====== TAB ======
     function switchTab(name) {
+        try { tagFieldKinds(); } catch (e) {}   /* [ระยะ 4 10 ก.ย. 2569] label ของ X1–X5 ถูกเขียนใหม่ตอนโหลดข้อมูล → ติดป้ายซ้ำเมื่อสลับแท็บ */
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-' + name).classList.add('active');
@@ -736,7 +766,8 @@
 
     // ====== CHART INIT ======
     const canvasCtx = document.getElementById('cusumCanvas').getContext('2d');
-    let cusumLineChart = new Chart(canvasCtx, {
+    try { /* [ระยะ 4 10 ก.ย. 2569] กัน Chart.js โหลดไม่ได้ (ออฟไลน์) ไม่ให้สคริปต์ที่เหลือหยุดทำงาน */
+    cusumLineChart = new Chart(canvasCtx, {
         type: 'line',
         data: {
             labels: [],
@@ -767,7 +798,7 @@
             animation: { duration: 0 }
         }
     });
-
+    } catch (e) { cusumLineChart = null; console.warn('Chart.js ไม่พร้อม: '+e.message); }
     // ====== Y VARIABLE ======
     function handleYVariableChange() {
         updateUITexts();
@@ -780,6 +811,7 @@
         document.getElementById('th_actual').innerText = `Actual Energy ${unit}`;
         document.getElementById('th_target').innerText = `Target Energy ${unit}`;
         document.getElementById('th_cusum').innerText = `CUSUM ${unit}`;
+        if (!cusumLineChart) return;   /* [ระยะ 4 10 ก.ย. 2569] กราฟยังไม่ถูกสร้าง (Chart.js โหลดไม่ได้) — ข้ามการอัปเดตกราฟ */
         cusumLineChart.options.scales.y.title.text = `ผลต่างพลังงานสะสม CUSUM ${unit}`;
         cusumLineChart.data.datasets[0].label = `CUSUM ${unit}`;
         cusumLineChart.update();
@@ -850,7 +882,7 @@
 
     // ====== RECALCULATE BASELINE ======
     // [แก้ไข 10 ก.ย. 2569] สถานะ "สมการที่โหลดจากคลัง" — recalculateBaseline() จะล้างสถานะนี้เมื่อคำนวณทับ
-    let eqLoaded = false;
+    // [ระยะ 4 10 ก.ย. 2569] eqLoaded ย้ายไปประกาศบนสุดของสคริปต์ (แก้ TDZ)
     function setEqLoadedBanner(on, name) {
         const b = document.getElementById('eqLoadedBanner');
         if (!b) return;
@@ -1082,7 +1114,7 @@
     }
 
     // ====== SAVE EQUATION — robust storage (memory + localStorage + sessionStorage fallback) ======
-    let _memEquations = null; // in-memory cache
+    // [ระยะ 4 10 ก.ย. 2569] _memEquations ย้ายไปประกาศบนสุด (แก้ TDZ)
 
     function getSavedEquations() {
         if (_memEquations !== null) return _memEquations;
@@ -1313,7 +1345,7 @@
     // ============================================================
     // ====== v4.0 — SHARED MLR HELPERS + MULTI-STREAM ENGINE ======
     // ============================================================
-    const _fm = (v, d = 2) => (v === null || v === undefined || !isFinite(v)) ? '-' : v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+    // [ระยะ 4 10 ก.ย. 2569] _fm ย้ายไปประกาศบนสุด (แก้ TDZ)
 
     function vifFmtGlobal(v) {
         if (v === null || v === undefined) return '-';
@@ -1417,12 +1449,7 @@
     }
 
     // ====== MULTI-STREAM STATE ======
-    let multiData = null;
-    let multiLabels = ['X1','X2','X3','X4','X5'];
-    let multiFit = null;
-    let multiMonRecords = [];
-    let multiCusumChart = null;
-    let _saveMode = 'single';
+    // [ระยะ 4 10 ก.ย. 2569] multiData/multiLabels/multiFit/multiMonRecords/multiCusumChart/_saveMode ย้ายไปประกาศบนสุด (แก้ TDZ)
 
     function initMultiTab() {
         if (!multiData && globalBaselineData) useBaselineForMulti(true);
@@ -1778,8 +1805,7 @@
     }
 
     // ====== SCATTER & SEC (ส่วนที่ 3) ======
-    let scatterData = null;
-    let scatterChart1 = null, scatterChart2 = null;
+    // [ระยะ 4 10 ก.ย. 2569] scatterData/scatterChart1/scatterChart2 ย้ายไปประกาศบนสุด (แก้ TDZ)
 
     function _scFmt(v) {
         if (!isFinite(v)) return '-';

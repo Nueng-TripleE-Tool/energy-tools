@@ -5,6 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Psychrometric Chart &amp; Air Properties — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>/* TE_PSY */
+/* ══ TE_PSY — Psychrometric engine กลางของ Triple E (ระยะ 4, 10 ก.ย. 2569) — ASHRAE Fundamentals, Hyland–Wexler; คัดจาก Tool_Psychrometric_Chart
+   หน่วย public: °C, kPa, kg/kg_da, kJ/kg_da, m³/kg_da ══ */
+var TE_PSY=(function(){
+  function pwsPa(TK){ if(TK<173.15)TK=173.15; var l;
+    if(TK<273.15){ l=-5.6745359e3/TK+6.3925247-9.677843e-3*TK+6.2215701e-7*TK*TK+2.0747825e-9*Math.pow(TK,3)-9.484024e-13*Math.pow(TK,4)+4.1635019*Math.log(TK); }
+    else { l=-5.8002206e3/TK+1.3914993-4.8640239e-2*TK+4.1764768e-5*TK*TK-1.4452093e-8*Math.pow(TK,3)+6.5459673*Math.log(TK); }
+    return Math.exp(l); }
+  function Pws(t){return pwsPa(t+273.15)/1000;}                                   // kPa
+  function Ws(t,p){var s=Pws(t);return s>=p?1e6:0.621945*s/(p-s);}
+  function W_rh(t,rh,p){var pw=Math.min(rh*Pws(t),p*0.9999);return 0.621945*pw/(p-pw);}   // rh เป็นสัดส่วน 0–1
+  function Pw_W(W,p){return p*W/(0.621945+W);}
+  function RH_W(t,W,p){return Pw_W(W,p)/Pws(t);}                                  // สัดส่วน 0–1
+  function Hda(t,W){return 1.006*t+W*(2501+1.86*t);}                              // kJ/kg_da
+  function Vda(t,W,p){return 0.287042*(t+273.15)*(1+1.607858*W)/p;}               // m³/kg_da
+  function Tdp(W,p){var pw=Pw_W(W,p);if(pw<=0)return NaN;var lo=-90,hi=200;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(Pws(m)<pw)lo=m;else hi=m;}return (lo+hi)/2;}
+  function W_wb(t,twb,p){var ws=Ws(twb,p);return twb>=0?((2501-2.326*twb)*ws-1.006*(t-twb))/(2501+1.86*t-4.186*twb):((2830-0.24*twb)*ws-1.006*(t-twb))/(2830+1.86*t-2.1*twb);}
+  function Twb(t,W,p){var lo=-90,hi=t;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(W_wb(t,m,p)<W)lo=m;else hi=m;}return (lo+hi)/2;}
+  function Palt(z){return 101.325*Math.pow(1-2.25577e-5*z,5.2559);}
+  function state(t,W,p){W=Math.max(0,Math.min(W,Ws(t,p)));var h=Hda(t,W),v=Vda(t,W,p),pw=Pw_W(W,p),ws=Ws(t,p);
+    return{t:t,W:W,p:p,h:h,v:v,rh:100*pw/Pws(t),pw:pw,tdp:Tdp(W,p),twb:Twb(t,W,p),rho:(1+W)/v,mu:100*W/ws,ws:ws};}
+  function fromRH(t,rhPct,p){return state(t,W_rh(t,rhPct/100,p||101.325),p||101.325);}
+  function fromWB(t,twb,p){return state(t,W_wb(t,twb,p||101.325),p||101.325);}
+  return{Pws:Pws,Ws:Ws,W_rh:W_rh,Pw_W:Pw_W,RH_W:RH_W,Hda:Hda,Vda:Vda,Tdp:Tdp,W_wb:W_wb,Twb:Twb,Palt:Palt,state:state,fromRH:fromRH,fromWB:fromWB,_ver:'TE_PSY HW r4-2569'};
+})();
+
+</script>
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root{
   --navy:#0f2a4a;--teal:#12a4a4;
@@ -55,6 +94,12 @@ tr.hl td{background:var(--conv-light);font-weight:600}
   border-left:3px solid var(--conv-mid);padding:10px 12px;border-radius:0 8px 8px 0}
 .assump b{color:var(--navy)}
 .note{font-size:.79rem;color:var(--muted);margin-top:4px}
+/* [ระยะ 4 10 ก.ย. 2569] ปุ่ม JSON + ป้ายชนิดค่า + hint */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}.te-json{margin-top:10px}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 .small{font-size:.82rem}
 .refbox{background:#f8fbff;border:1px solid #dfeaf7;border-radius:12px;padding:12px 14px;margin-top:10px}
 .badge{display:inline-block;font-size:.7rem;padding:2px 8px;border-radius:12px;
@@ -78,6 +123,11 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
   <div class="brand">Triple E Technology Co., Ltd.</div>
   <h1>Psychrometric Chart &amp; Air Properties</h1>
   <p>คุณสมบัติอากาศชื้นและแผนภูมิไซโครเมตริก — ASHRAE Fundamentals · รองรับความสูงเหนือระดับน้ำทะเล</p>
+  <!-- [ระยะ 4 10 ก.ย. 2569] บันทึก/โหลด JSON ทุกแท็บ -->
+  <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
 </header>
 
 <div class="wrap">
@@ -99,13 +149,13 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
           <select id="pMode" onchange="pMode()">
             <option value="alt" selected>ระบุความสูงเหนือระดับน้ำทะเล (m)</option>
             <option value="dir">ระบุความดันโดยตรง (kPa abs)</option>
-          </select>
+          </select><div class="hint">ระบุความสูง = โปรแกรมคำนวณ P จากสมการบรรยากาศมาตรฐาน · ระบุตรง = ใช้ค่าจาก barometer/สถานีอุตุฯ (แม่นกว่าเมื่อทราบ)</div>
         </div>
         <div><label id="lbAlt">ความสูงเหนือระดับน้ำทะเล (m)</label>
           <input id="alt" type="number" step="10" value="0" oninput="calcA()">
           <div class="note" id="ntAlt">กรุงเทพฯ ≈ 2 m · เชียงใหม่ ≈ 310 m · ภูเขา 1,000 m → 89.9 kPa</div></div>
         <div><label>ความดันบรรยากาศที่ใช้คำนวณ (kPa abs)</label>
-          <input id="patm" type="number" step="0.001" value="101.325" oninput="calcA()"></div>
+          <input id="patm" type="number" step="0.001" value="101.325" oninput="calcA()"><div class="hint">ความดันบรรยากาศสัมบูรณ์ที่ใช้คำนวณ (kPa) — เติมจากความสูงอัตโนมัติ หรือกรอกเอง · กรุงเทพฯ 100.8–101.5 kPa · ที่มา: barometer หน้างาน/กรมอุตุฯ</div></div>
       </div>
 
       <h3>ป้อนค่าที่ทราบ 2 ค่า (เลือกคู่ที่ตรวจวัดได้)</h3>
@@ -118,12 +168,12 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <option value="db_w">อุณหภูมิกระเปาะแห้ง (DB) + อัตราส่วนความชื้น W</option>
             <option value="db_h">อุณหภูมิกระเปาะแห้ง (DB) + เอนทัลปี h</option>
             <option value="wb_rh">กระเปาะเปียก (WB) + ความชื้นสัมพัทธ์ (RH)</option>
-          </select>
+          </select><div class="hint">เลือกคู่ค่าที่วัดได้จริง · เครื่องวัดดิจิทัล (testo 610/hygrometer) ให้ DB+RH · sling psychrometer ให้ DB+WB · dew-point meter ให้ DB+DP</div>
         </div>
         <div><label id="lb1">อุณหภูมิกระเปาะแห้ง DB (°C)</label>
-          <input id="v1" type="number" step="0.1" value="35" oninput="calcA()"></div>
+          <input id="v1" type="number" step="0.1" value="35" oninput="calcA()"><div class="hint">ค่าแรกของคู่ที่เลือก (ปกติ = อุณหภูมิกระเปาะแห้ง °C) · อากาศภายนอกไทย 28–38 °C · ห้องปรับอากาศ 24–26 °C · ที่มา: thermo-hygrometer</div></div>
         <div><label id="lb2">ความชื้นสัมพัทธ์ RH (%)</label>
-          <input id="v2" type="number" step="0.1" value="60" oninput="calcA()"></div>
+          <input id="v2" type="number" step="0.1" value="60" oninput="calcA()"><div class="hint">ค่าที่สองของคู่ที่เลือก (RH % / WB °C / DP °C / W g/kg / h kJ/kg) · RH ภายนอกไทย 55–85 % · WB ออกแบบกรุงเทพฯ 28–29 °C · ที่มา: เครื่องวัดชนิดเดียวกัน</div></div>
       </div>
       <div class="note" id="warnA"></div>
     </div>
@@ -145,13 +195,13 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <option value="10,45,0.030">งานปรับอากาศ 10–45 °C</option>
             <option value="0,90,0.120">อุณหภูมิสูง / เครื่องอบแห้ง 0–90 °C</option>
             <option value="0,120,0.400">Dryer &amp; ไอเสียอุณหภูมิสูง 0–120 °C</option>
-          </select></div>
+          </select><div class="hint">ช่วงแกนของแผนภูมิ — มาตรฐาน 0–50 °C ใช้กับงานปรับอากาศ · ช่วงกว้างใช้กับงานอบแห้ง/อากาศร้อน</div></div>
         <div><label>เส้น RH (%)</label>
-          <select id="shRH" onchange="draw()"><option value="1" selected>แสดง</option><option value="0">ซ่อน</option></select></div>
+          <select id="shRH" onchange="draw()"><option value="1" selected>แสดง</option><option value="0">ซ่อน</option></select><div class="hint">แสดง/ซ่อนเส้นความชื้นสัมพัทธ์คงที่ (10–100 %)</div></div>
         <div><label>เส้นเอนทัลปี / กระเปาะเปียก</label>
-          <select id="shH" onchange="draw()"><option value="1" selected>แสดง</option><option value="0">ซ่อน</option></select></div>
+          <select id="shH" onchange="draw()"><option value="1" selected>แสดง</option><option value="0">ซ่อน</option></select><div class="hint">แสดง/ซ่อนเส้นเอนทัลปีคงที่ (≈ เส้นกระเปาะเปียกคงที่)</div></div>
         <div><label>เส้นปริมาตรจำเพาะ</label>
-          <select id="shV" onchange="draw()"><option value="1" selected>แสดง</option><option value="0">ซ่อน</option></select></div>
+          <select id="shV" onchange="draw()"><option value="1" selected>แสดง</option><option value="0">ซ่อน</option></select><div class="hint">แสดง/ซ่อนเส้นปริมาตรจำเพาะคงที่ (m³/kg_da)</div></div>
       </div>
       <div class="chartbox" style="margin-top:12px">
         <svg id="chart" viewBox="0 0 940 580" preserveAspectRatio="xMidYMid meet"></svg>
@@ -181,16 +231,16 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <option value="evap">ระบายความร้อนแบบระเหย (Evaporative Cooling)</option>
             <option value="steam">เพิ่มความชื้นด้วยไอน้ำ (Steam Humidification)</option>
             <option value="dry">อบแห้ง / ดูดความชื้นจากวัสดุ (Drying Process)</option>
-          </select></div>
+          </select><div class="hint">เลือกกระบวนการที่ต้องการวิเคราะห์ — คอยล์เย็น/ฮีตเตอร์/ผสมอากาศ/ระเหย/ฉีดไอน้ำ/อบแห้ง · แต่ละแบบเปลี่ยนช่องกรอกด้านล่างให้อัตโนมัติ</div></div>
         <div><label>ความดันบรรยากาศ (kPa abs) — ใช้ค่าเดียวกับแท็บแรก</label>
-          <input id="patm2" type="number" step="0.001" value="101.325" oninput="calcP()"></div>
+          <input id="patm2" type="number" step="0.001" value="101.325" oninput="calcP()"><div class="hint">ความดันบรรยากาศสำหรับแท็บนี้ (kPa) — ควรใช้ค่าเดียวกับแท็บแรก</div></div>
       </div>
 
       <h3 id="hIn">อากาศเข้า — สภาวะที่ 1 (Entering / Stream 1)</h3>
       <div class="grid4">
-        <div><label>DB (°C)</label><input id="e1db" type="number" step="0.1" value="27" oninput="calcP()"></div>
-        <div><label>RH (%)</label><input id="e1rh" type="number" step="0.1" value="55" oninput="calcP()"></div>
-        <div><label id="lbQ1">อัตราการไหลอากาศ</label><input id="e1q" type="number" step="any" value="5000" oninput="calcP()"></div>
+        <div><label>DB (°C)</label><input id="e1db" type="number" step="0.1" value="27" oninput="calcP()"><div class="hint">อุณหภูมิกระเปาะแห้งอากาศเข้า (°C) · อากาศกลับ (RA) 24–27 · อากาศภายนอก (OA) 30–36 · ที่มา: วัดที่ท่อลมกลับ/ช่องรับอากาศ</div></div>
+        <div><label>RH (%)</label><input id="e1rh" type="number" step="0.1" value="55" oninput="calcP()"><div class="hint">ความชื้นสัมพัทธ์อากาศเข้า (%) · RA 50–60 · OA 60–80 · ที่มา: thermo-hygrometer จุดเดียวกับ DB</div></div>
+        <div><label id="lbQ1">อัตราการไหลอากาศ</label><input id="e1q" type="number" step="any" value="5000" oninput="calcP()"><div class="hint">อัตราการไหลอากาศเข้า (หน่วยตามที่เลือก) · AHU 1 RT ≈ 400 CFM ≈ 680 m³/h · ที่มา: balometer/anemometer × พื้นที่ท่อ หรือสเปคพัดลม</div></div>
         <div><label>หน่วยอัตราการไหล</label>
           <select id="qUnit" onchange="calcP()">
             <option value="3600" selected>m³/h</option>
@@ -198,15 +248,15 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
             <option value="1">m³/s</option>
             <option value="2118.880">cfm</option>
             <option value="3600000">L/h</option>
-          </select></div>
+          </select><div class="hint">หน่วยของอัตราการไหล — m³/h (สเปคไทย/ยุโรป) · CFM (สเปคอเมริกา) · L/s · m³/min</div></div>
       </div>
 
       <h3 id="hOut">อากาศออก — สภาวะที่ 2 (Leaving / Stream 2)</h3>
       <div class="grid4" id="outBox">
-        <div><label id="lo1">DB (°C)</label><input id="e2db" type="number" step="0.1" value="13" oninput="calcP()"></div>
-        <div><label id="lo2">RH (%)</label><input id="e2rh" type="number" step="0.1" value="95" oninput="calcP()"></div>
-        <div id="q2box"><label id="lbQ2">อัตราการไหลสาย 2</label><input id="e2q" type="number" step="any" value="2000" oninput="calcP()"></div>
-        <div id="effbox"><label id="lbEff">ประสิทธิผล / ค่าเพิ่มเติม</label><input id="eff" type="number" step="0.01" value="0.85" oninput="calcP()"></div>
+        <div><label id="lo1">DB (°C)</label><input id="e2db" type="number" step="0.1" value="13" oninput="calcP()"><div class="hint">อุณหภูมิกระเปาะแห้งสภาวะที่ 2 (ทางออก/สาย 2) · off-coil 12–14 °C · หลังฮีตเตอร์ 35–60 °C · ที่มา: วัดหลังคอยล์ ~30 cm</div></div>
+        <div><label id="lo2">RH (%)</label><input id="e2rh" type="number" step="0.1" value="95" oninput="calcP()"><div class="hint">ความชื้นสัมพัทธ์สภาวะที่ 2 · off-coil 90–95 % · ทางออกห้องอบ 20–40 % · ที่มา: thermo-hygrometer</div></div>
+        <div id="q2box"><label id="lbQ2">อัตราการไหลสาย 2</label><input id="e2q" type="number" step="any" value="2000" oninput="calcP()"><div class="hint">อัตราการไหลสาย 2 (หน่วยเดียวกับสาย 1) — ใช้เฉพาะกระบวนการผสม · OA ทั่วไป 10–30 % ของลมจ่าย</div></div>
+        <div id="effbox"><label id="lbEff">ประสิทธิผล / ค่าเพิ่มเติม</label><input id="eff" type="number" step="0.01" value="0.85" oninput="calcP()"><div class="hint">ระเหย: ประสิทธิผลแผ่นทำความเย็น 0.70–0.90 (สเปคผู้ผลิต) · ไอน้ำ: อัตราฉีดไอน้ำ kg/h (สเปค humidifier/มิเตอร์ไอน้ำ)</div></div>
       </div>
       <div class="note" id="ntProc"></div>
       <button class="ghost" onclick="document.querySelector('.tab[data-p=&quot;p1&quot;]').click()">ดูแผนภูมิด้านบน</button>
@@ -284,50 +334,27 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
 </div>
 
 <script>
-/* ══════════ PSYCHROMETRIC CORE (ASHRAE Fundamentals) ══════════ */
-function pws(TK){                                   // Pa
-  if(TK < 173.15) TK = 173.15;
-  let l;
-  if(TK < 273.15){
-    l = -5.6745359e3/TK + 6.3925247 - 9.677843e-3*TK + 6.2215701e-7*TK*TK
-      + 2.0747825e-9*Math.pow(TK,3) - 9.484024e-13*Math.pow(TK,4) + 4.1635019*Math.log(TK);
-  } else {
-    l = -5.8002206e3/TK + 1.3914993 - 4.8640239e-2*TK + 4.1764768e-5*TK*TK
-      - 1.4452093e-8*Math.pow(TK,3) + 6.5459673*Math.log(TK);
-  }
-  return Math.exp(l);
+/* ══════════ PSYCHROMETRIC CORE ══════════
+   [ระยะ 4 10 ก.ย. 2569] โค้ดคำนวณชุดเดิม (Hyland–Wexler / ASHRAE) ย้ายไปเป็น engine กลาง TE_PSY ใน <head> (คัดจากไฟล์นี้ ค่าเท่าเดิม 100 %)
+   ไฟล์นี้จึงเป็นตัวอ้างอิงของ engine — คงชื่อฟังก์ชันเดิมทั้งหมดเป็น alias เพื่อให้โค้ด UI/แผนภูมิ/ตารางไม่ต้องแก้ */
+function pws(TK){ return TE_PSY.Pws(TK-273.15)*1000; }   // Pa (คงลายเซ็นเดิม)
+const Pws = TE_PSY.Pws;                                     // kPa
+const Ws  = TE_PSY.Ws;
+const W_rh= TE_PSY.W_rh;
+const Pw_W= TE_PSY.Pw_W;
+const RH_W= TE_PSY.RH_W;
+const Hda = TE_PSY.Hda;
+const Vda = TE_PSY.Vda;
+const Tdp = TE_PSY.Tdp;
+const W_wb= TE_PSY.W_wb;
+const Twb = TE_PSY.Twb;
+const Palt= TE_PSY.Palt;
+function state(t,W,p){                                      // เพิ่ม absH / hMoist ที่ UI ใช้ (engine ไม่มี)
+  const s=TE_PSY.state(t,W,p);
+  s.absH=s.W/s.v; s.hMoist=s.h/(1+s.W);
+  return s;
 }
-const Pws = t => pws(t+273.15)/1000;                       // kPa
-const Ws  = (t,p) => { const s=Pws(t); return s>=p ? 1e6 : 0.621945*s/(p-s); };
-const W_rh= (t,rh,p)=>{ const pw=Math.min(rh*Pws(t), p*0.9999); return 0.621945*pw/(p-pw); };
-const Pw_W= (W,p) => p*W/(0.621945+W);
-const RH_W= (t,W,p)=> Pw_W(W,p)/Pws(t);
-const Hda = (t,W) => 1.006*t + W*(2501+1.86*t);
-const Vda = (t,W,p)=> 0.287042*(t+273.15)*(1+1.607858*W)/p;
-function Tdp(W,p){
-  const pw = Pw_W(W,p); if(pw<=0) return NaN;
-  let lo=-90, hi=200;
-  for(let i=0;i<90;i++){ const m=(lo+hi)/2; (Pws(m)<pw)?lo=m:hi=m; }
-  return (lo+hi)/2;
-}
-function W_wb(t,twb,p){
-  const ws = Ws(twb,p);
-  return twb>=0 ? ((2501-2.326*twb)*ws - 1.006*(t-twb))/(2501+1.86*t-4.186*twb)
-                : ((2830-0.24 *twb)*ws - 1.006*(t-twb))/(2830+1.86*t-2.1  *twb);
-}
-function Twb(t,W,p){
-  let lo=-90, hi=t;
-  for(let i=0;i<90;i++){ const m=(lo+hi)/2; (W_wb(t,m,p)<W)?lo=m:hi=m; }
-  return (lo+hi)/2;
-}
-const Palt = z => 101.325*Math.pow(1-2.25577e-5*z, 5.2559);
 
-function state(t,W,p){
-  W = Math.max(0, Math.min(W, Ws(t,p)));
-  const h=Hda(t,W), v=Vda(t,W,p), pw=Pw_W(W,p), ws=Ws(t,p);
-  return {t, W, p, h, v, rh:100*pw/Pws(t), pw, tdp:Tdp(W,p), twb:Twb(t,W,p),
-          rho:(1+W)/v, mu:100*W/ws, ws, absH:W/v, hMoist:h/(1+W)};
-}
 const fmt  = (v,d=2) => !isFinite(v) ? '–' : v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fmtA = v => { const a=Math.abs(v); return !isFinite(v)?'–':fmt(v, a>=1000?0:a>=100?1:a>=10?2:a>=1?3:4); };
 const $=id=>document.getElementById(id), num=id=>parseFloat($(id).value)||0;
@@ -354,6 +381,7 @@ function pairUI(){
   $('lb1').textContent=PAIR_LB[k][0]; $('lb2').textContent=PAIR_LB[k][1];
   $('v1').value=DEF[k][0]; $('v2').value=DEF[k][1];
   calcA();
+  if(typeof tagFieldKinds==='function') tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] textContent ของ label ลบป้ายชนิดค่า → ติดใหม่ */
 }
 function pMode(){
   const d = $('pMode').value==='dir';
@@ -601,6 +629,7 @@ function procUI(){
   if(DEF2[pv]){ $('e2db').value=DEF2[pv][0]; $('e2rh').value=DEF2[pv][1]; }
   $('ntProc').innerHTML=`<span class="badge">${c.nt}</span>`;
   calcP();
+  if(typeof tagFieldKinds==='function') tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] label lo1/lo2/lbEff ถูกเขียนใหม่ → ติดป้ายใหม่ */
 }
 let SP=null;
 function calcP(){
@@ -702,8 +731,31 @@ function buildRef(){
      <td class="num">${fmt(Palt(z)/100,5)}</td><td class="small">${n}</td></tr>`).join('');
 }
 
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['e1q', 'e2q'], FK_MEAS=['v1', 'v2', 'alt', 'e1db', 'e1rh', 'e2db', 'e2rh'], FK_SET=['pMode', 'pair', 'range', 'shRH', 'shH', 'shV', 'proc', 'qUnit', 'eff'], FK_CALC=['patm', 'patm2'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
+/* [ระยะ 4 10 ก.ย. 2569] JSON: recalcAll — คงค่าที่โหลดไว้ (pairUI/procUI ปกติจะรีเซ็ตค่า default) แล้วคำนวณทั้ง 2 แท็บ + วาดแผนภูมิ */
+function recalcAll(){
+  try{ const k=$('pair').value; $('lb1').textContent=PAIR_LB[k][0]; $('lb2').textContent=PAIR_LB[k][1]; }catch(e){}
+  try{ pMode(); }catch(e){console.warn(e);}                       // เรียก calcA() ภายใน
+  try{ const keep={e2db:$('e2db').value,e2rh:$('e2rh').value,eff:$('eff').value}; procUI(); Object.keys(keep).forEach(id=>$(id).value=keep[id]); calcP(); }catch(e){console.warn(e);}
+  try{ draw(); drawP(); }catch(e){}
+  try{ tagFieldKinds(); }catch(e){}
+}
+function teExtra(){ const t=document.querySelector('.tab.active'); return {tab:t?t.dataset.p:'p1'}; }
+function teRestoreExtra(x){ if(x&&x.tab){ const t=document.querySelector('.tab[data-p="'+x.tab+'"]'); if(t) t.click(); } }
+function teSaveJSON(){ TE_JSON.save('Tool_Psychrometric_Chart',teExtra()); }
+function teLoadJSON(file){ TE_JSON.load(file,recalcAll,teRestoreExtra); }
+
 /* ══════════ INIT ══════════ */
 pMode(); procUI(); buildRef(); calcA();
+tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า */
 </script>
 </body>
 </html>

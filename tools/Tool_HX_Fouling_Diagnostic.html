@@ -6,6 +6,18 @@
 <title>Heat Exchanger Fouling Diagnostic — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root{
   --navy:#0f2a4a; --teal:#12a4a4;
@@ -154,6 +166,12 @@ table td{vertical-align:middle}
 .verdict2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;
   background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
 .verdict2 .vcell{border-left:none}
+/* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า + hint */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -161,6 +179,10 @@ table td{vertical-align:middle}
 <header>
   <div class="wrap">
     <a href="../index.html" class="back"><i class="fas fa-arrow-left"></i> กลับหน้ารวมเครื่องมือ</a>
+    <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
     <div class="kicker"><i class="fas fa-stethoscope"></i> Troubleshooting · Triple E Technology</div>
     <h1>Heat Exchanger Fouling Diagnostic</h1>
     <p>ติดตามการเสื่อมสภาพของอุปกรณ์แลกเปลี่ยนความร้อนจาก LMTD และ UA ที่วัดได้จริง
@@ -564,6 +586,43 @@ function report(){
 ล้วนทำให้ U ที่วัดได้ตกโดยที่ผิวแลกเปลี่ยนยังสะอาดอยู่`}</pre>`;
 }
 
+/* ══ [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า + hint ══ */
+function recalcAll(){ try{calc();}catch(e){} try{tagFieldKinds();}catch(e){} }   // calc() เรียก econ/dx/report ครบอยู่แล้ว
+function teSaveJSON(){ TE_JSON.save('Tool_HX_Fouling_Diagnostic', null); }
+function teLoadJSON(file){ TE_JSON.load(file, recalcAll, null); }
+const TE_HINTS={
+  hxType:'ชนิด/รูปแบบการไหลกำหนด LMTD correction F · PHE และ counterflow F ≈ 1 · shell&tube 1-2 pass F 0.8–0.95 · ดูจาก datasheet/ผังท่อ',
+  area:'พื้นที่ผิวแลกเปลี่ยนความร้อน m² จาก datasheet/nameplate (PHE = พื้นที่ต่อแผ่น × จำนวนแผ่น)',
+  uClean:'ค่า U ออกแบบ/ตอนสะอาด W/m²·K จาก datasheet · น้ำ–น้ำ PHE 3,000–6,000 · shell&tube น้ำ–น้ำ 800–1,500 · น้ำมัน–น้ำ 200–500 · ถ้าไม่มี ใช้ค่าวัดหลังล้างครั้งล่าสุด',
+  Th1:'อุณหภูมิของไหลร้อนเข้า °C · thermometer/gauge สอบเทียบที่ท่อเข้า (วัดพร้อมกันทั้ง 4 จุด)',
+  Th2:'อุณหภูมิของไหลร้อนออก °C',
+  mh:'อัตราไหลฝั่งร้อน m³/h · ultrasonic flow meter/pump curve/DCS · โปรแกรมแปลงเป็น kg/s ด้วยความหนาแน่นด้านล่าง',
+  cph:'ความจุความร้อนจำเพาะฝั่งร้อน kJ/kg·K · น้ำ 4.18 · น้ำมันร้อน 2.0–2.5 · glycol 30 % ≈ 3.7',
+  Tc1:'อุณหภูมิของไหลเย็นเข้า °C (เช่น น้ำหล่อเย็นจากหอ 29–33)',
+  Tc2:'อุณหภูมิของไหลเย็นออก °C',
+  mc:'อัตราไหลฝั่งเย็น m³/h · flow meter/pump curve — ใช้ตรวจสมดุลพลังงาน Q_hot ≈ Q_cold (ต่างกัน < 5 %)',
+  cpc:'ความจุความร้อนจำเพาะฝั่งเย็น kJ/kg·K · น้ำ 4.18',
+  rh:'ความหนาแน่นฝั่งร้อน kg/m³ · น้ำ 60–90 °C ≈ 980–965 · น้ำมันร้อน 800–850',
+  rc:'ความหนาแน่นฝั่งเย็น kg/m³ · น้ำ 30 °C ≈ 996',
+  rfRate:'อัตราสะสมความต้านทานตะกรัน Rf m²·K/W ต่อ 1,000 ชม. · น้ำหอผึ่งบำบัดดี 0.5–1e-4 · น้ำดิบ/แม่น้ำ 2–5e-4 · จากประวัติ U ระหว่างรอบล้าง (TEMA)',
+  hrs:'ชั่วโมงเดินเครื่องต่อปี · 3 กะ ≈ 8,000 · 2 กะ ≈ 6,000',
+  cCost:'ค่าล้าง/ CIP ต่อครั้ง บาท (แรงงาน+เคมี+ปะเก็น) · PHE กลาง 20,000–60,000 · shell&tube 30,000–100,000',
+  penalty:'มูลค่าพลังงานที่เสียเพิ่ม บาท/ปี ต่อทุก 10 % ที่ U ตก — ประเมินจากไอน้ำ/ไฟฟ้าที่ต้องเพิ่มเพื่อชดเชย (เช่น chiller kW/RT สูงขึ้น หรือ steam เพิ่ม)',
+  dHrs:'เวลาหยุดเครื่องเพื่อล้างต่อครั้ง ชม. · PHE 8–16 · shell&tube 24–48',
+  dCost:'ต้นทุนการหยุดผลิต บาท/ชม. (ค่าเสียโอกาส/OT) · ใส่ 0 ถ้าล้างช่วงหยุดซ่อมประจำอยู่แล้ว'
+};
+function teInjectHints(){ Object.keys(TE_HINTS).forEach(id=>{ const e=$(id); if(!e) return; const n=e.nextElementSibling; if(n&&n.classList&&n.classList.contains('hint')) return; const d=document.createElement('div'); d.className='hint'; d.textContent=TE_HINTS[id]; e.insertAdjacentElement('afterend',d); }); }
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['hxType', 'area', 'uClean', 'cph', 'cpc', 'rh', 'rc'], FK_MEAS=['Th1', 'Th2', 'mh', 'Tc1', 'Tc2', 'mc'], FK_SET=['rfRate', 'hrs', 'cCost', 'penalty', 'dHrs', 'dCost'], FK_CALC=[];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
+teInjectHints();
+
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
@@ -581,6 +640,7 @@ $('btnCopy').addEventListener('click',()=>{
   }).catch(()=>{});
 });
 calc();
+tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า */
 </script>
 </body>
 </html>

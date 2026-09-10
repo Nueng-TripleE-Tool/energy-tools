@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hybrid Chiller System Analysis — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root {
   --bg:      #f0f4fb;
@@ -34,6 +46,8 @@
   --mono:    'IBM Plex Mono', monospace;
   --sans:    'IBM Plex Sans Thai', sans-serif;
   --display: 'Barlow Condensed', sans-serif;
+  /* [ระยะ 4 10 ก.ย. 2569] design tokens Triple E (คง --bg/--teal เดิม เพิ่มเฉพาะที่ขาด) */
+  --navy:#0f2a4a;--header-grad:linear-gradient(135deg,var(--navy),var(--teal));--card:#ffffff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;--accent:#12a4a4;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;--radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
 }
 
 *{ box-sizing:border-box; margin:0; padding:0; }
@@ -61,7 +75,7 @@ body::before {
 /* ── HEADER ── */
 .header {
   position: relative; z-index:10;
-  background: linear-gradient(135deg, #0f2a6e 0%, #1a4fa0 60%, #0d7a6b 100%);
+  background: var(--header-grad); /* [ระยะ 4 10 ก.ย. 2569] header ไล่สี navy→teal ตาม design system */
   padding: 0 32px;
   height: 64px;
   display: flex; align-items: center; gap: 16px;
@@ -316,6 +330,12 @@ hr.divider { border:none; border-top:1px solid var(--border); margin:18px 0; }
 .conv-from { font-family:var(--mono); color:var(--text); font-weight:600; min-width:100px; }
 .conv-to   { font-family:var(--mono); color:var(--blue3); background:var(--blue-lt); padding:2px 8px; border-radius:4px; }
 .conv-formula { color:var(--text3); font-family:var(--mono); font-size:11px; }
+/* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า + hint */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -328,6 +348,10 @@ hr.divider { border:none; border-top:1px solid var(--border); margin:18px 0; }
     <p>ELECTRIC &amp; ABSORPTION · MULTI-UNIT PERFORMANCE &amp; DIAGNOSIS</p>
   </div>
   <div class="hdr-badge">v2.0 · Triple E Technology</div>
+  <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
 </div>
 
 <!-- TABS -->
@@ -955,6 +979,7 @@ function generateRows(useDefaults) {
   document.querySelectorAll('.tinput').forEach(el => {
     Object.assign(el.style, { width:'100%', padding:'7px 9px', border:'1px solid var(--border)', borderRadius:'6px', background:'#f8faff', fontFamily:'var(--mono)', fontSize:'12px', outline:'none', boxSizing:'border-box' });
   });
+  if (typeof tagFieldKinds === 'function') tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่าหลังสร้างแถวใหม่ */
 }
 
 function toggleRow(id) {
@@ -1570,7 +1595,73 @@ function generateReport() {
 // ═══════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+//  [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า + hint
+// ═══════════════════════════════════════════════
+const numOK = id => { const e=document.getElementById(id); return !!e && isFinite(parseFloat(e.value)); };
+function syncChecklistClass(){ document.querySelectorAll('[id^="chk_"]').forEach(cb=>{ const w=cb.closest('.check-item'); if(w) w.classList.toggle('checked', cb.checked); }); }
+function recalcAll(){
+  const T=f=>{try{f();}catch(e){}};
+  const num=parseInt(document.getElementById('numChillers').value)||0;
+  T(()=>{ if(document.querySelectorAll('#tbody tr').length!==num) generateRows(false); });
+  for(let i=1;i<=num;i++){ T(()=>toggleRow(i)); T(()=>styleSource(i)); }
+  T(()=>{ document.querySelectorAll('[name="unit"]').forEach(el=>{ if(el.checked) el.dispatchEvent(new Event('change')); }); updateUnitLabels(); });
+  T(()=>{ let any=false; for(let i=1;i<=num;i++){ if(numOK('flow_'+i)) any=true; } if(any) calculateAll(); });
+  T(buildSeqConfig);
+  T(()=>{ if(numOK('seq_load')) runSequencing(); });
+  T(()=>{ if(numOK('d_tret')&&numOK('d_tsup')&&numOK('d_flow')) runDiagnosis(); });
+  T(syncChecklistClass); T(updateCheckProgress);
+  T(()=>{ if(window.TE_reportShown) generateReport(); });
+  T(tagFieldKinds);
+}
+function teExtra(){ const o=document.getElementById('auditReport'); return {numChillers:parseInt(document.getElementById('numChillers').value)||5, reportShown: !!(o&&o.style.display!=='none')}; }
+function teRestoreExtra(x){
+  if(!x) return; window.TE_reportShown=!!x.reportShown;
+  if(x.numChillers){ document.getElementById('numChillers').value=x.numChillers; generateRows(false); buildSeqConfig(); }
+}
+function teSaveJSON(){ TE_JSON.save('Tool_Chiller_Multi_Ele_Abs', teExtra()); }
+function teLoadJSON(file){ TE_JSON.load(file, recalcAll, teRestoreExtra); }
+const TE_HINTS={
+  numChillers:'จำนวน chiller ทั้งหมดในโรงงาน (รวมเครื่องสำรอง) — เปลี่ยนแล้วตารางจะสร้างแถวใหม่ (ค่าเดิมหาย)',
+  d_tret:'อุณหภูมิน้ำเย็นกลับเข้า evaporator °C · ออกแบบ 12 (ΔT 5) · จาก gauge/BMS ท่อ return',
+  d_tsup:'อุณหภูมิน้ำเย็นออก °C · ออกแบบ 7 · เครื่องเก่า/ตั้ง reset 8–10 · gauge/BMS ท่อ supply',
+  d_tcws:'อุณหภูมิน้ำหล่อเย็นเข้า condenser °C · จาก cooling tower ไทย 29–32 · ≈ T_wb + 3–5',
+  d_tcwr:'อุณหภูมิน้ำหล่อเย็นออก condenser °C · ΔT ทั่วไป 5 (design) · absorption ΔT 6–8',
+  d_type:'ประเภท chiller กำหนดเกณฑ์ kW/RT หรือ COP: centrifugal ดี ≤ 0.55 · screw ≤ 0.65 · scroll ≤ 0.80 kW/RT · absorption COP 0.6–0.7 (single-effect) 1.0–1.2 (double-effect)',
+  d_input:'กำลังไฟฟ้าเข้า kW (power meter) หรือความร้อนเข้า kW_th สำหรับ absorption (ไอน้ำ kg/h × h_fg ÷ 3600; น้ำร้อน ṁ·Cp·ΔT) — ดูตารางแปลงหน่วยในแท็บแรก',
+  d_flow:'อัตราไหลน้ำเย็น m³/h · ultrasonic flow meter/BMS · ออกแบบ ≈ 0.6 m³/h ต่อ RT (2.4 GPM/RT ที่ ΔT 5.5 °C)',
+  d_cap:'พิกัดทำความเย็น RT จาก nameplate (1 RT = 3.517 kW) — ใช้หา load factor',
+  seq_load:'โหลดทำความเย็นรวมที่ต้องการ RT (จากผลรวม Q_cooling ในแท็บแรกหรือค่า peak ของโรงงาน) — โปรแกรมจัดลำดับเปิดเครื่องตาม priority และ min load',
+  a_plant:'ชื่อโรงงาน/อาคารที่ตรวจ — แสดงหัวรายงาน',
+  a_date:'วันที่เข้าตรวจ (เติมเป็นวันนี้อัตโนมัติ แก้ได้)',
+  a_tag:'หมายเลขเครื่อง/Tag ตามผัง เช่น CH-01',
+  a_auditor:'ชื่อผู้ตรวจวัด — แสดงในรายงาน',
+  a_brand:'ยี่ห้อจาก nameplate เช่น Trane, Carrier, York, Daikin, Hitachi, Broad (absorption)',
+  a_model:'รุ่นจาก nameplate',
+  a_type:'ประเภท chiller (nameplate) — ใช้เลือกเกณฑ์ประเมินในรายงาน',
+  a_cap:'พิกัด RT จาก nameplate',
+  m_tret:'อุณหภูมิน้ำเย็นกลับ °C วัดจริง (gauge สอบเทียบ/thermometer สัมผัสท่อ)',
+  m_tsup:'อุณหภูมิน้ำเย็นออก °C วัดจริง · ΔT ควร 4–6',
+  m_tcws:'อุณหภูมิน้ำหล่อเย็นเข้า °C วัดจริง · ไทย 29–32',
+  m_tcwr:'อุณหภูมิน้ำหล่อเย็นออก °C วัดจริง · approach ต่อ T_cond ควร < 3 (fouling ถ้าสูง)',
+  m_flow:'อัตราไหลน้ำเย็น m³/h · ultrasonic flow meter หรือจาก pump curve/ΔP',
+  m_power:'กำลังไฟฟ้า kW จาก power meter (หรือ √3·V·I·PF) · absorption ใส่ความร้อนเข้า kW_th',
+  m_current:'กระแสมอเตอร์ A จาก clamp meter/แผง · เทียบ RLA บน nameplate',
+  m_vib:'ความสั่นสะเทือน mm/s RMS ที่ bearing housing · ISO 10816: ดี < 2.8 · ยอมรับ < 4.5',
+  a_notes:'ข้อสังเกตพิเศษ อาการผิดปกติ ข้อเสนอแนะ — แสดงในรายงาน'
+};
+function teInjectHints(){ Object.keys(TE_HINTS).forEach(id=>{ const e=document.getElementById(id); if(!e) return; let a=e; const n=e.nextElementSibling; if(n&&n.classList&&n.classList.contains('unit')) a=n; const nn=a.nextElementSibling; if(nn&&nn.classList&&nn.classList.contains('hint')) return; const d=document.createElement('div'); d.className='hint'; d.textContent=TE_HINTS[id]; a.insertAdjacentElement('afterend',d); }); }
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['d_type', 'd_cap', 'a_type', 'a_cap', 'a_brand', 'a_model'], FK_MEAS=['d_tret', 'd_tsup', 'd_tcws', 'd_tcwr', 'd_input', 'd_flow', 'm_tret', 'm_tsup', 'm_tcws', 'm_tcwr', 'm_flow', 'm_power', 'm_current', 'm_vib'], FK_SET=['numChillers', 'seq_load', 'a_plant', 'a_date', 'a_tag', 'a_auditor'], FK_CALC=[];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(/^(name|status|source|type|cap|seq_cap|seq_min|seq_prio)_\d+$/.test(id))return'design';if(/^(flow|tin|tout|input)_\d+$/.test(id))return'meas';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
 window.addEventListener('DOMContentLoaded', () => {
+  teInjectHints();
   generateRows(true);
   buildSeqConfig();
   initChecklist();
@@ -1578,6 +1669,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const d = document.getElementById('a_date');
   if (d) d.value = new Date().toISOString().split('T')[0];
   setTimeout(drawLoadCurve, 300);
+  tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า */
 
   // IP label toggle
   document.querySelectorAll('[name="unit"]').forEach(el => {

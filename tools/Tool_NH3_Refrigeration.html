@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NH₃ Refrigeration Engineering Tool</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Bebas+Neue&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root {
   --bg: #f4f6fb;
@@ -27,6 +40,8 @@
   --mono: 'IBM Plex Mono', monospace;
   --sans: 'IBM Plex Sans Thai', sans-serif;
   --display: 'Bebas Neue', sans-serif;
+  /* [ระยะ 4 10 ก.ย. 2569] design tokens Triple E (คง --bg/--teal เดิม เพิ่มเฉพาะที่ขาด) */
+  --navy:#0f2a4a;--header-grad:linear-gradient(135deg,var(--navy),var(--teal));--card:#ffffff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;--accent:#12a4a4;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;--radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -56,7 +71,7 @@ body::before {
 .header {
   position: relative;
   z-index: 10;
-  background: linear-gradient(180deg, #e0e8f8 0%, var(--bg2) 100%);
+  background: var(--header-grad); /* [ระยะ 4 10 ก.ย. 2569] header ไล่สี navy→teal ตาม design system (เดิมพื้นฟ้าอ่อน) */
   border-bottom: 1px solid var(--border);
   padding: 20px 32px;
   display: flex;
@@ -75,18 +90,17 @@ body::before {
 }
 
 .header-text h1 {
-  font-family: var(--display);
-  font-size: 28px;
-  letter-spacing: 2px;
-  background: linear-gradient(90deg, var(--cyan), var(--teal));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-family: 'Barlow Condensed', var(--display); /* [ระยะ 4 10 ก.ย. 2569] ชื่อเครื่องมือ Barlow Condensed สีขาวบน header เข้ม */
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: 1px;
+  color: #ffffff;
   line-height: 1;
 }
 
 .header-text p {
   font-size: 12px;
-  color: var(--text3);
+  color: rgba(255,255,255,0.75); /* [ระยะ 4 10 ก.ย. 2569] อ่านได้บน header เข้ม */
   letter-spacing: 1px;
   margin-top: 3px;
 }
@@ -95,8 +109,7 @@ body::before {
   margin-left: auto;
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--cyan);
-  border: 1px solid var(--cyan);
+  color: #ffffff; border: 1px solid rgba(255,255,255,0.5); /* [ระยะ 4 10 ก.ย. 2569] badge บน header เข้ม */
   padding: 4px 10px;
   border-radius: 4px;
   letter-spacing: 1px;
@@ -537,6 +550,12 @@ body::before {
   justify-content: flex-end;
   margin-bottom: 20px;
 }
+/* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า + hint */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -549,6 +568,10 @@ body::before {
     <p>INDUSTRIAL AMMONIA SYSTEM · PERFORMANCE & FAULT ANALYSIS</p>
   </div>
   <div class="header-badge">v2.0 · Triple E Technology</div>
+  <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
 </div>
 
 <!-- TABS -->
@@ -721,7 +744,7 @@ body::before {
           </div>
           <div class="form-group">
             <label>Discharge Temp T₂ (measured)</label>
-            <input type="number" id="t2_meas" value="98" step="0.5">
+            <input type="number" id="t2_meas" value="140" step="0.5"><!-- [ระยะ 4 10 ก.ย. 2569] ตัวอย่างเดิม 98 °C ต่ำกว่า T₂s (126 °C) ให้ η 131.8 % — ใช้ค่า reciprocating 140 °C (η ≈ 78 %) -->
             <div class="unit">°C (วัดจาก Thermocouple)</div>
           </div>
         </div>
@@ -1714,6 +1737,14 @@ function calcPerformance() {
   const CR     = P2 / P1;
   const eta_isen = (dh_comp > 0) ? (h2s - h1) / dh_comp * 100 : 0;
   const approach_cond = Tcond_sat - Tcw_out;
+  // [ระยะ 4 10 ก.ย. 2569] เตือนเมื่อ T₂ วัดจริง ≤ T₂s (η ≥ 100 %) — มักเป็น screw ฉีดน้ำมัน (น้ำมันดูดความร้อน) หรืออ่าน T₂ ผิดตำแหน่ง → ṁ วิธี 1 และ η ใช้ไม่ได้
+  const T2s_est = Tcond_sat + (h2s - satCond[3]) / getCpGas(Tcond_sat + 30);
+  const etaWarnHTML = (eta_isen >= 100) ? `
+      <div class="alert alert-warn" style="margin-top:12px"><span>⚠️</span><div style="font-size:12px">
+        <strong>η_isen = ${eta_isen.toFixed(1)} % ≥ 100 % — ผลไม่สอดคล้องทางเทอร์โมไดนามิกส์:</strong> T₂ วัดจริง ${T2meas.toFixed(1)} °C ต่ำกว่า/เท่ากับ T₂s (isentropic) ≈ ${T2s_est.toFixed(0)} °C<br>
+        สาเหตุที่พบบ่อย: คอมเพรสเซอร์ screw ฉีดน้ำมัน (น้ำมันดูดความร้อนอัด) · วัด T₂ หลัง oil separator/ท่อยาว · P₁/P₂ อ่านเป็น gauge ไม่ใช่ abs<br>
+        กรณี screw: ṁ จากวิธี 1 (Power Balance) จะสูงเกินจริง — ให้เชื่อวิธี 2 (Condenser CW) และใช้ η จาก spec sheet ในแท็บ P-h แทน
+      </div></div>` : '';
 
   // ── Cross-check alert ──────────────────────────────────────────
   let crossCheckHTML = '';
@@ -1807,7 +1838,7 @@ function calcPerformance() {
   const saving_pct = (1 - COP/copTarget) * 100;
 
   document.getElementById('saving-section').innerHTML = `
-    ${crossCheckHTML}
+    ${crossCheckHTML}${etaWarnHTML}
     <div class="alert ${saving_pct>0?'alert-warn':'alert-success'}" style="margin-top:10px">
       <span>${saving_pct>0?'💡':'✅'}</span>
       <div>
@@ -2503,12 +2534,95 @@ function drawStageCompare(Te, Tc, cop2, cop1) {
 // ══════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+//  [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า + hint
+// ══════════════════════════════════════════════
+function syncChecklistClass(){ document.querySelectorAll('.check-item input[type=checkbox]').forEach(cb=>{ const w=document.getElementById(cb.id+'-wrap'); if(w) w.classList.toggle('checked', cb.checked); }); }
+const numOK = id => { const e=document.getElementById(id); return !!e && isFinite(parseFloat(e.value)); };
+function recalcAll(){
+  const T=f=>{try{f();}catch(e){}};
+  T(()=>{ if(numOK('ph_Tevap')&&numOK('ph_Tcond')) calcPH(); });
+  T(()=>{ if(numOK('p1')&&numOK('p2')&&numOK('t1')) calcPerformance(); });
+  T(()=>{ const e=document.getElementById('p1'); if(e) e.dispatchEvent(new Event('input')); });
+  T(showFaultAnalysis);
+  T(()=>{ if(numOK('diag_p1')&&numOK('diag_p2')) calcDiagnostics(); });
+  T(()=>{ if(numOK('ts_tevap')&&numOK('ts_tcond')&&numOK('ts_tint')) calcTwoStage(); });
+  T(syncChecklistClass);
+  T(()=>{ if(window.TE_auditShown) generateAuditReport(); });
+  T(tagFieldKinds);
+}
+function teExtra(){ const o=document.getElementById('audit-report-output'); return {auditShown: !!(o&&o.style.display!=='none')}; }
+function teRestoreExtra(x){ window.TE_auditShown = !!(x&&x.auditShown); }
+function teSaveJSON(){ TE_JSON.save('Tool_NH3_Refrigeration', teExtra()); }
+function teLoadJSON(file){ TE_JSON.load(file, recalcAll, teRestoreExtra); }
+const TE_HINTS={
+  ph_Tevap:'อุณหภูมิระเหยออกแบบ/ใช้งาน °C · ห้องเย็น −25…−18 · ห้องแช่ −10…−5 · น้ำเย็น/IQF −40…−35 · อ่านจาก gauge ดูดแปลงเป็น T_sat',
+  ph_Tcond:'อุณหภูมิควบแน่น °C · evaporative condenser ไทย 33–38 · cooling tower + shell&tube 36–40 · ≈ T_wb + 8–12',
+  ph_SH:'Superheat ที่ท่อดูดคอมเพรสเซอร์ °C · NH₃ ทั่วไป 5–10 · สูงเกิน 15 กำลังเย็นลด/T_dis สูง',
+  ph_SC:'Subcooling ที่ทางออกคอนเดนเซอร์ °C · ทั่วไป 2–5 · ระบบมี receiver มักใกล้ 0–2',
+  ph_eta:'ประสิทธิภาพไอเซนโทรปิกคอมเพรสเซอร์ (สัดส่วน) · reciprocating 0.70–0.80 · screw 0.75–0.85 ที่ CR ออกแบบ · จาก spec sheet ผู้ผลิต',
+  p1:'ความดันดูดสัมบูรณ์ bar abs · gauge อ่าน barg + 1.013 · NH₃ ที่ −15 °C ≈ 2.36 bar abs · −30 °C ≈ 1.2',
+  p2:'ความดันจ่ายสัมบูรณ์ bar abs · NH₃ ที่ 35 °C ≈ 13.5 · 40 °C ≈ 15.5 · จาก gauge ด้าน discharge',
+  t1:'อุณหภูมิท่อดูดวัดจริง °C (thermocouple แบบหนีบ ก่อนเข้าคอมเพรสเซอร์) · = T_sat(P₁) + SH · ทั่วไป −10…0',
+  tevap_display:'T_sat ด้านระเหยที่โปรแกรมคำนวณจาก P₁ (ตาราง NH₃ อิ่มตัว) — ไม่ต้องกรอก',
+  wcomp:'กำลังไฟฟ้าเข้าคอมเพรสเซอร์ kW จาก power meter (หรือ √3·V·I·PF) · ค่าเฉลี่ย 15–30 นาที',
+  t2_meas:'อุณหภูมิท่อ discharge วัดจริง °C · reciprocating NH₃ 120–150 (ที่ −15/35 °C T₂s ≈ 126 จึงต้องสูงกว่านี้) · screw ฉีดน้ำมัน 70–95 เพราะน้ำมันดูดความร้อน → η จาก T₂ จะเกิน 100 % ใช้ไม่ได้ ให้ใช้ η จาก spec sheet · เกิน 150 อันตรายต่อน้ำมัน',
+  tcw_in:'อุณหภูมิน้ำหล่อเย็นเข้าคอนเดนเซอร์ °C · จาก cooling tower ไทย 29–33',
+  tcw_out:'อุณหภูมิน้ำหล่อเย็นออกคอนเดนเซอร์ °C · ΔT ทั่วไป 4–6 · approach ต่อ T_cond ควร < 5',
+  qcw:'อัตราไหลน้ำหล่อเย็น kg/s (≈ L/s) · จาก flow meter/ultrasonic หรือ pump curve · ≈ 0.05–0.06 kg/s ต่อ TR',
+  subcool:'Subcooling ที่ทางออกคอนเดนเซอร์ °C = T_sat(P₂) − T_liquid · ทั่วไป 2–5',
+  'fault-symptom':'เลือกอาการหลักที่พบหน้างาน — โปรแกรมแสดงสาเหตุ/แนวทางตรวจและวาดบน P-h',
+  diag_p1:'ความดันดูด bar abs จาก gauge (barg + 1.013) — ใช้หา T_evap และ CR',
+  diag_p2:'ความดันจ่าย bar abs จาก gauge — CR = P₂/P₁ ควร < 6 (single-stage NH₃)',
+  diag_t2:'อุณหภูมิ discharge วัดจริง °C · ปกติ 80–110 · ใช้เทียบค่าคาดหมาย ≈ T_cond + 30',
+  diag_sh:'Superheat ท่อดูด °C = T₁ − T_sat(P₁) · เกณฑ์ดี 5–15',
+  audit_factory:'ชื่อโรงงาน/ไซต์ที่ตรวจ — แสดงหัวรายงาน',
+  audit_date:'วันที่เข้าตรวจ (เติมเป็นวันนี้อัตโนมัติ แก้ได้)',
+  audit_tag:'หมายเลขเครื่อง/Tag ตามผัง P&ID เช่น COMP-01',
+  audit_auditor:'ชื่อผู้ตรวจวัด — แสดงในรายงาน',
+  audit_brand:'ยี่ห้อคอมเพรสเซอร์จาก nameplate เช่น Mycom, Sabroe, GEA Grasso, Bitzer',
+  audit_model:'รุ่นและขนาดพิกัด TR จาก nameplate/spec (1 TR = 3.517 kW)',
+  f_p1:'ความดันดูดหน้างาน bar abs (gauge barg + 1.013)',
+  f_p2:'ความดันจ่ายหน้างาน bar abs',
+  f_t1:'อุณหภูมิท่อดูดวัดจริง °C (thermocouple แบบหนีบ)',
+  f_t2:'อุณหภูมิท่อ discharge วัดจริง °C · ควร < 135',
+  f_poil:'ความดันน้ำมันส่วนต่าง bar (oil − suction) · ควร ≥ 1.5 · จาก gauge น้ำมัน',
+  f_current:'กระแสมอเตอร์ A จาก clamp meter/แผงควบคุม · เทียบ nameplate FLA',
+  f_power:'กำลังไฟฟ้า kW จาก power meter (ถ้ามี) · หรือ √3·V·I·PF',
+  f_vib:'ความสั่นสะเทือน mm/s RMS จาก vibration meter · ISO 10816: ดี < 2.8 · ยอมรับ < 4.5',
+  f_tcwin:'อุณหภูมิน้ำหล่อเย็นเข้า °C · ไทย 29–33',
+  f_tcwout:'อุณหภูมิน้ำหล่อเย็นออก °C · ΔT 4–6',
+  f_qcw:'อัตราไหลน้ำหล่อเย็น kg/s (หรือ L/min ระบุหน่วยในหมายเหตุ) · flow meter/pump curve',
+  f_tcond:'อุณหภูมิควบแน่น °C = T_sat(P₂) จากตาราง NH₃ · approach ต่อน้ำออกควร < 5 °C',
+  ts_tevap:'อุณหภูมิระเหยระบบสองขั้น °C · ห้องแช่แข็ง/IQF −40…−30 (CR รวม > 8 จึงคุ้มสองขั้น)',
+  ts_tcond:'อุณหภูมิควบแน่น °C · ไทย 33–38',
+  ts_tint:'อุณหภูมิกลาง (intercooler) °C · เหมาะสม ≈ ให้ P_int = √(P_LP·P_HP) · ทั่วไป −10…−5 · ค่าจริงอ่านจาก gauge intercooler',
+  ts_wlp:'กำลังไฟฟ้าคอมเพรสเซอร์ขั้นต่ำ (LP/booster) kW · power meter',
+  ts_whp:'กำลังไฟฟ้าคอมเพรสเซอร์ขั้นสูง (HP) kW · power meter',
+  ts_sh_lp:'Superheat ท่อดูด LP °C = T₁ − T_sat(P_LP) · ทั่วไป 5–10',
+  ts_sh_hp:'Superheat ท่อดูด HP °C = T_suction,HP − T_sat(P_int) · ทั่วไป 3–8',
+  ts_sc:'Subcooling ทางออกคอนเดนเซอร์ °C · ทั่วไป 2–5',
+  ts_eta:'η_isen คอมเพรสเซอร์ (สัดส่วน) · screw 0.75–0.85 · reciprocating 0.70–0.80 · จาก spec sheet',
+  audit_notes:'ข้อสังเกตพิเศษ อาการผิดปกติ ข้อเสนอแนะ — แสดงในรายงาน'
+};
+function teInjectHints(){ Object.keys(TE_HINTS).forEach(id=>{ const e=document.getElementById(id); if(!e) return; let a=e; const n=e.nextElementSibling; if(n&&n.classList&&n.classList.contains('unit')) a=n; const nn=a.nextElementSibling; if(nn&&nn.classList&&nn.classList.contains('hint')) return; const d=document.createElement('div'); d.className='hint'; d.textContent=TE_HINTS[id]; a.insertAdjacentElement('afterend',d); }); }
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['ph_Tevap', 'ph_Tcond', 'ph_SH', 'ph_SC', 'ph_eta', 'audit_brand', 'audit_model', 'ts_tevap', 'ts_tcond', 'ts_tint', 'ts_eta'], FK_MEAS=['p1', 'p2', 't1', 'wcomp', 't2_meas', 'tcw_in', 'tcw_out', 'qcw', 'subcool', 'diag_p1', 'diag_p2', 'diag_t2', 'diag_sh', 'f_p1', 'f_p2', 'f_t1', 'f_t2', 'f_poil', 'f_current', 'f_power', 'f_vib', 'f_tcwin', 'f_tcwout', 'f_qcw', 'f_tcond', 'ts_wlp', 'ts_whp', 'ts_sh_lp', 'ts_sh_hp', 'ts_sc'], FK_SET=['fault-symptom', 'audit_factory', 'audit_date', 'audit_tag', 'audit_auditor'], FK_CALC=['tevap_display'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(/^chk-/.test(id))return null;if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
 window.addEventListener('DOMContentLoaded', () => {
+  teInjectHints();
   initPH();
   initChecklist();
   drawFaultPH();
   drawStageCompare();
   setTimeout(() => { drawPHBackground(); }, 200);
+  tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า */
 
   // Auto-update Tsat display when P1 changes in Performance tab
   const p1Input = document.getElementById('p1');

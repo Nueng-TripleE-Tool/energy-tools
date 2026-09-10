@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Biogas & Power Generation Audit Tool — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 :root{
   --bg:#f0f5f0;--bg2:#fff;--bg3:#e8f0e8;--bg4:#f4f8f4;
@@ -20,10 +32,12 @@
   --mono:'IBM Plex Mono',monospace;
   --sans:'IBM Plex Sans Thai',sans-serif;
   --display:'Barlow Condensed',sans-serif;
+  /* [ระยะ 4 10 ก.ย. 2569] design tokens Triple E (คง --bg/--teal เดิม เพิ่มเฉพาะที่ขาด) */
+  --navy:#0f2a4a;--header-grad:linear-gradient(135deg,var(--navy),var(--teal));--card:#ffffff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;--accent:#12a4a4;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;--radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;min-height:100vh;}
-.hdr{background:linear-gradient(135deg,#0d4a1e 0%,#176b3c 60%,#27ae60 100%);padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 12px rgba(10,60,20,.3);}
+.hdr{background:var(--header-grad); /* [ระยะ 4 10 ก.ย. 2569] header ไล่สี navy→teal ตาม design system */padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 12px rgba(10,60,20,.3);}
 .hdr-logo{width:36px;height:36px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:12px;font-weight:800;color:#fff;letter-spacing:1px;}
 .hdr-title{font-family:var(--display);font-size:21px;font-weight:700;letter-spacing:1.5px;color:#fff;}
 .hdr-sub{font-size:11px;color:rgba(255,255,255,.65);letter-spacing:.4px;margin-top:1px;}
@@ -47,6 +61,12 @@ label:first-of-type{margin-top:0;}
 input[type=number],input[type=text],select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:5px 8px;font-size:13px;font-family:var(--mono);outline:none;}
 input:focus,select:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(23,107,60,.12);}
 .hint{font-size:10px;color:var(--text3);margin-top:2px;font-family:var(--mono);}
+/* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า (hint ใช้ .hint เดิมของไฟล์) */
+.te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint.te{font-family:var(--sans);font-size:10.5px;line-height:1.5}
 .warn-box{background:var(--amber-lt);border:1px solid #f5c060;border-radius:5px;padding:7px 9px;font-size:11px;color:var(--amber);line-height:1.65;margin-top:6px;}
 .info-box{background:var(--green-lt);border:1px solid #6ddbaa;border-radius:5px;padding:7px 9px;font-size:11px;color:var(--green);line-height:1.65;margin-top:6px;}
 .err-box{background:var(--red-lt);border:1px solid #f5a0a0;border-radius:5px;padding:7px 9px;font-size:11px;color:var(--red);line-height:1.65;margin-top:6px;}
@@ -123,6 +143,10 @@ canvas{width:100%;display:block;}
   <div class="hdr-btns">
     <button class="hbtn" onclick="window.print()">&#128424; Print</button>
     <button class="hbtn" onclick="resetAll()">&#8635; Reset</button>
+    <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
   </div>
 </div>
 
@@ -141,10 +165,10 @@ canvas{width:100%;display:block;}
 
   <div class="ss">
     <div class="st">ข้อมูลโครงการ</div>
-    <label>ชื่อโรงงาน / โครงการ</label><input type="text" id="projName" value="โรงงานแป้งมันสำปะหลัง ABC">
-    <label>ที่ตั้ง</label><input type="text" id="projLoc" value="จ.นครราชสีมา">
-    <label>ผู้ตรวจสอบ</label><input type="text" id="auditorName" value="อ.หนึ่ง กลับทวี">
-    <label>วันที่ตรวจ</label><input type="text" id="testDate">
+    <label>ชื่อโรงงาน / โครงการ</label><input type="text" id="projName" value="โรงงานแป้งมันสำปะหลัง ABC"><div class="hint te">ชื่อโรงงาน/โครงการที่ตรวจวัด</div>
+    <label>ที่ตั้ง</label><input type="text" id="projLoc" value="จ.นครราชสีมา"><div class="hint te">จังหวัด/ที่ตั้งโรงงาน</div>
+    <label>ผู้ตรวจสอบ</label><input type="text" id="auditorName" value="อ.หนึ่ง กลับทวี"><div class="hint te">ชื่อผู้ตรวจวัด/ผู้รับผิดชอบด้านพลังงาน</div>
+    <label>วันที่ตรวจ</label><input type="text" id="testDate"><div class="hint te">วันที่ตรวจวัด (วว/ดด/ปปปป) · เติมอัตโนมัติเป็นวันนี้</div>
   </div>
 
   <div class="ss">
@@ -158,7 +182,7 @@ canvas{width:100%;display:block;}
       <option value="brewery">โรงงานเบียร์</option>
       <option value="starch">โรงงานแป้งข้าวโพด</option>
       <option value="seafood">โรงงานแปรรูปอาหารทะเล</option>
-    </select>
+    </select><div class="hint te">เลือกประเภทโรงงาน → เติมค่า default COD/BOD/pH/T/%CH₄ ตามฐานข้อมูล (แก้ทับได้)</div>
     <label>สัดส่วน %CH&#8324; ในไบโอแก๊ส</label>
     <select id="ch4Pct">
       <option value="50">50%</option>
@@ -167,25 +191,25 @@ canvas{width:100%;display:block;}
       <option value="65" selected>65%</option>
       <option value="70">70%</option>
       <option value="75">75%</option>
-    </select>
+    </select><div class="hint te">%CH₄ จาก biogas analyzer หน้างาน · แป้งมัน/ปาล์ม 60–68 % · น้ำตาล/สุรา 55–62 % · ต่ำกว่า 50 % ตรวจ digester</div>
   </div>
 
   <div class="ss">
     <div class="st">น้ำเสีย (Wastewater)</div>
     <label>ปริมาณน้ำเสีย Q (m&#179;/วัน)</label>
-    <input type="number" id="flowDay" value="2000" min="1" step="10">
+    <input type="number" id="flowDay" value="2000" min="1" step="10"><div class="hint te">อัตราน้ำเสียเข้าระบบ (m³/วัน) จาก flow meter ultrasonic/magnetic หรือบันทึกปั๊ม</div>
     <label>COD ขาเข้า (mg/L)</label>
     <input type="number" id="codIn" value="25000" min="100" step="100">
     <div class="hint">โรงแป้งมัน: 15,000–50,000 | ปาล์ม: 30,000–80,000</div>
     <label>BOD ขาเข้า (mg/L)</label>
-    <input type="number" id="bodIn" value="15000" step="100">
+    <input type="number" id="bodIn" value="15000" step="100"><div class="hint te">BOD₅ ขาเข้า (mg/L) จากผล lab · ปกติ ≈ 0.5–0.65 × COD</div>
     <label>COD ขาออก (mg/L)</label>
     <input type="number" id="codOut" value="500" min="0" step="10">
     <div class="hint">เป้าหมาย &lt; 500 mg/L (มาตรฐานโรงงาน)</div>
     <label>pH น้ำเสียขาเข้า</label>
-    <input type="number" id="phIn" value="4.5" min="0" max="14" step="0.1">
+    <input type="number" id="phIn" value="4.5" min="0" max="14" step="0.1"><div class="hint te">pH น้ำเสียขาเข้าจาก pH meter · แป้งมัน/ปาล์ม 4–5 (ต้องปรับก่อนเข้า digester ให้ 6.5–7.5)</div>
     <label>อุณหภูมิน้ำเสีย (&#176;C)</label>
-    <input type="number" id="tempWW" value="38" min="10" max="80" step="1">
+    <input type="number" id="tempWW" value="38" min="10" max="80" step="1"><div class="hint te">อุณหภูมิน้ำเสียขาเข้า (°C) · POME 40–50 · แป้งมัน 30–40 · mesophilic เหมาะ 35–38</div>
   </div>
 
   <div class="ss">
@@ -210,7 +234,7 @@ canvas{width:100%;display:block;}
     <div class="hint" id="runningGenHint" style="color:#176b3c;font-weight:600">รวม: 2,000 kW</div>
 
     <label>Load Factor ปัจจุบัน (%)</label>
-    <input type="number" id="loadFactor" value="80" min="10" max="100" step="1">
+    <input type="number" id="loadFactor" value="80" min="10" max="100" step="1"><div class="hint te">สัดส่วนกำลังผลิตจริงต่อพิกัด (%) จาก power meter · ควร 70–90 % (ต่ำกว่า 50 % η ตก)</div>
 
     <label>H₂S ในไบโอแก๊สก่อนเข้าเครื่องยนต์ (ppm)</label>
     <input type="number" id="h2sPpm" value="200" min="0" max="5000" step="50">
@@ -226,7 +250,7 @@ canvas{width:100%;display:block;}
     <div class="hint">Synchronous generator ทั่วไป: 95–98% (ค่าเดิมในเครื่องมือ 97%)</div>
 
     <label>ชั่วโมงทำงาน/ปี (h/y)</label>
-    <input type="number" id="opHours" value="7500" min="1000" max="8760" step="100">
+    <input type="number" id="opHours" value="7500" min="1000" max="8760" step="100"><div class="hint te">ชั่วโมงเดินเครื่องต่อปี จาก hour meter · โรงแป้ง/ปาล์ม 6,500–8,000 h (หยุดตามฤดูวัตถุดิบ)</div>
   </div>
 
   <div class="ss">
@@ -235,22 +259,22 @@ canvas{width:100%;display:block;}
     <input type="number" id="tExh" value="450" min="150" max="700" step="5">
     <div class="hint">Gas engine: 400–550&#176;C | หลัง HRU: 150–250&#176;C</div>
     <label>%O&#8322; ในไอเสีย (%vol, dry)</label>
-    <input type="number" id="o2Exh" value="5.5" min="0" max="15" step="0.1">
+    <input type="number" id="o2Exh" value="5.5" min="0" max="15" step="0.1"><div class="hint te">%O₂ ไอเสีย (dry) จาก flue gas analyzer · lean-burn gas engine 5–8 % · rich-burn ≈ 0.5–1 %</div>
     <label>%CO ในไอเสีย (ppm)</label>
     <input type="number" id="coPpm" value="400" min="0" step="10">
     <div class="hint">เป้าหมาย &lt; 650 ppm | &gt; 1000 ppm: Air/Fuel ผิดปกติ</div>
     <label>NOx (mg/Nm&#179;)</label>
-    <input type="number" id="noxMg" value="500" min="0" step="10">
+    <input type="number" id="noxMg" value="500" min="0" step="10"><div class="hint te">NOx (mg/Nm³) จาก analyzer · เกณฑ์ประกาศ ทส. เครื่องยนต์ก๊าซชีวภาพ ≤ 500 mg/Nm³ (อ้างอิงที่ O₂ 5 %)</div>
     <label>T_อากาศห้อง T_air (&#176;C)</label>
-    <input type="number" id="tAmbient" value="32" min="15" max="50" step="1">
+    <input type="number" id="tAmbient" value="32" min="15" max="50" step="1"><div class="hint te">อุณหภูมิอากาศห้องเครื่อง (°C) วัดจริง · ใช้คิดความร้อนสุทธิในไอเสีย · ไทย 30–40</div>
   </div>
 
   <div class="ss">
     <div class="st">ราคาและต้นทุน</div>
     <label>ราคาไฟฟ้าที่ขาย/ใช้เอง (บาท/kWh)</label>
-    <input type="number" id="elecPrice" value="4.20" min="0.5" step="0.05">
+    <input type="number" id="elecPrice" value="4.20" min="0.5" step="0.05"><div class="hint te">ราคาไฟที่ขาย (FiT ก๊าซชีวภาพ ≈ 3.2–3.8) หรือค่าไฟที่ทดแทน (โรงงาน 3.8–4.5 บาท/kWh)</div>
     <label>ค่า O&amp;M เครื่องยนต์ (บาท/kWh)</label>
-    <input type="number" id="omCost" value="0.50" min="0" step="0.05">
+    <input type="number" id="omCost" value="0.50" min="0" step="0.05"><div class="hint te">ค่าซ่อมบำรุงเครื่องยนต์ต่อหน่วยผลิต (บาท/kWh) · gas engine 0.35–0.60 รวม overhaul</div>
   </div>
 
 </div><!-- /sidebar -->
@@ -1311,6 +1335,45 @@ function resetAll(){
   for(var i=0;i<rids.length;i++) SD(rids[i],'none');
   window._biogasResult=null; window._lastPwr=null; window._lastExh=null; window._lastOvr=null;
 }
+
+
+// ═══════════════════════════════════════════════
+//  [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า
+// ═══════════════════════════════════════════════
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['etaEngine', 'genEff'], FK_MEAS=['flowDay', 'codIn', 'bodIn', 'codOut', 'phIn', 'tempWW', 'ch4Pct', 'loadFactor', 'h2sPpm', 'tExh', 'o2Exh', 'coPpm', 'noxMg', 'tAmbient'], FK_SET=['projName', 'projLoc', 'auditorName', 'testDate', 'industryType', 'opHours', 'elecPrice', 'omCost'], FK_CALC=['ratedPowerTotal'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
+function teUIState(){
+  var tab=0; for(var i=0;i<5;i++){ if(G('T'+i)&&G('T'+i).className.indexOf('on')>=0) tab=i; }
+  var cks=[]; document.querySelectorAll('#CK_COL1 input[type=checkbox],#CK_COL2 input[type=checkbox]').forEach(function(c){cks.push(c.checked);});
+  var meas=[]; document.querySelectorAll('#MEAS_TBL input').forEach(function(e){meas.push(e.value);});
+  var shown={}; ['RES_BIOGAS','RES_PWR','RES_EXH','RES_OVR','RPT_OUT'].forEach(function(id){ var e=G(id); shown[id]=!!(e&&e.style.display!=='none'&&e.style.display!==''); });
+  return { gens:_gens, checks:cks, meas:meas, tab:tab, shown:shown };
+}
+function teRestoreExtra(x){ // เรียกก่อน apply inputs: คืนรายการเครื่องกำเนิด + checklist (id สุ่ม) + ตารางบันทึกค่าวัด (ไม่มี id)
+  if(!x) return; window.TE_ui=x;
+  try{ if(Array.isArray(x.gens)&&x.gens.length){ _gens=x.gens.map(function(g){return {name:g.name,kw:g.kw,run:!!g.run};}); renderGenList(); } }catch(e){}
+  try{ var c1=G('CK_COL1'); if(c1&&c1.innerHTML.trim()==='') renderChecklist(); var cks=document.querySelectorAll('#CK_COL1 input[type=checkbox],#CK_COL2 input[type=checkbox]');
+       (x.checks||[]).forEach(function(v,i){ if(cks[i]){ cks[i].checked=!!v; toggleCk(cks[i],cks[i].parentNode.id); } }); }catch(e){}
+  try{ var tb=G('MEAS_TBL'); if(tb&&tb.innerHTML.trim()==='') renderMeasLog(); var ms=document.querySelectorAll('#MEAS_TBL input'); (x.meas||[]).forEach(function(v,i){ if(ms[i]) ms[i].value=v; }); }catch(e){}
+  try{ if(typeof x.tab==='number') goTab(x.tab); }catch(e){}
+}
+function recalcAll(){ // ensureAllCalc: คำนวณทุกแท็บตามลำดับ (ไม่เรียก onIndustryChange/updateRunningKW เพื่อไม่ทับค่าที่โหลดมา)
+  var T=function(f){try{f();}catch(e){}};
+  T(function(){ var t=G('industryType').value, d=INDUSTRY_DB[t]; if(d) updateIndustryCard(d,t); });
+  T(updateGenHint);
+  T(calcBiogas); T(calcPowerGen); T(calcExhaust); T(calcOverall); T(updateCkProg);
+  T(function(){ var s=window.TE_ui&&window.TE_ui.shown; if(s){ if(s.RPT_OUT) makeReport(); ['RES_BIOGAS','RES_PWR','RES_EXH','RES_OVR'].forEach(function(id){ if(!s[id]) SD(id,'none'); }); } });
+  T(tagFieldKinds);
+}
+function teSaveJSON(){ TE_JSON.save('Tool_Biogas_PowerGen', teUIState()); }
+function teLoadJSON(file){ TE_JSON.load(file, recalcAll, teRestoreExtra); }
 
 // ═══════════════════════════════════════════════
 // INIT

@@ -4,8 +4,85 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>เครื่องคำนวณการสูญเสียพลังงานในระบบส่งจ่ายสารทำงาน | Distribution System Energy Loss Calculator</title>
+<script>/* TE_STEAM [ระยะ 4 10 ก.ย. 2569] engine ไอน้ำกลาง IAPWS-IF97 แทน STEAM_TABLE (0–30 barg) และ SH_CP_TABLE ของโมดูล heat loss/leak (ฟังก์ชัน mdIF97* ของโมดูล Moody คงไว้) */
+/* ══ TE_STEAM — IAPWS-IF97 Region 1/2/4 engine กลางของ Triple E (ระยะ 4, 10 ก.ย. 2569) — คัดจาก Tool_GT_CCGT_Master_v3 + ส่วนขยาย; หน่วย public: bar a, °C, kJ/kg, kJ/kg·K, m³/kg ══ */
+var TE_STEAM=(function(){
+  var R=0.461526;
+  var R1I=[0,0,0,0,0,0,0,0,1,1,1,1,1,1,2,2,2,2,2,3,3,3,4,4,4,5,8,8,21,23,29,30,31,32];
+  var R1J=[-2,-1,0,1,2,3,4,5,-9,-7,-1,0,1,3,-3,0,1,3,17,-4,0,6,-5,-2,10,-8,-11,-6,-29,-31,-38,-39,-40,-41];
+  var R1n=[0.14632971213167,-0.84548187169114,-3.756360367204,3.3855169168385,-0.95791963387872,0.15772038513228,-0.016616417199501,8.1214629983568e-4,2.8319080123804e-4,-6.0706301565874e-4,-0.018990068218419,-0.032529748770505,-0.021841717175414,-5.283835796993e-5,-4.7184321073267e-4,-3.0001780793026e-4,4.7661393906987e-5,-4.4141845330846e-6,-7.2694996297594e-16,-3.1679644845054e-5,-2.8270797985312e-6,-8.5205128120103e-10,-2.2425281908e-6,-6.5171222895601e-7,-1.4341729937924e-13,-4.0516996860117e-7,-1.2734301741641e-9,-1.7424871230634e-10,-6.8762131295531e-19,1.4478307828521e-20,2.6335781662795e-23,-1.1947622640071e-23,1.8228094581404e-24,-9.3537087292458e-26];
+  function r1gt(p,T){var pi=p/16.53,tau=1386/T,g=0;for(var i=0;i<34;i++)g+=R1n[i]*Math.pow(7.1-pi,R1I[i])*R1J[i]*Math.pow(tau-1.222,R1J[i]-1);return g;}
+  function r1g(p,T){var pi=p/16.53,tau=1386/T,g=0;for(var i=0;i<34;i++)g+=R1n[i]*Math.pow(7.1-pi,R1I[i])*Math.pow(tau-1.222,R1J[i]);return g;}
+  function h1(p,T){return R*T*(1386/T)*r1gt(p,T);}
+  function s1(p,T){var tau=1386/T;return R*(tau*r1gt(p,T)-r1g(p,T));}
+  var R2J0=[0,1,-5,-4,-3,-2,-1,2,3];
+  var R2n0=[-9.6927686500217,10.086655968018,-0.005608791128302,0.071452738081455,-0.40710498223928,1.4240819171444,-4.383951131945,-0.28408632460772,0.021268463753307];
+  var R2I=[1,1,1,1,1,2,2,2,2,2,3,3,3,3,3,4,4,4,5,6,6,6,7,7,7,8,8,9,10,10,10,16,16,18,20,20,20,21,22,23,24,24,24];
+  var R2J=[0,1,2,3,6,1,2,4,7,36,0,1,3,6,35,1,2,3,7,3,16,35,0,11,25,8,36,13,4,10,14,29,50,57,20,35,48,21,53,39,26,40,58];
+  var R2n=[-1.7731742473213e-3,-0.017834862292358,-0.045996013696365,-0.057581259083432,-0.05032527872793,-3.3032641670203e-5,-1.8948987516315e-4,-3.9392777243355e-3,-0.043797295650573,-2.6674547914087e-5,2.0481737692309e-8,4.3870667284435e-7,-3.227767723857e-5,-1.5033924542148e-3,-0.040668253562649,-7.8847309559367e-10,1.2790717852285e-8,4.8225372718507e-7,2.2922076337661e-6,-1.6714766451061e-11,-2.1171472321355e-3,-23.895741934104,-5.905956432427e-18,-1.2621808899101e-6,-0.038946842435739,1.1256211360459e-11,-8.2311340897998,1.9809712802088e-8,1.0406965210174e-19,-1.0234747095929e-13,-1.0018179379511e-9,-8.0882908646985e-11,0.10693031879409,-0.33662250574171,8.9185845355421e-25,3.0629316876232e-13,-4.2002467698208e-6,-5.9056029685639e-26,3.7826947613457e-6,-1.2768608934681e-15,7.3087610595061e-29,5.5414715350778e-17,-9.436970724121e-7];
+  function r2g0t(p,T){var tau=540/T,g=0;for(var i=0;i<9;i++)g+=R2n0[i]*R2J0[i]*Math.pow(tau,R2J0[i]-1);return g;}
+  function r2g0(p,T){var tau=540/T,g=Math.log(p);for(var i=0;i<9;i++)g+=R2n0[i]*Math.pow(tau,R2J0[i]);return g;}
+  function r2grt(p,T){var tau=540/T,g=0;for(var i=0;i<43;i++)g+=R2n[i]*Math.pow(p,R2I[i])*R2J[i]*Math.pow(tau-0.5,R2J[i]-1);return g;}
+  function r2gr(p,T){var tau=540/T,g=0;for(var i=0;i<43;i++)g+=R2n[i]*Math.pow(p,R2I[i])*Math.pow(tau-0.5,R2J[i]);return g;}
+  function h2(p,T){return R*T*(540/T)*(r2g0t(p,T)+r2grt(p,T));}
+  function s2(p,T){var tau=540/T;return R*(tau*(r2g0t(p,T)+r2grt(p,T))-(r2g0(p,T)+r2gr(p,T)));}
+  var R4n=[1167.0521452767,-724213.16703206,-17.073846940092,12020.82470247,-3232555.0322333,14.91510861353,-4823.2657361591,405113.40542057,-0.23855557567849,650.17534844798];
+  function Tsat(p){var beta=Math.pow(p,0.25),E=beta*beta+R4n[2]*beta+R4n[5],F=R4n[0]*beta*beta+R4n[3]*beta+R4n[6],G=R4n[1]*beta*beta+R4n[4]*beta+R4n[7];var D=2*G/(-F-Math.sqrt(F*F-4*E*G));return (R4n[9]+D-Math.sqrt((R4n[9]+D)*(R4n[9]+D)-4*(R4n[8]+R4n[9]*D)))/2;}
+  // public: bar & °C
+  function hSup(Pbar,TC){return h2(Pbar/10,TC+273.15);}
+  function sSup(Pbar,TC){return s2(Pbar/10,TC+273.15);}
+  function hLiq(Pbar,TC){return h1(Pbar/10,TC+273.15);}
+  function TsatC(Pbar){return Tsat(Pbar/10)-273.15;}
+  function sat(Pbar){var p=Pbar/10,Ts=Tsat(p);return{TsC:Ts-273.15,hf:h1(p,Ts),hg:h2(p,Ts),sf:s1(p,Ts),sg:s2(p,Ts)};}
+  // isentropic expansion from (Pin,Tin superheated) to Pout
+  function isoOut(Pin,Tin,Pout){
+    var sIn=sSup(Pin,Tin),sp=sat(Pout),p=Pout/10;
+    if(sIn>=sp.sg){
+      var T=sp.TsC+50;
+      for(var it=0;it<60;it++){var f=s2(p,T+273.15)-sIn,df=(s2(p,T+273.15+0.1)-s2(p,T+273.15-0.1))/0.2,dT=f/df;T-=dT;if(Math.abs(dT)<1e-4)break;}
+      return{h:h2(p,T+273.15),x:1,TC:T,phase:'sup'};
+    }
+    var x=Math.max(0,Math.min(1,(sIn-sp.sf)/(sp.sg-sp.sf)));
+    return{h:sp.hf+x*(sp.hg-sp.hf),x:x,TC:sp.TsC,phase:'wet'};
+  }
+
+  // ── ส่วนขยาย [ระยะ 4] : Psat(T) (IF97 eq.30), ปริมาตรจำเพาะ v (region 1/2), คุณภาพไอ x ──
+  function Psat(T){var th=T+R4n[8]/(T-R4n[9]),A=th*th+R4n[0]*th+R4n[1],B=R4n[2]*th*th+R4n[3]*th+R4n[4],C=R4n[5]*th*th+R4n[6]*th+R4n[7];return Math.pow(2*C/(-B+Math.sqrt(B*B-4*A*C)),4);}
+  function r1gp(p,T){var pi=p/16.53,tau=1386/T,g=0;for(var i=0;i<34;i++)g+=-R1n[i]*R1I[i]*Math.pow(7.1-pi,R1I[i]-1)*Math.pow(tau-1.222,R1J[i]);return g;}
+  function v1(p,T){return R*T/(p*1000)*(p/16.53)*r1gp(p,T);}
+  function r2grp(p,T){var tau=540/T,g=0;for(var i=0;i<43;i++)g+=R2n[i]*R2I[i]*Math.pow(p,R2I[i]-1)*Math.pow(tau-0.5,R2J[i]);return g;}
+  function v2(p,T){return R*T/(p*1000)*(1+p*r2grp(p,T));}   // m³/kg (p MPa)
+  function PsatBar(TC){return Psat(TC+273.15)*10;}
+  function satT(TC){var T=TC+273.15,p=Psat(T);return{Pbar:p*10,TsC:TC,hf:h1(p,T),hg:h2(p,T),hfg:h2(p,T)-h1(p,T),sf:s1(p,T),sg:s2(p,T),vf:v1(p,T),vg:v2(p,T)};}
+  function satP(Pbar){var p=Pbar/10,Ts=Tsat(p);return{Pbar:Pbar,TsC:Ts-273.15,hf:h1(p,Ts),hg:h2(p,Ts),hfg:h2(p,Ts)-h1(p,Ts),sf:s1(p,Ts),sg:s2(p,Ts),vf:v1(p,Ts),vg:v2(p,Ts)};}
+  function vSup(Pbar,TC){return v2(Pbar/10,TC+273.15);}
+  function vLiq(Pbar,TC){return v1(Pbar/10,TC+273.15);}
+  function hMix(Pbar,x){var s=satP(Pbar);return s.hf+x*s.hfg;}
+  // h ของไอน้ำที่ (P,T) ไม่ว่าอิ่มตัว/ร้อนยวดยิ่ง/น้ำอัด: ถ้า T ≤ Tsat → น้ำ (region 1), ถ้า T > Tsat → ไอ (region 2)
+  function hAuto(Pbar,TC){var Ts=TsatC(Pbar);return TC>Ts+1e-6?hSup(Pbar,TC):hLiq(Pbar,TC);}
+  // flash fraction เมื่อคอนเดนเสทที่ P1 (อิ่มตัว) ลดความดันไป P2
+  function flashFrac(P1bar,P2bar){var a=satP(P1bar),b=satP(P2bar);return Math.max(0,(a.hf-b.hf)/b.hfg);}
+  return{hSup:hSup,sSup:sSup,hLiq:hLiq,TsatC:TsatC,sat:sat,isoOut:isoOut,PsatBar:PsatBar,satT:satT,satP:satP,vSup:vSup,vLiq:vLiq,hMix:hMix,hAuto:hAuto,flashFrac:flashFrac,_ver:'TE_STEAM IF97 r4-2569'};
+})();
+
+</script>
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"><!-- [ระยะ 4 10 ก.ย. 2569] ฟอนต์มาตรฐาน Triple E -->
 <style>
   :root {
+    /* [ระยะ 4 10 ก.ย. 2569] Triple E design tokens (คง --accent/--bg/--warn เดิม) */
+    --navy:#0f2a4a;--teal:#12a4a4;--header-grad:linear-gradient(135deg,var(--navy),var(--teal));--card:#ffffff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;--ok:#1e9e5a;--danger:#d1495b;--radius:14px;
     --primary: #0f5b8e;
     --primary-light: #1e7cb8;
     --accent: #f59e0b;
@@ -23,24 +100,31 @@
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: 'Segoe UI', 'Sarabun', 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
+    font-family: 'IBM Plex Sans Thai', 'Segoe UI', 'Sarabun', 'Noto Sans Thai', system-ui, -apple-system, sans-serif; /* [ระยะ 4 10 ก.ย. 2569] */
     background: var(--bg);
     color: var(--text);
     line-height: 1.55;
     font-size: 14.5px;
   }
   header {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+    background: var(--header-grad); /* [ระยะ 4 10 ก.ย. 2569] */
     color: #fff;
     padding: 22px 28px;
     box-shadow: var(--shadow);
   }
   header h1 {
     margin: 0 0 4px 0;
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 600;
     letter-spacing: 0.2px;
+    font-family: 'Barlow Condensed', 'IBM Plex Sans Thai', sans-serif; /* [ระยะ 4 10 ก.ย. 2569] */
   }
+  /* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า + hint */
+  .te-json{display:inline-flex;gap:6px;margin-top:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+  .fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+  .fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+  .fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+  .hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
   header .subtitle {
     font-size: 13.5px;
     opacity: 0.92;
@@ -211,7 +295,7 @@
     font-size: 12px;
   }
   .formula {
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-family: 'IBM Plex Mono', 'Consolas', 'Monaco', 'Courier New', monospace; /* [ระยะ 4 10 ก.ย. 2569] */
     background: #fff;
     padding: 10px 14px;
     border-radius: 5px;
@@ -255,7 +339,7 @@
   }
   .summary-box .row:last-child { border-bottom: none; }
   .summary-box .row .k { color: var(--text-soft); font-size: 13px; }
-  .summary-box .row .v { color: var(--text); font-weight: 600; font-size: 14.5px; font-family: 'Consolas', monospace; }
+  .summary-box .row .v { color: var(--text); font-weight: 600; font-size: 14.5px; font-family: 'IBM Plex Mono', 'Consolas', monospace; } /* [ระยะ 4 10 ก.ย. 2569] */
   .summary-box .row .v.big { font-size: 17px; color: var(--good); }
   table.ref {
     width: 100%;
@@ -427,7 +511,7 @@
     .md-call.w{background:#fff6e6;border:1px solid #f3d79a;color:#8a5a00;}
     .md-call.r{background:#fdecec;border:1px solid #f2bcbc;color:#a52121;}
     .cat-card.moody{}
-    .eqline{font-family:'Consolas','Monaco','Courier New',monospace;background:#fff;padding:9px 13px;border-radius:5px;border-left:3px solid var(--accent);margin:7px 0;font-size:13px;line-height:1.8;}
+    .eqline{font-family:'IBM Plex Mono','Consolas','Monaco','Courier New',monospace;/* [ระยะ 4 10 ก.ย. 2569] */background:#fff;padding:9px 13px;border-radius:5px;border-left:3px solid var(--accent);margin:7px 0;font-size:13px;line-height:1.8;}
     .eqline b{color:var(--primary);font-weight:600;font-family:inherit;display:block;font-size:11px;letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px;}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -437,7 +521,11 @@
 <header>
   <h1>เครื่องคำนวณการสูญเสียพลังงานในระบบส่งจ่ายสารทำงาน</h1>
   <div class="subtitle">Distribution System Energy Loss Calculator — Working Fluid Heat/Cool Loss Assessment</div>
-  <div class="credit">อ้างอิง: ASTM C680, ISO 12241, ASHRAE Handbook, US DOE MEASUR / กลไกการถ่ายเทความร้อน (Conduction–Convection–Radiation)</div>
+  <div class="credit">อ้างอิง: ASTM C680, ISO 12241, ASHRAE Handbook, US DOE MEASUR / กลไกการถ่ายเทความร้อน (Conduction–Convection–Radiation) · คุณสมบัติไอน้ำ IAPWS-IF97 (TE_STEAM)</div>
+  <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
 </header>
 
 <div class="container">
@@ -1087,38 +1175,11 @@ function energyRow(kWh){
   return `${fmt(kWh*0.0036,3)} GJ/\u0e1b\u0e35 &nbsp;\u00b7&nbsp; ${fmt(kWh*3.6,0)} MJ/\u0e1b\u0e35 &nbsp;\u00b7&nbsp; ${fmt(kWh,0)} kWh/\u0e1b\u0e35`;
 }
 
-// Saturated steam table interpolation (P_barg → T, hf, hfg, hg)
-const STEAM_TABLE = [
-  // [P_barg, T_C, h_f, h_fg, h_g] (kJ/kg)
-  [0,    100.0, 419.1, 2257.0, 2676.1],
-  [1,    120.2, 504.7, 2201.9, 2706.6],
-  [2,    133.5, 561.5, 2163.8, 2725.3],
-  [3,    143.6, 604.7, 2133.8, 2738.5],
-  [4,    151.8, 640.1, 2108.5, 2748.7],
-  [5,    158.8, 670.6, 2086.1, 2756.7],
-  [6,    164.9, 697.2, 2066.2, 2763.5],
-  [7,    170.4, 721.4, 2046.7, 2768.1],
-  [8,    175.4, 743.1, 2030.4, 2773.5],
-  [9,    179.9, 762.8, 2014.6, 2777.4],
-  [10,   184.1, 781.6, 1998.6, 2780.2],
-  [12,   191.6, 814.9, 1971.0, 2785.9],
-  [15,   201.4, 858.6, 1934.9, 2793.5],
-  [18,   209.8, 896.2, 1903.3, 2799.5],
-  [20,   214.9, 918.2, 1882.3, 2800.5],
-  [25,   226.0, 968.6, 1839.6, 2808.2],
-  [30,   235.7, 1013.9, 1793.0, 2806.9],
-];
+// [ระยะ 4 10 ก.ย. 2569] ตาราง STEAM_TABLE (0–30 barg, ลบออก) → adapter เรียก TE_STEAM.satP (IAPWS-IF97; ไม่มี clamp ที่ 30 barg) — layout เดิม [P_barg, T_C, h_f, h_fg, h_g]
 function steamProp(P_barg) {
-  if (P_barg <= STEAM_TABLE[0][0]) return STEAM_TABLE[0];
-  if (P_barg >= STEAM_TABLE[STEAM_TABLE.length-1][0]) return STEAM_TABLE[STEAM_TABLE.length-1];
-  for (let i = 0; i < STEAM_TABLE.length-1; i++) {
-    const a = STEAM_TABLE[i], b = STEAM_TABLE[i+1];
-    if (P_barg >= a[0] && P_barg <= b[0]) {
-      const f = (P_barg - a[0]) / (b[0] - a[0]);
-      return a.map((v, j) => v + f * (b[j] - v));
-    }
-  }
-  return STEAM_TABLE[0];
+  const Pabs = Math.max(0.0062, (isFinite(P_barg) ? P_barg : 0) + 1.01325);
+  const sp = TE_STEAM.satP(Pabs);
+  return [P_barg, sp.TsC, sp.hf, sp.hfg, sp.hg];
 }
 
 // ============ CORE: Cylindrical pipe heat loss per unit length ============
@@ -1705,40 +1766,14 @@ window.addEventListener('DOMContentLoaded', function() {
   };
 
   // -------- SUPERHEAT --------
-  // Cp of superheated steam (kJ/kg·K) — BILINEAR interpolation by P AND T
-  // Reference: NIST Webbook / IAPWS-IF97 Region 2. Grid validated to <0.01% error at nodes.
-  // (Replaces earlier stepped approximation which had up to ~23% error since it ignored T)
-  const SH_CP_P = [1.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0, 40.0];      // bar absolute
-  const SH_CP_T = [150, 200, 250, 300, 350, 400, 450, 500];                 // °C
-  const SH_CP_TABLE = [
-    [1.986, 1.975, 1.987, 2.011, 2.046, 2.087, 2.132, 2.181],  // 1.0 bar
-    [2.092, 2.028, 2.018, 2.031, 2.060, 2.097, 2.140, 2.187],  // 3.0 bar
-    [2.087, 2.087, 2.052, 2.052, 2.075, 2.108, 2.148, 2.193],  // 5.0 bar
-    [2.151, 2.151, 2.088, 2.075, 2.091, 2.120, 2.157, 2.200],  // 7.0 bar
-    [2.258, 2.258, 2.146, 2.111, 2.116, 2.139, 2.172, 2.211],  // 10.0 bar
-    [2.255, 2.255, 2.255, 2.176, 2.158, 2.171, 2.197, 2.231],  // 15.0 bar
-    [2.394, 2.394, 2.394, 2.249, 2.205, 2.205, 2.224, 2.252],  // 20.0 bar
-    [2.422, 2.422, 2.422, 2.422, 2.310, 2.279, 2.281, 2.298],  // 30.0 bar
-    [2.434, 2.434, 2.434, 2.434, 2.434, 2.361, 2.342, 2.348],  // 40.0 bar
-  ];
-
+  // [ระยะ 4 10 ก.ย. 2569] Cp ไอดง: เดิม bilinear บนตาราง SH_CP_TABLE (1–40 bar a, 150–500 °C) → อนุพันธ์ตัวเลข dh/dT ของ TE_STEAM.hSup (IF97 region 2) ไม่จำกัดช่วง
   function superheatCp(P_barg, T_C) {
-    // P_barg → absolute bar; if T not provided, use a representative 350°C
-    const P_abs = (P_barg || 0) + 1.013;
-    const T = (T_C !== undefined && T_C !== null && isFinite(T_C)) ? T_C : 350;
-    const P = Math.max(SH_CP_P[0], Math.min(SH_CP_P[SH_CP_P.length-1], P_abs));
-    const Tc = Math.max(SH_CP_T[0], Math.min(SH_CP_T[SH_CP_T.length-1], T));
-    // find P index
-    let pi = SH_CP_P.length - 2;
-    for (let i = 0; i < SH_CP_P.length-1; i++) { if (P >= SH_CP_P[i] && P <= SH_CP_P[i+1]) { pi = i; break; } }
-    // find T index
-    let ti = SH_CP_T.length - 2;
-    for (let i = 0; i < SH_CP_T.length-1; i++) { if (Tc >= SH_CP_T[i] && Tc <= SH_CP_T[i+1]) { ti = i; break; } }
-    const fp = (P - SH_CP_P[pi]) / (SH_CP_P[pi+1] - SH_CP_P[pi]);
-    const ft = (Tc - SH_CP_T[ti]) / (SH_CP_T[ti+1] - SH_CP_T[ti]);
-    const c00 = SH_CP_TABLE[pi][ti],   c01 = SH_CP_TABLE[pi][ti+1];
-    const c10 = SH_CP_TABLE[pi+1][ti], c11 = SH_CP_TABLE[pi+1][ti+1];
-    return c00*(1-fp)*(1-ft) + c10*fp*(1-ft) + c01*(1-fp)*ft + c11*fp*ft;
+    const P_abs = (P_barg || 0) + 1.01325;
+    const Tsat = TE_STEAM.TsatC(P_abs);
+    let T = (T_C !== undefined && T_C !== null && isFinite(T_C)) ? T_C : 350;
+    if (T < Tsat + 1) T = Tsat + 1;           // ต้องอยู่ใน region 2
+    const dT = 0.5;
+    return (TE_STEAM.hSup(P_abs, T + dT) - TE_STEAM.hSup(P_abs, T - dT)) / (2 * dT);
   }
 
   function renderSuperheatResult(prefix, inputs, result) {
@@ -3260,16 +3295,16 @@ window.addEventListener('DOMContentLoaded', function() {
     } else if (F.cat === 'satsteam') {
       const Tfw=+document.getElementById('lk_tfw').value, eta=+document.getElementById('lk_eta_boiler').value/100;
       const cf=+document.getElementById('lk_cost_fuel_s').value, ef=+document.getElementById('lk_ef_fuel_s').value;
-      const h_fw=4.186*Tfw, dh=d.hg-h_fw, q_kW=d.mdot*dh;
+      const h_fw=TE_STEAM.hLiq(Math.max(1.01325,TE_STEAM.PsatBar(Tfw)),Tfw), dh=d.hg-h_fw, q_kW=d.mdot*dh; // [ระยะ 4 10 ก.ย. 2569] เดิม 4.186·T
       const q_yr_GJ=q_kW*hr*n*3600/1e6, fuel_yr_GJ=q_yr_GJ/eta;
       Object.assign(d,{Tfw,eta,cf,ef,h_fw,dh,q_kW,P_loss_kW:q_kW,steam_yr_ton:d.mdot_kghr*hr*n/1000,
         q_yr_GJ,fuel_yr_GJ, cost_yr:fuel_yr_GJ*cf, CO2_yr:fuel_yr_GJ*ef/1000});
     } else if (F.cat === 'superheat') {
       const sp=steamProp(P1g), Tsat=sp[1], hg=sp[4];
-      const cp_sh=superheatCp(P1g, T1), h_sh=hg + cp_sh*Math.max(0,(T1-Tsat));
+      const cp_sh=superheatCp(P1g, T1), h_sh=(T1>Tsat)?TE_STEAM.hSup(P1g+1.01325, T1):hg; // [ระยะ 4 10 ก.ย. 2569] เดิม hg + cp·ΔT → h(P,T) IF97 ตรง
       const Tfw=+document.getElementById('lk_tfw2').value, eta=+document.getElementById('lk_eta_boiler2').value/100;
       const cf=+document.getElementById('lk_cost_fuel_sh').value, ef=+document.getElementById('lk_ef_fuel_sh').value;
-      const h_fw=4.186*Tfw, dh=h_sh-h_fw, q_kW=d.mdot*dh;
+      const h_fw=TE_STEAM.hLiq(Math.max(1.01325,TE_STEAM.PsatBar(Tfw)),Tfw), dh=h_sh-h_fw, q_kW=d.mdot*dh; // [ระยะ 4 10 ก.ย. 2569] เดิม 4.186·T
       const q_yr_GJ=q_kW*hr*n*3600/1e6, fuel_yr_GJ=q_yr_GJ/eta;
       Object.assign(d,{Tsat,hg,cp_sh,h_sh,Tfw,eta,cf,ef,h_fw,dh,q_kW,P_loss_kW:q_kW,
         superheatDeg:Math.max(0,T1-Tsat), q_yr_GJ,fuel_yr_GJ, cost_yr:fuel_yr_GJ*cf, CO2_yr:fuel_yr_GJ*ef/1000});
@@ -3616,6 +3651,165 @@ function mdCompare(){
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:16}}},
     scales:{x:{type:'logarithmic',title:{display:true,text:'Re',font:{size:11}}},y:{title:{display:true,text:'Δ vs Colebrook (%)',font:{size:11}}}}}});
 }
+
+/* ══════════ [ระยะ 4 10 ก.ย. 2569] JSON save/load + ป้ายชนิดค่า + hint ══════════ */
+function recalcAll(){
+  const T=fn=>{try{fn();}catch(e){}};
+  // ฟังก์ชันสลับ UI บางตัวเขียนทับช่องอัตโนมัติ (lk_cd, pf_rho/mu, mdf_rho/mu) → เก็บค่าปัจจุบันแล้วคืนก่อนคำนวณ
+  const snap=TE_JSON.collect();
+  T(toggleFgShape);T(toggleFlowMode);T(updateFluidProps);T(lk_updateFluid);T(lk_updateProfile);T(mdFluid);T(mdMode);
+  TE_JSON.apply(snap);
+  T(refreshCostHints);
+  T(calc_chl);T(calc_vnt);T(calc_cv);T(calc_ss);T(calc_sh);T(calc_cw);T(calc_hw);T(calc_ho);T(calc_fg);T(calc_pf);T(lk_calc);
+  T(function(){window.mdInit=true;mdCalc();});
+  T(tagFieldKinds);T(applyFieldHints);
+}
+function teActivePanel(){const p=document.querySelector('.panel.active');return p?p.id:'home';}
+function teSaveJSON(){TE_JSON.save('Tool_Distribution_Loss_Calculator',{activePanel:teActivePanel()});}
+var _teExtraDL=null;
+function teLoadJSON(file){
+  TE_JSON.load(file,function(){recalcAll();if(_teExtraDL&&_teExtraDL.activePanel){try{if(['pressure','leakage','moody','thermal-home'].includes(_teExtraDL.activePanel))showCategory(_teExtraDL.activePanel==='thermal-home'?'thermal':_teExtraDL.activePanel);else showTab(_teExtraDL.activePanel);}catch(e){}}},function(x){_teExtraDL=x;});
+}
+/* ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ (id ส่วนใหญ่มี prefix จากฟอร์มที่สร้างด้วย makePipeForm/makeDuctForm → ใช้ suffix) */
+var FK_DESIGN=['fg_Di','fg_W','fg_H','fg_L','fg_t1','fg_t2','fg_t3','fg_t4','fg_k1','fg_k2','fg_k3','fg_k4','fg_eps','pf_D','pf_L','pf_head','pf_eps','lk_dia','lk_charge','mdf_D','mdf_L','mdf_eps','mdf_K'],
+    FK_MEAS=['fg_Tg','fg_Tamb','pf_P','pf_T','pf_Q','pf_v','lk_p1','lk_t1','lk_n','lk_tsuc','lk_tfw','lk_tfw2','lk_tmu','lk_tmu2','lk_tmu_oil','mdf_P','mdf_T','mdf_Q','mdf_V'],
+    FK_SET=['thermalSelect','fg_shape','fg_Tpreset','fg_hr','fg_cost','fg_cost_u','fg_hin','fg_hout','fg_eta_whr','fg_fuel_cost','fg_fuel_cost_u','fg_ef','pf_fluid','pf_flowmode','pf_eta_pump','pf_eta_motor','pf_hr','pf_cost','lk_fluid','lk_profile','lk_hr','lk_eta_w2a','lk_rhoref','lk_cost_elec','lk_ef_grid','lk_se','lk_costNm3','lk_ef_grid2','lk_lhv','lk_fuelprice','lk_fch4','lk_gwpch4','lk_eta_boiler','lk_cost_fuel_s','lk_ef_fuel_s','lk_eta_boiler2','lk_cost_fuel_sh','lk_ef_fuel_sh','lk_eta_heater','lk_cost_fuel_w','lk_ef_fuel_w','lk_cost_water','lk_cop','lk_cost_elec3','lk_ef_grid3','lk_cost_water2','lk_rho_oil','lk_cp_oil','lk_eta_heater2','lk_oilprice','lk_cost_fuel_o','lk_ef_fuel_o','lk_leakrate','lk_refprice','mdf_fluid','mdf_mode','mdf_mat','mdf_g','mdf_cmpRR','mdf_cmpRange'],
+    FK_CALC=['ss_Tfluid','sh_Tsat','sh_Cp','lk_cd','lk_gwp','pf_rho','pf_mu','mdf_rho','mdf_mu'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+var FK_PIPE_PREFIX=/^(chl|vnt|cv|ss|sh|cw|hw|ho)_(.+)$/;
+function fieldKind(id){
+  if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';
+  if(/^pf_(elbow|tee|gate|globe|ball|check|butterfly|entrance|exit|reducer|strainer)/.test(id))return'design';
+  var m=FK_PIPE_PREFIX.exec(id);if(m){var sfx=m[2];
+    if(['Do','tp','kp','L','W','H','tw','kw','tins','kins','eps'].indexOf(sfx)>=0)return'design';
+    if(['Tfluid','Tamb','Tair','P','mflow'].indexOf(sfx)>=0)return'meas';
+    if(['hr','cost','cost_u','hout','cop','Cp'].indexOf(sfx)>=0)return'set';}
+  return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(!l){var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+/* hint กำกับช่อง: ฟอร์มท่อ/ดักท์ 8 ชุดสร้างจาก template เดียว → ใช้ suffix; ช่องเฉพาะใช้ id ตรง */
+var FH_SUFFIX={
+  Do:'เส้นผ่านศูนย์กลางภายนอกท่อ (mm) จากแบบ/ตาราง NPS: DN50=60.3, DN80=88.9, DN100=114.3, DN150=168.3 — วัดเส้นรอบวงหน้างาน ÷ π ถ้าไม่มีแบบ',
+  tp:'ความหนาผนังท่อ (mm) จาก schedule ในแบบ (Sch40 DN100 = 6.0, Sch10 = 3.0) — มีผลน้อยต่อ heat loss',
+  kp:'สภาพนำความร้อนวัสดุท่อ (W/m·K) — เลือกจากชนิดท่อในแบบ; คาร์บอน 52, สแตนเลส 16–22',
+  L:'ความยาวท่อ/ดักท์ช่วงที่ประเมิน (m) — วัดจาก isometric/เดินสำรวจ; แยกช่วงที่ฉนวนต่างกัน',
+  W:'ความกว้างภายในดักท์ (mm) จากแบบ HVAC หรือวัดหน้างาน',
+  H:'ความสูงภายในดักท์ (mm) จากแบบ HVAC หรือวัดหน้างาน',
+  tw:'ความหนาผนังดักท์ (mm) — เหล็กชุบสังกะสี 0.6–1.2 mm ตาม SMACNA',
+  kw:'สภาพนำความร้อนผนังดักท์ (W/m·K) — เหล็ก 52, อลูมิเนียม 200',
+  hr:'ชั่วโมงที่ระบบจ่ายสารทำงานต่อปี (hr/yr) — บันทึกการเดินเครื่อง; ไอน้ำ 24 ชม. ≈ 7,000–8,000, HVAC สำนักงาน ≈ 3,000',
+  cost:'ราคาพลังงาน (เลือกหน่วย ฿/GJ, ฿/MJ หรือ ฿/kWh) — ไอน้ำจากเชื้อเพลิง ≈ 250–450 ฿/GJ; ไฟฟ้า/ความเย็น ≈ 4–4.5 ฿/kWh (≈1,100–1,250 ฿/GJ)',
+  tins:'ความหนาฉนวนที่หุ้มจริง (mm) — วัดหน้างาน; ไอน้ำ 50–75, น้ำเย็น 25–40; ใส่ 0 = ท่อเปลือย',
+  kins:'สภาพนำความร้อนฉนวน (W/m·K) จาก datasheet ที่อุณหภูมิใช้งาน — Rockwool 0.04, CaSi 0.065, Armaflex 0.037',
+  eps:'สภาพเปล่งรังสีผิวนอก — cladding อลูมิเนียม 0.15, เหล็กออกซิไดซ์ 0.30, ทาสี 0.85',
+  Tamb:'อุณหภูมิอากาศรอบท่อ (°C) — วัดจริงในพื้นที่ติดตั้ง ทั่วไป 30–38 °C (ในโรงงาน/หลังคาอาจถึง 40–45 °C)',
+  Tair:'อุณหภูมิลมภายในดักท์ (°C) — วัดด้วย probe ที่ช่องวัดหรือ DCS; ลมเย็น 12–16 °C, ลมระบาย 25–35 °C',
+  hout:'สัมประสิทธิ์พาความร้อนผิวนอก (W/m²·K) — ในอาคาร 6–9, กลางแจ้งมีลม 15–25',
+  cop:'COP ของเครื่องทำน้ำเย็น (kW_th/kW_e) — จากผลตรวจวัด; chiller น้ำ 4–6, อากาศ 2.8–3.5; ใช้แปลงความเย็นสูญเสียเป็นไฟฟ้า',
+  P:'ความดันไอน้ำในท่อ (barg อ่านจากเกจ) — โปรแกรมหาค่า T_sat ให้จาก IAPWS-IF97',
+  mflow:'อัตราไหลไอน้ำในท่อ (kg/hr) จาก flow meter/DCS — ใช้หาอัตราลดอุณหภูมิ superheat ตามความยาว',
+  Cp:'Cp ไอดงที่ (P,T) คำนวณจาก IAPWS-IF97 (dh/dT) อัตโนมัติ — ไม่ต้องกรอก',
+};
+var FH_ID={
+  ss_Tfluid:'อุณหภูมิอิ่มตัวที่ความดันที่ระบุ (°C) — โปรแกรมเติมให้จาก IAPWS-IF97',
+  sh_Tsat:'T_sat ที่ความดันที่ระบุ (°C) จาก IAPWS-IF97 — อัตโนมัติ',
+  sh_Tfluid:'อุณหภูมิไอดงจริงในท่อ (°C) จาก DCS/เทอร์โมเวลล์ — ต้องมากกว่า T_sat',
+  cv_Tfluid:'อุณหภูมิไอสารเคมี/ของไหลในท่อ (°C) — วัดจริงหรือค่าดำเนินการจาก DCS',
+  cw_Tfluid:'อุณหภูมิน้ำเย็นในท่อ (°C) — วัดจริง ทั่วไป 6–12 °C (supply)',
+  hw_Tfluid:'อุณหภูมิน้ำร้อนในท่อ (°C) — วัดจริง ทั่วไป 60–90 °C',
+  ho_Tfluid:'อุณหภูมิน้ำมันร้อนในท่อ (°C) — วัดจริง ทั่วไป 200–300 °C',
+  thermalSelect:'เลือกชนิดระบบส่งจ่ายที่ต้องการประเมิน — แต่ละแท็บมีค่าเริ่มต้นตามสารทำงาน',
+  fg_shape:'รูปทรงท่อไอเสีย/ปล่อง — กลม (ท่อ/ปล่อง) หรือสี่เหลี่ยม (ดักท์อิฐ/คอนกรีต)',
+  fg_Di:'เส้นผ่านศูนย์กลางภายในท่อไอเสีย (mm) จากแบบ',
+  fg_W:'ความกว้างภายในดักท์ไอเสีย (mm) จากแบบ', fg_H:'ความสูงภายในดักท์ไอเสีย (mm) จากแบบ',
+  fg_L:'ความยาวท่อ/ปล่องช่วงที่ประเมิน (m) — จากแบบหรือวัดหน้างาน',
+  fg_hr:'ชั่วโมงเดินเตา/หม้อไอน้ำต่อปี (hr/yr)',
+  fg_cost:'ราคาเชื้อเพลิงเทียบเป็นพลังงานความร้อน (฿/GJ) — ราคา ÷ ค่าความร้อน; NG ≈ 350–450, ถ่านหิน ≈ 150–250, ชีวมวล ≈ 150–300',
+  fg_Tpreset:'เลือกอุณหภูมิไอเสียตามชนิดเตา หรือเลือก "ปรับเอง" แล้วกรอกค่าวัดจริงด้านล่าง',
+  fg_Tg:'อุณหภูมิไอเสียในท่อ (°C) — thermocouple/DCS; หม้อไอน้ำ 180–300, เตาหลอม 600–1,000',
+  fg_Tamb:'อุณหภูมิอากาศรอบท่อไอเสีย (°C) — วัดจริง',
+  fg_hin:'สัมประสิทธิ์พาความร้อนด้านในจากไอเสีย (W/m²·K) — 15–35 ตามความเร็วก๊าซ',
+  fg_hout:'สัมประสิทธิ์พาความร้อนผิวนอก (W/m²·K) — ในอาคาร 6–9, กลางแจ้ง 15–25',
+  fg_eps:'สภาพเปล่งรังสีผิวนอกปล่อง — เหล็กออกซิไดซ์ 0.8, อลูมิเนียม 0.15',
+  fg_t1:'ความหนาชั้น refractory/castable (mm) จากแบบ lining', fg_k1:'k ของ refractory (W/m·K) จาก datasheet 1.0–1.5',
+  fg_t2:'ความหนาชั้นอิฐฉนวน/ไฟเบอร์ (mm) จากแบบ', fg_k2:'k อิฐฉนวน/ไฟเบอร์ (W/m·K) 0.2–0.4',
+  fg_t3:'ความหนาฉนวนชั้นนอก (mm) จากแบบ/วัดจริง', fg_k3:'k ฉนวนชั้นนอก (W/m·K) — Rockwool 0.04–0.08 ที่อุณหภูมิสูง',
+  fg_t4:'ความหนาเปลือกเหล็ก (mm) จากแบบ 4–8 mm', fg_k4:'k เปลือกเหล็ก (W/m·K) 52',
+  fg_eta_whr:'สัดส่วนความร้อนสูญเสียที่อุปกรณ์ WHR จะดักคืนได้ (%) — ตั้งสมมุติ 40–75 %',
+  fg_fuel_cost:'ราคาเชื้อเพลิงที่ประหยัดได้จากความร้อนที่กู้คืน (฿/GJ)',
+  fg_ef:'Emission factor เชื้อเพลิง (kgCO₂/kWh) — NG 0.202, น้ำมันเตา 0.279, ถ่านหิน 0.34 (ตาราง TGO)',
+  pf_fluid:'เลือกของไหล — โปรแกรมเติม ρ, μ ให้ (ไอน้ำ/อากาศคำนวณจาก IF97/ideal gas ตาม P,T)',
+  pf_P:'ความดันใช้งาน (bar g) จากเกจ — ใช้เฉพาะแก๊ส/ไอน้ำ',
+  pf_T:'อุณหภูมิของไหล (°C) — วัดจริง',
+  pf_rho:'ความหนาแน่น (kg/m³) โปรแกรมเติมจากของไหล — แก้ได้เมื่อมีค่าจริง',
+  pf_mu:'ความหนืดพลวัต (Pa·s) โปรแกรมเติมจากของไหล — น้ำ 30 °C ≈ 0.0008',
+  pf_eps:'ความขรุขระผิวท่อ (mm) ตามวัสดุ/อายุ — เหล็กใหม่ 0.045, เหล็กเก่า 0.15–0.5, PVC 0.0015',
+  pf_D:'เส้นผ่านศูนย์กลางภายในท่อ (mm) จากแบบ (Do − 2·t)',
+  pf_L:'ความยาวท่อตรงรวม (m) จาก isometric',
+  pf_flowmode:'ระบุการไหลเป็นอัตราไหล (Q) หรือความเร็ว (v)',
+  pf_Q:'อัตราไหล (m³/hr) จาก flow meter หรือ pump curve ที่จุดทำงานจริง',
+  pf_v:'ความเร็วในท่อ (m/s) — วัดด้วย ultrasonic/pitot; น้ำ 1–3 m/s, ไอน้ำ 20–40 m/s',
+  pf_eta_pump:'ประสิทธิภาพปั๊ม/พัดลมที่จุดทำงาน (%) จาก curve ผู้ผลิต — 40–80 %',
+  pf_eta_motor:'ประสิทธิภาพมอเตอร์ (%) จาก nameplate — IE2 89–95 %',
+  pf_hr:'ชั่วโมงเดินปั๊ม/พัดลมต่อปี (hr/yr)',
+  pf_cost:'ค่าไฟฟ้าเฉลี่ย (฿/kWh) จากบิล — 3.8–4.5',
+  pf_head:'ความสูงยกสถิต (m) จากระดับต้นทางถึงปลายทาง — 0 ถ้าวงจรปิด',
+  lk_fluid:'เลือกสารที่รั่ว — โปรแกรมสลับชุดช่องกรอกและวิธีคิดพลังงาน/ต้นทุน',
+  lk_p1:'ความดันในระบบที่จุดรั่ว (bar g) จากเกจ — อากาศอัด 6–7.5, ไอน้ำตามหม้อไอน้ำ',
+  lk_t1:'อุณหภูมิสารที่จุดรั่ว (°C) — ไอน้ำอิ่มตัวใช้ T_sat อัตโนมัติ',
+  lk_profile:'ลักษณะขอบรูรั่ว — กำหนด C_d: ขอบคม 0.61, มน 0.8–0.97, เกลียว/แตกร้าว 0.65',
+  lk_cd:'สัมประสิทธิ์การไหลออก (อัตโนมัติจากลักษณะรู) — แก้ได้เมื่อเลือก custom',
+  lk_dia:'เส้นผ่านศูนย์กลางรูรั่วเทียบเท่า (mm) — ประเมินจาก ultrasonic leak detector หรือวัดตรง; ทั่วไป 1–5 mm',
+  lk_n:'จำนวนจุดรั่วที่มีลักษณะเดียวกัน (จุด) จากการสำรวจ',
+  lk_hr:'ชั่วโมงที่ระบบมีความดันต่อปี (hr/yr) — อากาศอัดมักรั่วตลอด 8,760',
+  lk_eta_w2a:'ประสิทธิภาพรวมคอมเพรสเซอร์ wire-to-air (%) — 50–70 %',
+  lk_tsuc:'อุณหภูมิอากาศดูดเข้าคอมเพรสเซอร์ (°C) — วัดจริง 30–40',
+  lk_rhoref:'ความหนาแน่นอากาศอ้างอิง FAD (kg/m³) — 1.204 ที่ 20 °C/1 atm',
+  lk_cost_elec:'ค่าไฟฟ้าเฉลี่ย (฿/kWh) จากบิล 3.8–4.5', lk_cost_elec3:'ค่าไฟฟ้าเฉลี่ย (฿/kWh) จากบิล 3.8–4.5',
+  lk_ef_grid:'EF กริดไฟฟ้าไทย (kgCO₂e/kWh) — 0.4999 (TGO)', lk_ef_grid2:'EF กริดไฟฟ้าไทย (kgCO₂e/kWh) — 0.4999 (TGO)', lk_ef_grid3:'EF กริดไฟฟ้าไทย (kgCO₂e/kWh) — 0.4999 (TGO)',
+  lk_se:'พลังงานจำเพาะการผลิตก๊าซ (kWh/Nm³) — N₂ PSA 0.3–0.5, O₂ 0.5–0.7',
+  lk_costNm3:'ราคาก๊าซที่ซื้อ/ผลิต (฿/Nm³) จากใบแจ้งหนี้',
+  lk_lhv:'ค่าความร้อนต่ำเชื้อเพลิงก๊าซ (MJ/kg) — NG ≈ 48, LPG ≈ 46',
+  lk_fuelprice:'ราคาเชื้อเพลิงก๊าซ (฿/kg) จากใบแจ้งหนี้',
+  lk_fch4:'สัดส่วนมวล CH₄ ในก๊าซ (0–1) — NG ≈ 0.9; ใช้คิด GHG จากการรั่วโดยตรง',
+  lk_gwpch4:'GWP ของ CH₄ (AR5 = 28)',
+  lk_tfw:'อุณหภูมิน้ำป้อนหม้อไอน้ำ (°C) — วัดจริง 60–105', lk_tfw2:'อุณหภูมิน้ำป้อนหม้อไอน้ำ (°C) — วัดจริง 60–105',
+  lk_eta_boiler:'ประสิทธิภาพหม้อไอน้ำ (%) จากผลตรวจวัด BS 845 — 78–88 %', lk_eta_boiler2:'ประสิทธิภาพหม้อไอน้ำ (%) จากผลตรวจวัด BS 845 — 78–88 %',
+  lk_cost_fuel_s:'ราคาเชื้อเพลิงหม้อไอน้ำ (฿/GJ) — NG 350–450, ถ่านหิน 150–250, ชีวมวล 150–300', lk_cost_fuel_sh:'ราคาเชื้อเพลิงหม้อไอน้ำ (฿/GJ) — NG 350–450, ถ่านหิน 150–250, ชีวมวล 150–300', lk_cost_fuel_w:'ราคาเชื้อเพลิง (฿/GJ)', lk_cost_fuel_o:'ราคาเชื้อเพลิง heater (฿/GJ)',
+  lk_ef_fuel_s:'EF เชื้อเพลิง (kgCO₂/GJ) — NG 56.1, น้ำมันเตา 77.4, ถ่านหิน 94.6', lk_ef_fuel_sh:'EF เชื้อเพลิง (kgCO₂/GJ) — NG 56.1, น้ำมันเตา 77.4, ถ่านหิน 94.6', lk_ef_fuel_w:'EF เชื้อเพลิง (kgCO₂/GJ) — NG 56.1, น้ำมันเตา 77.4', lk_ef_fuel_o:'EF เชื้อเพลิง (kgCO₂/GJ) — NG 56.1, น้ำมันเตา 77.4',
+  lk_tmu:'อุณหภูมิน้ำเติมทดแทน (°C) — วัดจริง 25–30', lk_tmu2:'อุณหภูมิน้ำเติมทดแทน (°C) — วัดจริง 25–30',
+  lk_eta_heater:'ประสิทธิภาพเครื่องทำน้ำร้อน (%) 75–90', lk_eta_heater2:'ประสิทธิภาพ heater น้ำมันร้อน (%) 80–88',
+  lk_cost_water:'ค่าน้ำรวมปรับสภาพ (฿/m³) 15–30', lk_cost_water2:'ค่าน้ำรวมปรับสภาพ (฿/m³) 15–30',
+  lk_cop:'COP chiller (kW_th/kW_e) จากผลตรวจวัด 3–6',
+  lk_rho_oil:'ความหนาแน่นน้ำมันร้อนที่อุณหภูมิใช้งาน (kg/m³) จาก datasheet 750–850',
+  lk_cp_oil:'ความร้อนจำเพาะน้ำมันร้อน (kJ/kg·K) จาก datasheet 2.3–2.7',
+  lk_tmu_oil:'อุณหภูมิน้ำมันเติม (°C)',
+  lk_oilprice:'ราคาน้ำมันถ่ายเทความร้อน (฿/kg) จากใบเสนอราคา',
+  lk_charge:'ปริมาณสารทำความเย็นบรรจุต่อระบบ (kg) จาก nameplate',
+  lk_leakrate:'อัตรารั่วต่อปี (%/ปี) — AC ขนาดเล็ก 5–15, ระบบใหญ่/เก่า 15–30 (IPCC/ASHRAE)',
+  lk_gwp:'GWP ของสารทำความเย็น (AR5) — อัตโนมัติจากชนิด; R134a 1,300, R410A 1,924, R22 1,760',
+  lk_refprice:'ราคาสารทำความเย็น (฿/kg) จากใบเสนอราคา',
+  mdf_fluid:'เลือกของไหล — ρ, μ อัตโนมัติ (ไอน้ำ/อากาศคำนวณ IF97/ideal gas)',
+  mdf_P:'ความดัน (bar g) จากเกจ — เฉพาะแก๊ส/ไอน้ำ', mdf_T:'อุณหภูมิของไหล (°C) วัดจริง',
+  mdf_mode:'ระบุการไหลเป็น Q หรือ V',
+  mdf_rho:'ความหนาแน่น (kg/m³) อัตโนมัติ — แก้ได้เมื่อเลือก custom', mdf_mu:'ความหนืด (Pa·s) อัตโนมัติ — แก้ได้เมื่อเลือก custom',
+  mdf_Q:'อัตราไหล (m³/h) จาก flow meter', mdf_V:'ความเร็วในท่อ (m/s) จากการวัด/คำนวณ',
+  mdf_mat:'วัสดุท่อ → ความขรุขระ ε', mdf_eps:'ความขรุขระผิว (mm) — เหล็กใหม่ 0.045, เก่า 0.15–0.5',
+  mdf_D:'เส้นผ่านศูนย์กลางภายใน (mm) จากแบบ', mdf_L:'ความยาวท่อ (m) จากแบบ',
+  mdf_K:'ผลรวมสัมประสิทธิ์ความสูญเสียรอง ΣK ของข้อต่อ/วาล์ว (Crane TP-410)',
+  mdf_g:'ความเร่งโน้มถ่วง 9.81 m/s²',
+  mdf_cmpRR:'ความขรุขระสัมพัทธ์ ε/D ที่ใช้เปรียบเทียบสูตร', mdf_cmpRange:'ช่วง Re ที่ใช้เปรียบเทียบสูตร',
+};
+function applyFieldHints(){
+  var els=document.querySelectorAll('input[id],select[id]');
+  for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;
+    var fld=e.closest('.field');if(!fld||fld.querySelector('.hint'))continue;
+    var txt=FH_ID[e.id];if(!txt){var m=FK_PIPE_PREFIX.exec(e.id);if(m&&FH_SUFFIX[m[2]])txt=FH_SUFFIX[m[2]];}
+    if(!txt)continue;var d=document.createElement('div');d.className='hint';d.textContent=txt;fld.appendChild(d);e.title=txt;}
+}
+document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){tagFieldKinds();applyFieldHints();},200);});
 </script>
 </body>
 </html>

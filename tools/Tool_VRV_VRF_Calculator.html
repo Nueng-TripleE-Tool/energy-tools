@@ -4,6 +4,46 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VRV/VRF Performance Calculator — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>/* TE_PSY */
+/* ══ TE_PSY — Psychrometric engine กลางของ Triple E (ระยะ 4, 10 ก.ย. 2569) — ASHRAE Fundamentals, Hyland–Wexler; คัดจาก Tool_Psychrometric_Chart
+   หน่วย public: °C, kPa, kg/kg_da, kJ/kg_da, m³/kg_da ══ */
+var TE_PSY=(function(){
+  function pwsPa(TK){ if(TK<173.15)TK=173.15; var l;
+    if(TK<273.15){ l=-5.6745359e3/TK+6.3925247-9.677843e-3*TK+6.2215701e-7*TK*TK+2.0747825e-9*Math.pow(TK,3)-9.484024e-13*Math.pow(TK,4)+4.1635019*Math.log(TK); }
+    else { l=-5.8002206e3/TK+1.3914993-4.8640239e-2*TK+4.1764768e-5*TK*TK-1.4452093e-8*Math.pow(TK,3)+6.5459673*Math.log(TK); }
+    return Math.exp(l); }
+  function Pws(t){return pwsPa(t+273.15)/1000;}                                   // kPa
+  function Ws(t,p){var s=Pws(t);return s>=p?1e6:0.621945*s/(p-s);}
+  function W_rh(t,rh,p){var pw=Math.min(rh*Pws(t),p*0.9999);return 0.621945*pw/(p-pw);}   // rh เป็นสัดส่วน 0–1
+  function Pw_W(W,p){return p*W/(0.621945+W);}
+  function RH_W(t,W,p){return Pw_W(W,p)/Pws(t);}                                  // สัดส่วน 0–1
+  function Hda(t,W){return 1.006*t+W*(2501+1.86*t);}                              // kJ/kg_da
+  function Vda(t,W,p){return 0.287042*(t+273.15)*(1+1.607858*W)/p;}               // m³/kg_da
+  function Tdp(W,p){var pw=Pw_W(W,p);if(pw<=0)return NaN;var lo=-90,hi=200;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(Pws(m)<pw)lo=m;else hi=m;}return (lo+hi)/2;}
+  function W_wb(t,twb,p){var ws=Ws(twb,p);return twb>=0?((2501-2.326*twb)*ws-1.006*(t-twb))/(2501+1.86*t-4.186*twb):((2830-0.24*twb)*ws-1.006*(t-twb))/(2830+1.86*t-2.1*twb);}
+  function Twb(t,W,p){var lo=-90,hi=t;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(W_wb(t,m,p)<W)lo=m;else hi=m;}return (lo+hi)/2;}
+  function Palt(z){return 101.325*Math.pow(1-2.25577e-5*z,5.2559);}
+  function state(t,W,p){W=Math.max(0,Math.min(W,Ws(t,p)));var h=Hda(t,W),v=Vda(t,W,p),pw=Pw_W(W,p),ws=Ws(t,p);
+    return{t:t,W:W,p:p,h:h,v:v,rh:100*pw/Pws(t),pw:pw,tdp:Tdp(W,p),twb:Twb(t,W,p),rho:(1+W)/v,mu:100*W/ws,ws:ws};}
+  function fromRH(t,rhPct,p){return state(t,W_rh(t,rhPct/100,p||101.325),p||101.325);}
+  function fromWB(t,twb,p){return state(t,W_wb(t,twb,p||101.325),p||101.325);}
+  return{Pws:Pws,Ws:Ws,W_rh:W_rh,Pw_W:Pw_W,RH_W:RH_W,Hda:Hda,Vda:Vda,Tdp:Tdp,W_wb:W_wb,Twb:Twb,Palt:Palt,state:state,fromRH:fromRH,fromWB:fromWB,_ver:'TE_PSY HW r4-2569'};
+})();
+
+</script>
+<script>
+/* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Bebas+Neue&display=swap');
 :root {
@@ -20,18 +60,20 @@
   --purple:#7c3aed; --purple2:#ede9fe;
   --red:#dc2626;    --red2:#fee2e2;
   --r:10px;
+  /* [ระยะ 4 10 ก.ย. 2569] design tokens Triple E (คง --bg เดิม เพิ่มเฉพาะที่ขาด) */
+  --navy:#0f2a4a;--teal:#12a4a4;--header-grad:linear-gradient(135deg,var(--navy),var(--teal));--card:#ffffff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;--accent:#12a4a4;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;--radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
 
 /* ─── HEADER ─── */
-header{background:linear-gradient(135deg,#001a33 0%,#003366 50%,#004d99 100%);
+header{background:var(--header-grad); /* [ระยะ 4 10 ก.ย. 2569] header ไล่สี navy→teal ตาม design system */
   padding:0 24px;display:flex;align-items:center;gap:0;position:sticky;top:0;z-index:200;
   border-bottom:2px solid var(--cool2);box-shadow:0 2px 12px rgba(0,102,204,0.3)}
 .hdr-brand{display:flex;align-items:center;gap:14px;padding:14px 0}
 .hdr-logo{width:42px;height:42px;border-radius:8px;background:linear-gradient(135deg,#0099e6,#0066cc);
   display:flex;align-items:center;justify-content:center;font-size:22px}
-.hdr-title{font-family:'Bebas Neue',sans-serif;font-size:22px;color:#ffffff;letter-spacing:2px;line-height:1}
+.hdr-title{font-family:'Barlow Condensed','Bebas Neue',sans-serif;font-weight:700;font-size:24px;color:#ffffff;letter-spacing:1px;line-height:1} /* [ระยะ 4 10 ก.ย. 2569] ฟอนต์ชื่อเครื่องมือ Barlow Condensed */
 .hdr-sub{font-size:11px;color:#79c0ff;letter-spacing:1px;margin-top:2px}
 .hdr-sep{width:1px;background:rgba(255,255,255,0.15);margin:0 20px;height:40px}
 .hdr-badge{display:flex;align-items:center;gap:6px;background:rgba(0,153,230,0.2);
@@ -214,6 +256,12 @@ input[type=range]{accent-color:var(--cool)}
 .mode-card{background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:16px;
   border-top:4px solid var(--cool);transition:all .15s;cursor:pointer}
 .mode-card:hover{border-color:var(--cool);transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,102,204,0.12)}
+/* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า + hint */
+.te-json{display:inline-flex;gap:6px;margin-left:8px;white-space:nowrap}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -234,6 +282,10 @@ input[type=range]{accent-color:var(--cool)}
     <span class="hdr-tag">ISO 5151</span>
     <span class="hdr-tag">AHRI 1230</span>
     <span class="hdr-tag">ECBC Thailand</span>
+    <span class="te-json">
+  <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+  <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+</span>
   </div>
 </header>
 
@@ -918,6 +970,8 @@ function fmtN(v,d=2){ return isFinite(v)?parseFloat(v.toFixed(d)).toLocaleString
 function updateIndoorTable() {
   const n = parseInt(document.getElementById('cap_n_in').value) || 4;
   const wrap = document.getElementById('indoor_table_wrap');
+  /* [ระยะ 4 10 ก.ย. 2569] ถ้าจำนวน IDU ไม่เปลี่ยน ไม่สุ่มค่าใหม่ทับ (จำเป็นต่อการโหลด JSON/recalcAll) */
+  if(wrap.querySelectorAll('input[id^="idu_"]').length===n){ calcCapacity(); if(typeof tagFieldKinds==='function') tagFieldKinds(); return; }
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">';
   for(let i=1;i<=n;i++){
     html += `<div class="field"><label>IDU #${i} <span>(kW)</span></label>
@@ -926,6 +980,7 @@ function updateIndoorTable() {
   html += '</div>';
   wrap.innerHTML = html;
   calcCapacity();
+  if(typeof tagFieldKinds==='function') tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่าให้ช่อง IDU ที่สร้างใหม่ */
 }
 
 // ═══════════════════════════════════════════
@@ -1133,9 +1188,9 @@ function calcField() {
 
   // Psychrometric: humidity ratio ω = 0.622 Pv/(Patm-Pv)
   // Pv from WB using Magnus approximation (Antoine variant, saturation from WB)
-  function pvSat(T){ return Math.exp(17.625*T/(243.04+T))*0.61094 } /* Magnus-Tetens, kPa (แก้ค่าคงที่จาก 3.1623) */ // kPa at T°C
-  // Adjusted Pv from WB: Pv = PvSat(WB) - A×Patm×(DB-WB), A=0.000662
-  function pvFromWB(db,wb){ return pvSat(wb) - 0.000662*patm*(db-wb) }
+  /* [ระยะ 4 10 ก.ย. 2569] เปลี่ยน Magnus-Tetens + Carrier psychrometer (0.000662) เป็น TE_PSY engine กลาง (ASHRAE Hyland–Wexler) — คงชื่อ/หน่วยเดิม (kPa) ที่ patm ที่กรอก; ω ด้านล่างคำนวณจาก Pv ตามเดิม */
+  function pvSat(T){ return TE_PSY.Pws(T) }
+  function pvFromWB(db,wb){ return TE_PSY.Pw_W(TE_PSY.W_wb(db,wb,patm),patm) }
 
   const Pv_ra = pvFromWB(Tra_db,Tra_wb);
   const Pv_sa = pvFromWB(Tsa_db,Tsa_wb);
@@ -1205,7 +1260,7 @@ function calcField() {
      sub:`W_kW = ${phase===3?`√3 × ${V} × ${I} × ${PF} / 1000`:`${V} × ${I} × ${PF} / 1000`}`,
      result:`W_input = ${fmtN(w_kw,3)} kW`,note:isFinite(wDirect)&&wDirect>0?'ใช้ค่า Wattmeter โดยตรง':'คำนวณจาก V, I, PF'},
     {num:2,col:'blue',title:'Humidity Ratio (ω) ของอากาศกลับ',
-     formula:'Pv = PvSat(WB) − 0.000662×Patm×(DB−WB)\nω = 0.622 × Pv / (Patm − Pv)',
+     formula:'ω_wb = [(2501−2.326×WB)×Ws(WB) − 1.006×(DB−WB)] / (2501+1.86×DB−4.186×WB)  [ASHRAE, TE_PSY]\nPv = Patm×ω_wb/(0.621945+ω_wb) → ω = 0.622 × Pv / (Patm − Pv)',
      sub:`Pv_ra = ${fmtN(Pv_ra,4)} kPa\nω_ra = 0.622 × ${fmtN(Pv_ra,4)} / (${patm} − ${fmtN(Pv_ra,4)})`,
      result:`ω_ra = ${fmtN(w_ra*1000,2)} g/kg_dry`,note:'Psychrometric equation; ใช้ P_atm จริงเพื่อความแม่นยำ'},
     {num:3,col:'blue',title:'Enthalpy อากาศ (h)',
@@ -1491,11 +1546,74 @@ function buildTrace(steps, title){
 // ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+// [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า + hint
+// ═══════════════════════════════════════════
+function recalcAll(){
+  const T=f=>{try{f();}catch(e){}};
+  T(updateIndoorTable); T(calcCOP); T(calcField); T(calcRefrig); T(updateCompare); T(tagFieldKinds);
+}
+function teExtra(){ const idu={}; document.querySelectorAll('#indoor_table_wrap input[id^="idu_"]').forEach(e=>{idu[e.id]=e.value;}); return {n_idu:parseInt(document.getElementById('cap_n_in').value)||0, idu}; }
+function teRestoreExtra(x){
+  if(!x||!x.n_idu) return;
+  document.getElementById('cap_n_in').value=x.n_idu; updateIndoorTable();
+  if(x.idu) Object.keys(x.idu).forEach(id=>{ const e=document.getElementById(id); if(e) e.value=x.idu[id]; });
+}
+function teSaveJSON(){ TE_JSON.save('Tool_VRV_VRF_Calculator', teExtra()); }
+function teLoadJSON(file){ TE_JSON.load(file, recalcAll, teRestoreExtra); }
+const TE_HINTS={
+  c_brand:'ยี่ห้อ/รุ่น ODU จาก nameplate (เช่น Daikin RXYQ, Mitsubishi PUHY) — ใช้ระบุในรายงาน',
+  c_refrig:'สารทำความเย็นตาม nameplate ODU · VRF ปัจจุบันส่วนใหญ่ R-410A · รุ่นใหม่ R-32 · ระบบเก่า R-22',
+  c_qrated:'ขนาดทำความเย็นพิกัด ODU kW จาก nameplate/catalog · 8–10 HP ≈ 22–28 kW · 1 HP VRF ≈ 2.8 kW',
+  c_wrated:'กำลังไฟฟ้าพิกัดที่โหลดเต็ม kW จาก catalog (เงื่อนไข 27/19 °C ใน, 35 °C นอก) · COP พิกัดทั่วไป 3.2–4.2',
+  c_eer_plate:'EER/COP พิกัด W/W จาก nameplate/catalog — ใช้เทียบกับค่าที่คำนวณจาก Q/W',
+  c_iplv_plate:'IPLV จาก catalog (AHRI 1230) ถ้ามี · VRF ทั่วไป 5–7 · เว้นว่างได้',
+  cap_q_out:'ขนาดพิกัด ODU kW (ค่าเดียวกับ Tab 1) — ใช้เทียบผลรวม IDU และคิด diversity',
+  cap_n_in:'จำนวน IDU ที่ต่อกับ ODU ชุดนี้ · ทั่วไป 4–16 · เปลี่ยนแล้วตารางด้านล่างจะสร้างใหม่ (กรอกขนาดแต่ละตัวจาก nameplate IDU)',
+  cap_pipe_len:'ความยาวท่อเทียบเท่า m จาก ODU ถึง IDU ไกลสุด (รวมข้อต่อ) · ทั่วไป 30–120 · เกิน 150 m ประสิทธิภาพลดชัด',
+  cap_height:'ระดับความสูง ODU–IDU m · ODU บนดาดฟ้า IDU ต่ำกว่า ใส่ค่าลบ · ขีดจำกัดทั่วไป ±50 m',
+  cap_tout:'อุณหภูมิอากาศนอกจริง °C DB · ไทยช่วงบ่าย 33–38 · ทุก +1 °C จาก 35 กำลังเย็นลด ≈ 1–1.5 %',
+  cap_tin:'อุณหภูมิตั้งค่าห้อง °C · comfort/ประหยัด 25–26',
+  f_volt:'แรงดันไฟ line–line วัดจริง V · 3 เฟส 380–400 · 1 เฟส 220–230 · power meter/clamp meter',
+  f_curr:'กระแสเฉลี่ย 3 เฟส A จาก clamp meter ที่เบรกเกอร์ ODU · 10 HP ≈ 12–18 A',
+  f_pf:'Power factor · inverter VRF 0.90–0.98 · อ่านจาก power meter (ไม่มีใช้ 0.90)',
+  f_phase:'ระบบไฟฟ้า ODU · VRF เกือบทั้งหมด 3 เฟส 380 V · mini-VRF บางรุ่น 1 เฟส',
+  f_wdirect:'กำลังไฟฟ้าอ่านตรงจาก power meter/wattmeter kW · ถ้ากรอกจะใช้แทน √3·V·I·PF · เฉลี่ย 15–30 นาที',
+  f_hrs_day:'ชั่วโมงเดินเครื่องต่อวัน · สำนักงาน 9–10 · ร้านค้า 12 · โรงแรม 24',
+  f_tra_db:'อุณหภูมิกระเปาะแห้งอากาศกลับ (ช่องดูด IDU ตัวแทน) °C · ทั่วไป 24–27',
+  f_tra_wb:'อุณหภูมิกระเปาะเปียกอากาศกลับ °C · ทั่วไป 17–20 (RH 50–60 %) · psychrometer',
+  f_tsa_db:'อุณหภูมิกระเปาะแห้งลมจ่าย °C · ทั่วไป 11–15 · ΔT กับอากาศกลับ 10–14 °C',
+  f_tsa_wb:'อุณหภูมิกระเปาะเปียกลมจ่าย °C · ใกล้อิ่มตัว: ต่ำกว่า DB จ่าย 0.5–1.5 °C',
+  f_cfm:'อัตราลมรวมของ IDU ที่วัด CFM · จาก catalog (Hi) หรือ anemometer × พื้นที่หน้ากาก · ≈ 350–400 CFM/RT',
+  f_cmh:'อัตราลมหน่วย m³/h (1 CFM = 1.699 m³/h) — ถ้ากรอกจะใช้ค่านี้แทน CFM',
+  f_patm:'ความดันบรรยากาศ kPa · ระดับน้ำทะเล 101.3 · เชียงใหม่ ≈ 97.8 · ใช้คำนวณ ω',
+  f_tariff:'ค่าไฟฟ้าเฉลี่ย บาท/kWh · อาคาร 4.2–4.7 · โรงงาน TOU 3.8–4.3 · จากบิลค่าไฟ',
+  r_refrig:'สารทำความเย็นของระบบ (nameplate ODU) — กำหนด P_sat, T_dis สูงสุด และ GWP',
+  r_tevap:'อุณหภูมิอิ่มตัวด้านระเหย °C · จาก gauge ต่ำ/DCS ของ ODU (Te) · VRF ทั่วไป 5–10',
+  r_tcond:'อุณหภูมิอิ่มตัวด้านควบแน่น °C · gauge สูง/DCS (Tc) · ≈ T_outdoor + 10–15 · ทั่วไป 45–52',
+  r_sh:'Superheat = T_suction − T_evap °C · วัดผิวท่อดูดที่ ODU · ปกติ 3–8 (VRF ควบคุมด้วย EEV)',
+  r_sc:'Subcooling = T_cond − T_liquid °C · วัดผิวท่อน้ำเหลืองออก ODU · ปกติ 5–10',
+  r_tdis:'อุณหภูมิท่อ discharge ออกคอมเพรสเซอร์ °C · ปกติ 70–95 · R-410A ไม่ควรเกิน 110',
+  r_psuct:'ความดันด้านต่ำ barg จาก gauge/DCS (ถ้ามี) · R-410A ≈ 8–10 · R-32 ≈ 9–11 · ใช้บันทึกอ้างอิง',
+  r_pdisch:'ความดันด้านสูง barg จาก gauge/DCS (ถ้ามี) · R-410A ≈ 26–30 · R-32 ≈ 27–32'
+};
+function teInjectHints(){ Object.keys(TE_HINTS).forEach(id=>{ const e=document.getElementById(id); if(!e) return; const n=e.nextElementSibling; if(n&&n.classList&&n.classList.contains('hint')) return; const d=document.createElement('div'); d.className='hint'; d.textContent=TE_HINTS[id]; e.insertAdjacentElement('afterend',d); }); }
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['c_brand', 'c_refrig', 'c_qrated', 'c_wrated', 'c_eer_plate', 'c_iplv_plate', 'cap_q_out', 'cap_n_in', 'cap_pipe_len', 'cap_height', 'f_phase', 'f_cfm', 'f_cmh', 'r_refrig', 'iplv_a', 'iplv_b', 'iplv_c', 'iplv_d'], FK_MEAS=['cap_tout', 'f_volt', 'f_curr', 'f_pf', 'f_wdirect', 'f_tra_db', 'f_tra_wb', 'f_tsa_db', 'f_tsa_wb', 'f_patm', 'r_tevap', 'r_tcond', 'r_sh', 'r_sc', 'r_tdis', 'r_psuct', 'r_pdisch'], FK_SET=['cap_tin', 'f_hrs_day', 'f_tariff'], FK_CALC=[];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(/^idu_\d+$/.test(id))return'design';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
 window.addEventListener('DOMContentLoaded', ()=>{
+  teInjectHints();
   updateIndoorTable();
   calcCOP();
   calcField();
   calcRefrig();
+  tagFieldKinds();
 });
 </script>
 </body>

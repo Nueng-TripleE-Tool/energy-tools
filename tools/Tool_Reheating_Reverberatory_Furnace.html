@@ -79,6 +79,10 @@
   /* ===== field hints (ที่มาของข้อมูล) ===== */
   .hint{display:none;font-size:11px;color:#5b6b7b;line-height:1.5;margin-top:3px;background:#f0f6f6;border-left:2.5px solid #7fc4c4;padding:3px 7px;border-radius:4px;font-family:'IBM Plex Sans Thai',sans-serif}
   body.show-hints .hint{display:block}
+  /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ */
+  .fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+  .fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+  .fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
   .hint-bar{display:flex;align-items:center;gap:8px;background:#fffdf3;border:1px solid #e8d9a0;border-radius:10px;padding:8px 14px;margin:10px 0;font-size:13px;color:#6b5a12}
   .hint-bar input{width:auto}
   .rep-head-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 16px;margin-bottom:12px}
@@ -422,6 +426,16 @@ const HINTS={
  leakage_m:'ที่มา: ประเมินจากความดันในเตาเป็นบวก + ขนาดรอยรั่ว — สังเกตเปลว/ก๊าซร้อนพุ่งออกหน้างาน',
  leakage_t:'ที่มา: ใกล้เคียงอุณหภูมิภายในเตา ณ ตำแหน่งที่รั่ว',
  other_kW:'รายการอื่นที่ทราบค่า เช่น สายพานลำเลียงระบายความร้อน, ไอน้ำ purge (kW)',
+ /* [ระยะ 4 10 ก.ย. 2569] hint ช่องที่ยังไม่มีคำอธิบาย (ECM เป้าหมาย / อาการ / ข้อมูลรายงาน) */
+ fLHV:'คำนวณอัตโนมัติจาก HHV − ความร้อนแฝงไอน้ำจาก H และ M (MJ/kg as-fired) — NG ≈ 0.90×HHV, น้ำมันเตา ≈ 0.94×HHV, ชีวมวลชื้น 40 % ≈ 0.80×HHV',
+ ecm_o2:'O₂ เป้าหมายหลังจูน burner (% dry) — เตาก๊าซที่มี ratio control 2–3 %, น้ำมันเตา 3–4 %, เตาที่ประตูเปิดบ่อยอาจทำได้เพียง 5–6 % · ที่มา: ค่าที่ผู้ผลิต burner แนะนำ/ผลทดลองจูน',
+ ecm_eff:'ประสิทธิผล recuperator เป้าหมาย = (T_air,out − T_amb)/(T_flue − T_amb) — แบบ radiation/convective ทั่วไป 40–60 %, regenerative burner 70–85 % · ที่มา: ใบเสนอราคาผู้ผลิต',
+ ecm_ts:'อุณหภูมิผิวผนังเป้าหมายหลังเสริมฉนวน (°C) — เกณฑ์ความปลอดภัย ≤ 60 °C (ISO 13732-1 สัมผัสได้), งานประหยัดพลังงานทั่วไป 60–80 °C · ที่มา: สเปคฉนวน ceramic fiber',
+ ecm_open:'สัดส่วนเวลาที่ประตู/ช่องเปิดค้างหลังปรับปรุง (% ของเวลาเดินเตา) — ติดม่านลูกโซ่/ประตูอัตโนมัติ/ปรับรอบงานทำได้ 3–8 % · ที่มา: จับเวลารอบงานหลังทดลอง',
+ faultSel:'เลือกอาการที่พบหน้างานเพื่อดูสาเหตุที่เป็นไปได้และวิธีตรวจสอบ (ไม่กระทบการคำนวณ)',
+ rep_company:'ชื่อโรงงานและชื่อ/หมายเลขเตา ใช้พิมพ์บนหัวรายงาน',
+ rep_assessor:'ชื่อผู้ประเมิน/บริษัทที่ปรึกษา ใช้พิมพ์บนรายงาน',
+ rep_date:'วันที่ตรวจวัดหน้างาน (เติมวันที่ปัจจุบันให้อัตโนมัติ แก้ไขได้)',
 };
 function applyHints(){
   const put=(el,txt)=>{const fld=el.closest('.field');if(!fld||fld.querySelector('.hint'))return;
@@ -1061,9 +1075,19 @@ function loadExample(){
   $('setupMsg').style.display='block';
   $('setupMsg').innerHTML='โหลดตัวอย่างเตา Reheating เหล็ก 12 t/h (NG, O₂ 5%, ปล่อง 600°C) แล้ว — กดคำนวณ · ลองเพิ่มมาตรการ: ลด O₂ เหลือ 2.5% หรืออุ่นอากาศเป็น 350°C ด้วย recuperator';
 }
+/* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
+var FK_DESIGN=['charge_cps', 'charge_cpl', 'charge_tmelt', 'charge_lf', 'fixture_cp', 'wall_A', 'wall_eps', 'opening_dim1', 'opening_dim2', 'opening_thick', 'opening_count'], FK_MEAS=['fC', 'fH', 'fO', 'fN', 'fS', 'fM', 'fAsh', 'fHHV', 'o2d', 't_flue', 't_air', 't_amb', 'humid', 'charge_m', 'charge_t_in', 'charge_t_out', 'charge_moist', 'fixture_m', 'fixture_t_in', 'fixture_t_out', 'wall_ts', 'wall_wind', 'opening_t_in', 'opening_pctOpen', 'cooling_flow', 'cooling_dt', 'atmosphere_flow', 'atmosphere_t_in', 'atmosphere_t_out', 'leakage_m', 'leakage_t', 'other_kW'], FK_SET=['hr', 'c_fuel', 'ef_fuel', 'basis', 'ftype', 'fuelKey', 'ecm_o2', 'ecm_eff', 'ecm_ts', 'ecm_open', 'faultSel', 'rep_company', 'rep_assessor', 'rep_date', 'charge_mat', 'charge_pctMelt', 'charge_q_rxn', 'opening_shape', 'atmosphere_gas'], FK_CALC=['fLHV', 'wall_ta'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
+function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
+  for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
+  for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
+document.addEventListener('DOMContentLoaded',tagFieldKinds);
 // ---- init ----
 document.body.classList.add('show-hints');
 initFuelSelect();applyFuelPreset();buildLossCards();syncWallTa();renderFieldAudit();applyHints(); // [แก้ไข 10 ก.ย. 2569] เติม wall_ta จาก t_amb ตอนโหลด
+tagFieldKinds(); // [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า หลังสร้าง loss cards + hint
 ['fC','fH','fM','fHHV'].forEach(id=>$(id).addEventListener('change',updateLHV));
 saveActive();renderScenBar();
 $('rep_date').value=thaiDate();
