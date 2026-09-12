@@ -1,0 +1,2059 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electricity Bill · Tariff · Load Balance Analyzer — Triple E Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root{
+  --navy:#0f2a4a; --teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa; --card:#fff; --ink:#1c2b3a; --muted:#5b6b7b; --line:#e2e8f0;
+  --accent:#12a4a4; --warn:#e08a00; --ok:#1e9e5a; --danger:#d1495b; --sev4:#8e1b2e;
+  --L1:#d1495b; --L2:#e08a00; --L3:#2d7dd2; --NN:#5b6b7b;
+  --radius:14px; --shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+h1,h2,h3,.bc{font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+header{background:var(--header-grad);color:#fff;padding:26px 20px 30px}
+header .wrap{max-width:1180px;margin:0 auto}
+header .kicker{font-size:.78rem;letter-spacing:2px;text-transform:uppercase;opacity:.8}
+header h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:700;margin-top:4px}
+header p{font-size:.92rem;opacity:.88;max-width:800px;margin-top:6px}
+
+main{max-width:1180px;margin:0 auto;padding:0 16px 60px}
+
+.verdict{position:sticky;top:0;z-index:40;background:var(--card);border:1px solid var(--line);
+  border-radius:0 0 var(--radius) var(--radius);box-shadow:var(--shadow);
+  display:grid;grid-template-columns:repeat(4,1fr);gap:1px;overflow:hidden;margin-bottom:18px}
+.vcell{padding:12px 14px;background:var(--card);text-align:center;border-left:1px solid var(--line)}
+.vcell:first-child{border-left:none}
+.vcell .vlab{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.vcell .vnum{font-family:'Barlow Condensed',sans-serif;font-size:1.9rem;font-weight:700;line-height:1.05}
+.vcell .vband{font-size:.78rem;font-weight:600}
+.s0{color:var(--ok)} .s1{color:var(--warn)} .s2{color:var(--danger)} .s3{color:var(--sev4)}
+
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:9px 16px;border:1px solid var(--line);background:var(--card);border-radius:10px;
+  cursor:pointer;font-size:.88rem;font-weight:500;color:var(--muted);transition:.15s;white-space:nowrap}
+.tab:hover{border-color:var(--accent)}
+.tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.panel{display:none} .panel.on{display:block}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card > h2{font-size:1.12rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.card > .sub{font-size:.83rem;color:var(--muted);margin-bottom:14px}
+.card h3{font-size:1rem;color:var(--navy);margin:16px 0 8px}
+
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+
+label.f{display:block;font-size:.8rem;color:var(--muted);margin-bottom:3px;font-weight:500}
+input[type=number],select,input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);
+  border-radius:9px;font-family:'IBM Plex Mono',monospace;font-size:.9rem;background:#fff;color:var(--ink)}
+input[type=number]:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(18,164,164,.13)}
+select{font-family:'IBM Plex Sans Thai',sans-serif}
+input[readonly]{background:#f1f5f9;color:var(--muted)}
+.fld{margin-bottom:10px}
+.unit{font-size:.72rem;color:var(--muted);font-weight:400}
+.hint{display:none;font-size:.76rem;color:var(--muted);background:#f8fafc;border-left:3px solid var(--teal);
+  padding:5px 9px;border-radius:0 6px 6px 0;margin-top:4px;line-height:1.5}
+body.hints .hint{display:block}
+
+.btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:22px;
+  font-family:'IBM Plex Sans Thai',sans-serif;font-size:.87rem;font-weight:600;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent);filter:none}
+.btn.sm{padding:5px 12px;font-size:.79rem}
+.rowbtn{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left}
+th{background:#f8fafc;font-weight:600;color:var(--navy);font-size:.8rem}
+td.n,th.n{text-align:right;font-family:'IBM Plex Mono',monospace}
+tr.hl td{background:#fffbeb}
+tr.tot td{background:#eef7f7;font-weight:700}
+.tbl-wrap{overflow-x:auto}
+table input{padding:5px 7px;font-size:.82rem;border-radius:7px;min-width:70px}
+table select{padding:5px 6px;font-size:.82rem;border-radius:7px;min-width:74px}
+td.nw{white-space:nowrap}
+
+.note{font-size:.82rem;color:var(--muted);background:#f8fafc;border-left:3px solid var(--line);
+  padding:9px 13px;border-radius:0 8px 8px 0;margin-top:10px;line-height:1.6}
+.note.warn{background:#fff8e6;border-left-color:var(--warn)}
+.note.bad{background:#fdeef0;border-left-color:var(--danger)}
+.note.good{background:#eaf7f0;border-left-color:var(--ok)}
+.note b{color:var(--ink)}
+
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.74rem;font-weight:600}
+.p0{background:#eaf7f0;color:#14663b} .p1{background:#fff4de;color:#8a5300}
+.p2{background:#fdeef0;color:#9e2333} .p3{background:#8e1b2e;color:#fff}
+.pn{background:#eef2f7;color:var(--muted)}
+
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.87rem}
+.kv:last-child{border-bottom:none}
+.kv b{font-family:'IBM Plex Mono',monospace;font-weight:500}
+
+.big{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:700;line-height:1;color:var(--navy)}
+.bigu{font-size:.85rem;color:var(--muted);font-family:'IBM Plex Sans Thai',sans-serif}
+.stat{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fcfdfe}
+.stat .big{font-size:1.85rem}
+.stat .lab{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+
+details.ox{border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-top:10px;background:#fcfdfe}
+details.ox summary{cursor:pointer;font-weight:600;font-size:.87rem;color:var(--navy)}
+details.ox[open] summary{margin-bottom:10px}
+
+.svgbox{border:1px solid var(--line);border-radius:12px;background:#fcfdfe;padding:8px;overflow-x:auto}
+.svgbox svg{display:block;min-width:640px;width:100%;height:auto}
+.svgbox.sq svg{min-width:0}
+.legend{font-size:.78rem;color:var(--muted);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+footer{text-align:center;padding:22px;font-size:.8rem;color:var(--muted);
+  border-top:1px solid var(--line);background:#fff}
+footer b{color:var(--navy)}
+
+@media(max-width:700px){
+  .verdict{grid-template-columns:repeat(2,1fr)}
+  .card{padding:15px}
+}
+@media print{
+  header .kicker,.tabs,.btn,.rowbtn,footer{display:none}
+  .panel{display:block!important}
+  .card{box-shadow:none;break-inside:avoid}
+  .verdict{position:static}
+  body.hints .hint{display:none}
+}
+</style>
+</head>
+<body class="hints">
+<header><div class="wrap">
+  <div class="kicker">Triple E Technology · Electrical Systems</div>
+  <h1>Electricity Bill · Tariff · Load Balance Analyzer</h1>
+  <p>แยกโครงสร้างค่าไฟฟ้าออกเป็นรายการ · เปรียบเทียบอัตราที่เลือกได้ · คำนวณค่าปรับเพาเวอร์แฟกเตอร์และขนาดคาปาซิเตอร์ ·
+     และ<b>แสดงภาพ</b>ว่าโหลด 1 เฟสที่วางไม่สมดุลบนระบบ 3 เฟส ทำอะไรกับกระแสนิวทรัล หม้อแปลง และค่าไฟจริง ๆ</p>
+</div></header>
+
+<main>
+<div class="verdict">
+  <div class="vcell"><div class="vlab">ค่าไฟเฉลี่ย</div><div class="vnum mono" id="v-rate">—</div><div class="vband">บาท/kWh (รวม Ft, VAT)</div></div>
+  <div class="vcell"><div class="vlab">Load Factor</div><div class="vnum mono" id="v-lf">—</div><div class="vband" id="v-lfb">—</div></div>
+  <div class="vcell"><div class="vlab">Power Factor</div><div class="vnum mono" id="v-pf">—</div><div class="vband" id="v-pfb">—</div></div>
+  <div class="vcell"><div class="vlab">Current Unbalance</div><div class="vnum mono" id="v-unb">—</div><div class="vband" id="v-unbb">—</div></div>
+</div>
+
+<div class="rowbtn">
+  <button class="btn ghost sm" onclick="document.body.classList.toggle('hints')"><i class="fa-solid fa-circle-info"></i> แสดง/ซ่อนคำอธิบายช่องกรอก</button>
+  <button class="btn ghost sm" onclick="saveJSON()"><i class="fa-solid fa-download"></i> บันทึก JSON</button>
+  <button class="btn ghost sm" onclick="document.getElementById('fjson').click()"><i class="fa-solid fa-upload"></i> โหลด JSON</button>
+  <input type="file" id="fjson" accept=".json" style="display:none" onchange="loadJSON(this)">
+  <button class="btn ghost sm" onclick="window.print()"><i class="fa-solid fa-print"></i> พิมพ์ / บันทึก PDF</button>
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-p="p1">1 · บิลค่าไฟฟ้า</div>
+  <div class="tab" data-p="p2">2 · โครงสร้างอัตรา</div>
+  <div class="tab" data-p="p3">3 · เพาเวอร์แฟกเตอร์</div>
+  <div class="tab" data-p="p7">4 · วัดกำลังไฟฟ้าหน้างาน</div>
+  <div class="tab" data-p="p4">5 · โหลด 3 เฟสไม่สมดุล</div>
+  <div class="tab" data-p="p5">6 · หม้อแปลง</div>
+  <div class="tab" data-p="p6">7 · สรุปและมาตรการ</div>
+</div>
+
+<!-- ═══════════ TAB 1 : BILL ═══════════ -->
+<section class="panel on" id="p1">
+
+<div class="card">
+  <h2>เริ่มตรงนี้ — ต้องเตรียมข้อมูลอะไร และหาจากไหน</h2>
+  <div class="sub">ทั้งเครื่องมือใช้ข้อมูล 3 ชุดเท่านั้น · กรอกได้เท่าที่มี แล้วค่อยเติมทีหลัง เครื่องมือจะคำนวณเฉพาะส่วนที่ข้อมูลครบ</div>
+  <div class="grid3">
+    <div class="stat"><div class="lab">ชุดที่ 1 — จากบิล</div><div class="big mono">7</div><div class="bigu">ค่า · ใช้ได้ทันทีในแท็บ 1–3<br>ถ้ามีแค่ชุดนี้ก็เริ่มงานได้</div></div>
+    <div class="stat"><div class="lab">ชุดที่ 2 — จาก nameplate</div><div class="big mono">4</div><div class="bigu">ค่าของหม้อแปลง · ใช้ในแท็บ 5–6<br>มีตารางค่าอ้างอิงให้กดใส่ได้</div></div>
+    <div class="stat"><div class="lab">ชุดที่ 3 — จากการวัด</div><div class="big mono">2</div><div class="bigu">กระแสรายเฟส + การจัดโหลด<br>ใช้ในแท็บ 4–5 ซึ่งเป็นหัวใจ</div></div>
+  </div>
+  <div class="tbl-wrap" style="margin-top:14px"><table>
+    <tr><th>ต้องใส่</th><th>ช่องไหน</th><th>หาได้จากไหน</th><th>ถ้ายังไม่มี ทำอย่างไร</th></tr>
+    <tr><td colspan="4" style="background:#f8fafc;font-weight:700;color:var(--navy)">ชุดที่ 1 — เปิดบิลค่าไฟฟ้าใบล่าสุดวางไว้ข้าง ๆ</td></tr>
+    <tr><td>ประเภทผู้ใช้ไฟและระดับแรงดัน</td><td>แท็บ 1 · 2 ช่องแรก</td><td>มุมบนของบิล เขียนว่า "ประเภท 3.2" หรือ "อัตรา 4.2" · ระดับแรงดันดูจากด้านแรงสูงของหม้อแปลง (โรงงานทั่วไป = 22 kV)</td><td>ถ้าอ่านไม่ออก ให้ดูว่าบิลแยกหน่วย On Peak / Off Peak หรือไม่ — ถ้าแยก คืออัตรา TOU (3.2 หรือ 4.2)</td></tr>
+    <tr><td>หน่วยไฟฟ้า On Peak / Off Peak</td><td>แท็บ 1</td><td>บรรทัด "ค่าพลังงานไฟฟ้า" ในบิล จะมี 2 บรรทัดถ้าเป็น TOU</td><td>อัตราปกติ (3.1/4.1) ใส่หน่วยรวมทั้งหมดในช่อง On Peak แล้วใส่ 0 ในช่อง Off Peak</td></tr>
+    <tr><td>ความต้องการพลังไฟฟ้าสูงสุด (kW)</td><td>แท็บ 1</td><td>บรรทัด "ค่าความต้องการพลังไฟฟ้า" — ตัวเลข kW ที่คูณกับอัตรา</td><td>ไม่มีไม่ได้ ถ้าบิลไม่แสดงให้ขอจากการไฟฟ้า เพราะเป็นตัวขับค่าไฟก้อนใหญ่</td></tr>
+    <tr><td>kVAr สูงสุด</td><td>แท็บ 1</td><td>บรรทัด "ค่าเพาเวอร์แฟกเตอร์" ถ้ามี · บางบิลแสดงเป็น kVAr เฉย ๆ</td><td>ถ้าบิลไม่แสดง ใช้ตัวช่วยแปลงจาก PF ในแท็บ 3</td></tr>
+    <tr><td>ค่า Ft งวดนี้</td><td>แท็บ 1</td><td>บรรทัด "ค่า Ft" หารด้วยจำนวนหน่วย จะได้ บาท/kWh</td><td>ดูประกาศ กกพ. งวดปัจจุบัน — <b>อย่าใช้ค่าตั้งต้นในเครื่องมือโดยไม่ตรวจ</b></td></tr>
+    <tr><td>Demand สูงสุดย้อนหลัง 12 เดือน</td><td>แท็บ 1</td><td>ไล่ดูบิล 12 ใบ เอาค่า kW ที่สูงที่สุด</td><td>ถ้ามีบิลใบเดียว ให้ใส่ค่าเท่ากับ kW เดือนนี้ไปก่อน (จะไม่เตือนเรื่องค่าไฟขั้นต่ำ)</td></tr>
+    <tr><td colspan="4" style="background:#f8fafc;font-weight:700;color:var(--navy)">ชุดที่ 2 — ไปถ่ายรูป nameplate ที่ห้องหม้อแปลง</td></tr>
+    <tr><td>พิกัด kVA · %Z · P₀ · P<sub>k</sub></td><td>แท็บ 5 และ 6</td><td>แผ่นป้ายข้างหม้อแปลง หรือ test report ที่ผู้ผลิตให้มาตอนส่งมอบ (แม่นกว่า)</td><td>กดเลือกจากตาราง "ค่าอ้างอิงหม้อแปลงจำหน่าย" ในแท็บ 5 ไปก่อน แล้วแก้ทีหลัง</td></tr>
+    <tr><td>ความต้านทานสายเมนและสายนิวทรัล</td><td>แท็บ 5</td><td>ไม่มีใครเขียนไว้ ต้องคำนวณจากขนาดสายและความยาว</td><td>ใช้ตัวช่วยคำนวณ R จากขนาดสายในแท็บ 5</td></tr>
+    <tr><td colspan="4" style="background:#f8fafc;font-weight:700;color:var(--navy)">ชุดที่ 3 — ไปวัดที่ตู้เมนแรงต่ำ (MDB)</td></tr>
+    <tr><td>กระแสรายเฟสและกระแสนิวทรัล</td><td>แท็บ 4 (คำนวณกำลัง) และตรวจผลในแท็บ 5</td><td>แคลมป์มิเตอร์ที่สายเมนแต่ละเฟสและสายนิวทรัล · ควรบันทึกต่อเนื่อง ≥7 วัน</td><td>วัดครั้งเดียวก็พอเริ่มได้ แต่ต้องเป็นช่วงที่โรงงานเดินเต็มกำลัง</td></tr>
+    <tr><td>โหลด 1 เฟสแต่ละวงจรต่ออยู่เฟสไหน</td><td>แท็บ 5 · ตารางโหลด 1 เฟส</td><td>panel schedule ในตู้ย่อย หรือไล่ดูเบรกเกอร์ทีละตัว</td><td>ประมาณจากรายการอุปกรณ์ก่อนก็ได้ แต่จะจัดเฟสจริงไม่ได้ถ้าไม่รู้ว่าวงจรไหนอยู่เฟสไหน</td></tr>
+  </table></div>
+  <div class="note"><b>ลำดับการทำงานที่แนะนำ:</b> กรอกแท็บ 1 ให้ครบก่อน → ดูว่าตัวเลขตรงกับยอดบิลจริงไหม (ช่อง "ค่าไฟตามบิลจริง")
+   → ถ้าตรงแล้วค่อยไปดูแท็บ 2 ว่าอยู่อัตราที่ถูกที่สุดหรือยัง → แท็บ 3 ดูว่าโดนค่าปรับ PF ไหม
+   → แท็บ 4 คือวิธีวัดกำลังหน้างานเมื่อไม่มีเพาเวอร์มิเตอร์ 3 เฟส → แท็บ 5–6 ต้องมีข้อมูลจากสนามถึงจะมีความหมาย · ปุ่ม "แสดง/ซ่อนคำอธิบายช่องกรอก" ด้านบนเปิดคำอธิบายใต้ทุกช่องไว้แล้ว</div>
+</div>
+
+<div class="card">
+  <h2>ข้อมูลจากใบแจ้งค่าไฟฟ้า</h2>
+  <div class="sub">กรอกตามใบแจ้งหนี้ 1 งวด (1 เดือน) — ค่าอัตราทั้งหมดแก้ไขได้ในแท็บ 2</div>
+  <div class="grid3">
+    <div class="fld"><label class="f">ประเภทผู้ใช้ไฟ (อัตรา)</label>
+      <select id="i_rate" onchange="calc()"></select>
+      <div class="hint">3.x = กิจการขนาดกลาง 30–999 kW · 4.x = ขนาดใหญ่ ≥1,000 kW · 7.x = สูบน้ำเพื่อการเกษตร</div></div>
+    <div class="fld"><label class="f">ระดับแรงดัน</label>
+      <select id="i_lv" onchange="calc()">
+        <option value="69">≥ 69 kV</option><option value="22" selected>22–33 kV</option><option value="lt">&lt; 22 kV</option>
+      </select>
+      <div class="hint">โรงงานทั่วไปที่มีหม้อแปลงของตัวเองรับที่ 22 kV (PEA) หรือ 24 kV (MEA) → เลือก 22–33 kV</div></div>
+    <div class="fld"><label class="f">จำนวนวันในงวด <span class="unit">วัน</span></label>
+      <input type="number" id="i_days" value="30" onchange="calc()">
+      <div class="hint">ใช้คำนวณ Load Factor — ดูจากช่วง "อ่านหน่วยครั้งก่อน–ครั้งนี้" บนบิล</div></div>
+  </div>
+  <div class="grid3">
+    <div class="fld"><label class="f">หน่วยไฟฟ้า On Peak <span class="unit">kWh</span></label>
+      <input type="number" id="i_kwh_p" value="196000" onchange="calc()">
+      <div class="hint">TOU: จ.–ศ. 09:00–22:00 (ไม่รวมวันหยุดราชการ) · ถ้าเป็นอัตราปกติ (3.1/4.1) ให้ใส่หน่วยรวมทั้งหมดช่องนี้ และใส่ 0 ในช่อง Off Peak</div></div>
+    <div class="fld"><label class="f">หน่วยไฟฟ้า Off Peak <span class="unit">kWh</span></label>
+      <input type="number" id="i_kwh_o" value="154000" onchange="calc()">
+      <div class="hint">TOU: จ.–ศ. 22:00–09:00 + เสาร์ อาทิตย์ วันหยุดราชการ (ยกเว้นวันหยุดชดเชย) ทั้งวัน</div></div>
+    <div class="fld"><label class="f">ความต้องการพลังไฟฟ้าสูงสุด <span class="unit">kW</span></label>
+      <input type="number" id="i_dem" value="620" onchange="calc()">
+      <div class="hint">ค่าเฉลี่ยสูงสุด 15 นาทีในงวด (TOU นับเฉพาะช่วง On Peak) — เป็นตัวขับค่า Demand Charge</div></div>
+  </div>
+  <div class="grid3">
+    <div class="fld"><label class="f">ความต้องการพลังรีแอกทีฟ <span class="unit">kVAr</span></label>
+      <input type="number" id="i_kvar" value="430" onchange="calc()">
+      <div class="hint">ค่า kVAr สูงสุด 15 นาที ตามบิล — ถ้าบิลไม่แสดง ให้ใส่ 0 แล้วดูวิธีประมาณจาก PF ในแท็บ 3</div></div>
+    <div class="fld"><label class="f">ค่า Ft งวดนี้ <span class="unit">บาท/kWh</span></label>
+      <input type="number" id="i_ft" value="0.1972" step="0.0001" onchange="calc()">
+      <div class="hint">ต้องตรวจกับประกาศ กกพ. งวดปัจจุบันทุกครั้ง — ค่าตั้งต้นในเครื่องมือนี้ไม่ใช่ค่าล่าสุดเสมอไป</div></div>
+    <div class="fld"><label class="f">TOD: kW ช่วง Partial / Off <span class="unit">kW</span></label>
+      <input type="text" id="i_tod" value="0 / 0" onchange="calc()">
+      <div class="hint">ใช้เฉพาะอัตรา 4.1 (TOD) — ใส่รูปแบบ "Partial / Off" เช่น 640 / 700; Partial = 18:30–21:30, Off = 21:30–08:00</div></div>
+  </div>
+  <div class="grid3">
+    <div class="fld"><label class="f">Demand สูงสุดย้อนหลัง 12 เดือน <span class="unit">kW</span></label>
+      <input type="number" id="i_dem12" value="680" onchange="calc()">
+      <div class="hint">ใช้ตรวจ "ค่าไฟฟ้าขั้นต่ำ" = 70% ของค่าความต้องการพลังไฟฟ้าสูงสุดใน 12 เดือนย้อนหลัง (อัตรา 3, 4, 5)</div></div>
+    <div class="fld"><label class="f">ภาษีมูลค่าเพิ่ม <span class="unit">%</span></label>
+      <input type="number" id="i_vat" value="7" step="0.5" onchange="calc()">
+      <div class="hint">ปัจจุบัน 7% · ค่าปรับ PF และค่า Ft ถูกคิด VAT ด้วย ไม่ใช่เฉพาะค่าพลังงาน</div></div>
+    <div class="fld"><label class="f">ค่าไฟตามบิลจริง (ตรวจสอบ) <span class="unit">บาท</span></label>
+      <input type="number" id="i_actual" value="0" onchange="calc()">
+      <div class="hint">ใส่ยอดสุทธิบนบิลเพื่อให้เครื่องมือเทียบว่าคำนวณตรงหรือไม่ — ต่างเกิน 2% แปลว่าอัตรา/Ft ที่ตั้งไว้ยังไม่ตรงงวด</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>แยกรายการค่าไฟฟ้า</h2>
+  <div class="sub">ตรวจว่าเงินไปอยู่ที่ไหน — ค่าพลังงาน (kWh) ค่าความต้องการพลัง (kW) ค่าปรับ PF และ Ft</div>
+  <div class="tbl-wrap"><table id="t_bill"></table></div>
+  <div class="grid4" style="margin-top:14px">
+    <div class="stat"><div class="lab">ค่าไฟเฉลี่ย</div><div class="big mono" id="o_avg">—</div><div class="bigu">บาท/kWh สุทธิ</div></div>
+    <div class="stat"><div class="lab">Load Factor</div><div class="big mono" id="o_lf">—</div><div class="bigu">%</div></div>
+    <div class="stat"><div class="lab">สัดส่วนค่า Demand</div><div class="big mono" id="o_dsh">—</div><div class="bigu">% ของค่าไฟก่อน VAT</div></div>
+    <div class="stat"><div class="lab">ค่าปรับ PF</div><div class="big mono" id="o_pfp">—</div><div class="bigu">บาท/เดือน</div></div>
+  </div>
+  <div id="o_billnote"></div>
+</div>
+</section>
+
+<!-- ═══════════ TAB 2 : TARIFF ═══════════ -->
+<section class="panel" id="p2">
+<div class="card">
+  <h2>ตารางอัตราค่าไฟฟ้า (แก้ไขได้ทุกช่อง)</h2>
+  <div class="sub">ค่าตั้งต้นเป็นอัตราฐานตามโครงสร้างค่าไฟฟ้าที่ใช้อยู่ — <b>ต้องตรวจสอบกับประกาศงวดปัจจุบันก่อนใช้ในรายงาน</b></div>
+  <div class="note warn"><b>ข้อควรระวัง:</b> อัตราค่าไฟฟ้าและ Ft เปลี่ยนตามประกาศ กกพ./การไฟฟ้า
+    เครื่องมือนี้ไม่ดึงข้อมูลออนไลน์ ค่าที่เห็นคือค่าที่ฝังไว้เพื่อให้เริ่มงานได้เร็ว
+    ผู้ตรวจประเมินต้องแทนที่ด้วยตัวเลขจากบิลจริงหรือประกาศงวดนั้นเสมอ แล้วบันทึกที่มาไว้ในรายงาน</div>
+  <div class="tbl-wrap" style="margin-top:12px"><table id="t_rates"></table></div>
+</div>
+
+<div class="card">
+  <h2>เปรียบเทียบค่าไฟถ้าเปลี่ยนประเภทอัตรา</h2>
+  <div class="sub">ใช้หน่วยและความต้องการพลังชุดเดียวกันจากแท็บ 1 คำนวณค่าไฟภายใต้ทุกอัตราที่ผู้ใช้ไฟมีสิทธิ์เลือก</div>
+  <div class="tbl-wrap"><table id="t_cmp"></table></div>
+  <div id="o_cmpnote"></div>
+</div>
+</section>
+
+<!-- ═══════════ TAB 3 : POWER FACTOR ═══════════ -->
+<section class="panel" id="p3">
+<div class="card">
+  <h2>เพาเวอร์แฟกเตอร์และค่าปรับ</h2>
+  <div class="sub">เกณฑ์การไฟฟ้า: ถ้า kVAr สูงสุด &gt; 61.97% ของ kW สูงสุด จะถูกคิดค่าเพาเวอร์แฟกเตอร์ในส่วนที่เกิน — เท่ากับกำหนดให้ PF ต้องไม่ต่ำกว่า 0.85</div>
+  <div class="grid3">
+    <div class="fld"><label class="f">kW สูงสุด <span class="unit">(จากแท็บ 1)</span></label>
+      <input type="number" id="pf_kw" readonly>
+      <div class="hint">ดึงมาจากช่อง "ความต้องการพลังไฟฟ้าสูงสุด" ในแท็บ 1 แก้ที่นั่น</div></div>
+    <div class="fld"><label class="f">kVAr สูงสุด <span class="unit">(จากแท็บ 1)</span></label>
+      <input type="number" id="pf_kvar" readonly>
+      <div class="hint">ดึงมาจากแท็บ 1 · ถ้าบิลไม่แสดง kVAr ใช้ตัวช่วยด้านล่างแปลงจาก PF</div></div>
+    <div class="fld"><label class="f">อัตราค่าปรับ <span class="unit">บาท/kVAr</span></label>
+      <input type="number" id="pf_rate" value="56.07" step="0.01" onchange="calc()">
+      <div class="hint">ค่าฐานปัจจุบัน 56.07 บาท/kVAr ของส่วนที่เกิน 61.97% ของ kW (เศษของ kVAr ตั้งแต่ 0.5 ขึ้นไปปัดเป็น 1)</div></div>
+  </div>
+  <div class="grid3">
+    <div class="fld"><label class="f">PF เป้าหมายหลังแก้ไข</label>
+      <input type="number" id="pf_tgt" value="0.95" step="0.01" onchange="calc()">
+      <div class="hint"><b>0.85 คือจุดที่พ้นค่าปรับพอดี</b> — เพราะ cos(tan⁻¹ 0.6197) = 0.85 พอดี ไม่ใช่ 0.92 อย่างที่มักเข้าใจกัน ·
+        ปฏิบัติจริงตั้งเป้า 0.92–0.95 เผื่อโหลดแกว่งและเผื่อโหลดที่จะเพิ่มในอนาคต · เกิน 0.98 เสี่ยง over-compensation
+        ตอนโหลดต่ำ ซึ่งทำให้แรงดันสูงเกินและ PF นำ (leading)</div></div>
+    <div class="fld"><label class="f">ชั่วโมงทำงาน <span class="unit">ชม./ปี</span></label>
+      <input type="number" id="pf_hr" value="6000" onchange="calc()">
+      <div class="hint">ใช้แปลงกำลังสูญเสีย (W) เป็นพลังงานต่อปี (kWh) · 1 กะ 5 วัน ≈ 2,000–2,500 · 2 กะ ≈ 4,000–5,000 ·
+        3 กะ 6 วัน ≈ 6,000–7,000 · เดินต่อเนื่อง 24/7 ≈ 8,000–8,400 ชม./ปี — ใช้ชั่วโมงเดินจริงจากบันทึกการผลิต ไม่ใช่ชั่วโมงเปิดโรงงาน</div></div>
+    <div class="fld"><label class="f">ความต้านทานสายรวมถึงจุดติดตั้ง <span class="unit">Ω/เฟส</span></label>
+      <input type="number" id="pf_R" value="0.0035" step="0.0001" onchange="calc()">
+      <div class="hint">ใช้ประเมินการลดสูญเสียในสาย: ถ้าติดคาปาซิเตอร์ที่ตู้เมนอย่างเดียว สายช่วงหลังตู้จะไม่ได้ประโยชน์</div></div>
+  </div>
+  <div class="grid4" style="margin-top:6px">
+    <div class="stat"><div class="lab">PF ปัจจุบัน</div><div class="big mono" id="o_pf0">—</div><div class="bigu" id="o_pf0b">—</div></div>
+    <div class="stat"><div class="lab">kVAr ที่เกินเกณฑ์</div><div class="big mono" id="o_kvarx">—</div><div class="bigu">kVAr</div></div>
+    <div class="stat"><div class="lab">ขนาดคาปาซิเตอร์</div><div class="big mono" id="o_qc">—</div><div class="bigu">kVAr ที่ต้องติดตั้ง</div></div>
+    <div class="stat"><div class="lab">ค่าปรับที่ประหยัดได้</div><div class="big mono" id="o_pfsave">—</div><div class="bigu">บาท/ปี</div></div>
+  </div>
+  <details class="ox"><summary>ถ้าบิลไม่แสดง kVAr — วิธีหาค่ามาใส่</summary>
+    <div class="grid3">
+      <div class="fld"><label class="f">วิธีที่ 1 · ใส่ PF ที่วัดได้หรือที่บิลระบุ</label>
+        <input type="number" id="est_pf" value="0.85" step="0.01">
+        <div class="hint">อ่านจากเครื่องวัดที่ตู้เมน หรือบางบิลพิมพ์ "Power Factor" ไว้ตรงมุม</div></div>
+      <div class="fld"><label class="f">วิธีที่ 2 · kWh และ kVArh ทั้งงวด</label>
+        <input type="text" id="est_wh" value="0 / 0" placeholder="kWh / kVArh">
+        <div class="hint">ใส่รูปแบบ "kWh / kVArh" เช่น 350000 / 240000 · มิเตอร์ TOU ส่วนใหญ่เก็บ kVArh ไว้ ขอจากการไฟฟ้าได้</div></div>
+      <div class="fld"><label class="f">&nbsp;</label>
+        <button class="btn sm" onclick="estKvar()"><i class="fa-solid fa-right-to-bracket"></i> คำนวณแล้วใส่ในแท็บ 1</button>
+        <div class="hint">ผลลัพธ์จะถูกเขียนลงช่อง kVAr ในแท็บ 1 ให้อัตโนมัติ</div></div>
+    </div>
+    <div id="est_out" class="note">—</div>
+    <div class="note warn">ข้อควรระวัง: kVAr ที่การไฟฟ้าใช้คิดค่าปรับคือ<b>ค่าสูงสุด 15 นาที</b> ไม่ใช่ค่าเฉลี่ยทั้งงวด
+      การประมาณจาก kWh/kVArh ทั้งงวดจะได้ค่าต่ำกว่าความจริง ใช้เพื่อดูแนวโน้มได้ แต่อย่าใช้ตัวเลขนี้ยืนยันในรายงาน</div>
+  </details>
+  <div class="note"><b>สูตร</b> Q<sub>c</sub> = P (tan φ₁ − tan φ₂) โดย φ = cos⁻¹(PF) ·
+    การลดสูญเสียในสายและหม้อแปลงส่วนที่ขึ้นกับกระแส = 1 − (PF₁/PF₂)² เพราะ I ∝ 1/PF ที่ P เท่าเดิม</div>
+  <div id="o_pfnote"></div>
+</div>
+
+<div class="card">
+  <h2>ติดคาปาซิเตอร์ตรงไหน — ผลต่างที่คนมักมองข้าม</h2>
+  <div class="sub">ค่าปรับ PF หายเหมือนกันทั้งสองแบบ แต่การลดสูญเสียในสายไม่เท่ากัน</div>
+  <div class="tbl-wrap"><table id="t_caploc"></table></div>
+  <div class="note">ค่าปรับ PF วัดที่จุดซื้อขายไฟ ดังนั้นติดที่ตู้เมน (MDB) ก็พ้นค่าปรับแล้ว
+    แต่กระแสรีแอกทีฟยังวิ่งอยู่ในสายช่วงระหว่างตู้เมนกับโหลด ถ้าโหลดตัวใหญ่อยู่ไกลและเดินตลอด
+    การติดที่ตัวโหลด (หรือที่ตู้ย่อย) จะได้ทั้งค่าปรับและพลังงานที่ลดลงจริง</div>
+</div>
+</section>
+
+<!-- ═══════════ TAB 4 : FIELD POWER MEASUREMENT ═══════════ -->
+<section class="panel" id="p7">
+<div class="card">
+  <h2>วัดกำลังไฟฟ้า 3 เฟส เมื่อมีแค่เครื่องวัด 1 เฟส</h2>
+  <div class="sub">โจทย์คลาสสิกของงานตรวจวัด — มีแคลมป์มิเตอร์วัดกระแสได้ทีละเส้น วัดแรงดันได้ทีละคู่
+    แต่ไม่มีเพาเวอร์มิเตอร์ 3 เฟสที่บอก kW และ PF ตรง ๆ · คำตอบมี 4 วิธี เลือกตามเครื่องมือที่มีในมือ</div>
+  <div class="tbl-wrap"><table id="t_method"></table></div>
+  <div class="note good"><b>ถ้าเลือกได้วิธีเดียว ให้เริ่มที่วิธี M0 (นับพัลส์มิเตอร์การไฟฟ้า)</b> —
+    ได้ kW จริงของทั้ง 3 เฟสรวม PF มาแล้วในตัว แม่นระดับ ±1% เพราะมิเตอร์การไฟฟ้าเป็นเครื่องมือที่ผ่านการสอบเทียบตามกฎหมาย
+    และที่สำคัญคือ<b>ไม่ต้องเปิดตู้หรือแตะแรงดันเลย</b> · แล้วค่อยใช้แคลมป์วัดกระแสรายเฟสเพื่อดูการกระจายโหลด
+    การรวมสองอย่างนี้เข้าด้วยกันให้ทั้ง kW ที่เชื่อถือได้และ PF ที่คำนวณย้อนกลับมาได้ โดยแทบไม่มีความเสี่ยง</div>
+</div>
+
+<div class="card">
+  <h2>ผังจุดวัด — วิธี M1 · แคลมป์วัดกระแสอย่างเดียว</h2>
+  <div class="sub">ได้ kVA แม่นยำ แต่ kW ต้องคูณด้วย PF ที่<b>สมมติ</b> — ใช้ประเมินโหลดและความไม่สมดุลได้ แต่อย่าใช้ตัวเลข kW นี้คิดผลประหยัด</div>
+  <div class="svgbox" id="svg_m1"></div>
+  <div class="note"><b>ลำดับการวัด:</b> คล้องแคลมป์รอบสายเฟสทีละเส้น (L1 → L2 → L3) จดกระแส ·
+    แล้ววัดแรงดันคร่อมทีละคู่ (L1–L2, L2–L3, L3–L1) · ถ้าเข้าถึงนิวทรัลได้ ให้คล้องสายนิวทรัลด้วย
+    จะได้ข้อมูลไปใช้ในแท็บ 5 ทันที · <b>ห้ามคล้องสายมากกว่าหนึ่งเส้นพร้อมกัน</b> เพราะแคลมป์จะอ่านผลรวมเวกเตอร์
+    (คล้องสามเฟสพร้อมกันจะได้เกือบศูนย์ ซึ่งไม่ใช่ค่าที่ต้องการ — แต่ใช้เป็นวิธีตรวจกระแสรั่วลงดินได้)</div>
+</div>
+
+<div class="card">
+  <h2>ผังจุดวัด — วิธี M2 · Three-Wattmeter (ระบบ 4 สาย มีนิวทรัล)</h2>
+  <div class="sub">ใช้เครื่องวัดกำลัง 1 เฟส 1 ตัว ย้ายจุดวัดทีละเฟส — ได้ kW จริง <b>ถูกต้องแม้โหลดไม่สมดุล</b></div>
+  <div class="svgbox" id="svg_m2"></div>
+  <div class="note"><b>คู่ที่ต้องวัด 3 ครั้ง:</b> (คล้อง I<sub>L1</sub> + โพรบแรงดันระหว่าง L1 กับ N) → (คล้อง I<sub>L2</sub> + โพรบ L2 กับ N) →
+    (คล้อง I<sub>L3</sub> + โพรบ L3 กับ N) แล้ว <b>P<sub>รวม</sub> = P₁ + P₂ + P₃</b>
+    <br><b>เงื่อนไขที่ทำให้ผลเชื่อถือได้:</b> โหลดต้องนิ่งตลอดสามครั้งที่วัด เพราะไม่ได้วัดพร้อมกัน —
+    วิธีตรวจคือกลับไปวัด L1 ซ้ำอีกครั้งตอนจบ ถ้าค่าต่างจากครั้งแรกเกิน 3% แปลว่าโหลดแกว่งระหว่างวัด ต้องวัดใหม่ทั้งชุด
+    หรือหาเวลาที่กระบวนการผลิตนิ่งกว่านี้</div>
+</div>
+
+<div class="card">
+  <h2>ผังจุดวัด — วิธี M3 · Two-Wattmeter (ARON) สำหรับระบบ 3 สาย ไม่มีนิวทรัล</h2>
+  <div class="sub">ใช้กับมอเตอร์ 3 เฟส ฝั่งเดลตา หรือวงจรที่ไม่มีสายนิวทรัล — วัดแค่ 2 ครั้งก็ได้ kW ทั้งระบบ</div>
+  <div class="svgbox" id="svg_m3"></div>
+  <div class="note"><b>คู่ที่ต้องวัด 2 ครั้ง:</b> เลือกสายหนึ่งเป็น "สายอ้างอิง" (ในผังนี้คือ L3 — จะเลือกเส้นไหนก็ได้แต่ต้องคงที่)
+    → (คล้อง I<sub>L1</sub> + โพรบแรงดันระหว่าง L1 กับ L3) = W₁ → (คล้อง I<sub>L2</sub> + โพรบ L2 กับ L3) = W₂
+    แล้ว <b>P<sub>รวม</sub> = W₁ + W₂ (บวกกันเชิงพีชคณิต)</b>
+    <br><b>จุดที่คนพลาดบ่อยที่สุด:</b> เมื่อ PF ต่ำกว่า 0.5 ค่าหนึ่งจะ<b>ติดลบ</b> ต้องเอาไปลบ ไม่ใช่บวก ·
+    แคลมป์บางรุ่นอ่านค่าลบไม่ได้ จะแสดงเป็นค่าบวกเฉย ๆ ทำให้ผลรวมสูงเกินจริงเป็นเท่าตัว —
+    ให้สังเกตลูกศรทิศทางบนหัวแคลมป์ ต้องหันทางเดียวกันทั้งสองครั้ง และถ้าสงสัยให้กลับหัวแคลมป์ดูว่าค่าเปลี่ยนไหม</div>
+</div>
+
+<div class="card">
+  <h2>คำนวณ — กรอกค่าที่วัดได้</h2>
+  <div class="sub">กรอกเฉพาะวิธีที่ใช้จริง เครื่องมือจะคำนวณให้ทุกวิธีที่มีข้อมูลครบ แล้วเทียบผลกันให้ดูท้ายการ์ด</div>
+
+  <h3>M0 · นับพัลส์หรือรอบจานของมิเตอร์การไฟฟ้า</h3>
+  <div class="grid4">
+    <div class="fld"><label class="f">ค่าคงที่มิเตอร์ <span class="unit">imp หรือ rev ต่อ kWh</span></label>
+      <input type="number" id="m0_k" value="1000" onchange="calcField()">
+      <div class="hint">พิมพ์อยู่บนหน้าปัดมิเตอร์ เช่น "1000 imp/kWh" หรือมิเตอร์จานหมุนเขียน "Kh" หรือ "รอบ/kWh"</div></div>
+    <div class="fld"><label class="f">ตัวคูณมิเตอร์ <span class="unit">CT × VT ratio</span></label>
+      <input type="number" id="m0_m" value="1200" onchange="calcField()">
+      <div class="hint"><b>ห้ามลืมช่องนี้</b> · ผู้ใช้ไฟรายใหญ่ที่วัดฝั่งแรงสูงจะมี CT/VT คั่นอยู่ ตัวคูณอาจเป็น 40, 200, 1200
+        ดูจากหน้าปัดมิเตอร์หรือบิล (บิลบางใบพิมพ์ "ตัวคูณ" ไว้) · ถ้าวัดฝั่งแรงต่ำโดยตรงใส่ 1</div></div>
+    <div class="fld"><label class="f">จำนวนพัลส์/รอบที่นับได้</label>
+      <input type="number" id="m0_n" value="20" onchange="calcField()">
+      <div class="hint">นับให้ได้อย่างน้อย 20 ครั้ง หรือจับเวลาอย่างน้อย 60 วินาที เพื่อลดความคลาดเคลื่อนจากการกดนาฬิกา</div></div>
+    <div class="fld"><label class="f">เวลาที่ใช้ <span class="unit">วินาที</span></label>
+      <input type="number" id="m0_t" value="161" onchange="calcField()">
+      <div class="hint">เริ่มจับเวลาที่พัลส์แรก หยุดที่พัลส์สุดท้าย — ถ้านับ 20 พัลส์ ช่วงเวลาคือ 19 ช่วง ไม่ใช่ 20 (เครื่องมือคิดให้แล้ว)</div></div>
+  </div>
+  <div id="o_m0" class="note">—</div>
+
+  <h3>M1 · แคลมป์วัดกระแส + โวลต์มิเตอร์</h3>
+  <div class="grid4">
+    <div class="fld"><label class="f">I<sub>L1</sub> <span class="unit">A</span></label><input type="number" id="m1_i1" value="951" onchange="calcField()"></div>
+    <div class="fld"><label class="f">I<sub>L2</sub> <span class="unit">A</span></label><input type="number" id="m1_i2" value="788" onchange="calcField()"></div>
+    <div class="fld"><label class="f">I<sub>L3</sub> <span class="unit">A</span></label><input type="number" id="m1_i3" value="763" onchange="calcField()"></div>
+    <div class="fld"><label class="f">I<sub>N</sub> (ถ้าวัดได้) <span class="unit">A</span></label><input type="number" id="m1_in" value="206" onchange="calcField()">
+      <div class="hint">ไม่จำเป็นต่อการคำนวณกำลัง แต่มีค่ามากในการวินิจฉัย — ดูแท็บ 5</div></div>
+  </div>
+  <div class="grid4">
+    <div class="fld"><label class="f">V<sub>L1-L2</sub> <span class="unit">V</span></label><input type="number" id="m1_v12" value="400" onchange="calcField()"></div>
+    <div class="fld"><label class="f">V<sub>L2-L3</sub> <span class="unit">V</span></label><input type="number" id="m1_v23" value="399" onchange="calcField()"></div>
+    <div class="fld"><label class="f">V<sub>L3-L1</sub> <span class="unit">V</span></label><input type="number" id="m1_v31" value="401" onchange="calcField()"></div>
+    <div class="fld"><label class="f">PF ที่สมมติ</label><input type="number" id="m1_pf" value="0.86" step="0.01" onchange="calcField()">
+      <div class="hint">ตรงนี้คือจุดอ่อนของวิธีนี้ · ถ้ามีผล M0 อยู่แล้ว เครื่องมือจะคำนวณ PF จริงย้อนกลับให้ ให้เอาค่านั้นมาใส่แทน</div></div>
+  </div>
+  <div id="o_m1" class="note">—</div>
+
+  <h3>M2 · Three-Wattmeter (ระบบ 4 สาย) — วัดทีละเฟส</h3>
+  <div class="tbl-wrap"><table id="t_m2"></table></div>
+  <div id="o_m2" class="note">—</div>
+
+  <h3>M3 · Two-Wattmeter (ARON, ระบบ 3 สาย)</h3>
+  <div class="grid4">
+    <div class="fld"><label class="f">W₁ (I<sub>L1</sub> × V<sub>L1-L3</sub>) <span class="unit">kW</span></label>
+      <input type="number" id="m3_w1" value="0" step="0.1" onchange="calcField()">
+      <div class="hint">ใส่เครื่องหมายลบด้วยถ้าเครื่องอ่านค่าติดลบ หรือถ้าต้องกลับหัวแคลมป์จึงจะอ่านค่าได้</div></div>
+    <div class="fld"><label class="f">W₂ (I<sub>L2</sub> × V<sub>L2-L3</sub>) <span class="unit">kW</span></label>
+      <input type="number" id="m3_w2" value="0" step="0.1" onchange="calcField()"></div>
+    <div class="fld"><label class="f">โหลดสมดุลหรือไม่</label>
+      <select id="m3_bal" onchange="calcField()"><option value="1" selected>สมดุล (มอเตอร์ 3 เฟสตัวเดียว)</option><option value="0">ไม่สมดุล</option></select>
+      <div class="hint">สูตรหา PF จาก W₁ W₂ ใช้ได้เฉพาะโหลดสมดุล · ส่วนค่า kW รวมถูกต้องทั้งสองกรณี</div></div>
+    <div class="fld"><label class="f">&nbsp;</label>
+      <button class="btn sm" onclick="pushToTab5()"><i class="fa-solid fa-right-to-bracket"></i> ส่ง kW ที่ได้ไปแท็บ 5</button>
+      <div class="hint">ใช้ค่าที่ดีที่สุดที่คำนวณได้ ไปตั้งเป็น "โหลด 3 เฟสรวม" ในแท็บวิเคราะห์ความไม่สมดุล</div></div>
+  </div>
+  <div id="o_m3" class="note">—</div>
+  <div id="o_push"></div>
+</div>
+
+
+<div class="card">
+  <h2>คำนวณ kW รายจุด — มอเตอร์</h2>
+  <div class="sub">วัดที่ตัวมอเตอร์หรือที่สตาร์ตเตอร์ · ถ้าวัด PF ได้ให้ใส่ PF (แม่นที่สุด) ·
+    <b>ถ้าวัด PF ไม่ได้ ปล่อยช่อง PF ว่างไว้</b> เครื่องมือจะประมาณจาก % โหลดโดยใช้กระแสเทียบพิกัดแทน</div>
+  <div class="tbl-wrap"><table id="t_mot"></table></div>
+  <div class="rowbtn">
+    <button class="btn sm" onclick="addMot()"><i class="fa-solid fa-plus"></i> เพิ่มมอเตอร์</button>
+  </div>
+  <div class="hint" style="display:block"><b>ค่าที่ต้องเตรียมจากป้าย nameplate มอเตอร์:</b> kW (หรือ HP × 0.746) ·
+    กระแสพิกัด FLA (A) · แรงดันพิกัด · ประสิทธิภาพที่พิกัด (ถ้าไม่มีบนป้าย ใช้ 92–95% สำหรับ IE3 ขนาด &gt;30 kW,
+    88–92% สำหรับ IE2 ขนาด 5–30 kW, 82–88% สำหรับมอเตอร์เก่าหรือขนาดเล็ก)
+    <br><b>ค่าที่ต้องวัดหน้างาน:</b> กระแสจริงขณะเดินงานปกติ (คล้องทีละเฟสแล้วเฉลี่ย) · แรงดันจริงที่ขั้วมอเตอร์
+    · PF ถ้าเครื่องวัดทำได้ · รอบต่อนาทีถ้ามีเครื่องวัดรอบ (ทำให้ประมาณโหลดแม่นกว่าใช้กระแสมาก)</div>
+  <div id="o_mot" class="note">—</div>
+</div>
+
+<div class="card">
+  <h2>คำนวณ kW รายจุด — ตู้ไฟฟ้ารวมประจำแผนก</h2>
+  <div class="sub">ตู้ MCC หรือตู้ย่อยที่จ่ายทั้งโหลด 3 เฟสและ 1 เฟสปนกัน · คำนวณแยกรายเฟสจึงถูกต้องแม้โหลดไม่สมดุล
+    และบอกได้ว่า<b>ตู้ไหนคือต้นเหตุของความไม่สมดุล</b></div>
+  <div class="tbl-wrap"><table id="t_pnl"></table></div>
+  <div class="rowbtn">
+    <button class="btn sm" onclick="addPnl()"><i class="fa-solid fa-plus"></i> เพิ่มตู้ไฟฟ้า</button>
+  </div>
+  <div class="hint" style="display:block"><b>ระบบ 4 สาย</b> (มีนิวทรัล จ่ายโหลด 1 เฟสได้) → กรอกแรงดันเฟส–นิวทรัล (ปกติ 230 V)
+    เครื่องมือคำนวณ P = Σ V<sub>LN</sub> × I<sub>k</sub> × PF ทีละเฟสแล้วรวม — ถูกต้องแม้กระแสสามเฟสไม่เท่ากัน
+    <br><b>ระบบ 3 สาย</b> (ไม่มีนิวทรัล จ่ายเฉพาะโหลด 3 เฟส) → กรอกแรงดันเฟส–เฟส (ปกติ 400 V)
+    เครื่องมือใช้ P = √3 × V<sub>LL</sub> × I<sub>เฉลี่ย</sub> × PF
+    <br><b>PF ของตู้:</b> ถ้าวัดไม่ได้ ให้ประมาณจากชนิดโหลดที่ตู้นั้นจ่ายเป็นหลัก — ตู้ MCC มอเตอร์ 0.80–0.88 ·
+    ตู้แสงสว่าง+ปลั๊ก 0.90–0.95 · ตู้ฮีตเตอร์ 0.98–1.00 · ตู้ผสม 0.85–0.90 (ดูตาราง PF ตามชนิดอุปกรณ์ในแท็บ 5)</div>
+  <div id="o_pnl" class="note">—</div>
+</div>
+
+<div class="card">
+  <h2>รวมทุกจุดวัด และกระทบยอดกับมิเตอร์รวม</h2>
+  <div class="sub">การตรวจสอบที่ผู้ตรวจประเมินต้องทำเสมอ — ผลรวมของจุดวัดย่อยต้องใกล้เคียงกับกำลังที่วัดได้ที่จุดรวม
+    ส่วนต่างที่เหลือคือโหลดที่ยังไม่ได้สำรวจ</div>
+  <div class="tbl-wrap"><table id="t_recon"></table></div>
+  <div id="o_recon"></div>
+  <div class="rowbtn">
+    <button class="btn sm" onclick="pushPointsToTab5()"><i class="fa-solid fa-right-to-bracket"></i> ส่งรายการมอเตอร์และตู้ไปแท็บ 5</button>
+  </div>
+  <div id="o_push2"></div>
+</div>
+
+<div class="card">
+  <h2>เทียบผลทุกวิธี และตรวจสอบความสมเหตุสมผล</h2>
+  <div class="sub">ถ้าสองวิธีให้ผลต่างกันเกิน 10% แปลว่ามีอะไรผิด อย่าเพิ่งเลือกค่าที่ถูกใจ</div>
+  <div class="tbl-wrap"><table id="t_cross"></table></div>
+  <div id="o_cross"></div>
+</div>
+
+<div class="card">
+  <h2>ขั้นตอนหน้างานและความปลอดภัย</h2>
+  <div class="grid2">
+    <div>
+      <h3>ลำดับที่ควรทำ</h3>
+      <div class="tbl-wrap"><table id="t_steps"></table></div>
+    </div>
+    <div>
+      <h3>ข้อผิดพลาดที่พบบ่อย</h3>
+      <div class="tbl-wrap"><table id="t_mistake"></table></div>
+    </div>
+  </div>
+  <div class="note bad"><b>ความปลอดภัย — อ่านก่อนลงมือ</b><br>
+    การใช้โพรบแตะจุดที่มีแรงดันในตู้ MDB เป็นงานที่มีความเสี่ยงอาร์กแฟลช ไม่ใช่งานที่ใครก็ทำได้
+    ผู้ปฏิบัติต้องเป็นผู้มีคุณสมบัติ สวมอุปกรณ์ป้องกันที่เหมาะกับระดับพลังงานอาร์กของตู้นั้น
+    และใช้เครื่องวัดกับสายวัดที่มีพิกัด CAT III 600 V เป็นอย่างน้อย (CAT IV สำหรับจุดต้นทาง)
+    <br>วิธี M0 และ M1 ที่ไม่ต้องแตะแรงดันจึงเป็นทางเลือกแรกเสมอ — ถ้าจำเป็นต้องวัดกำลังจริงและเข้าถึงจุดวัดปลอดภัยไม่ได้
+    ให้ขอ load profile จากการไฟฟ้า หรือให้ผู้รับเหมาที่มีเครื่องวัดแบบติดตั้งค้างไว้ (power logger) เป็นคนทำแทน
+    ปลอดภัยกว่าและได้ข้อมูลดีกว่าการวัดครั้งเดียวมาก</div>
+</div>
+
+<div class="card">
+  <h2>ทฤษฎีบท Blondel — ทำไมต้องวัดกี่ครั้ง</h2>
+  <div class="note"><b>Blondel's theorem (1893):</b> ระบบไฟฟ้าที่มีตัวนำ n เส้น ต้องใช้เครื่องวัดกำลัง (wattmeter)
+    อย่างน้อย <b>n − 1</b> ตัวจึงจะวัดกำลังรวมได้ถูกต้องในทุกสภาพโหลด ไม่ว่าจะสมดุลหรือไม่
+    <br>· ระบบ 3 เฟส 4 สาย (L1 L2 L3 N) → n = 4 → ต้องวัด <b>3 ครั้ง</b> (วิธี M2)
+    <br>· ระบบ 3 เฟส 3 สาย (ไม่มีนิวทรัล) → n = 3 → ต้องวัด <b>2 ครั้ง</b> (วิธี M3)
+    <br>นี่คือเหตุผลที่วิธี ARON วัดแค่ 2 ครั้งแล้วถูกต้อง ไม่ใช่การประมาณ — เพราะกระแสในสายที่สามถูกบังคับด้วย
+    I<sub>L1</sub> + I<sub>L2</sub> + I<sub>L3</sub> = 0 อยู่แล้วเมื่อไม่มีทางกลับที่สี่ · และเป็นเหตุผลที่ใช้ ARON
+    กับระบบ 4 สายที่มีกระแสไหลในนิวทรัล<b>ไม่ได้</b> เพราะเงื่อนไขนั้นไม่จริงอีกต่อไป</div>
+  <div id="o_fieldrefs"></div>
+</div>
+</section>
+
+<!-- ═══════════ TAB 4 : UNBALANCE ═══════════ -->
+<section class="panel" id="p4">
+<div class="card">
+  <h2>ระบบไฟฟ้าและการวางโหลด</h2>
+  <div class="sub">โรงงานส่วนใหญ่รับไฟ 3 เฟส 4 สาย แต่เครื่องจักรมีทั้งแบบ 3 เฟส และแบบ 1 เฟสที่ต่อระหว่างเฟสกับนิวทรัล — ตรงนี้คือต้นเหตุของความไม่สมดุล</div>
+  <div class="grid4">
+    <div class="fld"><label class="f">แรงดันระบบ <span class="unit">V (line-line)</span></label>
+      <input type="number" id="u_v" value="400" onchange="calc()">
+      <div class="hint">ระบบไทย 400/230 V (เดิมเรียก 380/220 V) · แรงดันเฟส-นิวทรัล = 400/√3 = 231 V</div></div>
+    <div class="fld"><label class="f">ขนาดหม้อแปลง <span class="unit">kVA</span></label>
+      <input type="number" id="u_kva" value="1000" onchange="calc()">
+      <div class="hint">พิกัดของหม้อแปลง<b>ลูกที่จ่ายบัสนี้</b> (ถ้าขนานกันหลายลูก ใส่พิกัดต่อลูกแล้วไประบุจำนวนลูกในแท็บ 6) ·
+        ดูจาก nameplate หรือกดเลือกจากตารางค่าอ้างอิงด้านล่าง</div></div>
+    <div class="fld"><label class="f">โหลด 3 เฟสรวม <span class="unit">kW</span></label>
+      <input type="number" id="u_p3" value="420" onchange="calc()">
+      <div class="hint">มอเตอร์ 3 เฟส เครื่องอัดอากาศ ชิลเลอร์ ปั๊ม — โหลดกลุ่มนี้ดึงกระแสเท่ากันทั้งสามเฟสโดยธรรมชาติ</div></div>
+    <div class="fld"><label class="f">PF ของโหลด 3 เฟส</label>
+      <input type="number" id="u_pf3" value="0.86" step="0.01" onchange="calc()">
+      <div class="hint">ถ้าไม่ได้วัดแยก ใช้ PF รวมของโรงงานจากแท็บ 1 ไปก่อน · โรงงานที่มอเตอร์เป็นหลักและยังไม่ได้แก้ PF มักอยู่ 0.80–0.88 ·
+        ถ้าติดคาปาซิเตอร์แล้วจะอยู่ 0.92–0.98 (เกณฑ์ที่การไฟฟ้าไม่ปรับคือ 0.85) · ดูค่าตามชนิดอุปกรณ์ในตารางอ้างอิงด้านล่าง</div></div>
+  </div>
+  <h3>โหลด 1 เฟส (ต่อระหว่างเฟสกับนิวทรัล)</h3>
+  <div class="tbl-wrap"><table id="t_1ph"></table></div>
+  <div class="rowbtn">
+    <button class="btn sm" onclick="add1ph()"><i class="fa-solid fa-plus"></i> เพิ่มโหลด 1 เฟส</button>
+    <button class="btn ghost sm" onclick="rebalance()"><i class="fa-solid fa-scale-balanced"></i> จัดเฟสใหม่อัตโนมัติ</button>
+  </div>
+  <div class="hint" style="display:block"><b>วิธีกรอกตารางนี้:</b> ไม่ต้องแจกแจงทีละเครื่อง ให้รวมเป็นกลุ่มตามตู้ย่อยหรือตามชนิดโหลดก็พอ
+    · ช่อง kW ใส่กำลังไฟฟ้าที่<b>ใช้จริงตอนเดินเครื่อง</b> ไม่ใช่พิกัดบนป้ายเครื่อง (พิกัดมักสูงกว่าจริง 20–40%)
+    · ช่อง "ต่อที่เฟส" ต้องดูจาก panel schedule หรือไล่เบรกเกอร์จริง เพราะนี่คือตัวแปรเดียวที่ทำให้เกิดความไม่สมดุล
+    · โหลด 1 เฟสที่พบบ่อย: แสงสว่าง · ปลั๊กสำนักงาน · แอร์แยกส่วน · เครื่องเชื่อม · ฮีตเตอร์แถบ (band heater) · ปั๊มเล็ก ·
+    UPS/ชาร์จเจอร์ · เครื่องบรรจุ/ซีล — ทีละตัวเล็กน้อยแต่รวมกันแล้วเทไปกองที่เฟสเดียวได้ง่ายมาก</div>
+  <details class="ox"><summary>ค่า PF ทั่วไปตามชนิดอุปกรณ์ — ใช้เมื่อยังไม่ได้วัด</summary>
+    <div class="tbl-wrap"><table id="t_pfref"></table></div>
+    <div class="note">PF ของโหลด 1 เฟสมีผลต่อ<b>มุม</b>ของกระแส ซึ่งเปลี่ยนกระแสนิวทรัลที่ได้ ไม่ใช่แค่ขนาด
+      — โหลดความต้านทานล้วน (ฮีตเตอร์ PF 1.00) กับโหลดมอเตอร์ (PF 0.85) ที่ kW เท่ากัน จะให้กระแสนิวทรัลต่างกัน
+      ถ้าจะใช้ผลไปเขียนรายงาน ควรวัด PF จริงของแต่ละกลุ่มโหลด</div>
+  </details>
+  <div class="grid4" style="margin-top:14px">
+    <div class="fld"><label class="f">ความต้านทานสายเฟส <span class="unit">Ω/เฟส</span></label>
+      <input type="number" id="u_R" value="0.00188" step="0.00001" onchange="calc()">
+      <div class="hint">= ρ·L/A · ตัวอย่าง ทองแดง 2×240 mm²/เฟส ยาว 50 m: 0.0225×50/(2×240) ≈ 0.0023 Ω (ปรับตามอุณหภูมิใช้งาน)</div></div>
+    <div class="fld"><label class="f">ความต้านทานสายนิวทรัล <span class="unit">Ω</span></label>
+      <input type="number" id="u_RN" value="0.00376" step="0.00001" onchange="calc()">
+      <div class="hint">นิวทรัลมักเดินขนาดครึ่งหนึ่งของเฟส → R เป็นสองเท่า · ถ้าเดินเต็มขนาดให้ใส่เท่ากับเฟส</div></div>
+    <div class="fld"><label class="f">Impedance หม้อแปลง <span class="unit">%Z</span></label>
+      <input type="number" id="u_z" value="5" step="0.1" onchange="calc()">
+      <div class="hint">อยู่บน nameplate เขียนว่า "Impedance voltage" หรือ "Uk%" · หม้อแปลงจำหน่ายไทยทั่วไป ≤630 kVA ใช้ 4% ·
+        800–1,600 kVA ใช้ 5% · ≥2,000 kVA ใช้ 6% · ค่านี้ยิ่งต่ำ ระบบยิ่งแข็ง แรงดันไม่สมดุลยิ่งน้อยแม้กระแสไม่สมดุลมาก</div></div>
+    <div class="fld"><label class="f">สูญเสียขณะมีโหลดพิกัด P<sub>k</sub> <span class="unit">W</span></label>
+      <input type="number" id="u_pk" value="10500" onchange="calc()">
+      <div class="hint">Load loss / copper loss ที่พิกัด — ดูจาก nameplate หรือ test report ของหม้อแปลง</div></div>
+  </div>
+
+  <details class="ox"><summary>ตัวช่วย 1 — คำนวณความต้านทานสายจากขนาดสายและความยาว</summary>
+    <div class="grid4">
+      <div class="fld"><label class="f">วัสดุตัวนำ</label>
+        <select id="cw_mat"><option value="cu" selected>ทองแดง (Cu)</option><option value="al">อะลูมิเนียม (Al)</option></select></div>
+      <div class="fld"><label class="f">พื้นที่หน้าตัดต่อเส้น <span class="unit">mm²</span></label>
+        <input type="number" id="cw_a" value="240">
+        <div class="hint">ขนาดมาตรฐาน 35 · 50 · 70 · 95 · 120 · 150 · 185 · 240 · 300 · 400 mm²</div></div>
+      <div class="fld"><label class="f">จำนวนเส้นขนานต่อเฟส</label>
+        <input type="number" id="cw_n" value="2">
+        <div class="hint">เดิน 2 เส้น/เฟส ความต้านทานเหลือครึ่งเดียว</div></div>
+      <div class="fld"><label class="f">ความยาวเส้นทาง <span class="unit">m</span></label>
+        <input type="number" id="cw_l" value="50">
+        <div class="hint">ระยะจากหม้อแปลงถึงตู้เมน (ทางเดียว ไม่ต้องคูณสอง เพราะระบบ 3 เฟสไม่มีสายกลับ)</div></div>
+    </div>
+    <div class="grid4">
+      <div class="fld"><label class="f">อุณหภูมิใช้งานของตัวนำ <span class="unit">°C</span></label>
+        <input type="number" id="cw_t" value="70">
+        <div class="hint">ฉนวน PVC ใช้ 70 °C · XLPE ใช้ 90 °C · ถ้าโหลดไม่เต็มพิกัดอาจใช้ 50–60 °C — ค่านี้มีผลราว 15–20% ต่อ R</div></div>
+      <div class="fld"><label class="f">สายนิวทรัลเป็นกี่เท่าของเฟส</label>
+        <select id="cw_nr"><option value="1">เต็มขนาด (R เท่ากับเฟส)</option><option value="2" selected>ครึ่งขนาด (R เป็น 2 เท่า)</option></select>
+        <div class="hint">มาตรฐานเก่านิยมเดินนิวทรัลครึ่งขนาด · ถ้าโรงงานมีโหลด 1 เฟสมากหรือมีฮาร์มอนิก ควรเดินเต็มขนาดหรือใหญ่กว่า</div></div>
+      <div class="fld"><label class="f">&nbsp;</label>
+        <button class="btn sm" onclick="calcR()"><i class="fa-solid fa-right-to-bracket"></i> คำนวณแล้วใส่ในช่องด้านบน</button></div>
+      <div class="fld"><label class="f">&nbsp;</label><div id="cw_out" class="note" style="margin-top:0">—</div></div>
+    </div>
+    <div class="note">R = ρ₂₀ × [1 + α(T − 20)] × L / (A × n) · ρ₂₀ ทองแดง 0.01754 Ω·mm²/m (α 0.00393/°C) ·
+      อะลูมิเนียม 0.02826 Ω·mm²/m (α 0.00403/°C) — เป็นค่าความต้านทานกระแสตรง ยังไม่รวม skin/proximity effect ซึ่งที่ 50 Hz
+      และขนาดสายระดับนี้เพิ่มขึ้นราว 2–5%</div>
+  </details>
+
+  <details class="ox"><summary>ตัวช่วย 2 — ค่าอ้างอิงหม้อแปลงจำหน่าย (กดที่แถวเพื่อใส่ค่า)</summary>
+    <div class="tbl-wrap"><table id="t_txref"></table></div>
+    <div class="note warn"><b>เป็นค่าประมาณเพื่อให้เริ่มงานได้เท่านั้น</b> — สูญเสียของหม้อแปลงจริงต่างกันได้ ±20% ตามผู้ผลิต ปีที่ผลิต
+      และระดับประสิทธิภาพที่สั่ง (หม้อแปลงประสิทธิภาพสูงมี P₀ ต่ำกว่านี้มาก) · ก่อนใส่ตัวเลขในรายงานต้องแทนที่ด้วยค่าจาก
+      nameplate หรือ test report เสมอ และให้ระบุที่มาไว้ในรายงานด้วย</div>
+  </details>
+</div>
+
+<div class="card">
+  <h2>ภาพที่ 1 — ระบบเป็นแบบนี้</h2>
+  <div class="sub">Single-line diagram: หม้อแปลง Dyn11 → บัสบาร์ 4 เส้น → โหลด 3 เฟสคร่อมทั้งสามเฟส และโหลด 1 เฟสห้อยจากเฟสใดเฟสหนึ่งลงนิวทรัล</div>
+  <div class="svgbox" id="svg_sld"></div>
+  <div class="legend">
+    <span><i style="background:var(--L1)"></i>L1</span><span><i style="background:var(--L2)"></i>L2</span>
+    <span><i style="background:var(--L3)"></i>L3</span><span><i style="background:var(--NN)"></i>Neutral</span>
+  </div>
+  <div class="note" id="o_sldnote"></div>
+</div>
+
+<div class="card">
+  <h2>ภาพที่ 2 — ทำไมกระแสไม่หักล้างกันที่นิวทรัล</h2>
+  <div class="sub">ถ้าโหลดสมดุล กระแสสามเฟสห่างกัน 120° ขนาดเท่ากัน บวกกันแล้วได้ศูนย์ — นิวทรัลไม่มีกระแส ทันทีที่ขนาดไม่เท่ากัน ผลรวมไม่เป็นศูนย์อีกต่อไป และส่วนต่างนั้นวิ่งกลับทางนิวทรัล</div>
+  <div class="grid2">
+    <div><div class="svgbox sq" id="svg_phasor"></div>
+      <div class="legend"><span><i style="background:var(--L1)"></i>I<sub>L1</sub></span><span><i style="background:var(--L2)"></i>I<sub>L2</sub></span>
+      <span><i style="background:var(--L3)"></i>I<sub>L3</sub></span><span><i style="background:#8e1b2e"></i>I<sub>N</sub> = ผลรวม</span></div></div>
+    <div><div class="svgbox sq" id="svg_bars"></div>
+      <div class="legend"><span>เส้นประ = กระแสเฉลี่ย</span><span>แถบเทา = กระแสถ้าโหลดสมดุล (I₁)</span></div></div>
+  </div>
+  <div class="tbl-wrap" style="margin-top:12px"><table id="t_phase"></table></div>
+</div>
+
+<div class="card">
+  <h2>ภาพที่ 3 — แยกกระแสไม่สมดุลออกเป็น 3 ชุด (Symmetrical Components)</h2>
+  <div class="sub">วิธีของ Fortescue: กระแสไม่สมดุลชุดใดก็ตาม เขียนใหม่เป็นผลบวกของกระแสสมดุล 3 ชุดได้เสมอ — ชุดลำดับบวก (ทำงานจริง) ชุดลำดับลบ (ทำให้มอเตอร์ร้อน) และชุดลำดับศูนย์ (วิ่งลงนิวทรัล)</div>
+  <div class="svgbox" id="svg_seq"></div>
+  <div class="grid3" style="margin-top:12px">
+    <div class="stat"><div class="lab">I₁ ลำดับบวก</div><div class="big mono" id="o_i1">—</div><div class="bigu">A — ตัวที่ผลิตแรงบิดจริง</div></div>
+    <div class="stat"><div class="lab">I₂ ลำดับลบ</div><div class="big mono" id="o_i2">—</div><div class="bigu">A — หมุนสวนทาง ทำให้ร้อน</div></div>
+    <div class="stat"><div class="lab">I₀ ลำดับศูนย์</div><div class="big mono" id="o_i0">—</div><div class="bigu">A — 3I₀ คือกระแสนิวทรัล</div></div>
+  </div>
+  <div class="note"><b>ตรวจทานได้เอง</b> — 3I₀ ต้องเท่ากับกระแสนิวทรัลที่คำนวณจากผลรวมเวกเตอร์พอดี
+    และ ΣI²<sub>เฟส</sub> = 3(I₀² + I₁² + I₂²) ซึ่งเป็นที่มาของสูตรสูญเสียเพิ่มด้านล่าง</div>
+  <div class="tbl-wrap" style="margin-top:10px"><table id="t_seq"></table></div>
+</div>
+
+<div class="card">
+  <h2>แล้วมันแพงตรงไหน — คำตอบไม่ใช่ค่าไฟหน่วยที่หายไป</h2>
+  <div class="sub">เทียบสองสถานการณ์ที่โหลดรวมเท่ากันทุกประการ ต่างกันแค่การกระจายลงเฟส</div>
+  <div class="tbl-wrap"><table id="t_unbcost"></table></div>
+  <div id="o_unbverdict"></div>
+</div>
+</section>
+
+<!-- ═══════════ TAB 5 : TRANSFORMER ═══════════ -->
+<section class="panel" id="p5">
+<div class="card">
+  <h2>การรับภาระของหม้อแปลง</h2>
+  <div class="sub">หม้อแปลงถูกจำกัดด้วย<b>เฟสที่ร้อนที่สุด</b> ไม่ใช่ค่าเฉลี่ย — ความไม่สมดุลจึงกินพิกัดโดยที่ตัวเลข kVA รวมยังดูสวยอยู่</div>
+  <div class="grid4">
+    <div class="fld"><label class="f">สูญเสียขณะไม่มีโหลด P₀ <span class="unit">W</span></label>
+      <input type="number" id="tx_p0" value="1400" onchange="calc()">
+      <div class="hint">Core / no-load loss — เกิดตลอด 8,760 ชม./ปี ตราบใดที่หม้อแปลงยังจ่ายไฟอยู่ ไม่ว่าจะมีโหลดหรือไม่</div></div>
+    <div class="fld"><label class="f">จำนวนหม้อแปลงขนานกัน <span class="unit">ลูก</span></label>
+      <input type="number" id="tx_n" value="1" onchange="calc()">
+      <div class="hint">หม้อแปลงขนาดเดียวกันที่จ่ายบัสเดียวกันนี้ (ขนานกัน) — ใช้ตรวจว่าควรปลดออกลูกหนึ่งหรือไม่</div></div>
+    <div class="fld"><label class="f">ค่าไฟที่ใช้ประเมิน <span class="unit">บาท/kWh</span></label>
+      <input type="number" id="tx_rate" value="4.20" step="0.01" onchange="calc()">
+      <div class="hint">ใช้ค่าไฟเฉลี่ยจากแท็บ 1 ก็ได้ — ราคาเปลี่ยนตามเวลา จุดสำคัญคือปริมาณพลังงาน (kWh) ที่หายไป</div></div>
+    <div class="fld"><label class="f">อุณหภูมิ ambient ออกแบบ <span class="unit">°C</span></label>
+      <input type="number" id="tx_amb" value="35" onchange="calc()">
+      <div class="hint">หม้อแปลงมาตรฐานออกแบบที่ ambient เฉลี่ยรายวัน 30 °C สูงสุด 40 °C · ห้องหม้อแปลงในไทยที่ระบายอากาศไม่ดี
+        วัดได้ 40–45 °C บ่อยมาก ซึ่งกินพิกัดไปอีกทางหนึ่งนอกเหนือจากความไม่สมดุล</div></div>
+  </div>
+  <div class="grid3" style="margin-top:6px">
+    <div class="stat"><div class="lab">โหลดเฟสที่หนักที่สุด</div><div class="big mono" id="o_lmax">—</div><div class="bigu">% ของพิกัด</div></div>
+    <div class="stat"><div class="lab">ถ้ากระจายโหลดสมดุล</div><div class="big mono" id="o_lbal">—</div><div class="bigu">% ของพิกัด</div></div>
+    <div class="stat"><div class="lab">พิกัดที่ถูกกินไปเปล่า ๆ</div><div class="big mono" id="o_lloss">—</div><div class="bigu">จุดเปอร์เซ็นต์</div></div>
+  </div>
+  <div class="tbl-wrap" style="margin-top:14px"><table id="t_tx"></table></div>
+  <div id="o_txnote"></div>
+</div>
+
+<div class="card">
+  <h2>คุ้มไหมที่จะปลดหม้อแปลงออก 1 ลูก</h2>
+  <div class="sub">คำถามนี้ตอบด้วยจุดตัดระหว่างสูญเสียขณะไม่มีโหลด (คงที่) กับสูญเสียขณะมีโหลด (โตตามกำลังสอง)</div>
+  <div class="tbl-wrap"><table id="t_consol"></table></div>
+  <div id="o_consolnote"></div>
+</div>
+
+<div class="card">
+  <h2>ผลของความไม่สมดุลต่อมอเตอร์</h2>
+  <div class="sub">กระแสไม่สมดุลทำให้เกิดแรงดันไม่สมดุล และแรงดันไม่สมดุลคือสิ่งที่มอเตอร์รู้สึก</div>
+  <div class="tbl-wrap"><table id="t_motor"></table></div>
+  <div class="note">เส้นดีเรตของ NEMA MG-1: %VUF 0→1.00 · 1→1.00 · 2→0.95 · 3→0.89 · 4→0.82 · 5→0.75 (ห้ามเดินเกิน 5%)
+    · อุณหภูมิที่เพิ่มขึ้นประมาณ 2 × (%VUF)² เคลวิน · ทุก 10 °C ที่เกินพิกัดฉนวน อายุฉนวนเหลือครึ่งเดียว</div>
+</div>
+</section>
+
+<!-- ═══════════ TAB 6 : SUMMARY ═══════════ -->
+<section class="panel" id="p6">
+<div class="card">
+  <h2>สรุปสำหรับใส่รายงาน</h2>
+  <div class="sub">ข้อความและตัวเลขชุดนี้คัดลอกไปวางในรายงานตรวจวิเคราะห์ได้ทันที</div>
+  <div id="o_summary"></div>
+</div>
+<div class="card">
+  <h2>มาตรการเรียงตามลำดับที่ควรทำ</h2>
+  <div class="tbl-wrap"><table id="t_ecm"></table></div>
+  <div class="note">ลำดับนี้จัดตามหลัก "แก้ที่ไม่ต้องลงทุนก่อน" — ย้ายเฟสและปรับตารางเดินเครื่องใช้แรงงานอย่างเดียว
+    ส่วนคาปาซิเตอร์และการปลดหม้อแปลงต้องมีข้อมูลยืนยันก่อนตัดสินใจ</div>
+</div>
+<div class="card">
+  <h2>รายการข้อมูลที่ต้องเก็บเพิ่มในสนาม</h2>
+  <div class="tbl-wrap"><table id="t_field"></table></div>
+</div>
+<div class="card">
+  <h2>สูตร สมมุติฐาน และมาตรฐานอ้างอิง</h2>
+  <div id="o_refs"></div>
+</div>
+</section>
+</main>
+
+<footer>
+  <b>Triple E Technology Co., Ltd.</b> · Electricity Bill · Tariff · Load Balance Analyzer v1.0 (ร่าง)<br>
+  ค่าอัตราค่าไฟฟ้าและ Ft ที่ฝังไว้เป็นค่าตั้งต้นเพื่อเริ่มงาน — ต้องตรวจสอบกับประกาศงวดปัจจุบันทุกครั้งก่อนอ้างอิงในรายงาน
+</footer>
+
+<script>
+/* ══════════════ helpers ══════════════ */
+const $=id=>document.getElementById(id);
+const V=id=>{const e=$(id);return e?(parseFloat(e.value)||0):0;};
+const S=id=>{const e=$(id);return e?e.value:'';};
+const f=(x,d=1)=>(x==null||!isFinite(x))?'—':x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const f0=x=>f(x,0);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+/* complex */
+const C=(re,im)=>({re,im});
+const cadd=(a,b)=>C(a.re+b.re,a.im+b.im);
+const cmul=(a,b)=>C(a.re*b.re-a.im*b.im,a.re*b.im+a.im*b.re);
+const cscale=(a,k)=>C(a.re*k,a.im*k);
+const cabs=a=>Math.hypot(a.re,a.im);
+const carg=a=>Math.atan2(a.im,a.re)*180/Math.PI;
+const cpolar=(m,degs)=>C(m*Math.cos(degs*Math.PI/180),m*Math.sin(degs*Math.PI/180));
+const A120=cpolar(1,120), A240=cpolar(1,240);
+
+/* ══════════════ tariff data (editable defaults) ══════════════ */
+/* หมายเหตุ: เป็นอัตราฐานตั้งต้นเพื่อให้เริ่มงานได้ ไม่ใช่ค่าที่รับประกันว่าตรงงวดปัจจุบัน */
+const RATES={
+ '3.1':{n:'3.1 กิจการขนาดกลาง — อัตราปกติ (30–999 kW)',type:'flat',pfp:true,lv:{
+    '69':{dem:175.70,en:3.1097,sc:312.24},
+    '22':{dem:196.26,en:3.1471,sc:312.24},
+    'lt':{dem:221.50,en:3.1751,sc:312.24}}},
+ '3.2':{n:'3.2 กิจการขนาดกลาง — TOU',type:'tou',pfp:true,lv:{
+    '69':{dem:74.14,pk:4.1025,op:2.5849,sc:312.24},
+    '22':{dem:132.93,pk:4.1839,op:2.6037,sc:312.24},
+    'lt':{dem:210.00,pk:4.3297,op:2.6369,sc:312.24}}},
+ '4.1':{n:'4.1 กิจการขนาดใหญ่ — TOD (≥1,000 kW)',type:'tod',pfp:true,lv:{
+    '69':{d1:224.30,d2:29.91,d3:0,en:3.1097,sc:312.24},
+    '22':{d1:285.05,d2:58.88,d3:0,en:3.1471,sc:312.24},
+    'lt':{d1:332.71,d2:68.22,d3:0,en:3.1751,sc:312.24}}},
+ '4.2':{n:'4.2 กิจการขนาดใหญ่ — TOU',type:'tou',pfp:true,lv:{
+    '69':{dem:74.14,pk:4.1025,op:2.5849,sc:312.24},
+    '22':{dem:132.93,pk:4.1839,op:2.6037,sc:312.24},
+    'lt':{dem:210.00,pk:4.3297,op:2.6369,sc:312.24}}},
+ '5.2':{n:'5.2 กิจการเฉพาะอย่าง (โรงแรม/บริการ) — TOU',type:'tou',pfp:true,lv:{
+    '69':{dem:74.14,pk:4.1025,op:2.5849,sc:312.24},
+    '22':{dem:132.93,pk:4.1839,op:2.6037,sc:312.24},
+    'lt':{dem:210.00,pk:4.3297,op:2.6369,sc:312.24}}},
+ '7.1':{n:'7.1 สูบน้ำเพื่อการเกษตร — อัตราปกติ (ขั้นบันได)',type:'step',pfp:false,lv:{
+    '22':{s1:2.2601,s2:3.2483,brk:100,sc:115.16},
+    'lt':{s1:2.2601,s2:3.2483,brk:100,sc:115.16}}},
+ '7.2':{n:'7.2 สูบน้ำเพื่อการเกษตร — TOU',type:'tou',pfp:true,lv:{
+    '22':{dem:132.93,pk:4.1839,op:2.6037,sc:228.17},
+    'lt':{dem:210.00,pk:4.3297,op:2.6369,sc:228.17}}}
+};
+const RATE_FIELDS={
+  flat:[['dem','Demand บาท/kW'],['en','พลังงาน บาท/kWh'],['sc','ค่าบริการ บาท/เดือน']],
+  tou :[['dem','Demand (On Peak) บาท/kW'],['pk','On Peak บาท/kWh'],['op','Off Peak บาท/kWh'],['sc','ค่าบริการ บาท/เดือน']],
+  tod :[['d1','Demand Peak บาท/kW'],['d2','Demand Partial บาท/kW'],['d3','Demand Off บาท/kW'],['en','พลังงาน บาท/kWh'],['sc','ค่าบริการ บาท/เดือน']],
+  step:[['s1','ขั้นที่ 1 บาท/kWh'],['s2','ขั้นที่ 2 บาท/kWh'],['brk','จุดแบ่งขั้น kWh'],['sc','ค่าบริการ บาท/เดือน']]
+};
+const PF_THRESH=0.6197;
+
+/* ══════════════ 1-phase load state ══════════════ */
+let L1P=[
+ {name:'แสงสว่างโรงงาน + สำนักงาน',kw:22,pf:0.95,ph:0},
+ {name:'แอร์แยกส่วน 12 ชุด',kw:18,pf:0.95,ph:0},
+ {name:'เครื่องเชื่อม + ปั๊มเล็ก',kw:15,pf:0.95,ph:0},
+ {name:'ฮีตเตอร์แถบสายการผลิต',kw:22,pf:1.00,ph:1},
+ {name:'ปลั๊ก/ตู้ควบคุม + UPS',kw:13,pf:0.95,ph:2}
+];
+const PHN=['L1','L2','L3'];
+
+function draw1ph(){
+  let h='<tr><th>รายการโหลด</th><th class="n">kW</th><th class="n">PF</th><th>ต่อที่เฟส</th><th></th></tr>';
+  L1P.forEach((r,i)=>{
+    h+=`<tr><td><input type="text" value="${esc(r.name)}" oninput="L1P[${i}].name=this.value"></td>
+    <td class="n"><input type="number" step="0.1" value="${r.kw}" oninput="L1P[${i}].kw=parseFloat(this.value)||0;calc()"></td>
+    <td class="n"><input type="number" step="0.01" value="${r.pf}" oninput="L1P[${i}].pf=clamp(parseFloat(this.value)||1,0.05,1);calc()"></td>
+    <td><select onchange="L1P[${i}].ph=+this.value;calc()">${PHN.map((p,k)=>`<option value="${k}"${r.ph===k?' selected':''}>${p}</option>`).join('')}</select></td>
+    <td><button class="del" onclick="L1P.splice(${i},1);draw1ph();calc()" title="ลบ"><i class="fa-solid fa-xmark"></i></button></td></tr>`;
+  });
+  const tot=L1P.reduce((a,r)=>a+r.kw,0);
+  const per=[0,1,2].map(k=>L1P.filter(r=>r.ph===k).reduce((a,r)=>a+r.kw,0));
+  h+=`<tr class="tot"><td>รวมโหลด 1 เฟส</td><td class="n">${f(tot)}</td><td></td>
+      <td class="mono" style="font-size:.8rem">L1 ${f(per[0])} / L2 ${f(per[1])} / L3 ${f(per[2])} kW</td><td></td></tr>`;
+  $('t_1ph').innerHTML=h;
+}
+function add1ph(){L1P.push({name:'โหลดใหม่',kw:5,pf:0.95,ph:0});draw1ph();calc();}
+function rebalance(){
+  const s=L1P.map((r,i)=>({i,kw:r.kw})).sort((a,b)=>b.kw-a.kw);
+  const acc=[0,0,0];
+  s.forEach(o=>{const k=acc.indexOf(Math.min(...acc));L1P[o.i].ph=k;acc[k]+=o.kw;});
+  draw1ph();calc();
+}
+
+/* ══════════════ rate table (editable) ══════════════ */
+const RS=JSON.parse(JSON.stringify(RATES));
+function drawRates(){
+  let h='<tr><th>อัตรา</th><th>รูปแบบ</th><th>ระดับแรงดัน</th>';
+  h+='<th colspan="5">ค่าอัตรา (บาท) — แก้ไขได้</th></tr>';
+  for(const k in RS){const R=RS[k];const fl=RATE_FIELDS[R.type];
+    const lvs=Object.keys(R.lv);
+    lvs.forEach((lv,j)=>{
+      h+=`<tr><td>${j===0?'<b>'+k+'</b>':''}</td><td style="font-size:.79rem;color:var(--muted)">${j===0?esc(R.n):''}</td>
+          <td class="mono">${lv==='69'?'≥69 kV':lv==='22'?'22–33 kV':'<22 kV'}</td>`;
+      for(let c=0;c<5;c++){
+        if(c<fl.length){const key=fl[c][0];
+          h+=`<td class="n" style="min-width:130px"><span class="unit">${fl[c][1]}</span><br>
+              <input type="number" step="0.0001" value="${R.lv[lv][key]}" oninput="RS['${k}'].lv['${lv}']['${key}']=parseFloat(this.value)||0;calc()"></td>`;
+        } else h+='<td></td>';
+      }
+      h+='</tr>';
+    });
+  }
+  $('t_rates').innerHTML=h;
+}
+function fillRateSel(){
+  $('i_rate').innerHTML=Object.keys(RS).map(k=>`<option value="${k}"${k==='3.2'?' selected':''}>${esc(RS[k].n)}</option>`).join('');
+}
+
+/* ══════════════ bill engine ══════════════ */
+function billFor(rk,lv,d){
+  const R=RS[rk]; if(!R) return null;
+  const L=R.lv[lv]||R.lv[Object.keys(R.lv)[0]];
+  const usedLv=R.lv[lv]?lv:Object.keys(R.lv)[0];
+  const kwh=d.kwhP+d.kwhO;
+  const billDem=Math.max(d.dem, 0.70*d.dem12);
+  let energy=0,demand=0,items=[];
+  if(R.type==='flat'){
+    energy=L.en*kwh; demand=L.dem*billDem;
+    items.push(['ค่าพลังงานไฟฟ้า',`${f0(kwh)} kWh × ${f(L.en,4)}`,energy]);
+    items.push(['ค่าความต้องการพลังไฟฟ้า',`${f(billDem)} kW × ${f(L.dem,2)}`,demand]);
+  } else if(R.type==='tou'){
+    energy=L.pk*d.kwhP+L.op*d.kwhO; demand=L.dem*billDem;
+    items.push(['ค่าพลังงาน On Peak',`${f0(d.kwhP)} kWh × ${f(L.pk,4)}`,L.pk*d.kwhP]);
+    items.push(['ค่าพลังงาน Off Peak',`${f0(d.kwhO)} kWh × ${f(L.op,4)}`,L.op*d.kwhO]);
+    items.push(['ค่าความต้องการพลังไฟฟ้า (On Peak)',`${f(billDem)} kW × ${f(L.dem,2)}`,demand]);
+  } else if(R.type==='tod'){
+    energy=L.en*kwh;
+    const dP=billDem, dPa=Math.max(0,d.todP-dP), dO=Math.max(0,d.todO-Math.max(dP,d.todP));
+    demand=L.d1*dP+L.d2*dPa+L.d3*dO;
+    items.push(['ค่าพลังงานไฟฟ้า',`${f0(kwh)} kWh × ${f(L.en,4)}`,energy]);
+    items.push(['Demand ช่วง Peak',`${f(dP)} kW × ${f(L.d1,2)}`,L.d1*dP]);
+    items.push(['Demand ช่วง Partial (ส่วนเกิน)',`${f(dPa)} kW × ${f(L.d2,2)}`,L.d2*dPa]);
+    items.push(['Demand ช่วง Off Peak (ส่วนเกิน)',`${f(dO)} kW × ${f(L.d3,2)}`,L.d3*dO]);
+  } else if(R.type==='step'){
+    const s1=Math.min(kwh,L.brk), s2=Math.max(0,kwh-L.brk);
+    energy=L.s1*s1+L.s2*s2;
+    items.push([`ค่าพลังงาน ${f0(L.brk)} หน่วยแรก`,`${f0(s1)} kWh × ${f(L.s1,4)}`,L.s1*s1]);
+    items.push(['ค่าพลังงานส่วนที่เกิน',`${f0(s2)} kWh × ${f(L.s2,4)}`,L.s2*s2]);
+    items.push(['ค่าความต้องการพลังไฟฟ้า','ไม่มีในอัตรานี้',0]);
+  }
+  items.push(['ค่าบริการรายเดือน','',L.sc]);
+  const ft=d.ft*kwh;
+  items.push(['ค่า Ft',`${f0(kwh)} kWh × ${f(d.ft,4)}`,ft]);
+  let pfEx=0,pfPen=0;
+  if(R.pfp&&d.dem>0){
+    const thr=PF_THRESH*d.dem;
+    pfEx=Math.max(0,Math.round(d.kvar-thr));
+    pfPen=pfEx*d.pfrate;
+    items.push(['ค่าเพาเวอร์แฟกเตอร์',pfEx>0?`${f0(pfEx)} kVAr × ${f(d.pfrate,2)} (เกิน ${f(thr)} kVAr)`:'ไม่ถูกปรับ (kVAr ≤ 61.97% ของ kW)',pfPen]);
+  }
+  const sub=energy+demand+L.sc+ft+pfPen;
+  const vat=sub*d.vat/100;
+  return {items,energy,demand,sc:L.sc,ft,pfEx,pfPen,sub,vat,total:sub+vat,kwh,billDem,usedLv,type:R.type,name:R.n,L};
+}
+
+/* ══════════════ unbalance engine ══════════════ */
+function unbal(){
+  const VLL=V('u_v')||400, VLN=VLL/Math.sqrt(3);
+  const P3=V('u_p3')*1000, PF3=clamp(V('u_pf3')||0.86,0.05,1);
+  const I3=P3>0?P3/(Math.sqrt(3)*VLL*PF3):0, ph3=Math.acos(PF3)*180/Math.PI;
+  const rot=[0,-120,120];
+  const Iph=[], perKW=[0,0,0], perKVA=[0,0,0];
+  for(let k=0;k<3;k++){
+    let s=cpolar(I3,-ph3);
+    L1P.filter(r=>r.ph===k).forEach(r=>{
+      const pf=clamp(r.pf||1,0.05,1);
+      const m=(r.kw*1000)/(VLN*pf);
+      s=cadd(s,cpolar(m,-Math.acos(pf)*180/Math.PI));
+      perKW[k]+=r.kw;
+    });
+    Iph.push(cmul(s,cpolar(1,rot[k])));
+  }
+  const mag=Iph.map(cabs);
+  const avg=(mag[0]+mag[1]+mag[2])/3;
+  const nema=avg>0?Math.max(...mag.map(m=>Math.abs(m-avg)))/avg*100:0;
+  const IN=cadd(cadd(Iph[0],Iph[1]),Iph[2]);
+  const I0=cscale(IN,1/3);
+  const I1=cscale(cadd(cadd(Iph[0],cmul(A120,Iph[1])),cmul(A240,Iph[2])),1/3);
+  const I2=cscale(cadd(cadd(Iph[0],cmul(A240,Iph[1])),cmul(A120,Iph[2])),1/3);
+  const m0=cabs(I0),m1=cabs(I1),m2=cabs(I2);
+  const kva=V('u_kva')||1000, Ir=kva*1000/(Math.sqrt(3)*VLL);
+  const R=V('u_R'), RN=V('u_RN'), Pk=V('u_pk'), Z=V('u_z')/100;
+  const sumI2=mag.reduce((a,m)=>a+m*m,0);
+  const cabUn=sumI2*R+cabs(IN)**2*RN, cabBal=3*m1*m1*R;
+  const txUn=Pk*sumI2/(3*Ir*Ir), txBal=Pk*m1*m1/(Ir*Ir);
+  const totKW=V('u_p3')+L1P.reduce((a,r)=>a+r.kw,0);
+  const VUF=Ir>0?(m2/Ir)*Z*100:0;
+  const dT=2*VUF*VUF;
+  return {VLL,VLN,I3,ph3,Iph,mag,avg,nema,IN,I0,I1,I2,m0,m1,m2,Ir,kva,R,RN,Pk,Z,
+          sumI2,cabUn,cabBal,txUn,txBal,totKW,VUF,dT,perKW,
+          cuf:m1>0?m2/m1*100:0, zuf:m1>0?m0/m1*100:0,
+          extraFrac:m1>0?(m0*m0+m2*m2)/(m1*m1)*100:0,
+          loadMax:Ir>0?Math.max(...mag)/Ir*100:0, loadBal:Ir>0?m1/Ir*100:0};
+}
+const NEMA_DER=[[0,1],[1,1],[2,.95],[3,.89],[4,.82],[5,.75]];
+function deratef(v){
+  if(v<=0)return 1; if(v>=5)return .75;
+  for(let i=1;i<NEMA_DER.length;i++){const[a,b]=NEMA_DER[i-1],[c,d]=NEMA_DER[i];
+    if(v<=c)return b+(d-b)*(v-a)/(c-a);}
+  return .75;
+}
+</script>
+
+<script>
+/* ══════════════ SVG builders ══════════════ */
+const CL=['#d1495b','#e08a00','#2d7dd2'], CN='#5b6b7b', CINK='#1c2b3a', CMU='#5b6b7b', CLN='#e2e8f0';
+function vdrop(x,y1,y2,cross,color,w){
+  let d=`M ${x} ${y1}`;
+  (cross||[]).filter(y=>y>y1+5&&y<y2-5).sort((a,b)=>a-b).forEach(y=>{d+=` L ${x} ${y-6} A 6 6 0 0 1 ${x} ${y+6}`;});
+  d+=` L ${x} ${y2}`;
+  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w||2.2}"/>`;
+}
+function arrow(x1,y1,x2,y2,color,w,dash){
+  const a=Math.atan2(y2-y1,x2-x1), L=9;
+  const p1=[x2-L*Math.cos(a-.4),y2-L*Math.sin(a-.4)], p2=[x2-L*Math.cos(a+.4),y2-L*Math.sin(a+.4)];
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${w||2.4}"${dash?' stroke-dasharray="4 3"':''}/>`+
+         (dash?'':`<polygon points="${x2},${y2} ${p1[0].toFixed(1)},${p1[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}" fill="${color}"/>`);
+}
+const T=(x,y,s,o={})=>`<text x="${x}" y="${y}" font-size="${o.fs||11}" fill="${o.c||CINK}" text-anchor="${o.a||'start'}" font-family="${o.mono?"'IBM Plex Mono',monospace":"'IBM Plex Sans Thai',sans-serif"}"${o.b?' font-weight="600"':''}>${o.raw?s:esc(s)}</text>`;
+
+function sldSVG(u){
+  const BY=[178,200,222], NY=248, X0=70, X1=800;
+  let s=`<svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg">`;
+  s+=`<rect x="0" y="0" width="900" height="400" fill="#fcfdfe"/>`;
+  /* HV + transformer */
+  s+=`<line x1="90" y1="14" x2="90" y2="52" stroke="${CINK}" stroke-width="2.4"/>`;
+  s+=T(100,26,'22 kV จากการไฟฟ้า',{c:CMU});
+  s+=`<circle cx="90" cy="70" r="20" fill="none" stroke="${CINK}" stroke-width="2"/>`;
+  s+=`<polygon points="90,60 99,76 81,76" fill="none" stroke="${CINK}" stroke-width="1.6"/>`;
+  s+=`<circle cx="90" cy="100" r="20" fill="none" stroke="${CINK}" stroke-width="2"/>`;
+  s+=`<path d="M90 92 L90 100 M90 100 L83 108 M90 100 L97 108" fill="none" stroke="${CINK}" stroke-width="1.6"/>`;
+  s+=T(118,78,`หม้อแปลง Dyn11  ${f0(u.kva)} kVA`,{b:1});
+  s+=T(118,94,`400/230 V · %Z ${f(u.Z*100,1)} · I พิกัด ${f0(u.Ir)} A/เฟส`,{c:CMU,fs:10.5});
+  s+=`<line x1="90" y1="120" x2="90" y2="${NY}" stroke="${CINK}" stroke-width="2.4"/>`;
+  /* bars */
+  [0,1,2].forEach(k=>{
+    s+=`<rect x="${X0}" y="${BY[k]-2}" width="${X1-X0}" height="4.5" fill="${CL[k]}" rx="2"/>`;
+    s+=T(X0-8,BY[k]+4,'L'+(k+1),{a:'end',b:1,c:CL[k],fs:12});
+    s+=`<circle cx="90" cy="${BY[k]}" r="3.6" fill="${CINK}"/>`;
+    s+=T(X1+8,BY[k]+4,`${f(u.mag[k])} A`,{mono:1,b:1,c:CL[k],fs:11.5});
+  });
+  s+=`<rect x="${X0}" y="${NY-2}" width="${X1-X0}" height="4.5" fill="${CN}" rx="2"/>`;
+  s+=T(X0-8,NY+4,'N',{a:'end',b:1,c:CN,fs:12});
+  s+=`<circle cx="90" cy="${NY}" r="3.6" fill="${CINK}"/>`;
+  const inm=cabs(u.IN);
+  s+=T(X1+8,NY+4,`${f(inm)} A`,{mono:1,b:1,c:inm>0.1*u.avg?'#8e1b2e':CN,fs:11.5});
+  s+=T(X0+2,166,'บัสบาร์ 400/230 V — 3 เฟส 4 สาย',{c:CMU,fs:10.5});
+  /* 3-phase load */
+  const BOXY=312, BOXH=54;
+  const x3=[196,222,248];
+  [0,1,2].forEach(k=>{ s+=vdrop(x3[k],BY[k],BOXY,BY.slice(k+1).concat([NY]),CL[k]); });
+  s+=`<rect x="158" y="${BOXY}" width="132" height="${BOXH}" rx="9" fill="#fff" stroke="${CINK}" stroke-width="1.6"/>`;
+  s+=T(224,BOXY+20,'โหลด 3 เฟส',{a:'middle',b:1,fs:11.5});
+  s+=T(224,BOXY+36,`${f(V('u_p3'))} kW · PF ${f(V('u_pf3'),2)}`,{a:'middle',c:CMU,fs:10.5,mono:1});
+  s+=T(224,BOXY+50,`${f(u.I3)} A ทุกเฟส`,{a:'middle',c:CMU,fs:10,mono:1});
+  s+=`<line x1="158" y1="${BOXY+BOXH+6}" x2="290" y2="${BOXY+BOXH+6}" stroke="${CLN}" stroke-width="2"/>`;
+  s+=T(224,BOXY+BOXH+22,'ดึงเท่ากันทุกเฟส → หักล้างกันหมด',{a:'middle',c:CMU,fs:10});
+  /* 1-phase groups */
+  const cxs=[420,565,710];
+  [0,1,2].forEach(k=>{
+    const cx=cxs[k], items=L1P.filter(r=>r.ph===k), kw=u.perKW[k];
+    s+=vdrop(cx-32,BY[k],BOXY,BY.slice(k+1).concat([NY]),CL[k]);
+    s+=vdrop(cx+32,NY,BOXY,[],CN);
+    const on=kw>0;
+    s+=`<rect x="${cx-60}" y="${BOXY}" width="120" height="${BOXH}" rx="9" fill="${on?'#fff':'#f4f7fa'}" stroke="${on?CL[k]:CLN}" stroke-width="1.6"/>`;
+    s+=T(cx,BOXY+20,`โหลด 1 เฟส บน L${k+1}`,{a:'middle',b:1,fs:11,c:on?CL[k]:CMU});
+    s+=T(cx,BOXY+36,`${f(kw)} kW · ${items.length} รายการ`,{a:'middle',c:CMU,fs:10.5,mono:1});
+    const i1=on?(kw*1000)/(u.VLN*(items.reduce((a,r)=>a+r.pf*r.kw,0)/Math.max(kw,1e-9)||1)):0;
+    s+=T(cx,BOXY+50,`≈ ${f(i1)} A ผ่านนิวทรัล`,{a:'middle',c:CMU,fs:10,mono:1});
+  });
+  s+=`<line x1="360" y1="${BOXY+BOXH+6}" x2="770" y2="${BOXY+BOXH+6}" stroke="${CLN}" stroke-width="2"/>`;
+  s+=T(565,BOXY+22+BOXH,'สามกลุ่มนี้ไม่เท่ากัน → ส่วนต่างวิ่งกลับทางนิวทรัล',{a:'middle',c:'#8e1b2e',fs:10.5,b:1});
+  s+='</svg>';
+  return s;
+}
+
+function phasorSVG(u){
+  const W=470,H=410,cx=215,cy=200;
+  const mx=Math.max(...u.mag,cabs(u.IN),1);
+  const k=138/mx;
+  let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#fcfdfe"/>`;
+  [0.25,0.5,0.75,1].forEach(r=>{s+=`<circle cx="${cx}" cy="${cy}" r="${138*r}" fill="none" stroke="${CLN}" stroke-width="1"/>`;});
+  s+=`<line x1="${cx-150}" y1="${cy}" x2="${cx+150}" y2="${cy}" stroke="${CLN}"/><line x1="${cx}" y1="${cy-150}" x2="${cx}" y2="${cy+150}" stroke="${CLN}"/>`;
+  /* tip-to-tail chain */
+  let px=cx,py=cy;
+  [0,1,2].forEach(i=>{
+    const nx=px+u.Iph[i].re*k, ny=py-u.Iph[i].im*k;
+    s+=arrow(px,py,nx,ny,CL[i],1.6,true);
+    px=nx;py=ny;
+  });
+  /* phasors from origin */
+  [0,1,2].forEach(i=>{
+    const x=cx+u.Iph[i].re*k, y=cy-u.Iph[i].im*k;
+    s+=arrow(cx,cy,x,y,CL[i],2.6);
+    const right=u.Iph[i].re>=0;
+    const lx=clamp(x+(right?9:-9),58,W-8);
+    s+=T(lx,clamp(y+(u.Iph[i].im>=0?-6:16),16,H-8),`L${i+1}  ${f(u.mag[i],0)} A`,{c:CL[i],b:1,fs:11.5,mono:1,a:right?'start':'end'});
+  });
+  /* neutral */
+  const nxx=cx+u.IN.re*k, nyy=cy-u.IN.im*k;
+  s+=arrow(cx,cy,nxx,nyy,'#8e1b2e',3.2);
+  s+=T(clamp(nxx+8,58,W-8),clamp(nyy+18,16,H-8),`N  ${f(cabs(u.IN),0)} A`,{c:'#8e1b2e',b:1,fs:12,mono:1});
+  s+=T(12,20,'เวกเตอร์กระแสรายเฟส (อ้างอิงแรงดัน L1)',{b:1,fs:11.5});
+  s+=T(12,36,'เส้นประ = ต่อหัวต่อหาง ปลายสุดคือกระแสนิวทรัล',{c:CMU,fs:10.5});
+  s+=T(12,H-12,`ถ้าสามเวกเตอร์ยาวเท่ากัน ปลายจะกลับมาที่จุดกำเนิดพอดี → I_N = 0`,{c:CMU,fs:10.5});
+  s+='</svg>';
+  return s;
+}
+
+function barsSVG(u){
+  const W=470,H=410,base=300,x0=56,bw=62,gap=36;
+  const mx=Math.max(...u.mag,1), k=200/mx;
+  let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#fcfdfe"/>`;
+  s+=T(12,22,'กระแสรายเฟส เทียบกับกรณีโหลดสมดุล',{b:1,fs:11.5});
+  s+=`<line x1="40" y1="${base}" x2="${W-20}" y2="${base}" stroke="${CINK}" stroke-width="1.6"/>`;
+  const yb=base-u.m1*k, ya=base-u.avg*k;
+  s+=`<line x1="40" y1="${yb.toFixed(1)}" x2="${W-20}" y2="${yb.toFixed(1)}" stroke="${CMU}" stroke-width="1.4" stroke-dasharray="6 4"/>`;
+  s+=T(W-22,yb-6,`สมดุล I₁ = ${f(u.m1,0)} A`,{a:'end',c:CMU,fs:10.5,mono:1});
+  s+=T(W-22,ya+14,`เฉลี่ย ${f(u.avg,0)} A`,{a:'end',c:CMU,fs:10.5,mono:1});
+  s+=`<line x1="40" y1="${ya.toFixed(1)}" x2="${W-20}" y2="${ya.toFixed(1)}" stroke="${CLN}" stroke-width="1.4" stroke-dasharray="3 3"/>`;
+  [0,1,2].forEach(i=>{
+    const x=x0+i*(bw+gap), h=u.mag[i]*k;
+    s+=`<rect x="${x}" y="${(base-h).toFixed(1)}" width="${bw}" height="${h.toFixed(1)}" fill="${CL[i]}" rx="4" opacity=".9"/>`;
+    s+=T(x+bw/2,base-h-8,`${f(u.mag[i],0)}`,{a:'middle',b:1,fs:12,mono:1,c:CL[i]});
+    s+=T(x+bw/2,base+18,'L'+(i+1),{a:'middle',b:1,fs:12,c:CL[i]});
+    const dev=u.avg>0?(u.mag[i]-u.avg)/u.avg*100:0;
+    s+=T(x+bw/2,base+34,`${dev>=0?'+':''}${f(dev,1)}%`,{a:'middle',c:CMU,fs:10.5,mono:1});
+  });
+  const xn=x0+3*(bw+gap), hn=cabs(u.IN)*k;
+  s+=`<rect x="${xn}" y="${(base-hn).toFixed(1)}" width="${bw}" height="${hn.toFixed(1)}" fill="#8e1b2e" rx="4" opacity=".9"/>`;
+  s+=T(xn+bw/2,base-hn-8,`${f(cabs(u.IN),0)}`,{a:'middle',b:1,fs:12,mono:1,c:'#8e1b2e'});
+  s+=T(xn+bw/2,base+18,'N',{a:'middle',b:1,fs:12,c:'#8e1b2e'});
+  s+=T(xn+bw/2,base+34,`${f(u.avg>0?cabs(u.IN)/u.avg*100:0,1)}%`,{a:'middle',c:CMU,fs:10.5,mono:1});
+  s+=T(12,base+70,`NEMA % Current Unbalance = |เฟสที่ห่างเฉลี่ยมากสุด| / เฉลี่ย = ${f(u.nema,2)} %`,{fs:11,b:1});
+  s+=T(12,base+88,`เกณฑ์ปฏิบัติ: ≤10% ยอมรับได้ · >20% ต้องแก้ไข`,{fs:10.5,c:CMU});
+  s+='</svg>';
+  return s;
+}
+
+function seqSVG(u){
+  const W=900,H=280,cy=140;
+  const cxs=[150,450,750];
+  const k1=78/Math.max(u.m1,1e-9);
+  const small=Math.max(u.m2,u.m0,1e-9);
+  const mag=Math.max(1,Math.min(30,Math.round(60/(small*k1)||1)));
+  let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#fcfdfe"/>`;
+  const sets=[
+    {t:'ลำดับบวก (Positive) I₁',sub:'หมุนตามลำดับ a-b-c — ตัวที่สร้างแรงบิดจริง',m:u.m1,ang:[carg(u.I1),carg(u.I1)-120,carg(u.I1)+120],k:k1,z:1},
+    {t:'ลำดับลบ (Negative) I₂',sub:'หมุนสวนทาง a-c-b — ทำให้มอเตอร์ร้อน',m:u.m2,ang:[carg(u.I2),carg(u.I2)+120,carg(u.I2)-120],k:k1*mag,z:mag},
+    {t:'ลำดับศูนย์ (Zero) I₀',sub:'เฟสเดียวกันหมด — บวกกันได้ 3I₀ ลงนิวทรัล',m:u.m0,ang:[carg(u.I0),carg(u.I0),carg(u.I0)],k:k1*mag,z:mag}
+  ];
+  sets.forEach((st,i)=>{
+    const cx=cxs[i];
+    if(i>0)s+=`<line x1="${cx-150}" y1="26" x2="${cx-150}" y2="${H-16}" stroke="${CLN}"/>`;
+    s+=T(cx,26,st.t,{a:'middle',b:1,fs:12.5});
+    s+=T(cx,42,st.sub,{a:'middle',c:CMU,fs:10});
+    s+=`<circle cx="${cx}" cy="${cy}" r="80" fill="none" stroke="${CLN}"/>`;
+    [0,1,2].forEach(j=>{
+      const m=Math.min(st.m*st.k,86);
+      const x=cx+m*Math.cos(st.ang[j]*Math.PI/180), y=cy-m*Math.sin(st.ang[j]*Math.PI/180);
+      let ox=0,oy=0;
+      if(i===2){const pa=(st.ang[j]+90)*Math.PI/180; ox=(j-1)*9*Math.cos(pa); oy=-(j-1)*9*Math.sin(pa);}
+      s+=arrow(cx+ox,cy+oy,x+ox,y+oy,CL[j],2.6);
+    });
+    s+=T(cx,cy+108,`${f(st.m,1)} A`,{a:'middle',b:1,fs:13,mono:1});
+    if(st.z>1)s+=T(cx,cy+124,`วาดขยาย ×${st.z}`,{a:'middle',c:CMU,fs:10});
+    else s+=T(cx,cy+124,'มาตราส่วนจริง',{a:'middle',c:CMU,fs:10});
+  });
+  s+='</svg>';
+  return s;
+}
+</script>
+
+<script>
+/* ══════════════ TAB 4 : field power measurement ══════════════ */
+function clampSym(x,y,col,lab,side){
+  let s=`<circle cx="${x}" cy="${y}" r="14" fill="#fcfdfe" fill-opacity="0" stroke="${col}" stroke-width="4"/>`;
+  s+=`<path d="M ${x-4} ${y-14} L ${x+4} ${y-14}" stroke="#fcfdfe" stroke-width="4.5"/>`;
+  s+=`<rect x="${x-7}" y="${y+13}" width="14" height="17" rx="4" fill="${col}"/>`;
+  s+=`<path d="M ${x} ${y-21} L ${x-4} ${y-15} L ${x+4} ${y-15} Z" fill="${col}"/>`;
+  if(lab) s+=T(x,y-28,lab,{a:'middle',b:1,fs:11,c:col});
+  return s;
+}
+function probeLead(x,yBus,yBox,col){
+  return `<path d="M ${x} ${yBus} L ${x} ${yBox}" stroke="${col}" stroke-width="2" stroke-dasharray="5 4"/>`
+        +`<circle cx="${x}" cy="${yBus}" r="4.5" fill="${col}"/>`;
+}
+function meterBox(x,y,w,h,title,sub,col,sub2){
+  let s=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="#fff" stroke="${col}" stroke-width="1.8"/>`;
+  s+=T(x+w/2,y+19,title,{a:'middle',b:1,fs:11.5,c:col});
+  if(sub2) s+=T(x+w/2,y+35,sub2,{a:'middle',fs:10,c:CINK});
+  if(sub) s+=T(x+w/2,y+(sub2?51:35),sub,{a:'middle',fs:10,c:CMU,mono:1});
+  return s;
+}
+function busSet(ys,names,cols,x0,x1,vals){
+  let s='';
+  ys.forEach((y,k)=>{
+    s+=`<rect x="${x0}" y="${y-2}" width="${x1-x0}" height="4.5" fill="${cols[k]}" rx="2"/>`;
+    s+=T(x0-8,y+4,names[k],{a:'end',b:1,c:cols[k],fs:12});
+    if(vals&&vals[k]!=null) s+=T(x1+8,y+4,vals[k],{mono:1,b:1,c:cols[k],fs:11});
+  });
+  return s;
+}
+
+function m1SVG(){
+  const W=900,H=400,X0=118,X1=700;
+  const ys=[92,140,188,240], cols=[CL[0],CL[1],CL[2],CN], nm=['L1','L2','L3','N'];
+  let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#fcfdfe"/>`;
+  s+=T(14,24,'M1 · แคลมป์วัดกระแสอย่างเดียว — คล้องทีละเส้น ห้ามคล้องรวม',{b:1,fs:12.5});
+  s+=T(14,42,'ได้ kVA แม่นยำ · kW ต้องคูณ PF ที่สมมติเอา',{c:CMU,fs:10.5});
+  s+=`<rect x="32" y="76" width="70" height="180" rx="8" fill="#fff" stroke="${CINK}" stroke-width="1.6"/>`;
+  s+=T(67,158,'ตู้เมน',{a:'middle',b:1,fs:11});
+  s+=T(67,174,'MDB',{a:'middle',fs:10,c:CMU});
+  s+=busSet(ys,nm,cols,X0,X1,['I₁','I₂','I₃','I_N']);
+  s+=clampSym(210,ys[0],CL[0],'คล้อง L1');
+  s+=clampSym(300,ys[1],CL[1],'คล้อง L2');
+  s+=clampSym(390,ys[2],CL[2],'คล้อง L3');
+  s+=clampSym(480,ys[3],CN,'คล้อง N (ถ้ามี)');
+  /* voltage pair */
+  s+=probeLead(620,ys[0],306,CL[0]);
+  s+=probeLead(660,ys[1],306,CL[1]);
+  s+=meterBox(586,306,110,52,'โวลต์มิเตอร์','V L1–L2',CINK);
+  s+=T(706,326,'แล้วย้ายไปวัด',{fs:10.5,c:CMU});
+  s+=T(706,342,'L2–L3 และ L3–L1',{fs:10.5,c:CMU,mono:1});
+  s+=T(14,H-14,'วัดทั้งหมด 6–7 ค่า: I₁ I₂ I₃ (I_N) และ V₁₂ V₂₃ V₃₁ — ไม่ต้องเปิดตู้แตะแรงดันถ้าวัดกระแสอย่างเดียว',{c:CMU,fs:10.5});
+  s+='</svg>'; return s;
+}
+
+function m2SVG(){
+  const W=900,H=448,X0=118,X1=800;
+  const ys=[80,126,172,222], cols=[CL[0],CL[1],CL[2],CN], nm=['L1','L2','L3','N'];
+  let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#fcfdfe"/>`;
+  s+=T(14,24,'M2 · Three-Wattmeter — ระบบ 4 สาย · ย้ายจุดวัด 3 ครั้ง',{b:1,fs:12.5});
+  s+=T(14,42,'P รวม = P₁ + P₂ + P₃ · ถูกต้องแม้โหลดไม่สมดุล (Blondel: 4 สาย ต้องวัด 3 ครั้ง)',{c:CMU,fs:10.5});
+  s+=busSet(ys,nm,cols,X0,X1,null);
+  const gx=[250,480,710];
+  [0,1,2].forEach(k=>{
+    const cx=gx[k];
+    s+=clampSym(cx-72,ys[k],cols[k],'คล้อง I L'+(k+1));
+    s+=probeLead(cx+18,ys[k],306,cols[k]);
+    s+=probeLead(cx+52,ys[3],306,CN);
+    s+=meterBox(cx-24,306,124,74,`ครั้งที่ ${k+1}`,`P${'₁₂₃'[k]} = V·I·cosφ`,cols[k],`โพรบ L${k+1} กับ N`);
+  });
+  s+=T(14,H-28,'ลำดับ: คล้องกระแสเฟสนั้น + แตะโพรบระหว่างเฟสนั้นกับนิวทรัล → จดค่า → ย้ายไปเฟสถัดไป',{c:CMU,fs:10.5});
+  s+=T(14,H-12,'ตรวจ drift: กลับมาวัด L1 ซ้ำตอนจบ ถ้าต่างจากครั้งแรกเกิน 3% ต้องวัดใหม่ทั้งชุด',{c:'#8e1b2e',fs:10.5,b:1});
+  s+='</svg>'; return s;
+}
+
+function m3SVG(){
+  const W=900,H=408,X0=118,X1=800;
+  const ys=[92,142,192], cols=[CL[0],CL[1],CL[2]], nm=['L1','L2','L3'];
+  let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#fcfdfe"/>`;
+  s+=T(14,24,'M3 · Two-Wattmeter (ARON) — ระบบ 3 สาย ไม่มีนิวทรัล · วัด 2 ครั้ง',{b:1,fs:12.5});
+  s+=T(14,42,'P รวม = W₁ + W₂ บวกกันเชิงพีชคณิต — ค่าหนึ่งติดลบได้เมื่อ PF < 0.5',{c:CMU,fs:10.5});
+  s+=busSet(ys,nm,cols,X0,X1,null);
+  s+=`<rect x="${X0}" y="${ys[2]-11}" width="${X1-X0}" height="22" fill="none" stroke="${CL[2]}" stroke-width="1.4" stroke-dasharray="6 4" rx="6"/>`;
+  s+=T(X0+4,ys[2]+34,'L3 = สายอ้างอิง (common)',{c:CL[2],fs:10.5,b:1});
+  const gx=[300,620];
+  [0,1].forEach(k=>{
+    const cx=gx[k];
+    s+=clampSym(cx-84,ys[k],cols[k],'คล้อง I L'+(k+1));
+    s+=probeLead(cx+10,ys[k],276,cols[k]);
+    s+=probeLead(cx+48,ys[2],276,CL[2]);
+    s+=meterBox(cx-28,276,130,74,`W${'₁₂'[k]}`,`V L${k+1}–L3 × I L${k+1}`,cols[k],`โพรบ L${k+1} กับ L3`);
+  });
+  s+=T(14,H-28,'ใช้กับมอเตอร์ 3 เฟส ฝั่งเดลตา หรือวงจรที่ไม่มีสายนิวทรัลเท่านั้น',{c:CMU,fs:10.5});
+  s+=T(14,H-12,'ถ้าระบบมีนิวทรัลและมีกระแสไหลในนิวทรัล ใช้วิธีนี้ไม่ได้ ต้องใช้ M2',{c:'#8e1b2e',fs:10.5,b:1});
+  s+='</svg>'; return s;
+}
+
+/* ---- reference tables ---- */
+const METHODS=[
+ ['M0','นับพัลส์/รอบจานมิเตอร์การไฟฟ้า','นาฬิกาจับเวลาอย่างเดียว','kW จริงรวม 3 เฟส (รวม PF แล้ว)','±1%','ไม่ต้อง','ได้ค่าเฉลี่ยช่วงจับเวลา ไม่แยกเฟส · ต้องรู้ตัวคูณมิเตอร์',0],
+ ['M1','แคลมป์วัดกระแส + โวลต์มิเตอร์','แคลมป์ A + มัลติมิเตอร์','kVA แม่นยำ · kW ต้องสมมติ PF','kVA ±2% · kW ±10–20%','เฉพาะตอนวัดแรงดัน','ใช้ประเมินโหลดและความไม่สมดุลได้ดี แต่ kW เชื่อไม่ได้',1],
+ ['M2','Three-Wattmeter ย้ายทีละเฟส','แคลมป์ที่วัดกำลัง 1 เฟสได้ (มีสายโพรบ)','kW จริง แยกรายเฟส + PF รายเฟส','±2–5%','ต้อง','ระบบ 4 สายเท่านั้น · โหลดต้องนิ่งตลอด 3 ครั้ง',1],
+ ['M3','Two-Wattmeter (ARON)','แคลมป์ที่วัดกำลัง 1 เฟสได้','kW จริงรวม (+PF ถ้าโหลดสมดุล)','±2–5%','ต้อง','ระบบ 3 สายเท่านั้น · ต้องระวังเครื่องหมายลบ',1]
+];
+function drawMethods(){
+  let h='<tr><th>วิธี</th><th>ชื่อ</th><th>เครื่องมือที่ต้องมี</th><th>ได้อะไร</th><th class="n">ความแม่นยำ</th><th>ต้องแตะแรงดัน</th><th>ข้อจำกัด</th></tr>';
+  METHODS.forEach(m=>{
+    h+=`<tr><td><b>${esc(m[0])}</b></td><td><b>${esc(m[1])}</b></td><td style="font-size:.82rem">${esc(m[2])}</td>
+      <td style="font-size:.82rem">${esc(m[3])}</td><td class="n">${esc(m[4])}</td>
+      <td>${m[5]==='ไม่ต้อง'?pill(0,'ไม่ต้อง'):m[5]==='ต้อง'?pill(2,'ต้อง'):pill(1,esc(m[5]))}</td>
+      <td style="font-size:.8rem;color:var(--muted)">${esc(m[6])}</td></tr>`;
+  });
+  $('t_method').innerHTML=h;
+}
+let M2ROW=[{v:231,i:951,pf:0.888},{v:231,i:788,pf:0.890},{v:231,i:763,pf:0.869}];
+function drawM2(){
+  let h='<tr><th>ครั้งที่</th><th>คู่ที่วัด</th><th class="n">V เฟส–นิวทรัล (V)</th><th class="n">I (A)</th><th class="n">PF ที่เครื่องอ่านได้</th><th class="n">P (kW)</th></tr>';
+  let tot=0;
+  M2ROW.forEach((r,i)=>{
+    const P=r.v*r.i*r.pf/1000; tot+=P;
+    h+=`<tr><td><b style="color:${CL[i]}">${i+1}</b></td><td>I<sub>L${i+1}</sub> + V<sub>L${i+1}–N</sub></td>
+      <td class="n"><input type="number" value="${r.v}" oninput="M2ROW[${i}].v=parseFloat(this.value)||0;drawM2();calcField()"></td>
+      <td class="n"><input type="number" value="${r.i}" oninput="M2ROW[${i}].i=parseFloat(this.value)||0;drawM2();calcField()"></td>
+      <td class="n"><input type="number" step="0.001" value="${r.pf}" oninput="M2ROW[${i}].pf=parseFloat(this.value)||0;drawM2();calcField()"></td>
+      <td class="n"><b>${f(P,1)}</b></td></tr>`;
+  });
+  h+=`<tr class="tot"><td colspan="5">P รวม = P₁ + P₂ + P₃</td><td class="n">${f(tot,1)} kW</td></tr>`;
+  $('t_m2').innerHTML=h;
+  return tot;
+}
+const FSTEPS=[
+ ['1','ขอบิลและดูตัวคูณมิเตอร์','ก่อนออกหน้างาน — รู้ค่าคงที่ imp/kWh และตัวคูณล่วงหน้าจะประหยัดเวลาไปมาก'],
+ ['2','ถ่ายรูปหน้าปัดมิเตอร์และ nameplate หม้อแปลง','ก่อนแตะอะไรทั้งนั้น เก็บหลักฐานไว้ก่อน'],
+ ['3','นับพัลส์มิเตอร์ (M0) 2–3 ชุด','ชุดละอย่างน้อย 60 วินาที ทำซ้ำ 3 ครั้งแล้วดูว่าค่าใกล้กันไหม ถ้าต่างกันมากแปลว่าโหลดแกว่ง'],
+ ['4','คล้องแคลมป์วัดกระแสรายเฟสและนิวทรัล (M1)','ทีละเส้น จดเวลาที่วัดด้วย เพื่อเทียบกับช่วงที่นับพัลส์'],
+ ['5','วัดแรงดันทีละคู่','ถ้าเข้าถึงจุดที่ปลอดภัยได้ เช่น ที่ขั้วเบรกเกอร์ที่มีฝาครอบ หรือเต้ารับที่มาจากบัสเดียวกัน'],
+ ['6','คำนวณ PF ย้อนกลับ','PF = P(จาก M0) ÷ [√3 × V × I เฉลี่ย] — ได้ PF จริงโดยไม่ต้องมีเพาเวอร์มิเตอร์'],
+ ['7','ถ้าจำเป็นต้องได้ kW รายเฟส จึงค่อยทำ M2','เตรียม PPE และผู้มีคุณสมบัติ · วัดตอนโหลดนิ่งที่สุดของกะ'],
+ ['8','วัดซ้ำจุดแรกตอนจบ','ตรวจว่าโหลดไม่ได้เปลี่ยนระหว่างการวัด — ขั้นตอนนี้คนข้ามบ่อยที่สุดและทำให้ผลใช้ไม่ได้']
+];
+const FMIST=[
+ ['ใช้ V เฟส–เฟส กับสูตรของเฟส–นิวทรัล','P = 3 × V<sub>LN</sub> × I × PF ถ้าเผลอใส่ V<sub>LL</sub> จะผิดไป √3 เท่า (73%)'],
+ ['วัดกระแสเฟสเดียวแล้วคูณ 3','ถ้าโหลดไม่สมดุล จะผิดตามเฟสที่บังเอิญเลือก — ต้องใช้ค่าเฉลี่ยทั้งสามเฟส'],
+ ['รายงาน kVA แต่เรียกว่า kW','ลืมคูณ PF · ที่ PF 0.86 ตัวเลขจะสูงเกินจริง 16%'],
+ ['บวก W₁ + W₂ ทั้งที่ค่าหนึ่งติดลบ','เกิดเมื่อ PF < 0.5 · ผลรวมจะสูงเกินจริงเป็นเท่าตัว'],
+ ['วัดสามเฟสคนละเวลาโดยโหลดเปลี่ยน','ผลรวมไม่มีความหมาย — ต้องตรวจ drift ด้วยการวัดซ้ำจุดแรก'],
+ ['คล้องแคลมป์รวมหลายเส้น','จะได้ผลรวมเวกเตอร์ ไม่ใช่กระแสของเส้นใดเส้นหนึ่ง'],
+ ['ลืมตัวคูณ CT/VT ของมิเตอร์','ผิดได้เป็นร้อยเท่า เป็นข้อผิดพลาดที่รุนแรงที่สุดในรายการนี้'],
+ ['คล้องแคลมป์ที่สาย secondary ของ CT แล้วอ่านตรง ๆ','ต้องคูณอัตราส่วน CT เช่น 800/5 = คูณ 160']
+];
+function drawFieldTables(){
+  let h='<tr><th class="n">ขั้น</th><th>ทำอะไร</th><th>ทำไม</th></tr>';
+  FSTEPS.forEach(r=>{h+=`<tr><td class="n"><b>${r[0]}</b></td><td style="font-size:.85rem"><b>${esc(r[1])}</b></td><td style="font-size:.8rem;color:var(--muted)">${esc(r[2])}</td></tr>`;});
+  $('t_steps').innerHTML=h;
+  let m='<tr><th>ข้อผิดพลาด</th><th>ผลที่ตามมา</th></tr>';
+  FMIST.forEach(r=>{m+=`<tr><td style="font-size:.85rem">${esc(r[0])}</td><td style="font-size:.8rem;color:var(--muted)">${r[1]}</td></tr>`;});
+  $('t_mistake').innerHTML=m;
+  $('o_fieldrefs').innerHTML=`<div class="note"><b>สูตรที่ใช้ในแท็บนี้</b>
+   <div class="kv"><span>M0 · จากพัลส์มิเตอร์</span><b>P (kW) = 3600 × (n − 1) / (t × K) × ตัวคูณ</b></div>
+   <div class="kv"><span>M1 · กำลังปรากฏ</span><b>S (kVA) = √3 × V<sub>LL,เฉลี่ย</sub> × I<sub>เฉลี่ย</sub> / 1000</b></div>
+   <div class="kv"><span>M1 · กำลังจริง</span><b>P = S × PF (PF ที่สมมติ)</b></div>
+   <div class="kv"><span>M2 · สามวัตต์มิเตอร์</span><b>P = Σ V<sub>LN,k</sub> × I<sub>k</sub> × cos φ<sub>k</sub></b></div>
+   <div class="kv"><span>M3 · สองวัตต์มิเตอร์</span><b>P = W₁ + W₂ (พีชคณิต)</b></div>
+   <div class="kv"><span>M3 · PF (เฉพาะโหลดสมดุล)</span><b>tan φ = √3 (W₁ − W₂) / (W₁ + W₂)</b></div>
+   <div class="kv"><span>PF ย้อนกลับจาก M0</span><b>PF = P<sub>M0</sub> / S<sub>M1</sub></b></div>
+   <br><b>อ้างอิง:</b> A. Blondel (1893) ทฤษฎีบทจำนวนวัตต์มิเตอร์ขั้นต่ำ · IEEE Std 1459 นิยามกำลังไฟฟ้าในระบบไม่สมดุล ·
+   IEC 61010-1 / IEC 61010-031 พิกัดหมวดการวัด (CAT II–IV) ของเครื่องวัดและสายวัด ·
+   NFPA 70E / มาตรฐานการทำงานกับไฟฟ้าที่มีกระแส สำหรับข้อกำหนดอาร์กแฟลช</div>`;
+}
+
+/* ---- calculators ---- */
+function calcField(){
+  /* M0 */
+  const K=V('m0_k'), mult=V('m0_m')||1, n=V('m0_n'), t=V('m0_t');
+  let P0=null;
+  if(K>0&&n>1&&t>0){ P0=3600*(n-1)/(t*K)*mult;
+    $('o_m0').innerHTML=`<b>P = 3600 × (${f0(n)} − 1) / (${f0(t)} s × ${f0(K)}) × ${f0(mult)} = <span class="mono">${f(P0,1)} kW</span></b>
+      — เป็นกำลังไฟฟ้าจริงเฉลี่ยของทั้ง 3 เฟส รวมผลของ PF และความไม่สมดุลไว้แล้ว
+      <br><span style="font-size:.78rem">พลังงานที่นับได้ ${f((n-1)/K*mult,3)} kWh ใน ${f0(t)} วินาที ·
+      ถ้าโหลดแบบนี้เดินตลอด 1 เดือน (30 วัน) จะได้ ${f0(P0*24*30)} kWh ซึ่งควรใกล้เคียงกับหน่วยในบิล ถ้าห่างมากแปลว่าจับช่วงเวลาไม่เป็นตัวแทน</span>`;
+  } else $('o_m0').innerHTML='กรอกค่าคงที่มิเตอร์ จำนวนพัลส์ (มากกว่า 1) และเวลา เพื่อคำนวณ';
+
+  /* M1 */
+  const I=[V('m1_i1'),V('m1_i2'),V('m1_i3')], Vv=[V('m1_v12'),V('m1_v23'),V('m1_v31')];
+  const Iav=(I[0]+I[1]+I[2])/3, Vav=(Vv[0]+Vv[1]+Vv[2])/3, pfA=clamp(V('m1_pf')||0.85,0.05,1);
+  let S1=null,P1=null;
+  if(Iav>0&&Vav>0){
+    S1=Math.sqrt(3)*Vav*Iav/1000; P1=S1*pfA;
+    const nema=Iav>0?Math.max(...I.map(x=>Math.abs(x-Iav)))/Iav*100:0;
+    const vun=Vav>0?Math.max(...Vv.map(x=>Math.abs(x-Vav)))/Vav*100:0;
+    let ex='';
+    if(P0!=null&&S1>0){const pfr=clamp(P0/S1,0,1);
+      ex=`<br><div class="note good" style="margin-top:8px"><b>PF จริงคำนวณย้อนกลับได้แล้ว</b> — PF = P<sub>M0</sub> / S = ${f(P0,1)} / ${f(S1,1)} = <b>${f(pfr,3)}</b>
+        ${Math.abs(pfr-pfA)>0.02?`ต่างจากค่าที่สมมติไว้ (${f(pfA,2)}) อยู่ ${f((pfr-pfA)/pfA*100,1)}% — ควรแก้ช่อง "PF ที่สมมติ" เป็น ${f(pfr,3)}`:'ใกล้เคียงกับค่าที่สมมติไว้ ใช้ได้'}
+        <button class="btn sm ghost" onclick="document.getElementById('m1_pf').value=${pfr.toFixed(3)};calcField()">ใส่ค่านี้</button></div>`;
+    } else ex=`<br><span style="font-size:.78rem">ยังไม่มีผล M0 มาเทียบ — kW ที่ได้จึงขึ้นกับ PF ที่เดาล้วน ๆ ถ้า PF จริงเป็น 0.75 แทน ${f(pfA,2)} ค่า kW จะเปลี่ยนไป ${f((0.75-pfA)/pfA*100,0)}%</span>`;
+    $('o_m1').innerHTML=`I เฉลี่ย <b>${f(Iav,1)} A</b> · V เฉลี่ย <b>${f(Vav,1)} V</b>
+      → S = √3 × ${f(Vav,1)} × ${f(Iav,1)} = <b class="mono">${f(S1,1)} kVA</b>
+      → P = S × ${f(pfA,2)} = <b class="mono">${f(P1,1)} kW</b> · Q = ${f(S1*Math.sin(Math.acos(pfA)),1)} kVAr
+      <br><span style="font-size:.78rem">ความไม่สมดุลของกระแส (NEMA) ${f(nema,2)}% · ของแรงดัน ${f(vun,2)}%
+      ${vun>2?' — แรงดันไม่สมดุลเกิน 2% ต้องหาสาเหตุ':''} · เอาค่ากระแสชุดนี้ไปใช้ในแท็บ 5 ได้เลย</span>${ex}`;
+  } else $('o_m1').innerHTML='กรอกกระแสและแรงดันเพื่อคำนวณ';
+
+  /* M2 */
+  const P2=drawM2();
+  let S2=0; M2ROW.forEach(r=>{S2+=r.v*r.i/1000;});
+  if(P2>0){
+    const pf2=S2>0?P2/S2:0;
+    $('o_m2').innerHTML=`<b>P รวม = <span class="mono">${f(P2,1)} kW</span></b> · S รวมรายเฟส = ${f(S2,1)} kVA · PF รวม = <b>${f(pf2,3)}</b>
+      <br><span style="font-size:.78rem">วิธีนี้ให้ค่าที่ถูกต้องแม้โหลดไม่สมดุล เพราะวัดกำลังของแต่ละเฟสแยกกันจริง ๆ
+      ${P0!=null?` · เทียบกับ M0 (${f(P0,1)} kW) ต่างกัน ${f((P2-P0)/P0*100,1)}%`:''}</span>`;
+  } else $('o_m2').innerHTML='กรอกค่าที่วัดได้ในตารางด้านบน';
+
+  /* M3 */
+  const w1=V('m3_w1'), w2=V('m3_w2'), bal=S('m3_bal')==='1';
+  let P3=null;
+  if(w1!==0||w2!==0){
+    P3=w1+w2;
+    let ex='';
+    if(bal&&Math.abs(P3)>1e-6){
+      const tanp=Math.sqrt(3)*(w1-w2)/P3, pf3=Math.cos(Math.atan(tanp));
+      ex=` · tan φ = √3(${f(w1,1)} − ${f(w2,1)}) / ${f(P3,1)} = ${f(tanp,3)} → <b>PF = ${f(pf3,3)}</b>`;
+    }
+    let warn='';
+    if(w1<0||w2<0) warn=`<div class="note warn" style="margin-top:8px">มีค่าติดลบ แปลว่า PF ต่ำกว่า 0.5 — ตรวจให้แน่ใจว่าเครื่องอ่านเครื่องหมายถูกจริง ไม่ใช่คล้องแคลมป์กลับด้าน</div>`;
+    if(w1>0&&w2>0&&Math.min(w1,w2)/Math.max(w1,w2)<0.1) warn=`<div class="note warn" style="margin-top:8px">ค่าหนึ่งเล็กกว่าอีกค่ามาก (PF ใกล้ 0.5) — ถ้าเครื่องวัดของท่านอ่านค่าลบไม่ได้ ค่าที่เล็กนั้นอาจเป็นค่าลบจริง ให้กลับหัวแคลมป์ตรวจซ้ำ</div>`;
+    $('o_m3').innerHTML=`<b>P รวม = ${f(w1,1)} + ${f(w2,1)} = <span class="mono">${f(P3,1)} kW</span></b>${ex}${warn}`;
+  } else $('o_m3').innerHTML='ยังไม่ได้กรอกค่า — วิธีนี้ใช้กับระบบ 3 สายที่ไม่มีนิวทรัลเท่านั้น ถ้าระบบมีนิวทรัลและมีกระแสไหลในนิวทรัล ให้ใช้ M2 แทน';
+
+  /* cross-check */
+  const rows=[['M0','นับพัลส์มิเตอร์',P0,'±1%'],['M1','แคลมป์ + PF สมมติ',P1,'±10–20%'],
+              ['M2','Three-Wattmeter',P2>0?P2:null,'±2–5%'],['M3','Two-Wattmeter',P3,'±2–5%']];
+  const good=rows.filter(r=>r[2]!=null&&r[2]>0);
+  const ref=(rows[2][2]!=null?rows[2][2]:(P0!=null?P0:(P1!=null?P1:null)));
+  let c='<tr><th>วิธี</th><th>รายละเอียด</th><th class="n">P (kW)</th><th class="n">ต่างจากค่าอ้างอิง</th><th class="n">ความแม่นยำที่คาด</th></tr>';
+  rows.forEach(r=>{
+    const dv=(r[2]!=null&&ref)?((r[2]-ref)/ref*100):null;
+    c+=`<tr><td><b>${esc(r[0])}</b></td><td style="font-size:.83rem">${esc(r[1])}</td>
+      <td class="n">${r[2]!=null?f(r[2],1):'—'}</td>
+      <td class="n">${dv!=null?((Math.abs(dv)<=10?pill(0,f(dv,1)+'%'):pill(2,f(dv,1)+'%'))):'—'}</td>
+      <td class="n">${esc(r[3])}</td></tr>`;
+  });
+  $('t_cross').innerHTML=c;
+  let cn='';
+  if(good.length<2) cn=`<div class="note">กรอกอย่างน้อย 2 วิธีเพื่อให้เทียบกันได้ — การตรวจสอบไขว้เป็นสิ่งที่ทำให้ตัวเลขจากการวัดด้วยเครื่องมือจำกัดยังใช้อ้างอิงในรายงานได้</div>`;
+  else{
+    const vals=good.map(r=>r[2]), mx=Math.max(...vals), mn=Math.min(...vals);
+    const spread=(mx-mn)/mn*100;
+    cn=`<div class="note ${spread<=10?'good':'bad'}"><b>ผลต่างสูงสุดระหว่างวิธีที่กรอก = ${f(spread,1)}%</b> —
+      ${spread<=10?'อยู่ในเกณฑ์ที่ยอมรับได้ ใช้ค่าจากวิธีที่แม่นที่สุดเป็นค่าอ้างอิงและระบุวิธีวัดไว้ในรายงาน'
+      :'ต่างกันมากเกินไป ต้องหาสาเหตุก่อนใช้ตัวเลขใด ๆ · ตรวจตามลำดับ: ตัวคูณมิเตอร์ถูกไหม → ใช้ V เฟส-เฟส หรือ เฟส-นิวทรัล ถูกที่ไหม → โหลดเปลี่ยนระหว่างวัดหรือเปล่า → เครื่องหมายของ W₂ ถูกไหม'}
+      <br><span style="font-size:.78rem">ค่าที่ควรใช้ในรายงาน: ${rows[2][2]>0?'M2 (วัดกำลังจริงรายเฟส)':P0!=null?'M0 (มิเตอร์การไฟฟ้า)':'ยังไม่มีวิธีที่เชื่อถือได้พอ'}
+      · ต้องระบุเสมอว่าใช้วิธีใด วัดเมื่อไร นานเท่าใด และสภาพการผลิตขณะวัดเป็นอย่างไร</span></div>`;
+  }
+  $('o_cross').innerHTML=cn;
+  window.__P={P0,P1,P2:P2>0?P2:null,P3};
+  if(typeof drawMot==='function') drawRecon(drawMot(),drawPnl());
+}
+function pushToTab5(){
+  const P=window.__P||{};
+  const src=P.P2!=null?'M2 (Three-Wattmeter)':(P.P0!=null?'M0 (มิเตอร์การไฟฟ้า)':(P.P3!=null?'M3 (ARON)':'M1 (แคลมป์ + PF สมมติ)'));
+  const best=P.P2!=null?P.P2:(P.P0!=null?P.P0:(P.P3!=null?P.P3:P.P1));
+  if(best==null||!(best>0)){
+    $('o_push').innerHTML='<div class="note bad">ยังไม่มีผลการคำนวณกำลังไฟฟ้า — กรอกอย่างน้อยหนึ่งวิธีก่อน</div>';return;}
+  const one=L1P.reduce((a,r)=>a+r.kw,0);
+  const p3=Math.max(0,best-one);
+  $('u_p3').value=p3.toFixed(1);
+  const S1=Math.sqrt(3)*((V('m1_v12')+V('m1_v23')+V('m1_v31'))/3)*((V('m1_i1')+V('m1_i2')+V('m1_i3'))/3)/1000;
+  let pfTxt='';
+  if(S1>0){const pf=clamp(best/S1,0.3,1); $('u_pf3').value=pf.toFixed(2); pfTxt=` · PF ตั้งเป็น ${pf.toFixed(2)} (คำนวณจาก P/S)`;}
+  calc();
+  $('o_push').innerHTML=`<div class="note good"><b>ส่งค่าไปแท็บ 5 แล้ว</b> — ใช้ค่าจาก ${esc(src)}:
+    กำลังรวมที่วัดได้ ${f(best,1)} kW หักโหลด 1 เฟสในตารางแท็บ 5 ที่รวม ${f(one,1)} kW
+    เหลือเป็น "โหลด 3 เฟสรวม" ${f(p3,1)} kW${pfTxt}
+    <br><span style="font-size:.78rem">ถ้าตารางโหลด 1 เฟสในแท็บ 5 ยังไม่ตรงกับของจริง ให้แก้ตารางนั้นก่อนแล้วกดปุ่มนี้ซ้ำ ·
+    เปิดแท็บ 5 เพื่อดูผลการวิเคราะห์ความไม่สมดุลที่คำนวณใหม่แล้ว</span></div>`;
+}
+</script>
+
+<script>
+/* ══════════════ per-point kW: motors & department panels ══════════════ */
+/* [%load, ตัวคูณประสิทธิภาพ, ตัวคูณ PF] เทียบกับค่าที่พิกัด */
+const LOADCURVE=[[0.25,0.90,0.60],[0.50,0.97,0.82],[0.75,1.00,0.94],[1.00,1.00,1.00],[1.25,0.985,1.01]];
+function lcFactor(L,col){
+  if(L<=LOADCURVE[0][0])return LOADCURVE[0][col];
+  if(L>=LOADCURVE[LOADCURVE.length-1][0])return LOADCURVE[LOADCURVE.length-1][col];
+  for(let i=1;i<LOADCURVE.length;i++){
+    const a=LOADCURVE[i-1],b=LOADCURVE[i];
+    if(L<=b[0])return a[col]+(b[col]-a[col])*(L-a[0])/(b[0]-a[0]);
+  }
+  return 1;
+}
+let MOT=[
+ {n:'เครื่องอัดอากาศสกรู #1',ph:3,v:398,i:245,ir:280,kw:160,eff:94,pf:0,hr:6000},
+ {n:'ชิลเลอร์ คอมเพรสเซอร์',ph:3,v:399,i:158,ir:196,kw:110,eff:93,pf:0.87,hr:5000},
+ {n:'ปั๊มน้ำหล่อเย็นหลัก',ph:3,v:400,i:98,ir:135,kw:75,eff:92,pf:0,hr:6500},
+ {n:'พัดลมระบายอากาศ 1 เฟส',ph:1,v:230,i:9.5,ir:11,kw:2.2,eff:82,pf:0.82,hr:4000}
+];
+let PNL=[
+ {n:'ตู้ MCC สายการผลิต A',w:4,v:230,i1:210,i2:198,i3:190,pf:0.86,hr:6000},
+ {n:'ตู้แสงสว่าง + สำนักงาน',w:4,v:230,i1:96,i2:41,i3:28,pf:0.94,hr:4000},
+ {n:'ตู้เตาอบ (3 สาย)',w:3,v:400,i1:64,i2:66,i3:63,pf:0.99,hr:3500}
+];
+
+function motCalc(m){
+  const ph=m.ph===1?1:3;
+  const S=(ph===3?Math.sqrt(3)*m.v*m.i:m.v*m.i)/1000;      /* kVA */
+  const eff=clamp((m.eff||90)/100,0.5,0.99);
+  let P,L,pf,src,warn='';
+  if(m.pf>0.05){
+    pf=clamp(m.pf,0.05,1); P=S*pf; src='วัด PF ได้';
+    const effL=eff*lcFactor(P*eff/Math.max(m.kw,1e-9),1);
+    L=m.kw>0?P*effL/m.kw:0;
+  } else {
+    const vr=m.v>0?1:1;
+    L=(m.ir>0?m.i/m.ir:0)*vr;
+    const effL=eff*lcFactor(L,1);
+    P=m.kw>0?m.kw*L/Math.max(effL,0.3):S*0.85;
+    pf=S>0?clamp(P/S,0,1):0; src='ประมาณจากกระแสเทียบพิกัด';
+    if(L<0.5) warn='โหลดต่ำกว่า 50% วิธีกระแสเทียบพิกัดจะประเมินสูงเกินจริง ควรวัด PF หรือวัดรอบแทน';
+    if(pf>0.98) warn='PF ที่ได้ย้อนกลับสูงผิดปกติ — ตรวจกระแสพิกัดหรือ kW พิกัดที่กรอก';
+  }
+  return {S,P,L,pf,src,warn,eff};
+}
+function drawMot(){
+  let h='<tr><th>มอเตอร์</th><th class="n">เฟส</th><th class="n">V วัดได้</th><th class="n">I วัดได้ (A)</th>'
+       +'<th class="n">I พิกัด (A)</th><th class="n">kW พิกัด</th><th class="n">η พิกัด %</th><th class="n">PF (ว่าง=ประมาณ)</th>'
+       +'<th class="n">ชม./ปี</th><th class="n">% โหลด</th><th class="n">kW ไฟฟ้า</th><th></th></tr>';
+  let tot=0,totE=0;
+  MOT.forEach((m,i)=>{
+    const r=motCalc(m); tot+=r.P; totE+=r.P*m.hr;
+    const lb=r.L<0.4?2:r.L<0.6?1:0;
+    h+=`<tr><td><input type="text" value="${esc(m.n)}" oninput="MOT[${i}].n=this.value" style="min-width:150px"></td>
+     <td class="n"><select onchange="MOT[${i}].ph=+this.value;drawMot();calcField()"><option value="3"${m.ph===3?' selected':''}>3</option><option value="1"${m.ph===1?' selected':''}>1</option></select></td>
+     <td class="n"><input type="number" value="${m.v}" oninput="MOT[${i}].v=parseFloat(this.value)||0;drawMot();calcField()"></td>
+     <td class="n"><input type="number" step="0.1" value="${m.i}" oninput="MOT[${i}].i=parseFloat(this.value)||0;drawMot();calcField()"></td>
+     <td class="n"><input type="number" step="0.1" value="${m.ir}" oninput="MOT[${i}].ir=parseFloat(this.value)||0;drawMot();calcField()"></td>
+     <td class="n"><input type="number" step="0.1" value="${m.kw}" oninput="MOT[${i}].kw=parseFloat(this.value)||0;drawMot();calcField()"></td>
+     <td class="n"><input type="number" step="0.1" value="${m.eff}" oninput="MOT[${i}].eff=parseFloat(this.value)||0;drawMot();calcField()"></td>
+     <td class="n"><input type="number" step="0.01" value="${m.pf||''}" placeholder="—" oninput="MOT[${i}].pf=parseFloat(this.value)||0;drawMot();calcField()"></td>
+     <td class="n"><input type="number" value="${m.hr}" oninput="MOT[${i}].hr=parseFloat(this.value)||0;drawMot();calcField()"></td>
+     <td class="n">${pill(lb,f(r.L*100,0)+'%')}</td>
+     <td class="n nw"><b>${f(r.P,1)}</b> <span class="unit">PF ${f(r.pf,2)}</span></td>
+     <td><button class="del" onclick="MOT.splice(${i},1);drawMot();calcField()"><i class="fa-solid fa-xmark"></i></button></td></tr>`;
+  });
+  h+=`<tr class="tot"><td colspan="10">รวมมอเตอร์ ${MOT.length} ตัว</td><td class="n">${f(tot,1)} kW</td><td></td></tr>`;
+  $('t_mot').innerHTML=h;
+  const warns=MOT.map(m=>({n:m.n,w:motCalc(m).warn})).filter(x=>x.w);
+  let note=`<b>รวมกำลังไฟฟ้าของมอเตอร์ ${f(tot,1)} kW</b> · พลังงานรวม ${f0(totE)} kWh/ปี
+    <br><span style="font-size:.78rem">มอเตอร์ที่ %โหลดต่ำกว่า 60% คือรายการที่ควรพิจารณาลดขนาดหรือใส่ VFD —
+    ที่โหลด 50% PF จะตกลงเหลือราว 82% ของค่าที่พิกัด และประสิทธิภาพลดลงราว 3% ทำให้เสียทั้งค่าปรับ PF และพลังงาน</span>`;
+  if(warns.length) note+=`<div class="note warn" style="margin-top:8px">${warns.map(x=>`<b>${esc(x.n)}</b> — ${esc(x.w)}`).join('<br>')}</div>`;
+  $('o_mot').innerHTML=note;
+  return {tot,totE};
+}
+function addMot(){MOT.push({n:'มอเตอร์ใหม่',ph:3,v:400,i:0,ir:0,kw:0,eff:92,pf:0,hr:6000});drawMot();calcField();}
+
+function pnlCalc(p){
+  const I=[p.i1,p.i2,p.i3], av=(I[0]+I[1]+I[2])/3;
+  const pf=clamp(p.pf||0.88,0.05,1);
+  let S,P;
+  if(p.w===3){ S=Math.sqrt(3)*p.v*av/1000; P=S*pf; }
+  else { S=(p.v*(I[0]+I[1]+I[2]))/1000; P=S*pf; }
+  const unb=av>0?Math.max(...I.map(x=>Math.abs(x-av)))/av*100:0;
+  return {S,P,unb,av,pf};
+}
+function drawPnl(){
+  let h='<tr><th>ตู้ไฟฟ้า</th><th class="n">ระบบ</th><th class="n">V</th><th class="n">I L1</th><th class="n">I L2</th><th class="n">I L3</th>'
+       +'<th class="n">PF</th><th class="n">ชม./ปี</th><th class="n">kVA</th><th class="n">kW</th><th class="n">ไม่สมดุล</th><th></th></tr>';
+  let tot=0,totE=0;
+  PNL.forEach((p,i)=>{
+    const r=pnlCalc(p); tot+=r.P; totE+=r.P*p.hr;
+    const ub=r.unb<=10?0:r.unb<=20?1:2;
+    h+=`<tr><td><input type="text" value="${esc(p.n)}" oninput="PNL[${i}].n=this.value" style="min-width:150px"></td>
+     <td class="n"><select onchange="PNL[${i}].w=+this.value;PNL[${i}].v=(+this.value===3?400:230);drawPnl();calcField()">
+       <option value="4"${p.w===4?' selected':''}>4 สาย</option><option value="3"${p.w===3?' selected':''}>3 สาย</option></select></td>
+     <td class="n"><input type="number" value="${p.v}" oninput="PNL[${i}].v=parseFloat(this.value)||0;drawPnl();calcField()"></td>
+     <td class="n"><input type="number" step="0.1" value="${p.i1}" oninput="PNL[${i}].i1=parseFloat(this.value)||0;drawPnl();calcField()"></td>
+     <td class="n"><input type="number" step="0.1" value="${p.i2}" oninput="PNL[${i}].i2=parseFloat(this.value)||0;drawPnl();calcField()"></td>
+     <td class="n"><input type="number" step="0.1" value="${p.i3}" oninput="PNL[${i}].i3=parseFloat(this.value)||0;drawPnl();calcField()"></td>
+     <td class="n"><input type="number" step="0.01" value="${p.pf}" oninput="PNL[${i}].pf=parseFloat(this.value)||0;drawPnl();calcField()"></td>
+     <td class="n"><input type="number" value="${p.hr}" oninput="PNL[${i}].hr=parseFloat(this.value)||0;drawPnl();calcField()"></td>
+     <td class="n">${f(r.S,1)}</td><td class="n"><b>${f(r.P,1)}</b></td>
+     <td class="n">${p.w===3?'<span class="unit">3 สาย</span>':pill(ub,f(r.unb,1)+'%')}</td>
+     <td><button class="del" onclick="PNL.splice(${i},1);drawPnl();calcField()"><i class="fa-solid fa-xmark"></i></button></td></tr>`;
+  });
+  h+=`<tr class="tot"><td colspan="9">รวมตู้ไฟฟ้า ${PNL.length} ตู้</td><td class="n">${f(tot,1)} kW</td><td colspan="2"></td></tr>`;
+  $('t_pnl').innerHTML=h;
+  const bad=PNL.map((p,i)=>({p,r:pnlCalc(p)})).filter(x=>x.p.w===4&&x.r.unb>15).sort((a,b)=>b.r.unb-a.r.unb);
+  let note=`<b>รวมกำลังไฟฟ้าของตู้ ${f(tot,1)} kW</b> · พลังงานรวม ${f0(totE)} kWh/ปี`;
+  if(bad.length) note+=`<div class="note bad" style="margin-top:8px"><b>ตู้ที่เป็นต้นเหตุความไม่สมดุล</b> —
+    ${bad.map(x=>`${esc(x.p.n)} (${f(x.r.unb,1)}% · I ${f(x.p.i1,0)}/${f(x.p.i2,0)}/${f(x.p.i3,0)} A)`).join(' · ')}
+    <br><span style="font-size:.78rem">เริ่มจัดเฟสใหม่ที่ตู้เหล่านี้ก่อน จะเห็นผลที่ตู้เมนเร็วที่สุด — ย้ายวงจร 1 เฟสจากเฟสที่หนักไปเฟสที่เบา
+    ทีละวงจร แล้ววัดซ้ำที่ตู้เมน</span></div>`;
+  else note+=`<br><span style="font-size:.78rem">ไม่มีตู้ใดที่ความไม่สมดุลเกิน 15% — ถ้าตู้เมนยังไม่สมดุล ให้ตรวจว่าสำรวจตู้ครบทุกตู้แล้วหรือยัง</span>`;
+  $('o_pnl').innerHTML=note;
+  return {tot,totE};
+}
+function addPnl(){PNL.push({n:'ตู้ใหม่',w:4,v:230,i1:0,i2:0,i3:0,pf:0.88,hr:6000});drawPnl();calcField();}
+
+function drawRecon(mot,pnl){
+  const P=window.__P||{};
+  const ref=P.P2!=null?P.P2:(P.P0!=null?P.P0:(P.P3!=null?P.P3:P.P1));
+  const sum=mot.tot+pnl.tot;
+  let h='<tr><th>รายการ</th><th class="n">kW</th><th class="n">% ของกำลังรวมที่จุดรวม</th><th class="n">kWh/ปี</th></tr>';
+  h+=`<tr><td>มอเตอร์ที่สำรวจ ${MOT.length} ตัว</td><td class="n">${f(mot.tot,1)}</td>
+      <td class="n">${ref?f(mot.tot/ref*100,1):'—'}</td><td class="n">${f0(mot.totE)}</td></tr>`;
+  h+=`<tr><td>ตู้ไฟฟ้าแผนกที่สำรวจ ${PNL.length} ตู้</td><td class="n">${f(pnl.tot,1)}</td>
+      <td class="n">${ref?f(pnl.tot/ref*100,1):'—'}</td><td class="n">${f0(pnl.totE)}</td></tr>`;
+  h+=`<tr class="tot"><td>รวมจุดวัดย่อยทั้งหมด</td><td class="n">${f(sum,1)}</td>
+      <td class="n">${ref?f(sum/ref*100,1):'—'}</td><td class="n">${f0(mot.totE+pnl.totE)}</td></tr>`;
+  if(ref){
+    const res=ref-sum, rp=res/ref*100;
+    h+=`<tr><td>กำลังที่วัดได้ที่จุดรวม (จากแท็บนี้ด้านบน)</td><td class="n">${f(ref,1)}</td><td class="n">100.0</td><td class="n">—</td></tr>`;
+    h+=`<tr class="hl"><td><b>ส่วนต่างที่ยังหาที่มาไม่ได้</b></td><td class="n"><b>${f(res,1)}</b></td>
+        <td class="n"><b>${f(rp,1)}</b></td><td class="n">—</td></tr>`;
+  }
+  $('t_recon').innerHTML=h;
+  let n='';
+  if(!ref) n=`<div class="note">ยังไม่มีค่ากำลังที่จุดรวมมาเทียบ — กรอกวิธี M0 หรือ M2 ด้านบนก่อน แล้วตารางนี้จะกระทบยอดให้อัตโนมัติ</div>`;
+  else{
+    const rp=(ref-sum)/ref*100;
+    const a=Math.abs(rp);
+    n=`<div class="note ${a<=10?'good':a<=25?'warn':'bad'}"><b>ส่วนต่าง ${f(rp,1)}%</b> —
+      ${rp>25?'ยังสำรวจไม่ครบ มีโหลดอีกมากที่ไม่อยู่ในรายการ ให้ไล่ดูตู้ย่อยที่ยังไม่ได้วัด และโหลดที่มักถูกลืม: ปั๊มน้ำดับเพลิงที่เดินทดสอบ · ระบบบำบัดน้ำเสีย · ห้องเซิร์ฟเวอร์ · แสงสว่างภายนอก · เครื่องอัดอากาศสำรองที่เดินตัวเปล่า'
+      :rp>10?'สำรวจได้เกือบครบแล้ว ส่วนที่เหลือน่าจะเป็นโหลดกระจายเล็ก ๆ และสูญเสียในระบบส่งจ่าย — ถือว่ายอมรับได้สำหรับการตรวจประเมินเบื้องต้น'
+      :rp>=-10?'กระทบยอดได้ดี ผลรวมจุดวัดย่อยสอดคล้องกับกำลังที่จุดรวม ใช้เป็นฐานข้อมูลโหลดในรายงานได้'
+      :'ผลรวมจุดวัดย่อย<b>มากกว่า</b>ที่วัดได้ที่จุดรวม ซึ่งเป็นไปไม่ได้ทางกายภาพ — ตรวจว่านับโหลดซ้ำหรือไม่ (มอเตอร์ที่อยู่ในตู้ MCC ถูกนับทั้งในตารางมอเตอร์และในตารางตู้) หรือกรอกกระแส/PF สูงเกินจริง'}
+      <br><span style="font-size:.78rem"><b>ข้อควรระวังการนับซ้ำ:</b> ถ้ามอเตอร์ตัวใดจ่ายไฟจากตู้ที่อยู่ในตารางตู้ไฟฟ้าอยู่แล้ว
+      จะถูกนับสองครั้ง — ให้เลือกอย่างใดอย่างหนึ่ง คือนับที่ตู้ (ภาพรวมเร็วกว่า) หรือนับรายมอเตอร์ (ละเอียดกว่า ใช้หามาตรการได้)
+      แต่ไม่นับทั้งสองอย่างสำหรับโหลดเดียวกัน</span></div>`;
+  }
+  $('o_recon').innerHTML=n;
+}
+function pushPointsToTab5(){
+  const mot=MOT.filter(m=>m.ph===3), one=MOT.filter(m=>m.ph===1);
+  let p3=0; mot.forEach(m=>{p3+=motCalc(m).P;});
+  const rows=[];
+  one.forEach(m=>rows.push({name:m.n,kw:+motCalc(m).P.toFixed(1),pf:clamp(motCalc(m).pf,0.3,1),ph:0}));
+  PNL.forEach(p=>{
+    const r=pnlCalc(p);
+    if(p.w===3){ p3+=r.P; return; }
+    const I=[p.i1,p.i2,p.i3], tot=I[0]+I[1]+I[2];
+    if(tot<=0) return;
+    const bal=Math.min(...I);
+    p3+=3*bal*p.v*r.pf/1000;                      /* ส่วนที่สมดุล = โหลด 3 เฟสเทียบเท่า */
+    I.forEach((x,k)=>{ const ex=x-bal; if(ex>0.5) rows.push({name:p.n+' · ส่วนเกินบน L'+(k+1),kw:+(ex*p.v*r.pf/1000).toFixed(1),pf:+r.pf.toFixed(2),ph:k}); });
+  });
+  if(p3<=0&&rows.length===0){$('o_push2').innerHTML='<div class="note bad">ยังไม่มีข้อมูลมอเตอร์หรือตู้ไฟฟ้าให้ส่ง</div>';return;}
+  $('u_p3').value=p3.toFixed(1);
+  if(rows.length) L1P=rows;
+  draw1ph(); calc();
+  $('o_push2').innerHTML=`<div class="note good"><b>ส่งไปแท็บ 5 แล้ว</b> — แยกเป็นโหลด 3 เฟสเทียบเท่า <b>${f(p3,1)} kW</b>
+   (ส่วนของกระแสที่เท่ากันทั้งสามเฟส) และโหลด 1 เฟส ${rows.length} รายการ รวม ${f(rows.reduce((a,r)=>a+r.kw,0),1)} kW
+   (มอเตอร์ 1 เฟส และ<b>ส่วนเกินของแต่ละเฟสในตู้ 4 สาย</b> ซึ่งคือตัวที่ทำให้ไม่สมดุลจริง ๆ)
+   <br><span style="font-size:.78rem">วิธีแยก: ในตู้ 4 สาย กระแสส่วนที่เท่ากันทั้งสามเฟส (ค่าต่ำสุด) ถือเป็นโหลดสมดุล
+   ส่วนที่เกินจากค่าต่ำสุดในแต่ละเฟสคือโหลด 1 เฟสส่วนเกินที่ทำให้เกิดกระแสนิวทรัล · เปิดแท็บ 5 เพื่อดูผลวิเคราะห์
+   และกดปุ่ม "จัดเฟสใหม่อัตโนมัติ" เพื่อดูว่าถ้าย้ายโหลดแล้วจะดีขึ้นแค่ไหน</span></div>`;
+}
+</script>
+
+<script>
+/* ══════════════ main calc ══════════════ */
+function band(v,a,b){return v<=a?0:v<=b?1:2;}
+function pill(i,txt){return `<span class="pill p${i}">${esc(txt)}</span>`;}
+
+function calc(){
+  /* ---------- inputs ---------- */
+  const tod=(S('i_tod')||'0 / 0').split('/');
+  const d={kwhP:V('i_kwh_p'),kwhO:V('i_kwh_o'),dem:V('i_dem'),dem12:V('i_dem12'),
+           kvar:V('i_kvar'),ft:V('i_ft'),vat:V('i_vat'),pfrate:V('pf_rate')||56.07,
+           todP:parseFloat(tod[0])||0,todO:parseFloat(tod[1])||0};
+  const rk=S('i_rate')||'3.2', lv=S('i_lv')||'22';
+  const B=billFor(rk,lv,d);
+  const kwh=d.kwhP+d.kwhO;
+
+  /* ---------- tab 1 : bill ---------- */
+  let h='<tr><th>รายการ</th><th>ที่มา</th><th class="n">บาท</th><th class="n">% ของยอดก่อน VAT</th></tr>';
+  B.items.forEach(it=>{h+=`<tr${it[2]>0&&it[0].indexOf('เพาเวอร์')===0?' class="hl"':''}><td>${esc(it[0])}</td>
+    <td class="mono" style="font-size:.79rem;color:var(--muted)">${esc(it[1])}</td>
+    <td class="n">${f(it[2],2)}</td><td class="n">${B.sub>0?f(it[2]/B.sub*100,1):'—'}</td></tr>`;});
+  h+=`<tr><td>รวมก่อนภาษี</td><td></td><td class="n">${f(B.sub,2)}</td><td class="n">100.0</td></tr>`;
+  h+=`<tr><td>ภาษีมูลค่าเพิ่ม ${f(d.vat,0)}%</td><td></td><td class="n">${f(B.vat,2)}</td><td class="n"></td></tr>`;
+  h+=`<tr class="tot"><td>ยอดสุทธิ</td><td></td><td class="n">${f(B.total,2)}</td><td class="n"></td></tr>`;
+  $('t_bill').innerHTML=h;
+
+  const avgRate=kwh>0?B.total/kwh:0;
+  const days=V('i_days')||30;
+  const lf=(d.dem>0&&days>0)?kwh/(d.dem*24*days)*100:0;
+  $('o_avg').textContent=f(avgRate,3);
+  $('o_lf').textContent=f(lf,1);
+  $('o_dsh').textContent=B.sub>0?f(B.demand/B.sub*100,1):'—';
+  $('o_pfp').textContent=f0(B.pfPen);
+
+  let bn='';
+  const act=V('i_actual');
+  if(act>0){const dv=(B.total-act)/act*100;
+    bn+=`<div class="note ${Math.abs(dv)<=2?'good':'warn'}"><b>ตรวจสอบกับบิลจริง:</b> คำนวณได้ ${f(B.total,2)} บาท เทียบบิล ${f(act,2)} บาท ต่างกัน ${f(dv,2)}%.
+    ${Math.abs(dv)<=2?'ถือว่าอัตราและ Ft ที่ตั้งไว้ตรงงวดนี้ ใช้ผลวิเคราะห์ต่อได้':'ยังไม่ตรง — ให้ตรวจค่า Ft ค่าอัตราในแท็บ 2 ส่วนลด/ส่วนเพิ่มพิเศษ และค่าไฟฟ้าขั้นต่ำก่อน'}</div>`;}
+  if(B.billDem>d.dem+0.01) bn+=`<div class="note warn"><b>ติดค่าไฟฟ้าขั้นต่ำ:</b> งวดนี้ใช้ Demand เพียง ${f(d.dem)} kW แต่ถูกคิดที่ ${f(B.billDem)} kW
+    (70% ของ ${f(d.dem12)} kW สูงสุดใน 12 เดือน) — ค่าส่วนเกิน ${f((B.billDem-d.dem)*(B.L.dem||B.L.d1||0),0)} บาท/เดือน จ่ายฟรีทุกเดือนจนกว่าค่าสูงสุด 12 เดือนจะตกลง</div>`;
+  bn+=`<div class="note"><b>Load Factor ${f(lf,1)}%</b> — ${lf>=70?'สูง ใช้ไฟสม่ำเสมอ ค่า Demand ถูกเกลี่ยได้ดีแล้ว':lf>=50?'ปานกลาง ยังมีช่องลด peak ได้บ้าง':'ต่ำ แปลว่ามี peak แหลม ๆ ที่ดึงค่า Demand ขึ้นทั้งเดือน — การเลื่อนเครื่องจักรไม่ให้เดินพร้อมกันคุ้มกว่าการลดหน่วย'}
+   · ถ้าลด Demand ลงได้ 10% (${f(d.dem*0.1)} kW) จะประหยัด ${f(d.dem*0.1*(B.L.dem||B.L.d1||0)*12,0)} บาท/ปี ที่หน่วยเท่าเดิม</div>`;
+  $('o_billnote').innerHTML=bn;
+
+  /* ---------- tab 2 : comparison ---------- */
+  let c='<tr><th>อัตรา</th><th class="n">ค่าพลังงาน</th><th class="n">ค่า Demand</th><th class="n">ค่า Ft</th><th class="n">ค่าปรับ PF</th><th class="n">รวมสุทธิ</th><th class="n">บาท/kWh</th><th>ผลต่าง</th></tr>';
+  const cmp=[];
+  const AGRI=rk.charAt(0)==='7';
+  const isElig=k=>AGRI?(k.charAt(0)==='7'):(k.charAt(0)!=='7');
+  for(const k in RS){const bb=billFor(k,lv,d); if(!bb)continue; cmp.push([k,bb]);}
+  const cur=B.total;
+  cmp.sort((a,b)=>a[1].total-b[1].total);
+  cmp.forEach(([k,bb])=>{
+    const dv=bb.total-cur;
+    h='';
+    c+=`<tr${k===rk?' class="hl"':''}${isElig(k)?'':' style="opacity:.5"'}><td>${k===rk?'<b>'+esc(k)+'</b> (ปัจจุบัน)':esc(k)}${isElig(k)?'':' '+pill('n','คนละประเภทกิจการ')}<br><span class="unit">${esc(RS[k].n)}</span></td>
+      <td class="n">${f(bb.energy,0)}</td><td class="n">${f(bb.demand,0)}</td><td class="n">${f(bb.ft,0)}</td>
+      <td class="n">${f(bb.pfPen,0)}</td><td class="n"><b>${f(bb.total,0)}</b></td><td class="n">${f(bb.kwh>0?bb.total/bb.kwh:0,3)}</td>
+      <td>${k===rk?'—':(dv<0?pill(0,'ถูกลง '+f0(-dv)+' บาท/เดือน'):pill(2,'แพงขึ้น '+f0(dv)+' บาท/เดือน'))}</td></tr>`;
+  });
+  $('t_cmp').innerHTML=c;
+  const best=cmp.find(x=>isElig(x[0]))||cmp[0];
+  let cn='';
+  if(best[0]!==rk&&cur-best[1].total>0){
+    cn+=`<div class="note good"><b>อัตราที่ถูกที่สุดสำหรับรูปแบบการใช้ไฟชุดนี้คือ ${esc(best[0])}</b> — ถูกกว่าปัจจุบัน ${f0(cur-best[1].total)} บาท/เดือน (${f0((cur-best[1].total)*12)} บาท/ปี)
+    <br>แต่ก่อนยื่นขอเปลี่ยน ต้องตรวจ 3 ข้อ: (1) คุณสมบัติตามประกาศ เช่น 4.x ต้องมี Demand ≥1,000 kW ต่อเนื่อง 3 เดือน (2) รูปแบบการใช้ไฟเดือนอื่นเหมือนเดือนนี้หรือไม่ ต้องคำนวณย้อนหลังอย่างน้อย 12 เดือน (3) ค่าใช้จ่ายเปลี่ยนมิเตอร์ TOU และเงื่อนไขห้ามเปลี่ยนกลับภายในระยะเวลาที่กำหนด</div>`;
+  } else cn+=`<div class="note">อัตราปัจจุบัน (${esc(rk)}) เป็นอัตราที่ถูกที่สุดแล้วสำหรับรูปแบบการใช้ไฟชุดนี้</div>`;
+  if(rk==='7.1'||RS['7.2']){
+    const b71=billFor('7.1',lv,d), b72=billFor('7.2',lv,d);
+    if(b71&&b72&&b72.total>b71.total)
+      cn+=`<div class="note warn"><b>กับดักที่พบบ่อยในสถานีสูบน้ำ:</b> อัตรา 7.1 ไม่มีค่า Demand เลย พอย้ายไป 7.2 (TOU) จะโดนค่า Demand ${f(b72.demand,0)} บาท/เดือนเข้ามาเต็ม ๆ
+      ที่ Load Factor ${f(lf,1)}% กรณีนี้ 7.2 แพงกว่า 7.1 อยู่ ${f0(b72.total-b71.total)} บาท/เดือน (+${f((b72.total-b71.total)/b71.total*100,1)}%)
+      — TOU จะคุ้มก็ต่อเมื่อย้ายการสูบไปช่วง Off Peak ได้จริงเป็นสัดส่วนมาก และ Demand ไม่แหลม</div>`;
+  }
+  $('o_cmpnote').innerHTML=cn;
+
+  /* ---------- tab 3 : power factor ---------- */
+  $('pf_kw').value=d.dem; $('pf_kvar').value=d.kvar;
+  const pf0=d.dem>0?d.dem/Math.hypot(d.dem,d.kvar):0;
+  const tgt=clamp(V('pf_tgt')||0.95,0.5,1);
+  const tan1=pf0>0?Math.tan(Math.acos(pf0)):0, tan2=Math.tan(Math.acos(tgt));
+  const Qc=Math.max(0,d.dem*(tan1-tan2));
+  const thr=PF_THRESH*d.dem, kvarX=Math.max(0,Math.round(d.kvar-thr));
+  $('o_pf0').textContent=f(pf0,3);
+  $('o_pf0b').textContent=kvarX>0?'ถูกปรับ — ต่ำกว่าเกณฑ์ 0.85':(pf0>=0.92?'พ้นเกณฑ์ 0.85 อย่างสบาย':'พ้นเกณฑ์ 0.85 แบบเฉียดฉิว');
+  $('o_kvarx').textContent=f0(kvarX);
+  $('o_qc').textContent=f0(Qc);
+  $('o_pfsave').textContent=f0(kvarX*d.pfrate*12);
+
+  const hrs=V('pf_hr')||6000, Rpf=V('pf_R'), Vll=V('u_v')||400;
+  const Ia=d.dem>0?d.dem*1000/(Math.sqrt(3)*Vll*Math.max(pf0,.05)):0;
+  const Ib=d.dem>0?d.dem*1000/(Math.sqrt(3)*Vll*tgt):0;
+  const dLoss=3*(Ia*Ia-Ib*Ib)*Rpf/1000;
+  let ct='<tr><th>ผลที่ได้</th><th>ติดคาปาซิเตอร์ที่ตู้เมน (MDB)</th><th>ติดที่ตัวโหลด / ตู้ย่อย</th></tr>';
+  ct+=`<tr><td>ค่าปรับเพาเวอร์แฟกเตอร์</td><td>${pill(0,'หมด — '+f0(kvarX*d.pfrate*12)+' บาท/ปี')}</td><td>${pill(0,'หมดเท่ากัน')}</td></tr>`;
+  ct+=`<tr><td>กระแสในสาย หม้อแปลง→MDB</td><td>${pill(0,'ลดลง')}</td><td>${pill(0,'ลดลง')}</td></tr>`;
+  ct+=`<tr><td>กระแสในสาย MDB→โหลด</td><td>${pill(2,'ไม่ลด')}</td><td>${pill(0,'ลดลง')}</td></tr>`;
+  ct+=`<tr><td>พลังงานที่ประหยัดจากสูญเสียในสาย</td><td class="n">ประมาณครึ่งหนึ่งของช่องขวา</td><td class="n">${f(dLoss*hrs,0)} kWh/ปี (${f(dLoss,3)} kW)</td></tr>`;
+  ct+=`<tr><td>ความเสี่ยง over-compensation ตอนโหลดต่ำ</td><td>ต่ำ ถ้าใช้ APFC แบบ step</td><td>สูงกว่า ถ้าคาปาซิเตอร์ค้างอยู่ขณะมอเตอร์หยุด</td></tr>`;
+  ct+=`<tr><td>ค่าลงทุนและการบำรุงรักษา</td><td>ตู้เดียว ดูแลง่าย</td><td>กระจายหลายจุด ตรวจยากกว่า</td></tr>`;
+  $('t_caploc').innerHTML=ct;
+
+  let pn='';
+  if(kvarX>0) pn=`<div class="note bad"><b>ถูกปรับ PF อยู่</b> — kVAr สูงสุด ${f0(d.kvar)} เกินเกณฑ์ ${f(thr,1)} kVAr อยู่ ${f0(kvarX)} kVAr
+    คิดเป็น ${f0(kvarX*d.pfrate)} บาท/เดือน หรือ ${f0(kvarX*d.pfrate*12)} บาท/ปี — เป็นเงินที่จ่ายไปโดยไม่ได้พลังงานตอบแทนเลยแม้แต่หน่วยเดียว
+    <br>ติดคาปาซิเตอร์ ${f0(Qc)} kVAr (เลือกขนาดมาตรฐานถัดขึ้นไป และควรเป็นแบบอัตโนมัติ APFC แบ่ง step) เพื่อยก PF จาก ${f(pf0,3)} เป็น ${f(tgt,2)}</div>`;
+  else pn=`<div class="note good"><b>ไม่ถูกปรับ PF</b> — kVAr ${f0(d.kvar)} ยังไม่เกินเกณฑ์ ${f(thr,1)} kVAr (61.97% ของ ${f(d.dem)} kW ซึ่งตรงกับ PF 0.85)
+    · เหลือช่องว่างอีก ${f(thr-d.kvar,1)} kVAr ก่อนจะเริ่มถูกปรับ — ถ้ามีแผนเพิ่มมอเตอร์ ให้เผื่อจุดนี้ไว้</div>`;
+  if(pf0>0&&pf0<0.85) pn+=`<div class="note warn">PF ${f(pf0,3)} ต่ำกว่าเกณฑ์ที่การไฟฟ้ากำหนด (0.85) — นอกจากค่าปรับแล้ว กระแสที่สูงเกินจำเป็น ${f((1/pf0-1/0.95)*100/(1/0.95),0)}%
+    ยังกินพิกัดหม้อแปลงและสายเมนไปเปล่า ๆ ด้วย</div>`;
+  $('o_pfnote').innerHTML=pn;
+
+  /* ---------- tab 4 : unbalance ---------- */
+  const u=unbal();
+  $('svg_sld').innerHTML=sldSVG(u);
+  $('svg_phasor').innerHTML=phasorSVG(u);
+  $('svg_bars').innerHTML=barsSVG(u);
+  $('svg_seq').innerHTML=seqSVG(u);
+
+  const inRatio=u.avg>0?cabs(u.IN)/u.avg*100:0;
+  $('o_sldnote').innerHTML=`<b>อ่านภาพนี้อย่างนี้:</b> โหลด 3 เฟส ${f(V('u_p3'))} kW ดึงกระแส ${f(u.I3)} A เท่ากันทั้งสามเฟส
+    — ส่วนนี้หักล้างกันหมดที่นิวทรัล ไม่ว่าจะใหญ่แค่ไหน · ตัวที่ทำให้ไม่สมดุลคือโหลด 1 เฟสที่กองอยู่คนละมาก
+    (L1 ${f(u.perKW[0])} kW · L2 ${f(u.perKW[1])} kW · L3 ${f(u.perKW[2])} kW) ผลลัพธ์คือกระแสเฟสต่างกัน
+    ${f(u.mag[0],0)} / ${f(u.mag[1],0)} / ${f(u.mag[2],0)} A และมีกระแส ${f(cabs(u.IN),0)} A ไหลอยู่ในสายนิวทรัลตลอดเวลา
+    (${f(inRatio,1)}% ของกระแสเฉลี่ย) ทั้งที่สายนิวทรัลส่วนใหญ่เดินขนาดเล็กกว่าสายเฟส`;
+
+  let pt='<tr><th>เฟส</th><th class="n">โหลด 1 เฟส (kW)</th><th class="n">กระแส (A)</th><th class="n">มุม (°)</th><th class="n">เบี่ยงเบนจากเฉลี่ย</th><th class="n">% พิกัดหม้อแปลง</th></tr>';
+  [0,1,2].forEach(i=>{
+    const dev=u.avg>0?(u.mag[i]-u.avg)/u.avg*100:0;
+    pt+=`<tr><td><b style="color:${CL[i]}">L${i+1}</b></td><td class="n">${f(u.perKW[i])}</td><td class="n">${f(u.mag[i])}</td>
+      <td class="n">${f(carg(u.Iph[i]),1)}</td><td class="n">${dev>=0?'+':''}${f(dev,2)}%</td>
+      <td class="n">${f(u.Ir>0?u.mag[i]/u.Ir*100:0,1)}%</td></tr>`;
+  });
+  pt+=`<tr class="tot"><td>นิวทรัล</td><td class="n">—</td><td class="n">${f(cabs(u.IN))}</td><td class="n">${f(carg(u.IN),1)}</td>
+    <td class="n">${f(inRatio,1)}% ของเฉลี่ย</td><td class="n">—</td></tr>`;
+  pt+=`<tr><td>เฉลี่ย / ถ้าสมดุล</td><td class="n">${f((u.perKW[0]+u.perKW[1]+u.perKW[2])/3)}</td><td class="n">${f(u.avg)} / ${f(u.m1)}</td>
+    <td class="n">—</td><td class="n">NEMA ${f(u.nema,2)}%</td><td class="n">${f(u.loadBal,1)}%</td></tr>`;
+  $('t_phase').innerHTML=pt;
+
+  $('o_i1').textContent=f(u.m1,1); $('o_i2').textContent=f(u.m2,1); $('o_i0').textContent=f(u.m0,1);
+  let st='<tr><th>ปริมาณ</th><th class="n">ค่า</th><th>ความหมายในทางปฏิบัติ</th></tr>';
+  st+=`<tr><td>Current Unbalance Factor (CUF = I₂/I₁)</td><td class="n">${f(u.cuf,2)}%</td><td>ตัวชี้วัดที่มาตรฐานสากลใช้ — ละเอียดกว่า NEMA เพราะรวมมุมเฟสด้วย</td></tr>`;
+  st+=`<tr><td>Zero-sequence Factor (I₀/I₁)</td><td class="n">${f(u.zuf,2)}%</td><td>บอกว่าโหลดเฟส-นิวทรัลไม่สมดุลแค่ไหน · เป็นศูนย์เสมอถ้าไม่มีโหลด 1 เฟสต่อลงนิวทรัล</td></tr>`;
+  st+=`<tr><td>ตรวจ 3I₀ เทียบกระแสนิวทรัล</td><td class="n">${f(3*u.m0,1)} / ${f(cabs(u.IN),1)} A</td><td>ต้องเท่ากัน — ถ้าไม่เท่า แปลว่าคำนวณผิด หรือมีฮาร์มอนิกลำดับที่ 3 ที่โมเดลนี้ยังไม่รวม</td></tr>`;
+  st+=`<tr><td>ΣI²<sub>เฟส</sub> เทียบ 3(I₀²+I₁²+I₂²)</td><td class="n">${f(u.sumI2/1000,1)} / ${f(3*(u.m0**2+u.m1**2+u.m2**2)/1000,1)} kA²</td><td>เอกลักษณ์ของ Fortescue — เป็นที่มาของสูตรสูญเสียเพิ่ม</td></tr>`;
+  st+=`<tr class="hl"><td>สัดส่วนสูญเสียทองแดงที่เพิ่มขึ้น (I₀²+I₂²)/I₁²</td><td class="n">${f(u.extraFrac,3)}%</td><td>ตัวเลขจริงของ "ค่าไฟที่หายไปเพราะไม่สมดุล" — มักเล็กกว่าที่คนคิดมาก</td></tr>`;
+  st+=`<tr><td>Voltage Unbalance Factor (ประมาณจาก I₂ × %Z)</td><td class="n">${f(u.VUF,3)}%</td><td>แรงดันที่มอเตอร์รู้สึก · ระบบยิ่งแข็ง (%Z ต่ำ, สายสั้น) VUF ยิ่งน้อยแม้กระแสไม่สมดุลมาก</td></tr>`;
+  $('t_seq').innerHTML=st;
+
+  const extraW=(u.cabUn-u.cabBal)+(u.txUn-u.txBal);
+  const yrHrs=V('pf_hr')||6000;
+  const totLoadkW=u.totKW;
+  let ut='<tr><th>รายการ</th><th class="n">วางโหลดอย่างที่เป็นอยู่</th><th class="n">ถ้ากระจายโหลดสมดุล</th><th class="n">ส่วนต่าง</th></tr>';
+  ut+=`<tr><td>กระแสรายเฟส (A)</td><td class="n">${f(u.mag[0],0)} / ${f(u.mag[1],0)} / ${f(u.mag[2],0)}</td><td class="n">${f(u.m1,0)} ทุกเฟส</td><td class="n">—</td></tr>`;
+  ut+=`<tr><td>กระแสนิวทรัล (A)</td><td class="n">${f(cabs(u.IN),0)}</td><td class="n">0</td><td class="n">−${f(cabs(u.IN),0)}</td></tr>`;
+  ut+=`<tr><td>สูญเสียในสายเมน (W)</td><td class="n">${f(u.cabUn,0)}</td><td class="n">${f(u.cabBal,0)}</td><td class="n">+${f(u.cabUn-u.cabBal,0)}</td></tr>`;
+  ut+=`<tr><td>สูญเสียในขดลวดหม้อแปลง (W)</td><td class="n">${f(u.txUn,0)}</td><td class="n">${f(u.txBal,0)}</td><td class="n">+${f(u.txUn-u.txBal,0)}</td></tr>`;
+  ut+=`<tr class="tot"><td>รวมพลังงานที่เสียเพิ่ม</td><td class="n">—</td><td class="n">—</td><td class="n">+${f(extraW,0)} W = ${f(extraW*yrHrs/1000,0)} kWh/ปี</td></tr>`;
+  ut+=`<tr><td>คิดเป็นสัดส่วนของโหลดรวม ${f(totLoadkW,0)} kW</td><td class="n">—</td><td class="n">—</td><td class="n">${f(totLoadkW>0?extraW/(totLoadkW*1000)*100:0,3)}%</td></tr>`;
+  ut+=`<tr class="hl"><td><b>โหลดเฟสที่หนักที่สุด (% พิกัดหม้อแปลง)</b></td><td class="n"><b>${f(u.loadMax,1)}%</b></td><td class="n"><b>${f(u.loadBal,1)}%</b></td><td class="n"><b>+${f(u.loadMax-u.loadBal,1)} จุด</b></td></tr>`;
+  ut+=`<tr><td>พิกัดที่ยังใช้ได้จริง (kVA)</td><td class="n">${f(u.kva*u.loadBal/Math.max(u.loadMax,1e-9),0)}</td><td class="n">${f(u.kva,0)}</td><td class="n">−${f(u.kva-u.kva*u.loadBal/Math.max(u.loadMax,1e-9),0)}</td></tr>`;
+  $('t_unbcost').innerHTML=ut;
+
+  const nb=band(u.nema,10,20);
+  let uv=`<div class="note ${nb===0?'good':nb===1?'warn':'bad'}"><b>คำตอบตรง ๆ ว่ามันแพงตรงไหน</b><br>
+   1) <b>ค่าไฟหน่วยที่หายไปนั้นน้อยมาก</b> — ที่ความไม่สมดุล ${f(u.nema,1)}% พลังงานที่เสียเพิ่มจากความร้อนในสายและขดลวดคือ ${f(extraW,0)} W
+   หรือ ${f(totLoadkW>0?extraW/(totLoadkW*1000)*100:0,3)}% ของโหลดรวม ใครที่คาดว่าจะเห็นค่าไฟลดลงเป็นเปอร์เซ็นต์หลังจัดเฟสใหม่ จะผิดหวัง<br>
+   2) <b>ที่แพงจริงคือพิกัดหม้อแปลงที่หายไป</b> — หม้อแปลงถูกจำกัดด้วยเฟสที่ร้อนที่สุด เฟสหนักสุดอยู่ที่ ${f(u.loadMax,1)}% ของพิกัด
+   ทั้งที่ถ้ากระจายเท่ากันจะอยู่แค่ ${f(u.loadBal,1)}% เท่ากับเสียพิกัดไป ${f(u.loadMax-u.loadBal,1)} จุด หรือ ${f(u.kva-u.kva*u.loadBal/Math.max(u.loadMax,1e-9),0)} kVA
+   ที่ซื้อมาแล้วแต่ใช้ไม่ได้<br>
+   3) <b>และพิกัดที่หายไปนั่นเองที่ทำให้ต้องเปิดหม้อแปลงเพิ่ม</b> — หม้อแปลงลูกที่ถูกเปิดเพิ่มขึ้นมาจะกินสูญเสียขณะไม่มีโหลด
+   ${f(V('tx_p0'),0)} W ตลอด 8,760 ชั่วโมง/ปี = ${f(V('tx_p0')*8.76,0)} kWh/ปี <b>ตลอดไป</b> โดยไม่ได้ผลิตอะไรเลย
+   ตัวเลขนี้ใหญ่กว่าสูญเสียตรงจากความไม่สมดุลถึง ${f(extraW>0?(V('tx_p0')*8760)/(extraW*yrHrs):0,0)} เท่า — นี่คือเหตุผลที่ต้องจัดเฟสใหม่<br>
+   4) <b>ผลต่อมอเตอร์ที่ระดับนี้</b> — VUF ${f(u.VUF,2)}% ทำให้อุณหภูมิขดลวดเพิ่มราว ${f(u.dT,2)} °C
+   ${u.VUF<1?'ยังไม่ต้องดีเรต แต่ถ้าระบบอ่อนกว่านี้ (สายยาว หม้อแปลงเล็ก) VUF จะโตเร็วมาก':'เริ่มต้องดีเรตแล้ว ดูตารางในแท็บ 6'}</div>`;
+  uv+=`<div class="note"><b>ทำไมนิวทรัลถึงสำคัญกว่าที่คิด</b> — กระแส ${f(cabs(u.IN),0)} A ที่วิ่งในสายนิวทรัลไม่ได้มีแค่ส่วนที่มาจากความไม่สมดุลของโหลดพื้นฐาน
+   ถ้าโรงงานมีโหลดแบบสวิตชิ่งเยอะ (ไดรฟ์ 1 เฟส, ballast อิเล็กทรอนิกส์, พาวเวอร์ซัพพลาย, LED driver) ฮาร์มอนิกลำดับที่ 3, 9, 15 (triplen)
+   จะ<b>บวกกันแบบเลขคณิต</b>ในสายนิวทรัล ไม่หักล้างกันเหมือนกระแสความถี่มูลฐาน ทำให้กระแสนิวทรัลจริงที่วัดได้สูงกว่าที่โมเดลนี้คำนวณได้มาก
+   บางกรณีถึงขั้นเกินกระแสสายเฟส — ถ้าวัดแล้วได้มากกว่า ${f(3*u.m0,0)} A อย่างชัดเจน ให้สงสัยฮาร์มอนิกทันทีและวัดสเปกตรัมด้วยเครื่องวัดคุณภาพไฟฟ้า</div>`;
+  $('o_unbverdict').innerHTML=uv;
+
+  /* ---------- tab 5 : transformer ---------- */
+  $('o_lmax').textContent=f(u.loadMax,1);
+  $('o_lbal').textContent=f(u.loadBal,1);
+  $('o_lloss').textContent=f(u.loadMax-u.loadBal,1);
+  const P0=V('tx_p0'), rate=V('tx_rate')||4.2, nTx=Math.max(1,Math.round(V('tx_n')||1));
+  let tt='<tr><th>รายการ</th><th class="n">W</th><th class="n">kWh/ปี</th><th class="n">หมายเหตุ</th></tr>';
+  tt+=`<tr><td>สูญเสียขณะไม่มีโหลด (core) — ต่อลูก</td><td class="n">${f(P0,0)}</td><td class="n">${f(P0*8.76,0)}</td><td class="n">เกิดตลอด 8,760 ชม.</td></tr>`;
+  tt+=`<tr><td>สูญเสียขณะไม่มีโหลด รวม ${nTx} ลูก</td><td class="n">${f(P0*nTx,0)}</td><td class="n">${f(P0*nTx*8.76,0)}</td><td class="n">ไม่ขึ้นกับโหลดเลย</td></tr>`;
+  tt+=`<tr><td>สูญเสียขณะมีโหลด (copper) ตามสภาพจริง</td><td class="n">${f(u.txUn,0)}</td><td class="n">${f(u.txUn*yrHrs/1000,0)}</td><td class="n">โตตามกำลังสองของกระแส</td></tr>`;
+  tt+=`<tr><td>ส่วนที่เกิดจากความไม่สมดุลอย่างเดียว</td><td class="n">${f(u.txUn-u.txBal,0)}</td><td class="n">${f((u.txUn-u.txBal)*yrHrs/1000,0)}</td><td class="n">${f(u.extraFrac,2)}% ของ copper loss</td></tr>`;
+  tt+=`<tr class="tot"><td>รวมสูญเสียในหม้อแปลงทั้งหมด</td><td class="n">${f(P0*nTx+u.txUn,0)}</td><td class="n">${f(P0*nTx*8.76+u.txUn*yrHrs/1000,0)}</td><td class="n">${f0((P0*nTx*8.76+u.txUn*yrHrs/1000)*rate)} บาท/ปี</td></tr>`;
+  $('t_tx').innerHTML=tt;
+  $('o_txnote').innerHTML=`<div class="note"><b>อ่านตารางนี้ให้ถูก:</b> สูญเสียขณะไม่มีโหลดเป็นค่าคงที่ที่จ่ายทุกวินาทีที่หม้อแปลงยังเชื่อมอยู่กับระบบ
+    ส่วนสูญเสียขณะมีโหลดแปรตามกำลังสองของกระแส ที่โหลด ${f(u.loadBal,0)}% สัดส่วนสองอย่างนี้อยู่ที่
+    ${f(P0*nTx*8.76/(P0*nTx*8.76+u.txUn*yrHrs/1000)*100,0)} : ${f(u.txUn*yrHrs/1000/(P0*nTx*8.76+u.txUn*yrHrs/1000)*100,0)}
+    — ยิ่งโหลดต่ำ ส่วนคงที่ยิ่งครองสัดส่วน ซึ่งเป็นเหตุผลที่การปลดหม้อแปลงที่โหลดน้อยออกมักคุ้มกว่าการไปไล่ลดกระแส</div>`;
+
+  const Sload=Math.sqrt(3)*u.VLL*u.m1/1000;   /* kVA จริงที่บัสนี้ อ้างอิงกระแสลำดับบวก */
+  let cs='<tr><th>รูปแบบการจ่าย</th><th class="n">โหลดต่อลูก (% พิกัด)</th><th class="n">No-load (kWh/ปี)</th><th class="n">Load loss (kWh/ปี)</th><th class="n">รวม (kWh/ปี)</th><th class="n">ผลต่าง</th></tr>';
+  const Pk=V('u_pk');
+  const rows=[];
+  for(let n=Math.max(1,nTx-1);n<=nTx+1;n++){
+    const lp=Sload/(n*u.kva);
+    const nl=P0*n*8.76, ll=n*Pk*lp*lp*yrHrs/1000;
+    rows.push({n,lp:lp*100,nl,ll,tot:nl+ll});
+  }
+  const ref=rows.find(r=>r.n===nTx);
+  rows.forEach(r=>{
+    const ok=r.lp<=90;
+    cs+=`<tr${r.n===nTx?' class="hl"':''}><td>${r.n} ลูก${r.n===nTx?' (ปัจจุบัน)':''}</td>
+      <td class="n">${f(r.lp,1)}% ${ok?'':pill(2,'เกิน 90%')}</td>
+      <td class="n">${f(r.nl,0)}</td><td class="n">${f(r.ll,0)}</td><td class="n"><b>${f(r.tot,0)}</b></td>
+      <td class="n">${r.n===nTx?'—':(r.tot<ref.tot?pill(0,'ประหยัด '+f0(ref.tot-r.tot)+' kWh/ปี'):pill(2,'เพิ่ม '+f0(r.tot-ref.tot)+' kWh/ปี'))}</td></tr>`;
+  });
+  $('t_consol').innerHTML=cs;
+  const beLoad=u.kva>0&&Pk>0?Math.sqrt(P0*8760/(Pk*yrHrs/1000*1000)*1)*100:0;
+  const bl=rows.find(r=>r.n===nTx-1);
+  $('o_consolnote').innerHTML=`<div class="note ${bl&&bl.tot<ref.tot&&bl.lp<=90?'good':''}">
+    ${bl?(bl.tot<ref.tot?(bl.lp<=90?`<b>ปลดหม้อแปลงออก 1 ลูกน่าจะคุ้ม</b> — ประหยัด ${f0(ref.tot-bl.tot)} kWh/ปี และโหลดต่อลูกขึ้นไปอยู่ที่ ${f(bl.lp,1)}% ซึ่งยังอยู่ในเกณฑ์`
+      :`ตัวเลขพลังงานบอกว่าคุ้ม แต่โหลดต่อลูกจะขึ้นไป ${f(bl.lp,1)}% ซึ่งสูงเกินไป ไม่เหลือ margin สำหรับ N−1 และการเริ่มเดินมอเตอร์ใหญ่ — ไม่แนะนำ`)
+      :`ยังไม่คุ้ม การปลดออก 1 ลูกทำให้สูญเสียรวมเพิ่มขึ้น ${f0(bl.tot-ref.tot)} kWh/ปี เพราะ load loss ที่โตตามกำลังสองชนะ no-load loss ที่ประหยัดได้`):''}
+    <br><b>ก่อนตัดสินใจต้องตรวจ:</b> ความน่าเชื่อถือ (N−1), กระแสเริ่มเดินของมอเตอร์ตัวใหญ่สุดกับ %Z ที่เหลือ, พิกัดอุปกรณ์ป้องกันและบัสไท,
+    การเปลี่ยนโหลดตามฤดูกาล และต้องจัดโหลดให้สมดุลก่อนเสมอ เพราะโหลดเฟสหนักสุดคือตัวกำหนดพิกัดจริง ไม่ใช่ค่าเฉลี่ย</div>`;
+
+  const der=deratef(u.VUF);
+  let mt='<tr><th>ผลกระทบ</th><th class="n">ค่าที่ได้</th><th>เกณฑ์/ผลที่ตามมา</th></tr>';
+  mt+=`<tr><td>Voltage Unbalance Factor</td><td class="n">${f(u.VUF,3)}%</td><td>NEMA MG-1 ห้ามเดินเกิน 5% · IEC/EN 50160 กำหนด ≤2% ที่จุดส่งมอบ</td></tr>`;
+  mt+=`<tr><td>ตัวคูณดีเรตกำลังมอเตอร์</td><td class="n">${f(der,3)}</td><td>${der>=0.999?'ยังไม่ต้องดีเรต':'มอเตอร์ 100 kW ใช้ได้จริงเพียง '+f(der*100,1)+' kW'}</td></tr>`;
+  mt+=`<tr><td>อุณหภูมิขดลวดที่เพิ่มขึ้น ≈ 2(%VUF)²</td><td class="n">${f(u.dT,2)} °C</td><td>${u.dT<2?'ไม่มีนัยสำคัญ':'ทุก 10 °C ที่เกินพิกัดฉนวน อายุฉนวนเหลือครึ่งเดียว'}</td></tr>`;
+  mt+=`<tr><td>กระแสลำดับลบที่ไหลในมอเตอร์</td><td class="n">${f(u.cuf,2)}% ของ I₁</td><td>สร้างสนามหมุนสวนทาง ทำให้เกิดแรงบิดต้าน การสั่น และความร้อนที่โรเตอร์</td></tr>`;
+  mt+=`<tr><td>ผลต่อกระแสเริ่มเดินและแรงบิด</td><td class="n">—</td><td>VUF สูงทำให้กระแสไม่สมดุลตอนสตาร์ทรุนแรงกว่าตอนเดินปกติหลายเท่า จุดนี้เป็นสาเหตุที่มอเตอร์ทริปเฉพาะตอนสตาร์ท</td></tr>`;
+  $('t_motor').innerHTML=mt;
+
+  /* ---------- tab 6 ---------- */
+  buildSummary(B,d,u,{lf,avgRate,pf0,kvarX,Qc,extraW,yrHrs,rk,best,nTx,P0,rate,bl,ref});
+  /* ---------- verdict ---------- */
+  $('v-rate').textContent=f(avgRate,2);
+  $('v-lf').textContent=f(lf,0)+'%';
+  const lb=band(-lf,-70,-50);
+  $('v-lf').className='vnum mono s'+lb; $('v-lfb').textContent=lf>=70?'สม่ำเสมอดี':lf>=50?'ปานกลาง':'มี peak แหลม';
+  $('v-pf').textContent=f(pf0,3);
+  const pb=kvarX>0?2:(pf0>=0.92?0:1);
+  $('v-pf').className='vnum mono s'+pb; $('v-pfb').textContent=kvarX>0?'ถูกปรับ '+f0(kvarX)+' kVAr':'ไม่ถูกปรับ';
+  $('v-unb').textContent=f(u.nema,1)+'%';
+  $('v-unb').className='vnum mono s'+nb; $('v-unbb').textContent=nb===0?'ยอมรับได้':nb===1?'ควรจัดเฟสใหม่':'ต้องแก้ไข';
+}
+</script>
+
+<script>
+/* ══════════════ summary / ECM / refs ══════════════ */
+function buildSummary(B,d,u,x){
+  const kwh=B.kwh;
+  let s='';
+  s+=`<div class="grid4" style="margin-bottom:14px">
+    <div class="stat"><div class="lab">ค่าไฟรวม</div><div class="big mono">${f0(B.total)}</div><div class="bigu">บาท/เดือน</div></div>
+    <div class="stat"><div class="lab">หน่วยไฟฟ้า</div><div class="big mono">${f0(kwh)}</div><div class="bigu">kWh/เดือน</div></div>
+    <div class="stat"><div class="lab">ค่าไฟเฉลี่ย</div><div class="big mono">${f(x.avgRate,3)}</div><div class="bigu">บาท/kWh</div></div>
+    <div class="stat"><div class="lab">พลังงานที่ระบุได้ว่าเสียเปล่า</div><div class="big mono">${f0(x.extraW*x.yrHrs/1000+(x.bl&&x.bl.tot<x.ref.tot&&x.bl.lp<=90?x.ref.tot-x.bl.tot:0))}</div><div class="bigu">kWh/ปี</div></div></div>`;
+  s+=`<div class="note"><b>ข้อความสำหรับรายงาน</b><br>
+   สถานประกอบการรับไฟฟ้าประเภทอัตรา ${esc(x.rk)} ระดับแรงดัน ${esc(S('i_lv')==='69'?'≥69 kV':S('i_lv')==='22'?'22–33 kV':'<22 kV')}
+   ใช้พลังงานไฟฟ้า ${f0(kwh)} kWh/เดือน ความต้องการพลังไฟฟ้าสูงสุด ${f(d.dem)} kW คิดเป็น Load Factor ${f(x.lf,1)}%
+   ค่าไฟฟ้าเฉลี่ย ${f(x.avgRate,3)} บาท/kWh (รวมค่า Ft ${f(d.ft,4)} บาท/kWh และภาษีมูลค่าเพิ่ม)
+   โดยค่าความต้องการพลังไฟฟ้าคิดเป็น ${f(B.sub>0?B.demand/B.sub*100:0,1)}% ของค่าไฟฟ้าก่อนภาษี
+   ${x.kvarX>0?`ตัวประกอบกำลังเฉลี่ย ${f(x.pf0,3)} ต่ำกว่าเกณฑ์ 0.85 (kVAr เกิน 61.97% ของ kW) ทำให้ถูกเรียกเก็บค่าเพาเวอร์แฟกเตอร์ ${f0(x.kvarX)} kVAr เป็นเงิน ${f0(B.pfPen)} บาท/เดือน`
+   :`ตัวประกอบกำลังเฉลี่ย ${f(x.pf0,3)} อยู่ในเกณฑ์ ไม่ถูกเรียกเก็บค่าเพาเวอร์แฟกเตอร์`}
+   <br><br>ผลการตรวจวัดการกระจายโหลดที่ตู้เมนแรงต่ำพบว่ากระแสรายเฟสเท่ากับ ${f(u.mag[0],0)} / ${f(u.mag[1],0)} / ${f(u.mag[2],0)} A
+   คิดเป็นความไม่สมดุลตามนิยาม NEMA ${f(u.nema,2)}% และมีกระแสไหลในสายนิวทรัล ${f(cabs(u.IN),0)} A
+   ผลจากความไม่สมดุลนี้ทำให้เกิดพลังงานสูญเสียเพิ่มขึ้นในสายและขดลวดหม้อแปลงรวม ${f(x.extraW,0)} W
+   (${f(u.totKW>0?x.extraW/(u.totKW*1000)*100:0,3)}% ของโหลดรวม) ซึ่งมีนัยสำคัญน้อย
+   แต่ทำให้เฟสที่หนักที่สุดรับภาระ ${f(u.loadMax,1)}% ของพิกัดหม้อแปลง เทียบกับ ${f(u.loadBal,1)}% หากกระจายโหลดสมดุล
+   เท่ากับสูญเสียความสามารถในการจ่ายไฟไป ${f(u.loadMax-u.loadBal,1)} จุดเปอร์เซ็นต์ หรือ ${f0(u.kva-u.kva*u.loadBal/Math.max(u.loadMax,1e-9))} kVA
+   ซึ่งเป็นข้อจำกัดที่แท้จริงในการขยายโหลดในอนาคต</div>`;
+
+  $('o_summary').innerHTML=s;
+
+  /* ECM */
+  const E=[];
+  if(u.nema>5) E.push(['จัดเฟสโหลด 1 เฟสใหม่','ย้ายวงจร 1 เฟสระหว่างเฟสให้ kW ใกล้เคียงกัน ใช้ฟังก์ชัน "จัดเฟสใหม่อัตโนมัติ" เป็นแนวทางแล้วตรวจสอบกับผังวงจรจริง',
+    'แรงงานช่างไฟ ไม่ต้องลงทุน', f0(x.extraW*x.yrHrs/1000)+' kWh/ปี + คืนพิกัดหม้อแปลง '+f(u.loadMax-u.loadBal,1)+' จุด','ทำได้ทันที',0]);
+  if(x.kvarX>0) E.push(['ติดตั้งคาปาซิเตอร์ปรับปรุงเพาเวอร์แฟกเตอร์',`ขนาด ${f0(x.Qc)} kVAr แบบอัตโนมัติ (APFC) แบ่ง step เพื่อยก PF จาก ${f(x.pf0,3)} เป็น ${f(V('pf_tgt'),2)}`,
+    'ลงทุนปานกลาง', f0(x.kvarX*d.pfrate*12)+' บาท/ปี (ค่าปรับ) + ลดสูญเสียในสาย','ต้องวัด kVAr ตลอด 24 ชม.ก่อน',1]);
+  if(x.lf<60) E.push(['บริหารความต้องการพลังไฟฟ้าสูงสุด (Peak Demand Management)',
+    `Load Factor ${f(x.lf,1)}% แสดงว่ามี peak แหลม — จัดตารางไม่ให้เครื่องจักรใหญ่สตาร์ทพร้อมกัน และตรวจว่ามี peak จากการเริ่มเดินหลังพักเที่ยงหรือไม่`,
+    'ไม่ต้องลงทุน (ถ้าใช้การจัดตาราง)', f0(d.dem*0.1*(B.L.dem||B.L.d1||0)*12)+' บาท/ปี ต่อการลด Demand 10%','ต้องมีข้อมูล load profile 15 นาที',1]);
+  if(x.best[0]!==x.rk&&B.total-x.best[1].total>0) E.push(['ทบทวนประเภทอัตราค่าไฟฟ้า',
+    `อัตรา ${esc(x.best[0])} ให้ค่าไฟต่ำกว่าอัตราปัจจุบันสำหรับรูปแบบการใช้ไฟชุดนี้`,'ค่าเปลี่ยนมิเตอร์',
+    f0((B.total-x.best[1].total)*12)+' บาท/ปี','ต้องคำนวณย้อนหลัง 12 เดือนก่อนยื่น',1]);
+  if(x.bl&&x.bl.tot<x.ref.tot&&x.bl.lp<=90) E.push(['ปลดหม้อแปลงที่โหลดต่ำออก',
+    `เดิน ${x.nTx-1} ลูกแทน ${x.nTx} ลูก ตัดสูญเสียขณะไม่มีโหลด ${f0(x.P0*8.76)} kWh/ปี ต่อลูก`,'ไม่ต้องลงทุน (สลับบัสไท)',
+    f0(x.ref.tot-x.bl.tot)+' kWh/ปี','ต้องตรวจ N−1 และกระแสสตาร์ทก่อน',2]);
+  E.push(['วัดสเปกตรัมฮาร์มอนิกที่ตู้เมนและสายนิวทรัล',
+    `กระแสนิวทรัลที่คำนวณจากความไม่สมดุลอย่างเดียวคือ ${f(3*u.m0,0)} A — ถ้าวัดจริงได้สูงกว่านี้มาก แสดงว่ามีฮาร์มอนิก triplen`,
+    'ค่าจ้างวัด/เช่าเครื่อง','ป้องกันสายนิวทรัลร้อนเกินและหม้อแปลงเสียหาย','IEEE 519 · ต้องวัดต่อเนื่อง 7 วัน',2]);
+  E.push(['ตรวจสอบขนาดสายนิวทรัล',
+    `สายนิวทรัลปัจจุบันมี R = ${f(V('u_RN'),5)} Ω เทียบสายเฟส ${f(V('u_R'),5)} Ω (อัตราส่วน ${f(V('u_R')>0?V('u_RN')/V('u_R'):0,1)} เท่า) รับกระแสอยู่ ${f(cabs(u.IN),0)} A`,
+    'ต้องเปลี่ยนสายถ้าไม่พอ','ความปลอดภัย ป้องกันไฟไหม้','ตรวจตามมาตรฐานการติดตั้ง วสท.',2]);
+  let et='<tr><th>ลำดับ</th><th>มาตรการ</th><th>รายละเอียด</th><th>การลงทุน</th><th>ผลที่ได้</th><th>เงื่อนไข/ข้อมูลที่ต้องมีก่อน</th></tr>';
+  E.forEach((e,i)=>{et+=`<tr><td>${pill(e[5],String(i+1))}</td><td><b>${esc(e[0])}</b></td><td style="font-size:.82rem">${e[1]}</td>
+    <td style="font-size:.82rem">${esc(e[2])}</td><td style="font-size:.82rem">${e[3]}</td><td style="font-size:.8rem;color:var(--muted)">${esc(e[4])}</td></tr>`;});
+  $('t_ecm').innerHTML=et;
+
+  /* field data */
+  const F=[
+    ['บิลค่าไฟฟ้าย้อนหลัง 12 เดือน','ทุกใบ ทุกหน้า','ยืนยันอัตรา ค่า Ft รายงวด ค่า Demand สูงสุด 12 เดือน และรูปแบบตามฤดูกาล — ใช้เดือนเดียวตัดสินใจเปลี่ยนอัตราไม่ได้'],
+    ['Load profile 15 นาที','ขอจากการไฟฟ้า หรือ log จากมิเตอร์','หา peak ว่ามาจากอะไร เวลาใด และประเมินผลของมาตรการเลื่อนโหลดได้จริง'],
+    ['กระแสรายเฟสและกระแสนิวทรัลที่ตู้เมน','บันทึกต่อเนื่อง ≥7 วัน ทุก 15 นาที','ความไม่สมดุลเปลี่ยนตามกะการผลิต การวัดครั้งเดียวเป็นภาพนิ่งที่หลอกได้'],
+    ['แรงดันรายเฟสที่ตู้เมน','พร้อมกับกระแส','คำนวณ VUF จากค่าที่วัดจริง แทนการประมาณจาก %Z'],
+    ['สเปกตรัมฮาร์มอนิกกระแส (THDi และรายลำดับถึงลำดับที่ 25)','ที่ตู้เมนและสายนิวทรัล','แยกว่ากระแสนิวทรัลมาจากความไม่สมดุลหรือจาก triplen harmonics'],
+    ['Nameplate และ test report หม้อแปลงทุกลูก','kVA, %Z, P₀, P_k, vector group, tap ที่ตั้งอยู่','ค่า P₀ และ P_k คือหัวใจของการประเมินการปลดหม้อแปลง'],
+    ['ผังวงจรไฟฟ้า (single line + panel schedule)','ระบุว่าวงจรย่อยแต่ละวงจรต่ออยู่เฟสใด','ถ้าไม่มี ต้องไล่ทำก่อน ไม่งั้นจัดเฟสใหม่ไม่ได้'],
+    ['ขนาดและความยาวสายเมน/สายนิวทรัล','mm² และเมตร','ใช้คำนวณ R จริงแทนค่าประมาณในเครื่องมือนี้'],
+    ['ชั่วโมงเดินเครื่องจริงรายระบบ','จากบันทึกการผลิต','พลังงานสูญเสียต่อปีขึ้นกับชั่วโมงเดิน ไม่ใช่กำลังไฟฟ้าอย่างเดียว']
+  ];
+  let ft='<tr><th>ข้อมูล</th><th>วิธี/แหล่ง</th><th>ทำไมต้องมี</th></tr>';
+  F.forEach(r=>{ft+=`<tr><td><b>${esc(r[0])}</b></td><td style="font-size:.82rem">${esc(r[1])}</td><td style="font-size:.82rem;color:var(--muted)">${esc(r[2])}</td></tr>`;});
+  $('t_field').innerHTML=ft;
+
+  $('o_refs').innerHTML=`
+  <h3>สูตรที่ใช้</h3>
+  <div class="kv"><span>กระแสโหลด 3 เฟส</span><b>I = P / (√3 · V<sub>LL</sub> · PF)</b></div>
+  <div class="kv"><span>กระแสโหลด 1 เฟส (เฟส–นิวทรัล)</span><b>I = P / (V<sub>LN</sub> · PF) โดย V<sub>LN</sub> = V<sub>LL</sub>/√3</b></div>
+  <div class="kv"><span>กระแสนิวทรัล</span><b>I<sub>N</sub> = I<sub>a</sub> + I<sub>b</sub> + I<sub>c</sub> (ผลรวมเวกเตอร์) = 3 I₀</b></div>
+  <div class="kv"><span>ส่วนประกอบสมมาตร (Fortescue)</span><b>I₀ = (I<sub>a</sub>+I<sub>b</sub>+I<sub>c</sub>)/3 · I₁ = (I<sub>a</sub>+aI<sub>b</sub>+a²I<sub>c</sub>)/3 · I₂ = (I<sub>a</sub>+a²I<sub>b</sub>+aI<sub>c</sub>)/3, a = 1∠120°</b></div>
+  <div class="kv"><span>เอกลักษณ์กำลังสอง</span><b>ΣI²<sub>เฟส</sub> = 3(I₀² + I₁² + I₂²)</b></div>
+  <div class="kv"><span>สัดส่วนสูญเสียทองแดงที่เพิ่ม</span><b>(I₀² + I₂²) / I₁²</b></div>
+  <div class="kv"><span>NEMA % Current/Voltage Unbalance</span><b>max|X<sub>เฟส</sub> − X<sub>เฉลี่ย</sub>| / X<sub>เฉลี่ย</sub> × 100</b></div>
+  <div class="kv"><span>สูญเสียในหม้อแปลง</span><b>P = P₀ + P<sub>k</sub> · ΣI²/(3 I<sub>r</sub>²)</b></div>
+  <div class="kv"><span>ขนาดคาปาซิเตอร์</span><b>Q<sub>c</sub> = P (tan φ₁ − tan φ₂)</b></div>
+  <div class="kv"><span>การลดสูญเสียจากการแก้ PF</span><b>1 − (PF₁/PF₂)²</b></div>
+  <div class="kv"><span>เกณฑ์ค่าปรับเพาเวอร์แฟกเตอร์</span><b>kVAr ส่วนที่เกิน 0.6197 × kW (เศษตั้งแต่ 0.5 ปัดขึ้น) = PF 0.85</b></div>
+  <div class="kv"><span>อุณหภูมิมอเตอร์ที่เพิ่มขึ้น</span><b>ΔT ≈ 2 × (%VUF)² เคลวิน</b></div>
+  <h3>สมมุติฐานของโมเดล</h3>
+  <div class="note">
+   1. คิดที่ความถี่มูลฐาน 50 Hz อย่างเดียว — <b>ยังไม่รวมฮาร์มอนิก</b> กระแสนิวทรัลจริงจึงอาจสูงกว่าที่คำนวณได้มากถ้ามีโหลดสวิตชิ่งเยอะ<br>
+   2. แรงดันแต่ละเฟสสมดุลกันที่บัสบาร์ ความไม่สมดุลของแรงดันประมาณจาก I₂ × %Z ของหม้อแปลง (ไม่รวมอิมพีแดนซ์สายและระบบต้นทาง) — เป็นค่าประมาณต่ำ<br>
+   3. โหลด 1 เฟสสมมติว่าต่อระหว่างเฟสกับนิวทรัล ถ้าในสนามเป็นแบบเฟส-เฟส (เช่น เครื่องเชื่อม 380 V) ให้แยกคำนวณต่างหาก เพราะจะไม่สร้างกระแสลำดับศูนย์<br>
+   4. อัตราค่าไฟฟ้าและ Ft เป็นค่าตั้งต้น — <b>ต้องแทนที่ด้วยตัวเลขจากบิลจริงหรือประกาศงวดปัจจุบัน</b> ก่อนใช้อ้างอิงในรายงาน<br>
+   5. ความต้านทานสายเป็นค่าที่ผู้ใช้กรอก ควรแก้เป็นค่าที่อุณหภูมิใช้งานจริง (ทองแดงเพิ่มราว 0.4%/°C จาก 20 °C)<br>
+   6. การเปรียบเทียบ "ถ้าโหลดสมดุล" ใช้กระแสลำดับบวก I₁ เป็นฐาน คือกรณีที่โหลด kW และ kVAr เท่าเดิมทุกประการแต่กระจายเท่ากันสามเฟส
+  </div>
+  <h3>มาตรฐานและเอกสารอ้างอิง</h3>
+  <div class="note">
+   NEMA MG-1 (เส้นดีเรตมอเตอร์จากแรงดันไม่สมดุล) · IEC 60034-26 (ผลของแรงดันไม่สมดุลต่อมอเตอร์เหนี่ยวนำ) ·
+   IEC 61000-4-30 (วิธีวัดคุณภาพไฟฟ้า) · EN 50160 (ขีดจำกัดแรงดันที่จุดส่งมอบ) · IEEE 519 (ขีดจำกัดฮาร์มอนิก) ·
+   IEEE C57.110 (การดีเรตหม้อแปลงเมื่อจ่ายโหลดไม่เชิงเส้น) · IEC 60076-1 (หม้อแปลงกำลัง — สูญเสียและการทดสอบ) ·
+   C.L. Fortescue (1918) วิธีส่วนประกอบสมมาตร · ประกาศโครงสร้างอัตราค่าไฟฟ้าและเงื่อนไขการเรียกเก็บค่าเพาเวอร์แฟกเตอร์ของการไฟฟ้า ·
+   ประกาศค่า Ft รายงวดของคณะกรรมการกำกับกิจการพลังงาน · มาตรฐานการติดตั้งทางไฟฟ้าสำหรับประเทศไทย (วสท.)
+  </div>`;
+}
+
+/* ══════════════ tabs / IO / init ══════════════ */
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on'); $(t.dataset.p).classList.add('on');
+  window.scrollTo({top:0,behavior:'smooth'});
+});
+const IDS=['i_rate','i_lv','i_days','i_kwh_p','i_kwh_o','i_dem','i_kvar','i_ft','i_tod','i_dem12','i_vat','i_actual',
+  'pf_rate','pf_tgt','pf_hr','pf_R','u_v','u_kva','u_p3','u_pf3','u_R','u_RN','u_z','u_pk','tx_p0','tx_n','tx_rate','tx_amb',
+  'm0_k','m0_m','m0_n','m0_t','m1_i1','m1_i2','m1_i3','m1_in','m1_v12','m1_v23','m1_v31','m1_pf','m3_w1','m3_w2','m3_bal'];
+function saveJSON(){
+  const o={v:1,tool:'Tool_Electricity_Bill_Tariff_Analyzer',ts:new Date().toISOString(),in:{},loads:L1P,m2:M2ROW,mot:MOT,pnl:PNL,rates:RS};
+  IDS.forEach(k=>{const e=$(k); if(e)o.in[k]=e.value;});
+  const b=new Blob([JSON.stringify(o,null,1)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+  a.download='electricity_bill_analysis.json'; a.click();
+}
+function loadJSON(inp){
+  const fr=new FileReader();
+  fr.onload=e=>{try{
+    const o=JSON.parse(e.target.result);
+    if(o.in)Object.keys(o.in).forEach(k=>{if($(k))$(k).value=o.in[k];});
+    if(Array.isArray(o.loads))L1P=o.loads;
+    if(Array.isArray(o.m2))M2ROW=o.m2;
+    if(Array.isArray(o.mot))MOT=o.mot;
+    if(Array.isArray(o.pnl))PNL=o.pnl;
+    if(o.rates)Object.keys(o.rates).forEach(k=>{if(RS[k])RS[k]=o.rates[k];});
+    drawRates();draw1ph();drawTxRef();calc();calcField();
+  }catch(err){alert('ไฟล์ JSON ไม่ถูกต้อง: '+err.message);}};
+  fr.readAsText(inp.files[0]);
+}
+/* ══════════════ input helpers & reference tables ══════════════ */
+const TXREF=[[100,4,260,1750],[160,4,350,2350],[250,4,480,3250],[315,4,570,3900],[400,4,680,4600],
+ [500,4,810,5500],[630,4,970,6500],[800,5,1150,8400],[1000,5,1400,10500],[1250,5,1650,12500],
+ [1600,5,2000,15500],[2000,6,2400,18500],[2500,6,2900,22000]];
+function drawTxRef(){
+  let h='<tr><th>พิกัด kVA</th><th class="n">%Z</th><th class="n">P₀ ไม่มีโหลด (W)</th><th class="n">P<sub>k</sub> มีโหลด (W)</th>'
+      +'<th class="n">I พิกัดที่ 400 V (A)</th><th class="n">No-load ต่อปี (kWh)</th><th></th></tr>';
+  const Vll=V('u_v')||400;
+  TXREF.forEach(r=>{
+    const ir=r[0]*1000/(Math.sqrt(3)*Vll);
+    h+=`<tr${V('u_kva')===r[0]?' class="hl"':''}><td><b>${f0(r[0])}</b></td><td class="n">${f(r[1],1)}</td>
+      <td class="n">${f0(r[2])}</td><td class="n">${f0(r[3])}</td><td class="n">${f0(ir)}</td><td class="n">${f0(r[2]*8.76)}</td>
+      <td><button class="btn sm ghost" onclick="applyTx(${r[0]},${r[1]},${r[2]},${r[3]})">ใส่ค่านี้</button></td></tr>`;
+  });
+  $('t_txref').innerHTML=h;
+}
+function applyTx(kva,z,p0,pk){
+  $('u_kva').value=kva; $('u_z').value=z; $('u_pk').value=pk; $('tx_p0').value=p0;
+  drawTxRef(); calc();
+}
+const PFREF=[
+ ['มอเตอร์เหนี่ยวนำ 3 เฟส โหลดเต็มพิกัด','0.85 – 0.90','ยิ่งมอเตอร์ใหญ่ PF ยิ่งดี · 4 pole ดีกว่า 8 pole'],
+ ['มอเตอร์เหนี่ยวนำ โหลด 50%','0.70 – 0.80','นี่คือสาเหตุหลักที่โรงงาน PF ต่ำ — มอเตอร์ oversized เดินเบา'],
+ ['มอเตอร์เหนี่ยวนำ โหลด 25% หรือเดินตัวเปล่า','0.50 – 0.60','กินกระแสรีแอกทีฟเกือบเท่าเดิมแต่ไม่ได้งาน'],
+ ['มอเตอร์ที่ขับผ่าน VFD','0.95 – 0.98','เป็น displacement PF ที่ด้านเข้า แต่ THDi สูง 30–80% ถ้าไม่มี reactor'],
+ ['ฮีตเตอร์ความต้านทาน (band/immersion/infrared)','1.00','โหลดความต้านทานล้วน ไม่มีกระแสรีแอกทีฟ'],
+ ['เตาเหนี่ยวนำ (induction furnace)','0.70 – 0.85','มีชุดคาปาซิเตอร์ในตัวอยู่แล้ว ต้องดูที่ด้านเข้าหม้อแปลง'],
+ ['เครื่องเชื่อมอาร์ก (transformer type)','0.50 – 0.70','โหลดกระชากเป็นช่วง ทำให้ทั้ง PF ต่ำและ flicker'],
+ ['เครื่องเชื่อมอินเวอร์เตอร์','0.90 – 0.95','ดีกว่าแบบหม้อแปลงมาก'],
+ ['แอร์แยกส่วน/VRF แบบ on-off','0.90 – 0.95','คอมเพรสเซอร์มีคาปาซิเตอร์รันในตัว'],
+ ['แอร์อินเวอร์เตอร์','0.95 – 0.98','มี PFC ที่ด้านเข้า'],
+ ['หลอด LED ที่มี PFC (driver คุณภาพดี)','0.90 – 0.98','ดูที่ป้าย driver — ถ้าเขียน PF > 0.9 คือมี PFC'],
+ ['หลอด LED ราคาถูก ไม่มี PFC','0.50 – 0.70','กระแสฮาร์มอนิกสูง เป็นต้นเหตุกระแสนิวทรัลเกิน'],
+ ['ฟลูออเรสเซนต์ ballast แกนเหล็ก ไม่มีคาปาซิเตอร์','0.50 – 0.60','พบในโรงงานเก่า เปลี่ยนเป็น LED ได้ทั้ง PF และพลังงาน'],
+ ['UPS / เครื่องชาร์จแบตเตอรี่ที่มี PFC','0.95 – 0.99','รุ่นเก่าที่ไม่มี PFC จะอยู่ 0.65 – 0.75'],
+ ['พาวเวอร์ซัพพลายคอมพิวเตอร์/เซิร์ฟเวอร์','0.95 – 0.99','แต่ให้ระวังฮาร์มอนิกลำดับที่ 3 ที่ลงนิวทรัล'],
+ ['หม้อแปลงเดินตัวเปล่า (ไม่มีโหลด)','0.10 – 0.20','กระแสกระตุ้นเกือบเป็นรีแอกทีฟล้วน — เหตุผลหนึ่งที่ควรปลดหม้อแปลงที่ไม่ใช้']
+];
+function drawPfRef(){
+  let h='<tr><th>ชนิดโหลด</th><th class="n">PF ทั่วไป</th><th>หมายเหตุ</th></tr>';
+  PFREF.forEach(r=>{h+=`<tr><td>${esc(r[0])}</td><td class="n"><b>${esc(r[1])}</b></td><td style="font-size:.82rem;color:var(--muted)">${esc(r[2])}</td></tr>`;});
+  $('t_pfref').innerHTML=h;
+}
+function calcR(){
+  const mat=S('cw_mat'), A=V('cw_a'), n=Math.max(1,V('cw_n')), L=V('cw_l'), T=V('cw_t');
+  const rho=mat==='al'?0.02826:0.01754, al=mat==='al'?0.00403:0.00393;
+  if(A<=0||L<=0){$('cw_out').textContent='กรอกขนาดสายและความยาวก่อน';return;}
+  const R=rho*(1+al*(T-20))*L/(A*n);
+  const nr=parseFloat(S('cw_nr'))||1;
+  $('u_R').value=R.toFixed(5); $('u_RN').value=(R*nr).toFixed(5);
+  $('cw_out').innerHTML=`R เฟส = <b>${R.toFixed(5)} Ω</b> · R นิวทรัล = <b>${(R*nr).toFixed(5)} Ω</b>`
+    +`<br><span style="font-size:.78rem">${mat==='al'?'Al':'Cu'} ${f0(n)}×${f0(A)} mm² ยาว ${f0(L)} m ที่ ${f0(T)} °C — ใส่ในช่องด้านบนให้แล้ว</span>`;
+  calc();
+}
+function estKvar(){
+  const kw=V('i_dem');
+  if(kw<=0){$('est_out').textContent='ต้องใส่ความต้องการพลังไฟฟ้าสูงสุด (kW) ในแท็บ 1 ก่อน';return;}
+  const wh=(S('est_wh')||'0/0').split('/');
+  const kwh=parseFloat(wh[0])||0, kvarh=parseFloat(wh[1])||0;
+  let pf, src;
+  if(kwh>0&&kvarh>0){pf=kwh/Math.hypot(kwh,kvarh); src=`จาก kWh/kVArh ทั้งงวด (${f0(kwh)} / ${f0(kvarh)})`;}
+  else {pf=clamp(V('est_pf')||0.85,0.3,1); src='จากค่า PF ที่กรอก';}
+  const kvar=kw*Math.tan(Math.acos(pf));
+  $('i_kvar').value=Math.round(kvar);
+  $('est_out').innerHTML=`PF = <b>${f(pf,3)}</b> → kVAr = ${f(kw)} × tan(cos⁻¹ ${f(pf,3)}) = <b>${f0(kvar)} kVAr</b> — ${esc(src)}
+    <br><span style="font-size:.78rem">ใส่ในช่อง kVAr ของแท็บ 1 ให้แล้ว · เกณฑ์ค่าปรับของงวดนี้คือ ${f(PF_THRESH*kw,1)} kVAr</span>`;
+  calc();
+}
+
+fillRateSel(); drawRates(); draw1ph(); drawTxRef(); drawPfRef();
+drawMethods(); drawFieldTables();
+$('svg_m1').innerHTML=m1SVG(); $('svg_m2').innerHTML=m2SVG(); $('svg_m3').innerHTML=m3SVG();
+calc(); calcField();
+</script>
+</body>
+</html>
