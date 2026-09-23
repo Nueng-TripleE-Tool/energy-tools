@@ -87,6 +87,19 @@ td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 .rangebar b{color:var(--navy)}
 .rangebar button{margin:0;padding:5px 10px;font-size:.8rem}
 @media(max-width:720px){.grid2,.grid3,.grid4{grid-template-columns:1fr}}
+/* [แก้ไข 23 ก.ย. 2569] ตัวเลือกความละเอียด */
+.resbox{display:inline-flex;align-items:center;gap:8px;margin:12px 8px 0 0;vertical-align:middle;background:#f0f6f8;border:1px solid #cfe3ea;border-radius:10px;padding:4px 10px}
+.resbox label{margin:0;font-size:.8rem;color:var(--navy);font-weight:600;white-space:nowrap}
+.resbox select{width:auto;padding:5px 8px;font-size:.85rem}
+/* [แก้ไข 23 ก.ย. 2569] กล่องตัวแปรเสริม */
+.exbox{background:#f4f9fb;border:1px solid #cfe3ea;border-left:4px solid var(--teal);border-radius:10px;padding:10px 14px;margin:12px 0 4px}
+.exbox .exhead{font-size:.86rem;margin-bottom:6px}
+.exgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:4px 14px}
+.exgrid label{display:grid;grid-template-columns:auto 1fr;column-gap:6px;align-items:start;font-size:.84rem;margin:2px 0 6px;cursor:pointer;color:var(--ink);font-weight:500}
+.exgrid label input{width:auto;margin-top:4px}
+.exgrid .hint{grid-column:2;display:block;margin:0;font-weight:400}
+.exgrid .lt{grid-column:2}
+.expill{display:inline-block;font-size:.72rem;padding:2px 8px;border-radius:999px;background:#e6f4f4;color:#0f6b6b;border:1px solid #bfe1e1;margin:2px 4px 2px 0}
 @media print{
   body{background:#fff}
   header{padding:12px 16px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -117,7 +130,8 @@ td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 
 <div class="tabs no-print">
   <div class="tab active" data-tab="data" onclick="showTab('data')">1) ดึงข้อมูล (Data)</div>
-  <div class="tab" data-tab="prov" onclick="showTab('prov')">2) รายจังหวัด (Monthly CDD)</div>
+  <div class="tab" data-tab="prov" onclick="showTab('prov')">2) รายจังหวัด (CDD)</div>
+  <div class="tab" data-tab="daily" onclick="showTab('daily')">2b) รายวัน (Daily CDD)</div>
   <div class="tab" data-tab="cmp" onclick="showTab('cmp')">3) เปรียบเทียบจังหวัด</div>
   <div class="tab" data-tab="map" onclick="showTab('map')">4) แผนที่ Heatmap</div>
   <div class="tab" data-tab="reg" onclick="showTab('reg')">5) Regression (EnB)</div>
@@ -139,11 +153,30 @@ td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
       <div><label>สถานะข้อมูล (Status)</label>
         <div id="dataStatus" style="padding:9px 0;font-size:.9rem" class="status-warn">ยังไม่มีข้อมูล — กดปุ่มดึงข้อมูล หรือโหลดไฟล์ JSON</div></div>
     </div>
+    <!-- [แก้ไข 23 ก.ย. 2569] ตัวแปรเสริมรายวัน — ดึงพร้อมกันในคำสั่งเดียว (ไม่เพิ่มจำนวน request) -->
+    <div class="exbox">
+      <div class="exhead"><b>ตัวแปรเสริมรายวัน (ดึงพร้อมอุณหภูมิเฉลี่ยและ RH)</b> <span class="hint" style="display:inline">— ติ๊กเฉพาะที่ใช้ ยิ่งมากยิ่งเสี่ยงติด rate limit เร็วขึ้น · ใช้ได้ในแท็บ 2b รายวัน + CSV</span></div>
+      <div class="exgrid">
+        <label><input type="checkbox" id="exTmm" checked><span class="lt">T<sub>max</sub>/T<sub>min</sub> รายวัน</span><span class="hint">CDD แบบ (Tmax+Tmin)/2 ตามวิธีอุตุฯ/ASHRAE · ช่วงกลางวัน–กลางคืน</span></label>
+        <label><input type="checkbox" id="exWb" checked><span class="lt">กระเปาะเปียกจาก API</span><span class="hint">แทนสูตร Stull (แม่นกว่า) — เมื่อมี ระบบจะใช้ค่านี้ทุกแท็บ</span></label>
+        <label><input type="checkbox" id="exDew"><span class="lt">จุดน้ำค้าง T<sub>dp</sub></span><span class="hint">ภาระแฝง / ความเสี่ยงกลั่นตัว</span></label>
+        <label><input type="checkbox" id="exRad"><span class="lt">รังสีดวงอาทิตย์ GHI</span><span class="hint">MJ/m²·วัน → kWh/m² สำหรับ Solar PV / solar gain</span></label>
+        <label><input type="checkbox" id="exWind"><span class="lt">ความเร็วลมเฉลี่ย 10 ม.</span><span class="hint">พาความร้อนผิวนอกอุปกรณ์/ถัง</span></label>
+        <label><input type="checkbox" id="exRain"><span class="lt">ฝนรวมรายวัน</span><span class="hint">งานเขื่อน/hydro · น้ำท่วม</span></label>
+        <label><input type="checkbox" id="exPres"><span class="lt">ความดันบรรยากาศผิวพื้น</span><span class="hint">ป้อน psychrometric ตามความสูงพื้นที่</span></label>
+      </div>
+    </div>
     <button onclick="fetchAll()" id="btnFetch">⬇ ดึงข้อมูลทั้ง 77 จังหวัด (Open-Meteo)</button>
     <button class="sec" onclick="saveJSON()">💾 บันทึก JSON (ใช้ offline)</button>
     <button class="sec" onclick="document.getElementById('fileJSON').click()">📂 โหลด JSON</button>
     <input type="file" id="fileJSON" accept=".json" style="display:none" onchange="loadJSON(event)">
+    <span class="resbox"><label for="resSel">ความละเอียดของ CSV / ผลลัพธ์</label>
+      <select id="resSel" onchange="applyRes()">
+        <option value="month" selected>รายเดือน (Monthly)</option>
+        <option value="week">รายสัปดาห์ (ISO week จ.–อา.)</option>
+        <option value="day">รายวัน (Daily)</option></select></span>
     <button class="sec" onclick="exportAllCSV()">⬇ Export CSV (CDD ทุกจังหวัด)</button>
+    <!-- [แก้ไข 23 ก.ย. 2569] --><div class="hint" style="margin-top:4px">ดึงจาก API เป็น<b>รายวันเสมอ</b> (Open-Meteo ไม่มีรายสัปดาห์/รายเดือน) แล้วรวมในเครื่องตามความละเอียดที่เลือก — มีผลกับ "Export CSV ทุกจังหวัด" ปุ่มนี้, "Export CSV จังหวัดนี้" ในแท็บ 2 และรูปแบบเริ่มต้นของแท็บ 2b · รายสัปดาห์นับ จ.–อา. ตาม ISO 8601 สัปดาห์ต้น/ปลายช่วงที่ไม่ครบ 7 วันจะมีคอลัมน์ days กำกับ</div>
     <div class="progress no-print"><div id="progBar"></div></div>
     <p class="assump" id="fetchLog"></p>
     <div class="note">
@@ -152,6 +185,7 @@ td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
       จึงตั้งค่าเริ่มต้นถึงเดือนล่าสุดที่ครบเดือน · API ฟรีสำหรับการใช้งานที่ไม่ใช่เชิงพาณิชย์ขนาดใหญ่
       (งานเชิงพาณิชย์ปริมาณมากควรสมัคร API plan) · ระบบแบ่งดึงเป็นรายปีเพื่อเลี่ยง rate limit —
       หากติด limit รายนาที (HTTP 429) เครื่องมือจะ<b>รอ ~1 นาทีแล้วดึงต่อเองอัตโนมัติ</b> ไม่ต้องกดซ้ำ อย่าปิดหน้า ·
+      <b>ตัวแปรเสริม</b> (Tmax/Tmin · WB จาก API · จุดน้ำค้าง · รังสี · ลม · ฝน · ความดัน) ดึงมาในคำสั่งเดียวกัน ใช้ในแท็บ 2b และ CSV รายวัน · เมื่อเลือก WB จาก API ระบบจะใช้แทนสูตร Stull ทุกแท็บ ·
       วิธีคำนวณ CDD ใช้ daily-mean method:
       CDD<sub>เดือน</sub> = Σ max(0, T̄<sub>วัน</sub> − T<sub>base</sub>) ซึ่งอาจต่างจาก degreedays.net
       (integration method จากข้อมูลรายชั่วโมง) เล็กน้อย โดยเฉพาะเดือนที่อุณหภูมิแกว่งใกล้ base temperature
@@ -171,10 +205,14 @@ td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 <!-- ============ TAB 2 : PER PROVINCE ============ -->
 <div class="tabpane" id="pane-prov" style="display:none">
   <div class="card">
-    <h2>CDD รายเดือน — รายจังหวัด</h2>
+    <h2>CDD <span id="provResTitle">รายเดือน</span> — รายจังหวัด</h2>
+    <div class="rangebar no-print" style="margin-bottom:6px"><b>ความละเอียด:</b>
+      <select id="resSel2" onchange="document.getElementById('resSel').value=this.value;applyRes()">
+        <option value="month">รายเดือน (Monthly)</option><option value="week">รายสัปดาห์ (ISO จ.–อา.)</option><option value="day">รายวัน (Daily)</option></select>
+      <span style="color:var(--muted);font-size:.82rem">ตัวเลือกเดียวกับแท็บ 1 — มีผลกับ KPI · กราฟ · ตาราง · CSV ของแท็บนี้</span></div>   <!-- [แก้ไข 23 ก.ย. 2569] -->
     <div class="rangebar no-print" id="rangebar2"><b>ช่วงวิเคราะห์:</b> จาก <select id="anaS2" onchange="setAnaFromUI(2)"></select> ถึง <select id="anaE2" onchange="setAnaFromUI(2)"></select> <span id="anaInfo2" style="color:var(--muted)"></span> <button class="sec" onclick="setAnaQuick(-1)">ทั้งหมด</button><button class="sec" onclick="setAnaQuick(12)">12 เดือนล่าสุด</button><button class="sec" onclick="setAnaQuick(24)">24 เดือนล่าสุด</button></div>
     <div class="grid4">
-      <div><label>จังหวัด (Province)</label><select id="provSel" onchange="renderProv()"></select><div class="hint">จังหวัดที่ตั้งอาคาร/โรงงาน — ใช้พิกัดศูนย์กลางจังหวัดดึงอุณหภูมิรายวัน (Open-Meteo ERA5) · ถ้าไซต์อยู่ไกลตัวจังหวัดมากให้ใช้แท็บพยากรณ์+พิกัดไซต์แทน</div></div>
+      <div><label>จังหวัด (Province)</label><select id="provSel" onchange="renderProv();dailyFollowProv()"></select><div class="hint">จังหวัดที่ตั้งอาคาร/โรงงาน — ใช้พิกัดศูนย์กลางจังหวัดดึงอุณหภูมิรายวัน (Open-Meteo ERA5) · ถ้าไซต์อยู่ไกลตัวจังหวัดมากให้ใช้แท็บพยากรณ์+พิกัดไซต์แทน</div></div>
       <div><label>ชนิด Degree Days</label>
         <select id="mode1" onchange="syncFrom(1);renderProv()">
           <option value="cdd">CDD — ภาระความเย็น</option>
@@ -197,12 +235,51 @@ td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
     <div class="kpirow" id="provKPI"></div>
     <div class="chartbox" id="provChart"></div>
     <div class="scroll-x" id="provTable"></div>
-    <button class="sec no-print" onclick="exportProvCSV()">⬇ Export CSV จังหวัดนี้</button>
+    <button class="sec no-print" onclick="exportProvCSV()" id="btnProvCSV">⬇ Export CSV จังหวัดนี้ (รายเดือน)</button>
     <button class="sec no-print" onclick="printPane('prov')">🖨 พิมพ์รายงาน</button>
     <p class="assump">CDD<sub>เดือน</sub> = Σ max(0, T̄<sub>วัน</sub> − T<sub>base</sub>) · HDD<sub>เดือน</sub> = Σ max(0, T<sub>base</sub> − T̄<sub>วัน</sub>) หน่วย °C·day ·
       เดือนที่ข้อมูลไม่ครบจะแสดงจำนวนวันกำกับ · T̄ = อุณหภูมิเฉลี่ยรายวันที่ 2 ม. จาก ERA5 ·
       กระเปาะเปียกคำนวณจาก T̄ และ RH̄ รายวันด้วยสูตร Stull (2011) ความคลาดเคลื่อน ±0.3–1 °C ในย่าน RH 5–99% ·
       ข้อควรระวัง: เมื่อ base ต่ำกว่าอุณหภูมิรายวันต่ำสุด (~15 °C) ทุกวันจะร่วมคำนวณหมด DD จะเทียบเท่า ΔT·วัน — เหมาะกับห้องเย็น/กระบวนการ sub-ambient แต่การ Optimize base ในย่านนี้จะแยกไม่ออก (R² แบนราบ) ให้กำหนด base = setpoint แทน</p>
+  </div>
+</div>
+
+<!-- ============ TAB 2b : DAILY CDD  [แก้ไข 23 ก.ย. 2569] ============ -->
+<div class="tabpane" id="pane-daily" style="display:none">
+  <div class="card">
+    <h2>CDD รายวัน — Daily Degree Days (รายวัน · รายสัปดาห์ · ค่าเฉลี่ยเคลื่อนที่)</h2>
+    <div class="note">ใช้ค่า <b>ชนิด DD · Sensor · Base temperature</b> ชุดเดียวกับแท็บ 2 (⚡ จากแท็บ 2 — เปลี่ยนได้ที่แท็บ 2 หรือเปิด "ใช้ค่าเดียวกันทุกแท็บ") — ตอนนี้: <b id="dailySettingInfo">–</b></div>
+    <div class="grid4" style="margin-top:8px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+      <div><label>จังหวัด (Province)</label><select id="dailyProv" onchange="renderDaily()"></select><div class="hint">เริ่มต้นตามจังหวัดที่เลือกในแท็บ 2 · เปลี่ยนได้อิสระ</div></div>
+      <div><label>วันเริ่มต้น</label><input type="date" id="dailyS" onchange="renderDaily()"><div class="hint">อยู่ในช่วงข้อมูลที่ดึงมา (ค.ศ.) · ค่าเริ่มต้น = 90 วันล่าสุด</div></div>
+      <div><label>วันสิ้นสุด</label><input type="date" id="dailyE" onchange="renderDaily()"><div class="hint">ช่วงยาวมาก (&gt; 2 ปี) กราฟจะหนาแน่น แนะนำดูแบบรายสัปดาห์</div></div>
+      <div><label>อุณหภูมิที่ใช้คิด DD (T̄)</label>
+        <select id="dailyTsrc" onchange="renderDaily()">
+          <option value="mean">ค่าเฉลี่ย 24 ชม. (ERA5 mean) — เหมือนแท็บ 2</option>
+          <option value="mm">(Tmax + Tmin)/2 — วิธีอุตุฯ/ASHRAE (ต้องมี Tmax/Tmin)</option></select>
+        <div class="hint">ใช้ตัวเลือก 2 เมื่อจะเทียบกับ CDD ของกรมอุตุฯ/degreedays.net ที่คิดจาก (Tmax+Tmin)/2 · มีผลเฉพาะกระเปาะแห้ง</div></div>
+      <div><label>รูปแบบการแสดง</label>
+        <select id="dailyView" onchange="renderDaily()">
+          <option value="day">รายวัน (Daily)</option>
+          <option value="day7">รายวัน + ค่าเฉลี่ยเคลื่อนที่ 7 วัน</option>
+          <option value="week">รายสัปดาห์ (จ.–อา.) รวม DD</option></select>
+        <div class="hint">รายวัน = ใช้ทำ EnB รายวัน/รายสัปดาห์กับข้อมูลมิเตอร์ที่ละเอียดกว่ารายเดือน · เฉลี่ยเคลื่อนที่ 7 วัน ช่วยตัดสัญญาณรบกวนรายวัน</div></div>
+    </div>
+    <div id="dailyExInfo" class="note" style="margin-top:6px"></div>
+    <div class="rangebar no-print" style="margin-top:8px"><b>ช่วงด่วน:</b>
+      <button class="sec" onclick="setDailyQuick(30)">30 วันล่าสุด</button><button class="sec" onclick="setDailyQuick(90)">90 วันล่าสุด</button>
+      <button class="sec" onclick="setDailyQuick(365)">365 วันล่าสุด</button><button class="sec" onclick="setDailyQuick(-1)">ทั้งหมดที่ดึงมา</button>
+      <button class="sec" onclick="setDailyQuick(0)">ตามช่วงวิเคราะห์ (แท็บ 2)</button>
+      <span id="dailyInfo" style="color:var(--muted)"></span></div>
+    <div class="kpirow" id="dailyKPI"></div>
+    <div class="chartbox" id="dailyChart"></div>
+    <div class="scroll-x" id="dailyTable" style="max-height:520px;overflow-y:auto"></div>
+    <button class="sec no-print" onclick="exportDailyCSV()">⬇ Export CSV รายวัน (ช่วงที่เลือก)</button>
+    <button class="sec no-print" onclick="printPane('daily')">🖨 พิมพ์รายงาน</button>
+    <p class="assump">CDD<sub>วัน</sub> = max(0, T̄<sub>วัน</sub> − T<sub>base</sub>) · HDD<sub>วัน</sub> = max(0, T<sub>base</sub> − T̄<sub>วัน</sub>) หน่วย °C·day (ค่ารายเดือนในแท็บ 2 = ผลรวมของค่ารายวันเหล่านี้) ·
+      T̄ = อุณหภูมิเฉลี่ยรายวันที่ 2 ม. จาก ERA5 (Open-Meteo) — ไม่ใช่ค่าเฉลี่ยของ (T<sub>max</sub>+T<sub>min</sub>)/2 แบบสถานีอุตุฯ จึงอาจต่างกันเล็กน้อย ·
+      รายสัปดาห์นับสัปดาห์เริ่มวันจันทร์ สัปดาห์ต้น/ปลายช่วงอาจไม่ครบ 7 วัน (แสดงจำนวนวันกำกับ) ·
+      ค่าเฉลี่ยเคลื่อนที่ 7 วัน = ค่าเฉลี่ยของวันนั้นกับ 6 วันก่อนหน้า (trailing) · %RH = ค่าเฉลี่ยรายวัน · กระเปาะเปียกจาก Stull (2011)</p>
   </div>
 </div>
 
@@ -569,7 +646,7 @@ const TH_MON_FULL=["มกราคม","กุมภาพันธ์","มี
   "กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 const isoD=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=[], FK_MEAS=[], FK_SET=['startMon', 'startYr', 'endMon', 'endYr', 'provSel', 'mode1', 'sensor1', 'baseSlider1', 'baseNum1', 'mode2', 'sensor2', 'baseSlider2', 'cmpView', 'mapPeriod', 'mode3', 'sensor3', 'baseSlider3', 'fcMetric', 'fcBase', 'rainPeriod', 'drillProv', 'pinName', 'pinLL', 'fBasin', 'fProv', 'fAgency', 'fStatus', 'searchBox', 'watchN', 'provZoom', 'graphSearch', 'regProv', 'regN', 'modeR', 'sensorR', 'regBase', 'optMin', 'optMax'], FK_CALC=[];
+var FK_DESIGN=[], FK_MEAS=[], FK_SET=['resSel','resSel2','dailyProv','dailyS','dailyE','dailyView','dailyTsrc','exTmm','exWb','exDew','exRad','exWind','exRain','exPres','startMon', 'startYr', 'endMon', 'endYr', 'provSel', 'mode1', 'sensor1', 'baseSlider1', 'baseNum1', 'mode2', 'sensor2', 'baseSlider2', 'cmpView', 'mapPeriod', 'mode3', 'sensor3', 'baseSlider3', 'fcMetric', 'fcBase', 'rainPeriod', 'drillProv', 'pinName', 'pinLL', 'fBasin', 'fProv', 'fAgency', 'fStatus', 'searchBox', 'watchN', 'provZoom', 'graphSearch', 'regProv', 'regN', 'modeR', 'sensorR', 'regBase', 'optMin', 'optMax'], FK_CALC=[];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(/^ana[SE]\d$/.test(id))return null;if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -659,9 +736,15 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function fetchAll(){
   const rg=selRange();
   if(!rg.ok){alert("ช่วงเดือนไม่ถูกต้อง — เดือนสิ้นสุดต้องไม่ก่อนเดือนเริ่มต้น");return;}
-  const s=rg.s,e=rg.e;
+  const s=rg.s;let e=rg.e;
   const btn=document.getElementById('btnFetch');btn.disabled=true;
   const log=m=>document.getElementById('fetchLog').textContent=m;
+  // [แก้ไข 23 ก.ย. 2569] วันสิ้นสุดต้องไม่เกินวันที่ API มีข้อมูล (วันนี้ − 6 วัน ตามความล่าช้าของ ERA5) — เดิมเลือกเดือนปัจจุบันแล้ว API ตอบ 400 "end_date out of allowed range"
+  let clampNote="";
+  {const lim=isoD(new Date(Date.now()-6*864e5));
+   if(e>lim){clampNote=" · ตัดวันสิ้นสุดเหลือ "+lim+" (ข้อมูล ERA5 ล่าช้า ~5 วัน)";e=lim;}
+   if(s>e){log("");document.getElementById('dataStatus').className="status-bad";
+     document.getElementById('dataStatus').textContent="ช่วงที่เลือกยังไม่มีข้อมูล — ERA5 มีถึงประมาณ "+lim+" กรุณาเลือกเดือนเริ่มต้นก่อนหน้านั้น";btn.disabled=false;return;}}
   const bar=p=>document.getElementById('progBar').style.width=p+"%";
   try{
     const BATCH=11,groups=[];
@@ -678,13 +761,16 @@ async function fetchAll(){
     const totalReq=groups.length*chunks.length;
     const temps={},wb={},rh={};const dates=[];let done=0,withRH=true;
     PROVINCES.forEach(p=>{temps[p.k]=[];wb[p.k]=[];rh[p.k]=[];});
+    // [แก้ไข 23 ก.ย. 2569] ตัวแปรเสริมรายวันตามที่ติ๊กในแท็บ 1
+    const exSel=EX_DEFS.filter(d=>{const c=document.getElementById(d.chk);return c&&c.checked;});
+    let withEx=exSel.length>0;const ex={};exSel.forEach(d=>{ex[d.key]={};PROVINCES.forEach(p=>{ex[d.key][p.k]=[];});});
     for(let ci=0;ci<chunks.length;ci++){
       const ch=chunks[ci];let chunkDates=null;
       for(let gi=0;gi<groups.length;gi++){
         const g=groups[gi];
         let j=null,waits=0;
         while(true){
-          const daily="temperature_2m_mean"+(withRH?",relative_humidity_2m_mean":"");
+          const daily="temperature_2m_mean"+(withRH?",relative_humidity_2m_mean":"")+(withEx?","+exSel.map(d=>d.api).join(","):"");   // [แก้ไข 23 ก.ย. 2569]
           const url="https://archive-api.open-meteo.com/v1/archive?latitude="+g.map(p=>p.lat).join(",")+
             "&longitude="+g.map(p=>p.lon).join(",")+"&start_date="+ch.s+"&end_date="+ch.e+
             "&daily="+daily+"&timezone=Asia%2FBangkok";
@@ -694,7 +780,13 @@ async function fetchAll(){
           try{r=await fetch(url);}catch(netErr){throw new Error("เชื่อมต่อ API ไม่ได้ — ตรวจอินเทอร์เน็ต ("+netErr.message+")");}
           if(r.ok){j=await r.json();break;}
           const txt=await r.text();
-          if(withRH&&r.status===400){withRH=false;continue;} // API ไม่รองรับ RH รายวัน → ดึงเฉพาะอุณหภูมิ
+          // [แก้ไข 23 ก.ย. 2569] ถอดตัวแปรออกเฉพาะเมื่อ API บ่นเรื่องตัวแปร (daily/variable) — ถ้าเป็นเรื่องวันที่/พิกัด ให้แจ้งสาเหตุจริงทันที
+          const varErr=r.status===400&&/daily|variable|Cannot initialize|not available/i.test(txt);
+          if(withEx&&varErr){withEx=false;log("⚠ API ไม่รับตัวแปรเสริมบางตัว ("+txt.slice(0,120)+") — ดึงต่อโดยไม่มีตัวแปรเสริม");await sleep(800);continue;}
+          if(withRH&&varErr){withRH=false;continue;} // API ไม่รองรับ RH รายวัน → ดึงเฉพาะอุณหภูมิ
+          if(r.status===400){let rs=txt;try{rs=JSON.parse(txt).reason||txt;}catch(x){}
+            if(/end_date|start_date|out of allowed range/i.test(rs))throw new Error("ช่วงวันที่ไม่ถูกต้อง — "+rs+" · เลือกเดือนสิ้นสุดที่ครบเดือนแล้วและไม่ใช่เดือนปัจจุบัน");
+            throw new Error("HTTP 400 — "+rs.slice(0,200));}
           if(r.status===429&&waits<5){ // ติด rate limit รายนาที → รอแล้วดึงต่อเองอัตโนมัติ
             waits++;
             for(let sec=65;sec>0;sec--){
@@ -714,17 +806,23 @@ async function fetchAll(){
           const RH=withRH?loc.daily.relative_humidity_2m_mean:null;
           if(RH){wb[g[i].k].push(...T.map((t,d)=>(t==null||RH[d]==null)?null:Math.round(stullWB(t,RH[d])*10)/10));
           rh[g[i].k].push(...RH.map(v=>v==null?null:Math.round(v)));}
+          if(withEx)exSel.forEach(d=>{const a=loc.daily[d.api];ex[d.key][g[i].k].push(...(a?a.map(v=>v==null?null:Math.round(v*d.rnd)/d.rnd):T.map(()=>null)));});   // [แก้ไข 23 ก.ย. 2569]
         });
         done++;bar(Math.round(done/totalReq*100));
         await sleep(500); // เว้นจังหวะ สุภาพกับ API
       }
       dates.push(...chunkDates);
     }
-    state={dates,temps,wb:withRH?wb:null,rh:withRH?rh:null,
-      meta:{fetchedAt:new Date().toISOString(),start:s,end:e,source:"Open-Meteo ERA5",v:"1.4",hasWB:withRH}};
+    // [แก้ไข 23 ก.ย. 2569] ถ้ามีกระเปาะเปียกจาก API ให้ใช้แทน Stull ทุกแท็บ (เก็บ Stull ไว้ใน ex.wbStull เผื่อเทียบ)
+    let wbFinal=withRH?wb:null,wbSrc=withRH?"stull":null;
+    if(withEx&&ex.wbapi){const anyV=Object.values(ex.wbapi).some(a=>a.some(v=>v!=null));
+      if(anyV){ex.wbStull=withRH?wb:null;wbFinal=ex.wbapi;wbSrc="api";}}
+    state={dates,temps,wb:wbFinal,rh:withRH?rh:null,ex:withEx?ex:null,
+      meta:{fetchedAt:new Date().toISOString(),start:s,end:e,source:"Open-Meteo ERA5",v:"1.5",hasWB:!!wbFinal,wbSource:wbSrc,extras:withEx?exSel.map(d=>d.key):[]}};
     buildMonthsIdx(); afterDataReady();
-    log("ดึงข้อมูลสำเร็จ: "+dates.length+" วัน × 77 จังหวัด ("+s+" ถึง "+e+")"+
-      (withRH?" · มีข้อมูลความชื้น/กระเปาะเปียก ✓":" · ไม่มี RH — ใช้ได้เฉพาะกระเปาะแห้ง"));
+    log("ดึงข้อมูลสำเร็จ: "+dates.length+" วัน × 77 จังหวัด ("+s+" ถึง "+e+")"+clampNote+
+      (withRH?" · มีข้อมูลความชื้น/กระเปาะเปียก"+(wbSrc==="api"?" (WB จาก API)":" (WB สูตร Stull)")+" ✓":" · ไม่มี RH — ใช้ได้เฉพาะกระเปาะแห้ง")+
+      (withEx?" · ตัวแปรเสริม: "+exSel.map(d=>d.th).join(", "):""));   // [แก้ไข 23 ก.ย. 2569]
   }catch(err){
     log("");
     document.getElementById('dataStatus').className="status-bad";
@@ -736,10 +834,60 @@ function afterDataReady(){
   const st=document.getElementById('dataStatus');
   st.className="status-ok";
   st.textContent="พร้อมใช้งาน ✓ "+state.dates.length+" วัน ("+state.meta.start+" → "+state.meta.end+
-    ") ดึงเมื่อ "+new Date(state.meta.fetchedAt).toLocaleString('th-TH');
+    ") ดึงเมื่อ "+new Date(state.meta.fetchedAt).toLocaleString('th-TH')+
+    ((state.meta.extras&&state.meta.extras.length)?" · ตัวแปรเสริม: "+state.meta.extras.map(k=>(EX_DEFS.find(d=>d.key===k)||{th:k}).th).join(", "):"")+
+    (state.meta.wbSource==="api"?" · WB จาก API":"");   // [แก้ไข 23 ก.ย. 2569]
   fillProvSelects(); buildRangeBars(); fillMapPeriods(); buildRegTable();
   renderProv(); renderCmp(); renderMap();
+  try{dailyInit();}catch(e){console.error(e);}   // [แก้ไข 23 ก.ย. 2569]
 }
+
+/* ============ [แก้ไข 23 ก.ย. 2569] ความละเอียด รายวัน/รายสัปดาห์/รายเดือน ============ */
+function getRes(){const s=document.getElementById('resSel');return s?s.value:'month';}
+function resName(r){return r==='day'?'รายวัน':r==='week'?'รายสัปดาห์':'รายเดือน';}
+function isoWeek(iso){ // → {y,w} ตาม ISO 8601 (สัปดาห์เริ่มจันทร์)
+  const d=new Date(Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10)));
+  const dow=d.getUTCDay()||7; d.setUTCDate(d.getUTCDate()+4-dow);
+  const y=d.getUTCFullYear(); const y0=new Date(Date.UTC(y,0,1));
+  return {y,w:Math.ceil(((d-y0)/864e5+1)/7)};
+}
+function periodsIdx(res){ // [{key,label,ids:[...],s,e}] ภายในช่วงวิเคราะห์ (anaMonths) — รายเดือนใช้ monthsIdx เดิม
+  const am=anaMonths(); if(!am.length)return[];
+  if(res==='month')return am.map(m=>({key:m.y+"-"+String(m.m).padStart(2,"0"),label:fmtBEfull(m.y,m.m),ids:m.ids,s:state.dates[m.ids[0]],e:state.dates[m.ids[m.ids.length-1]],y:m.y}));
+  const ids=[];am.forEach(m=>ids.push(...m.ids));
+  if(res==='day')return ids.map(i=>{const d=state.dates[i];return {key:d,label:fmtDBE(d),ids:[i],s:d,e:d,y:+d.slice(0,4)};});
+  const out=[];let cur=null;
+  ids.forEach(i=>{const d=state.dates[i],iw=isoWeek(d),key=iw.y+"-W"+String(iw.w).padStart(2,"0");
+    if(!cur||cur.key!==key){cur={key,ids:[],s:d,e:d,y:iw.y};out.push(cur);}
+    cur.ids.push(i);cur.e=d;});
+  out.forEach(w=>{w.label=w.key+" ("+fmtDBE(w.s)+"–"+fmtDBE(w.e)+")";});
+  return out;
+}
+function ddSeriesDaily(k,base,mode,sensor){ // ค่า DD (หรือ %RH) รายวันของจังหวัด k ตรงตาม index ของ state.dates
+  if(mode==='rh'){const ra=state.rh?state.rh[k]:null;return ra?ra.slice():null;}
+  const t=(sensor==='wb')?(state.wb?state.wb[k]:null):state.temps[k];
+  if(!t)return null;
+  return t.map(v=>v==null?null:(mode==='hdd'?(v<base?base-v:0):(v>base?v-base:0)));
+}
+function ddByPeriod(k,base,mode,sensor,res){ // [{...period, cdd, days, tot, avgT, avgRH}]
+  const per=periodsIdx(res), s=ddSeriesDaily(k,base,mode,sensor);
+  const tt=state.temps[k]||[], ra=state.rh?state.rh[k]:null;
+  return per.map(p=>{let n=0,sum=0,tn=0,tsum=0,rn=0,rsum=0;
+    p.ids.forEach(i=>{const v=s?s[i]:null;if(v!=null){n++;sum+=v;}if(tt[i]!=null){tn++;tsum+=tt[i];}if(ra&&ra[i]!=null){rn++;rsum+=ra[i];}});
+    const val=n?(mode==='rh'?sum/n:sum):null;
+    return Object.assign({},p,{cdd:val==null?null:Math.round(val*(res==='day'?100:10))/(res==='day'?100:10),days:n,tot:p.ids.length,
+      avgT:tn?Math.round(tsum/tn*10)/10:null,avgRH:rn?Math.round(rsum/rn):null});});
+}
+function applyRes(){ // ซิงก์รูปแบบเริ่มต้นของแท็บ 2b + ป้ายปุ่ม
+  const r=getRes();
+  const b=document.getElementById('btnProvCSV');if(b)b.textContent='⬇ Export CSV จังหวัดนี้ ('+resName(r)+')';
+  const s2=document.getElementById('resSel2');if(s2&&s2.value!==r)s2.value=r;
+  const tt=document.getElementById('provResTitle');if(tt)tt.textContent=resName(r);
+  if(state.meta&&document.getElementById('pane-prov').style.display!=='none')renderProv();
+  const dv=document.getElementById('dailyView');
+  if(dv&&r!=='month'){dv.value=(r==='week')?'week':'day';if(state.meta&&document.getElementById('pane-daily').style.display!=='none')renderDaily();}
+}
+document.addEventListener('DOMContentLoaded',applyRes);
 
 /* ============ JSON / CSV ============ */
 function saveJSON(){
@@ -749,6 +897,7 @@ function saveJSON(){
   const ui={regSaved:regSaved,pins:pins,
     regProv:g('regProv')?g('regProv').value:null,regN:g('regN')?g('regN').value:null,
     syncSettings:syncOn(),
+    res:getRes(),daily:{tsrc:g('dailyTsrc')?g('dailyTsrc').value:null,prov:g('dailyProv')?g('dailyProv').value:null,s:g('dailyS')?g('dailyS').value:null,e:g('dailyE')?g('dailyE').value:null,view:g('dailyView')?g('dailyView').value:null},   // [แก้ไข 23 ก.ย. 2569]
     tabs:{1:{base:g('baseNum1').value,mode:g('mode1').value,sensor:g('sensor1').value},
           2:{base:g('baseSlider2').value,mode:g('mode2').value,sensor:g('sensor2').value},
           3:{base:g('baseSlider3').value,mode:g('mode3').value,sensor:g('sensor3').value},
@@ -788,6 +937,8 @@ function loadJSON(ev){
       if(ui.regN&&g2('regN'))g2('regN').value=ui.regN;
       if(ui.regProv||ui.regN){try{buildRegTable();}catch(e){}}
       try{renderPins();}catch(e){}
+      if(ui.res&&g2('resSel')){g2('resSel').value=ui.res;applyRes();}
+      if(ui.daily){const D=ui.daily;if(D.tsrc&&g2('dailyTsrc'))g2('dailyTsrc').value=D.tsrc;if(D.prov&&g2('dailyProv'))g2('dailyProv').value=D.prov;if(D.view&&g2('dailyView'))g2('dailyView').value=D.view;if(D.s&&g2('dailyS'))g2('dailyS').value=D.s;if(D.e&&g2('dailyE'))g2('dailyE').value=D.e;_dailyUserProv=!!D.prov;try{renderDaily();}catch(e){}}   // [แก้ไข 23 ก.ย. 2569]
     }
   }catch(e){alert("อ่านไฟล์ไม่ได้: "+e.message);}};
   rd.readAsText(f);
@@ -847,21 +998,38 @@ function exportAllCSV(){
   const base=+document.getElementById('baseNum1').value||24;
   const mode=document.getElementById('mode1').value,sensor=chkWB('sensor1'),nm=ddLabel(mode,sensor);
   // [แก้ไข 10 ก.ย. 2569] ระบุค่าตั้งที่ใช้คำนวณไว้ในหัวไฟล์ CSV (ค่ามาจากแท็บ 1 / ซิงก์ทุกแท็บถ้าเปิดไว้)
-  let rows=['"# settings: base='+base+' C | DD='+nm+' ('+(mode==='rh'?'%RH':mode.toUpperCase())+') | sensor='+(sensor==='wb'?'wet-bulb':'dry-bulb')+' | source=tab1'+(syncOn()?' (synced all tabs)':' (per-tab, sync OFF)')+' | unit='+unitOf(mode)+'"',
-    "province_th,province_en,region,"+monthsIdx.map(m=>m.y+"-"+String(m.m).padStart(2,"0")).join(",")];
-  PROVINCES.forEach(p=>{
-    const c=ddMonthly(p.k,base,mode,sensor);
-    rows.push('"'+p.th+'","'+p.en+'","'+RG[p.rg]+'",'+c.map(x=>x.cdd).join(","));
-  });
-  dl(nm+"_all_provinces_base"+base+".csv",rows.join("\n"));
+  const res=getRes();   // [แก้ไข 23 ก.ย. 2569] รายวัน/รายสัปดาห์/รายเดือน ตามตัวเลือกกลาง (หัวคอลัมน์ใช้ช่วงวิเคราะห์เดียวกับค่า — เดิมหัวใช้ทุกเดือนแต่ค่าใช้ช่วงวิเคราะห์ ทำให้คอลัมน์เคลื่อนเมื่อย่อช่วง)
+  const hdr='"# settings: resolution='+res+' | base='+base+' C | DD='+nm+' ('+(mode==='rh'?'%RH':mode.toUpperCase())+') | sensor='+(sensor==='wb'?'wet-bulb':'dry-bulb')+(state.meta.wbSource==='api'?' (WB from API)':'')+' | source=tab1'+(syncOn()?' (synced all tabs)':' (per-tab, sync OFF)')+' | unit='+unitOf(mode)+(res==='week'?' | week=ISO 8601 Mon-Sun':'')+'"';
+  let rows=[hdr];
+  if(res==='month'){
+    const per=periodsIdx('month');
+    rows.push("province_th,province_en,region,"+per.map(p=>p.key).join(","));
+    PROVINCES.forEach(p=>{const c=ddByPeriod(p.k,base,mode,sensor,'month');
+      rows.push('"'+p.th+'","'+p.en+'","'+RG[p.rg]+'",'+c.map(x=>x.cdd==null?'':x.cdd).join(","));});
+  }else{ // รายวัน/รายสัปดาห์: แถว = ช่วงเวลา, คอลัมน์ = จังหวัด (ใช้ต่อใน Excel/regression ง่ายกว่า)
+    const per=periodsIdx(res);
+    const all=PROVINCES.map(p=>ddByPeriod(p.k,base,mode,sensor,res));
+    rows.push((res==='week'?"iso_week,start_date,end_date,days":"date,date_be,dow")+","+PROVINCES.map(p=>p.en.replace(/,/g,' ')).join(","));
+    per.forEach((p,pi)=>{
+      const lead=res==='week'?(p.key+","+p.s+","+p.e+","+p.ids.length):(p.key+","+fmtDBE(p.key)+","+TH_DOW[new Date(p.key+"T00:00:00").getDay()]);
+      rows.push(lead+","+all.map(c=>c[pi].cdd==null?'':c[pi].cdd).join(","));});
+  }
+  dl(nm+"_all_provinces_"+res+"_base"+base+".csv",rows.join("\n"));
 }
 function exportProvCSV(){
   const k=document.getElementById('provSel').value,base=+document.getElementById('baseNum1').value;
   const mode=document.getElementById('mode1').value,sensor=chkWB('sensor1'),nm=ddLabel(mode,sensor);
-  const p=PROVINCES.find(x=>x.k===k),c=ddMonthly(k,base,mode,sensor);
-  let rows=["month,year_be,"+nm.toLowerCase()+"_base"+base+",avg_temp_c,avg_rh_pct,days"];
-  c.forEach(x=>rows.push(x.y+"-"+String(x.m).padStart(2,"0")+","+(x.y+543)+","+x.cdd+","+x.avgT+","+(x.avgRH!=null?x.avgRH:"")+","+x.days));
-  dl(nm+"_"+p.en.replace(/ /g,"_")+"_base"+base+".csv",rows.join("\n"));
+  const res=getRes();   // [แก้ไข 23 ก.ย. 2569]
+  const p=PROVINCES.find(x=>x.k===k),c=ddByPeriod(k,base,mode,sensor,res);
+  const col=nm.toLowerCase().replace('̄','')+"_base"+base;
+  let rows=['"# settings: resolution='+res+' | province='+p.en+' | base='+base+' C | DD='+nm+' | sensor='+(sensor==='wb'?'wet-bulb':'dry-bulb')+(state.meta.wbSource==='api'?' (WB from API)':'')+' | unit='+unitOf(mode)+(res==='week'?' | week=ISO 8601 Mon-Sun':'')+'"'];
+  if(res==='month'){rows.push("month,year_be,"+col+",avg_temp_c,avg_rh_pct,days");
+    c.forEach(x=>rows.push(x.key+","+(x.y+543)+","+(x.cdd==null?'':x.cdd)+","+(x.avgT!=null?x.avgT:"")+","+(x.avgRH!=null?x.avgRH:"")+","+x.days));}
+  else if(res==='week'){rows.push("iso_week,start_date,end_date,year_be,"+col+",avg_temp_c,avg_rh_pct,days");
+    c.forEach(x=>rows.push(x.key+","+x.s+","+x.e+","+(x.y+543)+","+(x.cdd==null?'':x.cdd)+","+(x.avgT!=null?x.avgT:"")+","+(x.avgRH!=null?x.avgRH:"")+","+x.days));}
+  else{rows.push("date,date_be,dow,"+col+",temp_c,rh_pct");
+    c.forEach(x=>rows.push(x.key+","+fmtDBE(x.key)+","+TH_DOW[new Date(x.key+"T00:00:00").getDay()]+","+(x.cdd==null?'':x.cdd)+","+(x.avgT!=null?x.avgT:"")+","+(x.avgRH!=null?x.avgRH:"")));}
+  dl(nm+"_"+p.en.replace(/ /g,"_")+"_"+res+"_base"+base+".csv",rows.join("\n"));
 }
 
 /* ============ UI fills ============ */
@@ -873,6 +1041,7 @@ function fillProvSelects(){
         const o=document.createElement('option');o.value=p.k;o.textContent=p.th;og.appendChild(o);});
       sel.appendChild(og);});};
   mk(document.getElementById('provSel'));mk(document.getElementById('regProv'));
+  const dly=document.getElementById('dailyProv');if(dly){mk(dly);dly.value='BKK';}   // [แก้ไข 23 ก.ย. 2569]
   const dpv=document.getElementById('drillProv');if(dpv){mk(dpv);dpv.value='BKK';}
   document.getElementById('provSel').value="BKK";document.getElementById('regProv').value="BKK";
   const g=document.getElementById('cmpGrid');g.innerHTML="";
@@ -923,7 +1092,7 @@ function showTab(t){
   document.querySelectorAll('.tabpane').forEach(x=>x.style.display='none');
   document.getElementById('pane-'+t).style.display='block';
   if(state.meta){ // เรนเดอร์ใหม่เมื่อเปิดแท็บ เพื่อให้กราฟยืดเต็มความกว้างจริง
-    if(t==='prov')renderProv(); else if(t==='cmp')renderCmp();
+    if(t==='prov')renderProv(); else if(t==='daily')renderDaily(); else if(t==='cmp')renderCmp();   // [แก้ไข 23 ก.ย. 2569]
     // [แก้ไข 10 ก.ย. 2569] แท็บ map/reg เรนเดอร์ใหม่เมื่อค่าถูกซิงก์มาจากแท็บอื่น
     else if(t==='map'&&_syncDirty[3]){_syncDirty[3]=false;try{renderMap();}catch(e){}}
     else if(t==='reg'&&_syncDirty.R){_syncDirty.R=false;try{runReg();}catch(e){}}
@@ -993,7 +1162,9 @@ function renderProv(){
   const mode=chkMode('mode1'),sensor=chkWB('sensor1'),nm=ddLabel(mode,sensor),isRH=mode==='rh';
   document.getElementById('baseSlider1').value=Math.min(35,Math.max(-25,base));
   document.getElementById('baseVal1').textContent=base;
-  const p=PROVINCES.find(x=>x.k===k),c=ddMonthly(k,base,mode,sensor);
+  const p=PROVINCES.find(x=>x.k===k);
+  if(getRes()!=='month'){renderProvRes(p,base,mode,sensor,nm,isRH);return;}   // [แก้ไข 23 ก.ย. 2569] รายสัปดาห์/รายวัน
+  const c=ddMonthly(k,base,mode,sensor);
   if(!c.length){document.getElementById('provKPI').innerHTML="";return;}
   const years=[...new Set(c.map(x=>x.y))];
   // KPI
@@ -1028,6 +1199,227 @@ function renderProv(){
     h+='<th class="num">'+Math.round(s).toLocaleString()+(n<12?" ("+n+" เดือน)":"")+'</th><th></th>'+(hasRH?'<th></th>':'');});
   h+="</tr></table>";
   document.getElementById('provTable').innerHTML="<h3>"+p.th+" ("+p.en+") — ภาค"+RG[p.rg]+" · พิกัด "+p.lat+"°N, "+p.lon+"°E</h3>"+h;
+}
+
+/* %s นิยามตัวแปรเสริมรายวัน (Open-Meteo archive daily=) */
+const EX_DEFS=[
+  {key:'tmax',chk:'exTmm',api:'temperature_2m_max',th:'Tmax',unit:'°C',rnd:10},
+  {key:'tmin',chk:'exTmm',api:'temperature_2m_min',th:'Tmin',unit:'°C',rnd:10},
+  {key:'wbapi',chk:'exWb',api:'wet_bulb_temperature_2m_mean',th:'WB (API)',unit:'°C',rnd:10},
+  {key:'dew',chk:'exDew',api:'dew_point_2m_mean',th:'จุดน้ำค้าง',unit:'°C',rnd:10},
+  {key:'rad',chk:'exRad',api:'shortwave_radiation_sum',th:'รังสี GHI',unit:'MJ/m²',rnd:100},
+  {key:'wind',chk:'exWind',api:'wind_speed_10m_mean',th:'ลมเฉลี่ย',unit:'km/h',rnd:10},
+  {key:'rain',chk:'exRain',api:'precipitation_sum',th:'ฝน',unit:'mm',rnd:10},
+  {key:'pres',chk:'exPres',api:'surface_pressure_mean',th:'ความดัน',unit:'hPa',rnd:10}];
+function exHas(key){return !!(state.ex&&state.ex[key]);}
+function exVal(key,k,i){const a=state.ex&&state.ex[key]&&state.ex[key][k];return a?a[i]:null;}
+/* ============ TAB 2b : DAILY CDD  [แก้ไข 23 ก.ย. 2569] ============ */
+const TH_DOW=["อา.","จ.","อ.","พ.","พฤ.","ศ.","ส."];
+let _dailyUserProv=false; // ผู้ใช้เลือกจังหวัดในแท็บนี้เองแล้ว → ไม่ตามแท็บ 2 อีก
+function dailyFollowProv(){const d=document.getElementById('dailyProv');if(d&&!_dailyUserProv)d.value=document.getElementById('provSel').value;}
+document.addEventListener('DOMContentLoaded',()=>{const d=document.getElementById('dailyProv');if(d)d.addEventListener('change',()=>{_dailyUserProv=true;});});
+function fmtDBE(iso){ // 2025-09-23 → 23 ก.ย. 68
+  const y=+iso.slice(0,4),m=+iso.slice(5,7),d=+iso.slice(8,10);
+  return d+" "+TH_MON[m-1]+" "+((y+543)%100).toString().padStart(2,"0");}
+function dailyInit(){ // ตั้งช่วงเริ่มต้น = 90 วันล่าสุดของข้อมูล และจำกัด min/max ของช่อง date
+  if(!state.dates.length)return;
+  const s=document.getElementById('dailyS'),e=document.getElementById('dailyE');
+  const first=state.dates[0],last=state.dates[state.dates.length-1];
+  s.min=first;s.max=last;e.min=first;e.max=last;
+  if(!s.value||s.value<first||s.value>last||!e.value||e.value<first||e.value>last){
+    e.value=last;s.value=state.dates[Math.max(0,state.dates.length-90)];}
+  dailyFollowProv();
+  if(document.getElementById('pane-daily').style.display!=='none')renderDaily();
+}
+function setDailyQuick(n){
+  if(!state.dates.length)return;
+  const s=document.getElementById('dailyS'),e=document.getElementById('dailyE');
+  const N=state.dates.length;
+  if(n<0){s.value=state.dates[0];e.value=state.dates[N-1];}
+  else if(n===0){const am=anaMonths();if(am.length){s.value=state.dates[am[0].ids[0]];const li=am[am.length-1].ids;e.value=state.dates[li[li.length-1]];}}
+  else{e.value=state.dates[N-1];s.value=state.dates[Math.max(0,N-n)];}
+  renderDaily();
+}
+function dailyTsrc(){const s=document.getElementById('dailyTsrc');return (s&&s.value==='mm'&&exHas('tmax')&&exHas('tmin'))?'mm':'mean';}
+function dailyRows(k,base,mode,sensor,sIso,eIso){ // แถวรายวันในช่วง [sIso,eIso]
+  let t=(sensor==="wb")?(state.wb?state.wb[k]:null):(state.temps[k]||null);
+  if(sensor!=="wb"&&dailyTsrc()==='mm'){const A=state.ex.tmax[k],B=state.ex.tmin[k];t=A.map((v,i)=>(v==null||B[i]==null)?null:Math.round((v+B[i])/2*10)/10);}   // (Tmax+Tmin)/2
+  const ra=state.rh?state.rh[k]:null, wbA=state.wb?state.wb[k]:null, tdb=state.temps[k]||[];
+  const rows=[];
+  if(!t)return rows;
+  state.dates.forEach((d,i)=>{
+    if(d<sIso||d>eIso)return;
+    const v=t[i];let dd=null;
+    if(v!=null){ if(mode==="rh")dd=(ra&&ra[i]!=null)?ra[i]:null;
+      else if(mode==="hdd")dd=v<base?Math.round((base-v)*100)/100:0;
+      else dd=v>base?Math.round((v-base)*100)/100:0; }
+    rows.push({d,i,dow:new Date(d+"T00:00:00").getDay(),T:tdb[i]==null?null:tdb[i],WB:wbA?wbA[i]:null,RH:ra?ra[i]:null,v,dd,
+      tmax:exVal('tmax',k,i),tmin:exVal('tmin',k,i),dew:exVal('dew',k,i),rad:exVal('rad',k,i),wind:exVal('wind',k,i),rain:exVal('rain',k,i),pres:exVal('pres',k,i)});
+  });
+  return rows;
+}
+function dailyWeeks(rows,mode){ // รวมเป็นสัปดาห์ (เริ่มวันจันทร์)
+  const wk=[];let cur=null;
+  rows.forEach(r=>{
+    if(!cur||r.dow===1){cur={s:r.d,e:r.d,n:0,tot:0,sum:0,tn:0,tsum:0,rn:0,rsum:0,rows:[]};wk.push(cur);}
+    cur.e=r.d;cur.tot++;
+    if(r.dd!=null){cur.n++;cur.sum+=r.dd;}
+    if(r.T!=null){cur.tn++;cur.tsum+=r.T;}
+    if(r.RH!=null){cur.rn++;cur.rsum+=r.RH;}
+  });
+  wk.forEach(w=>{w.dd=w.n?(mode==="rh"?Math.round(w.sum/w.n*10)/10:Math.round(w.sum*10)/10):null;
+    w.avgT=w.tn?Math.round(w.tsum/w.tn*10)/10:null;w.avgRH=w.rn?Math.round(w.rsum/w.rn):null;});
+  return wk;
+}
+function movAvg7(arr){return arr.map((_,i)=>{let n=0,s=0;for(let j=Math.max(0,i-6);j<=i;j++){if(arr[j]!=null){n++;s+=arr[j];}}return n?Math.round(s/n*100)/100:null;});}
+/* กราฟรายวัน: แท่ง = DD (แกนซ้าย) · เส้น = T̄ (แกนขวา) · เส้นประ = base */
+function dailyChart(el,rows,base,mode,sensor,view,ma){
+  const isRH=mode==="rh";
+  const n=rows.length;if(!n){el.innerHTML="";return;}
+  const cw=el.clientWidth?el.clientWidth-8:0;
+  const W=Math.max(700,cw,n*(view==='week'?18:5)+140),H=350,L=56,R=56,T=30,B=58;
+  const ddArr=rows.map(r=>r.dd),tArr=rows.map(r=>r.v);
+  const ddMax=Math.max(1,...ddArr.filter(v=>v!=null))*1.1;
+  const tv=tArr.filter(v=>v!=null);const tmin=Math.floor(Math.min(...tv,base)-2),tmax=Math.ceil(Math.max(...tv,base)+2);
+  const bw=Math.max(1.2,(W-L-R)/n-1);
+  const X=i=>L+bw/2+(n===1?0:(W-L-R-bw)*i/(n-1));   // เว้นครึ่งแท่งที่ขอบ ไม่ให้แท่งแรก/สุดท้ายล้นแกน
+  const Yd=v=>T+(H-T-B)*(1-v/ddMax);
+  const Yt=v=>T+(H-T-B)*(1-(v-tmin)/(tmax-tmin));
+  let s=svgOpen(W,H);
+  for(let g=0;g<=4;g++){const v=ddMax*g/4,y=Yd(v);
+    s+='<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="#e2e8f0"/>'+
+       '<text x="'+(L-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="11" fill="#5b6b7b">'+(isRH?Math.round(v):(+v.toFixed(1)))+'</text>';
+    if(!isRH){const tvv=tmin+(tmax-tmin)*g/4;s+='<text x="'+(W-R+6)+'" y="'+(Yt(tvv)+4)+'" font-size="11" fill="#d1233a">'+tvv.toFixed(0)+'</text>';}}
+  const step=Math.ceil(n/16);
+  rows.forEach((r,i)=>{if(i%step===0){const lb=view==='week'?fmtDBE(r.s):fmtDBE(r.d);
+    s+='<text x="'+X(i)+'" y="'+(H-B+30)+'" text-anchor="middle" font-size="10.5" fill="#5b6b7b" transform="rotate(-38 '+X(i)+' '+(H-B+30)+')">'+lb+'</text>';}});
+  const col=isRH?"#12a4a4":(mode==="hdd"?"#1a55b8":"#e07800");
+  rows.forEach((r,i)=>{const v=r.dd;if(v==null)return;const lb=view==='week'?(fmtDBE(r.s)+"–"+fmtDBE(r.e)+" ("+r.n+" วัน)"):(TH_DOW[r.dow]+" "+fmtDBE(r.d));
+    s+='<rect x="'+(X(i)-bw/2).toFixed(1)+'" y="'+Yd(v).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+((H-T-B)-(Yd(v)-T)).toFixed(1)+'" fill="'+col+'" opacity=".85"><title>'+lb+' · '+ddLabel(mode,sensor)+' = '+v+'</title></rect>';});
+  if(!isRH){ // base line + T line
+    s+='<line x1="'+L+'" y1="'+Yt(base)+'" x2="'+(W-R)+'" y2="'+Yt(base)+'" stroke="#0f2a4a" stroke-width="1.4" stroke-dasharray="6 4"/>'+
+       '<text x="'+(L+4)+'" y="'+(Yt(base)-4)+'" font-size="10.5" fill="#0f2a4a">base '+base+' °C</text>';
+    let d="",pen=false;
+    tArr.forEach((v,i)=>{if(v==null){pen=false;return;}d+=(pen?"L":"M")+X(i).toFixed(1)+" "+Yt(v).toFixed(1)+" ";pen=true;});
+    s+='<path d="'+d+'" fill="none" stroke="#d1233a" stroke-width="1.6"/>';
+    if(ma){let d2="",pen2=false;ma.forEach((v,i)=>{if(v==null){pen2=false;return;}d2+=(pen2?"L":"M")+X(i).toFixed(1)+" "+Yd(v).toFixed(1)+" ";pen2=true;});
+      s+='<path d="'+d2+'" fill="none" stroke="#7c4dbc" stroke-width="2.2"/>';}
+  }else if(ma){let d2="",pen2=false;ma.forEach((v,i)=>{if(v==null){pen2=false;return;}d2+=(pen2?"L":"M")+X(i).toFixed(1)+" "+Yd(v).toFixed(1)+" ";pen2=true;});
+    s+='<path d="'+d2+'" fill="none" stroke="#7c4dbc" stroke-width="2.2"/>';}
+  s+='<text x="14" y="12" font-size="11" fill="#5b6b7b">'+(isRH?"%":"°C·day")+'</text>';
+  if(!isRH)s+='<text x="'+(W-R+6)+'" y="12" font-size="11" fill="#d1233a">T̄ °C</text>';
+  s+='</svg>';
+  const lg='<div class="legend"><span><i style="background:'+col+';height:10px;width:10px"></i>'+ddLabel(mode,sensor)+(view==='week'?' รวมรายสัปดาห์':' รายวัน')+'</span>'+
+    (isRH?'':'<span><i style="background:#d1233a"></i>T̄'+(sensor==='wb'?'wb':'')+(view==='week'?' เฉลี่ยรายสัปดาห์':' รายวัน')+' (°C, แกนขวา)</span><span><i style="background:#0f2a4a"></i>base '+base+' °C</span>')+
+    (ma?'<span><i style="background:#7c4dbc"></i>ค่าเฉลี่ยเคลื่อนที่ 7 วัน</span>':'')+'</div>';
+  el.innerHTML=s+lg;
+}
+function renderDaily(){
+  if(!state.meta)return;
+  const g=id=>document.getElementById(id);
+  const k=g('dailyProv').value||g('provSel').value;
+  const base=+g('baseNum1').value||24, mode=chkMode('mode1'), sensor=chkWB('sensor1'), nm=ddLabel(mode,sensor), isRH=mode==='rh';
+  g('dailySettingInfo').textContent=nm+(isRH?'':' · base '+base+' °C')+' · '+(sensor==='wb'?'กระเปาะเปียก'+(state.meta.wbSource==='api'?' (API)':' (Stull)'):'กระเปาะแห้ง'+(dailyTsrc()==='mm'?' · T̄ = (Tmax+Tmin)/2':' · T̄ = ค่าเฉลี่ย 24 ชม.'));
+  { const opt=g('dailyTsrc').options[1];opt.disabled=!(exHas('tmax')&&exHas('tmin'));if(opt.disabled&&g('dailyTsrc').value==='mm')g('dailyTsrc').value='mean';
+    const have=EX_DEFS.filter(d=>exHas(d.key)&&d.key!=='tmin').map(d=>'<span class="expill">'+(d.key==='tmax'?'Tmax/Tmin':d.th)+' ('+d.unit+')</span>').join('');
+    g('dailyExInfo').innerHTML=have?'ตัวแปรเสริมในชุดข้อมูลนี้: '+have:'ชุดข้อมูลนี้ไม่มีตัวแปรเสริม — ติ๊กเลือกในแท็บ 1 แล้วดึงใหม่ จะได้ Tmax/Tmin · WB จาก API · รังสี · ลม · ฝน ฯลฯ มาแสดงที่นี่'; }
+  let sIso=g('dailyS').value,eIso=g('dailyE').value;
+  if(!sIso||!eIso){dailyInit();sIso=g('dailyS').value;eIso=g('dailyE').value;}
+  if(eIso<sIso){[sIso,eIso]=[eIso,sIso];g('dailyS').value=sIso;g('dailyE').value=eIso;}
+  const view=g('dailyView').value;
+  const p=PROVINCES.find(x=>x.k===k);
+  const rows=dailyRows(k,base,mode,sensor,sIso,eIso);
+  const nAvail=rows.filter(r=>r.dd!=null).length;
+  g('dailyInfo').textContent='('+rows.length+' วัน: '+fmtDBE(sIso)+' – '+fmtDBE(eIso)+(nAvail<rows.length?' · มีข้อมูล '+nAvail+' วัน':'')+')';
+  if(!rows.length){g('dailyKPI').innerHTML='';g('dailyChart').innerHTML='';g('dailyTable').innerHTML='<p class="status-warn">ไม่มีข้อมูลในช่วงที่เลือก</p>';return;}
+  // KPI
+  const dds=rows.map(r=>r.dd).filter(v=>v!=null);
+  const tot=dds.reduce((a,b)=>a+b,0), avg=dds.length?tot/dds.length:0;
+  let mx=null;rows.forEach(r=>{if(r.dd!=null&&(mx===null||r.dd>mx.dd))mx=r;});
+  const nPos=dds.filter(v=>v>0).length;
+  const Ts=rows.map(r=>r.v).filter(v=>v!=null);
+  const tAvg=Ts.length?Ts.reduce((a,b)=>a+b,0)/Ts.length:null, tMax=Ts.length?Math.max(...Ts):null, tMin=Ts.length?Math.min(...Ts):null;
+  const u=unitOf(mode);
+  const K=(v,l)=>'<div class="kpi"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';
+  g('dailyKPI').innerHTML=
+    (isRH?K(avg.toFixed(1),'RH̄ เฉลี่ยช่วง (%)'):K(Math.round(tot*10)/10,nm+' รวมช่วงที่เลือก ('+u+')'))+
+    (isRH?'':K(avg.toFixed(2),nm+' เฉลี่ยต่อวัน ('+u+'/วัน)'))+
+    (mx?K(mx.dd+(isRH?'':''),(isRH?'RH̄ สูงสุด':nm+' สูงสุดรายวัน')+' — '+TH_DOW[mx.dow]+' '+fmtDBE(mx.d)):'')+
+    (isRH?'':K(nPos+' / '+dds.length,'วันที่ '+nm+' &gt; 0 (จากวันที่มีข้อมูล)'))+
+    (tAvg!=null?K(tAvg.toFixed(1)+' °C','T̄'+(sensor==='wb'?'wb':'')+' เฉลี่ย · สูงสุด '+tMax.toFixed(1)+' · ต่ำสุด '+tMin.toFixed(1)):'')+
+    (isRH?'':K(base+' °C','Base temperature (จากแท็บ 2)'))+
+    (exHas('tmax')?(()=>{const mx=rows.map(r=>r.tmax).filter(v=>v!=null),mn=rows.map(r=>r.tmin).filter(v=>v!=null);return mx.length?K(Math.max(...mx).toFixed(1)+' / '+Math.min(...mn).toFixed(1)+' °C','Tmax สูงสุด / Tmin ต่ำสุดของช่วง'):'';})():'')+
+    (exHas('rad')?(()=>{const a=rows.map(r=>r.rad).filter(v=>v!=null);const s=a.reduce((x,y)=>x+y,0);return a.length?K((s/3.6).toFixed(0)+' kWh/m²','รังสี GHI รวมช่วง · เฉลี่ย '+(s/a.length/3.6).toFixed(2)+' kWh/m²·วัน'):'';})():'')+
+    (exHas('rain')?(()=>{const a=rows.map(r=>r.rain).filter(v=>v!=null);const s=a.reduce((x,y)=>x+y,0);return a.length?K(s.toFixed(0)+' mm','ฝนรวมช่วง · วันที่ฝน ≥ 1 mm: '+a.filter(v=>v>=1).length+' วัน'):'';})():'')+
+    (exHas('wind')?(()=>{const a=rows.map(r=>r.wind).filter(v=>v!=null);return a.length?K((a.reduce((x,y)=>x+y,0)/a.length/3.6).toFixed(2)+' m/s','ลมเฉลี่ย 10 ม. (สูงสุดรายวัน '+(Math.max(...a)/3.6).toFixed(1)+' m/s)'):'';})():'');
+  // chart + table
+  const hasRH=!!state.rh, hasWB=!!state.wb;
+  const yLbl=isRH?'RH̄ (%)':nm+' ('+u+')';
+  if(view==='week'){
+    const wk=dailyWeeks(rows,mode);
+    dailyChart(g('dailyChart'),wk.map(w=>({dd:w.dd,v:w.avgT,s:w.s,e:w.e,n:w.n,d:w.s,dow:1})),base,mode,sensor,'week',null);
+    let h='<h3>'+p.th+' ('+p.en+') — รายสัปดาห์ · '+wk.length+' สัปดาห์</h3><table><tr><th>#</th><th>สัปดาห์ (จ.–อา.)</th><th class="num">วันที่มีข้อมูล</th><th class="num">'+yLbl+(isRH?'':' รวม')+'</th><th class="num">'+(isRH?'':nm+' เฉลี่ย/วัน')+'</th><th class="num">T̄ (°C)</th>'+(hasRH&&!isRH?'<th class="num">RH̄ (%)</th>':'')+'</tr>';
+    wk.forEach((w,i)=>{h+='<tr><td>'+(i+1)+'</td><td>'+fmtDBE(w.s)+' – '+fmtDBE(w.e)+(w.tot<7?' <span class="status-warn">('+w.tot+' วัน)</span>':'')+'</td><td class="num">'+w.n+'</td><td class="num"><b>'+(w.dd!=null?w.dd.toLocaleString():'–')+'</b></td><td class="num">'+(isRH?'':(w.n?(w.sum/w.n).toFixed(2):'–'))+'</td><td class="num" style="color:var(--muted)">'+(w.avgT!=null?w.avgT:'–')+'</td>'+(hasRH&&!isRH?'<td class="num" style="color:var(--muted)">'+(w.avgRH!=null?w.avgRH:'–')+'</td>':'')+'</tr>';});
+    h+='<tr><th></th><th>'+(isRH?'เฉลี่ยช่วง':'รวมช่วง')+'</th><th class="num">'+dds.length+'</th><th class="num">'+(isRH?avg.toFixed(1):Math.round(tot*10)/10)+'</th><th class="num">'+(isRH?'':avg.toFixed(2))+'</th><th></th>'+(hasRH&&!isRH?'<th></th>':'')+'</tr></table>';
+    g('dailyTable').innerHTML=h;
+  }else{
+    const ma=view==='day7'?movAvg7(rows.map(r=>r.dd)):null;
+    dailyChart(g('dailyChart'),rows,base,mode,sensor,'day',ma);
+    let h='<h3>'+p.th+' ('+p.en+') — รายวัน · '+rows.length+' วัน · พิกัด '+p.lat+'°N, '+p.lon+'°E</h3><table><tr><th>วันที่ (พ.ศ.)</th><th>วัน</th><th class="num">T̄ db (°C)</th>'+(exHas('tmax')?'<th class="num">Tmax</th><th class="num">Tmin</th>':'')+(hasWB?'<th class="num">T̄ wb (°C)</th>':'')+(hasRH?'<th class="num">RH̄ (%)</th>':'')+(exHas('dew')?'<th class="num">Tdp</th>':'')+(exHas('rad')?'<th class="num">GHI (MJ/m²)</th>':'')+(exHas('wind')?'<th class="num">ลม (km/h)</th>':'')+(exHas('rain')?'<th class="num">ฝน (mm)</th>':'')+(exHas('pres')?'<th class="num">P (hPa)</th>':'')+'<th class="num">'+yLbl+'</th>'+(ma?'<th class="num">เฉลี่ย 7 วัน</th>':'')+'</tr>';
+    const N=(v)=>'<td class="num" style="color:var(--muted)">'+(v!=null?v:'–')+'</td>';
+    rows.forEach((r,i)=>{const we=(r.dow===0||r.dow===6);
+      h+='<tr'+(we?' style="background:#fbfcfe"':'')+'><td>'+fmtDBE(r.d)+'</td><td style="color:'+(we?'var(--danger)':'var(--muted)')+'">'+TH_DOW[r.dow]+'</td>'+N(r.T)+(exHas('tmax')?N(r.tmax)+N(r.tmin):'')+(hasWB?N(r.WB):'')+(hasRH?N(r.RH):'')+(exHas('dew')?N(r.dew):'')+(exHas('rad')?N(r.rad):'')+(exHas('wind')?N(r.wind):'')+(exHas('rain')?N(r.rain):'')+(exHas('pres')?N(r.pres):'')+'<td class="num"><b>'+(r.dd!=null?r.dd:'–')+'</b></td>'+(ma?'<td class="num">'+(ma[i]!=null?ma[i]:'–')+'</td>':'')+'</tr>';});
+    h+='<tr><th colspan="2">'+(isRH?'เฉลี่ยช่วง':'รวมช่วง')+' ('+dds.length+' วัน)</th><th class="num">'+(tAvg!=null&&sensor!=='wb'?tAvg.toFixed(1):'')+'</th>'+(exHas('tmax')?'<th></th><th></th>':'')+(hasWB?'<th></th>':'')+(hasRH?'<th></th>':'')+(exHas('dew')?'<th></th>':'')+(exHas('rad')?'<th></th>':'')+(exHas('wind')?'<th></th>':'')+(exHas('rain')?'<th></th>':'')+(exHas('pres')?'<th></th>':'')+'<th class="num">'+(isRH?avg.toFixed(1):Math.round(tot*10)/10)+'</th>'+(ma?'<th></th>':'')+'</tr></table>';
+    g('dailyTable').innerHTML=h;
+  }
+}
+function exportDailyCSV(){
+  if(!state.meta){alert("ยังไม่มีข้อมูล");return;}
+  const g=id=>document.getElementById(id);
+  const k=g('dailyProv').value,base=+g('baseNum1').value||24,mode=g('mode1').value,sensor=chkWB('sensor1'),nm=ddLabel(mode,sensor);
+  const p=PROVINCES.find(x=>x.k===k);
+  const rows=dailyRows(k,base,mode,sensor,g('dailyS').value,g('dailyE').value);
+  const hasRH=!!state.rh,hasWB=!!state.wb;
+  const out=['"# settings: province='+p.en+' | base='+base+' C | DD='+nm+' | sensor='+(sensor==='wb'?'wet-bulb':'dry-bulb')+' | unit='+unitOf(mode)+' | daily DD = max(0, T - base) with T='+(dailyTsrc()==='mm'?'(Tmax+Tmin)/2':'ERA5 daily mean')+(state.meta.wbSource==='api'?' | WB from API':'')+'"',
+    'date,date_be,dow,temp_db_c'+(exHas('tmax')?',tmax_c,tmin_c':'')+(hasWB?',temp_wb_c':'')+(hasRH?',rh_pct':'')+(exHas('dew')?',dewpoint_c':'')+(exHas('rad')?',ghi_mj_m2':'')+(exHas('wind')?',wind10m_kmh':'')+(exHas('rain')?',rain_mm':'')+(exHas('pres')?',pressure_hpa':'')+','+nm.toLowerCase().replace('̄','')+'_base'+base+(dailyTsrc()==='mm'?'_tmaxmin':'')];
+  const C=v=>','+(v!=null?v:'');
+  rows.forEach(r=>out.push(r.d+','+fmtDBE(r.d).replace(/,/g,' ')+','+TH_DOW[r.dow]+C(r.T)+(exHas('tmax')?C(r.tmax)+C(r.tmin):'')+(hasWB?C(r.WB):'')+(hasRH?C(r.RH):'')+(exHas('dew')?C(r.dew):'')+(exHas('rad')?C(r.rad):'')+(exHas('wind')?C(r.wind):'')+(exHas('rain')?C(r.rain):'')+(exHas('pres')?C(r.pres):'')+C(r.dd)));
+  dl(nm+"_daily_"+p.en.replace(/ /g,"_")+"_base"+base+"_"+g('dailyS').value+"_"+g('dailyE').value+".csv",out.join("\n"));
+}
+
+/* [แก้ไข 23 ก.ย. 2569] แท็บ 2 — มุมมองรายสัปดาห์/รายวัน (ใช้ periodsIdx/ddByPeriod ชุดเดียวกับ CSV) */
+function renderProvRes(p,base,mode,sensor,nm,isRH){
+  const res=getRes(),u=unitOf(mode),g=id=>document.getElementById(id);
+  const c=ddByPeriod(p.k,base,mode,sensor,res);
+  if(!c.length){g('provKPI').innerHTML="";g('provChart').innerHTML="";g('provTable').innerHTML="";return;}
+  const vals=c.map(x=>x.cdd).filter(v=>v!=null);
+  const tot=vals.reduce((a,b)=>a+b,0),avg=vals.length?tot/vals.length:0;
+  let mx=null;c.forEach(x=>{if(x.cdd!=null&&(mx===null||x.cdd>mx.cdd))mx=x;});
+  const perName=res==='week'?'สัปดาห์':'วัน';
+  const K=(v,l)=>'<div class="kpi"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';
+  g('provKPI').innerHTML=
+    (isRH?K(avg.toFixed(1),'RH̄ เฉลี่ยช่วงวิเคราะห์ (%)'):K(Math.round(tot*10)/10,nm+' รวมช่วงวิเคราะห์ ('+u+')'))+
+    K(isRH?'':avg.toFixed(res==='day'?2:1),isRH?'':nm+' เฉลี่ยต่อ'+perName+' ('+u+'/'+perName+')')+
+    (mx?K(mx.cdd,(isRH?'RH̄':nm)+' สูงสุด — '+(res==='week'?mx.key+' ('+fmtDBE(mx.s)+'–'+fmtDBE(mx.e)+')':TH_DOW[new Date(mx.key+"T00:00:00").getDay()]+' '+fmtDBE(mx.key))):'')+
+    K(c.length+' '+perName,'จำนวน'+perName+'ในช่วงวิเคราะห์'+(res==='week'?' (ISO จ.–อา.)':''))+
+    (isRH?'':K(base+' °C','Base temperature'));
+  // กราฟ: ใช้ตัววาดของแท็บ 2b (แท่ง DD + เส้น T̄ + base)
+  const rows=c.map(x=>({dd:x.cdd,v:x.avgT,d:x.key,s:x.s,e:x.e,n:x.days,dow:res==='day'?new Date(x.key+"T00:00:00").getDay():1}));
+  dailyChart(g('provChart'),rows,base,mode,sensor,res==='week'?'week':'day',null);
+  // ตาราง
+  const hasRH=!!state.rh&&!isRH;
+  let h='<h3>'+p.th+' ('+p.en+') — ภาค'+RG[p.rg]+' · พิกัด '+p.lat+'°N, '+p.lon+'°E · '+resName(res)+'</h3><table><tr>'+
+    (res==='week'?'<th>สัปดาห์ ISO</th><th>ช่วงวันที่</th><th class="num">วัน</th>':'<th>วันที่ (พ.ศ.)</th><th>วัน</th>')+
+    '<th class="num">'+(isRH?'RH̄ (%)':nm+' ('+u+')')+'</th><th class="num">T̄'+(sensor==='wb'?'wb':'')+' (°C)</th>'+(hasRH?'<th class="num">RH̄ (%)</th>':'')+'</tr>';
+  c.forEach(x=>{
+    const we=res==='day'&&(()=>{const d=new Date(x.key+"T00:00:00").getDay();return d===0||d===6;})();
+    h+='<tr'+(we?' style="background:#fbfcfe"':'')+'>'+
+      (res==='week'?'<td>'+x.key+'</td><td>'+fmtDBE(x.s)+' – '+fmtDBE(x.e)+'</td><td class="num">'+x.days+(x.tot<7?' <span class="status-warn">/'+x.tot+'</span>':'')+'</td>'
+                   :'<td>'+fmtDBE(x.key)+'</td><td style="color:'+(we?'var(--danger)':'var(--muted)')+'">'+TH_DOW[new Date(x.key+"T00:00:00").getDay()]+'</td>')+
+      '<td class="num"><b>'+(x.cdd!=null?x.cdd.toLocaleString():'–')+'</b></td><td class="num" style="color:var(--muted)">'+(x.avgT!=null?x.avgT:'–')+'</td>'+
+      (hasRH?'<td class="num" style="color:var(--muted)">'+(x.avgRH!=null?x.avgRH:'–')+'</td>':'')+'</tr>';});
+  h+='<tr><th colspan="'+(res==='week'?3:2)+'">'+(isRH?'เฉลี่ยช่วง':'รวมช่วง')+' ('+vals.length+' '+perName+')</th><th class="num">'+(isRH?avg.toFixed(1):Math.round(tot*10)/10)+'</th><th></th>'+(hasRH?'<th></th>':'')+'</tr></table>';
+  g('provTable').innerHTML='<div style="max-height:560px;overflow:auto">'+h+'</div>';
 }
 
 /* ============ TAB 3 render ============ */
