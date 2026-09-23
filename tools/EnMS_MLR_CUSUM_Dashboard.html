@@ -125,6 +125,16 @@
 
         /* ===== GLOBAL CONFIG ===== */
         .global-config { background: #e2e6ea; padding: 15px; border-radius: 5px; margin-bottom: 20px; text-align: center; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; }
+        /* [แก้ไข 23 ก.ย. 2569] กล่องข้อมูลโรงงาน + ปุ่ม JSON ทุกแท็บ */
+        .proj-box { background: #fff; border: 1px solid var(--line); border-left: 6px solid var(--teal); border-radius: 10px; padding: 12px 16px; margin: 0 0 18px 0; box-shadow: var(--shadow); }
+        .proj-box .proj-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 14px; }
+        .proj-box label { font-size: 0.85em; font-weight: bold; color: var(--navy); display: block; margin-bottom: 2px; }
+        .proj-box input { width: 100%; padding: 6px 8px; border: 1px solid #ccd; border-radius: 5px; font-family: inherit; font-size: 0.95em; }
+        .proj-box .hint { font-size: 0.78em; color: var(--muted); margin-top: 2px; }
+        .te-json { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+        .te-json .badge { font-size: 0.8em; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+        .proj-print { display: none; font-size: 0.95em; color: #333; margin: -6px 0 12px 0; }
+        @media print { .proj-print { display: block; } .te-json { display: none !important; } }
         .footer-credit { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ccc; color: #666; font-size: 0.9em; }
 
         /* ===== SAVE MODAL ===== */
@@ -177,7 +187,24 @@
 <body>
 
 <div class="dashboard-container">
-    <h1>ระบบวิเคราะห์และติดตามสมรรถนะพลังงาน (ISO 50001)<br>Multiple Linear Regression &amp; CUSUM Dashboard <span style="font-size:0.65em; color:#666;">v4.0 — Multi-Stream</span></h1>
+    <h1>ระบบวิเคราะห์และติดตามสมรรถนะพลังงาน (ISO 50001)<br>Multiple Linear Regression &amp; CUSUM Dashboard <span style="font-size:0.65em; color:#666;">v4.1 — Multi-Stream · JSON ทุกแท็บ</span></h1>
+
+    <!-- [แก้ไข 23 ก.ย. 2569] ข้อมูลโรงงาน (ติดไปในไฟล์ JSON และหัวรายงานพิมพ์) -->
+    <div class="proj-box no-print">
+        <div class="proj-grid">
+            <div><label for="projName">🏭 ชื่อโรงงาน / สถานประกอบการ</label><input type="text" id="projName" placeholder="เช่น บริษัท ABC จำกัด (โรงงานสระบุรี)" maxlength="120"><div class="hint">ชื่อนี้จะอยู่ในไฟล์ JSON, ชื่อไฟล์ที่บันทึก และหัวรายงานพิมพ์</div></div>
+            <div><label for="projSystem">⚙️ ระบบ / ขอบเขต (SEU)</label><input type="text" id="projSystem" placeholder="เช่น ทั้งโรงงาน, สายผลิต 1, หม้อไอน้ำ" maxlength="120"><div class="hint">ขอบเขตของสมการ EnB ตาม ISO 50001 ข้อ 6.5</div></div>
+            <div><label for="projPeriod">📅 ช่วงข้อมูล Baseline</label><input type="text" id="projPeriod" placeholder="เช่น ม.ค.–ธ.ค. 2567" maxlength="60"><div class="hint">ปี/เดือนของข้อมูลเส้นฐาน (พ.ศ.)</div></div>
+            <div><label for="projBy">👤 ผู้วิเคราะห์</label><input type="text" id="projBy" placeholder="ชื่อผู้รับผิดชอบด้านพลังงาน" maxlength="80"><div class="hint">ผู้จัดทำ / ผชร. / ผอส.</div></div>
+        </div>
+        <div class="te-json">
+            <button class="btn-save" onclick="teSaveJSON()">💾 บันทึกทุกแท็บ (JSON)</button>
+            <button class="btn-primary" onclick="document.getElementById('teLoadInput').click()">📂 โหลดไฟล์ JSON</button>
+            <input type="file" id="teLoadInput" accept=".json" style="display:none" onchange="teLoadJSON(this.files[0]); this.value='';">
+            <span class="badge" id="teJsonBadge">ยังไม่ได้บันทึก — ไฟล์ JSON จะเก็บ ข้อมูล Baseline · Multi-Stream · Monitoring/CUSUM · Scatter · สมการที่บันทึก · ค่าที่กรอกทุกช่อง</span>
+        </div>
+    </div>
+    <div class="proj-print" id="projPrint"></div>
 
     <!-- TAB NAV -->
     <div class="tab-nav no-print">
@@ -705,7 +732,7 @@
 
     <div class="footer-credit">
         ระบบพัฒนาโดย <strong>อ.หนึ่ง กลับทวี</strong> | <strong>บริษัท ทริปเปิ้ล อี เทคโนโลยี จำกัด</strong>
-        <br><span style="font-size:0.85em; color:#aaa;">ISO 50001 Energy Performance Monitoring System v4.0 — Multi-Stream Edition</span>
+        <br><span style="font-size:0.85em; color:#aaa;">ISO 50001 Energy Performance Monitoring System v4.1 — Multi-Stream Edition (บันทึก/โหลดทุกแท็บ 23 ก.ย. 2569)</span>
     </div>
 </div>
 
@@ -741,9 +768,10 @@
     let _fm = (v, d = 2) => (v === null || v === undefined || !isFinite(v)) ? '-' : v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
     let multiData = null, multiLabels = ['X1','X2','X3','X4','X5'], multiFit = null, multiMonRecords = [], multiCusumChart = null, _saveMode = 'single';
     let scatterData = null, scatterChart1 = null, scatterChart2 = null;
+    let monitoringRaw = null, multiMonRaw = null, eqLoadedName = '';   // [แก้ไข 23 ก.ย. 2569] เก็บข้อมูลดิบของแท็บ 2 และ 1B-CUSUM เพื่อบันทึกลง JSON
 
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-    var FK_DESIGN=[], FK_MEAS=[], FK_SET=['yVariableSelect', 'priceElec', 'priceHeat', 'cusumSourceSelect', 'scatterXSelect', 'scatterYSelect', 'eqNameInput'], FK_CALC=['coeff_const', 'coeff_x1', 'coeff_x2', 'coeff_x3', 'coeff_x4', 'coeff_x5'];
+    var FK_DESIGN=[], FK_MEAS=[], FK_SET=['projName','projSystem','projPeriod','projBy','yVariableSelect', 'priceElec', 'priceHeat', 'cusumSourceSelect', 'scatterXSelect', 'scatterYSelect', 'eqNameInput'], FK_CALC=['coeff_const', 'coeff_x1', 'coeff_x2', 'coeff_x3', 'coeff_x4', 'coeff_x5'];
     var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
     function fieldKind(id){if(/^coeff_/.test(id))return'calc';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
     function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -864,20 +892,22 @@
     function processBaselineFile() {
         const fi = document.getElementById('baselineFile');
         if (!fi.files.length) { alert("กรุณาเลือกไฟล์ Excel สำหรับ Baseline"); return; }
-        readExcelFile(fi.files[0], function(data) {
-            if (data.length < 2) return;
-            globalBaselineData = data;
-            // Read headers row[0]: col E=idx4, F=5, G=6, H=7, I=8
-            let headers = data[0];
-            for (let i = 0; i < 5; i++) {
-                xLabels[i] = headers[i + 4] || `X${i+1}`;
-                document.getElementById(`lbl_x${i+1}`).innerHTML = 
-                    `<input type="checkbox" id="chk_x${i+1}" checked onchange="recalculateBaseline()"> <span>${xLabels[i]}</span>`;
-                document.getElementById(`th_x${i+1}`).innerText = xLabels[i];
-                document.getElementById(`chk_x${i+1}`).checked = true;
-            }
-            recalculateBaseline();
-        });
+        readExcelFile(fi.files[0], function(data) { applyBaselineData(data, true); });
+    }
+    // [แก้ไข 23 ก.ย. 2569] แยกส่วน "ใส่ข้อมูล" ออกจาก "อ่านไฟล์" เพื่อให้โหลดคืนจาก JSON ได้ (recalc=false → ตั้ง label อย่างเดียว)
+    function applyBaselineData(data, recalc) {
+        if (!data || data.length < 2) return;
+        globalBaselineData = data;
+        // Read headers row[0]: col E=idx4, F=5, G=6, H=7, I=8
+        let headers = data[0];
+        for (let i = 0; i < 5; i++) {
+            xLabels[i] = headers[i + 4] || `X${i+1}`;
+            document.getElementById(`lbl_x${i+1}`).innerHTML =
+                `<input type="checkbox" id="chk_x${i+1}" checked onchange="recalculateBaseline()"> <span>${xLabels[i]}</span>`;
+            document.getElementById(`th_x${i+1}`).innerText = xLabels[i];
+            document.getElementById(`chk_x${i+1}`).checked = true;
+        }
+        if (recalc !== false) recalculateBaseline();
     }
 
     // ====== RECALCULATE BASELINE ======
@@ -1006,8 +1036,13 @@
                 parseFloat(document.getElementById('coeff_x5').value) || 0,
             ];
         }
-        readExcelFile(fi.files[0], function(data) {
+        readExcelFile(fi.files[0], function(data) { applyMonitoringData(data, src, yChoice, coeffs); });
+    }
+    // [แก้ไข 23 ก.ย. 2569] ใส่ข้อมูล Monitoring จาก array (ใช้ทั้งตอนอัปโหลดและตอนโหลด JSON)
+    function applyMonitoringData(data, src, yChoice, coeffs) {
+        {
             resetDashboard(false);
+            monitoringRaw = data;
             const limit = data.length; // [แก้ไข 10 ก.ย. 2569] ยกเลิกเพดาน 60 แถว — อ่านข้อมูล Monitoring ทุกแถว
             let consecutiveOut = 0;
             for (let i = 1; i < limit; i++) {
@@ -1048,7 +1083,20 @@
             } else {
                 updateUITexts();
             }
-        });
+        }
+    }
+    // [แก้ไข 23 ก.ย. 2569] ประกอบ (src, yChoice, coeffs) จากสถานะปัจจุบัน — ใช้ตอนโหลด JSON คืน
+    function _monitoringParams() {
+        const src = document.getElementById('cusumSourceSelect').value;
+        if (src === 'B') {
+            if (!multiFit || !multiFit.fitE || !multiFit.fitH) return null;
+            const coeffs = [];
+            for (let i = 0; i <= 5; i++) coeffs.push(3.6 * multiFit.fitE.betaFull[i] + multiFit.fitH.betaFull[i]);
+            return { src, yChoice: 'total', coeffs };
+        }
+        const coeffs = [parseFloat(document.getElementById('coeff_const').value) || 0];
+        for (let i = 1; i <= 5; i++) coeffs.push(parseFloat(document.getElementById('coeff_x' + i).value) || 0);
+        return { src, yChoice: document.getElementById('yVariableSelect').value, coeffs };
     }
 
     function updateCusumSourceInfo() {
@@ -1105,6 +1153,7 @@
         document.querySelector('#monitoringTable tbody').innerHTML = '';
         document.getElementById('alertBanner').style.display = 'none';
         refreshChartData();
+        monitoringRaw = null;   // [แก้ไข 23 ก.ย. 2569]
         if (fullReset) {
             globalBaselineData = null;
             document.getElementById('baselineFile').value = '';
@@ -1181,6 +1230,7 @@
         const record = {
             id: Date.now(),
             name,
+            plant: (document.getElementById('projName').value || '').trim(),   // [แก้ไข 23 ก.ย. 2569]
             yChoice,
             equationText: document.getElementById('equationText').innerText,
             coeffs, checks,
@@ -1217,7 +1267,7 @@
         }
         updateEquationDisplay();
         updateUITexts();
-        eqLoaded = true; setEqLoadedBanner(true, rec.name); // [แก้ไข 10 ก.ย. 2569] ทำเครื่องหมายว่าเป็นสมการที่โหลด
+        eqLoaded = true; eqLoadedName = rec.name; setEqLoadedBanner(true, rec.name); // [แก้ไข 10 ก.ย. 2569] ทำเครื่องหมายว่าเป็นสมการที่โหลด
         // Sync CUSUM source selector to 1A
         document.getElementById('cusumSourceSelect').value = 'A';
         // Update active eq info
@@ -1250,7 +1300,7 @@
                 return `
             <div class="eq-card" style="border-left:5px solid #0d6efd;">
                 <div class="eq-card-body">
-                    <h4>⚡🔥 ${rec.name} <span style="font-size:0.8em; color:#888;">(Multi-Stream)</span></h4>
+                    <h4>⚡🔥 ${rec.name} <span style="font-size:0.8em; color:#888;">(Multi-Stream)${rec.plant ? ' · 🏭 ' + rec.plant : ''}</span></h4>
                     <div class="eq-text">${rec.eqE}</div>
                     <div class="eq-text">${rec.eqH}</div>
                     <div class="eq-meta">
@@ -1266,7 +1316,7 @@
             return `
             <div class="eq-card">
                 <div class="eq-card-body">
-                    <h4>📋 ${rec.name}</h4>
+                    <h4>📋 ${rec.name}${rec.plant ? ' <span style="font-size:0.8em; color:#888;">🏭 ' + rec.plant + '</span>' : ''}</h4>
                     <div class="eq-text">${rec.equationText}</div>
                     <div class="eq-meta">
                         🎯 Y: ${yLabel(rec.yChoice)} &nbsp;|&nbsp; R² = ${rec.r2} &nbsp;|&nbsp; Adj.R² = ${rec.adjR2} &nbsp;|&nbsp; n = ${rec.obs} &nbsp;|&nbsp; บันทึก: ${rec.savedAt}
@@ -1319,6 +1369,13 @@
         reader.onload = function(e) {
             try {
                 const imported = JSON.parse(e.target.result);
+                if (imported && !Array.isArray(imported) && imported.meta && imported.extra) {   // [แก้ไข 23 ก.ย. 2569] ไฟล์ "บันทึกทุกแท็บ" → โหลดทั้งชุด
+                    if (confirm('ไฟล์นี้เป็นไฟล์บันทึกทุกแท็บ — ต้องการโหลดข้อมูลทุกแท็บ (ตกลง) หรือเฉพาะสมการ (ยกเลิก)?')) { teApplyState(imported); return; }
+                    const arr0 = (imported.extra && imported.extra.savedEquations) || [];
+                    const ex0 = getSavedEquations(); const ids0 = new Set(ex0.map(x => x.id));
+                    const nw0 = arr0.filter(x => !ids0.has(x.id)); setSavedEquations([...nw0, ...ex0]); renderSavedList();
+                    alert(`✅ นำเข้าสมการสำเร็จ ${nw0.length} รายการ`); return;
+                }
                 if (!Array.isArray(imported)) throw new Error("ไฟล์ไม่ถูกต้อง");
                 const existing = getSavedEquations();
                 const existingIds = new Set(existing.map(x => x.id));
@@ -1470,10 +1527,13 @@
         if (!fi.files.length) { alert('กรุณาเลือกไฟล์ Excel'); return; }
         readExcelFile(fi.files[0], function(data) {
             if (data.length < 2) { alert('ไฟล์ไม่มีข้อมูล'); return; }
-            multiData = data;
-            _multiReadHeaders();
-            renderMultiVarTable();
+            applyMultiData(data);
         });
+    }
+    function applyMultiData(data) {   // [แก้ไข 23 ก.ย. 2569]
+        multiData = data;
+        _multiReadHeaders();
+        renderMultiVarTable();
     }
 
     function _multiReadHeaders() {
@@ -1513,8 +1573,8 @@
         return { periods, X5, eArr, hArr, tArr };
     }
 
-    function recalcMulti() {
-        if (!multiData) { alert('กรุณาโหลดข้อมูลก่อน'); return; }
+    function recalcMulti(silent) {
+        if (!multiData) { if (silent !== true) alert('กรุณาโหลดข้อมูลก่อน'); return; }
         const selE = [], selH = [];
         for (let i = 1; i <= 5; i++) {
             if (document.getElementById('mE_x' + i).checked) selE.push(i);
@@ -1639,7 +1699,11 @@
         if (!fi.files.length) { alert('กรุณาเลือกไฟล์ Excel สำหรับ Monitoring'); return; }
         const pE = parseFloat(document.getElementById('priceElec').value) || 0;
         const pH = parseFloat(document.getElementById('priceHeat').value) || 0;
-        readExcelFile(fi.files[0], function(data) {
+        readExcelFile(fi.files[0], function(data) { applyMultiMonitoring(data, pE, pH); });
+    }
+    function applyMultiMonitoring(data, pE, pH) {   // [แก้ไข 23 ก.ย. 2569]
+        {
+            multiMonRaw = data;
             multiMonRecords = [];
             let cE = 0, cH = 0, cEc = 0, cHc = 0, cT = 0;
             const limit = data.length; // [แก้ไข 10 ก.ย. 2569] ยกเลิกเพดาน 60 แถว — อ่านข้อมูล Monitoring ทุกแถว
@@ -1659,7 +1723,7 @@
                 multiMonRecords.push({ period: row[0] || i, e, h, tE, tH, vE, vH, vBaht, cE, cH, cEc, cHc, cT });
             }
             renderMultiMonitoring(pE, pH);
-        });
+        }
     }
 
     function renderMultiMonitoring(pE, pH) {
@@ -1730,6 +1794,7 @@
     function saveMultiEquation(name) {
         const record = {
             id: Date.now(), type: 'multi', name,
+            plant: (document.getElementById('projName').value || '').trim(),   // [แก้ไข 23 ก.ย. 2569]
             xLabels: multiFit.labels.slice(),
             selE: multiFit.selE.slice(), selH: multiFit.selH.slice(),
             betaE: multiFit.fitE.betaFull.slice(), betaH: multiFit.fitH.betaFull.slice(),
@@ -1751,6 +1816,15 @@
     }
 
     function loadMultiEquation(rec) {
+        restoreMultiFromRecord(rec);
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-multi').classList.add('active');
+        document.querySelector('.tab-btn[data-tab="multi"]').classList.add('active');
+        alert('✅ โหลดสมการ Multi-Stream "' + rec.name + '" เรียบร้อย — พร้อมวิเคราะห์ CUSUM แยกสาย');
+    }
+    // [แก้ไข 23 ก.ย. 2569] ส่วนที่ไม่แตะ UI แท็บ/alert — ใช้ซ้ำตอนโหลด JSON
+    function restoreMultiFromRecord(rec) {
         multiLabels = rec.xLabels.slice();
         multiFit = {
             labels: rec.xLabels.slice(), selE: rec.selE.slice(), selH: rec.selH.slice(), n: rec.n,
@@ -1774,13 +1848,8 @@
         document.getElementById('statsBodyHeat').innerHTML = '';
         document.getElementById('warnElec').style.display = 'none';
         document.getElementById('warnHeat').style.display = 'none';
-        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('cusumSourceSelect').value = 'B';
         updateCusumSourceInfo();
-        document.getElementById('tab-multi').classList.add('active');
-        document.querySelector('.tab-btn[data-tab="multi"]').classList.add('active');
-        alert('✅ โหลดสมการ Multi-Stream "' + rec.name + '" เรียบร้อย — พร้อมวิเคราะห์ CUSUM แยกสาย');
     }
 
     // ====== SAMPLE EXCEL DOWNLOAD (embedded Base64) ======
@@ -1851,11 +1920,12 @@
     function processScatterFile() {
         const fi = document.getElementById('scatterFile');
         if (!fi.files.length) { alert('กรุณาเลือกไฟล์ Excel'); return; }
-        readExcelFile(fi.files[0], function(data) {
-            scatterData = data;
-            populateScatterSelectors();
-            renderScatterCharts();
-        });
+        readExcelFile(fi.files[0], function(data) { applyScatterData(data); });
+    }
+    function applyScatterData(data) {   // [แก้ไข 23 ก.ย. 2569]
+        scatterData = data;
+        populateScatterSelectors();
+        renderScatterCharts();
     }
     function populateScatterSelectors() {
         if (!scatterData || scatterData.length < 1) return;
@@ -1985,9 +2055,110 @@
     }
 
     // ====== INIT ======
+    /* [แก้ไข 23 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม (มาตรฐาน Triple E ระยะ 4) */
+    var TE_JSON=(function(){
+      function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+      function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+      function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}}
+      function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+        var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+      function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+      return{collect:collect,applyOnce:applyOnce,apply:apply,save:save,load:load};
+    })();
+
+    // ชื่อไฟล์: EnMS_MLR_CUSUM_<ชื่อโรงงาน>_<วันที่>.json
+    function _teSafeName(s){return (s||'').trim().replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,'_').slice(0,60);}
+    function _teActiveTab(){var b=document.querySelector('.tab-btn.active');return b?b.getAttribute('data-tab'):'guide';}
+    function _teMultiFitRecord(){
+        if(!multiFit||!multiFit.fitE||!multiFit.fitH)return null;
+        return { xLabels:(multiFit.labels||multiLabels).slice(), selE:multiFit.selE.slice(), selH:multiFit.selH.slice(), n:multiFit.n,
+            betaE:multiFit.fitE.betaFull.slice(), betaH:multiFit.fitH.betaFull.slice(),
+            eqE:document.getElementById('eqTextElec').innerText, eqH:document.getElementById('eqTextHeat').innerText,
+            r2E:multiFit.fitE.R2!==undefined?multiFit.fitE.R2.toFixed(4):'-', r2H:multiFit.fitH.R2!==undefined?multiFit.fitH.R2.toFixed(4):'-',
+            priceElec:parseFloat(document.getElementById('priceElec').value)||0, priceHeat:parseFloat(document.getElementById('priceHeat').value)||0, name:'(จากไฟล์ JSON)' };
+    }
+    function teCollectState(){
+        return {
+            schemaTool:'EnMS_MLR_CUSUM_Dashboard', schemaVer:2,
+            project:{ name:document.getElementById('projName').value, system:document.getElementById('projSystem').value, period:document.getElementById('projPeriod').value, by:document.getElementById('projBy').value },
+            baseline:{ data:globalBaselineData, xLabels:xLabels.slice(), eqLoaded:eqLoaded, eqLoadedName:eqLoadedName },
+            multi:{ data:multiData, labels:multiLabels.slice(), fit:_teMultiFitRecord(), monRaw:multiMonRaw, hasData:!!multiData },
+            monitoring:{ raw:monitoringRaw },
+            scatter:{ data:(scatterData===globalBaselineData)?'__BASELINE__':scatterData },
+            savedEquations:getSavedEquations(),
+            ui:{ activeTab:_teActiveTab() }
+        };
+    }
+    function teSaveJSON(){
+        const plant=_teSafeName(document.getElementById('projName').value);
+        if(!plant && !confirm('ยังไม่ได้กรอกชื่อโรงงาน — บันทึกโดยไม่มีชื่อโรงงานหรือไม่?'))return;
+        const name='EnMS_MLR_CUSUM'+(plant?'_'+plant:'');
+        TE_JSON.save(name, teCollectState());
+        const t=new Date().toLocaleString('th-TH');
+        document.getElementById('teJsonBadge').textContent='✓ บันทึกแล้ว '+t+(plant?' · '+document.getElementById('projName').value:'');
+        teUpdatePrintHeader();
+    }
+    function teLoadJSON(file){
+        if(!file)return;
+        const r=new FileReader();
+        r.onload=function(){
+            let d; try{ d=JSON.parse(r.result); }catch(e){ alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message); return; }
+            if(Array.isArray(d)){   // ไฟล์รูปแบบเก่า ISO50001_equations_*.json → นำเข้าเฉพาะสมการ
+                const ex=getSavedEquations(); const ids=new Set(ex.map(x=>x.id)); const nw=d.filter(x=>!ids.has(x.id));
+                setSavedEquations([...nw,...ex]); renderSavedList(); switchTab('saved');
+                alert('ไฟล์นี้เป็นไฟล์ "สมการ" รูปแบบเดิม — นำเข้าสมการ '+nw.length+' รายการ (ไม่มีข้อมูลแท็บอื่น)'); return;
+            }
+            if(!d||!d.inputs){ alert('ไฟล์ JSON ไม่ใช่ไฟล์ของเครื่องมือนี้'); return; }
+            teApplyState(d);
+        };
+        r.readAsText(file);
+    }
+    // ลำดับ: ค่าโครงการ → ข้อมูล 1A (label) → ค่ากรอก → คำนวณ 1A → 1B (ข้อมูล/ตาราง/ติ๊ก/คำนวณ หรือ fit ที่บันทึก) → 1B-CUSUM → 2 Monitoring → 3 Scatter → สมการ → แท็บ
+    function teApplyState(d){
+        const inp=d.inputs||{}, X=d.extra||{};
+        const A=TE_JSON.applyOnce;
+        try{
+            A(inp);
+            // 1A
+            eqLoaded=false; eqLoadedName=''; setEqLoadedBanner(false);
+            if(X.baseline&&X.baseline.data){ applyBaselineData(X.baseline.data,false); A(inp); recalculateBaseline(); }
+            else if(X.baseline&&X.baseline.xLabels){ X.baseline.xLabels.forEach((lbl,i)=>{ xLabels[i]=lbl; document.getElementById('lbl_x'+(i+1)).innerHTML='<input type="checkbox" id="chk_x'+(i+1)+'" onchange="recalculateBaseline()"> <span>'+lbl+'</span>'; document.getElementById('th_x'+(i+1)).innerText=lbl; }); A(inp); }
+            A(inp);   // คืนค่า β ที่บันทึก (กรณี Manual Override / สมการที่โหลดจากคลัง)
+            if(X.baseline&&X.baseline.eqLoaded){ eqLoaded=true; eqLoadedName=X.baseline.eqLoadedName||''; setEqLoadedBanner(true,eqLoadedName); }
+            updateEquationDisplay(); updateUITexts();
+            // 1B
+            multiData=null; multiFit=null; multiMonRecords=[]; multiMonRaw=null;
+            if(X.multi&&X.multi.data){ applyMultiData(X.multi.data); A(inp); recalcMulti(true); }
+            else if(X.multi&&X.multi.fit){ restoreMultiFromRecord(X.multi.fit); A(inp); }
+            if(X.multi&&X.multi.monRaw&&multiFit){ applyMultiMonitoring(X.multi.monRaw, parseFloat(document.getElementById('priceElec').value)||0, parseFloat(document.getElementById('priceHeat').value)||0); }
+            // 2 Monitoring
+            A(inp);
+            resetDashboard(false);
+            if(X.monitoring&&X.monitoring.raw){ const P=_monitoringParams(); if(P) applyMonitoringData(X.monitoring.raw,P.src,P.yChoice,P.coeffs); }
+            updateCusumSourceInfo();
+            // 3 Scatter
+            if(X.scatter&&X.scatter.data){ scatterData=(X.scatter.data==='__BASELINE__')?globalBaselineData:X.scatter.data; if(scatterData){ populateScatterSelectors(); A(inp); renderScatterCharts(); } }
+            // สมการที่บันทึก — รวมเข้าคลังในเครื่อง (ไม่ลบของเดิม)
+            if(Array.isArray(X.savedEquations)){ const ex=getSavedEquations(); const ids=new Set(ex.map(x=>x.id)); const nw=X.savedEquations.filter(x=>!ids.has(x.id)); if(nw.length) setSavedEquations([...nw,...ex]); }
+            renderSavedList();
+            A(inp);   // late-fix pass
+            tagFieldKinds();
+            teUpdatePrintHeader();
+            const meta=d.meta||{}; document.getElementById('teJsonBadge').textContent='✓ โหลดแล้ว: '+(meta.exportedAt?new Date(meta.exportedAt).toLocaleString('th-TH'):'')+(inp.projName?' · '+inp.projName:'');
+            switchTab((X.ui&&X.ui.activeTab)||'baseline');
+        }catch(e){ console.error(e); alert('โหลดข้อมูลได้บางส่วน — '+e.message); }
+    }
+    function teUpdatePrintHeader(){
+        const p=document.getElementById('projPrint'); if(!p)return;
+        const n=document.getElementById('projName').value, s=document.getElementById('projSystem').value, pe=document.getElementById('projPeriod').value, by=document.getElementById('projBy').value;
+        p.innerHTML=(n?'<b>โรงงาน:</b> '+n+' ':'')+(s?' | <b>ระบบ:</b> '+s:'')+(pe?' | <b>ช่วงข้อมูล:</b> '+pe:'')+(by?' | <b>ผู้วิเคราะห์:</b> '+by:'');
+    }
+    ['projName','projSystem','projPeriod','projBy'].forEach(function(id){ document.addEventListener('DOMContentLoaded',function(){ var e=document.getElementById(id); if(e) e.addEventListener('input',teUpdatePrintHeader); }); });
+
     window.onload = function() {
         updateUITexts();
         renderSavedList();
+        teUpdatePrintHeader();
     };
 </script>
 </body>
