@@ -277,6 +277,13 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
           <option value="THB/kWh">บาท/kWh</option>
           <option value="THB/GJ">บาท/GJ</option>
         </select><div class="hint">เลือกให้ตรงกับใบแจ้งหนี้ — โปรแกรมแปลงเป็นบาท/GJ และบาท/MJ อัตโนมัติ</div></div>
+      <!-- [แก้ไข 3 ต.ค. 2569 audit] ฐานของราคา บาท/MMBTU (ปตท. คิดฐาน GCV) → แปลงเป็นฐาน LHV ให้เทียบกับเชื้อเพลิงอื่นได้ -->
+      <div class="fld"><label class="f">ฐานราคา บาท/MMBTU</label>
+        <select id="mmbtuBasis">
+          <option value="gcv" selected>GCV/HHV (ใบแจ้งหนี้ ปตท.) → แปลงเป็นฐาน LHV</option>
+          <option value="ncv">NCV/LHV (ไม่ต้องแปลง)</option>
+        </select><div class="hint">ใช้เฉพาะเมื่อหน่วยราคาเป็น บาท/MMBTU (ทั้งแท็บ 1 และตารางเปรียบเทียบ) — ราคา NG ของ ปตท. เป็นฐาน GCV ขณะที่ค่าความร้อนและ η ในเครื่องมือนี้เป็นฐาน LHV ต้องคูณ HHV/LHV จึงเทียบกันได้</div></div>
+      <div class="fld"><label class="f">อัตราส่วน HHV/LHV ของเชื้อเพลิงที่ซื้อเป็น MMBTU</label><input type="number" id="mmbtuHL" value="1.109" step="0.001" min="1" max="1.3"><div class="hint">NG ไทย ~1.109 (1,008/908.6 BTU/SCF ใบวิเคราะห์อ้างอิง) · LPG ~1.08 · น้ำมันเตา ~1.06 — ใช้ค่าจากใบวิเคราะห์ก๊าซถ้ามี</div></div>
       <div class="fld"><label class="f">ประสิทธิภาพอุปกรณ์ <span class="unit">%</span></label><input type="number" id="eff" value="82" step="0.5" min="1" max="100"><div class="hint">ประสิทธิภาพอุปกรณ์ที่ใช้เชื้อเพลิงนี้ (ฐาน LHV) · หม้อไอน้ำชีวมวล 70–82 % · ถ่านหิน 80–86 % · น้ำมัน/ก๊าซ 85–92 % · ที่มา: ผลตรวจวัดจริงหรือค่าประกันของผู้ผลิต</div></div>
     </div>
     <div id="priceOut"></div>
@@ -465,7 +472,7 @@ const PULAB={'THB/kg':'บาท/kg','THB/ton':'บาท/ตัน','THB/L':'�
              'THB/Sm3':'บาท/Sm³','THB/m3':'บาท/m³','THB/MMBTU':'บาท/MMBTU','THB/kWh':'บาท/kWh','THB/GJ':'บาท/GJ'};
 
 /* ══════════ แกนคำนวณราคา ══════════ */
-function priceEngine(hv,hvU,rho,rhoU,srefT,price,priceU){
+function priceEngine(hv,hvU,rho,rhoU,srefT,price,priceU,mmbtuF){   // [แก้ไข 3 ต.ค. 2569 audit] mmbtuF = HHV/LHV เมื่อราคา MMBTU เป็นฐาน GCV
   const sFac=273.15/(273.15+srefT);
   const b=hvToBase(hv,hvU,srefT);
   /* สร้างค่าความร้อนในทุกฐานเท่าที่อนุมานได้ */
@@ -487,7 +494,7 @@ function priceEngine(hv,hvU,rho,rhoU,srefT,price,priceU){
     case 'THB/m3'   : if(mjL>0)   perMJ=price/1000/mjL; break;
     case 'THB/Nm3'  : if(mjNm3>0) perMJ=price/mjNm3; break;
     case 'THB/Sm3'  : if(mjSm3>0) perMJ=price/mjSm3; break;
-    case 'THB/MMBTU': perMJ=price/1055.056; break;
+    case 'THB/MMBTU': perMJ=price/1055.056*(mmbtuF>0?mmbtuF:1); break;   // [แก้ไข 3 ต.ค. 2569 audit] ฐาน GCV → ต่อ MJ ฐาน LHV
     case 'THB/kWh'  : perMJ=price/3.6; break;
     case 'THB/GJ'   : perMJ=price/1000; break;
   }
@@ -499,10 +506,12 @@ function priceEngine(hv,hvU,rho,rhoU,srefT,price,priceU){
 
 /* ══════════ MAIN ══════════ */
 let S={};
+/* [แก้ไข 3 ต.ค. 2569 audit] ตัวคูณฐานราคา MMBTU (GCV→LHV) ใช้ร่วมกันทั้งแท็บ 1 และตารางเปรียบเทียบ */
+function mmbtuFac(){ const hl=V('mmbtuHL'); return ($('mmbtuBasis')&&$('mmbtuBasis').value==='ncv')?1:((hl>=1&&hl<=1.3)?hl:1.109); }
 function calc(){
   const srefT=parseFloat($('sref').value);
   $('srefFac').textContent=(273.15/(273.15+srefT)).toFixed(4);
-  const r=priceEngine(V('hv'),$('hvU').value,V('rho'),$('rhoU').value,srefT,V('price'),$('priceU').value);
+  const r=priceEngine(V('hv'),$('hvU').value,V('rho'),$('rhoU').value,srefT,V('price'),$('priceU').value,mmbtuFac());
   const eff=clamp(V('eff'),1,100)/100;
   const useGJ=r.perGJ===null?null:r.perGJ/eff;
   const usekWh=r.perkWh===null?null:r.perkWh/eff;
@@ -517,10 +526,15 @@ function calc(){
   $('vUseb').textContent=`บาท/GJ ที่ประสิทธิภาพ ${fmt(eff*100,0)} %`;
 
   renderPrice(r,eff,useGJ,usekWh);
+  if($('priceU').value==='THB/MMBTU'){ const po=$('priceOut'); if(po) po.insertAdjacentHTML('afterbegin',`<div class="note warn">ราคา ${num(V('price'))} บาท/MMBTU ฐาน ${mmbtuFac()>1?'GCV แปลงเป็นฐาน LHV ด้วย × HHV/LHV '+fmt(mmbtuFac(),3)+' → ':'NCV/LHV → '}${num(r.perGJ)} บาท/GJ (LHV) — สอดคล้องกับค่าความร้อน LHV และ η ฐาน LHV ที่กรอก</div>`); }   // [แก้ไข 3 ต.ค. 2569 audit]
   renderAll(r);
   renderCmp();
   /* [แก้ไข 10 ก.ย. 2569] เชื่อมค่าความร้อนแท็บ 1 → ค่าตั้งต้นแท็บ 3 (เฉพาะเมื่อยังไม่ถูกแก้เอง) */
-  { const hi=$('hIn'); if(hi&&r.mjKg!==null&&r.mjKg>0&&(hi.value===''||hi.dataset.auto==='1')){ hi.value=+r.mjKg.toFixed(3); hi.dataset.auto='1'; } }
+  { const hi=$('hIn'); if(hi&&r.mjKg!==null&&r.mjKg>0&&(hi.value===''||hi.dataset.auto==='1')){ hi.value=+r.mjKg.toFixed(3); hi.dataset.auto='1';
+      /* [แก้ไข 3 ต.ค. 2569 audit] ค่าจากแท็บ 1 เป็น LHV as-received → ตั้งทิศ LHV→HHV และฐาน ar (เดิมค้าง HHV→LHV → หักความร้อนแฝงซ้ำ LHV ต่ำไป ~9 %) — เว้นแต่ผู้ใช้เลือกทิศ/ฐานเอง */
+      const hd=$('hDir'), hb=$('hBasis');
+      if(hd&&hd.dataset.auto!=='0'){ hd.value='l2h'; hd.dataset.auto='1'; }
+      if(hb&&hb.dataset.auto!=='0'){ hb.value='ar'; hb.dataset.auto='1'; } } }
   renderHV(); renderQty(r); renderO2(); renderGas(); renderWet();
 }
 
@@ -592,7 +606,7 @@ function renderAll(r){
 function cmpUnits(priceU){ return (priceU==='THB/Nm3'||priceU==='THB/Sm3') ? {hvU:'MJ/Nm3',rhoU:'kg/Nm3',gas:true} : {hvU:'MJ/kg',rhoU:'kg/L',gas:false}; }
 function cmpCalc(r){
   const u=cmpUnits(r[3]);
-  const res=priceEngine(+r[1],u.hvU,+r[4],u.rhoU,parseFloat($('sref').value),+r[2],r[3]);
+  const res=priceEngine(+r[1],u.hvU,+r[4],u.rhoU,parseFloat($('sref').value),+r[2],r[3],mmbtuFac());   // [แก้ไข 3 ต.ค. 2569 audit] ฐานเดียวกัน (LHV)
   const use=res.perGJ===null?null:res.perGJ/(clamp(+r[5],1,100)/100);
   let why='';
   if(res.perGJ===null){
@@ -660,6 +674,7 @@ function renderCmp(){
          <span>— ${x.n}</span><b class="mono" title="${x.why}">— บาท/GJ</b></div>
        <div class="legend" style="margin-top:2px">${x.why}</div>
      </div>`).join('')}</div>
+   ${CMP.some(r=>r[3]==='THB/MMBTU')?`<div class="note warn">แถวที่ราคาเป็น บาท/MMBTU ${mmbtuFac()>1?'ฐาน GCV ถูกแปลงเป็นฐาน LHV (× '+fmt(mmbtuFac(),3)+') แล้ว':'ถือเป็นฐาน LHV'} — ทุกแถวเทียบบนฐาน LHV เดียวกัน (ตั้งค่าที่แท็บ 1 “ฐานราคา บาท/MMBTU”)</div>`:''}<!-- [แก้ไข 3 ต.ค. 2569 audit] -->
    <div class="note good">
      <b>ถูกที่สุดคือ ${best.n}</b> ที่ ${num(best.use)} บาท/GJ ความร้อนใช้งานจริง
      ขณะที่แพงที่สุดคือ ${worst.n} ที่ ${num(worst.use)} บาท/GJ
@@ -690,10 +705,12 @@ function renderHV(){
   const hhv=dir==='h2l'?arVal:arVal+dH;
   const lhv=dir==='h2l'?arVal-dH:arVal;
   const dryF=1-M/100;
+  /* [แก้ไข 3 ต.ค. 2569 audit] เตือนเมื่อค่าตั้งต้นมาจากแท็บ 1 (LHV) แต่ผู้ใช้เลือกทิศ HHV→LHV เอง */
+  const hiEl=$('hIn'), linkWarn=(hiEl&&hiEl.dataset.auto==='1'&&(dir==='h2l'||basis!=='ar'))?'<div class="note warn">⚠ ค่าตั้งต้นเติมจากแท็บ 1 ซึ่งเป็น <b>LHV as-received</b> แต่เลือกทิศ/ฐานเป็น '+(dir==='h2l'?'HHV → LHV':'')+(basis!=='ar'?' ฐาน '+basis:'')+' — ผลจะหักความร้อนแฝงซ้ำ ให้เลือก LHV → HHV / As-received หรือพิมพ์ค่าแล็บเอง</div>':'';
   /* [แก้ไข 10 ก.ย. 2569] ส่ง HHV/LHV ที่คำนวณได้กลับไปแสดงเป็นบรรทัดข้อมูลในแท็บ 1 (ไม่เขียนทับ input) */
   { const lk=$('hvLink'); if(lk){ lk.style.display='block';
       lk.innerHTML=`ℹ จากแท็บ 3 (LHV ↔ HHV): HHV<sub>ar</sub> = <b>${fmt(hhv,3)}</b> · LHV<sub>ar</sub> = <b>${fmt(lhv,3)}</b> MJ/kg (H ${fmt(H,1)} % dry · M ${fmt(M,1)} % · A ${fmt(A,1)} % dry) — ค่าอ้างอิง ไม่เขียนทับช่องด้านบน`; } }
-  $('hvOut').innerHTML=`
+  $('hvOut').innerHTML=linkWarn+`
    <div class="grid4" style="margin-top:12px">
      <div class="stat"><div class="big">${fmt(hhv,3)}</div><div class="bigu">HHV as-received · MJ/kg</div></div>
      <div class="stat"><div class="big s0">${fmt(lhv,3)}</div><div class="bigu">LHV as-received · MJ/kg</div></div>
@@ -763,6 +780,12 @@ function renderO2(){
      - สูตรแก้ค่า O₂ อ้างอิงใช้ 21 ตามประกาศกระทรวงอุตสาหกรรม (ค่ากฎหมาย ใช้ 21 % โดยนิยาม)
      - อากาศส่วนเกิน/ตัวประกอบเจือจางใช้ 20.9 (O₂ จริงในอากาศแห้ง 20.9 %vol ตาม ASME PTC 4 / BS 845) */
   const O2_REG=21, O2_AIR=20.9;
+  /* [แก้ไข 3 ต.ค. 2569 audit] O₂ ≥ 20.9 % = อากาศล้วน (ไม่มีการเผาไหม้/หัววัดรั่ว) → แก้ค่าไม่ได้ ต้องเตือน ไม่แสดงตัวเลขที่ไร้ความหมาย */
+  const o2raw=V('o2m');
+  if(!(o2raw<O2_AIR) || o2raw<0 || !(V('o2r')<O2_REG)){
+    $('o2Out').innerHTML=`<div class="note warn" style="margin-top:12px">⛔ O₂ ที่วัดได้ = ${fmt(o2raw,1)} % ${o2raw>=O2_AIR?'≥ 20.9 % (เท่ากับอากาศ) — ไม่มีการเผาไหม้ หรือหัววัดดูดอากาศรั่ว/อ่านค่าผิด':(o2raw<0?'ติดลบ — ค่าไม่ถูกต้อง':'')} ${V('o2r')>=O2_REG?'· O₂ อ้างอิงต้องน้อยกว่า 21 %':''} — แก้ค่าที่ O₂ อ้างอิงไม่ได้ (ตัวคูณ → ∞) ตรวจเครื่องวัดและจุดเก็บตัวอย่างก่อน</div>`;
+    return;
+  }
   const f=(O2_REG-o2r)/(O2_REG-o2m);
   const cr=c*f;
   const ea=o2m<O2_AIR?o2m/(O2_AIR-o2m)*100:null;
@@ -849,7 +872,7 @@ function init(){
     x.addEventListener('input',calc); x.addEventListener('change',calc);
   });
   /* [แก้ไข 10 ก.ย. 2569] ผู้ใช้พิมพ์เองในช่องแท็บ 3 → เลิก auto-fill ช่องนั้น */
-  ['hIn','hH','hM','hA'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('input',()=>{ el.dataset.auto='0'; }); });
+  ['hIn','hH','hM','hA','hDir','hBasis'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('input',()=>{ el.dataset.auto='0'; },true); });   // [แก้ไข 3 ต.ค. 2569 audit] capture → ล้าง auto ก่อน calc() และเพิ่ม hDir/hBasis
   $('addRow').addEventListener('click',()=>{ CMP.push(['เชื้อเพลิงใหม่',16,2500,'THB/ton',0.6,80]); drawCmp(); renderCmp(); });
   $('clrRow').addEventListener('click',()=>{ CMP=[]; drawCmp(); renderCmp(); });
   $('demoRow').addEventListener('click',()=>{
@@ -877,7 +900,7 @@ function loadFuel(k){
     const el=$(id); if(el&&(el.value===''||el.dataset.auto==='1')){ el.value=v; el.dataset.auto='1'; } }); }
 }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=[], FK_MEAS=['cMeas', 'o2m', 'gVal', 'wVal', 'wH2O', 'hv', 'rho', 'hH', 'hM', 'hA'], FK_SET=['fuel', 'hvU', 'rhoU', 'sref', 'price', 'priceU', 'eff', 'hDir', 'hBasis', 'qty', 'qtyU', 'qtyH', 'o2r', 'gas', 'gU', 'wBase'], FK_CALC=['hIn'];
+var FK_DESIGN=[], FK_MEAS=['cMeas', 'o2m', 'gVal', 'wVal', 'wH2O', 'hv', 'rho', 'hH', 'hM', 'hA'], FK_SET=['fuel', 'hvU', 'rhoU', 'sref', 'price', 'priceU', 'mmbtuBasis', 'mmbtuHL', 'eff', 'hDir', 'hBasis', 'qty', 'qtyU', 'qtyH', 'o2r', 'gas', 'gU', 'wBase'], FK_CALC=['hIn'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(/^cmp/.test(id))return null;if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -887,7 +910,7 @@ function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=documen
 document.addEventListener('DOMContentLoaded',tagFieldKinds);
 /* [ระยะ 4 10 ก.ย. 2569] JSON: ensureAllCalc ของไฟล์นี้คือ calc() (เรียกทุก render) + state เพิ่มเติม: ตาราง CMP และสถานะ auto ของช่องแท็บ 3 */
 function recalcAll(){ try{calc();}catch(e){console.warn(e);} try{tagFieldKinds();}catch(e){} }
-function teExtra(){ var auto={}; ['hIn','hH','hM','hA'].forEach(function(id){var el=$(id); if(el) auto[id]=el.dataset.auto||'0';});
+function teExtra(){ var auto={}; ['hIn','hH','hM','hA','hDir','hBasis'].forEach(   /* [แก้ไข 3 ต.ค. 2569 audit] */function(id){var el=$(id); if(el) auto[id]=el.dataset.auto||'0';});
   var tab=document.querySelector('.tab.on'); return {cmp:JSON.parse(JSON.stringify(CMP)),auto:auto,tab:tab?tab.dataset.t:'1'}; }
 function teRestoreExtra(x){ if(!x) return;
   if(Array.isArray(x.cmp)){ CMP=x.cmp.map(function(r){return r.slice();}); drawCmp(); renderCmp(); }

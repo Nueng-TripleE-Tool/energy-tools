@@ -525,6 +525,7 @@ var TE_JSON=(function(){
   <span class="te-json">
   <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
   <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+  <!-- [แก้ไข 3 ต.ค. 2569] ปุ่มส่งออก TE_ECM --><button type="button" onclick="teExportECM()" title="ส่งออกมาตรการเป็นไฟล์ TE_ECM เพื่อนำเข้า Tool_ECM_Portfolio">📤 ส่งไป ECM Portfolio</button>
 </span>
 </header>
 
@@ -724,7 +725,7 @@ var TE_JSON=(function(){
       <b>(1)</b> Radiation มีบทบาทสูง (T⁴ scaling)
       <b>(2)</b> ผนังเป็น Multi-layer: Refractory + Insulating Brick + Steel Shell + (Cladding)
       <b>(3)</b> h_in ของ flue gas มีนัยสำคัญ (ไม่เหมือนของเหลว)
-      <b>(4)</b> Heat Loss นี้คือศักยภาพ <b>Waste Heat Recovery (WHR)</b> ที่นำไปทำ Air Preheater, Recuperator, Waste Heat Boiler ได้
+      <b>(4)</b> Heat Loss ผ่านผนังนี้ลดได้ด้วย<b>มาตรการฉนวน (ซ่อม/เพิ่มฉนวน)</b> — ไม่ใช่ศักยภาพ WHR: Air Preheater/Recuperator/Waste Heat Boiler ดึงความร้อนจากเอนทาลปีของไอเสีย (ใช้ Tool_WHR_Calculator) <!-- [แก้ไข 3 ต.ค. 2569 audit] -->
     </p>
     <div id="form-fluegas"></div>
   </div>
@@ -1182,6 +1183,65 @@ function steamProp(P_barg) {
   return [P_barg, sp.TsC, sp.hf, sp.hfg, sp.hg];
 }
 
+// ============ [แก้ไข 3 ต.ค. 2569 audit] แบบจำลองท่อแนว ASTM C680 (สอดคล้องกับ Tool_Equipment_Heat_Loss) ============
+// เดิมใช้ h_conv คงที่ (6–50) + k ฉนวนคงที่ แต่หัวผลอ้าง C680 → ฉนวนให้ผล q ต่ำไป 10–13 %, T ผิวต่ำ 8–11 K
+// ใหม่ (ค่าเริ่มต้น h_out = 'c680'): h_conv = Churchill–Chu ทรงกระบอกนอน (อากาศนิ่ง, คุณสมบัติอากาศที่ T_film)
+// + h_rad = εσ(Ts⁴−Ta⁴)/(Ts−Ta) + k ฉนวน = k(T_mean ของชั้น) ตาม polynomial ชุดเดียวกับ EHL
+// เลือก h คงที่ (6/9/15/25/50) ได้เหมือนเดิม → ได้ผลตามแบบเดิมทุกตัวเลข (ใช้กับไฟล์ JSON เก่า)
+const DL_SB = 5.670374419e-8;
+const DL_INSK = {'0.04':'rockwool','0.035':'glasswool','0.065':'calsil','0.025':'pu','0.037':'elasto','0.018':'aerogel'};
+const DL_INSP = { rockwool:[0.03600,6.215e-5,3.381e-7], glasswool:[0.03162,1.2571e-4,3.810e-7], calsil:[0.05063,6.500e-5,8.750e-8],
+                  pu:[0.02150,1.100e-4,0], elasto:[0.03400,1.200e-4,0], aerogel:[0.01942,2.186e-5,5.524e-8] };
+function dlKofT(k0, Tm){ const key = DL_INSK[String(+k0)]; if(!key) return k0; const c = DL_INSP[key]; return Math.max(0.005, c[0]+c[1]*Tm+c[2]*Tm*Tm); }
+function dlAirProps(TK){ // เหมือน airProps() ของ EHL
+  TK = Math.min(Math.max(TK,180),1500);
+  const mu = 1.458e-6*Math.pow(TK,1.5)/(TK+110.4);
+  const k  = 1.5207e-11*TK*TK*TK-4.8574e-8*TK*TK+1.0184e-4*TK-3.9333e-4;
+  const cp = 1002.5+275e-6*Math.pow(TK-200,2);
+  const rho = 101325/(287.05*TK), nu = mu/rho, al = k/(rho*cp);
+  return {k, nu, al, Pr:nu/al, beta:1/TK};
+}
+function dlHconvCyl(D, Ts, Ta){ // Churchill–Chu ทรงกระบอกนอน (free convection)
+  const dT = Math.abs(Ts-Ta); if(dT < 1e-6) return 0;
+  const p = dlAirProps((Ts+Ta)/2+273.15);
+  const Ra = 9.80665*p.beta*dT*D*D*D/(p.nu*p.al);
+  const d = Math.pow(1+Math.pow(0.559/p.Pr,9/16),8/27);
+  const Nu = Math.pow(0.60+0.387*Math.pow(Ra,1/6)/d,2);
+  return Nu*p.k/D;
+}
+function pipeHeatLossC680({ Do_pipe, t_pipe, k_pipe, insulations, T_fluid, T_amb, eps_out }){
+  const r_pipe_o = Do_pipe/2/1000, r_pipe_i = r_pipe_o - t_pipe/1000;
+  let r_prev = r_pipe_o; const radii_ins = [];
+  insulations.forEach(ins => { const r_next = r_prev + ins.thickness/1000; radii_ins.push({r_in:r_prev, r_out:r_next, k:ins.k, t:ins.thickness}); r_prev = r_next; });
+  const r_outer = r_prev, D_out = 2*r_outer;
+  const R_pipe = Math.log(r_pipe_o/r_pipe_i)/(2*Math.PI*k_pipe);
+  const Ta = T_amb, Tf = T_fluid, TaK = Ta+273.15;
+  let kL = radii_ins.map(l => dlKofT(l.k, (Tf+Ta)/2));
+  let T_s = Ta, R_ins = 0, R_ins_each = [], h_conv = 0, layT = [];
+  const qS = Ts => { const hc = dlHconvCyl(D_out, Ts, Ta); return {hc, q:(hc*(Ts-Ta) + eps_out*DL_SB*(Math.pow(Ts+273.15,4)-Math.pow(TaK,4)))*2*Math.PI*r_outer}; };
+  for(let it=0; it<30; it++){
+    R_ins_each = radii_ins.map((l,j) => Object.assign({}, l, {k:kL[j], R:Math.log(l.r_out/l.r_in)/(2*Math.PI*kL[j])}));
+    R_ins = R_ins_each.reduce((a,l)=>a+l.R,0);
+    const Rc = R_pipe + R_ins;
+    let lo = Math.min(Tf,Ta), hi = Math.max(Tf,Ta);
+    for(let b=0; b<60; b++){ const mid=(lo+hi)/2; if(qS(mid).q - (Tf-mid)/Rc > 0) hi = mid; else lo = mid; }
+    T_s = (lo+hi)/2;
+    const q = (Tf-T_s)/Rc; let Ti = Tf - q*R_pipe, maxd = 0; layT = [];
+    for(let j=0;j<R_ins_each.length;j++){ const To = Ti - q*R_ins_each[j].R, kn = dlKofT(radii_ins[j].k,(Ti+To)/2); maxd = Math.max(maxd, Math.abs(kn-kL[j])); kL[j] = kn; layT.push({Ti,To,Tm:(Ti+To)/2,k:kn}); Ti = To; }
+    if(maxd < 1e-7 && it>0) break;
+  }
+  h_conv = qS(T_s).hc;
+  const T_s_K = T_s+273.15;
+  const h_rad = eps_out*DL_SB*(T_s_K*T_s_K+TaK*TaK)*(T_s_K+TaK);
+  const h_combined = h_conv + h_rad;
+  const R_out = 1/(h_combined*2*Math.PI*r_outer);
+  const R_total = R_pipe + R_ins + R_out;
+  const q_per_L = (Tf-Ta)/R_total;
+  return { q_per_L, R_total, R_pipe, R_ins, R_out, R_ins_each, T_s, h_rad, h_combined, h_conv,
+           r_pipe_i, r_pipe_o, r_outer, radii_ins, model:'c680',
+           k_ins_eff: layT.length ? layT[0].k : null, Tm_ins: layT.length ? layT[0].Tm : null, layT };
+}
+
 // ============ CORE: Cylindrical pipe heat loss per unit length ============
 // Returns object {q_per_L (W/m), R_total, R_breakdown, T_surface, intermediate values}
 function pipeHeatLoss({
@@ -1190,6 +1250,8 @@ function pipeHeatLoss({
   T_fluid, T_amb,
   h_out, eps_out
 }) {
+  // [แก้ไข 3 ต.ค. 2569 audit] h_out ไม่ใช่ตัวเลข (ค่า 'c680') → ใช้แบบจำลอง C680 (h_conv และ k(T) คำนวณ) ; ตัวเลข → แบบเดิม h คงที่
+  if (!(isFinite(h_out) && h_out > 0)) return pipeHeatLossC680({Do_pipe, t_pipe, k_pipe, insulations, T_fluid, T_amb, eps_out});
   // radii
   const r_in_pipe = (Do_pipe/2) - t_pipe/1000; // mm to m? assume mm input
   // We'll work in meters
@@ -1249,7 +1311,7 @@ function pipeHeatLoss({
     q_per_L, R_total, R_pipe, R_ins, R_out, R_ins_each,
     T_s, h_rad, h_combined,
     r_pipe_i, r_pipe_o, r_outer,
-    radii_ins
+    radii_ins, model:'fixed', h_conv:h_out // [แก้ไข 3 ต.ค. 2569 audit]
   };
 }
 
@@ -1336,7 +1398,7 @@ function makePipeForm(containerId, opts) {
       </div>
       <div class="field"><label>ความยาวท่อ <span class="sym">L</span> <span class="unit">m</span></label><input type="number" id="${opts.prefix}_L" value="${def.L}" step="any"></div>
       <div class="field"><label>ชั่วโมงทำงานต่อปี <span class="unit">hr/yr</span></label><input type="number" id="${opts.prefix}_hr" value="${def.hr}" step="any"></div>
-      ${costFieldHTML(opts.prefix+'_cost', def.cost, 'ค่าพลังงานความร้อน', def.costUnit || 'GJ')}
+      ${costFieldHTML(opts.prefix+'_cost', def.cost, opts.costLabel || 'ค่าพลังงานความร้อน', def.costUnit || 'GJ')}
     </div>
 
     <div class="section-title">🧱 ฉนวน (Insulation Layer)</div>
@@ -1367,7 +1429,8 @@ function makePipeForm(containerId, opts) {
       ${opts.fluidInputs}
       <div class="field"><label>อุณหภูมิแวดล้อม <span class="sym">T_amb</span> <span class="unit">°C</span></label><input type="number" id="${opts.prefix}_Tamb" value="${def.Tamb}" step="any"></div>
       <div class="field"><label>ค่า h_out (Convection) <span class="unit">W/m²·K</span></label>
-        <select id="${opts.prefix}_hout">
+        <select id="${opts.prefix}_hout"><!-- [แก้ไข 3 ต.ค. 2569 audit] ค่าเริ่มต้น = คำนวณตาม C680 -->
+          <option value="c680">คำนวณตาม ASTM C680 — อากาศนิ่ง (Churchill–Chu) + k(T) ฉนวน</option>
           <option value="6">อากาศนิ่งในห้อง (6)</option>
           <option value="9" selected>ห้องทั่วไป (9)</option>
           <option value="15">มีลมพัดเล็กน้อย (15)</option>
@@ -1388,7 +1451,7 @@ function makePipeForm(containerId, opts) {
   document.getElementById(opts.prefix+'_kp').value = def.kp;
   document.getElementById(opts.prefix+'_kins').value = def.kins;
   document.getElementById(opts.prefix+'_eps').value = def.eps;
-  document.getElementById(opts.prefix+'_hout').value = def.hout;
+  document.getElementById(opts.prefix+'_hout').value = 'c680'; // [แก้ไข 3 ต.ค. 2569 audit] เดิม = def.hout (9) → ค่าเริ่มต้นใหม่ = C680 (เลือกค่าคงที่ได้)
 }
 
 function makeDuctForm(containerId, opts) {
@@ -1460,16 +1523,22 @@ function makeDuctForm(containerId, opts) {
 
 // ============ RESULT RENDERER ============
 function renderPipeResult(prefix, inputs, result) {
+  try{(window._teRes=window._teRes||{})[prefix]={inputs:inputs,result:result};}catch(e){} // [แก้ไข 3 ต.ค. 2569] เก็บผลให้ teBuildECM
   const r = result;
   const L = inputs.L, hr = inputs.hr, cost = inputs.cost;
-  const Q_total_W = r.q_per_L * L;
+  // [แก้ไข 3 ต.ค. 2569 audit] งานเย็น (T_fluid < T_amb) → heat gain ใช้ค่าสัมบูรณ์ (เดิมแสดงค่าใช้จ่ายติดลบ) และท่อน้ำเย็นคิดค่าไฟ Chiller = kWh_th ÷ COP เหมือนดักท์ลมเย็น
+  const isCold = inputs.Tfluid < inputs.Tamb;
+  const copC = inputs.isChilled ? ((inputs.cop > 0) ? inputs.cop : 3.5) : 1;
+  const Q_total_W = Math.abs(r.q_per_L) * L;
   const Q_total_kW = Q_total_W / 1000;
   const E_year_kWh = Q_total_kW * hr;
-  const cost_year = E_year_kWh * cost;
+  const E_year_kWh_e = E_year_kWh / copC;
+  const cost_year = E_year_kWh_e * cost;
+  const isC680 = r.model === 'c680';
 
   return `
     <div class="results">
-      <h3>📐 ขั้นตอนการคำนวณตามมาตรฐาน ASTM C680 / ISO 12241</h3>
+      <h3>📐 ขั้นตอนการคำนวณ${isC680 ? 'ตามแนวทาง ASTM C680 / ISO 12241 (h<sub>conv</sub> และ k(T) คำนวณ)' : ' — h<sub>conv</sub> คงที่ตามที่เลือก (ไม่ใช่วิธี ASTM C680 เต็มรูป)'}</h3>
 
       <div class="step">
         <div class="label">① คำนวณรัศมีและความต้านทานความร้อน (per unit length)</div>
@@ -1493,7 +1562,7 @@ function renderPipeResult(prefix, inputs, result) {
         <div class="label">③ ความต้านทานการนำผ่านฉนวน (Insulation Conduction)</div>
         <div class="formula">
           R<sub>ins</sub> = ln(r<sub>outer</sub>/r<sub>p,o</sub>) / (2π × k<sub>ins</sub>)<br>
-          R<sub>ins</sub> = ln(<span class="num">${fmt(r.r_outer,5)}</span>/<span class="num">${fmt(r.r_pipe_o,5)}</span>) / (2π × <span class="num">${inputs.kins}</span>)
+          R<sub>ins</sub> = ln(<span class="num">${fmt(r.r_outer,5)}</span>/<span class="num">${fmt(r.r_pipe_o,5)}</span>) / (2π × <span class="num">${isC680 && r.k_ins_eff ? fmt(r.k_ins_eff,4) : inputs.kins}</span>)${isC680 && r.k_ins_eff ? ` <span class="unit">(k(T<sub>m</sub>) ที่อุณหภูมิเฉลี่ยฉนวน ${fmt(r.Tm_ins,1)} °C — ค่าป้าย ${inputs.kins})</span>` : ''}
           = <span class="num">${fmt(r.R_ins,4)} m·K/W</span>
         </div>
       </div>
@@ -1503,7 +1572,7 @@ function renderPipeResult(prefix, inputs, result) {
         <div class="formula">
           h<sub>rad</sub> = ε × σ × (T<sub>s</sub>² + T<sub>amb</sub>²) × (T<sub>s</sub> + T<sub>amb</sub>) [σ = 5.67×10⁻⁸ W/m²K⁴]<br>
           h<sub>rad</sub> = <span class="num">${inputs.eps}</span> × 5.67×10⁻⁸ × (...) = <span class="num">${fmt(r.h_rad,3)} W/m²·K</span><br>
-          h<sub>total</sub> = h<sub>conv</sub> + h<sub>rad</sub> = <span class="num">${inputs.hout}</span> + <span class="num">${fmt(r.h_rad,2)}</span> = <span class="num">${fmt(r.h_combined,2)} W/m²·K</span><br>
+          h<sub>total</sub> = h<sub>conv</sub> + h<sub>rad</sub> = <span class="num">${isC680 ? fmt(r.h_conv,3) : inputs.hout}</span>${isC680 ? ' <span class="unit">(Churchill–Chu ทรงกระบอกนอน อากาศนิ่ง)</span>' : ''} + <span class="num">${fmt(r.h_rad,2)}</span> = <span class="num">${fmt(r.h_combined,2)} W/m²·K</span><br>
           R<sub>out</sub> = 1 / (h<sub>total</sub> × 2π × r<sub>outer</sub>) = <span class="num">${fmt(r.R_out,4)} m·K/W</span>
         </div>
       </div>
@@ -1524,9 +1593,10 @@ function renderPipeResult(prefix, inputs, result) {
       <div class="summary-box">
         <div class="row"><span class="k">Heat Loss ต่อความยาว (q/L)</span><span class="v big">${fmt(r.q_per_L,1)} W/m</span></div>
         <div class="row"><span class="k">อุณหภูมิผิวภายนอก (T_s)</span><span class="v">${fmt(r.T_s,1)} °C</span></div>
-        <div class="row"><span class="k">Heat Loss รวมตลอดความยาว ${L} m</span><span class="v">${fmt(Q_total_W,0)} W = ${fmt(Q_total_kW,3)} kW</span></div>
-        <div class="row"><span class="k">พลังงานสูญเสียต่อปี (${fmt(hr,0)} hr/yr)</span><span class="v">${energyRow(E_year_kWh)}</span></div>
-        <div class="row"><span class="k">ค่าใช้จ่ายต่อปี @ ${costDisp(prefix+'_cost')}</span><span class="v big">${fmt(cost_year,0)} ฿/ปี</span></div>
+        <div class="row"><span class="k">${isCold ? 'Heat Gain (ความร้อนรั่วเข้า)' : 'Heat Loss'} รวมตลอดความยาว ${L} m</span><span class="v">${fmt(Q_total_W,0)} W = ${fmt(Q_total_kW,3)} kW</span></div>
+        <div class="row"><span class="k">${isCold ? 'พลังงานความเย็นที่สูญเสียต่อปี' : 'พลังงานสูญเสียต่อปี'} (${fmt(hr,0)} hr/yr)</span><span class="v">${energyRow(E_year_kWh)}</span></div>
+        ${inputs.isChilled ? `<div class="row"><span class="k">ไฟฟ้าที่ Chiller ใช้ชดเชย (÷ COP ${copC})</span><span class="v">${fmt(E_year_kWh_e,0)} kWh<sub>e</sub>/ปี</span></div>` : ''}
+        <div class="row"><span class="k">ค่าใช้จ่ายต่อปี @ ${costDisp(prefix+'_cost')}${inputs.isChilled ? ' (คิดกับไฟฟ้า kWh<sub>e</sub>)' : ''}</span><span class="v big">${fmt(cost_year,0)} ฿/ปี</span></div>
       </div>
 
       ${(inputs.Tfluid > 100 && inputs.steamMode) ? `
@@ -1543,6 +1613,7 @@ function renderPipeResult(prefix, inputs, result) {
 }
 
 function renderDuctResult(prefix, inputs, result) {
+  try{(window._teRes=window._teRes||{})[prefix]={inputs:inputs,result:result};}catch(e){} // [แก้ไข 3 ต.ค. 2569] เก็บผลให้ teBuildECM
   const r = result;
   const L = inputs.L, hr = inputs.hr, cost = inputs.cost;
   const cop = inputs.cop || 3.5;
@@ -1777,6 +1848,7 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 
   function renderSuperheatResult(prefix, inputs, result) {
+    try{(window._teRes=window._teRes||{})[prefix]={inputs:inputs,result:result};}catch(e){} // [แก้ไข 3 ต.ค. 2569] เก็บผลให้ teBuildECM
     const r = result;
     const L = inputs.L, hr = inputs.hr, cost = inputs.cost;
     const Q_total_W = r.q_per_L * L;
@@ -1834,7 +1906,7 @@ window.addEventListener('DOMContentLoaded', function() {
             R<sub>pipe</sub> = ln(r<sub>p,o</sub>/r<sub>p,i</sub>)/(2π·k<sub>p</sub>) = <span class="num">${fmt(r.R_pipe,5)} m·K/W</span><br>
             R<sub>ins</sub> = ln(r<sub>outer</sub>/r<sub>p,o</sub>)/(2π·k<sub>ins</sub>) = <span class="num">${fmt(r.R_ins,4)} m·K/W</span><br>
             R<sub>out</sub> = 1/(h<sub>total</sub>·2π·r<sub>outer</sub>) = <span class="num">${fmt(r.R_out,4)} m·K/W</span>
-            [h<sub>rad</sub>=${fmt(r.h_rad,2)}, h<sub>total</sub>=${fmt(r.h_combined,2)} W/m²·K]<br>
+            [h<sub>conv</sub>=${fmt(r.h_conv,2)}${r.model==='c680'?' (C680: Churchill–Chu, k ฉนวน '+fmt(r.k_ins_eff,4)+' ที่ T<sub>m</sub> '+fmt(r.Tm_ins,1)+' °C)':' (ค่าคงที่ที่เลือก)'}, h<sub>rad</sub>=${fmt(r.h_rad,2)}, h<sub>total</sub>=${fmt(r.h_combined,2)} W/m²·K]<br><!-- [แก้ไข 3 ต.ค. 2569 audit] -->
             <b>R<sub>total</sub> = <span class="num">${fmt(r.R_total,4)} m·K/W</span></b>
           </div>
         </div>
@@ -1938,9 +2010,10 @@ window.addEventListener('DOMContentLoaded', function() {
           </select>
         </div>
         <div class="field"><label>h_out <span class="unit">W/m²·K</span></label>
-          <select id="sh_hout">
+          <select id="sh_hout"><!-- [แก้ไข 3 ต.ค. 2569 audit] ค่าเริ่มต้น = C680 -->
+            <option value="c680" selected>คำนวณตาม ASTM C680 — อากาศนิ่ง + k(T)</option>
             <option value="6">อากาศนิ่ง (6)</option>
-            <option value="9" selected>ห้องทั่วไป (9)</option>
+            <option value="9">ห้องทั่วไป (9)</option>
             <option value="15">มีลมพัด (15)</option>
             <option value="25">กลางแจ้ง (25)</option>
           </select>
@@ -2009,7 +2082,9 @@ window.addEventListener('DOMContentLoaded', function() {
   // -------- COLD WATER --------
   makePipeForm('form-coldwater', {
     prefix: 'cw',
-    fluidInputs: '<div class="field"><label>อุณหภูมิน้ำ <span class="sym">T_w</span> <span class="unit">°C</span></label><input type="number" id="cw_Tfluid" value="7" step="any"></div>',
+    fluidInputs: '<div class="field"><label>อุณหภูมิน้ำ <span class="sym">T_w</span> <span class="unit">°C</span></label><input type="number" id="cw_Tfluid" value="7" step="any"></div>'
+      + '<div class="field"><label>COP ของ Chiller <span class="unit">kW<sub>th</sub>/kW<sub>e</sub></span></label><input type="number" id="cw_cop" value="3.5" step="any"></div>', // [แก้ไข 3 ต.ค. 2569 audit] เพิ่ม COP: heat gain → ไฟฟ้า Chiller
+    costLabel: 'ราคาไฟฟ้าที่ Chiller ใช้ (คิดกับ kWh<sub>e</sub> = kWh<sub>th</sub> ÷ COP)',
     defaults: { Do: 60.3, tp: 3.5, kp: 52, L: 30, hr: 4000,
                 tins: 25, kins: '0.037', eps: '0.85',
                 Tamb: 30, hout: 9, cost: 1250 }
@@ -2027,7 +2102,8 @@ window.addEventListener('DOMContentLoaded', function() {
       Tfluid: +document.getElementById('cw_Tfluid').value,
       Tamb: +document.getElementById('cw_Tamb').value,
       hout: +document.getElementById('cw_hout').value,
-      cost: readCost('cw_cost')
+      cost: readCost('cw_cost'),
+      cop: +document.getElementById('cw_cop').value || 3.5, isChilled: true // [แก้ไข 3 ต.ค. 2569 audit]
     };
     const ins = inputs.tins > 0 ? [{thickness: inputs.tins, k: inputs.kins}] : [];
     const result = pipeHeatLoss({
@@ -2360,9 +2436,9 @@ window.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
 
-      <div class="section-title">♻️ Waste Heat Recovery (WHR) Potential</div>
+      <div class="section-title">🧱 ศักยภาพลดความร้อนสูญเสียผ่านผนัง (มาตรการฉนวน) <!-- [แก้ไข 3 ต.ค. 2569 audit] เดิมเรียก WHR --></div>
       <div class="grid-3">
-        <div class="field"><label>ประสิทธิภาพการดักจับ η<sub>WHR</sub> <span class="unit">% (40-75%)</span></label>
+        <div class="field"><label>สัดส่วนความร้อนผ่านผนังที่ลดได้ด้วยการซ่อม/เพิ่มฉนวน <span class="unit">% (40-75%)</span></label>
           <input type="number" id="fg_eta_whr" value="55" step="any">
         </div>
         <div class="field"><label>ค่าเชื้อเพลิงที่ทดแทนได้ <span class="unit">เลือกหน่วยราคาได้</span></label>
@@ -2417,6 +2493,7 @@ window.addEventListener('DOMContentLoaded', function() {
     const E_whr_kWh = E_year_kWh * eta;
     const cost_saving = E_whr_kWh * inputs.fuel_cost;
     const co2_saving = E_whr_kWh * inputs.ef / 1000; // tonCO2/yr
+    try{(window._teRes=window._teRes||{}).fg={inputs:inputs,result:result,isCyl:isCyl,Q_total_kW:Q_total_kW,E_year_kWh:E_year_kWh,cost_year:cost_year,E_whr_kWh:E_whr_kWh,cost_saving:cost_saving,co2_saving:co2_saving};}catch(e){} // [แก้ไข 3 ต.ค. 2569] เก็บผลให้ teBuildECM
 
     // Layer breakdown table
     let layerRows = '';
@@ -2509,12 +2586,13 @@ window.addEventListener('DOMContentLoaded', function() {
         </div>
 
         <div class="summary-box" style="background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%); border-color:#d97706; border-left-color:#d97706; margin-top:14px">
-          <div style="font-weight:600;color:#6b4f00;margin-bottom:6px">♻️ ศักยภาพการดักจับความร้อนทิ้ง (Waste Heat Recovery)</div>
-          <div class="row"><span class="k">พลังงานที่ดักจับได้ (η_WHR = ${inputs.eta_whr}%)</span><span class="v">${energyRow(E_whr_kWh)}</span></div>
+          <div style="font-weight:600;color:#6b4f00;margin-bottom:6px">🧱 ศักยภาพลดความร้อนสูญเสียผ่านผนัง — มาตรการฉนวน (ไม่ใช่ WHR) <!-- [แก้ไข 3 ต.ค. 2569 audit] --></div>
+          <div class="row"><span class="k">พลังงานที่ลดได้ (ลดการสูญเสียผนัง ${inputs.eta_whr}%)</span><span class="v">${energyRow(E_whr_kWh)}</span></div>
           <div class="row"><span class="k">มูลค่าเชื้อเพลิงที่ทดแทน</span><span class="v big" style="color:#92400e">${fmt(cost_saving,0)} ฿/ปี</span></div>
           <div class="row"><span class="k">การลด CO₂</span><span class="v">${fmt(co2_saving,2)} tonCO₂/ปี</span></div>
           <div style="font-size:12px;color:#92400e;margin-top:8px;padding-top:6px;border-top:1px dashed rgba(0,0,0,0.15)">
-            <b>เทคโนโลยี WHR ที่เหมาะสม:</b>
+            <b>หมายเหตุ:</b> ความร้อนผ่านผนังลดได้ด้วยฉนวนเท่านั้น — ผลประหยัดเชื้อเพลิงจริงเกิดเมื่อความร้อนที่เก็บไว้ในไอเสียถูกใช้ต่อปลายทาง (เช่น ท่อก่อนเข้า recuperator/WHR boiler); ถ้าไอเสียทิ้งออกปล่องทันที ผลหลักคือความปลอดภัยผิวสัมผัส<br>
+            <b>สำหรับความร้อนในไอเสีย (ไม่ใช่ผนัง) — WHR ที่เหมาะสม:</b>
             ${inputs.Tfluid > 650 ? "Regenerative Burner, Recuperator (Self-Recup), Waste Heat Boiler" :
               inputs.Tfluid > 230 ? "Recuperator (Plate/Shell&Tube), Economizer, Air Preheater" :
               "Heat Pump, Plate HX, Boiler Feedwater Heating, Space Heating"}
@@ -3080,7 +3158,7 @@ window.addEventListener('DOMContentLoaded', function() {
           <div class="field"><label>อุณหภูมิอากาศดูดเข้า <span class="unit">°C</span></label><input type="number" id="lk_tsuc" value="30" step="any"></div>
           <div class="field"><label>ρ อ้างอิง FAD <span class="unit">kg/m³</span></label><input type="number" id="lk_rhoref" value="1.204" step="any"></div>
           <div class="field"><label>ค่าไฟฟ้า <span class="unit">฿/kWh</span></label><input type="number" id="lk_cost_elec" value="4.5" step="any"></div>
-          <div class="field"><label>EF กริด <span class="unit">kgCO₂e/kWh</span></label><input type="number" id="lk_ef_grid" value="0.4999" step="any"></div>
+          <div class="field"><label>EF กริด <span class="unit">kgCO₂e/kWh</span></label><input type="number" id="lk_ef_grid" value="0.4750" step="any"><!-- [แก้ไข 3 ต.ค. 2569 audit] EF กริด TGO 0.4750 (เดิม 0.4999) --></div>
         </div>
       </div>
 
@@ -3089,7 +3167,7 @@ window.addEventListener('DOMContentLoaded', function() {
         <div class="grid-3">
           <div class="field"><label>พลังงานจำเพาะการผลิต <span class="unit">kWh/Nm³</span></label><input type="number" id="lk_se" value="0.4" step="any"></div>
           <div class="field"><label>ราคาก๊าซ <span class="unit">฿/Nm³</span></label><input type="number" id="lk_costNm3" value="3" step="any"></div>
-          <div class="field"><label>EF กริด <span class="unit">kgCO₂e/kWh</span></label><input type="number" id="lk_ef_grid2" value="0.4999" step="any"></div>
+          <div class="field"><label>EF กริด <span class="unit">kgCO₂e/kWh</span></label><input type="number" id="lk_ef_grid2" value="0.4750" step="any"><!-- [แก้ไข 3 ต.ค. 2569 audit] EF กริด TGO 0.4750 (เดิม 0.4999) --></div>
         </div>
         <div class="note" style="margin-top:6px">📌 ฿ ที่สูญเสีย = ราคาซื้อก๊าซทดแทน • CO₂ = ไฟฟ้าที่ใช้ผลิตก๊าซ (PSA/Membrane/Cryo) × EF กริด</div>
       </div>
@@ -3143,7 +3221,7 @@ window.addEventListener('DOMContentLoaded', function() {
           <div class="field"><label>อุณหภูมิน้ำเติม <span class="unit">°C</span></label><input type="number" id="lk_tmu2" value="30" step="any"></div>
           <div class="field"><label>COP ของ Chiller <span class="unit">(3–6)</span></label><input type="number" id="lk_cop" value="4.0" step="any"></div>
           <div class="field"><label>ค่าไฟฟ้า <span class="unit">฿/kWh</span></label><input type="number" id="lk_cost_elec3" value="4.5" step="any"></div>
-          <div class="field"><label>EF กริด <span class="unit">kgCO₂e/kWh</span></label><input type="number" id="lk_ef_grid3" value="0.4999" step="any"></div>
+          <div class="field"><label>EF กริด <span class="unit">kgCO₂e/kWh</span></label><input type="number" id="lk_ef_grid3" value="0.4750" step="any"><!-- [แก้ไข 3 ต.ค. 2569 audit] EF กริด TGO 0.4750 (เดิม 0.4999) --></div>
           <div class="field"><label>ค่าน้ำ <span class="unit">฿/m³</span></label><input type="number" id="lk_cost_water2" value="20" step="any"></div>
         </div>
       </div>
@@ -3333,6 +3411,7 @@ window.addEventListener('DOMContentLoaded', function() {
       const gwp=+document.getElementById('lk_gwp').value, price=+document.getElementById('lk_refprice').value;
       Object.assign(d,{gwp,price, recharge_yr:d.mass_yr*price, CO2_yr:d.mass_yr*gwp/1000, cost_yr:d.mass_yr*price});
     }
+    try{(window._teRes=window._teRes||{}).lk=d;}catch(e){} // [แก้ไข 3 ต.ค. 2569] เก็บผลให้ teBuildECM
     out.innerHTML = lk_render(d);
   };
 
@@ -3654,6 +3733,7 @@ function mdCompare(){
 
 /* ══════════ [ระยะ 4 10 ก.ย. 2569] JSON save/load + ป้ายชนิดค่า + hint ══════════ */
 function recalcAll(){
+  window._teRecalc=true; try{ // [แก้ไข 3 ต.ค. 2569 audit] ระหว่าง recalcAll ไม่นับเป็นการคำนวณของผู้ใช้ (teBuildECM)
   const T=fn=>{try{fn();}catch(e){}};
   // ฟังก์ชันสลับ UI บางตัวเขียนทับช่องอัตโนมัติ (lk_cd, pf_rho/mu, mdf_rho/mu) → เก็บค่าปัจจุบันแล้วคืนก่อนคำนวณ
   const snap=TE_JSON.collect();
@@ -3663,12 +3743,13 @@ function recalcAll(){
   T(calc_chl);T(calc_vnt);T(calc_cv);T(calc_ss);T(calc_sh);T(calc_cw);T(calc_hw);T(calc_ho);T(calc_fg);T(calc_pf);T(lk_calc);
   T(function(){window.mdInit=true;mdCalc();});
   T(tagFieldKinds);T(applyFieldHints);
+  } finally { window._teRecalc=false; }
 }
 function teActivePanel(){const p=document.querySelector('.panel.active');return p?p.id:'home';}
-function teSaveJSON(){TE_JSON.save('Tool_Distribution_Loss_Calculator',{activePanel:teActivePanel()});}
+function teSaveJSON(){TE_JSON.save('Tool_Distribution_Loss_Calculator',{activePanel:teActivePanel(),userCalc:Object.keys(window._teUser||{}).filter(function(k){return window._teUser[k];})});} /* [แก้ไข 3 ต.ค. 2569 audit] เก็บรายการแท็บที่ผู้ใช้คำนวณ */
 var _teExtraDL=null;
 function teLoadJSON(file){
-  TE_JSON.load(file,function(){recalcAll();if(_teExtraDL&&_teExtraDL.activePanel){try{if(['pressure','leakage','moody','thermal-home'].includes(_teExtraDL.activePanel))showCategory(_teExtraDL.activePanel==='thermal-home'?'thermal':_teExtraDL.activePanel);else showTab(_teExtraDL.activePanel);}catch(e){}}},function(x){_teExtraDL=x;});
+  TE_JSON.load(file,function(){recalcAll();window._teUser={};if(_teExtraDL&&Array.isArray(_teExtraDL.userCalc))_teExtraDL.userCalc.forEach(function(k){window._teUser[k]=true;}); /* [แก้ไข 3 ต.ค. 2569 audit] */if(_teExtraDL&&_teExtraDL.activePanel){try{if(['pressure','leakage','moody','thermal-home'].includes(_teExtraDL.activePanel))showCategory(_teExtraDL.activePanel==='thermal-home'?'thermal':_teExtraDL.activePanel);else showTab(_teExtraDL.activePanel);}catch(e){}}},function(x){_teExtraDL=x;});
 }
 /* ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ (id ส่วนใหญ่มี prefix จากฟอร์มที่สร้างด้วย makePipeForm/makeDuctForm → ใช้ suffix) */
 var FK_DESIGN=['fg_Di','fg_W','fg_H','fg_L','fg_t1','fg_t2','fg_t3','fg_t4','fg_k1','fg_k2','fg_k3','fg_k4','fg_eps','pf_D','pf_L','pf_head','pf_eps','lk_dia','lk_charge','mdf_D','mdf_L','mdf_eps','mdf_K'],
@@ -3706,7 +3787,7 @@ var FH_SUFFIX={
   eps:'สภาพเปล่งรังสีผิวนอก — cladding อลูมิเนียม 0.15, เหล็กออกซิไดซ์ 0.30, ทาสี 0.85',
   Tamb:'อุณหภูมิอากาศรอบท่อ (°C) — วัดจริงในพื้นที่ติดตั้ง ทั่วไป 30–38 °C (ในโรงงาน/หลังคาอาจถึง 40–45 °C)',
   Tair:'อุณหภูมิลมภายในดักท์ (°C) — วัดด้วย probe ที่ช่องวัดหรือ DCS; ลมเย็น 12–16 °C, ลมระบาย 25–35 °C',
-  hout:'สัมประสิทธิ์พาความร้อนผิวนอก (W/m²·K) — ในอาคาร 6–9, กลางแจ้งมีลม 15–25',
+  hout:'สัมประสิทธิ์พาความร้อนผิวนอก — ค่าเริ่มต้น "ASTM C680" คำนวณ h_conv (Churchill–Chu อากาศนิ่ง) + k(T) ฉนวน; เลือกค่าคงที่ (ในอาคาร 6–9, กลางแจ้งมีลม 15–25 W/m²·K) เมื่อมีลมหรือเพื่อเทียบผลแบบเดิม', /* [แก้ไข 3 ต.ค. 2569 audit] */
   cop:'COP ของเครื่องทำน้ำเย็น (kW_th/kW_e) — จากผลตรวจวัด; chiller น้ำ 4–6, อากาศ 2.8–3.5; ใช้แปลงความเย็นสูญเสียเป็นไฟฟ้า',
   P:'ความดันไอน้ำในท่อ (barg อ่านจากเกจ) — โปรแกรมหาค่า T_sat ให้จาก IAPWS-IF97',
   mflow:'อัตราไหลไอน้ำในท่อ (kg/hr) จาก flow meter/DCS — ใช้หาอัตราลดอุณหภูมิ superheat ตามความยาว',
@@ -3737,7 +3818,7 @@ var FH_ID={
   fg_t2:'ความหนาชั้นอิฐฉนวน/ไฟเบอร์ (mm) จากแบบ', fg_k2:'k อิฐฉนวน/ไฟเบอร์ (W/m·K) 0.2–0.4',
   fg_t3:'ความหนาฉนวนชั้นนอก (mm) จากแบบ/วัดจริง', fg_k3:'k ฉนวนชั้นนอก (W/m·K) — Rockwool 0.04–0.08 ที่อุณหภูมิสูง',
   fg_t4:'ความหนาเปลือกเหล็ก (mm) จากแบบ 4–8 mm', fg_k4:'k เปลือกเหล็ก (W/m·K) 52',
-  fg_eta_whr:'สัดส่วนความร้อนสูญเสียที่อุปกรณ์ WHR จะดักคืนได้ (%) — ตั้งสมมุติ 40–75 %',
+  fg_eta_whr:'สัดส่วนความร้อนสูญเสียผ่านผนังที่ลดได้เมื่อซ่อม/เพิ่มฉนวน (%) — ประเมินจาก q/L ก่อน-หลังด้วยแท็บนี้ ทั่วไป 40–75 % (ไม่ใช่ประสิทธิภาพ WHR)', /* [แก้ไข 3 ต.ค. 2569 audit] */
   fg_fuel_cost:'ราคาเชื้อเพลิงที่ประหยัดได้จากความร้อนที่กู้คืน (฿/GJ)',
   fg_ef:'Emission factor เชื้อเพลิง (kgCO₂/kWh) — NG 0.202, น้ำมันเตา 0.279, ถ่านหิน 0.34 (ตาราง TGO)',
   pf_fluid:'เลือกของไหล — โปรแกรมเติม ρ, μ ให้ (ไอน้ำ/อากาศคำนวณจาก IF97/ideal gas ตาม P,T)',
@@ -3768,7 +3849,7 @@ var FH_ID={
   lk_tsuc:'อุณหภูมิอากาศดูดเข้าคอมเพรสเซอร์ (°C) — วัดจริง 30–40',
   lk_rhoref:'ความหนาแน่นอากาศอ้างอิง FAD (kg/m³) — 1.204 ที่ 20 °C/1 atm',
   lk_cost_elec:'ค่าไฟฟ้าเฉลี่ย (฿/kWh) จากบิล 3.8–4.5', lk_cost_elec3:'ค่าไฟฟ้าเฉลี่ย (฿/kWh) จากบิล 3.8–4.5',
-  lk_ef_grid:'EF กริดไฟฟ้าไทย (kgCO₂e/kWh) — 0.4999 (TGO)', lk_ef_grid2:'EF กริดไฟฟ้าไทย (kgCO₂e/kWh) — 0.4999 (TGO)', lk_ef_grid3:'EF กริดไฟฟ้าไทย (kgCO₂e/kWh) — 0.4999 (TGO)',
+  lk_ef_grid:'EF กริดไฟฟ้าไทย (kgCO₂e/kWh) — 0.4750 (TGO)', lk_ef_grid2:'EF กริดไฟฟ้าไทย (kgCO₂e/kWh) — 0.4750 (TGO)', lk_ef_grid3:'EF กริดไฟฟ้าไทย (kgCO₂e/kWh) — 0.4750 (TGO)', /* [แก้ไข 3 ต.ค. 2569 audit] เดิม 0.4999 */
   lk_se:'พลังงานจำเพาะการผลิตก๊าซ (kWh/Nm³) — N₂ PSA 0.3–0.5, O₂ 0.5–0.7',
   lk_costNm3:'ราคาก๊าซที่ซื้อ/ผลิต (฿/Nm³) จากใบแจ้งหนี้',
   lk_lhv:'ค่าความร้อนต่ำเชื้อเพลิงก๊าซ (MJ/kg) — NG ≈ 48, LPG ≈ 46',
@@ -3810,6 +3891,149 @@ function applyFieldHints(){
     if(!txt)continue;var d=document.createElement('div');d.className='hint';d.textContent=txt;fld.appendChild(d);e.title=txt;}
 }
 document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){tagFieldKinds();applyFieldHints();},200);});
+</script>
+<!-- [แก้ไข 3 ต.ค. 2569] TE_ECM export -->
+<script>
+/* TE_ECM — ส่งออกมาตรการไป ECM Portfolio (schema v1) [แก้ไข 3 ต.ค. 2569] */
+var TE_ECM=(function(){
+  function clean(o){var r={};Object.keys(o||{}).forEach(function(k){var v=o[k];if(v===undefined||v===null)return;if(typeof v==='number'&&!isFinite(v))return;r[k]=v;});return r;}
+  function save(tool,site,measures,pools){
+    var ms=(measures||[]).map(clean).filter(function(m){return m.id&&m.name&&m.effect&&m.carrier;});
+    if(!ms.length){alert('ยังไม่มีมาตรการที่คำนวณผลประหยัดได้ — กรุณากรอกข้อมูล/คำนวณก่อนส่งออก');return null;}
+    var d={meta:{schema:'TE_ECM',version:1,tool:tool,exportedAt:new Date().toISOString(),site:site||''},pools:(pools||[]).map(clean),measures:ms};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');
+    a.href=URL.createObjectURL(b);a.download=tool+'_ECM_'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},2000);return d;}
+  return{save:save,clean:clean};
+})();
+
+/* [แก้ไข 3 ต.ค. 2569] teBuildECM — สร้างรายการมาตรการ TE_ECM จากผลคำนวณของเครื่องมือ (ดักจับผลไว้ใน window._teRes ระหว่าง calc_*) */
+function teBuildECM(){
+  var TABS=['chl','vnt','cv','ss','sh','cw','hw','ho','fg','lk'];
+  // [แก้ไข 3 ต.ค. 2569 audit] เดิมดูจาก innerHTML ของผลลัพธ์ → recalcAll() เติมผลทุกแท็บ ทำให้ส่งออกครั้งที่ 2 ได้มาตรการจากค่าตัวอย่างที่ผู้ใช้ไม่ได้ทำ
+  // ใหม่: ส่งออกเฉพาะแท็บที่ "ผู้ใช้กดคำนวณเอง" (window._teUser ตั้งในตัวห่อ calc_* และไม่ตั้งระหว่าง recalcAll) — ไม่มีเลย = ไม่ส่งออก
+  var touched=TABS.filter(function(p){return !!(window._teUser&&window._teUser[p]);});
+  window._teRes={};
+  try{recalcAll();}catch(e){}
+  var use=touched, R=window._teRes||{}, M=[], P=[];
+  function rn(v,d){var f=Math.pow(10,d==null?3:d);return Math.round(v*f)/f;}
+  function hasUse(p){return use.indexOf(p)>=0&&R[p];}
+  function costKWh(p){try{return readCost(p+'_cost');}catch(e){return NaN;}}
+  var KP_INS=['อุณหภูมิผิวฉนวน T_s','อุณหภูมิแวดล้อม T_amb','อุณหภูมิสารทำงาน','ความยาวท่อ/ดักท์','ชั่วโมงทำงานต่อปี'];
+  // ---- ฉนวนท่อ (pipe): เทียบท่อเปลือย (t_ins=0, ε≥0.85) → ความหนาฉนวนที่กรอก ----
+  var PIPE={cv:{n:'ท่อไอสารเคมี',sys:'process'},ss:{n:'ท่อไอน้ำอิ่มตัว',sys:'steam'},sh:{n:'ท่อไอน้ำร้อนยิ่งยวด',sys:'steam'},
+            cw:{n:'ท่อน้ำเย็น',sys:'chw'},hw:{n:'ท่อน้ำร้อน',sys:'process'},ho:{n:'ท่อน้ำมันร้อน (Thermal Oil)',sys:'process'}};
+  Object.keys(PIPE).forEach(function(p){
+    if(!hasUse(p))return; var c=R[p], i=c.inputs, r=c.result; if(!(i.tins>0))return;
+    var eb=Math.max(0.85,i.eps||0);
+    var b=pipeHeatLoss({Do_pipe:i.Do,t_pipe:i.tp,k_pipe:i.kp,insulations:[],T_fluid:i.Tfluid,T_amb:i.Tamb,h_out:i.hout,eps_out:eb});
+    var Qb=Math.abs(b.q_per_L)*i.L/1000, Qi=Math.abs(r.q_per_L)*i.L/1000, dQ=Qb-Qi; if(!(dQ>0))return;
+    var dE=dQ*i.hr, Eb=Qb*i.hr, cost=costKWh(p), m={id:'ins-'+p, system:PIPE[p].sys, group:'estimate', mvOption:'A', keyParams:KP_INS,
+      name:'หุ้มฉนวน'+PIPE[p].n+' หนา '+i.tins+' mm (ยาว '+i.L+' m)', savingTHB:isFinite(cost)?rn(dE*cost,0):undefined, heatSaving_GJ:rn(dE*0.0036,3)};
+    var base='q/L ท่อเปลือย(ε='+eb+') '+rn(Math.abs(b.q_per_L),1)+' W/m → หุ้มฉนวน '+rn(Math.abs(r.q_per_L),1)+' W/m (ASTM C680/ISO 12241) · ΔQ = '+rn(dQ,2)+' kW × '+i.hr+' h/ปี = '+rn(dE,0)+' kWh/ปี';
+    if(p==='ss'||p==='sh'){
+      var Pb=(p==='ss')?+document.getElementById('ss_P').value:i.P, hfg=steamProp(Pb)[3];
+      m.effect='demand';m.carrier='steam';m.unit='t';m.savingQty=rn(dE*3600/hfg/1000,2);m.baselineQty=rn(Eb*3600/hfg/1000,2);
+      m.basis=base+' · ไอน้ำเทียบเท่า = ΔQ×h×3600/h_fg (h_fg@'+Pb+' barg = '+rn(hfg,1)+' kJ/kg, TE_STEAM IF97) /1000 → t/ปี';
+    }else if(p==='cw'){ // [แก้ไข 3 ต.ค. 2569 audit] ไฟฟ้า Chiller = kWh_th ÷ COP (เหมือนดักท์ลมเย็น) — เดิมคิด ฿ บน kWh_th ตรง ๆ
+      var copw=i.cop>0?i.cop:3.5;
+      m.effect='demand';m.carrier='chw';m.unit='RTh';m.savingQty=rn(dE/3.5169,1);m.baselineQty=rn(Eb/3.5169,1);
+      m.primary={electricity_kWh:rn(dE/copw,0)}; m.savingTHB=isFinite(cost)?rn(dE/copw*cost,0):undefined;
+      m.basis=base+' (heat gain) · ความเย็น = kWh_th / 3.5169 → RTh/ปี · ไฟฟ้า Chiller = kWh_th/COP '+copw;
+    }else if(p==='hw'){
+      m.effect='demand';m.carrier='hotwater';m.unit='GJ';m.savingQty=rn(dE*0.0036,3);m.baselineQty=rn(Eb*0.0036,3);
+      m.basis=base+' · ความร้อนน้ำร้อน = kWh × 0.0036 → GJ/ปี';
+    }else if(p==='ho'){
+      m.effect='demand';m.carrier='thermaloil';m.unit='GJ';m.savingQty=rn(dE*0.0036,3);m.baselineQty=rn(Eb*0.0036,3);
+      m.basis=base+' · ความร้อนน้ำมันร้อน = kWh × 0.0036 → GJ/ปี';
+    }else{ // cv: ไอสารเคมี — คิดเป็นความร้อนที่เชื้อเพลิงต้องชดเชย (η อุปกรณ์ให้ความร้อน = 100 % → ค่าต่ำกว่าจริง/conservative)
+      m.effect='direct';m.carrier='fuel';m.unit='GJ';m.savingQty=rn(dE*0.0036,3);m.baselineQty=rn(Eb*0.0036,3);
+      m.basis=base+' · คิดเป็นพลังงานความร้อน GJ/ปี (ยังไม่หารประสิทธิภาพอุปกรณ์ให้ความร้อน)';
+    }
+    M.push(m);
+  });
+  // ---- ฉนวนดักท์ลม (duct): เทียบดักท์เปลือย (ε≥0.30) → ความหนาฉนวนที่กรอก ----
+  ['chl','vnt'].forEach(function(p){
+    if(!hasUse(p))return; var c=R[p], i=c.inputs, r=c.result; if(!(i.tins>0))return;
+    var b=ductHeatLoss({W:i.W,H:i.H,t_wall:i.tw,k_wall:i.kw,insulations:[],T_fluid:i.Tfluid,T_amb:i.Tamb,h_out:i.hout,eps_out:Math.max(0.30,i.eps||0)});
+    var Qb=Math.abs(b.q_per_L)*i.L/1000, Qi=Math.abs(r.q_per_L)*i.L/1000, dQ=Qb-Qi; if(!(dQ>0))return;
+    var dE=dQ*i.hr, Eb=Qb*i.hr, cop=i.cop||3.5, cost=costKWh(p), cold=i.Tfluid<i.Tamb;
+    var m={id:'ins-'+p, system:'hvac', group:'estimate', mvOption:'A', keyParams:KP_INS,
+      name:'หุ้มฉนวน'+(p==='chl'?'ดักท์ลมเย็น':'ดักท์ลม')+' หนา '+i.tins+' mm (ยาว '+i.L+' m)', heatSaving_GJ:rn(dE*0.0036,3)};
+    var base='q/L ดักท์เปลือย '+rn(Math.abs(b.q_per_L),1)+' W/m → หุ้มฉนวน '+rn(Math.abs(r.q_per_L),1)+' W/m · ΔQ = '+rn(dQ,2)+' kW × '+i.hr+' h/ปี = '+rn(dE,0)+' kWh_th/ปี';
+    if(cold){
+      m.effect='demand';m.carrier='chw';m.unit='RTh';m.savingQty=rn(dE/3.5169,1);m.baselineQty=rn(Eb/3.5169,1);
+      if(i.isChilled){m.primary={electricity_kWh:rn(dE/cop,0)};if(isFinite(cost))m.savingTHB=rn(dE/cop*cost,0);}
+      else if(isFinite(cost))m.savingTHB=rn(dE*cost,0);
+      m.basis=base+' (heat gain) · RTh = kWh_th/3.5169'+(i.isChilled?' · ไฟฟ้า Chiller = kWh_th/COP '+cop:'');
+    }else{
+      m.effect='direct';m.carrier='fuel';m.unit='GJ';m.savingQty=rn(dE*0.0036,3);m.baselineQty=rn(Eb*0.0036,3);
+      if(isFinite(cost))m.savingTHB=rn(dE*cost,0);
+      m.basis=base+' · คิดเป็นพลังงานความร้อน GJ/ปี';
+    }
+    M.push(m);
+  });
+  // ---- ปล่อง/ท่อไอเสีย: [แก้ไข 3 ต.ค. 2569 audit] จัดเป็น "มาตรการฉนวน" (เดิม fg-whr) — ความร้อนผ่านผนังดักกลับด้วย APH/recuperator ไม่ได้ ----
+  if(hasUse('fg')){var f=R.fg;
+    if(f.E_whr_kWh>0) M.push({id:'ins-fg', name:'ซ่อม/เพิ่มฉนวนผนังปล่อง/ท่อไอเสีย (ลดการสูญเสียผ่านผนัง '+f.inputs.eta_whr+' %)', system:'process',
+      effect:'direct', carrier:'fuel', unit:'GJ', savingQty:rn(f.E_whr_kWh*0.0036,3), baselineQty:rn(f.E_year_kWh*0.0036,3),
+      primary:{fuel_GJ:rn(f.E_whr_kWh*0.0036,3)}, savingTHB:rn(f.cost_saving,0), tCO2:rn(f.co2_saving,2), group:'estimate', mvOption:'A',
+      keyParams:KP_INS.concat(['สัดส่วนการสูญเสียผนังที่ลดได้ (q/L ก่อน-หลังฉนวน)']),
+      basis:'Q ผนัง = q/L×L = '+rn(f.Q_total_kW,2)+' kW × '+f.inputs.hr+' h/ปี = '+rn(f.E_year_kWh,0)+' kWh/ปี · ลดได้ด้วยฉนวน '+f.inputs.eta_whr+' % = '+rn(f.E_whr_kWh,0)+' kWh/ปี · มาตรการฉนวน (ไม่ใช่ WHR) — ผลประหยัดเชื้อเพลิงเกิดจริงเมื่อความร้อนในไอเสียถูกใช้ต่อปลายทาง'});
+  }
+  // ---- จุดรั่ว (Leakage): ซ่อมรอยรั่ว → ผลประหยัด = การสูญเสียทั้งหมดที่คำนวณได้ ----
+  if(hasUse('lk')){var d=R.lk, nm=String(d.name||'').replace(/^[^A-Za-z0-9฀-๿]+/,'').trim(), hrn=d.hr*d.n;
+    var m={id:'leak-'+d.key, name:'ซ่อมรอยรั่ว '+nm+' Ø'+d.D_mm+' mm × '+d.n+' จุด @ '+d.P1g+' barg', savingTHB:isFinite(d.cost_yr)?rn(d.cost_yr,0):undefined,
+      mvOption:'A', keyParams:['ขนาด/จำนวนรอยรั่ว (ultrasonic)','ความดันต้นทาง P1','ชั่วโมงที่ระบบมีความดัน'], tCO2:isFinite(d.CO2_yr)?rn(d.CO2_yr,2):undefined};
+    var bl='ṁ รั่ว = '+rn(d.mdot*3600,3)+' kg/h/จุด (C_d '+d.Cd+') × '+d.hr+' h/ปี × '+d.n+' จุด = '+rn(d.mass_yr,0)+' kg/ปี';
+    if(d.cat==='compress'){
+      var rhoN=101325/(d.R*273.15), Nm3=d.mass_yr/rhoN;
+      Object.assign(m,{system:'air',effect:'demand',carrier:'air',unit:'Nm3',savingQty:rn(Nm3,0),primary:{electricity_kWh:rn(d.E_yr,0)},mvOption:'B',
+        keyParams:['ปริมาณรั่ว (ultrasonic / leak-down test)','ความดันระบบ','kW และชั่วโมงเดินคอมเพรสเซอร์'],
+        basis:bl+' ÷ ρN '+rn(rhoN,3)+' kg/Nm³ = '+rn(Nm3,0)+' Nm³/ปี · ไฟฟ้า = ṁ·R·T·ln(P1/Pa)/η_iso('+rn(d.eta*100,0)+' %) = '+rn(d.P_elec_kW,2)+' kW × h × n = '+rn(d.E_yr,0)+' kWh/ปี'});
+      if(Nm3>0)P.push({carrier:'air',name:'อากาศอัด (ค่าจากการคำนวณรอยรั่ว)',unit:'Nm3',factor:rn(d.E_yr/Nm3,4),factorUnit:'kWh/Nm3',drawFrom:'electricity'});
+    }else if(d.cat==='supply'){
+      Object.assign(m,{system:'other',effect:'direct',carrier:'electricity',unit:'kWh',savingQty:rn(d.E_yr,0),primary:{electricity_kWh:rn(d.E_yr,0)},
+        basis:bl+' → '+rn(d.Q_Nm3_yr,0)+' Nm³/ปี × SEC ผลิตก๊าซ '+d.se+' kWh/Nm³ = '+rn(d.E_yr,0)+' kWh/ปี; ฿ = Nm³ × ราคาก๊าซ'});
+    }else if(d.cat==='fuel'){
+      Object.assign(m,{system:'other',effect:'direct',carrier:'fuel',unit:'GJ',fuelName:nm,savingQty:rn(d.fuel_yr_GJ,3),primary:{fuel_GJ:rn(d.fuel_yr_GJ,3)},
+        basis:bl+' × LHV '+d.LHV+' MJ/kg → '+rn(d.fuel_yr_GJ,3)+' GJ/ปี'});
+    }else if(d.cat==='satsteam'||d.cat==='superheat'){
+      var t=d.mass_yr/1000;
+      Object.assign(m,{system:'steam',effect:'demand',carrier:'steam',unit:'t',savingQty:rn(t,2),primary:{fuel_GJ:rn(d.fuel_yr_GJ,3)},
+        basis:bl+' = '+rn(t,2)+' t/ปี · ความร้อน = ṁ×(h_ไอ−h_fw '+rn(d.dh,1)+' kJ/kg) = '+rn(d.q_yr_GJ,2)+' GJ/ปี ÷ η หม้อไอน้ำ '+rn(d.eta*100,0)+' % = '+rn(d.fuel_yr_GJ,2)+' GJ เชื้อเพลิง/ปี'});
+      if(d.eta>0&&d.dh>0)P.push({carrier:'steam',name:'ไอน้ำ (ค่าจากการคำนวณรอยรั่ว)',unit:'t',factor:rn(d.dh/1000/d.eta,4),factorUnit:'GJ/t',drawFrom:'fuel'});
+    }else if(d.cat==='hotwater'){
+      Object.assign(m,{system:'process',effect:'demand',carrier:'hotwater',unit:'GJ',savingQty:rn(d.q_yr_GJ,3),primary:{fuel_GJ:rn(d.fuel_yr_GJ,3)},
+        basis:bl+' · ความร้อน = ṁ×4.186×ΔT('+rn(d.dT,1)+' K) = '+rn(d.q_yr_GJ,3)+' GJ/ปี ÷ η '+rn(d.eta*100,0)+' % = '+rn(d.fuel_yr_GJ,3)+' GJ เชื้อเพลิง; ฿ รวมค่าน้ำ'});
+      if(d.eta>0)P.push({carrier:'hotwater',name:'น้ำร้อน (ค่าจากการคำนวณรอยรั่ว)',unit:'GJ',factor:rn(1/d.eta,4),factorUnit:'GJ/GJ',drawFrom:'fuel'});
+    }else if(d.cat==='chilledwater'){
+      var rth=d.qcool_kW*hrn/3.5169;
+      Object.assign(m,{system:'chw',effect:'demand',carrier:'chw',unit:'RTh',savingQty:rn(rth,1),primary:{electricity_kWh:rn(d.E_yr,0)},
+        basis:bl+' · ความเย็น = ṁ×4.186×ΔT = '+rn(d.qcool_kW,3)+' kW × h × n /3.5169 = '+rn(rth,1)+' RTh/ปี ÷ COP '+d.cop+' → '+rn(d.E_yr,0)+' kWh/ปี; ฿ รวมค่าน้ำ'});
+      if(d.cop>0)P.push({carrier:'chw',name:'น้ำเย็น (ค่าจากการคำนวณรอยรั่ว)',unit:'RTh',factor:rn(3.5169/d.cop,4),factorUnit:'kWh/RTh',drawFrom:'electricity'});
+    }else if(d.cat==='oil'){
+      Object.assign(m,{system:'process',effect:'demand',carrier:'thermaloil',unit:'GJ',savingQty:rn(d.q_yr_GJ,3),primary:{fuel_GJ:rn(d.fuel_yr_GJ,3)},
+        basis:bl+' · ความร้อน = ṁ×cp×ΔT = '+rn(d.q_yr_GJ,3)+' GJ/ปี ÷ η '+rn(d.eta*100,0)+' %; ฿ รวมค่าน้ำมันที่เติม'});
+    }else m=null; // สารทำความเย็น: ไม่ใช่ผลประหยัดพลังงาน (คิดเป็น tCO2e/ค่าเติมสาร) → ไม่ส่งออก
+    if(m&&m.savingQty>0)M.push(m);
+  }
+  M=M.filter(function(x){return x.savingQty>0||x.savingPct>0;});
+  return {measures:M, pools:P, site:''};
+}
+window.teBuildECM=teBuildECM;
+/* [แก้ไข 3 ต.ค. 2569 audit] ติดธงแท็บที่ผู้ใช้กดคำนวณเอง: ห่อ calc_* หลังสร้างฟอร์ม; ธงตั้งเมื่อมีผลใหม่ใน _teRes และไม่ได้อยู่ระหว่าง recalcAll; ปุ่มล้างผลลัพธ์ลบธง */
+window._teUser=window._teUser||{}; window._teRecalc=false;
+window.addEventListener('DOMContentLoaded',function(){
+  var MAP={chl:'calc_chl',vnt:'calc_vnt',cv:'calc_cv',ss:'calc_ss',sh:'calc_sh',cw:'calc_cw',hw:'calc_hw',ho:'calc_ho',fg:'calc_fg',lk:'lk_calc'};
+  Object.keys(MAP).forEach(function(p){var f=window[MAP[p]]; if(typeof f!=='function'||f._teWrapped)return;
+    var w=function(){var before=window._teRes&&window._teRes[p]; var r=f.apply(this,arguments); var after=window._teRes&&window._teRes[p];
+      if(!window._teRecalc&&after&&after!==before)window._teUser[p]=true; return r;};
+    w._teWrapped=true; window[MAP[p]]=w;});
+  document.addEventListener('click',function(ev){var b=ev.target&&ev.target.closest&&ev.target.closest('button');if(!b)return;
+    var m=/getElementById\('(\w+)_result'\)\.innerHTML=''/.exec(b.getAttribute('onclick')||'');if(m&&window._teUser)window._teUser[m[1]]=false;});
+});
+function teExportECM(){var r=teBuildECM();TE_ECM.save('Tool_Distribution_Loss_Calculator',r.site,r.measures,r.pools);} /* [แก้ไข 3 ต.ค. 2569] */
 </script>
 </body>
 </html>

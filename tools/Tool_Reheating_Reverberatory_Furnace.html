@@ -129,6 +129,8 @@
       <div class="field"><label>ชั่วโมงทำงาน/ปี <span class="unit">hr/yr</span></label><input type="number" id="hr" value="6000" step="any"></div>
       <div class="field"><label>ราคาเชื้อเพลิง <span class="unit">฿/GJ (ฐานตามที่เลือก)</span></label><input type="number" id="c_fuel" value="350" step="any"></div>
       <div class="field"><label>EF เชื้อเพลิง <span class="unit">kgCO₂/GJ</span></label><input type="number" id="ef_fuel" value="56.1" step="any"></div>
+      <!-- [แก้ไข 3 ต.ค. 2569 audit] ฐานของ EF: EF ของ TGO/IPCC เป็นฐาน NCV (LHV) — เดิมคูณกับ GJ ฐาน HHV ทำให้ CO₂ เกิน ~10 % (NG) -->
+      <div class="field"><label>ฐานของ EF <span class="unit">kgCO₂/GJ ต่อ</span></label><select id="ef_basis"><option value="NCV" selected>NCV/LHV (TGO/IPCC — แนะนำ)</option><option value="GCV">GCV/HHV</option></select></div>
       <div class="field"><label>ฐานค่าความร้อน (แสดงผล/ราคา)</label><select id="basis"><option value="HHV">HHV (Gross — แบบ MEASUR)</option><option value="LHV">LHV (Net — แบบไทย/BS845)</option></select></div>
       <div class="field"><label>ชนิดเตา <span class="unit">สำหรับ benchmark/checklist</span></label><select id="ftype" onchange="renderFieldAudit()"><option value="reheat">เตาให้ความร้อน/อบ (Reheating, Heat Treat)</option><option value="melt">เตาหลอม (Reverberatory, Melting)</option></select></div>
     </div>
@@ -349,11 +351,18 @@ function solvePH(inp){
   const grossDisp=basis==='HHV'?grossHHV:grossLHV;
   const GJyr=grossDisp*3.6e-3*inp.hr;                      // GJ/ปี ฐานที่เลือก
   const fuelCost=GJyr*inp.c_fuel;
-  const CO2=GJyr*inp.ef_fuel/1000;
+  // [แก้ไข 3 ต.ค. 2569 audit] CO₂ ต้องคูณ EF กับพลังงานฐานเดียวกับ EF (TGO/IPCC = NCV) ไม่ใช่ฐานแสดงผล — เดิม GJ(HHV)×EF(NCV) เกิน 10.9 % สำหรับ NG
+  const efBasis=inp.ef_basis||'NCV';
+  const GJyrEF=(efBasis==='GCV'?grossHHV:grossLHV)*3.6e-3*inp.hr;
+  const CO2=GJyrEF*inp.ef_fuel/1000;
+  const warns=[];  // [แก้ไข 3 ต.ค. 2569 audit] กล่องเตือนค่าที่เป็นไปไม่ได้
+  if(!(ah.AH_HHV>0)) warns.push('Available Heat ≤ 0 ('+(ah.AH_HHV*100).toFixed(1)+' %) — O₂ หรืออุณหภูมิไอเสียสูงเกินกว่าที่เชื้อเพลิงจะให้ความร้อนสุทธิได้ (ตรวจ O₂ < 21 %, T ปล่อง) — พลังงาน/ค่าใช้จ่ายที่แสดงเป็น 0 ใช้ไม่ได้');
+  if(L.charge.on && +L.charge.t_out < +L.charge.t_in) warns.push('อุณหภูมิชิ้นงานขาออก ('+L.charge.t_out+' °C) < ขาเข้า ('+L.charge.t_in+' °C) — ความร้อนเข้าชิ้นงานถูกตัดเป็น 0');
+  if(+inp.o2d>=20.9) warns.push('O₂ ในไอเสีย ≥ 20.9 % — ไม่มีการเผาไหม้');
   const effGross=grossHHV>0?useful/grossHHV*100:0;         // ฐาน HHV
   const effGrossLHV=grossLHV>0?useful/grossLHV*100:0;
   return {ah,items,Qnet,useful,grossHHV,grossLHV,grossDisp,fuelKgH,flueLoss,basis,
-    GJyr,fuelCost,CO2,effGross,effGrossLHV,hr:+inp.hr,c_fuel:+inp.c_fuel,ef_fuel:+inp.ef_fuel,
+    GJyr,fuelCost,CO2,efBasis,GJyrEF,warns,effGross,effGrossLHV,hr:+inp.hr,c_fuel:+inp.c_fuel,ef_fuel:+inp.ef_fuel,
     o2d:+inp.o2d,t_flue:+inp.t_flue,t_air:+inp.t_air,t_amb:+inp.t_amb,humid:+inp.humid,fuel:f,
     ftype:inp.ftype||'reheat',chargeM:(L.charge.on?+L.charge.m||0:0)};
 }
@@ -374,6 +383,7 @@ const HINTS={
  hr:'ที่มา: บันทึกการเดินเตา/ฝ่ายผลิต — ชั่วโมงเดินเตาจริงต่อปี อย่าใช้ 8,760 โดยอัตโนมัติ',
  c_fuel:'ที่มา: ใบแจ้งหนี้เชื้อเพลิง ÷ ค่าความร้อน (ต้องเป็นฐานเดียวกับที่เลือก HHV/LHV) เช่น (฿/kg) ÷ HV(MJ/kg) × 1000 = ฿/GJ',
  ef_fuel:'ที่มา: ตาราง EF รายเชื้อเพลิงของ TGO/สผ. ปีล่าสุด (kgCO₂/GJ) — ชีวมวล = biogenic รายงานแยก',
+ ef_basis:'EF ของ TGO/สผ./IPCC (NG 56.1, LPG 63.1, น้ำมันเตา 77.4) เป็นฐาน NCV (LHV) — โปรแกรมคูณกับพลังงานเชื้อเพลิงฐานเดียวกับ EF เสมอ ไม่ขึ้นกับฐานแสดงผล/ราคา',
  basis:'MEASUR/สหรัฐฯ ใช้ HHV; งานไทย/BS 845/พพ. ใช้ LHV — เลือกให้ตรงกับฐานของราคาเชื้อเพลิงที่กรอก',
  ftype:'ใช้เลือกชุดเกณฑ์ benchmark, จุดตรวจวัด และ checklist ในแท็บ Field Audit ให้ตรงประเภทเตา',
  fuelKey:'เลือกค่า default จากคลัง หรือ "กำหนดเอง" แล้วกรอกผลวิเคราะห์จริงจากห้องปฏิบัติการ',
@@ -509,7 +519,7 @@ function applyMaterial(){
 
 // ---- collect / apply ----
 function collectUI(){
-  const inp={basis:$('basis').value,ftype:$('ftype').value,hr:+$('hr').value,c_fuel:+$('c_fuel').value,ef_fuel:+$('ef_fuel').value,
+  const inp={basis:$('basis').value,ef_basis:($('ef_basis')?$('ef_basis').value:'NCV')/* [แก้ไข 3 ต.ค. 2569 audit] */,ftype:$('ftype').value,hr:+$('hr').value,c_fuel:+$('c_fuel').value,ef_fuel:+$('ef_fuel').value,
     fuel:readFuel(),o2d:+$('o2d').value,t_flue:+$('t_flue').value,t_air:+$('t_air').value,t_amb:+$('t_amb').value,humid:+$('humid').value,
     losses:{}};
   const g=id=>+($(id)?.value??0);
@@ -525,7 +535,7 @@ function collectUI(){
   return inp;
 }
 function applyUI(inp){
-  $('basis').value=inp.basis||'HHV';$('ftype').value=inp.ftype||'reheat';$('hr').value=inp.hr;$('c_fuel').value=inp.c_fuel;$('ef_fuel').value=inp.ef_fuel;
+  $('basis').value=inp.basis||'HHV';if($('ef_basis'))$('ef_basis').value=inp.ef_basis||'NCV';/* [แก้ไข 3 ต.ค. 2569 audit] ไฟล์เก่าไม่มี ef_basis → ใช้ NCV (ค่าที่ถูก) */$('ftype').value=inp.ftype||'reheat';$('hr').value=inp.hr;$('c_fuel').value=inp.c_fuel;$('ef_fuel').value=inp.ef_fuel;
   $('fuelKey').value=inp.fuel.key||'ng';
   ['C','H','O','N','S','M','Ash','HHV'].forEach(k=>$('f'+k).value=inp.fuel[k]);
   updateLHV();
@@ -604,7 +614,7 @@ function renderResults(R){
   let lossRows='';
   R.items.forEach(i=>{lossRows+=`<tr><td>${i.useful?'🎯 ':''}${i.name}</td><td>${f(i.kW,1)}</td><td>${f(i.kW/R.grossHHV*100,2)}</td></tr>`;});
   lossRows+=`<tr><td>🌫️ ความสูญเสียทางปล่อง (Flue Gas Loss)</td><td>${f(R.flueLoss,1)}</td><td>${f(R.flueLoss/R.grossHHV*100,2)}</td></tr>`;
-  $('resultsBody').innerHTML=`
+  $('resultsBody').innerHTML=`${(R.warns&&R.warns.length)?'<div id="fur_plaus_warn" style="background:#fdecec;border:1px solid #f5a0a0;border-radius:6px;padding:8px 10px;color:#b42318;font-size:13px;margin-bottom:8px">⛔ ค่าที่ป้อน/ผลลัพธ์เป็นไปไม่ได้ทางฟิสิกส์ — อย่านำไปรายงาน:<br>• '+R.warns.join('<br>• ')+'</div>':''}
    <div class="section-title" style="margin-top:0">สรุปผล (Annual Summary — ฐาน ${b})</div>
    <div class="summary-grid">
      <div class="sum-box"><div class="head">พลังงานเข้าเตา (Gross Heat Input)</div>
@@ -621,7 +631,7 @@ function renderResults(R){
      </div>
      <div class="sum-box"><div class="head">ค่าใช้จ่าย & CO₂</div>
        <div class="row"><span class="k">ค่าเชื้อเพลิง</span><span class="v big">${f(R.fuelCost,0)} ฿/ปี</span></div>
-       <div class="row"><span class="k">CO₂</span><span class="v">${f(R.CO2,0)} tCO₂/ปี</span></div>
+       <div class="row"><span class="k">CO₂ (EF ฐาน ${R.efBasis||'NCV'})</span><span class="v">${f(R.CO2,0)} tCO₂/ปี</span></div>
        <div class="row"><span class="k">ชั่วโมงทำงาน</span><span class="v">${f(R.hr,0)} hr/ปี</span></div>
        <div class="row"><span class="k">ความร้อนใช้ประโยชน์ (Charge)</span><span class="v">${f(R.useful,0)} kW</span></div>
      </div>

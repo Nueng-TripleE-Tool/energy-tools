@@ -290,6 +290,10 @@ table td{vertical-align:middle}
       <div class="fld"><label class="f">เวลาหยุดเดินเครื่องเพื่อล้าง <span class="unit">ชม.</span></label><input type="number" id="dHrs" value="8" step="1"></div>
       <div class="fld"><label class="f">ต้นทุนการหยุดเดินเครื่อง <span class="unit">บาท/ชม.</span></label><input type="number" id="dCost" value="3000" step="500"></div>
     </div>
+    <!-- [แก้ไข 3 ต.ค. 2569 audit] รอบล้างปัจจุบัน = baseline ของผลประหยัดสุทธิ -->
+    <div class="grid3">
+      <div class="fld"><label class="f">รอบล้างปัจจุบัน <span class="unit">เดือน</span></label><input type="number" id="curM" value="12" step="1" min="0"><div class="hint">ทุกกี่เดือนที่ล้างอยู่ตอนนี้ · ใช้เป็นฐานของ "ประหยัดสุทธิ" · 0 = ไม่ทราบ/ไม่เคยล้าง (เทียบ 36 เดือน) · ที่มา: ประวัติซ่อมบำรุง</div></div>
+    </div>
     <div id="econOut"></div>
   </div>
 </section>
@@ -452,7 +456,10 @@ function econ(){
   const rate=V('rfRate'), hrs=V('hrs'), cost=V('cCost'), pen=V('penalty');
   const dHrs=V('dHrs'), dCost=V('dCost');
   const totalClean=cost+dHrs*dCost;
-  if(!U||!Uc){ $('econOut').innerHTML='<div class="note bad">ยังคำนวณ U ไม่ได้</div>'; return; }
+  if(!U||!Uc){ $('econOut').innerHTML='<div class="note bad">ยังคำนวณ U ไม่ได้</div>';
+    /* [แก้ไข 3 ต.ค. 2569 audit] ล้างแถบสรุปค่าเดิม (เดิมยังโชว์รอบล้าง/ผลประหยัดของการคำนวณครั้งก่อน) */
+    $('vDays').textContent='–'; $('vDaysb').textContent='ข้อมูลไม่พอ/อุณหภูมิผิด';
+    S.best=null; S.nowLoss=null; S.nowCost=null; S.netSave=null; S.totalClean=totalClean; return; }
   /* [แก้ไข 10 ก.ย. 2569] เดิมเริ่มทุกรอบที่ Rf ปัจจุบัน (Rf0) ทำให้รอบล้างที่ได้เอนเอียง
      → แต่ละรอบเริ่มจากสภาพสะอาด Rf = 0 แล้ว Rf โตเชิงเส้นด้วยอัตราที่กรอก
        U(t) = 1/(1/Uc + rate·t/1000)  →  U เฉลี่ยตลอดรอบ = Uc·ln(1+Uc·RfEnd)/(Uc·RfEnd) (อินทิเกรตตรง ๆ) */
@@ -471,9 +478,18 @@ function econ(){
     if(best===null||total<best.total) best=rows[rows.length-1];
   }
   const nowLoss=(Uc-U)/Uc*100;
-  const nowCost=nowLoss/10*pen;
+  /* [แก้ไข 3 ต.ค. 2569 audit] U > U สะอาด → ไม่มีต้นทุนส่วนเกิน (เดิมแสดงเป็นค่าลบ) */
+  const nowCost=Math.max(0,nowLoss/10*pen);
+  /* [แก้ไข 3 ต.ค. 2569 audit] ผลประหยัดสุทธิเทียบ "รอบล้างปัจจุบัน" ที่กรอก (เดิมเทียบรอบ 36 เดือนซึ่งไม่ใช่ baseline จริง)
+     curM = 0 → ไม่ทราบ/ไม่เคยล้าง ใช้ 36 เดือนตามเดิม */
+  const curMin=V('curM');
+  const totalAt=m=>{ const h=hrs/12*m, RfEnd=rate*h/1000, x=Uc*RfEnd, Uavg=x>1e-9?Uc*Math.log(1+x)/x:Uc;
+    const lossAvg=(Uc-Uavg)/Uc*100; return (lossAvg/10*pen*(h/hrs)+totalClean)/(h/hrs); };
+  const curRef=curMin>0?curMin:36;
+  const curTotal=totalAt(curRef);
+  const netSave=best?curTotal-best.total:null;
   $('vDays').textContent=best?best.m:'–';
-  $('vDaysb').textContent=best?`เดือน · ประหยัดสุทธิ ${money(rows[rows.length-1].total-best.total)} บาท/ปี`:'';
+  $('vDaysb').textContent=best?`เดือน · ประหยัดสุทธิ ${money(Math.max(0,netSave))} บาท/ปี เทียบรอบ${curMin>0?'ปัจจุบัน '+fmt(curRef,0):' 36'} เดือน`:'';
   $('econOut').innerHTML=`
    <div class="grid4" style="margin-top:12px">
      <div class="stat"><div class="big s${nowLoss>20?2:(nowLoss>10?1:0)}">${fmt(nowLoss,1)}</div><div class="bigu">U ที่ตกไปแล้ว · %</div></div>
@@ -481,6 +497,12 @@ function econ(){
      <div class="stat"><div class="big">${money(totalClean)}</div><div class="bigu">ต้นทุนล้าง 1 ครั้ง รวมหยุดเครื่อง</div></div>
      <div class="stat"><div class="big s0">${best?best.m:'–'}</div><div class="bigu">รอบล้างที่คุ้มที่สุด · เดือน</div></div>
    </div>
+   <!-- [แก้ไข 3 ต.ค. 2569 audit] -->
+   ${nowLoss<0?`<div class="note warn"><b>⚠ U ที่วัดได้สูงกว่า U สะอาดที่ตั้งไว้ (${fmt(-nowLoss,1)} %)</b> — ไม่มีต้นทุนส่วนเกินจาก fouling
+     ตรวจค่า U สะอาดอ้างอิง (อาจต่ำเกินจริง) หรืออัตราการไหลที่สูงกว่าออกแบบก่อนใช้ผลเศรษฐศาสตร์</div>`:''}
+   <div class="kv" style="margin-top:8px"><span>ต้นทุนรวมที่รอบล้าง${curMin>0?'ปัจจุบัน':' 36 เดือน (ไม่ได้กรอกรอบปัจจุบัน)'} ${fmt(curRef,0)} เดือน</span><b>${money(curTotal)} บาท/ปี</b></div>
+   <div class="kv"><span>ต้นทุนรวมที่รอบคุ้มที่สุด ${best?best.m:'–'} เดือน</span><b>${best?money(best.total):'–'} บาท/ปี</b></div>
+   <div class="kv"><span>ผลประหยัดสุทธิเมื่อเปลี่ยนมาใช้รอบที่คุ้มที่สุด</span><b>${netSave===null?'–':money(Math.max(0,netSave))} บาท/ปี</b></div>
    <div class="tbl-wrap" style="margin-top:12px"><table>
      <tr><th class="n">รอบล้าง (เดือน)</th><th class="n">R<sub>f</sub> ปลายรอบ</th><th class="n">U ปลายรอบ</th>
          <th class="n">U ที่ตกเฉลี่ย %</th><th class="n">ต้นทุนรวม บาท/ปี</th></tr>
@@ -501,7 +523,7 @@ function econ(){
      — สำหรับ condenser ของ chiller ให้ประเมินจาก kW/RT ที่แย่ลงเมื่อ condensing temperature สูงขึ้น
      สำหรับ economizer ให้ประเมินจากอุณหภูมิไอเสียที่สูงขึ้นและประสิทธิภาพหม้อไอน้ำที่ลดลง
    </div>`;
-  S.best=best; S.nowLoss=nowLoss; S.totalClean=totalClean;
+  S.best=best; S.nowLoss=nowLoss; S.totalClean=totalClean; S.nowCost=nowCost; S.netSave=netSave; S.curRef=curRef; /* [แก้ไข 3 ต.ค. 2569 audit] */
 }
 
 function dx(){
@@ -538,7 +560,8 @@ function dx(){
   if(T2<t1||T1<t2)
     add(2,'อุณหภูมิไขว้ผิดปกติ',
       `ฝั่งร้อนออกเย็นกว่าฝั่งเย็นเข้า หรือฝั่งเย็นออกร้อนกว่าฝั่งร้อนเข้า
-       — เป็นไปไม่ได้ในอุปกรณ์ที่ไม่ใช่ counterflow สมบูรณ์ ตรวจว่าสลับ sensor หรือต่อท่อผิดทิศ`);
+       — เป็นไปไม่ได้ในอุปกรณ์แลกเปลี่ยนความร้อนทุกชนิด (ผิดกฎข้อ 2) ตรวจว่าสลับ sensor หรือสลับฝั่งเข้า-ออก
+       (ส่วนกรณีฝั่งเย็นออกร้อนกว่าฝั่งร้อนออก = temperature cross ทำได้เฉพาะ counterflow/PHE)`); /* [แก้ไข 3 ต.ค. 2569 audit] แก้ข้อความ */
   add(0,'ตรวจก่อนล้าง: ต่อท่อผิดทิศหรือไม่',
     `การต่อเป็น parallel flow แทน counterflow ทำให้สมรรถนะตกทันที 20–40 % โดยไม่มีอะไรสกปรกเลย
      พบบ่อยหลังงานซ่อมหรือย้ายท่อ ตรวจง่ายมากแต่มักถูกมองข้าม — ล้างไปก็ไม่ดีขึ้น`);
@@ -580,6 +603,7 @@ function report(){
   U ที่ตกไปแล้ว        ${fmt(S2.nowLoss,1)} %
   ต้นทุนล้างต่อครั้ง     ${money(S2.totalClean)} บาท (รวมหยุดเครื่อง)
   รอบล้างที่คุ้มที่สุด    ${S2.best?S2.best.m+' เดือน':'–'}
+  ประหยัดสุทธิ          ${S2.netSave==null?'–':money(Math.max(0,S2.netSave))+' บาท/ปี เทียบรอบ '+fmt(S2.curRef,0)+' เดือน'}
 
 หมายเหตุ: ก่อนสรุปว่าสกปรก ต้องตัดสาเหตุอื่นออกก่อน — สมดุลพลังงานที่ไม่ปิด
 อัตราการไหลที่ต่ำกว่าออกแบบ ก๊าซที่ไม่ควบแน่นค้างในระบบ และการต่อท่อผิดทิศ
@@ -613,7 +637,7 @@ const TE_HINTS={
 };
 function teInjectHints(){ Object.keys(TE_HINTS).forEach(id=>{ const e=$(id); if(!e) return; const n=e.nextElementSibling; if(n&&n.classList&&n.classList.contains('hint')) return; const d=document.createElement('div'); d.className='hint'; d.textContent=TE_HINTS[id]; e.insertAdjacentElement('afterend',d); }); }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['hxType', 'area', 'uClean', 'cph', 'cpc', 'rh', 'rc'], FK_MEAS=['Th1', 'Th2', 'mh', 'Tc1', 'Tc2', 'mc'], FK_SET=['rfRate', 'hrs', 'cCost', 'penalty', 'dHrs', 'dCost'], FK_CALC=[];
+var FK_DESIGN=['hxType', 'area', 'uClean', 'cph', 'cpc', 'rh', 'rc'], FK_MEAS=['Th1', 'Th2', 'mh', 'Tc1', 'Tc2', 'mc'], FK_SET=['rfRate', 'hrs', 'cCost', 'penalty', 'dHrs', 'dCost', 'curM'], FK_CALC=[];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}

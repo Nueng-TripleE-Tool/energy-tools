@@ -1100,8 +1100,24 @@ function calcAll(){
   const Q_out_ext = exts.reduce((s,e)=>s + e.m_kgs*e.h_actual, 0);
   const overall = Q_in > 0 ? (P_elec_calc / Q_in)*100 : NaN;
 
+  // ── [แก้ไข 3 ต.ค. 2569 audit] ตรวจความเป็นไปได้ทางฟิสิกส์ — แสดงกล่องเตือน (ไม่ใช้ alert) และไม่ติดป้าย GOOD ──
+  const plaus = [];
+  if(!(P_in>0) || !(P_out>0)) plaus.push('ความดันสัมบูรณ์ต้อง > 0 bar a (P_in='+P_in.toFixed(3)+', P_out='+P_out.toFixed(3)+' bar a) — ใน bar g ค่าต่ำสุดคือ −1.013');
+  if(P_out >= P_in) plaus.push('P_out ('+P_out.toFixed(3)+' bar a) ≥ P_in ('+P_in.toFixed(3)+' bar a) — ไอน้ำขยายตัวไม่ได้ ผล η ไม่มีความหมาย');
+  if(!(W_isen_kW>0)) plaus.push('งานไอเซนโทรปิก W_isen ≤ 0 — ตรวจสอบความดัน/อัตราไหล');
+  if(isFinite(eta_is) && eta_is>1) plaus.push('η_is = '+(eta_is*100).toFixed(1)+' % > 100 % — เป็นไปไม่ได้ (ตรวจ P_elec, ṁ, η_gen/η_mech, T_out หรือหน่วยความดัน)');
+  if(isFinite(eta_is) && eta_is<=0) plaus.push('η_is ≤ 0 % — กำลังที่ได้ไม่สอดคล้องกับสภาวะไอน้ำ');
+  if(isFinite(h_out_actual) && isFinite(sat_out[1]) && h_out_actual < sat_out[1]) plaus.push('h_out = '+h_out_actual.toFixed(1)+' kJ/kg ต่ำกว่า h_f ที่ P_out ('+sat_out[1].toFixed(1)+') — กำลังไฟฟ้าที่ป้อนสูงเกินกว่าที่ไอน้ำให้ได้');
+  (function(){
+    let w=document.getElementById('st_plaus_warn');
+    const anchor=document.getElementById('mass_bal_warn');
+    if(!w && anchor && anchor.parentNode){ w=document.createElement('div'); w.id='st_plaus_warn'; w.className='err-box'; w.style.marginTop='4px'; anchor.parentNode.insertBefore(w, anchor.nextSibling); }
+    if(w){ if(plaus.length){ w.style.display='block'; w.innerHTML='⛔ ค่าที่ป้อน/ผลลัพธ์เป็นไปไม่ได้ทางฟิสิกส์ — อย่านำไปรายงาน:<br>• '+plaus.join('<br>• '); } else { w.style.display='none'; w.innerHTML=''; } }
+  })();
+
   // ── Store results ─────────────────────────────────────────────────
   RES = {
+    plaus,
     h_in, s_in, h_out_actual, h_out_isen,
     dh_actual, dh_actual_equiv, dh_isen,
     eta_is, W_shaft_actual, P_elec_calc,
@@ -1137,7 +1153,7 @@ function calcAll(){
 
 function updateUI(){
   const r=RES, f=(v,d=1)=>isNaN(v)?'—':v.toFixed(d);
-  const badge=(v)=>v>=80?'<span class="badge bg">GOOD</span>':v>=70?'<span class="badge bw">FAIR</span>':'<span class="badge bb">LOW</span>';
+  const badge=(v)=>(r.plaus&&r.plaus.length)||!(v>0&&v<=100)?'<span class="badge bb">⛔ ตรวจสอบ</span>':v>=80?'<span class="badge bg">GOOD</span>':v>=70?'<span class="badge bw">FAIR</span>':'<span class="badge bb">LOW</span>'; /* [แก้ไข 3 ต.ค. 2569 audit] ห้ามป้าย GOOD เมื่อ η>100 % หรือค่าเป็นไปไม่ได้ */
 
   // Tab1
   setH('r_h_in',f(r.h_in));setH('r_h_out_a',f(r.h_out_actual));
@@ -1174,8 +1190,9 @@ function updateUI(){
   setH('sum_asr',f(r.ASR,3));setH('sum_dh',f(r.dh_actual_equiv));
   setH('sum_ms',f(r.m_in,1));
   const rb=document.getElementById('sum_result_box');
-  const cls=eta_pct>=80?'ok-box':eta_pct>=70?'warn-box':'err-box';
-  const msg=eta_pct>=80?'✅ η_is '+f(eta_pct)+'% — ดีตามเกณฑ์ (≥80%)':
+  const bad_=(r.plaus&&r.plaus.length)||!(eta_pct>0&&eta_pct<=100); /* [แก้ไข 3 ต.ค. 2569 audit] สรุปผลไม่บอก "ดี" เมื่อค่าเป็นไปไม่ได้ */
+  const cls=bad_?'err-box':eta_pct>=80?'ok-box':eta_pct>=70?'warn-box':'err-box';
+  const msg=bad_?'⛔ η_is '+f(eta_pct)+'% — เป็นไปไม่ได้ทางฟิสิกส์ ตรวจสอบค่าที่ป้อน: '+(r.plaus||[]).join(' · '):eta_pct>=80?'✅ η_is '+f(eta_pct)+'% — ดีตามเกณฑ์ (≥80%)':
             eta_pct>=70?'⚠️ η_is '+f(eta_pct)+'% — ปานกลาง ควรตรวจสอบ Steam Conditions':
             '❌ η_is '+f(eta_pct)+'% — ต่ำ แนะนำ Overhaul / ตรวจ Nozzle-Blade Clearance';
   rb.innerHTML=`<div class="${cls}">${msg}<br>h_in=${f(r.h_in)} kJ/kg | Δh_eff=${f(r.dh_actual_equiv)} kJ/kg | ASR=${f(r.ASR,3)} kg/kWh | m_in=${f(r.m_in,1)} t/h | m_out=${f(r.m_out_tph,1)} t/h</div>`;
@@ -1206,7 +1223,7 @@ function updateUI(){
 
 function buildSteps(r){
   const f=(v,d=2)=>isNaN(v)?'—':v.toFixed(d);
-  const W_shaft_m3 = r.P_elec_method3 || (r.P_exp / r.eta_gen);
+  const W_shaft_m3 = r.P_elec_method3 || (r.P_exp / (r.eta_gen*(r.eta_mech||1))); /* [แก้ไข 3 ต.ค. 2569 audit] ข้อความขั้นตอนใช้ η_gen×η_mech ให้ตรงกับการคำนวณจริง */
   const W_isen_tot = r.W_isen_kW;
 
   // ── Method 2 steps ────────────────────────────────────────────────
@@ -1235,7 +1252,7 @@ STEP 2: Mass Balance
 STEP 3: Isentropic outlet ที่ P_out=${r.P_out} barA  [s_out = s_in = ${f(r.s_in,4)}]
          h_out,isen = ${f(r.h_out_isen,2)} kJ/kg  (${r.isen.type}, X=${f(r.isen.quality,3)})
          Δh_isen = ${f(r.h_in,2)} − ${f(r.h_out_isen,2)} = ${f(r.dh_isen,2)} kJ/kg
-         W_isen = ṁ_in × Δh_isen = ${f(r.m_in_kgs,4)} × ${f(r.dh_isen,2)} = ${f(W_isen_tot,1)} kW
+         W_isen = ${r.exts&&r.exts.length?'ṁ_out×(h_in−h_isen,out) + Σṁ_ext×(h_in−h_isen,ext)':'ṁ_in × Δh_isen = '+f(r.m_in_kgs,4)+' × '+f(r.dh_isen,2)} = ${f(W_isen_tot,1)} kW  ${'<!-- [แก้ไข 3 ต.ค. 2569 audit] กรณีมีไอน้ำสกัดแสดงสูตรหลายสาย -->'.slice(0,0)}
 
 STEP 4: Actual outlet — T_out=${r.T_out}°C, P_out=${r.P_out} barA
          h_out,actual = ${f(r.h_out_actual,2)} kJ/kg
@@ -1262,15 +1279,15 @@ STEP 2: Mass Balance
 ${ext_lines}
 STEP 3: Back-calculate h_out (Energy Balance)
          h_out = (ṁ_in×h_in − Σṁ_ext×h_ext − W_shaft) ÷ ṁ_out
-         h_out = (${f(r.m_in_kgs,4)}×${f(r.h_in,2)} − ${f(h_ext_sum,1)} − ${f(r.P_exp/r.eta_gen,1)}) ÷ ${f(r.m_out_kgs,4)}
+         h_out = (${f(r.m_in_kgs,4)}×${f(r.h_in,2)} − ${f(h_ext_sum,1)} − ${f(W_shaft_m3,1)}) ÷ ${f(r.m_out_kgs,4)}
          h_out = ${f(r.h_out_actual,2)} kJ/kg
 
 STEP 4: Isentropic outlet ที่ P_out=${r.P_out} barA  [s_out = s_in]
          h_out,isen = ${f(r.h_out_isen,2)} kJ/kg
          Δh_isen = ${f(r.dh_isen,2)} kJ/kg
-         W_isen = ṁ_in × Δh_isen = ${f(W_isen_tot,1)} kW
+         W_isen = ${r.exts&&r.exts.length?'ṁ_out×(h_in−h_isen,out) + Σṁ_ext×(h_in−h_isen,ext)':'ṁ_in × Δh_isen'} = ${f(W_isen_tot,1)} kW
 
-STEP 5: η_is = W_shaft ÷ W_isen = ${f(r.P_exp/r.eta_gen,1)} ÷ ${f(W_isen_tot,1)} = ${f(r.eta_is*100,2)}%`;
+STEP 5: η_is = W_shaft ÷ W_isen = ${f(W_shaft_m3,1)} ÷ ${f(W_isen_tot,1)} = ${f(r.eta_is*100,2)}%`;
   setH('m3_steps_text',s3);
   document.getElementById('m3_calcsteps').style.display='block';
 
@@ -1280,7 +1297,7 @@ STEP 5: η_is = W_shaft ÷ W_isen = ${f(r.P_exp/r.eta_gen,1)} ÷ ${f(W_isen_tot,
 
 TSR = 3,600 ÷ Δh_isen = 3,600 ÷ ${f(r.dh_isen,2)} = ${f(r.TSR,4)} kg/kWh
 ASR = 3,600 ÷ Δh_eff  = 3,600 ÷ ${f(r.dh_actual_equiv,2)} = ${f(r.ASR,4)} kg/kWh
-ASR = TSR ÷ η_is = ${f(r.TSR,4)} ÷ ${f(r.eta_is,4)} = ${f(r.ASR,4)} kg/kWh ✓
+${r.exts&&r.exts.length?'ASR = 3600 ÷ Δh_eff = '+f(r.ASR,4)+' kg/kWh (มีไอน้ำสกัด → ASR ≠ TSR ÷ η_is)':'ASR = TSR ÷ η_is = '+f(r.TSR,4)+' ÷ '+f(r.eta_is,4)+' = '+f(r.ASR,4)+' kg/kWh ✓'}
 
 หมายเหตุ: ASR คือปริมาณไอน้ำขาเข้า (t) ต่อ kWh ที่ผลิตได้จริง`;
   setH('sr_steps_text',ssr);
@@ -1612,10 +1629,16 @@ function togglePressureUnit(){
     if(!el || el.value==='') continue;
     const cur = parseFloat(el.value);
     if(isNaN(cur)) continue;
+    /* [แก้ไข 3 ต.ค. 2569 audit] เดิม Math.max(0,P−1.01325) ตัดค่าสุญญากาศ (เช่น exhaust 0.64 bar a → 0 bar g → 1.013 bar a, η_is 90.0→95.9 %)
+       — ยอมให้ bar g ติดลบได้ถึง −1.01325 (สุญญากาศสมบูรณ์) และเก็บค่าสัมบูรณ์ไว้ใน data-pa เพื่อสลับกลับได้ไม่เพี้ยนจากการปัดเศษ */
     if(newUnit==='barG'){
-      el.value = Math.max(0, cur - P_ATM).toFixed(3)*1;  // barA → barG
+      const pa = Math.max(0, cur);                         // ค่าสัมบูรณ์ (bar a) ห้ามติดลบ
+      const g  = +(Math.max(-P_ATM, pa - P_ATM)).toFixed(5); // barA → barG (ติดลบได้ = สุญญากาศ)
+      el.value = g; el.dataset.pa = String(pa); el.dataset.pg = String(el.value);
     } else {
-      el.value = (cur + P_ATM).toFixed(3)*1;             // barG → barA
+      const back = (el.dataset.pa!==undefined && el.dataset.pg===String(el.value)) ? +el.dataset.pa : Math.max(0, cur + P_ATM);
+      el.value = +back.toFixed(4);                         // barG → barA (ใช้ค่าสัมบูรณ์เดิมถ้าผู้ใช้ไม่ได้แก้ช่อง)
+      delete el.dataset.pa; delete el.dataset.pg;
     }
   }
   pressureUnit = newUnit;
@@ -1637,7 +1660,7 @@ function togglePressureUnit(){
   const hint = document.getElementById('p_out_hint');
   if(hint && v('turbineType')!=='COND'){
     hint.textContent = newUnit==='barG'
-      ? 'Back-pressure: > 0 barG (เทียบ atm)' : 'Back-pressure: > 1.013 barA';
+      ? 'Back-pressure: > 0 barG (เทียบ atm) · สุญญากาศ/คอนเดนเซอร์ใส่ค่าติดลบได้ ถึง −1.013 barG' : 'Back-pressure: > 1.013 barA'; /* [แก้ไข 3 ต.ค. 2569 audit] แจ้งว่าใส่ bar g ติดลบได้ */
   }
 }
 
@@ -1653,7 +1676,7 @@ function loadMeasurWet(){
   s('turbineType').value='BP';
   s('p_in').value=pIn; s('t_in').value='215'; s('m_steam').value='200';
   s('p_out').value=pOut; s('t_out').value='144.6';
-  s('p_export').value='7330.5'; s('eta_gen').value='99.0';
+  s('p_export').value='7330.5'; s('eta_gen').value='99.0'; s('eta_mech').value='99.0'; /* [แก้ไข 3 ต.ค. 2569 audit] รีเซ็ต η_mech ไม่ให้ผลขึ้นกับตัวอย่างก่อนหน้า */
   s('turbRated').value='8000'; s('turbRatedEff').value='45';
   s('calcMethod').value='m3';
   // Wet steam inlet mode

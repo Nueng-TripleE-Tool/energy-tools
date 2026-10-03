@@ -332,6 +332,10 @@ table td{vertical-align:middle}
       <div class="fld"><label class="f">DP ต่ำสุดที่ยอมได้ <span class="unit">kPa</span></label><input type="number" id="dpMin" value="70" step="5"></div>
       <div class="fld"><label class="f">สัดส่วน DP ที่เป็น static (ไม่ลดตาม flow) <span class="unit">0–1</span></label><input type="number" id="dpStat" value="0.3" step="0.05" min="0" max="0.9"></div>
     </div>
+    <!-- [แก้ไข 3 ต.ค. 2569 audit] ฐานคำนวณ DP reset -->
+    <div class="fld" style="max-width:420px"><label class="f">ฐานคำนวณผลประหยัด DP reset</label>
+      <select id="dpBasis"><option value="chain" selected>ต่อจากกำลังปั๊มหลังแก้ ΔT (บวกกันได้)</option>
+      <option value="alone">ทางเลือกเดี่ยว จากกำลังปั๊มเดิม (ห้ามบวกกัน)</option></select></div>
     <div id="dpOut"></div>
   </div>
 
@@ -468,7 +472,15 @@ function drawAhu(){
         <td><button class="del" data-del="${i}"><i class="fas fa-xmark"></i></button></td></tr>`;
     }).join('');
   t.querySelectorAll('input').forEach(x=>x.addEventListener('input',e=>{
-    AHU[+e.target.dataset.i][+e.target.dataset.j]=e.target.value; calc();
+    AHU[+e.target.dataset.i][+e.target.dataset.j]=e.target.value;
+    /* [แก้ไข 3 ต.ค. 2569 audit] อัปเดต ΔT / Flow-Design / สถานะของแถวที่แก้ทันที (เดิมค้างจนเพิ่ม/ลบแถว) */
+    try{ const r=AHU[+e.target.dataset.i], tr=e.target.closest('tr'), c=tr.children;
+      const dt=(+r[4])-(+r[3]), fr=(+r[1])>0?(+r[2])/(+r[1]):null; let lvl=0,txt='ปกติ';
+      if(fr!==null){ if(fr>1.3&&dt<3){lvl=3;txt='Overflow รุนแรง';} else if(fr>1.15&&dt<4){lvl=2;txt='Overflow';}
+        else if(fr<0.6&&dt>6){lvl=1;txt='Starved';} else if(dt<3){lvl=1;txt='ΔT ต่ำ';} }
+      c[6].textContent=fmt(dt,1); c[7].textContent=fr===null?'–':fmt(fr,2); c[8].innerHTML=pill(lvl,txt);
+      tr.classList.toggle('hl',lvl>=2); }catch(_){}
+    calc();
   }));
   t.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{
     AHU.splice(+e.currentTarget.dataset.del,1); drawAhu(); calc();
@@ -491,6 +503,8 @@ function calc(){
   $('bPl').value=aDT.toFixed(2);
 
   const dtRatio=dDT>0?aDT/dDT:0;
+  /* [แก้ไข 3 ต.ค. 2569 audit] กัน CHWR ≤ CHWS (สลับ sensor/ค่าผิด) — ห้ามคิดเป็นผลประหยัด */
+  const dtBad = aF>0 && aDT<=0;
   let lvl = dtRatio>=0.9?0 : (dtRatio>=0.75?1 : (dtRatio>=0.55?2:3));
   const LAB=['ปกติ','เริ่มเสื่อม','Low ΔT ชัดเจน','Low ΔT รุนแรง'];
   $('plantOut').innerHTML=`
@@ -506,6 +520,8 @@ function calc(){
      ถ้า ΔT ทำได้ตามออกแบบ (${fmt(dDT,1)} °C) load เท่านี้ต้องการเพียง ${fmt(reqFlow,1)} L/s
      ${xsFlow>5?`— ส่วนเกิน <b>${fmt(aF-reqFlow,1)} L/s (${fmt(xsFlow,0)} %)</b> คือน้ำที่ไหลผ่านระบบโดยแทบไม่ได้รับความร้อน`:''}
    </div>
+   ${dtBad?`<div class="note bad"><b>⚠ ข้อมูลเป็นไปไม่ได้</b> — CHWR (${fmt(aR,1)} °C) ต้องสูงกว่า CHWS (${fmt(aS,1)} °C)
+     ค่า ΔT ≤ 0 แปลว่า sensor สลับตำแหน่ง/ยังไม่สอบเทียบ หรือพิมพ์ค่าผิด — โปรแกรมจะไม่คิดผลประหยัดปั๊มจนกว่าจะแก้ข้อมูล</div>`:''}
    ${lvl>=2?`<div class="note warn"><b>สิ่งที่ไม่ควรทำเป็นอย่างแรก</b> — อย่าเพิ่งเพิ่มรอบปั๊ม
      เพราะ flow ที่มากขึ้นจะทำให้น้ำแต่ละกิโลกรัมรับความร้อนน้อยลงอีก ΔT จะยิ่งตก
      กลายเป็นวงจร: ΔT ต่ำ → เพิ่ม flow → DP สูง → coil overflow → ΔT ต่ำกว่าเดิม</div>`:''}`;
@@ -513,7 +529,8 @@ function calc(){
   /* -- Pump -- */
   const pk=V('pkW'), n=V('pN'), hrs=V('pH'), rate=V('pRate');
   const ratio=aF>0?reqFlow/aF:1;
-  const idealkW=pk*Math.pow(clamp(ratio,0.05,1),n);
+  /* [แก้ไข 3 ต.ค. 2569 audit] ΔT ≤ 0 → ไม่คิดผลประหยัด (เดิมบีบ ratio เป็น 0.05 แล้วอ้างว่าปั๊มเสียเปล่า ~100 %) */
+  const idealkW=dtBad?pk:pk*Math.pow(clamp(ratio,0.05,1),n);
   const savekW=pk-idealkW;
   const saveBaht=savekW*hrs*rate;
   const rt=aQ/3.517, kwrt=V('kwrt');
@@ -535,8 +552,15 @@ function calc(){
 
   /* -- Bypass -- */
   const chDT=V('bCh'), sys=$('bSys').value;
-  const byp=chDT>0?clamp(1-aDT/chDT,0,1):0;
-  const bypFlow=byp*aF;
+  /* [แก้ไข 3 ต.ค. 2569 audit] แยกทิศ bypass 2 แบบ:
+     (ก) chiller ΔT > plant ΔT = deficit flow (P-S: secondary > primary) น้ำ return ไหลย้อนผ่าน decoupler มาผสม supply
+         สัดส่วนน้ำวนซ้ำ (ต่อ flow ฝั่ง plant/header) = 1 − ΔTplant/ΔTch  (สูตรเดิม)
+     (ข) chiller ΔT < plant ΔT = น้ำจาก supply ลัดกลับ return (VPF min-flow bypass, 3-way valve, CPF)
+         สัดส่วน bypass ต่อ flow ผ่าน chiller = 1 − ΔTch/ΔTplant · bypass flow = aF·(ΔTplant/ΔTch − 1) เมื่อ aF วัดที่ header ก่อน bypass
+     เดิมใช้ (ก) อย่างเดียว กรณี (ข) จึงได้ 0 % "ไม่พบ bypass" ทั้งที่มีจริง */
+  const bypMode = (chDT>0 && aDT>0 && chDT<aDT) ? 'sr' : 'rs';
+  const byp = bypMode==='sr' ? clamp(1-chDT/aDT,0,1) : (chDT>0?clamp(1-aDT/chDT,0,1):0);
+  const bypFlow = bypMode==='sr' ? Math.max(0,aF*(aDT/chDT-1)) : byp*aF;
   let bl = byp<0.05?0 : (byp<0.15?1 : (byp<0.3?2:3));
   const sysTxt={
     vpf:`ระบบ VPF ไม่ควรมี bypass เลยยกเว้น minimum-flow line ตอนโหลดต่ำ
@@ -556,9 +580,16 @@ function calc(){
    <div class="note ${bl>=2?'bad':(bl===1?'warn':'good')}">
      Chiller ΔT = ${fmt(chDT,2)} °C แต่ Plant ΔT = ${fmt(aDT,2)} °C
      ${bl===0?'— สองค่าใกล้กัน แสดงว่าน้ำเกือบทั้งหมดผ่านคอยล์จริง ปัญหา ΔT ต่ำน่าจะอยู่ที่คอยล์ ไม่ใช่ bypass'
-      :`— ส่วนต่างนี้แปลว่ามีน้ำประมาณ <b>${fmt(bypFlow,1)} L/s</b> ที่วิ่งจาก supply กลับ return
-        โดยไม่ผ่าน load ใด ๆ`}
+      :(bypMode==='sr'?`— chiller ΔT ต่ำกว่า plant ΔT แปลว่ามีน้ำประมาณ <b>${fmt(bypFlow,1)} L/s</b>
+        (${fmt(byp*100,1)} % ของ flow ผ่าน chiller) ที่วิ่งจาก supply ลัดกลับ return โดยไม่ผ่าน load ใด ๆ
+        (min-flow bypass / three-way valve) — น้ำผสมทำให้น้ำกลับเข้า chiller เย็นลง`
+       :`— chiller ΔT สูงกว่า plant ΔT แปลว่า flow ฝั่งจ่ายอาคารมากกว่า flow ผ่าน chiller (deficit flow)
+        น้ำ return ประมาณ <b>${fmt(bypFlow,1)} L/s</b> (${fmt(byp*100,1)} % ของ flow ที่ header) ไหลย้อนผ่าน decoupler
+        มาผสมกับ supply — ทำให้ supply ที่ส่งไปอาคารอุ่นขึ้น`)}
    </div>
+   ${bl>0&&bypMode==='rs'&&sys!=='ps'?`<div class="note warn">[แก้ไข 3 ต.ค. 2569 audit] ระบบที่เลือกไม่มี decoupler —
+     โดยปกติ chiller ΔT ไม่ควรสูงกว่า plant ΔT ให้ตรวจตำแหน่ง/การสอบเทียบ sensor ก่อน
+     (ถ้าเป็น bypass จาก supply กลับ return chiller ΔT จะ <b>ต่ำกว่า</b> plant ΔT)</div>`:''}
    <div class="note">${sysTxt[sys]}</div>`;
 
   const bypItems=[
@@ -645,15 +676,25 @@ function calc(){
   const dpNew=clamp(dpN*Math.pow(vM/vT,2),dpMn,dpN);
   const dyn0=dpN*(1-st), dyn1=Math.max(dpNew-dpN*st,0);
   const flowRatio=dyn0>0?Math.sqrt(clamp(dyn1/dyn0,0,1)):1;
-  const pkW2=V('pkW')*Math.pow(flowRatio,V('pN'));
-  const dpSave=(V('pkW')-pkW2)*V('pH')*V('pRate');
+  /* [แก้ไข 3 ต.ค. 2569 audit] ผลประหยัด DP reset ต้องคิดต่อจากกำลังปั๊มหลังแก้ ΔT (idealkW) ไม่ใช่จาก pkW เดิม
+     — เดิมรวมสองมาตรการเกินกำลังปั๊มจริง (55 kW อ้างประหยัด 98.9 kW) · เลือก 'alone' = ทางเลือกเดี่ยว ไม่บวกกับข้อแรก */
+  const dpBasis=($('dpBasis')&&$('dpBasis').value)||'chain';
+  const dpBase=dpBasis==='alone'?V('pkW'):idealkW;
+  const pkW2=dpBase*Math.pow(flowRatio,V('pN'));
+  const dpSaveKW=dpBase-pkW2;
+  const dpSave=dpSaveKW*V('pH')*V('pRate');
+  const totKW=dpBasis==='alone'?Math.max(savekW,dpSaveKW):savekW+dpSaveKW;
   $('dpOut').innerHTML=`
    <div class="grid4" style="margin-top:12px">
      <div class="stat"><div class="big">${fmt(dpNew,0)}</div><div class="bigu">DP setpoint ใหม่ · kPa</div></div>
      <div class="stat"><div class="big">${fmt((dpN-dpNew)/dpN*100,0)}</div><div class="bigu">ลดลง · %</div></div>
-     <div class="stat"><div class="big s0">${fmt(V('pkW')-pkW2,1)}</div><div class="bigu">ประหยัดปั๊ม · kW</div></div>
+     <div class="stat"><div class="big s0">${fmt(dpSaveKW,1)}</div><div class="bigu">${dpBasis==='alone'?'ประหยัดปั๊ม (ทางเลือกเดี่ยว)':'ประหยัดเพิ่มหลังแก้ ΔT'} · kW</div></div>
      <div class="stat"><div class="big">${money(dpSave)}</div><div class="bigu">บาท/ปี</div></div>
    </div>
+   <div class="note">[แก้ไข 3 ต.ค. 2569 audit] ฐานคำนวณ: ${dpBasis==='alone'
+     ?`ปั๊มเดิม ${fmt(V('pkW'),1)} kW (ทางเลือกเดี่ยว — <b>ห้ามบวก</b>กับผลจากการแก้ ΔT)`
+     :`กำลังปั๊มหลังแก้ ΔT ${fmt(idealkW,1)} kW (ต่อเนื่องจากแท็บ 1) — รวมสองมาตรการ ${fmt(totKW,1)} kW
+       = ${fmt(V('pkW')>0?totKW/V('pkW')*100:0,0)} % ของปั๊ม ${fmt(V('pkW'),1)} kW`}</div>
    <div class="note ${vM<70?'warn':'good'}">
      ${vM<70?`<b>Valve ที่เปิดกว้างที่สุดเปิดแค่ ${fmt(vM,0)} %</b> — แปลว่าปั๊มสร้าง DP เกินความจำเป็น
        ทุกตัวจึงต้องหรี่ตัวเองลงเพื่อกันน้ำเกิน ซึ่งเป็นการเผาพลังงานปั๊มทิ้งที่ตัว valve โดยตรง
@@ -725,7 +766,8 @@ Bypass
 
 DP Reset
   DP ปัจจุบัน / เป้าหมาย    ${fmt(dpN,0)} → ${fmt(dpNew,0)} kPa
-  ประหยัดเพิ่ม             ${fmt(V('pkW')-pkW2,1)} kW  =  ${money(dpSave)} บาท/ปี
+  ${dpBasis==='alone'?'ประหยัด (ทางเลือกเดี่ยว)':'ประหยัดเพิ่ม (หลังแก้ ΔT)'}  ${fmt(dpSaveKW,1)} kW  =  ${money(dpSave)} บาท/ปี
+  รวมกำลังปั๊มที่ลดได้     ${fmt(totKW,1)} kW จากปั๊ม ${fmt(V('pkW'),1)} kW   <!-- [แก้ไข 3 ต.ค. 2569 audit] -->
 
 Chiller Staging
   ต้องการตาม load          ${nByLoad} เครื่อง

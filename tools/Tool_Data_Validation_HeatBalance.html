@@ -257,6 +257,11 @@ table td{vertical-align:middle}
       <div class="fuelbox"><h3 id="hB">ฝั่ง B</h3><div id="inB"></div>
         <div class="kv" style="margin-top:8px"><span>Q ที่คำนวณได้</span><b id="qB">–</b></div></div>
     </div>
+    <!-- [แก้ไข 3 ต.ค. 2569 audit] ช่วง η ที่คาดของหม้อไอน้ำ (ใช้เฉพาะคู่ fs) -->
+    <div id="fsBand" class="grid3" style="display:none;margin-top:10px">
+      <div class="fld"><label class="f">η หม้อไอน้ำที่คาด ต่ำสุด <span class="unit">%</span></label><input type="number" id="etaLo" value="70" step="1"><div class="hint">ช่วง η ปกติของหม้อไอน้ำชนิดนี้ (ฐานเดียวกับ LHV ที่กรอก) · ชีวมวล stoker 70–82 · น้ำมัน/ก๊าซ 85–92</div></div>
+      <div class="fld"><label class="f">η หม้อไอน้ำที่คาด สูงสุด <span class="unit">%</span></label><input type="number" id="etaHi" value="88" step="1"><div class="hint">เกินค่านี้ (บนฐาน LHV เชื้อเพลิงแข็ง) ให้สงสัยข้อมูล · &gt; 100 % เป็นไปไม่ได้</div></div>
+    </div>
     <div id="balOut"></div>
   </div>
 </section>
@@ -439,7 +444,7 @@ var TE_HINTS={
 };
 function teInjectStaticHints(){ ['uT','uPair','uF','uCp','x1','x2','xu'].forEach(id=>{ const e=$(id); if(!e||!TE_HINTS[id]) return; if(e.nextElementSibling&&e.nextElementSibling.classList.contains('hint')) return; const d=document.createElement('div'); d.className='hint'; d.textContent=TE_HINTS[id]; e.insertAdjacentElement('afterend',d); }); }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['eEff', 'pEff', 'ldQ', 'ldAux'], FK_MEAS=['wFlow', 'wIn', 'wOut', 'aFlow', 'aIn', 'aOut', 'aRhIn', 'aRhOut', 'h1', 'h2', 'h3', 'c1', 'c2', 'c3', 'fRate', 'fLhv', 'sRate', 'ctF', 'ctH', 'ctC', 'ekW', 'pQ', 'pH', 'x1', 'x2'], FK_SET=['pair', 'rhoA', 'rhoB', 'sH', 'fwH', 'uT', 'uPair', 'uF', 'uCp', 'xu'], FK_CALC=['uDT'];
+var FK_DESIGN=['eEff', 'pEff', 'ldQ', 'ldAux'], FK_MEAS=['wFlow', 'wIn', 'wOut', 'aFlow', 'aIn', 'aOut', 'aRhIn', 'aRhOut', 'h1', 'h2', 'h3', 'c1', 'c2', 'c3', 'fRate', 'fLhv', 'sRate', 'ctF', 'ctH', 'ctC', 'ekW', 'pQ', 'pH', 'x1', 'x2'], FK_SET=['pair', 'rhoA', 'rhoB', 'sH', 'fwH', 'uT', 'uPair', 'uF', 'uCp', 'xu', 'etaLo', 'etaHi'], FK_CALC=['uDT'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -466,7 +471,7 @@ function tab1DT(){
 function syncUDT(){
   const d=tab1DT();
   if(uDTauto&&d!==null&&d>0){ $('uDT').value=Number(d.toFixed(2)); $('uDTHint').textContent=`⚡ จาก แท็บ 1 (${$('hA').textContent}) · แก้เองได้`; }
-  else $('uDTHint').textContent=uDTauto?'คู่สมดุลนี้ไม่มี ΔT ของไหล — กรอกเอง':'กรอกเอง (เปลี่ยนคู่สมดุลเพื่อกลับไปใช้ค่าจากแท็บ 1)';
+  else $('uDTHint').textContent=uDTauto?'คู่สมดุลนี้ไม่มี ΔT ของไหล — ไม่นำช่องนี้มาคิด [แก้ไข 3 ต.ค. 2569 audit]':'กรอกเอง (เปลี่ยนคู่สมดุลเพื่อกลับไปใช้ค่าจากแท็บ 1)';
 }
 let S={};
 function calc(){
@@ -480,25 +485,48 @@ function calc(){
   $('qB').textContent=fmt(qb,1)+' kW';
 
   /* uncertainty */
+  /* [แก้ไข 3 ต.ค. 2569 audit] คู่ fs/ee ไม่มี ΔT ของไหล → ไม่ใช้เทอม ΔT (เดิมใช้ค่า uDT ที่ค้างจากคู่ก่อนหน้า) */
+  const pk0=$('pair').value, noDT=(pk0==='fs'||pk0==='ee');
   const dT=Math.abs(V('uDT')), uT=Math.abs(V('uT'));
   const matched=$('uPair').value==='matched';
   /* [แก้ไข 10 ก.ย. 2569] เดิมโมเดลใช้ ±uT สำหรับ matched pair แต่ข้อความอธิบายว่า ±uT/√2 — ปรับโมเดลให้ตรงข้อความ */
   const uDTrss = matched ? uT/Math.sqrt(2) : Math.sqrt(2)*uT;
   const uDTworst = matched ? uT : 2*uT;
-  const relDT = dT>0? uDTrss/dT*100 : Infinity;
-  const relDTw= dT>0? uDTworst/dT*100 : Infinity;
+  const relDT = noDT?0:(dT>0? uDTrss/dT*100 : Infinity);
+  const relDTw= noDT?0:(dT>0? uDTworst/dT*100 : Infinity);
   const uF=Math.abs(V('uF')), uCp=Math.abs(V('uCp'));
   const uQ = Math.sqrt(relDT*relDT + uF*uF + uCp*uCp);
   const uQw= relDTw + uF + uCp;
+  /* [แก้ไข 3 ต.ค. 2569 audit] ผลต่างของสองการวัดที่อิสระต่อกัน → ใช้ความไม่แน่นอนรวม √(uA²+uB²) (= √2·uQ เมื่อสองฝั่งใช้โมเดลเดียวกัน)
+     เดิมเทียบ closure กับ uQ ของฝั่งเดียว → เข้มเกินจริง */
+  const uComb = Math.SQRT2*uQ;
+  /* [แก้ไข 3 ต.ค. 2569 audit] คู่ fs (เชื้อเพลิงเข้า vs ไอน้ำออก): ส่วนต่าง = การสูญเสียของหม้อไอน้ำ ไม่ใช่ความคลาดเคลื่อน
+     → ตัดสินจาก η = B/A เทียบช่วงที่คาด (etaLo–etaHi) ± ความไม่แน่นอน แทนการเทียบ closure */
+  let eta=null, etaLo=V('etaLo'), etaHi=V('etaHi'), uEta=null, pass;
+  let cl;
+  if(pk0==='fs'){
+    eta = qa>0 ? qb/qa*100 : null;
+    if(eta!==null&&isFinite(eta)) uEta=eta*uComb/100;
+    if(eta===null||!isFinite(eta)) cl=3;
+    else if(eta>100) cl=3;
+    else { uEta=eta*uComb/100; const d = eta<etaLo ? etaLo-eta : (eta>etaHi ? eta-etaHi : 0);
+           cl = d<=uEta?0:(d<=2*uEta?1:(d<=4*uEta?2:3)); }
+    pass = cl===0;
+  } else {
+    cl = closure===null?3:(closure<uComb?0:(closure<uComb*2?1:(closure<uComb*4?2:3)));
+    pass = closure!==null && closure<uComb;
+  }
+  if($('fsBand')) $('fsBand').style.display = pk0==='fs'?'':'none';
 
   /* verdict */
   $('vU').textContent='±'+fmt(uQ,1);
-  const cl = closure===null?3:(closure<uQ?0:(closure<uQ*2?1:(closure<uQ*4?2:3)));
   $('vCl').textContent=fmt(closure,1); $('vCl').className='vnum mono s'+cl;
   $('vClb').innerHTML=`% · ${pill(cl,['อยู่ในช่วงคลาดเคลื่อน','ใกล้ขอบ','เกินคลาดเคลื่อน','เกินมาก'][cl])}`;
-  $('vOK').textContent = closure===null?'–':(closure<uQ?'ใช่':'ไม่');
-  $('vOK').className='vnum mono s'+(closure!==null&&closure<uQ?0:2);
-  $('vOKb').textContent=`สมดุล ${fmt(closure,1)} % เทียบคลาดเคลื่อน ±${fmt(uQ,1)} %`;
+  $('vOK').textContent = (closure===null&&pk0!=='fs')?'–':(pass?'ใช่':'ไม่');
+  $('vOK').className='vnum mono s'+(pass?0:2);
+  $('vOKb').textContent= pk0==='fs'
+    ? `η = ${fmt(eta,1)} % เทียบช่วงคาด ${fmt(etaLo,0)}–${fmt(etaHi,0)} % ±${fmt(uEta,1)}`
+    : `สมดุล ${fmt(closure,1)} % เทียบคลาดเคลื่อนรวมสองฝั่ง ±${fmt(uComb,1)} %`;
   const wide = uQ>15;   // tolerance กว้างจนการปิดสมดุลได้แทบไม่เป็นหลักฐาน
   const vd = cl===0 ? (wide?'ใช้ได้อย่างระวัง':'ใช้วินิจฉัยได้')
              : (cl===1?'ใช้ได้อย่างระวัง':'ต้องสอบเทียบก่อน');
@@ -513,10 +541,15 @@ function calc(){
        <div class="gauge"><i class="b${cl}" style="width:${clamp(closure===null?0:closure*4,2,100)}%"></i></div></div>
      <div class="stat"><div class="big">${fmt(qb!==0?qa/qb:null,3)}</div><div class="bigu">อัตราส่วน A/B</div></div>
    </div>
-   <div class="note ${cl<=1?'good':(cl===2?'warn':'bad')}">
+   ${pk0==='fs'?`<div class="note ${cl===0?'good':(cl===1?'warn':'bad')}"><b>หม้อไอน้ำ: ส่วนต่าง A−B คือการสูญเสียของหม้อไอน้ำ ไม่ใช่ความคลาดเคลื่อน</b><br>
+     η (input–output, ฐาน LHV as-fired) = ${fmt(eta,1)} % เทียบช่วงที่คาด ${fmt(etaLo,0)}–${fmt(etaHi,0)} % (± ความไม่แน่นอน ${fmt(uEta,1)} จุด)
+     ${eta!==null&&eta>100?'— <b>η > 100 % เป็นไปไม่ได้</b> ตรวจอัตราป้อนเชื้อเพลิง/LHV/มาตรไอน้ำ':
+       (cl===0?'— อยู่ในช่วงปกติ ข้อมูลชุดนี้ใช้ต่อได้':(eta>etaHi?'— สูงเกินช่วงปกติ สงสัยเชื้อเพลิงวัดต่ำหรือไอน้ำวัดสูง':'— ต่ำกว่าช่วงปกติ: หม้อไอน้ำมีการสูญเสียสูงจริง หรือข้อมูลผิด — ตรวจทั้งสองทาง'))}
+     <!-- [แก้ไข 3 ต.ค. 2569 audit] --></div>`:''}
+   <div class="note ${cl<=1?'good':(cl===2?'warn':'bad')}" ${pk0==='fs'?'style="display:none"':''}>
      <b>${cl<=1?'สมดุลปิดได้ภายในความคลาดเคลื่อนของเครื่องมือ'
         :'สมดุลไม่ปิด — ส่วนต่างใหญ่กว่าที่ความคลาดเคลื่อนของเครื่องมืออธิบายได้'}</b><br>
-     ส่วนต่าง ${fmt(closure,1)} % เทียบกับความไม่แน่นอนที่คำนวณได้ ±${fmt(uQ,1)} %
+     ส่วนต่าง ${fmt(closure,1)} % เทียบกับความไม่แน่นอนรวมสองฝั่ง √(u<sub>A</sub>²+u<sub>B</sub>²) = ±${fmt(uComb,1)} % (ต่อฝั่ง ±${fmt(uQ,1)} %)
      ${cl<=1?`— ข้อมูลชุดนี้ใช้วินิจฉัยต่อได้ ผลที่ได้จะมีความหมาย`
       :`— แปลว่ามีอย่างน้อยหนึ่งค่าที่ผิดจริง ไม่ใช่แค่ความคลาดเคลื่อนปกติ
         <b>ตัวที่ควรสงสัยก่อนเสมอคืออัตราการไหล</b> เพราะ flow meter เป็นเครื่องมือที่คลาดเคลื่อนง่ายที่สุด
@@ -532,7 +565,7 @@ function calc(){
 
   /* uncertainty detail */
   const terms=[
-    ['ΔT (ผลต่างอุณหภูมิ)',relDT,'ΔT = '+fmt(dT,2)+' °C, sensor ±'+fmt(uT,2)+' °C'+(matched?' (matched pair → ÷√2)':' (แยกกัน → ×√2)')],
+    ['ΔT (ผลต่างอุณหภูมิ)',relDT,noDT?'คู่สมดุลนี้ไม่มี ΔT ของไหล — ไม่นับเทอมนี้ ['+'แก้ไข 3 ต.ค. 2569 audit]':'ΔT = '+fmt(dT,2)+' °C, sensor ±'+fmt(uT,2)+' °C'+(matched?' (matched pair → ÷√2)':' (แยกกัน → ×√2)')],
     ['อัตราการไหล',uF,'ตามสเปกเครื่องมือ'],
     ['c'+'\u209A'+' และความหนาแน่น',uCp,'จากตารางคุณสมบัติ']];
   const dom=terms.reduce((a,b)=>b[1]>a[1]?b:a);
@@ -643,7 +676,7 @@ function calc(){
    `<div class="zone"><div class="zi" style="background:var(--accent)"><i class="fas fa-list-check"></i></div>
     <div class="zt"><b>${i[0]}</b><span>${i[1]}</span></div></div>`).join('');
 
-  S={qa,qb,closure,uQ,uQw,relDT,uDTrss,dT,uT,matched,vd,dev};
+  S={qa,qb,closure,uQ,uQw,relDT,uDTrss,dT,uT,matched,vd,dev,uComb,pass,eta,etaLo,etaHi,noDT,pk0}; /* [แก้ไข 3 ต.ค. 2569 audit] */
   report();
 }
 
@@ -661,11 +694,11 @@ function report(){
   ΔT ที่ใช้งาน          ${fmt(S.dT,2)} °C
   ความคลาดเคลื่อน sensor ±${fmt(S.uT,2)} °C ${S.matched?'(matched pair)':'(แยกกัน)'}
   ความคลาดเคลื่อนของ ΔT  ±${fmt(S.uDTrss,2)} °C  =  ±${fmt(S.relDT,1)} % ของ ΔT
-  ความไม่แน่นอนรวม RSS   ±${fmt(S.uQ,1)} %
+  ความไม่แน่นอนรวม RSS   ±${fmt(S.uQ,1)} % ต่อฝั่ง · รวมสองฝั่ง ±${fmt(S.uComb,1)} %${S.noDT?' (ไม่มีเทอม ΔT)':''}${S.pk0==='fs'?'\n  η input–output         '+fmt(S.eta,1)+' % (ช่วงคาด '+fmt(S.etaLo,0)+'–'+fmt(S.etaHi,0)+' %)':''}
   กรณีเลวร้ายสุด         ±${fmt(S.uQw,1)} %
 
 ข้อสรุป: ${S.vd}
-${S.closure<S.uQ
+${S.pass
  ?'สมดุลปิดได้ภายในความคลาดเคลื่อนของเครื่องมือ ข้อมูลชุดนี้ใช้วินิจฉัยต่อได้'
  :'สมดุลไม่ปิดภายในความคลาดเคลื่อน — มีอย่างน้อยหนึ่งค่าที่ผิดจริง\nให้สอบเทียบอัตราการไหลและ sensor อุณหภูมิก่อนสรุปอาการใด ๆ'}
 

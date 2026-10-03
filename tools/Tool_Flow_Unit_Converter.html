@@ -1425,6 +1425,14 @@ details.guide ol,details.guide ul{margin:.2rem 0 .2rem 1.1rem;padding:0}
           <input id="cTar" type="number" step="0.01" value="4.20" oninput="mirrorField(this,'sTar',spCalc);condCalc()" title="เชื่อมกับช่องค่าไฟฟ้าในหัวข้อ Specific Power"></div><!-- [แก้ไข 10 ก.ย. 2569] คัดลอกไป sTar -->
         <div><label>กำลังไฟของ refrigerated dryer (% ของกำลังเครื่องอัด)</label>
           <input id="cRefP" type="number" step="0.1" value="2.5" oninput="condCalc()"></div>
+        <!-- [แก้ไข 3 ต.ค. 2569 audit] dryer แบบ drum ใช้ความร้อนอัด (heat of compression) ใช้ได้เฉพาะเครื่องอัดไร้น้ำมัน -->
+        <div><label>ชนิดเครื่องอัดอากาศ (สำหรับเลือก dryer)</label>
+          <select id="cCompType" onchange="condCalc()">
+            <option value="auto" selected>ตามหัวข้อ Specific Power (ช่องชนิดเครื่องอัด)</option>
+            <option value="oilinj">ฉีดน้ำมัน (oil-injected)</option>
+            <option value="oilfree">ไร้น้ำมัน (oil-free)</option>
+          </select>
+          <div class="small" style="color:var(--muted)">Dryer แบบ drum ใช้ความร้อนอัด (MD/HOC) ต้องใช้ลมร้อน ~130–200 °C จากเครื่องอัดไร้น้ำมันเท่านั้น — เครื่องฉีดน้ำมันลมออก ~80 °C และมีไอน้ำมัน จึงไม่นำมาเสนอ</div></div>
       </div>
     </div>
 
@@ -1595,7 +1603,7 @@ details.guide ol,details.guide ul{margin:.2rem 0 .2rem 1.1rem;padding:0}
         <div><label>ความดันจ่ายจริง (bar gauge)</label>
           <input id="sPg" type="number" step="0.1" value="7" oninput="spCalc()"></div>
         <div><label>ชนิดเครื่องอัดอากาศ</label>
-          <select id="sType" onchange="spCalc()">
+          <select id="sType" onchange="spCalc();condCalc()"><!-- [แก้ไข 3 ต.ค. 2569 audit] ชนิดเครื่องอัดมีผลต่อ dryer ที่เลือกได้ -->
             <option value="screw_vsd">สกรูฉีดน้ำมัน + VSD</option>
             <option value="screw_fix" selected>สกรูฉีดน้ำมัน ความเร็วคงที่ (load/unload)</option>
             <option value="screw_of">สกรูไร้น้ำมัน (oil-free) 2 ขั้น</option>
@@ -3146,10 +3154,14 @@ function condCalc(){
   const heatKw = FAD*0.9, blowKw = FAD*0.55, mdKw = FAD*0.012, refKw = kwComp*num('cRefP')/100;
   const pwOf = d => d.pw==='refP'?refKw : d.pw==='heat'?heatKw : d.pw==='blow'?blowKw : d.pw==='md'?mdKw : 0;
   let best=null, tb='';
+  /* [แก้ไข 3 ต.ค. 2569 audit] heat-of-compression drum dryer เฉพาะเครื่องอัดไร้น้ำมัน (เดิมเสนอเป็นตัวถูกสุดเสมอแม้เครื่องฉีดน้ำมัน) */
+  const ctSel = $('cCompType') ? $('cCompType').value : 'auto';
+  const oilFree = ctSel==='oilfree' || (ctSel==='auto' && $('sType') && $('sType').value==='screw_of');
   DRYERS.forEach(d=>{
     const purgeKw = d.purge*FAD*sp, extra = pwOf(d), tot = purgeKw+extra;
     const cost = tot*hrs*tar;
-    const ok = d.pdp <= PDP + 1e-9;
+    const hocNA = d.k==='md' && !oilFree;
+    const ok = d.pdp <= PDP + 1e-9 && !hocNA;
     if(ok && (!best || tot < best.tot)) best = {d, tot, cost};
     tb += `<tr${ok?'':' style="opacity:.5"'}><td><b>${d.n}</b></td>
       <td class="num">${fmt(d.pdp,0)}</td>
@@ -3159,7 +3171,7 @@ function condCalc(){
       <td class="num"><b>${fmt(tot,2)}</b></td>
       <td class="num">${fmtA(cost)}</td>
       <td class="num">${fmt(100*tot/kwComp,1)} %</td>
-      <td><span class="badge ${ok?'ok':'warn'}">${ok?'ผ่านสเปก':'ไม่ถึง PDP เป้าหมาย'}</span></td>
+      <td><span class="badge ${ok?'ok':'warn'}">${ok?'ผ่านสเปก':(hocNA?'ใช้ได้เฉพาะเครื่องไร้น้ำมัน':'ไม่ถึง PDP เป้าหมาย')}</span></td>
       <td class="small" style="color:var(--muted)">${d.note}</td></tr>`;
   });
   $('cDry').innerHTML =
@@ -3184,6 +3196,11 @@ const SP_BENCH = {
   screw_of:  [6.3, 7.4, 8.6, 'สกรูไร้น้ำมัน 2 ขั้น'],
   recip:     [5.6, 6.6, 7.8, 'ลูกสูบ']
 };
+/* [แก้ไข 3 ต.ค. 2569 audit] อัตราส่วนงานอัด isentropic ระหว่าง 2 ความดัน (bar g) — ใช้ร่วมกันทั้ง spCalc และ prCalc ให้สอดคล้องกัน (~7–8 %/bar ที่ 7 bar g) */
+function compWorkRatio(pFromG,pToG,patmB){
+  const n=(1.4-1)/1.4, r1=(pFromG+patmB)/patmB, r2=(pToG+patmB)/patmB;
+  return (Math.pow(r2,n)-1)/(Math.pow(r1,n)-1);
+}
 function spCalc(){
   if(!$('sKw')) return;
   const kw = num('sKw'), fad = num('sFad'), pg = num('sPg'),
@@ -3195,7 +3212,7 @@ function spCalc(){
   const kwhNm3 = nm3min>0 ? kw/(nm3min*60) : NaN;
   const B = SP_BENCH[$('sType').value];
   /* แก้ค่าอ้างอิงตามความดันจ่ายจริง โดยประมาณ 6–7 % ต่อ 1 bar */
-  const corr = Math.pow((pg+1.013)/(7+1.013), 0.286);
+  const corr = compWorkRatio(7, pg, patm/1000);   // [แก้ไข 3 ต.ค. 2569 audit] เดิม ((p2/p1)^0.286) ≈ 3.4 %/bar ขัดกับ prCalc 7.7 %/bar
   const lo=B[0]*corr, mid=B[1]*corr, hi=B[2]*corr;
   let verdict, cls;
   if(sp <= lo){ verdict='ดีกว่าเครื่องใหม่ทั่วไป — ตรวจสอบความถูกต้องของค่า FAD ที่ใช้'; cls='ok'; }
@@ -3224,7 +3241,7 @@ function spCalc(){
     '<th class="num">ควรปรับปรุงเมื่อเกิน</th><th class="num">ค่าที่วัดได้</th><th>ประเมิน</th></tr></thead><tbody>'+tb+'</tbody>';
 
   $('sAsm').innerHTML = `<b>สูตร:</b> specific power = kW วัดจริง ÷ FAD (m³/min) — ต้องใช้ FAD ที่ฐานอ้างอิงเดียวกันทั้งก่อนและหลังปรับปรุง<br>
-    <b>การแก้ตามความดัน:</b> ค่าอ้างอิงตั้งต้นที่ 7 bar g แล้วแก้ด้วย (p<sub>2</sub>/p<sub>1</sub>)<sup>0.286</sup> = ${fmt(corr,3)} (isentropic, k = 1.4)<br>
+    <b>การแก้ตามความดัน:</b> ค่าอ้างอิงตั้งต้นที่ 7 bar g แล้วแก้ด้วยอัตราส่วนงานอัด [ (p<sub>2</sub>/p<sub>atm</sub>)<sup>0.286</sup> − 1 ] ÷ [ (p<sub>7bar</sub>/p<sub>atm</sub>)<sup>0.286</sup> − 1 ] = ${fmt(corr,3)} (isentropic, k = 1.4 — สูตรเดียวกับหัวข้อลดความดัน)<br>
     <b>Nm³:</b> แปลงจาก FAD (20 °C) ไป Nm³ (0 °C) ด้วยอัตราส่วน 273.15/293.15 = 0.9319 — FAD ${fmt(fad,2)} m³/min = ${fmt(nm3min,2)} Nm³/min<br>
     <b>ข้อควรระวัง:</b> ช่วงอ้างอิงเป็นค่าทั่วไปสำหรับคัดกรองเบื้องต้น ไม่ใช่ค่ารับประกัน — การเทียบที่ถูกต้องต้องใช้ผลทดสอบตาม ISO 1217 Annex C ของรุ่นนั้น`;
 }
@@ -3277,9 +3294,7 @@ function prCalc(){
   if(!$('rP1')) return;
   const p1=num('rP1'), p2=num('rP2'), kw=num('rKw');
   const patmB = (parseFloat($('hPatm') ? $('hPatm').value : 1013.25)||1013.25)/1000;
-  const k=1.4, n=(k-1)/k;
-  const r1=(p1+patmB)/patmB, r2=(p2+patmB)/patmB;
-  const ratioPow = (Math.pow(r2,n)-1)/(Math.pow(r1,n)-1);
+  const ratioPow = compWorkRatio(p1, p2, patmB);   // [แก้ไข 3 ต.ค. 2569 audit] ใช้ฟังก์ชันเดียวกับ spCalc
   const savePct = (1-ratioPow)*100;
   const saveKw = kw*(1-ratioPow);
   const hrs=num('sHrs')||6000, tar=num('sTar')||4.2;
@@ -3643,7 +3658,7 @@ function toggleHelp(){
 }
 
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['mw', 'zact', 'tFad', 'pFad', 'rhFad', 'tNor', 'pNor', 'rhNor', 'tStd', 'pStd', 'rhStd', 'cSep', 'vPipe', 'vID', 'vW', 'vH', 'vL', 'vEps'], FK_MEAS=['fval', 'tAct', 'pAct', 'rhAct', 'pg', 'hPg', 'hTg', 'hVal', 'cTamb', 'cRHamb', 'cPg', 'cTac', 'sKw', 'sPg', 'lTon', 'lToff', 'lCyc', 'lP1', 'lP2', 'lT', 'rP1', 'rKw', 'rT', 'wTamb', 'wRH', 'vRhoV'], FK_SET=['gas', 'basis', 'funit', 'preset', 'method', 'hPatm', 'hMode', 'hConv', 'hEnh', 'hTsel', 'hSpec', 'cFadBase', 'cPdp', 'cHrs', 'cSp', 'cTar', 'cRefP', 'sType', 'sHrs', 'sTar', 'sLF', 'lMode', 'lVol', 'rP2', 'wPatm', 'vFluid', 'vRho', 'uCat', 'uVal', 'uFrom'], FK_CALC=['cFad', 'sFad', 'lFad', 'wFad', 'vFlow'];
+var FK_DESIGN=['mw', 'zact', 'tFad', 'pFad', 'rhFad', 'tNor', 'pNor', 'rhNor', 'tStd', 'pStd', 'rhStd', 'cSep', 'vPipe', 'vID', 'vW', 'vH', 'vL', 'vEps'], FK_MEAS=['fval', 'tAct', 'pAct', 'rhAct', 'pg', 'hPg', 'hTg', 'hVal', 'cTamb', 'cRHamb', 'cPg', 'cTac', 'sKw', 'sPg', 'lTon', 'lToff', 'lCyc', 'lP1', 'lP2', 'lT', 'rP1', 'rKw', 'rT', 'wTamb', 'wRH', 'vRhoV'], FK_SET=['gas', 'basis', 'funit', 'preset', 'method', 'hPatm', 'hMode', 'hConv', 'hEnh', 'hTsel', 'hSpec', 'cFadBase', 'cPdp', 'cHrs', 'cSp', 'cTar', 'cRefP', 'cCompType' /* [แก้ไข 3 ต.ค. 2569 audit] */, 'sType', 'sHrs', 'sTar', 'sLF', 'lMode', 'lVol', 'rP2', 'wPatm', 'vFluid', 'vRho', 'uCat', 'uVal', 'uFrom'], FK_CALC=['cFad', 'sFad', 'lFad', 'wFad', 'vFlow'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}

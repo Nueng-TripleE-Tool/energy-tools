@@ -791,7 +791,7 @@ function renderEnergy(){
   let rows=[];
   EQUIP_OPTS.forEach(o=>{
     // thermal kWh/ปี: ส่วน env × EFLH (จำกัดไม่เกิน hOp สำหรับ comfort), internal × hOp, internal247 × 8760
-    const envH=eflh!=null?Math.min(eflh,8760):hOp*0.65;
+    const envH=eflh!=null?Math.min(eflh,hOp):hOp*0.65; // [แก้ไข 3 ต.ค. 2569 audit] จำกัด EFLH ไม่เกินชั่วโมงใช้งาน hOp ตามที่คอมเมนต์ระบุ (เดิม min(EFLH, 8760) นับกรอบอาคาร 24 ชม.)
     const th=es.env*envH+es.internal*hOp+es.internal247*8760;
     const kwh=th/o.cop, cost=kwh*tariff;
     rows.push({o,kwh,cost});
@@ -803,7 +803,7 @@ function renderEnergy(){
   h+='</table>';
   h+='<p class="assump">โหลดที่ใช้: กรอบอาคาร+อากาศระบาย '+fmt(es.env,1)+' kW · ภายใน (ตามชั่วโมงใช้งาน) '+fmt(es.internal,1)+
      ' kW · ภายใน 24 ชม. (critical/ไฟฟ้า) '+fmt(es.internal247,1)+' kW · '+
-     (cdd!=null?('CDD '+fmt(cdd)+' °C·day/ปี @ base '+base+' °C → EFLH ส่วนกรอบอาคาร = '+fmt(24*cdd/dT)+' ชม./ปี (ΔT design '+dT.toFixed(1)+' K)')
+     (cdd!=null?('CDD '+fmt(cdd)+' °C·day/ปี @ base '+base+' °C → EFLH ส่วนกรอบอาคาร = '+fmt(24*cdd/dT)+' ชม./ปี (ΔT design '+dT.toFixed(1)+' K)'+(24*cdd/dT>hOp?' → จำกัดที่ชั่วโมงใช้งาน '+fmt(hOp)+' ชม./ปี':''))
      :'⚠ ยังไม่มีข้อมูล CDD — ใช้ค่าประมาณ 65% ของชั่วโมงใช้งานแทน EFLH (โหลดข้อมูลจังหวัดเพื่อความแม่น)')+'</p>';
   $('energyTable').innerHTML=h;
 }
@@ -817,7 +817,9 @@ function saveProject(){
     lastCalc:lastCalc,
     settings:{tIn:$('tIn').value,hOp:$('hOp').value,tariff:$('tariff').value,eSrc:$('eSrc').value,
       diurnal:$('diurnal').value,provSel:$('provSel').value,mode:mode,sf:$('sf').value,qsf:$('qsf').value,
-      tOut:$('tOut').value,twbOut:$('twbOut').value}};
+      tOut:$('tOut').value,twbOut:$('twbOut').value},
+    // [แก้ไข 3 ต.ค. 2569 audit] เก็บข้อมูลห้องในฟอร์มทั้งหมด (rw, rl, rh, npeople, กระจก, kwIT, roomType, activity …) — เดิมไม่เก็บ โหลดกลับแล้วคำนวณซ้ำได้ 8.28 แทน 30.07 kW
+    form:(function(){const o={};document.querySelectorAll('input[id],select[id],textarea[id]').forEach(e=>{if(e.type==='file'||e.type==='button')return;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;});return o;})()};
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
   a.download='CoolingLoad_'+($('projName').value||'project').replace(/[\\/:*?"<>| ]/g,'_')+'.json';a.click();
@@ -829,6 +831,9 @@ function loadProject(ev){
     const j=JSON.parse(rd.result);
     if(!Array.isArray(j.rooms))throw new Error('ไม่ใช่ไฟล์โครงการของเครื่องมือนี้');
     rooms=j.rooms;$('projName').value=j.name||'โครงการ';$('divF').value=j.divF||0.9;
+    // [แก้ไข 3 ต.ค. 2569 audit] คืนค่าฟอร์มข้อมูลห้อง (ไฟล์เก่าไม่มีคีย์ form → ข้าม)
+    const hasForm=j.form&&typeof j.form==='object';
+    if(hasForm){Object.keys(j.form).forEach(id=>{const e=$(id);if(!e||e.type==='file')return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!j.form[id];else e.value=j.form[id];});}
     // [แก้ไข 10 ก.ย. 2569] คืนค่า settings / clim / lastCalc (ไฟล์เก่าไม่มีคีย์ → ข้าม) แล้วรันท่อคำนวณ-เรนเดอร์ให้ครบทุกแท็บ
     if(j.settings&&typeof j.settings==='object'){
       ['tIn','hOp','tariff','eSrc','diurnal','provSel','sf','qsf','tOut','twbOut'].forEach(k=>{
@@ -844,7 +849,8 @@ function loadProject(ev){
       $('cddStatus').textContent='โหลดข้อมูลภูมิอากาศจากไฟล์โครงการ ('+clim.provTh+', '+clim.T.length+' วัน) ✓';
       try{applyClimate();}catch(e){}
     }
-    if(j.lastCalc&&typeof j.lastCalc==='object'&&j.lastCalc.total>0){lastCalc=j.lastCalc;try{renderLoad();}catch(e){}}
+    if(hasForm){try{calc();}catch(e){}} // [แก้ไข 3 ต.ค. 2569 audit] คำนวณใหม่จากฟอร์มที่คืนค่า → KPI ตรงกับฟอร์ม
+    else if(j.lastCalc&&typeof j.lastCalc==='object'&&j.lastCalc.total>0){lastCalc=j.lastCalc;try{renderLoad();}catch(e){}}
     try{renderSel();}catch(e){}
     try{renderEnergy();}catch(e){}
     renderProj();

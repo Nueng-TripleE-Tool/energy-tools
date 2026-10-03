@@ -462,7 +462,7 @@ table td{vertical-align:middle}
     <div class="grid3">
       <div class="fld"><label class="f">สูญเสียของ AVR แยกตัว (ทางเลือก C) <span class="unit">% ของกำลังที่ผ่าน</span></label><input type="number" id="devC" value="1.0" step="0.1"><div class="hint te">สูญเสียภายในของอุปกรณ์ที่ต่ออนุกรม (%) จากสเปก · servo/electronic AVR 0.5–2 % · <b>เป็นสูญเสียที่เกิดตลอดเวลา</b></div></div>
       <div class="fld"><label class="f">ลด no-load loss ของ amorphous <span class="unit">%</span></label><input type="number" id="redD" value="65" step="5"><div class="hint te">% ที่ P₀ ลดลงเมื่อเปลี่ยนเป็นแกน amorphous เทียบ CRGO เดิม จาก test report ผู้ผลิต · ทั่วไป 60–75 %</div></div>
-      <div class="fld"><label class="f">Emission factor ระบบไฟฟ้า <span class="unit">kgCO₂e/kWh</span></label><input type="number" id="grEF" value="0.4999" step="0.0001"><div class="hint te">EF ระบบไฟฟ้าของ อบก. (TGO) · <b>ต้องตรวจฉบับล่าสุดก่อนใช้ในรายงาน</b> ค่านี้เปลี่ยนทุกปี</div></div>
+      <div class="fld"><label class="f">Emission factor ระบบไฟฟ้า <span class="unit">kgCO₂e/kWh</span></label><input type="number" id="grEF" value="0.4750" step="0.0001"><div class="hint te">EF ระบบไฟฟ้าของ อบก. (TGO) ค่าปัจจุบัน 0.4750 kgCO₂e/kWh · <b>ต้องตรวจฉบับล่าสุดก่อนใช้ในรายงาน</b> ค่านี้เปลี่ยนทุกปี</div><!-- [แก้ไข 3 ต.ค. 2569 audit] เดิม 0.4999 (ชุดเก่า) → 0.4750 --></div>
     </div>
     <div class="grid3">
       <div class="fld"><label class="f">ค่าความต้องการพลังไฟฟ้า <span class="unit">บาท/kW-เดือน</span></label><input type="number" id="dRate" value="0" step="1"><div class="hint te">อัตราค่าความต้องการพลังไฟฟ้า (บาท/kW-เดือน) · <b>ใส่ 0 ถ้าค่าไฟเฉลี่ยในแท็บ 1 รวม demand ไว้แล้ว</b> มิฉะนั้นจะนับซ้ำ</div></div>
@@ -590,7 +590,16 @@ function calc(){
   const sys=parseFloat($('sysV').value);
   const isLN=$('vType').value==='ln';
   let v=[V('v1'),V('v2'),V('v3')];
-  if(isLN) v=v.map(x=>x*Math.sqrt(3));           // แปลงเป็นระหว่างเฟสเพื่อคำนวณให้ฐานเดียวกัน
+  /* [แก้ไข 3 ต.ค. 2569 audit] เดิมคูณ √3 ทีละเฟส — ใช้ไม่ได้กับความไม่สมดุล (สูตร β/NEMA ใช้ได้กับแรงดันระหว่างเฟสเท่านั้น; ×√3 ทำให้ VUF สูงเกิน ~2 เท่า)
+     แก้: สร้างเฟสเซอร์ L-N โดยสมมติมุมห่างกัน 120° (ไม่ได้วัดมุม) แล้วหา V_AB=V_A−V_B, V_BC, V_CA → ใช้ขนาดแรงดันระหว่างเฟสคำนวณ NEMA/VUF
+     (ที่มุม 120° พอดี V₂/V₁ ของชุด L-N = ของชุด L-L เพราะลำดับศูนย์หายไปเมื่อแปลงเป็นระหว่างเฟส) */
+  const vLN=v.slice();
+  if(isLN){
+    const ph=[0,-2*Math.PI/3,2*Math.PI/3];
+    const re=v.map((m,k)=>m*Math.cos(ph[k])), im=v.map((m,k)=>m*Math.sin(ph[k]));
+    const ll=(p,q)=>Math.hypot(re[p]-re[q],im[p]-im[q]);
+    v=[ll(0,1),ll(1,2),ll(2,0)];
+  }
   const vAvg=(v[0]+v[1]+v[2])/3;
   const vuNema=vAvg>0?Math.max(...v.map(x=>Math.abs(x-vAvg)))/vAvg*100:0;
   /* VUF จริงตามนิยาม IEC จากขนาดสามค่า */
@@ -646,7 +655,8 @@ function calc(){
   const inCalc=Math.sqrt(inUnbal*inUnbal+Math.pow(3*triplen,2));
   const inMeas=V('iN');
 
-  S={sys,v,vAvg,vuNema,vuf,vDev,i,iAvg,iu,kW,kvar,kVA,pf,kvarLimit,kvarExcess,kvarBilled,
+  S={sys,v,vAvg,vuNema,vuf,vDev,isLN,vLN,i,iAvg,  // [แก้ไข 3 ต.ค. 2569 audit] เพิ่ม isLN/vLN
+     iu,kW,kvar,kVA,pf,kvarLimit,kvarExcess,kvarBilled,
      pfPenalty,tkVA,load,p0,pk,hrs,lossNow,lossE,optLoad,H,thdi,fhl,iMaxPu,thdv,iRms,
      sccr,tddLimit,tdd,inUnbal,triplen,inCalc,inMeas,pec,iL,hasIL};  // [แก้ไข 10 ก.ย. 2569] เพิ่ม iL/hasIL
 
@@ -692,6 +702,7 @@ function renderUnb(){
      <tr><td><b>เฉลี่ย</b></td><td class="n"><b>${fmt(S.vAvg,1)}</b></td><td class="n">–</td>
          <td class="n"><b>${fmt(S.iAvg,0)}</b></td><td class="n">–</td></tr>
    </table></div>
+   ${S.isLN?`<div class="note warn"><b>ป้อนแรงดันเฟส-นิวทรัล</b> ${S.vLN.map(x=>fmt(x,1)).join(' / ')} V — แปลงเป็นแรงดันระหว่างเฟสด้วยเฟสเซอร์โดย<b>สมมติมุมเฟสห่างกัน 120°</b> (ไม่ได้วัดมุม) ได้ ${S.v.map(x=>fmt(x,1)).join(' / ')} V แล้วคำนวณ NEMA/VUF จากค่าระหว่างเฟส · ถ้า power analyzer ให้ค่า V₂/V₁ (negative sequence) ให้ใช้ค่านั้นแทน</div>`:''}<!-- [แก้ไข 3 ต.ค. 2569 audit] แจ้งสมมติฐาน L-N -->
    <div class="note ${vl>=2?'bad':(vl===1?'warn':'good')}">
      <b>เกณฑ์ตัดสิน</b> — NEMA MG-1 กำหนดว่ามอเตอร์มาตรฐานทำงานได้ที่ความไม่สมดุลไม่เกิน 1 %
      โดยไม่ต้อง derate และ<b>ห้ามเดินเครื่องเกิน 5 %</b> โดยเด็ดขาด

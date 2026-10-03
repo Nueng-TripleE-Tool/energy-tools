@@ -345,6 +345,12 @@ footer{text-align:center;padding:20px;color:var(--muted);font-size:.78rem}
         <div><label>ปริมาณกิจกรรม (Activity Data)</label><input type="number" id="e_qty" placeholder="0"></div>
         <div><label>อ้างอิงหลักฐาน (เลขที่บิล/ไฟล์)</label><input type="text" id="e_ref" placeholder="เช่น INV-2567-001"></div>
       </div>
+      <!-- [แก้ไข 3 ต.ค. 2569 audit] รายการ Scope 3 / ไอน้ำที่ซื้อ มี EF = 0 "(ระบุ EF)" แต่เดิมไม่มีช่องให้กรอก → ผลเป็น 0 tCO2e เสมอ -->
+      <div class="grid2">
+        <div><label>EF ที่ใช้ (kgCO₂e ต่อหน่วยกิจกรรม) — จำเป็นสำหรับรายการ "(ระบุ EF)"</label><input type="number" id="e_efv" step="any" placeholder="เว้นว่าง = ใช้ EF ในฐานข้อมูล"></div>
+        <div><label>ที่มาของ EF ที่กรอก (เช่น TGO CFP ขนส่ง, ผู้จำหน่ายไอน้ำ)</label><input type="text" id="e_efsrc" placeholder="เช่น TGO EF รถบรรทุก 6 ล้อ ขนเต็ม"></div>
+      </div>
+      <div id="efWarn"></div>
       <div class="grid2">
         <div>
           <label>วิธีการเก็บข้อมูลกิจกรรม (Data Quality)</label>
@@ -707,8 +713,14 @@ function addEntry(){
   const dqc=parseInt(document.getElementById('e_dqc').value)||3;
   const dqe=parseInt(document.getElementById('e_dqe').value)||3;
   if(qty<=0){alert('กรุณาระบุปริมาณกิจกรรม > 0');return;}
-  state.entries.push({efid,label:label||'(ไม่ระบุ)',qty,ref,dqc,dqe});
+  /* [แก้ไข 3 ต.ค. 2569 audit] รับ EF ที่ผู้ใช้กรอก (เก็บใน entry.efv / efsrc) */
+  const efvRaw=document.getElementById('e_efv').value.trim(), efv=parseFloat(efvRaw);
+  const efsrc=document.getElementById('e_efsrc').value.trim();
+  const en={efid,label:label||'(ไม่ระบุ)',qty,ref,dqc,dqe};
+  if(efvRaw!==''&&isFinite(efv)){en.efv=efv;en.efsrc=efsrc;}
+  state.entries.push(en);
   document.getElementById('e_label').value='';document.getElementById('e_qty').value='';document.getElementById('e_ref').value='';
+  document.getElementById('e_efv').value='';document.getElementById('e_efsrc').value='';
   renderEntries(); saveLocal();
 }
 /* คะแนนคุณภาพข้อมูล = วิธีเก็บ × คุณภาพ EF (ภาคผนวก 11 TGO): 1-6 ไม่ดี, 7-12 ปานกลาง, 13-18 ดี, 19-24 ดีเยี่ยม */
@@ -719,18 +731,24 @@ function dqLevel(score){
   return{t:'ไม่ดี',c:'b-miss'};
 }
 function delEntry(i){ state.entries.splice(i,1); renderEntries(); saveLocal(); }
+/* [แก้ไข 3 ต.ค. 2569 audit] EF ที่ใช้จริง = EF ที่ผู้ใช้กรอก (efv) ถ้ามี มิฉะนั้นใช้ EF ฐานข้อมูล; efMissing = กิจกรรม > 0 แต่ EF = 0 */
+function efOf(en,e){ return (en.efv!==undefined&&en.efv!==null&&en.efv!==''&&isFinite(+en.efv)) ? +en.efv : (e.ef||0); }
 function calcEntry(en){
   const e=EF.find(x=>x.id===en.efid);
-  const co2e = en.qty*(e.ef||0)/1000;         // tCO2e (fossil + CH4/N2O for biomass)
+  const ef=efOf(en,e);
+  const co2e = en.qty*ef/1000;         // tCO2e (fossil + CH4/N2O for biomass)
   const bio  = e.bio ? en.qty*(e.bioco2||0)/1000 : 0;
-  return {e,co2e,bio};
+  return {e,co2e,bio,ef,efMissing:(en.qty>0&&!(ef>0))};
 }
+function setEfv(i,v,src){ const en=state.entries[i]; if(!en)return; if(src!==undefined){en.efsrc=v;} else { const x=parseFloat(v); if(String(v).trim()===''||!isFinite(x)){delete en.efv;} else en.efv=x; } renderEntries(); saveLocal(); }
 function renderEntries(){
   const body=document.getElementById('entryBody'); body.innerHTML='';
   let s1=0,s2=0,s3=0,bioT=0;
   if(state.entries.length===0){body.innerHTML='<tr><td colspan="10" class="empty">ยังไม่มีรายการ — เพิ่มด้านบน</td></tr>';}
+  const miss=[]; // [แก้ไข 3 ต.ค. 2569 audit]
   state.entries.forEach((en,i)=>{
-    const {e,co2e,bio}=calcEntry(en);
+    const {e,co2e,bio,ef,efMissing}=calcEntry(en);
+    if(efMissing)miss.push(en.label+' ('+e.name+')');
     if(e.scope===1)s1+=co2e; else if(e.scope===2)s2+=co2e; else s3+=co2e;
     bioT+=bio;
     const bcls={1:'b-s1',2:'b-s2',3:'b-s3'}[e.scope];
@@ -739,7 +757,7 @@ function renderEntries(){
       <td><span class="badge ${bcls}">S${e.scope}</span>${e.bio?' <span class="badge b-bio">bio</span>':''}</td>
       <td>${esc(en.label)}</td><td>${esc(e.name)}</td>
       <td class="num">${en.qty.toLocaleString()}</td><td>${e.unit}</td>
-      <td class="num">${e.ef}</td><td class="num">${co2e.toFixed(3)}</td>
+      <td class="num">${(e.ef===0||en.efv!==undefined)?`<input type="number" step="any" style="width:90px${efMissing?';border:2px solid var(--danger,#c0392b)':''}" value="${en.efv!==undefined?en.efv:''}" placeholder="กรอก EF" title="EF (kgCO2e/${esc(e.unit)}) ${esc(en.efsrc||'')}" onchange="setEfv(${i},this.value)">`:e.ef}</td><td class="num">${co2e.toFixed(3)}</td>
       <td>${esc(en.ref||'–')}</td>
       <td><span class="badge ${lv.c}">${sc} · ${lv.t}</span></td>
       <td class="no-print"><button class="del-x" onclick="delEntry(${i})">×</button></td></tr>`;
@@ -749,6 +767,8 @@ function renderEntries(){
   document.getElementById('k-s3').textContent=s3.toFixed(2);
   document.getElementById('k-tot').textContent=(s1+s2+s3).toFixed(2);
   document.getElementById('k-bio').textContent=bioT.toFixed(2);
+  const w=document.getElementById('efWarn'); // [แก้ไข 3 ต.ค. 2569 audit]
+  if(w) w.innerHTML=miss.length?'<div class="note" style="border-left-color:#c0392b">⚠️ รายการต่อไปนี้มีปริมาณกิจกรรมแต่ EF = 0 → คิดเป็น 0 tCO₂e (ผลรวมต่ำกว่าจริง) — กรอก EF ในตารางช่อง EF: '+miss.map(esc).join(' · ')+'</div>':'';
 }
 function totals(){
   let s1=0,s2=0,s3=0,bio=0;
@@ -794,6 +814,7 @@ function renderReadiness(){
     {ok:state.entries.length>0, txt:'บันทึกข้อมูลกิจกรรมและคำนวณแล้ว'},
     {ok:state.entries.length>0&&state.entries.every(e=>e.ref), txt:'ทุกรายการมีหลักฐานอ้างอิง (audit trail)'},
     {ok:t.tot>0, txt:'มีผลการปล่อยรวม > 0'},
+    {ok:state.entries.every(en=>!calcEntry(en).efMissing), txt:'ทุกรายการที่มีปริมาณกิจกรรมมีค่า EF > 0 (ไม่มีรายการ "ระบุ EF" ที่ยังว่าง)'}, // [แก้ไข 3 ต.ค. 2569 audit]
     {ok:imFilled(), txt:'จัดทำระเบียบจัดการสารสนเทศ GHG (8.1)'},
     {ok:state.entries.length>0&&state.entries.every(e=>e.dqc&&e.dqe), txt:'ประเมินคุณภาพข้อมูล/Uncertainty ครบ (8.2)'},
   ];
@@ -811,10 +832,10 @@ function renderReport(){
   const appMap={operational:'Operational Control',financial:'Financial Control',equity:'Equity Share'};
   // ตารางรายกิจกรรม
   let rows='';
-  state.entries.forEach(en=>{const {e,co2e,bio}=calcEntry(en);
+  state.entries.forEach(en=>{const {e,co2e,bio,ef,efMissing}=calcEntry(en); /* [แก้ไข 3 ต.ค. 2569 audit] แสดง EF ที่ใช้จริง */
     const sc=(en.dqc||3)*(en.dqe||3);
     rows+=`<tr><td>S${e.scope}${e.bio?' (bio)':''}</td><td>${esc(en.label)}</td><td>${esc(e.name)}</td>
-      <td class="num">${en.qty.toLocaleString()}</td><td>${e.unit}</td><td class="num">${e.ef}</td>
+      <td class="num">${en.qty.toLocaleString()}</td><td>${e.unit}</td><td class="num">${efMissing?'⚠️ 0 (ยังไม่ระบุ EF)':ef}</td>
       <td class="num">${co2e.toFixed(3)}</td><td class="num">${bio?bio.toFixed(3):'–'}</td><td>${esc(en.ref||'–')}</td><td class="num">${sc}</td></tr>`;
   });
   const im=`<table>
@@ -870,7 +891,7 @@ function exportCSV(){
   let rows=[['แหล่งอ้างอิง EF:',EF_SOURCE],['GWP:','IPCC AR5'],[],
     ['Scope','รายการ','แหล่งปล่อย','ปริมาณ','หน่วย','EF(kgCO2e/unit)','tCO2e','biogenic_CO2_tCO2e','หลักฐาน','ที่มา EF','คะแนนคุณภาพข้อมูล']];
   state.entries.forEach(en=>{const {e,co2e,bio}=calcEntry(en);
-    rows.push([e.scope,en.label,e.name,en.qty,e.unit,e.ef,co2e.toFixed(4),bio.toFixed(4),en.ref||'',e.ref,(en.dqc||3)*(en.dqe||3)]);});
+    rows.push([e.scope,en.label,e.name,en.qty,e.unit,efOf(en,e),co2e.toFixed(4),bio.toFixed(4),en.ref||'',(en.efv!==undefined?(en.efsrc||'ผู้ใช้กรอก'):e.ref),(en.dqc||3)*(en.dqe||3)]);}); // [แก้ไข 3 ต.ค. 2569 audit]
   const t=totals();
   rows.push([]); rows.push(['','','','','','','รวม tCO2e','biogenic tCO2e','','']);
   rows.push(['','Scope 1',t.s1.toFixed(4)]);rows.push(['','Scope 2',t.s2.toFixed(4)]);
@@ -904,7 +925,7 @@ function exportTGOJson(){
     summary:{scope1_tCO2e:+t.s1.toFixed(4),scope2_tCO2e:+t.s2.toFixed(4),scope3_tCO2e:+t.s3.toFixed(4),total_tCO2e:+t.tot.toFixed(4),biogenic_CO2_tCO2e:+t.bio.toFixed(4)},
     entries:state.entries.map(en=>{const {e,co2e,bio}=calcEntry(en);
       const dqc=en.dqc||3,dqe=en.dqe||3;
-      return {scope:e.scope,label:en.label,source:e.name,qty:en.qty,unit:e.unit,ef:e.ef,tCO2e:+co2e.toFixed(4),biogenic_tCO2e:+bio.toFixed(4),evidence:en.ref,ef_ref:e.ref,dq_collection:dqc,dq_ef:dqe,dq_score:dqc*dqe};})
+      return {scope:e.scope,label:en.label,source:e.name,qty:en.qty,unit:e.unit,ef:efOf(en,e),tCO2e:+co2e.toFixed(4),biogenic_tCO2e:+bio.toFixed(4),evidence:en.ref,ef_ref:(en.efv!==undefined?(en.efsrc||'ผู้ใช้กรอก'):e.ref), /* [แก้ไข 3 ต.ค. 2569 audit] */dq_collection:dqc,dq_ef:dqe,dq_score:dqc*dqe};})
   };
   dl('CFO_TGO_export_'+(state.org.o_repyr||'')+'.json',JSON.stringify(out,null,2),'application/json');
 }
@@ -939,9 +960,10 @@ const SAMPLE = {
   srcSel:{sc_boiler:true, sc_vehicle:true, sc_forklift:true, sc_refrig:true, sc_elec:true, sc_transport:true, sc_waste:true},
   entries:[
     // Scope 1 — ยานพาหนะ/เครื่องจักร (ฟอสซิล)
-    {efid:'diesel', label:'รถบรรทุกขนส่งผลปาล์ม (ดีเซล)', qty:48000, ref:'FUEL-2567-รวม', dqc:3, dqe:3},
-    {efid:'diesel', label:'รถตักหน้า-ขุดหลัง (Loader)', qty:15000, ref:'FUEL-2567-LDR', dqc:3, dqe:3},
-    {efid:'lpg_kg', label:'รถยก Forklift (LPG)', qty:2400, ref:'LPG-2567-FL', dqc:3, dqe:3},
+    // [แก้ไข 3 ต.ค. 2569 audit] ยานพาหนะใช้ EF mobile combustion (เดิมใช้ EF stationary): รถบรรทุก → Diesel B7 on-road, รถตัก → Diesel off-road industry, forklift → LPG off-road
+    {efid:'db7_road', label:'รถบรรทุกขนส่งผลปาล์ม (ดีเซล B7)', qty:48000, ref:'FUEL-2567-รวม', dqc:3, dqe:3},
+    {efid:'md_ind', label:'รถตักหน้า-ขุดหลัง (Loader)', qty:15000, ref:'FUEL-2567-LDR', dqc:3, dqe:3},
+    {efid:'lpg_offkg', label:'รถยก Forklift (LPG)', qty:2400, ref:'LPG-2567-FL', dqc:3, dqe:3},
     // Scope 1 — Fugitive สารทำความเย็น
     {efid:'r134a', label:'เครื่องปรับอากาศสำนักงาน (เติมชดเชย R-134a)', qty:18, ref:'PM-AC-2567', dqc:1, dqe:3},
     // Scope 1 — ชีวมวล (Biogenic แยก, CH4/N2O นับใน S1)

@@ -828,6 +828,14 @@ function hSat(T){
   var Wsat = TE_PSY.Ws(T, 101.325);           // saturation humidity ratio (kg/kg dry air)
   return TE_PSY.Hda(T, Wsat);                  // h_sat = 1.006·T + W·(2501 + 1.86·T)
 }
+// [แก้ไข 3 ต.ค. 2569 audit] L/G สูงสุดทางทฤษฎี (หอ counterflow): เส้นปฏิบัติการ h_a(T) = h_in + (L/G)·Cp_w·(T − T_cold) ต้องไม่แตะเส้นอิ่มตัว
+//   → L/G_max = min_{T_cold<T≤T_hot} [h_sat(T) − h_in] / [Cp_w·(T − T_cold)]  (จุดสัมผัส/pinch อาจอยู่กลางช่วงเพราะ h_sat โค้งหงาย)
+function lgMaxTheory(tCold, tHot, tWB){
+  var h_in = hSat(tWB), best = Infinity, n = 200;
+  if(!(tHot > tCold)) return NaN;
+  for(var i=1;i<=n;i++){ var T = tCold + (tHot-tCold)*i/n; var v = (hSat(T)-h_in)/(4.186*(T-tCold)); if(v<best) best=v; }
+  return best;
+}
 // Enthalpy of inlet air at wet-bulb temperature (fully saturated assumption)
 function hAir(Twb){
   return hSat(Twb);
@@ -1068,6 +1076,9 @@ function calcPerf(){
     // h_air_out = h_air_in + (L/G) * Cp_w * Range  [kJ/kg dry air]
     var mAir = mw / lg;  // kg/s air, from L/G ratio
     var h_air_out = h_air_in + lg * Cp_w * range;
+    // [แก้ไข 3 ต.ค. 2569 audit] ตรวจ L/G เทียบค่าสูงสุดทางทฤษฎี — ถ้าเกิน เส้นปฏิบัติการตัดเส้นอิ่มตัว: NTU ไม่มีนิยาม (เดิม clamp เงียบ ๆ แล้วรายงาน NTU)
+    var lgMax = lgMaxTheory(tCold, tHot, tWB);
+    var lgInvalid = isFinite(lgMax) && lg >= lgMax;
     // Safety clamp: air enthalpy must stay below saturation at hot water temp
     h_air_out = Math.min(h_air_out, hSat(tHot) * 0.97);
     h_air_out = Math.max(h_air_out, h_air_in + 3);
@@ -1108,7 +1119,7 @@ function calcPerf(){
 
     var r = {range,approach,eff,ntu,kav_L,Q_kW,Q_RT,mw,qWater,
              fanAct,fanRated,fanEffLoad,pumpPow,totalPower_kW,kw_per_ton,
-             tHot,tCold,tWB,tDB,h_air_in,h_air_out,db,opHrs};
+             tHot,tCold,tWB,tDB,h_air_in,h_air_out,db,opHrs,lg,lgMax,lgInvalid};
     window._lastPerf = r;
 
     // KPIs
@@ -1118,10 +1129,12 @@ function calcPerf(){
     h+=kpiBox('red','Range',fN(range,1),'°C');
     h+=kpiBox('amber','Approach',fN(approach,1),'°C');
     h+=kpiBox(effCls,'CT Efficiency',fN(eff,1),'%');
-    h+=kpiBox(ntuCls,'NTU (Merkel)',fN(ntu,3),'KaV/L');
+    h+=kpiBox(lgInvalid?'red':ntuCls,'NTU (Merkel)',fN(ntu,3),'KaV/L',lgInvalid?'⚠ ไม่ถูกต้อง: L/G > L/G_max':''); // [แก้ไข 3 ต.ค. 2569 audit]
     h+=kpiBox('blue','Cooling Capacity',fN(Q_kW,0),'kW');
     h+=kpiBox('purple','Capacity',fN(Q_RT,0),'RT');
     h+='</div>';
+    // [แก้ไข 3 ต.ค. 2569 audit] กล่องเตือน L/G เกินค่าสูงสุดทางทฤษฎี
+    if(lgInvalid) h+='<div class="err-box">&#9940; <b>L/G = '+fN(lg,2)+' เกินค่าสูงสุดทางทฤษฎี '+fN(lgMax,2)+'</b> (เส้นปฏิบัติการของอากาศตัดเส้นอิ่มตัว — เป็นไปไม่ได้ทางฟิสิกส์)<br>NTU ที่แสดง ('+fN(ntu,3)+') มาจากการจำกัด h_air,out ≤ 0.97·h_sat(T_hot) จึง<b>ใช้รายงานไม่ได้</b> — ตรวจ Q_air (หน่วย/จำนวน cell/พัดลมหยุด), Q_water, T_wb หรือกรอก L/G ที่ถูกต้อง</div>';
     SI('PERF_KPIS',h);
 
     // Performance table
@@ -1129,10 +1142,10 @@ function calcPerf(){
     pt+='<tr><td>Cooling Range</td><td class="hl">'+fN(range,2)+' °C</td></tr>';
     pt+='<tr><td>Approach Temperature</td><td class="'+( approach<=appWarn-3?'good':approach<=appWarn?'warn':'bad')+'">'+fN(approach,2)+' °C (เกณฑ์ ≤ '+fN(appWarn,1)+')</td></tr>';
     pt+='<tr><td>CT Efficiency</td><td class="'+(eff>=effMin?'good':'warn')+'">'+fN(eff,1)+'% (เกณฑ์ ≥ '+fN(effMin,0)+'%)</td></tr>';
-    pt+='<tr><td>Merkel Number (NTU)</td><td class="'+(ntu>=db.ntu_range[0]?'good':'warn')+'">'+fN(ntu,3)+'</td></tr>';
+    pt+='<tr><td>Merkel Number (NTU)</td><td class="'+(lgInvalid?'bad':ntu>=db.ntu_range[0]?'good':'warn')+'">'+fN(ntu,3)+(lgInvalid?' ⚠ ใช้ไม่ได้ (L/G > L/G_max)':'')+'</td></tr>';
     pt+='<tr><td>Cooling Capacity</td><td class="hl">'+fN(Q_kW,0)+' kW = '+fN(Q_RT,0)+' RT</td></tr>';
     pt+='<tr><td>Water Flow Rate</td><td>'+fN(qWater,0)+' m³/h = '+fN(mw,2)+' kg/s</td></tr>';
-    pt+='<tr><td>L/G Ratio</td><td>'+fN(lg,2)+' (target 0.75–1.50)</td></tr>';
+    pt+='<tr><td>L/G Ratio</td><td class="'+(lgInvalid?'bad':'')+'">'+fN(lg,2)+' (target 0.75–1.50 · สูงสุดทางทฤษฎี '+fN(lgMax,2)+')</td></tr>';
     pt+='<tr><td>Enthalpy Air In</td><td>'+fN(h_air_in,1)+' kJ/kg</td></tr>';
     pt+='<tr><td>Enthalpy Air Out</td><td>'+fN(h_air_out,1)+' kJ/kg</td></tr>';
     SI('PERF_TBL',pt);
@@ -1298,16 +1311,18 @@ function calcLG(){
     var lg_thermo = null, h2 = null;
     if(tWBout!==null){ h2 = hSat(tWBout); lg_thermo = (h2-h1)/(Cp_w*range); }
     // Theoretical band: if exit air saturates at T_hot (upper bound)
-    var lg_bound = (hSat(tHot)*0.97 - h1)/(Cp_w*range);
+    // [แก้ไข 3 ต.ค. 2569 audit] ค่าสูงสุดทางทฤษฎีใช้จุดสัมผัส (pinch) กับเส้นอิ่มตัว ค่าเดียวทั้งแท็บ (เดิม (0.97·h_sat(T_hot) − h₁)/(Cp·R) ต่ำกว่าจริง)
+    var lg_maxT = lgMaxTheory(tCold, tHot, tWB);
+    var lg_bound = lg_maxT;
 
     // ── KPIs ──────────────────────────────────────────────
     function band(v){ return v>=0.5&&v<=2.5?'green':(v>2.5&&v<=4)?'amber':'red'; }
     var h='<div class="kpi-grid">';
-    h+=kpiBox(band(lg_meas),'L/G (วัดจาก Flow)',fN(lg_meas,2),'kg/kg','m\u0307_w / m\u0307_air');
+    h+=kpiBox(lg_meas>=lg_maxT?'red':band(lg_meas),'L/G (วัดจาก Flow)',fN(lg_meas,2),'kg/kg',lg_meas>=lg_maxT?'⚠ เกิน L/G_max '+fN(lg_maxT,2):'m\u0307_w / m\u0307_air');
     h+=kpiBox('teal','m\u0307_water',fN(mW,1),'kg/s',fN(qW,0)+' m³/h');
     h+=kpiBox('blue','m\u0307_air',fN(mAir,1),'kg/s',fN(qAir_m3s,1)+' m³/s');
     if(lg_thermo!==null) h+=kpiBox(band(lg_thermo),'L/G (Merkel)',fN(lg_thermo,2),'kg/kg','จาก T_wb,out');
-    else h+=kpiBox('amber','L/G สูงสุด(ทฤษฎี)',fN(lg_bound,2),'kg/kg','ถ้าอากาศอิ่มตัวที่ T_hot');
+    else h+=kpiBox('amber','L/G สูงสุด(ทฤษฎี)',fN(lg_bound,2),'kg/kg','เส้นปฏิบัติการแตะเส้นอิ่มตัว'); // [แก้ไข 3 ต.ค. 2569 audit]
     h+='</div>';
 
     // ── Detail table ──────────────────────────────────────
@@ -1323,10 +1338,12 @@ function calcLG(){
     } else {
       t+='<tr><td>L/G สูงสุดเชิงทฤษฎี</td><td>'+fN(lg_bound,2)+' kg/kg (ใส่ T_wb,out เพื่อ back-calc จริง)</td></tr>';
     }
+    if(lg_thermo!==null) t+='<tr><td>L/G สูงสุดทางทฤษฎี (pinch กับเส้นอิ่มตัว)</td><td class="'+(lg_meas>=lg_maxT?'bad':'')+'">'+fN(lg_maxT,2)+' kg/kg</td></tr>'; // [แก้ไข 3 ต.ค. 2569 audit]
     t+='</tbody></table></div>';
 
     // ── Diagnostic on the REPORTED L/G value ──────────────
     var d='';
+    if(lg_meas>=lg_maxT) d+='<div class="err-box">&#9940; <b>L/G จาก Flow = '+fN(lg_meas,2)+' เกินค่าสูงสุดทางทฤษฎี '+fN(lg_maxT,2)+'</b> — อากาศไม่พอรับความร้อนตาม Range ที่วัด เป็นไปไม่ได้ทางฟิสิกส์ · ตรวจ Q_air (หน่วย, จำนวน cell, พัดลมหยุด), ρ_air, Q_water หรือ T_wb · NTU ในแท็บ Performance จะถูกทำเครื่องหมายว่าใช้ไม่ได้ [แก้ไข 3 ต.ค. 2569 audit]</div>';
     if(lgRep>0){
       if(lgRep>=0.5 && lgRep<=2.5){
         d='<div class="ok-box">&#10003; L/G ที่แจ้ง = '+fN(lgRep,2)+' kg/kg อยู่ในช่วงเชิงมวลที่สมเหตุผล (0.5–2.5) — ใช้ได้</div>';
@@ -1366,7 +1383,7 @@ function calcLG(){
       lgSteps.push({f:'h₂ = h_sat(T_wb,out)', s:'@ '+fN(tWBout,1)+' °C', r:fN(h2,1)+' kJ/kg'});
       lgSteps.push({f:'L/G (Merkel) = (h₂−h₁)/(Cp_w×Range)', s:'('+fN(h2,1)+'−'+fN(h1,1)+')/(4.186×'+fN(range,1)+')', r:fN(lg_thermo,2)+' kg/kg'});
     } else {
-      lgSteps.push({f:'L/G สูงสุดทฤษฎี = (0.97·h_sat(T_hot)−h₁)/(Cp_w×Range)', s:'(0.97×'+fN(hSat(tHot),1)+'−'+fN(h1,1)+')/(4.186×'+fN(range,1)+')', r:fN(lg_bound,2)+' kg/kg'});
+      lgSteps.push({f:'L/G สูงสุดทฤษฎี = min[(h_sat(T)−h₁)/(Cp_w×(T−T_cold))], T_cold<T≤T_hot', s:'สแกน 200 จุด · ที่ T_hot = ('+fN(hSat(tHot),1)+'−'+fN(h1,1)+')/(4.186×'+fN(range,1)+') = '+fN((hSat(tHot)-h1)/(Cp_w*range),2), r:fN(lg_bound,2)+' kg/kg'}); // [แก้ไข 3 ต.ค. 2569 audit]
     }
     var lgStepsHtml = stepsBlock('L/G Ratio (Air–Water Mass Balance)', lgSteps);
 
@@ -1433,7 +1450,9 @@ function calcWater(){
     var B_opt = E_m3h/(coc_opt-1);
     var M_opt = E_m3h + D_m3h + B_opt;
     var M_yr_opt = M_opt * opHrs;
-    var save_m3_yr = M_yr - M_yr_opt;
+    // [แก้ไข 3 ต.ค. 2569 audit] ถ้า COC ปัจจุบัน ≥ เป้าหมาย → ไม่มีผลประหยัด (เดิมแสดงค่าติดลบเป็น "ประหยัดค่าน้ำ −283,269 บาท/y")
+    var cocAbove = coc >= coc_opt;
+    var save_m3_yr = cocAbove ? 0 : M_yr - M_yr_opt;
     var save_cost_yr = save_m3_yr * waterPrice;
 
     var r = {qW,range,coc,E_m3h,D_m3h,B_m3h,M_m3h,
@@ -1473,16 +1492,17 @@ function calcWater(){
     ct2+='<tr><td>pH</td><td class="'+(pH>=phMin&&pH<=phMax?'good':pH>=phMin-0.5&&pH<=phMax+0.5?'warn':'bad')+'">'+pH+' (เกณฑ์ '+fN(phMin,1)+'–'+fN(phMax,1)+')</td></tr>';
     ct2+='<tr><td>Total Hardness</td><td class="'+(hard>hardMax*1.6?'bad':hard>hardMax?'warn':'good')+'">'+fN(hard,0)+' mg/L CaCO₃ (เกณฑ์ < '+fN(hardMax,0)+')</td></tr>';
     var lsiApprox = pH - (6.5 + Math.log10(hard>0?hard:1)*0.15);
-    ct2+='<tr><td>LSI Index (Approx.)</td><td class="'+(Math.abs(lsiApprox)<0.5?'good':Math.abs(lsiApprox)<1?'warn':'bad')+'">'+fN(lsiApprox,2)+' (target -0.5 to +0.5)</td></tr>';
+    ct2+='<tr><td>ดัชนีตะกรันอย่างง่าย (ไม่ใช่ Langelier LSI — ต้องใช้ Ca, alkalinity, TDS, T) <!-- [แก้ไข 3 ต.ค. 2569 audit] --></td><td class="'+(Math.abs(lsiApprox)<0.5?'good':Math.abs(lsiApprox)<1?'warn':'bad')+'">'+fN(lsiApprox,2)+' (target -0.5 to +0.5)</td></tr>';
     SI('CHEM_TBL',ct2);
 
     // COC optimization cost
     var cost_h='<div class="kpi-grid">';
     cost_h+=kpiBox('teal','Makeup ปัจจุบัน',fN(M_yr,0),'m³/y','COC='+fN(coc,1));
     cost_h+=kpiBox('green','Makeup เป้าหมาย',fN(M_yr_opt,0),'m³/y','COC='+coc_opt);
-    cost_h+=kpiBox('amber','ประหยัดน้ำ',fN(save_m3_yr,0),'m³/y','');
+    cost_h+=kpiBox('amber','ประหยัดน้ำ',fN(save_m3_yr,0),'m³/y',cocAbove?'COC ≥ เป้าหมายแล้ว':'');
     cost_h+=kpiBox('purple','ประหยัดค่าน้ำ',fN(save_cost_yr,0),'บาท/y','');
     cost_h+='</div>';
+    if(cocAbove) cost_h+='<div class="ok-box">&#10003; COC ปัจจุบัน '+fN(coc,2)+' สูงกว่า/เท่ากับเป้าหมาย '+coc_opt+' แล้ว — ไม่มีผลประหยัดจากการเพิ่ม COC (ตรวจความเสี่ยงตะกรัน/LSI แทน) [แก้ไข 3 ต.ค. 2569 audit]</div>';
     if(save_cost_yr>0) cost_h+='<div class="ecm"><div class="ecm-t">&#128166; เพิ่ม COC จาก '+fN(coc,1)+' → '+coc_opt+'</div><div class="ecm-b">ปรับ Blowdown Controller ให้ตัดที่ Conductivity '+fN(condM*coc_opt,0)+' µS/cm<br>ประหยัดน้ำ '+fN(save_m3_yr,0)+' m³/y = <b>'+fN(save_cost_yr,0)+' บาท/y</b></div></div>';
     SI('WATER_COST',cost_h);
 
@@ -1495,7 +1515,7 @@ function calcWater(){
       {f:'M = E + D + B', s:fN(E_m3h,2)+'+'+fN(D_m3h,4)+'+'+fN(B_m3h,2), r:fN(M_m3h,2)+' m³/h'},
       {f:'Makeup รายปี = M×ชั่วโมงทำงาน', s:fN(M_m3h,2)+'×'+fN(opHrs,0), r:fN(M_yr,0)+' m³/y'},
       {f:'ค่าน้ำรายปี = M_yr×ราคาน้ำ', s:fN(M_yr,0)+'×'+fN(waterPrice,0), r:fN(cost_yr,0)+' บาท/y'},
-      {f:'B ที่ COC='+coc_opt+' = E ÷ ('+coc_opt+'−1)', s:fN(E_m3h,2)+' ÷ 4', r:fN(B_opt,2)+' m³/h'},
+      {f:'B ที่ COC='+coc_opt+' = E ÷ ('+coc_opt+'−1)', s:fN(E_m3h,2)+' ÷ '+fN(coc_opt-1,0), r:fN(B_opt,2)+' m³/h'}, // [แก้ไข 3 ต.ค. 2569 audit] เดิมฝัง "÷ 4"
       {f:'ประหยัดน้ำ = (M − M_opt)×ชม.', s:'('+fN(M_m3h,2)+'−'+fN(M_opt,2)+')×'+fN(opHrs,0), r:fN(save_m3_yr,0)+' m³/y = '+fN(save_cost_yr,0)+' บาท/y'}
     ]));
 
@@ -1575,11 +1595,16 @@ function calcECM(){
       b:'Approach = '+fN(approach,1)+'°C เกินเกณฑ์ ('+fN(appWarn,1)+'°C)<br>สาเหตุ: Fouled Fill | น้ำ Flow มากเกิน | Fan ไม่พอ | T_wb สูง<br>ทุก 1°C ที่ Approach ลด → Chiller COP เพิ่ม ~1.5–2%'});
   }
 
-  // 4. COC increase
-  var coc=GV('condCirc')/GV('condMakeup');
-  if(coc < cocMin){
+  // 4. COC increase — [แก้ไข 3 ต.ค. 2569 audit] สูตรเดิม 1−(c−1)/(1.5c−1) ผิด (COC 2 → 50 %, จริง 25 %)
+  //   Makeup (ไม่รวม drift) M = E·C/(C−1) → ประหยัด = 1 − [C2/(C2−1)] / [C1/(C1−1)], C2 = 1.5·C1
+  var cM=GV('condMakeup'), coc=cM>0?GV('condCirc')/cM:0;
+  if(coc > 1 && coc < cocMin){
+    var C1=coc, C2=1.5*coc;
+    var cocSavePct=(1-(C2/(C2-1))/(C1/(C1-1)))*100;
+    var E_h=0.00085*1.8*range*qW, wPrice=GV('waterPrice');
+    var cocSave_m3=(E_h*C1/(C1-1)-E_h*C2/(C2-1))*opHrs;
     ecms.push({t:'&#128166; เพิ่ม Cycle of Concentration (COC)',cls:'ecm',
-      b:'COC ปัจจุบัน = '+fN(coc,1)+' ต่ำกว่าเกณฑ์ ('+fN(cocMin,1)+')<br>ปรับ Conductivity Controller → Blowdown น้อยลง<br>ประหยัดน้ำ Makeup ~'+(Math.round((1-1/(coc*1.5-1)*(coc-1))*100))+'%'});
+      b:'COC ปัจจุบัน = '+fN(coc,1)+' ต่ำกว่าเกณฑ์ ('+fN(cocMin,1)+')<br>ปรับ Conductivity Controller → Blowdown น้อยลง<br>เพิ่ม COC '+fN(C1,2)+' → '+fN(C2,2)+' (×1.5): ประหยัดน้ำ Makeup ~'+fN(cocSavePct,0)+'% = '+fN(cocSave_m3,0)+' m³/ปี'+(wPrice>0?' = <b>'+fN(cocSave_m3*wPrice,0)+' บาท/ปี</b>':'')+'<br><span style="font-size:11px">สูตร: 1 − [C₂/(C₂−1)]/[C₁/(C₁−1)] · E (Perry) = '+fN(E_h,2)+' m³/h</span>'});
   }
 
   // 5. Nozzle inspection
@@ -1656,7 +1681,7 @@ function makeReport(){
   rpt+='T_hot  : '+GV('tHot')+'°C\n';
   rpt+='T_cold : '+GV('tCold')+'°C\n';
   rpt+='T_wb   : '+GV('tWB')+'°C\n';
-  if(p.range) rpt+='\n-- PERFORMANCE --\nRange      : '+fN(p.range,2)+'°C\nApproach   : '+fN(p.approach,2)+'°C\nEfficiency : '+fN(p.eff,1)+'%\nNTU        : '+fN(p.ntu,3)+'\nCapacity   : '+fN(p.Q_kW,0)+' kW = '+fN(p.Q_RT,0)+' RT\n';
+  if(p.range) rpt+='\n-- PERFORMANCE --\nRange      : '+fN(p.range,2)+'°C\nApproach   : '+fN(p.approach,2)+'°C\nEfficiency : '+fN(p.eff,1)+'%\nNTU        : '+(p.lgInvalid?'ใช้ไม่ได้ (L/G '+fN(p.lg,2)+' > L/G_max '+fN(p.lgMax,2)+')':fN(p.ntu,3))+'\nCapacity   : '+fN(p.Q_kW,0)+' kW = '+fN(p.Q_RT,0)+' RT\nFan+Pump   : '+fN(p.totalPower_kW,1)+' kW = '+fN(p.totalPower_kW*p.opHrs/1000,0)+' MWh/y\n'; // [แก้ไข 3 ต.ค. 2569 audit]
   if(w.M_m3h) rpt+='\n-- WATER BALANCE --\nEvaporation : '+fN(w.E_m3h,2)+' m³/h\nBlowdown    : '+fN(w.B_m3h,2)+' m³/h\nDrift       : '+fN(w.D_m3h,4)+' m³/h\nMakeup      : '+fN(w.M_m3h,2)+' m³/h\nCOC         : '+fN(w.coc,2)+'\nAnnual Makeup: '+fN(w.M_yr,0)+' m³/y\n';
   rpt+='\n======================================================\n';
   rpt+='Cooling Tower Audit Tool v1.0\n';

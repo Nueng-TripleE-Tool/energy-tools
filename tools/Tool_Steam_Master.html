@@ -202,7 +202,10 @@ var TE_STEAM=(function(){
       <div class="field"><label>ค่าไฟฟ้า <span class="unit">฿/kWh</span></label><input type="number" id="c_elec" value="4.5" step="any"></div>
       <div class="field"><label>ค่าน้ำ <span class="unit">฿/m³</span></label><input type="number" id="c_water" value="9.98" step="any"></div>
       <div class="field"><label>EF เชื้อเพลิง <span class="unit">kgCO₂/GJ</span></label><input type="number" id="ef_fuel" value="96.6876" step="any"></div>
-      <div class="field"><label>EF กริดไฟฟ้า <span class="unit">kgCO₂/MWh</span></label><input type="number" id="ef_grid" value="499" step="any"></div>
+      <!-- [แก้ไข 3 ต.ค. 2569 audit] EF ของ TGO/IPCC เป็นฐาน NCV แต่พลังงานเชื้อเพลิงในเครื่องมือนี้เป็น HHV — แปลงด้วยอัตราส่วน HHV/LHV -->
+      <div class="field"><label>ฐานของ EF เชื้อเพลิง</label><select id="ef_fuel_basis"><option value="NCV" selected>NCV/LHV (TGO/IPCC)</option><option value="GCV">GCV/HHV (US EPA/MEASUR)</option></select></div>
+      <div class="field"><label>อัตราส่วน HHV/LHV เชื้อเพลิง <span class="unit">–</span></label><input type="number" id="hhv_lhv" value="1.05" step="any"></div>
+      <div class="field"><label>EF กริดไฟฟ้า <span class="unit">kgCO₂/MWh</span></label><input type="number" id="ef_grid" value="475" step="any"></div><!-- [แก้ไข 3 ต.ค. 2569 audit] EF กริด TGO 0.4750 kgCO₂e/kWh (เดิม 499) -->
     </div>
 
     <div class="section-title">② Boiler (หม้อไอน้ำ)</div>
@@ -241,6 +244,8 @@ var TE_STEAM=(function(){
       <button class="btn secondary" onclick="loadFullDemo()">🏭 ตัวอย่างระบบเต็ม (อุปกรณ์ครบทุกชิ้น)</button>
       <button class="btn secondary" onclick="exportJSON()">💾 บันทึกงาน (.json)</button>
       <button class="btn secondary" onclick="document.getElementById('importFile').click()">📂 โหลดงาน (.json)</button>
+      <!-- [แก้ไข 3 ต.ค. 2569] ส่งออกมาตรการ TE_ECM -->
+      <button class="btn secondary" onclick="teExportECM()" title="ส่งออกมาตรการเป็นไฟล์ TE_ECM เพื่อนำเข้า Tool_ECM_Portfolio">📤 ส่งไป ECM Portfolio</button>
       <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importJSON(this)">
     </div>
     <div id="inputMsg" class="note" style="display:none"></div>
@@ -303,6 +308,7 @@ function turbine(m_tph,h_in,s_in,P_out,eIsen,eGen){const h_is=hIsen(P_out,s_in);
 //   headers:[{P,D,CR},... up to 4],  (index 0 = HP = ความดันหม้อไอน้ำ)
 //   ect:{on,ei,eg,pc,fcond,fex:[f→E1,f→E2,f→E3]},   (parallel-path จาก HP แบบ SSAT)
 //   bp:[{on,ei,eg,f} E1→E2, {on,ei,eg,f} E2→E3] }
+const GRID_EF_TGO=475;  // [แก้ไข 3 ต.ค. 2569 audit] kgCO₂e/MWh = 0.4750 kgCO₂e/kWh (TGO) — ใช้เป็นค่าเริ่มต้นช่อง ef_grid ทุกตัวอย่าง
 function solveModel(inp){
   const n=+inp.nhead;
   const eta=+inp.eta_b/100, BD=+inp.bd/100, flashed=String(inp.bd_flash)==='1';
@@ -310,7 +316,15 @@ function solveModel(inp){
   const preheatMu=String(inp.bd_preheat)==='1', approach=+inp.bd_approach;
   const Tmu=+inp.t_mu, hmu=hLiq(Tmu), Tcr=+inp.t_cr, hcr=hLiq(Tcr);
   const hrY=+inp.hr, cFuel=+inp.c_fuel, cElec=+inp.c_elec, cWater=+inp.c_water;
-  const efFuel=+inp.ef_fuel, efGrid=+inp.ef_grid;
+  const efFuel=+inp.ef_fuel, efGrid=(inp.ef_grid!=null&&inp.ef_grid!==''&&isFinite(+inp.ef_grid))?+inp.ef_grid:GRID_EF_TGO;
+  // [แก้ไข 3 ต.ค. 2569 audit] EF ฐาน NCV (TGO/IPCC) ต้องคูณกับพลังงานฐาน LHV: GJ_LHV = GJ_HHV ÷ (HHV/LHV)
+  const efFuelBasis=inp.ef_fuel_basis||'NCV', hhvLhv=(+inp.hhv_lhv>=1&&+inp.hhv_lhv<1.5)?+inp.hhv_lhv:1.05;
+  const efFuelHHV=efFuelBasis==='GCV'?efFuel:efFuel/hhvLhv;   // kgCO₂ ต่อ GJ(HHV)
+  const warns=[];  // [แก้ไข 3 ต.ค. 2569 audit] กล่องเตือนค่าที่เป็นไปไม่ได้
+  if(!(+inp.eta_b>0)||+inp.eta_b>100) warns.push('ประสิทธิภาพหม้อไอน้ำ η = '+(inp.eta_b===''||inp.eta_b==null?'(ว่าง)':inp.eta_b+' %')+' — ต้องอยู่ระหว่าง 0–100 % (ฐาน HHV ปกติ 65–90 %) ผลเชื้อเพลิง/ค่าใช้จ่ายใช้ไม่ได้');
+  else if(+inp.eta_b>95) warns.push('η หม้อไอน้ำ '+inp.eta_b+' % ฐาน HHV สูงผิดปกติ (หม้อไอน้ำทั่วไป ≤ 90 % HHV) — ตรวจว่ากรอกฐาน LHV หรือไม่');
+  if(!(+inp.bd>=0)||+inp.bd>=100) warns.push('อัตรา Blowdown '+inp.bd+' % — ต้องอยู่ระหว่าง 0 ถึง < 100 %');
+  if(+inp.hhv_lhv && !(+inp.hhv_lhv>=1&&+inp.hhv_lhv<1.5)) warns.push('อัตราส่วน HHV/LHV '+inp.hhv_lhv+' อยู่นอกช่วง 1.00–1.50 — ใช้ 1.05 แทน');
   const P=[],D=[],CR=[];
   for(let i=0;i<n;i++){const h=inp.headers[i];P.push(+h.P);D.push(+h.D);CR.push(+h.CR/100);}
   const daSrc=Math.min(n-1,Math.max(0,+(inp.da_src??(n-1))));
@@ -375,6 +389,7 @@ function solveModel(inp){
     mProc=0;mProcH=0;for(let i=0;i<n;i++){const r=D[i]*CR[i];mProc+=r;mProcH+=r*hcr;}
     vent=ventR*feedwater;
     mMu=0;for(let i=0;i<n;i++)mMu+=D[i]*(1-CR[i]);mMu+=mBlowLiq+vent;
+    mMu+=surplus.reduce((a,b)=>a+b,0);  // [แก้ไข 3 ต.ค. 2569 audit] ไอส่วนเกินที่ระบายทิ้งต้องเติมน้ำชดเชยเข้า DA — รวมในสมดุลพลังงาน DA ด้วย (เดิมบวกหลัง loop → DA residual 454 kW)
     // enthalpy ผสมจากบนลงล่าง (PRV=isenthalpic, extraction=h_out ของสายนั้น, BP=h_out จาก h ต้นทางจริง)
     hArr=new Array(n).fill(hHP);
     for(let i=1;i<n;i++){
@@ -410,13 +425,12 @@ function solveModel(inp){
     if(Math.abs(mDeaNew-mDea)<1e-7){mDea=Math.max(0,mDeaNew);break;}
     mDea=Math.max(0,mDeaNew);
   }
-  const surplusTot=surplus.reduce((a,b)=>a+b,0);
-  mMu+=surplusTot;
+  const surplusTot=surplus.reduce((a,b)=>a+b,0);  // [แก้ไข 3 ต.ค. 2569 audit] รวมใน mMu ภายใน loop แล้ว
 
   const kgs=t=>t*1000/3600;
   const Qsteam=kgs(boilerSteam)*(hHP-hfw), Qblow=kgs(blow)*(hf(P[0])-hfw);
   const Qboiler=Qsteam+Qblow, Qfuel=Qboiler/eta;
-  const fuel_GJhr=Qfuel*3600/1e6, fuel_GJyr=fuel_GJhr*hrY, fuelCost=fuel_GJyr*cFuel, CO2fuel=fuel_GJyr*efFuel/1000;
+  const fuel_GJhr=Qfuel*3600/1e6, fuel_GJyr=fuel_GJhr*hrY, fuelCost=fuel_GJyr*cFuel, CO2fuel=fuel_GJyr*efFuelHHV/1000;  // [แก้ไข 3 ต.ค. 2569 audit] ใช้ EF แปลงเป็นฐาน HHV
 
   const elecGen_kW=ectKW+bpKW;
   const elec_MWhyr=elecGen_kW*hrY/1000, elecValue=elecGen_kW*hrY*cElec;
@@ -429,7 +443,7 @@ function solveModel(inp){
   const mc=hArr.map(hh=>(hh-hfw)/eta/1000*cFuel);
   const mCT=condR?condR.m:0;
 
-  return {n,P,D,CR,daSrc,eta,BD,flashed,x_flash,Tsteam,ventR,Pdea,Tdea,hfw,hmu:hmu,Tmu,Tcr,hcr,hrY,cFuel,cElec,cWater,efFuel,efGrid,
+  return {warns,efFuelBasis,hhvLhv,efFuelHHV,n,P,D,CR,daSrc,eta,BD,flashed,x_flash,Tsteam,ventR,Pdea,Tdea,hfw,hmu:hmu,Tmu,Tcr,hcr,hrY,cFuel,cElec,cWater,efFuel,efGrid,
     hHP,sHP,hArr,ectOn,ectType,paths,condR,ectKW,ectInlet,fex,fcond,ei,eg,bpR,bpKW,PRV,surplus,surplusTot,
     mDea,boilerSteam,feedwater,blow,mFlash,mBlowLiq,mProc,vent,mMu,iter,mCT,
     Qsteam,Qblow,Qboiler,Qfuel,fuel_GJhr,fuel_GJyr,fuelCost,CO2fuel,
@@ -449,11 +463,13 @@ function showTab(id,el){document.querySelectorAll('.panel').forEach(p=>p.classLi
 const HINTS={
  hr:'ที่มา: บันทึกการเดินเครื่อง/ฝ่ายผลิต — ชั่วโมงที่ระบบไอน้ำเดินจริงต่อปี อย่าใช้ 8,760 โดยอัตโนมัติ',
  t_mu:'ที่มา: วัดอุณหภูมิน้ำเติม (หลัง softener/RO) ที่ถังพักหรือท่อเข้า deaerator',
- c_fuel:'ที่มา: ใบแจ้งหนี้เชื้อเพลิง ÷ ค่าความร้อน HHV เช่น (฿/ตัน) ÷ HHV(MJ/kg) × 1000 = ฿/GJ',
+ c_fuel:'ที่มา: ใบแจ้งหนี้เชื้อเพลิง ÷ ค่าความร้อน HHV เช่น (฿/ตัน) ÷ HHV(MJ/kg) = ฿/GJ หรือ (฿/kg) ÷ HHV(MJ/kg) × 1000 = ฿/GJ — ตัวอย่าง 4,000 ฿/ตัน ÷ 22 MJ/kg = 181.8 ฿/GJ', /* [แก้ไข 3 ต.ค. 2569 audit] เดิมสูตร ฿/ตัน ×1000 ผิด 1000 เท่า */
  c_elec:'ที่มา: บิลไฟฟ้า กฟภ./กฟน. — ค่าเฉลี่ยรวมค่าพลังงาน+demand charge ของโรงงาน (฿/kWh)',
  c_water:'ที่มา: ค่าน้ำประปา/น้ำดิบ + ค่าปรับสภาพน้ำ (เคมี, softener, RO) รวมเป็น ฿/m³',
  ef_fuel:'ที่มา: ตาราง EF รายเชื้อเพลิงของ TGO/สผ. ปีล่าสุด (kgCO₂/GJ) — ชีวมวลรายงาน biogenic แยก',
- ef_grid:'ที่มา: EF กริดไฟฟ้าประเทศไทยปีล่าสุดของ สผ./TGO (kgCO₂/MWh)',
+ ef_grid:'ที่มา: EF กริดไฟฟ้าประเทศไทยของ TGO = 475 kgCO₂e/MWh (0.4750 kgCO₂e/kWh) — แก้ได้ถ้า TGO ประกาศค่าใหม่', /* [แก้ไข 3 ต.ค. 2569 audit] */
+ ef_fuel_basis:'EF ของ TGO/สผ./IPCC เป็นฐาน NCV (LHV) → เลือก NCV และกรอกอัตราส่วน HHV/LHV; EF ของ US EPA/MEASUR เป็นฐาน HHV → เลือก GCV',
+ hhv_lhv:'HHV/LHV โดยประมาณ: NG 1.11 · LPG 1.08 · น้ำมันเตา/ดีเซล 1.06 · ถ่านหิน 1.04–1.05 · ชีวมวลชื้น 40–50 % 1.15–1.30 — หรือคำนวณจากผลวิเคราะห์เชื้อเพลิง',
  eta_b:'ที่มา: ผลทดสอบประสิทธิภาพหม้อไอน้ำ (BS 845/ASME PTC 4) แปลงเป็นฐาน HHV: η_HHV = η_LHV ÷ (HHV/LHV) หรือ input–output จากมิเตอร์ไอน้ำ+เชื้อเพลิง',
  bd:'ที่มา: มิเตอร์น้ำ blowdown หรือคำนวณจาก TDS: BD% = TDS_feed ÷ (TDS_boiler − TDS_feed) × 100',
  bd_flash:'ที่มา: ดู P&ID/หน้างาน — มี flash tank แยกไอจาก blowdown กลับเข้า deaerator หรือไม่',
@@ -632,7 +648,8 @@ function collectTB(){
 function collectUI(){
   const n=nHead();
   const inp={nhead:n};
-  ['hr','t_mu','c_fuel','c_elec','c_water','ef_fuel','ef_grid','eta_b','bd','bd_approach','t_boiler','vent','p_dea','t_cr'].forEach(k=>inp[k]=+$(k).value);
+  ['hr','t_mu','c_fuel','c_elec','c_water','ef_fuel','ef_grid','eta_b','bd','bd_approach','t_boiler','vent','p_dea','t_cr'].forEach(k=>inp[k]=($(k).value===''?'':+$(k).value)); // [แก้ไข 3 ต.ค. 2569 audit] ช่องว่างเก็บเป็น '' ให้ตรวจเตือนได้
+  inp.ef_fuel_basis=$('ef_fuel_basis').value; inp.hhv_lhv=+$('hhv_lhv').value; // [แก้ไข 3 ต.ค. 2569 audit]
   inp.bd_flash=$('bd_flash').value; inp.bd_preheat=$('bd_preheat').value;
   inp.da_src=+$('da_src').value;
   inp.headers=[];
@@ -650,6 +667,7 @@ function applyUI(inp){
   updateTurbines({ect:inp.ect,tb:inp.tb,bp:inp.bp});
   ['hr','t_mu','c_fuel','c_elec','c_water','ef_fuel','ef_grid','eta_b','bd','bd_approach','t_boiler','vent','p_dea','t_cr'].forEach(k=>{if(inp[k]!=null)$(k).value=inp[k];});
   $('bd_flash').value=String(inp.bd_flash??'1');$('bd_preheat').value=String(inp.bd_preheat??'0');
+  $('ef_fuel_basis').value=inp.ef_fuel_basis||'NCV'; $('hhv_lhv').value=(inp.hhv_lhv!=null&&inp.hhv_lhv!=='')?inp.hhv_lhv:1.05; // [แก้ไข 3 ต.ค. 2569 audit] ไฟล์เก่าไม่มีช่องนี้ → NCV, 1.05
   if(inp.da_src!=null&&$('da_src'))$('da_src').value=String(Math.min(inp.nhead-1,+inp.da_src));
 }
 
@@ -691,7 +709,7 @@ function switchScenario(i){
 function addModification(){
   saveActive();
   const base=JSON.parse(JSON.stringify(scenarios[activeIdx].inputs||collectUI()));
-  scenarios.push({id:nextId,name:'มาตรการที่ '+(scenarios.length),invest:0,inputs:base});
+  scenarios.push({id:nextId,name:'มาตรการที่ '+(scenarios.length),invest:0,inputs:base,parent:(scenarios[activeIdx].id||1)}); // [แก้ไข 3 ต.ค. 2569 audit] จำ scenario ต้นทาง เพื่อให้ teBuildECM เทียบผลส่วนเพิ่มกับต้นทาง (ไม่นับซ้ำ)
   nextId++;activeIdx=scenarios.length-1;
   applyUI(scenarios[activeIdx].inputs);renderScenBar();
   showTab('input');
@@ -729,7 +747,7 @@ function runModel(){
 }
 function loadExample(){
   $('nhead').value='3';updateHeaders();
-  $('hr').value=8520;$('t_mu').value=50;$('c_fuel').value=121.7;$('c_elec').value=4.5;$('c_water').value=9.98;$('ef_fuel').value=96.6876;$('ef_grid').value=499;
+  $('hr').value=8520;$('t_mu').value=50;$('c_fuel').value=121.7;$('c_elec').value=4.5;$('c_water').value=9.98;$('ef_fuel').value=96.6876;$('ef_grid').value=GRID_EF_TGO;$('ef_fuel_basis').value='GCV';$('hhv_lhv').value=1.05;/* [แก้ไข 3 ต.ค. 2569 audit] EF กริด TGO; EF เชื้อเพลิงของเคส MEASUR เป็นฐาน HHV */
   $('eta_b').value=70.16;$('bd').value=0.0526;$('bd_flash').value='1';$('bd_preheat').value='1';$('bd_approach').value=50;$('t_boiler').value=480;$('vent').value=1.15;$('p_dea').value=1.79;
   $('t_cr').value=127;$('da_src').value='2';
   $('p_h0').value=64;$('d_h0').value=0;$('cr_h0').value=100;
@@ -745,7 +763,7 @@ function loadExample(){
 
 // ---- ตัวอย่างระบบเต็ม: เปิดอุปกรณ์ครบทุกชิ้นบนผัง ----
 function loadFullDemo(){
-  const inp={nhead:4,hr:8000,t_mu:30,c_fuel:180,c_elec:4.2,c_water:22,ef_fuel:77.4,ef_grid:499,
+  const inp={nhead:4,hr:8000,t_mu:30,c_fuel:180,c_elec:4.2,c_water:22,ef_fuel:77.4,ef_grid:GRID_EF_TGO,ef_fuel_basis:'NCV',hhv_lhv:1.06,/* [แก้ไข 3 ต.ค. 2569 audit] น้ำมันเตา EF IPCC ฐาน NCV */
     eta_b:84,bd:2,bd_flash:'1',bd_preheat:'1',bd_approach:40,t_boiler:480,vent:1.0,p_dea:1.79,t_cr:90,da_src:3,
     headers:[{P:64,D:5,CR:80},{P:20,D:10,CR:60},{P:9.9,D:15,CR:50},{P:1.8,D:8,CR:30}],
     ect:{on:true,type:'5',ei:85,eg:98,pc:0.12,fcond:40,fex:[12,16,10],dst:1,fx:0},
@@ -789,6 +807,89 @@ function importJSON(input){
   input.value='';};
   rd.readAsText(file);
 }
+
+/* TE_ECM — ส่งออกมาตรการไป ECM Portfolio (schema v1) [แก้ไข 3 ต.ค. 2569] */
+var TE_ECM=(function(){
+  function clean(o){var r={};Object.keys(o||{}).forEach(function(k){var v=o[k];if(v===undefined||v===null)return;if(typeof v==='number'&&!isFinite(v))return;r[k]=v;});return r;}
+  function save(tool,site,measures,pools){
+    var ms=(measures||[]).map(clean).filter(function(m){return m.id&&m.name&&m.effect&&m.carrier;});
+    if(!ms.length){alert('ยังไม่มีมาตรการที่คำนวณผลประหยัดได้ — กรุณากรอกข้อมูล/คำนวณก่อนส่งออก');return null;}
+    var d={meta:{schema:'TE_ECM',version:1,tool:tool,exportedAt:new Date().toISOString(),site:site||''},pools:(pools||[]).map(clean),measures:ms};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');
+    a.href=URL.createObjectURL(b);a.download=tool+'_ECM_'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},2000);return d;}
+  return{save:save,clean:clean};
+})();
+/* [แก้ไข 3 ต.ค. 2569] teBuildECM — แปลง Modification แต่ละ scenario เทียบกรณีฐานเป็นมาตรการ TE_ECM
+   จำแนกจากค่าที่กรอกต่างจากกรณีฐาน: η หม้อไอน้ำ/คอนเดนเสท/blowdown/vent/น้ำเติม → conversion (steam, savingPct)
+   · ลดความต้องการไอน้ำ process (D ของ header) → demand (steam, t/ปี) · อื่น ๆ/ผสม → direct (fuel GJ/ปี หรือ electricity kWh/ปี) */
+function teBuildECM(){
+  var all;
+  try{all=solveAll();}catch(e){console.warn('teBuildECM solveAll',e);all=[];}
+  var measures=[],pools=[];
+  var site=($('rep_company')&&$('rep_company').value)||'';
+  if(!all.length)return{measures:measures,pools:pools,site:site};
+  var b=all[0].R,bi=all[0].scen.inputs||{},hr=b.hrY;
+  var steamB=b.boilerSteam*hr;
+  if(steamB>0)pools.push({carrier:'steam',name:'ไอน้ำหม้อไอน้ำ HP '+b.P[0]+' bar a (ฐาน HHV)',unit:'t',baselineQty:steamB,
+    factor:b.fuel_GJyr/steamB,factorUnit:'GJ/t',drawFrom:'fuel',hvBasis:'HHV'}); // [แก้ไข 3 ต.ค. 2569 audit] ระบุฐานค่าความร้อน (Boiler calculator = LHV)
+  var CONV=['bd','bd_flash','bd_preheat','bd_approach','vent','p_dea','t_mu','t_cr'];
+  function diffKeys(mi){
+    var ch={eta:false,conv:false,demand:false,other:false};
+    if(+mi.eta_b!==+bi.eta_b)ch.eta=true;
+    CONV.forEach(function(k){if(String(mi[k])!==String(bi[k]))ch.conv=true;});
+    var DEF_={ef_fuel_basis:'NCV',hhv_lhv:'1.05'}; var nv_=function(o,k){var x=o[k];return (x==null||x==='')&&DEF_[k]!=null?DEF_[k]:String(x);}; // [แก้ไข 3 ต.ค. 2569 audit] ไฟล์เก่าไม่มีช่องใหม่ → ใช้ค่าเริ่มต้นก่อนเทียบ
+    ['hr','c_fuel','c_elec','c_water','ef_fuel','ef_grid','ef_fuel_basis','hhv_lhv','t_boiler','nhead','da_src'].forEach(function(k){if(nv_(mi,k)!==nv_(bi,k))ch.other=true;});
+    if(JSON.stringify(mi.ect)!==JSON.stringify(bi.ect)||JSON.stringify(mi.tb)!==JSON.stringify(bi.tb))ch.other=true;
+    var n=+bi.nhead;
+    for(var i=0;i<n;i++){var hb=(bi.headers||[])[i]||{},hm=(mi.headers||[])[i]||{};
+      if(+hb.P!==+hm.P)ch.other=true;
+      if(+hb.CR!==+hm.CR)ch.conv=true;
+      if(+hb.D!==+hm.D){if(+hm.D<+hb.D)ch.demand=true;else ch.other=true;}}
+    return ch;}
+  var b0=b,bi0=bi;  // [แก้ไข 3 ต.ค. 2569 audit] กรณีฐานจริง (pool) — แต่ละมาตรการเทียบกับ scenario ต้นทาง (parent) ไม่ใช่ baseline เสมอ เพื่อไม่ให้มาตรการที่ copy ต่อกันนับผลซ้ำ
+  for(var k=1;k<all.length;k++){
+    var sc=all[k].scen,R=all[k].R,mi=sc.inputs||{};
+    var pk=0;if(sc.parent!=null){for(var q=0;q<k;q++){if(all[q].scen.id===sc.parent){pk=q;break;}}}
+    b=all[pk].R;bi=all[pk].scen.inputs||{};
+    var parentTxt=pk>0?' · เทียบกับ "'+(all[pk].scen.name||'')+'" (มาตรการต้นทาง — ผลส่วนเพิ่ม ไม่รวมผลของมาตรการต้นทาง)':'';
+    var dFuel=b.fuel_GJyr-R.fuel_GJyr;                 // GJ/ปี (HHV)
+    var dElec=(R.elecGen_kW-b.elecGen_kW)*hr;          // kWh/ปี ไฟฟ้าผลิตเพิ่ม (= ลดซื้อ)
+    var dTHB=b.netOpCost-R.netOpCost;                  // ฿/ปี
+    var dSteam=(b.boilerSteam-R.boilerSteam)*hr;       // t/ปี
+    var ch=diffKeys(mi);
+    var m={id:'steam-m'+(sc.id||k),name:sc.name||('มาตรการที่ '+k),system:'steam',group:'estimate',
+      savingTHB:dTHB>0?dTHB:undefined,capex:(+sc.invest>0?+sc.invest:undefined)};
+    var prim={fuel_GJ:dFuel};if(Math.abs(dElec)>1e-6)prim.electricity_kWh=dElec;m.primary=prim;
+    var tag='แบบจำลอง Steam Master (Baseline vs Modification, '+fmt(hr,0)+' ชม./ปี, ฐาน HHV)'+parentTxt;
+    if(!ch.other&&!ch.demand&&(ch.eta||ch.conv)){
+      if(!(dFuel>0))continue;
+      m.effect='conversion';m.carrier='steam';m.unit='t';m.system=ch.conv?'steam':'boiler';
+      m.savingPct=dFuel/b.fuel_GJyr*100;m.baselineQty=steamB;  // [แก้ไข 3 ต.ค. 2569 audit] b = scenario ต้นทาง: savingPct ส่วนเพิ่ม ใช้ซ้อนแบบคูณใน ECM Portfolio ได้
+      if(ch.eta&&!ch.conv)m.basis='ปรับ η หม้อไอน้ำ '+fmt(+bi.eta_b,2)+' → '+fmt(+mi.eta_b,2)+' % : savingPct = (1 − η_เดิม/η_ใหม่)×100 = '+fmt(m.savingPct,2)+' % ; ประหยัดเชื้อเพลิง '+fmt(dFuel,0)+' GJ/ปี · '+tag;
+      else m.basis='ลดเชื้อเพลิงต่อหน่วยไอน้ำ (คอนเดนเสทคืน/blowdown/vent/อุ่นน้ำป้อน'+(ch.eta?'/η หม้อไอน้ำ':'')+') : savingPct = ΔFuel/Fuel_ฐาน×100 = '+fmt(dFuel,0)+'/'+fmt(b.fuel_GJyr,0)+' GJ/ปี = '+fmt(m.savingPct,2)+' % · '+tag;
+      m.mvOption='B';m.keyParams=ch.conv?['อัตราคอนเดนเสทคืน (%)','อุณหภูมิน้ำป้อน/คอนเดนเสท (°C)','อัตรา blowdown (%)','ไอน้ำผลิต (t/hr)','เชื้อเพลิง (GJ/hr)']:['ประสิทธิภาพหม้อไอน้ำ (%)','ไอน้ำผลิต (t/hr)','เชื้อเพลิง (GJ/hr)'];
+    }else if(!ch.other&&ch.demand&&!ch.eta&&!ch.conv){
+      if(!(dSteam>0))continue;
+      m.effect='demand';m.carrier='steam';m.unit='t';m.savingQty=dSteam;m.baselineQty=steamB;
+      m.basis='ลดความต้องการไอน้ำ process : ΔSteam = (ไอน้ำผลิตฐาน '+fmt(b.boilerSteam,2)+' − ใหม่ '+fmt(R.boilerSteam,2)+' t/hr) × '+fmt(hr,0)+' ชม./ปี = '+fmt(dSteam,0)+' t/ปี (รวมผลไอน้ำ deaerator) ; เชื้อเพลิงลด '+fmt(dFuel,0)+' GJ/ปี · '+tag;
+      m.mvOption='B';m.keyParams=['อัตราไอน้ำ process ต่อ header (t/hr)','ไอน้ำผลิต (t/hr)','ชั่วโมงทำงาน (ชม./ปี)'];
+    }else{
+      if(!(dTHB>0))continue; // [แก้ไข 3 ต.ค. 2569] มาตรการผสม/กังหัน ต้องคุ้มสุทธิ (เชื้อเพลิง+น้ำ−ไฟฟ้า) ก่อนส่งออก
+      if(dFuel>0){m.effect='direct';m.carrier='fuel';m.unit='GJ';m.savingQty=dFuel;m.baselineQty=b.fuel_GJyr;
+        m.basis='มาตรการผสม/กังหัน : ΔFuel = '+fmt(b.fuel_GJyr,0)+' − '+fmt(R.fuel_GJyr,0)+' = '+fmt(dFuel,0)+' GJ/ปี'+(Math.abs(dElec)>1e-6?' ; ไฟฟ้าผลิตเปลี่ยน '+fmt(dElec,0)+' kWh/ปี (ดู primary)':'')+' · '+tag;}
+      else if(dElec>0){m.effect='direct';m.carrier='electricity';m.unit='kWh';m.savingQty=dElec;
+        m.basis='ผลิตไฟฟ้าเพิ่ม (กังหัน) ΔE = '+fmt(dElec,0)+' kWh/ปี โดยใช้เชื้อเพลิงเพิ่ม '+fmt(-dFuel,0)+' GJ/ปี (primary.fuel_GJ ติดลบ) · '+tag;}
+      else continue;
+      m.mvOption='C';m.keyParams=['เชื้อเพลิง (GJ/hr)','ไฟฟ้าผลิต (kW)','ไอน้ำผลิต (t/hr)','ชั่วโมงทำงาน (ชม./ปี)'];
+    }
+    measures.push(m);
+  }
+  b=b0;bi=bi0;
+  return{measures:measures,pools:pools,site:site};
+}
+window.teBuildECM=teBuildECM;
+function teExportECM(){var r=teBuildECM();TE_ECM.save('Tool_Steam_Master',r.site,r.measures,r.pools);} // [แก้ไข 3 ต.ค. 2569]
 </script>
 <script>
 /* ============================ RENDER: RESULTS & DIAGRAM ============================ */
@@ -856,14 +957,14 @@ function renderResults(R){
   if(R.condR)ectSteps+=`Condensing: ${f(R.condR.m,2)} t/hr, ${f(R.P[0],0)}→${f(R.condR.pc,2)} bar a, h:${f(R.hHP,0)}→${f(R.condR.h_out,0)} ⇒ <span class="num">${f(R.condR.kW,0)} kW</span><br>`;
   R.bpR.forEach(b=>{if(b.on)ectSteps+=`BP ${HN(b.src)}→${HN(b.dst)}: ${f(b.f,2)} t/hr ⇒ <span class="num">${f(b.kW,0)} kW</span><br>`;});
 
-  $('resultsBody').innerHTML=`
+  $('resultsBody').innerHTML=`${(R.warns&&R.warns.length)?'<div id="sm_plaus_warn" style="background:#fdecec;border:1px solid #f5a0a0;border-radius:6px;padding:8px 10px;color:#b42318;font-size:13px;margin-bottom:8px">⛔ ค่าที่ป้อนเป็นไปไม่ได้/ผิดปกติ — ตรวจก่อนนำไปรายงาน:<br>• '+R.warns.join('<br>• ')+'</div>':''}
    <div class="section-title" style="margin-top:0">สรุปแบบ MEASUR (Annual Steam System Summary)</div>
    <div class="summary-grid">
      <div class="sum-box"><div class="head">ไอน้ำ & ต้นทุนดำเนินการ</div>
        <div class="row"><span class="k">Steam Generated</span><span class="v">${f(R.boilerSteam,1)} t/hr</span></div>
        <div class="row"><span class="k">Fuel + Water Cost</span><span class="v">${f(R.opCost,0)} ฿/ปี</span></div>
        <div class="row"><span class="k">Net Operating Cost (หักมูลค่าไฟ)</span><span class="v big">${f(R.netOpCost,0)} ฿/ปี</span></div>
-       <div class="row"><span class="k">CO₂ เชื้อเพลิง</span><span class="v">${f(R.CO2fuel,0)} tCO₂/ปี</span></div>
+       <div class="row"><span class="k">CO₂ เชื้อเพลิง (EF ฐาน ${R.efFuelBasis||'NCV'}${R.efFuelBasis==='GCV'?'':' ÷ HHV/LHV '+f(R.hhvLhv,2)})</span><span class="v">${f(R.CO2fuel,0)} tCO₂/ปี</span></div>
      </div>
      <div class="sum-box"><div class="head">ไฟฟ้า (Power Balance)</div>
        <div class="row"><span class="k">ECT Turbine</span><span class="v">${f(R.ectKW,0)} kW</span></div>

@@ -44,6 +44,21 @@ var TE_JSON=(function(){
   return{collect:collect,apply:apply,save:save,load:load};
 })();
 </script>
+<!-- [แก้ไข 3 ต.ค. 2569] TE_ECM block -->
+<script>
+/* TE_ECM — ส่งออกมาตรการไป ECM Portfolio (schema v1) [แก้ไข 3 ต.ค. 2569] */
+var TE_ECM=(function(){
+  function clean(o){var r={};Object.keys(o||{}).forEach(function(k){var v=o[k];if(v===undefined||v===null)return;if(typeof v==='number'&&!isFinite(v))return;r[k]=v;});return r;}
+  function save(tool,site,measures,pools){
+    var ms=(measures||[]).map(clean).filter(function(m){return m.id&&m.name&&m.effect&&m.carrier;});
+    if(!ms.length){alert('ยังไม่มีมาตรการที่คำนวณผลประหยัดได้ — กรุณากรอกข้อมูล/คำนวณก่อนส่งออก');return null;}
+    var d={meta:{schema:'TE_ECM',version:1,tool:tool,exportedAt:new Date().toISOString(),site:site||''},pools:(pools||[]).map(clean),measures:ms};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');
+    a.href=URL.createObjectURL(b);a.download=tool+'_ECM_'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},2000);return d;}
+  return{save:save,clean:clean};
+})();
+</script>
 <style>
 :root{
   --bg:#f0f3f8;--bg2:#ffffff;--bg3:#e8edf5;--bg4:#f7f9fc;
@@ -224,6 +239,8 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <span class="te-json">
   <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
   <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+  <!-- [แก้ไข 3 ต.ค. 2569] ปุ่มส่งออก TE_ECM -->
+  <button type="button" onclick="teExportECM()" title="ส่งออกมาตรการเป็นไฟล์ TE_ECM เพื่อนำเข้า Tool_ECM_Portfolio">📤 ส่งไป ECM Portfolio</button>
 </span>
   </div>
 </div>
@@ -723,6 +740,11 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
         <input type="number" id="a_dp" value="" placeholder="Ref. Dryer spec" oninput="runAudit()"><div class="hint">pressure dew point หลัง dryer °C · dew-point meter · refrigerant dryer +3 ถึง +10 °C · desiccant −20 ถึง −40 °C</div>
         <label>กำลังมอเตอร์ Nameplate (kW)</label>
         <input type="number" id="a_kwNP" value="75" oninput="runAudit()"><div class="hint">กำลังมอเตอร์พิกัด kW · nameplate มอเตอร์ (เช่น 37/55/75/90 kW)</div>
+        <!-- [แก้ไข 3 ต.ค. 2569 audit] ราคาเชื้อเพลิงที่ทดแทน + ประสิทธิภาพหัวเผา สำหรับมาตรการ Heat Recovery (เดิมฝัง 0.035 ฿/MJ) -->
+        <label>ราคาเชื้อเพลิงที่ Heat Recovery ทดแทน (บาท/MJ)</label>
+        <input type="number" id="a_hr_price" value="0.55" step="0.01" oninput="runAudit()"><div class="hint">฿/MJ ฐาน LHV · LPG ≈ 25 ฿/kg ÷ 46 MJ/kg ≈ 0.55 · NG ≈ 0.30–0.40 · น้ำมันเตา ≈ 0.45–0.55 · heater ไฟฟ้า = ค่าไฟ ÷ 3.6 ≈ 1.2 · ใช้ราคาจริงจากใบแจ้งหนี้</div>
+        <label>ประสิทธิภาพหัวเผา/หม้อต้มเดิม (0–1)</label>
+        <input type="number" id="a_hr_eta" value="0.85" step="0.01" min="0.3" max="1" oninput="runAudit()"><div class="hint">ประสิทธิภาพอุปกรณ์ที่ถูกทดแทน · หัวเผา LPG อบแห้ง 0.75–0.90 · หม้อไอน้ำ 0.80–0.88 · heater ไฟฟ้า 1.0</div>
       </div>
     </div>
   </div>
@@ -1087,6 +1109,12 @@ function calcPerf() {
   const SPC_d  = parseFloat(document.getElementById('spc_design').value)||6.5;
 
   if ([FAD,T,RH,Pd_g,P1,P_elec].some(isNaN)) { alert('กรุณากรอกข้อมูลให้ครบ'); return; }
+  // [แก้ไข 3 ต.ค. 2569 audit] กัน FAD/P_elec ≤ 0 → SEC = Infinity
+  if (!(FAD > 0) || !(P_elec > 0) || !(eta_m > 0 && eta_m <= 1)) {
+    document.getElementById('perf-kpis').innerHTML = `<div class="warn-box" style="grid-column:1/-1">⚠️ ค่าที่กรอกเป็นไปไม่ได้: FAD และ P_elec ต้อง &gt; 0 และ η_motor อยู่ระหว่าง 0–1 — ไม่คำนวณ SEC (จะได้ ∞)</div>`;
+    document.getElementById('perf-detail').innerHTML = ''; document.getElementById('perf-saving').innerHTML = '';
+    document.getElementById('perf-result').style.display = 'block'; return;
+  }
 
   const P_shaft = P_elec * eta_m;
   const P2 = Pd_g + P1;
@@ -1130,9 +1158,14 @@ function calcPerf() {
 
   const saving_kw = (SPC_act - SPC_d) * FAD_n;
   if (saving_kw > 0) {
+    // [แก้ไข 3 ต.ค. 2569 audit] เดิม kW×6000×4.5/1000 ป้าย "บาท/ปี" (ผิด 1,000 เท่า) และไม่ใช้ชั่วโมง/ค่าไฟที่กรอก → ใช้ seq_hours/seq_rate และแปลง kW เพลา → kW ไฟฟ้า (÷η_motor)
+    const hrsP = parseFloat(document.getElementById('seq_hours')?.value) || 6000;
+    const rateP = parseFloat(document.getElementById('seq_rate')?.value) || 4.5;
+    const kwE = saving_kw / eta_m, kwhP = kwE * hrsP, thbP = kwhP * rateP;
     document.getElementById('perf-saving').innerHTML = `
       <div class="warn-box">💡 ถ้าปรับ SEC จาก <b>${SPC_act.toFixed(2)}</b> กลับมาที่ Design <b>${SPC_d.toFixed(2)}</b> kW/Nm³/min<br>
-      ประหยัดได้ <b>${saving_kw.toFixed(1)} kW</b> ≈ <b>${(saving_kw*6000*4.5/1000).toFixed(0)} บาท/ปี</b> (6,000h, 4.5 บาท/kWh)</div>`;
+      ประหยัดได้ <b>${saving_kw.toFixed(1)} kW (เพลา)</b> = <b>${kwE.toFixed(1)} kW ไฟฟ้า</b> (÷η_motor ${eta_m}) ≈ <b>${Math.round(kwhP).toLocaleString()} kWh/ปี</b> ≈ <b>${Math.round(thbP).toLocaleString()} บาท/ปี</b><br>
+      <span style="font-size:11px">(ชั่วโมง ${hrsP.toLocaleString()} h/ปี × ค่าไฟ ${rateP} บาท/kWh — จาก Tab Sequencing)</span></div>`;
   } else {
     document.getElementById('perf-saving').innerHTML = `<div class="info-box">✅ SEC ดีกว่า Design Nameplate — ระบบมีประสิทธิภาพดี</div>`;
   }
@@ -1246,7 +1279,11 @@ function calcSeq() {
   const effectiveDemand = demand * (1 - leakPct/100);
   const sim = simulatePower(effectiveDemand, comps);
   const cost = sim.totalKW * hours * rate;
-  const spc_sys = sim.totalKW / demand;
+  // [แก้ไข 3 ต.ค. 2569 audit] SEC เดิม = kW(จำลองที่ demand หลังหักรั่ว) ÷ demand รวม → ต่ำเกินจริง; ใช้ตัวหารเดียวกับที่จำลอง + แสดงกรณีปัจจุบัน (รวมรั่ว) เทียบ
+  const spc_sys = effectiveDemand > 0 ? sim.totalKW / effectiveDemand : NaN;
+  const simNow = simulatePower(demand, comps);
+  const capTot = comps.reduce((s,c)=>s+(c.fad>0?c.fad:0),0);
+  const spcNow = demand > 0 ? simNow.totalKW / demand : NaN;
 
   let rowsHTML = sim.details.map((d,i)=>{
     const comp = comps[i];
@@ -1271,8 +1308,8 @@ function calcSeq() {
   document.getElementById('seq-result').style.display='block';
   document.getElementById('seq-result').innerHTML=`
     <div class="kpi-grid">
-      <div class="kpi blue"><div class="kpi-lbl">Total Power</div><div class="kpi-val" style="color:var(--blue)">${sim.totalKW.toFixed(1)}</div><div class="kpi-unit">kW</div></div>
-      <div class="kpi amber"><div class="kpi-lbl">ค่าไฟ/ปี</div><div class="kpi-val" style="color:var(--amber);font-size:22px">${(cost/1000).toFixed(0)}</div><div class="kpi-unit">พัน บาท/ปี</div></div>
+      <div class="kpi blue"><div class="kpi-lbl">Total Power (หลังลดรั่ว)</div><div class="kpi-val" style="color:var(--blue)">${sim.totalKW.toFixed(1)}</div><div class="kpi-unit">kW</div></div>
+      <div class="kpi amber"><div class="kpi-lbl">ค่าไฟ/ปี (หลังลดรั่ว)</div><div class="kpi-val" style="color:var(--amber);font-size:22px">${(cost/1000).toFixed(0)}</div><div class="kpi-unit">พัน บาท/ปี</div></div>
       <div class="kpi teal"><div class="kpi-lbl">SEC ระบบ</div><div class="kpi-val" style="color:var(--teal)">${spc_sys.toFixed(2)}</div><div class="kpi-unit">kW/(m³/min)</div></div>
     </div>
     <div class="tbl-wrap" style="margin-top:8px">
@@ -1281,6 +1318,10 @@ function calcSeq() {
     <div style="font-size:11px;color:var(--text3);margin-top:6px;font-family:var(--mono)">
       Demand=${demand} m³/min · Leak=${leakPct}% · Effective=${effectiveDemand.toFixed(1)} m³/min
     </div>
+    <!-- [แก้ไข 3 ต.ค. 2569 audit] แสดงกรณีปัจจุบัน (demand รวมรั่ว) เทียบกรณีหลังลดรั่ว -->
+    <div class="info-box" style="margin-top:6px;font-size:12px">กรณีปัจจุบัน (demand ${demand} m³/min รวมรั่ว): <b>${simNow.totalKW.toFixed(1)} kW</b> · SEC <b>${isFinite(spcNow)?spcNow.toFixed(2):'—'}</b> kW/(m³/min) · ค่าไฟ <b>${Math.round(simNow.totalKW*hours*rate/1000).toLocaleString()}</b> พัน บาท/ปี<br>
+    ลดรั่ว ${leakPct}% → ลดลง <b>${(simNow.totalKW-sim.totalKW).toFixed(1)} kW</b> ≈ <b>${Math.round((simNow.totalKW-sim.totalKW)*hours*rate/1000).toLocaleString()}</b> พัน บาท/ปี (${hours.toLocaleString()} h × ${rate} บาท/kWh)</div>
+    ${demand > capTot ? `<div class="warn-box" style="margin-top:6px">⚠️ Demand ${demand} m³/min เกินกำลังผลิตรวม ${capTot.toFixed(1)} m³/min — ผลจำลองไม่ครอบคลุมส่วนเกิน ตรวจสอบค่า demand/FAD</div>` : ''}
     <div class="g2" style="margin-top:14px;gap:12px">
       <div class="canvas-wrap">
         <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;font-family:var(--mono);letter-spacing:.05em">POWER BREAKDOWN — CURRENT DEMAND</div>
@@ -1339,7 +1380,9 @@ function calcLeakage() {
   const volFlow_m3s = massFlow / rho_ref;
   const volFlow_m3min = volFlow_m3s * 60;
   const kw_lost = volFlow_m3min * SPC;
-  const cost_yr = kw_lost * 8760 * rate;
+  // [แก้ไข 3 ต.ค. 2569 audit] ใช้ชั่วโมงเดินเครื่อง (seq_hours) แทน 8,760 h — รั่วเฉพาะช่วงที่ระบบมีความดัน
+  const hrsLk = parseFloat(document.getElementById('seq_hours')?.value) || 6000;
+  const cost_yr = kw_lost * hrsLk * rate;
 
   document.getElementById('leak-result').style.display='block';
   document.getElementById('leak-result').innerHTML=`
@@ -1354,7 +1397,7 @@ function calcLeakage() {
       <div class="kpi amber"><div class="kpi-lbl">kW Lost</div><div class="kpi-val" style="color:var(--amber)">${kw_lost.toFixed(3)}</div><div class="kpi-unit">kW</div></div>
     </div>
     <div style="background:var(--red-lt);border:1px solid #f5a0a0;border-radius:7px;padding:10px;font-size:12px;color:var(--red);margin-top:8px">
-      💰 ค่าพลังงานที่สูญเสีย (8,760 h/ปี): <b>${(cost_yr/1000).toFixed(1)} พัน บาท/ปี</b><br>
+      💰 ค่าพลังงานที่สูญเสีย (${hrsLk.toLocaleString()} h/ปี จาก Tab Sequencing): <b>${(cost_yr/1000).toFixed(1)} พัน บาท/ปี</b><br>
       <span style="color:var(--text2);font-size:11px">ถ้ามีรอยรั่ว 10 จุด ขนาด ${D_mm}mm = ${(cost_yr*10/1000).toFixed(0)} พัน บาท/ปี</span>
     </div>
     <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:6px">
@@ -1869,7 +1912,9 @@ function calcDPLeak() {
 
   const leak_pct  = FAD > 0 ? Q_leak_free / FAD * 100 : 0;
   const kW_lost   = Q_leak_free * SPC;
-  const cost_yr   = kW_lost * 8760 * rate;
+  // [แก้ไข 3 ต.ค. 2569 audit] ใช้ชั่วโมงเดินเครื่อง (seq_hours) แทน 8,760 h
+  const hrsDP = parseFloat(document.getElementById('seq_hours')?.value) || 6000;
+  const cost_yr   = kW_lost * hrsDP * rate;
   const cost_save = cost_yr * 0.7; // assume 70% recoverable with repair
 
   const leakGrade = leak_pct < 5 ? 'good' : leak_pct < 10 ? 'warn' : 'bad';
@@ -1893,12 +1938,12 @@ function calcDPLeak() {
       <div class="kpi amber">
         <div class="kpi-lbl">kW สูญเสีย</div>
         <div class="kpi-val" style="color:var(--amber)">${kW_lost.toFixed(2)}</div>
-        <div class="kpi-unit">kW (ต่อเนื่อง 24h)</div>
+        <div class="kpi-unit">kW (ขณะระบบมีความดัน)</div>
       </div>
       <div class="kpi red">
         <div class="kpi-lbl">ค่าพลังงานสูญเสีย</div>
         <div class="kpi-val" style="color:var(--red);font-size:22px">${(cost_yr/1000).toFixed(1)}</div>
-        <div class="kpi-unit">พัน บาท/ปี (8,760h)</div>
+        <div class="kpi-unit">พัน บาท/ปี (${hrsDP.toLocaleString()} h)</div>
       </div>
     </div>
     <div style="background:var(--bg4);border:1px solid var(--border);border-radius:7px;padding:11px 13px;font-size:12px;font-family:var(--mono);line-height:2.1;margin-top:10px">
@@ -2019,6 +2064,9 @@ function autoLinkSPC(spc, fad) {
   // Also fill the DP leak test SEC
   const dpSPC = document.getElementById('dp_spc');
   if (dpSPC && spc > 0) dpSPC.value = spc.toFixed(3);
+  // [แก้ไข 3 ต.ค. 2569 audit] เชื่อม FAD จาก Tab Performance → Pressure-drop leak test (เดิมต้องกรอกซ้ำ)
+  const dpFAD = document.getElementById('dp_fad');
+  if (dpFAD && fad > 0) dpFAD.value = fad.toFixed(3);
   runAudit();
 }
 
@@ -2027,11 +2075,15 @@ function autoLinkSPC(spc, fad) {
 // ══════════════════════════════════════════════════════════════
 const ECM_LIBRARY = [
   // { id, title, condition(data), saving_fn(data), effort:'low'|'med'|'high', payback_yr, detail }
+  // [แก้ไข 3 ต.ค. 2569 audit] ทุกมาตรการ: kwh(d) = kWh ไฟฟ้า/ปี ใช้ชั่วโมงเดินเครื่อง d.hours (seq_hours) แทน 8,760 h; saving(d) = kwh × ค่าไฟ ÷ 1000 (พัน บาท)
   {
     id:'reduce_pressure', title:'ลด Set Pressure ลง 0.5–1 bar',
     icon:'📉', effort:'low',
     condition: d => d.Pdis > 6.5 && d.Pplant < d.Pdis - 0.8,
-    saving: d => (d.kwFL * 0.04 * 8760 * 0.5) / 1000, // ~4% per bar, 50% load time
+    // [แก้ไข 3 ต.ค. 2569 audit] เดิมไม่คูณค่าไฟ (แสดง kWh/1000 เป็น "พัน บาท") และใช้ 1 bar ตายตัว → ΔP ลดได้ = min(1, P_dis − P_plant − 0.3) bar (ลด ΔP ท่อเหลือ 0.3 bar แล้วลด set point)
+    dP: d => Math.min(1, Math.max(0, d.Pdis - d.Pplant - 0.3)),
+    kwh: d => d.kwFL * 0.04 * Math.min(1, Math.max(0, d.Pdis - d.Pplant - 0.3)) * d.hours * 0.5, // ~4%/bar, 50% ของเวลาเป็น load
+    saving: d => d.kwFL * 0.04 * Math.min(1, Math.max(0, d.Pdis - d.Pplant - 0.3)) * d.hours * 0.5 * d.rate / 1000,
     cost_kthb: 0, payback: 0,
     detail: 'ทุก 1 bar ที่ลด → SEC ลง ~5–7% · ตรวจ P_plant ที่จุดใช้งานจริงก่อน'
   },
@@ -2039,7 +2091,8 @@ const ECM_LIBRARY = [
     id:'fix_leaks', title:'ซ่อมรอยรั่ว Leak Rate &gt;5%',
     icon:'🔧', effort:'low',
     condition: d => d.leak > 5,
-    saving: d => (d.kwFL * (d.leak/100) * 0.7 * 8760 * d.rate) / 1000,
+    kwh: d => d.kwFL * (d.leak/100) * 0.7 * d.hours, // [แก้ไข 3 ต.ค. 2569 audit] ชั่วโมงจริง
+    saving: d => d.kwFL * (d.leak/100) * 0.7 * d.hours * d.rate / 1000,
     cost_kthb: 30, payback: 0.5,
     detail: 'Leak Rate ที่วัดได้ = ' + '—' + '% · เป้าหมาย &lt;5% · ซ่อม 70% ของจุดรั่วก่อน'
   },
@@ -2047,7 +2100,8 @@ const ECM_LIBRARY = [
     id:'vsd', title:'ติด VSD (Variable Speed Drive)',
     icon:'⚡', effort:'high',
     condition: d => d.kwFL > 0 && d.kwNL > 0 && (d.kwNL/d.kwFL) > 0.25,
-    saving: d => ((d.kwFL * 0.15) * 8760 * 0.6 * d.rate) / 1000,
+    kwh: d => d.kwFL * 0.15 * d.hours * 0.6, // [แก้ไข 3 ต.ค. 2569 audit] ชั่วโมงจริง
+    saving: d => d.kwFL * 0.15 * d.hours * 0.6 * d.rate / 1000,
     cost_kthb: d => d.kwFL * 3.5, payback: 3,
     detail: 'No-Load kW สูง = Fixed Speed ทำงานไม่มีประสิทธิภาพ · VSD ประหยัดได้ 15–35%'
   },
@@ -2055,7 +2109,9 @@ const ECM_LIBRARY = [
     id:'inlet_cooling', title:'ลด T_intake — ติด Pre-cooler / Inlet duct',
     icon:'🌡️', effort:'med',
     condition: d => d.Tin > 35,
-    saving: d => (d.kwFL * ((d.Tin - 32) / 100) * 1.0 * 8760 * 0.6 * d.rate) / 1000,
+    // [แก้ไข 3 ต.ค. 2569 audit] เดิม (T_in−32)/100 = 1 %/°C (สูงเกิน 3 เท่า) → กำลังอัด ∝ T_abs ขาเข้า: ΔP/P = (T_in−32)/(T_in+273.15) ≈ 1 %/3 °C
+    kwh: d => d.kwFL * Math.max(0, (d.Tin - 32) / (d.Tin + 273.15)) * d.hours * 0.6,
+    saving: d => d.kwFL * Math.max(0, (d.Tin - 32) / (d.Tin + 273.15)) * d.hours * 0.6 * d.rate / 1000,
     cost_kthb: 20, payback: 2,
     detail: `T_intake = ${0}°C ทุก 3°C ที่ลด → SEC ลง ~1% · ติด Air Duct ดูดอากาศจากภายนอก`
   },
@@ -2063,7 +2119,8 @@ const ECM_LIBRARY = [
     id:'optimize_seq', title:'ปรับ Sequencing — ลดเครื่อง No-Load',
     icon:'🔀', effort:'med',
     condition: d => d.kwNL > 0 && d.kwNL/d.kwFL > 0.2,
-    saving: d => (d.kwNL * 0.3 * 8760 * 0.3 * d.rate) / 1000,
+    kwh: d => d.kwNL * 0.3 * d.hours * 0.3, // [แก้ไข 3 ต.ค. 2569 audit] ชั่วโมงจริง
+    saving: d => d.kwNL * 0.3 * d.hours * 0.3 * d.rate / 1000,
     cost_kthb: 5, payback: 1,
     detail: 'ปรับ Control Band / Sequencing Controller ให้เครื่องหยุดแทน Unload เมื่อ Demand ต่ำ'
   },
@@ -2079,23 +2136,45 @@ const ECM_LIBRARY = [
     id:'heat_recovery', title:'ติด Heat Recovery จาก Compressor',
     icon:'♻️', effort:'high',
     condition: d => d.kwFL >= 30,
-    saving: d => (d.kwFL * 0.7 * 8760 * 0.5 * 0.035) / 1000, // 70% heat @ 0.035 บาท/MJ
+    // [แก้ไข 3 ต.ค. 2569 audit] เดิม kWh_th × 0.035 (ขาด ×3.6 MJ/kWh, ราคา 0.035 ฿/MJ ต่ำกว่า LPG ~14 เท่า) → ความร้อนนำกลับ kWh_th×3.6 MJ ÷ η หัวเผาเดิม × ราคาเชื้อเพลิงที่ทดแทน (฿/MJ กรอกได้)
+    heat_kWh: d => d.kwFL * 0.7 * d.hours * 0.5,               // 70% ของ input เป็นความร้อนนำกลับได้, ใช้ได้ 50% ของเวลา
+    fuel_MJ: d => d.kwFL * 0.7 * d.hours * 0.5 * 3.6 / d.hrEta,  // เชื้อเพลิงที่ลดได้ (MJ, ฐาน LHV)
+    saving: d => d.kwFL * 0.7 * d.hours * 0.5 * 3.6 / d.hrEta * d.hrPrice / 1000,
     cost_kthb: d => d.kwFL * 2, payback: 3.5,
     detail: '70–80% ของ Input Power กลายเป็นความร้อน → ใช้อบแห้ง/เตาอบ ประหยัดค่า LPG'
   },
 ];
 
-function runAudit() {
-  const g = id => { const el=document.getElementById(id); return el?parseFloat(el.value)||null:null; };
-  const data = {
-    spc:   g('a_spc'), fad:  g('a_fad'),
-    Tin:   g('a_Tin')||32, Pdis: g('a_Pdis')||7.0,
-    Pplant:g('a_Pplant')||6.0, kwFL: g('a_kwFL')||75,
-    kwNL:  g('a_kwNL')||18, leak: g('a_leak'),
-    Tac:   g('a_Tac'), dp:   g('a_dp'), kwNP: g('a_kwNP')||75,
-    rate:  parseFloat(document.getElementById('seq_rate')?.value)||4.5,
-    hours: parseFloat(document.getElementById('seq_hours')?.value)||6000,
+/* [แก้ไข 3 ต.ค. 2569 audit] อ่านข้อมูล Tab Audit ชุดเดียว (runAudit + teBuildECM) — เดิม parseFloat||null แล้ว ||75 ทำให้ kW_FL = 0 กลายเป็น 75 */
+function caAuditData(){
+  const num = id => { const el=document.getElementById(id); if(!el) return null; const s=String(el.value).trim(); if(s==='') return null; const v=parseFloat(s); return isFinite(v)?v:null; };
+  const dv = (v,x) => v===null ? x : v;        // ว่าง → ค่า default, 0 คงเป็น 0
+  const pos = (v,x) => (v!==null && v>0) ? v : x; // ต้อง > 0
+  let hrEta = pos(num('a_hr_eta'), 0.85); if (hrEta > 1 && hrEta <= 100) hrEta /= 100; if (hrEta > 1) hrEta = 0.85;
+  return {
+    spc: num('a_spc'), fad: num('a_fad'),
+    Tin: dv(num('a_Tin'),32), Pdis: dv(num('a_Pdis'),7.0), Pplant: dv(num('a_Pplant'),6.0),
+    kwFL: dv(num('a_kwFL'),75), kwNL: dv(num('a_kwNL'),18), leak: num('a_leak'),
+    Tac: num('a_Tac'), dp: num('a_dp'), kwNP: pos(num('a_kwNP'),75),
+    rate: pos(num('seq_rate'),4.5), hours: Math.min(8760, pos(num('seq_hours'),6000)),
+    hrPrice: dv(num('a_hr_price'),0.55), hrEta: hrEta,
+    etaM: (function(){ const v=num('eta_motor'); return (v>0&&v<=1)?v:0.93; })()
   };
+}
+function caAuditInvalid(d){ // [แก้ไข 3 ต.ค. 2569 audit] ค่าที่เป็นไปไม่ได้ → ไม่เสนอมาตรการ
+  const m=[];
+  if (!(d.kwFL > 0)) m.push('kW Full Load ต้อง &gt; 0');
+  if (d.kwNL < 0) m.push('kW No Load ต้อง ≥ 0');
+  if (d.kwFL > 0 && d.kwNL > d.kwFL) m.push('kW No Load มากกว่า kW Full Load');
+  if (d.leak !== null && (d.leak < 0 || d.leak >= 100)) m.push('Leak Rate ต้องอยู่ระหว่าง 0–100 %');
+  if (d.fad !== null && !(d.fad > 0)) m.push('FAD ต้อง &gt; 0');
+  if (d.spc !== null && !(d.spc > 0)) m.push('SEC ต้อง &gt; 0');
+  return m;
+}
+
+function runAudit() {
+  const data = caAuditData(); // [แก้ไข 3 ต.ค. 2569 audit] ใช้ตัวอ่านข้อมูลกลาง (0 ไม่ถูกแทนด้วย 75)
+  const invalid = caAuditInvalid(data);
 
   // SPC Benchmark
   const spcGrade = !data.spc ? 'na' : data.spc < 6.0 ? 'good' : data.spc < 6.5 ? 'blue' : data.spc < 7.5 ? 'warn' : 'bad';
@@ -2117,17 +2196,22 @@ function runAudit() {
   if (data.Tac !== null && data.Tac > 45) alerts += `<div style="background:var(--amber-lt);border:1px solid #f5c060;border-radius:6px;padding:9px 12px;margin-bottom:7px;font-size:12px;color:var(--amber)">⚠️ <b>T_aftercooler สูง (${data.Tac}°C)</b> — ควร &lt;40°C · ตรวจ Cooler, Cooling Water/Air</div>`;
   if (data.dp !== null && data.dp > 10) alerts += `<div style="background:var(--amber-lt);border:1px solid #f5c060;border-radius:6px;padding:9px 12px;margin-bottom:7px;font-size:12px;color:var(--amber)">⚠️ <b>Dew Point หลัง Dryer สูง (${data.dp}°C)</b> — PDP ควร +2 ถึง +10°C สำหรับ Refrigerant Dryer</div>`;
   if (loadFactor !== null && loadFactor > 95) alerts += `<div style="background:var(--amber-lt);border:1px solid #f5c060;border-radius:6px;padding:9px 12px;margin-bottom:7px;font-size:12px;color:var(--amber)">⚠️ <b>Load Factor สูง (${loadFactor.toFixed(0)}%)</b> — Motor ทำงานใกล้ Full Load ตลอดเวลา พิจารณาเพิ่ม Capacity</div>`;
+  if (invalid.length) alerts = `<div class="warn-box" style="margin-bottom:7px">⚠️ <b>ค่าที่กรอกเป็นไปไม่ได้:</b> ${invalid.join(' · ')} — ไม่คำนวณมาตรการประหยัดจนกว่าจะแก้ไข</div>` + alerts; // [แก้ไข 3 ต.ค. 2569 audit]
   if (!alerts) alerts = `<div style="background:var(--green-lt);border:1px solid #6ddbaa;border-radius:6px;padding:9px 12px;font-size:12px;color:var(--green)">✅ ค่าที่กรอกอยู่ในเกณฑ์ปกติ — กรอกข้อมูลเพิ่มเติมเพื่อวิเคราะห์ละเอียด</div>`;
   document.getElementById('audit-alerts').innerHTML = alerts;
 
   // ✨ ECM Priority Matrix
-  const ecms = ECM_LIBRARY.map(ecm => {
+  const ecms = invalid.length ? [] : ECM_LIBRARY.map(ecm => { // [แก้ไข 3 ต.ค. 2569 audit]
     const triggered = ecm.condition(data);
     if (!triggered) return null;
     // Fix detail template that references data
     let detail = ecm.detail;
     if (ecm.id === 'fix_leaks' && data.leak !== null) detail = `Leak Rate ที่วัดได้ = ${data.leak.toFixed(1)}% · เป้าหมาย &lt;5% · ซ่อม 70% ของจุดรั่วก่อน`;
-    if (ecm.id === 'inlet_cooling') detail = `T_intake = ${data.Tin}°C ทุก 3°C ที่ลด → SEC ลง ~1% · ติด Air Duct ดูดอากาศจากภายนอก`;
+    if (ecm.id === 'inlet_cooling') detail = `T_intake = ${data.Tin}°C ทุก 3°C ที่ลด → SEC ลง ~1% (กำลังอัด ∝ T_abs: ลด ${data.Tin}→32°C = ${(Math.max(0,(data.Tin-32)/(data.Tin+273.15))*100).toFixed(1)} %) · ติด Air Duct ดูดอากาศจากภายนอก`;
+    // [แก้ไข 3 ต.ค. 2569 audit] แสดงสมมติฐานที่ใช้คำนวณ
+    if (ecm.id === 'reduce_pressure') detail += ` · ΔP ลดได้ = min(1, ${data.Pdis}−${data.Pplant}−0.3) = ${ecm.dP(data).toFixed(2)} bar · ${Math.round(ecm.kwh(data)).toLocaleString()} kWh/ปี × ${data.rate} บาท/kWh`;
+    if (ecm.id === 'heat_recovery') detail += ` · ความร้อน ${Math.round(ecm.heat_kWh(data)).toLocaleString()} kWh_th/ปี × 3.6 MJ ÷ η ${data.hrEta} × ${data.hrPrice} บาท/MJ`;
+    if (typeof ecm.kwh === 'function' && ecm.id !== 'reduce_pressure') detail += ` · ${Math.round(ecm.kwh(data)).toLocaleString()} kWh/ปี (${data.hours.toLocaleString()} h)`;
     const savKthb = typeof ecm.saving === 'function' ? ecm.saving(data) : 0;
     const costKthb = typeof ecm.cost_kthb === 'function' ? ecm.cost_kthb(data) : ecm.cost_kthb;
     const pbYr = costKthb > 0 && savKthb > 0 ? costKthb/savKthb : ecm.payback;
@@ -2162,6 +2246,7 @@ function runAudit() {
       </div>`).join('');
   } else {
     document.getElementById('ecm-card').style.display = 'none';
+    document.getElementById('ecm-list').innerHTML = ''; // [แก้ไข 3 ต.ค. 2569 audit] ล้างรายการเก่าเมื่อไม่มีมาตรการ/ค่าไม่ถูกต้อง
   }
 }
 
@@ -2170,17 +2255,19 @@ function runAudit() {
 // ══════════════════════════════════════════════════════════════
 function teCompRows(){return Array.from(document.querySelectorAll('#comp-tbody tr')).map(r=>{const i=r.querySelectorAll('input'),s=r.querySelector('select');return{name:i[0].value,type:s.value,fad:+i[1].value,fl:+i[2].value,nl:+i[3].value};});}
 function tePmapRows(){return Array.from(document.querySelectorAll('#pmap-body tr')).map(r=>{const i=r.querySelectorAll('input');return{label:i[0].value,p:+i[1].value,dist:+i[2].value};});}
-function teExtra(){return{comps:teCompRows(),pmap:tePmapRows()};}
+function teExtra(){return{comps:teCompRows(),pmap:tePmapRows(),seqShown:document.getElementById('seq-result').style.display!=='none'};} // [แก้ไข 3 ต.ค. 2569 audit] เก็บสถานะผล Sequencing
+var _teSeqShown=false; // [แก้ไข 3 ต.ค. 2569 audit]
 function teRestoreExtra(x){
+  _teSeqShown=!!(x&&x.seqShown); // [แก้ไข 3 ต.ค. 2569 audit]
   if(x&&x.comps){document.getElementById('comp-tbody').innerHTML='';x.comps.forEach(d=>_addCompRow(d));}
   if(x&&x.pmap){document.getElementById('pmap-body').innerHTML='';x.pmap.forEach(d=>addPmapRow(d));}
 }
 function recalcAll(){
   const T=f=>{try{f();}catch(e){}};
   T(calcAmbient); T(calcProps); T(drawPV);
-  T(()=>{ const keep=document.getElementById('dp_spc').value; calcPerf(); document.getElementById('dp_spc').value=keep; }); // คำนวณ Performance เสมอ แต่ไม่ให้ autoLink ทับค่า dp_spc ที่โหลดมา
+  T(()=>{ const keep=document.getElementById('dp_spc').value, keepF=document.getElementById('dp_fad').value; calcPerf(); document.getElementById('dp_spc').value=keep; document.getElementById('dp_fad').value=keepF; }); // [แก้ไข 3 ต.ค. 2569 audit] คง dp_fad ที่โหลดมาด้วย // คำนวณ Performance เสมอ แต่ไม่ให้ autoLink ทับค่า dp_spc ที่โหลดมา
   T(()=>{ if(document.getElementById('pumpup-result').style.display!=='none') calcPumpUp(); });
-  T(()=>{ if(document.getElementById('seq-result').style.display!=='none') calcSeq(); });
+  T(()=>{ if(_teSeqShown||document.getElementById('seq-result').style.display!=='none') calcSeq(); }); // [แก้ไข 3 ต.ค. 2569 audit] แสดงผล Sequencing ที่บันทึกไว้หลังโหลด JSON
   T(()=>{ if(document.getElementById('leak-result').style.display!=='none') calcLeakage(); });
   T(calcDPLeak);
   T(()=>{ if(document.getElementById('pipe-result').style.display!=='none') calcPipeDrop(); });
@@ -2191,9 +2278,70 @@ function recalcAll(){
 }
 function teSaveJSON(){TE_JSON.save('Tool_Compressed_Air_System',teExtra());}
 function teLoadJSON(file){TE_JSON.load(file,recalcAll,teRestoreExtra);}
+
+/* [แก้ไข 3 ต.ค. 2569] TE_ECM — สร้างรายการมาตรการจาก ECM_LIBRARY + ข้อมูล Tab Audit (ใช้สูตรเดียวกับ runAudit) */
+function teBuildECM(){
+  try{recalcAll();}catch(e){}
+  const d=caAuditData(); // [แก้ไข 3 ต.ค. 2569 audit] ใช้ข้อมูลชุดเดียวกับ runAudit()
+  if(caAuditInvalid(d).length) return {measures:[],pools:[],site:''};
+  const v=id=>{const e=document.getElementById(id);return e?String(e.value||'').trim():'';};
+  const site=[v('projName'),v('machineTag')].filter(Boolean).join(' · ');
+  const r2=x=>Math.round(x*100)/100;
+  const hasPool=d.spc>0&&d.fad>0;
+  const factor=hasPool?d.spc/60/d.etaM:null;          // [แก้ไข 3 ต.ค. 2569 audit] kWh ไฟฟ้า/Nm³ = SEC เพลา [kW/(Nm³/min)] ÷ 60 ÷ η_motor (เดิมไม่หาร η → ต่ำไป ~7 %)
+  const pools=hasPool?[{carrier:'air',name:'อากาศอัด '+(site||'ระบบอากาศอัด'),unit:'Nm3',
+    baselineQty:Math.round(d.fad*60*d.hours),factor:Math.round(factor*10000)/10000,factorUnit:'kWh/Nm3',drawFrom:'electricity'}]:[];
+  const MV={
+    reduce_pressure:{mv:'B',kp:['ความดันจ่าย P_dis (bar g)','กำลังไฟฟ้าเครื่องอัดอากาศ (kW)','ชั่วโมงทำงาน']},
+    fix_leaks:{mv:'B',kp:['อัตรารั่ว (% FAD) จาก Pressure-drop/Leak survey','FAD (Nm³/min)','SEC (kW/(Nm³/min))']},
+    vsd:{mv:'B',kp:['กำลังไฟฟ้า (kW) ต่อเนื่อง','FAD/โปรไฟล์ภาระ (Nm³/min)','ชั่วโมงทำงาน']},
+    inlet_cooling:{mv:'A',kp:['อุณหภูมิอากาศขาเข้า T_intake (°C)','กำลังไฟฟ้า (kW)']},
+    optimize_seq:{mv:'B',kp:['kW และเวลา Load/Unload/No-load แต่ละเครื่อง','ความดันจ่าย (bar g)']},
+    heat_recovery:{mv:'B',kp:['อัตราไหล/อุณหภูมิน้ำร้อนที่นำกลับ','ปริมาณเชื้อเพลิง LPG ที่ลดลง']}};
+  const measures=[];
+  ECM_LIBRARY.forEach(ecm=>{
+    let ok=false;try{ok=ecm.condition(d);}catch(e){}
+    if(!ok)return;
+    const kthb=typeof ecm.saving==='function'?ecm.saving(d):0;
+    if(!(kthb>0))return;
+    const capK=typeof ecm.cost_kthb==='function'?ecm.cost_kthb(d):ecm.cost_kthb;
+    const m={id:'air-'+ecm.id.replace(/_/g,'-'),name:ecm.title.replace(/&gt;/g,'>').replace(/&lt;/g,'<'),system:'air',group:'estimate',
+      capex:(typeof capK==='number'&&isFinite(capK))?Math.round(capK*1000):undefined,
+      mvOption:(MV[ecm.id]||{}).mv,keyParams:(MV[ecm.id]||{}).kp};
+    if(ecm.id==='heat_recovery'){
+      // [แก้ไข 3 ต.ค. 2569 audit] GJ = เชื้อเพลิงที่ลดได้ (kWh_th×3.6 MJ ÷ η หัวเผา) · ฿ = GJ×1000×ราคา ฿/MJ (ตรงกับ UI)
+      const heat_kWh=ecm.heat_kWh(d), GJ=ecm.fuel_MJ(d)/1000;
+      Object.assign(m,{effect:'direct',carrier:'fuel',fuelName:'LPG',unit:'GJ',savingQty:r2(GJ),primary:{fuel_GJ:r2(GJ)},savingTHB:Math.round(kthb*1000),
+        basis:'ความร้อนนำกลับ = kW_FL('+d.kwFL+')×0.7×'+d.hours.toLocaleString()+' h×0.5 = '+Math.round(heat_kWh).toLocaleString()+' kWh_th/ปี ×3.6 MJ/kWh ÷ η หัวเผา '+d.hrEta+' = '+r2(GJ)+' GJ เชื้อเพลิง/ปี (LHV) × '+d.hrPrice+' ฿/MJ'});
+    }else{
+      // [แก้ไข 3 ต.ค. 2569 audit] kWh/ปี จาก ecm.kwh(d) โดยตรง (เดิมกลับค่าจาก kthb และชดเชยบั๊ก reduce_pressure) · ฿ = kWh × ค่าไฟ = ตรงกับ UI
+      const kWh=ecm.kwh(d);
+      m.primary={electricity_kWh:Math.round(kWh)};
+      m.savingTHB=Math.round(kWh*d.rate);
+      const H=d.hours.toLocaleString()+' h';
+      const B={reduce_pressure:'ลด set pressure: kW_FL('+d.kwFL+')×4%/bar×ΔP '+Math.min(1,Math.max(0,d.Pdis-d.Pplant-0.3)).toFixed(2)+' bar×'+H+'×0.5 (สัดส่วนเวลา load) · P_dis '+d.Pdis+' / P_plant '+d.Pplant+' bar g',
+        fix_leaks:'ซ่อมรั่ว 70% ของ leak '+(d.leak!=null?d.leak.toFixed(1):'—')+'% FAD',
+        vsd:'VSD: kW_FL('+d.kwFL+')×15%×'+H+'×0.6 · No-load/FL = '+(d.kwNL/d.kwFL*100).toFixed(0)+'%',
+        inlet_cooling:'ลด T_intake '+d.Tin+'→32°C: kW_FL×(T_in−32)/(T_in+273.15)×'+H+'×0.6',
+        optimize_seq:'ปรับ sequencing: kW_NL('+d.kwNL+')×0.3×'+H+'×0.3'}[ecm.id]||ecm.title;
+      if(ecm.id==='fix_leaks'&&hasPool){
+        const Nm3=d.fad*(d.leak/100)*0.7*60*d.hours;
+        Object.assign(m,{effect:'demand',carrier:'air',unit:'Nm3',savingQty:Math.round(Nm3),
+          basis:B+': ΔV = FAD('+d.fad+' Nm³/min)×'+(d.leak/100).toFixed(3)+'×0.7×60×'+H+' = '+Math.round(Nm3).toLocaleString()+' Nm³/ปี · kWh (เครื่องมือ) = kW_FL('+d.kwFL+')×leak×0.7×'+H+' = '+Math.round(kWh).toLocaleString()+' kWh/ปี'});
+      }else{
+        Object.assign(m,{effect:'direct',carrier:'electricity',unit:'kWh',savingQty:Math.round(kWh),
+          basis:B+' = '+Math.round(kWh).toLocaleString()+' kWh/ปี × '+d.rate+' ฿/kWh'});
+      }
+    }
+    measures.push(m);
+  });
+  return {measures:measures,pools:pools,site:site};
+}
+window.teBuildECM=teBuildECM; // [แก้ไข 3 ต.ค. 2569]
+function teExportECM(){var r=teBuildECM();TE_ECM.save('Tool_Compressed_Air_System',r.site,r.measures,r.pools);} // [แก้ไข 3 ต.ค. 2569]
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['eta_motor', 'p_design', 'spc_design', 'pu_V', 'dp_V', 'pd_ID', 'pd_L', 'a_kwNP'], FK_MEAS=['t_amb', 'p_atm', 'rh_amb', 'p_elec', 'p_dis', 'p1_T', 'p1_P', 'p1_val', 'fad_direct', 't_intake', 'rh_intake', 'pd_perf', 'pi_perf', 'pu_t', 'pu_p1', 'pu_p2', 'pu_Tt', 'pu_Patm', 'seq_demand', 'lk_p1', 'lk_T', 'lk_D', 'dp_p1', 'dp_p2', 'dp_t', 'dp_fad', 'pd_Q', 'pd_Pline', 'pd_T', 'a_Tin', 'a_Pdis', 'a_Pplant', 'a_kwFL', 'a_kwNL', 'a_Tac', 'a_dp'], FK_SET=['projName', 'machineTag', 'auditorName', 'testDate', 'p1_mode', 'p2_T', 'p2_P', 'p2_mode', 'p2_val', 'pv_p1', 'pv_p2', 'pv_n', 'pv_k', 'k_perf', 'seq_hours', 'seq_rate', 'seq_leak', 'lk_geo', 'lk_rate', 'lk_SPC', 'dp_rate', 'pd_eps', 'pd_Leq', 'fault-sel'], FK_CALC=['lk_Cd', 'dp_spc', 'a_spc', 'a_fad', 'a_leak'];
-var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
+var FK_DESIGN=['eta_motor', 'p_design', 'spc_design', 'pu_V', 'dp_V', 'pd_ID', 'pd_L', 'a_kwNP'], FK_MEAS=['t_amb', 'p_atm', 'rh_amb', 'p_elec', 'p_dis', 'p1_T', 'p1_P', 'p1_val', 'fad_direct', 't_intake', 'rh_intake', 'pd_perf', 'pi_perf', 'pu_t', 'pu_p1', 'pu_p2', 'pu_Tt', 'pu_Patm', 'seq_demand', 'lk_p1', 'lk_T', 'lk_D', 'dp_p1', 'dp_p2', 'dp_t', 'dp_fad', 'pd_Q', 'pd_Pline', 'pd_T', 'a_Tin', 'a_Pdis', 'a_Pplant', 'a_kwFL', 'a_kwNL', 'a_Tac', 'a_dp'], FK_SET=['projName', 'machineTag', 'auditorName', 'testDate', 'p1_mode', 'p2_T', 'p2_P', 'p2_mode', 'p2_val', 'pv_p1', 'pv_p2', 'pv_n', 'pv_k', 'k_perf', 'seq_hours', 'seq_rate', 'seq_leak', 'a_hr_price', 'a_hr_eta', 'lk_geo', 'lk_rate', 'lk_SPC', 'dp_rate', 'pd_eps', 'pd_Leq', 'fault-sel'], FK_CALC=['lk_Cd', 'dp_spc', 'a_spc', 'a_fad', 'a_leak'];
+var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'}; // [แก้ไข 3 ต.ค. 2569 audit] เพิ่ม a_hr_price/a_hr_eta ใน FK_SET
 function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
 function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;

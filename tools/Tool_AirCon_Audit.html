@@ -257,6 +257,15 @@ canvas{width:100%;display:block;}
     <input type="number" id="elecPrice" value="4.50" step="0.1">
   </div>
 
+  <!-- [แก้ไข 3 ต.ค. 2569 audit] ช่องใหม่สำหรับมาตรการ VFD — ฐานผลประหยัดต้องเป็นกำลังปั๊ม/พัดลม ไม่ใช่กำลังคอมเพรสเซอร์ (ว่าง = ไม่แสดงมาตรการ) -->
+  <div class="ss">
+    <div class="st cyan">มาตรการ VFD ปั๊ม/พัดลม (ถ้ามี)</div>
+    <label>กำลังปั๊ม CHW/CW + พัดลม AHU รวม (kW)</label>
+    <input type="number" id="pumpFanKW" value="" placeholder="ว่าง = ไม่ประเมิน VFD" min="0" step="0.5">
+    <label>สัดส่วนประหยัดจาก VFD (%)</label>
+    <input type="number" id="vfdSavePct" value="20" min="0" max="60" step="1">
+  </div>
+
   <div class="ss">
     <div class="st cyan">อุณหภูมิการทำงาน</div>
     <label>T_room — อุณหภูมิห้องที่ต้องการ (°C)</label>
@@ -307,6 +316,8 @@ canvas{width:100%;display:block;}
       <option value="thai3">มาตรฐานเบอร์ 3 ไทย (EER ≥ 8.6)</option>
       <option value="ashrae">ASHRAE 90.1 (EER ≥ 11.0)</option>
       <option value="iplv">IPLV Chiller ≥ 6.1 COP</option>
+      <option value="ch065">Chiller ระบายความร้อนด้วยน้ำ ≤ 0.65 kW/RT (COP ≥ 5.41)</option><!-- [แก้ไข 3 ต.ค. 2569 audit] เกณฑ์สำหรับ chiller (ฉลากเบอร์ 5 เป็นของ split) -->
+      <option value="ch110">Chiller ระบายความร้อนด้วยอากาศ ≤ 1.10 kW/RT (COP ≥ 3.20)</option>
     </select>
   </div>
 
@@ -1119,6 +1130,9 @@ function drawPsychroChart(r){
 // ═══════════════════════════════════════════════════════
 // TAB 2: Performance
 // ═══════════════════════════════════════════════════════
+/* [แก้ไข 3 ต.ค. 2569 audit] เกณฑ์ EER ใช้ร่วมกันทั้งแท็บ Performance และ ECM (เดิม ECM ฝัง 10.6 → ผลประหยัด "เปลี่ยนเครื่อง" สองแท็บไม่ตรงกัน) */
+function benchEERof(stdRef){ return {thai:10.6,thai4:9.6,thai3:8.6,ashrae:11.0,iplv:6.1*3.412,ch065:KW_PER_TON/0.65*3.412,ch110:KW_PER_TON/1.10*3.412}[stdRef]||10.6; }
+function benchNameOf(stdRef){ return {thai:'เบอร์ 5 (EER 10.6)',thai4:'เบอร์ 4 (EER 9.6)',thai3:'เบอร์ 3 (EER 8.6)',ashrae:'ASHRAE 90.1 (EER 11.0)',iplv:'IPLV Chiller (COP 6.1)',ch065:'Chiller น้ำ 0.65 kW/RT',ch110:'Chiller อากาศ 1.10 kW/RT'}[stdRef]||'เบอร์ 5 (EER 10.6)'; }
 function calcPerf(){
   try {
     var capKW    = GV('ratedCapKW');
@@ -1140,7 +1154,7 @@ function calcPerf(){
     var capRT = capKW/KW_PER_TON;
 
     // Benchmark EER
-    var benchEER = {thai:10.6,thai4:9.6,thai3:8.6,ashrae:11.0,iplv:6.1*3.412}[stdRef]||10.6;
+    var benchEER = benchEERof(stdRef); // [แก้ไข 3 ต.ค. 2569 audit]
     var benchCOP = benchEER/3.412;
 
     // Part-load factor assumption (IPLV)
@@ -1161,7 +1175,7 @@ function calcPerf(){
     var copCls = cop>=benchCOP?'green':cop>=benchCOP*0.9?'amber':'red';
     var eerCls = eer>=benchEER?'green':eer>=benchEER*0.9?'amber':'red';
     var h='<div class="kpi-grid">';
-    h+=kpiBox(copCls,'COP (Actual)',fN(cop,3),'','Bench: '+fN(benchCOP,2));
+    h+=kpiBox(copCls,'COP (Rated cap ÷ วัด kW)',fN(cop,3),'','Bench: '+fN(benchCOP,2)); // [แก้ไข 3 ต.ค. 2569 audit] ไม่มีการวัดกำลังเย็นจริง จึงระบุที่มา
     h+=kpiBox(eerCls,'EER (Actual)',fN(eer,2),'Btu/h/W','Bench: '+fN(benchEER,1));
     h+=kpiBox(kwton<=db.eff_kw_ton[1]?'green':'amber','kW/ton',fN(kwton,3),'kW/RT','Target: '+db.eff_kw_ton[0]+'–'+db.eff_kw_ton[1]);
     h+=kpiBox('blue','Capacity',fN(capKW,0),'kW','= '+fN(capRT,1)+' RT');
@@ -1202,6 +1216,8 @@ function calcPerf(){
     bh+='<div style="background:var(--blue);width:'+Math.min(eer/12*100,100).toFixed(0)+'%;height:100%"></div></div>';
     bh+='<div style="width:55px;font-size:12px;font-family:var(--mono);font-weight:700;color:var(--blue)">'+fN(eer,2)+'</div>';
     bh+='</div>';
+    // [แก้ไข 3 ต.ค. 2569 audit] เตือนเมื่อใช้เกณฑ์ฉลากเบอร์ (split) กับ chiller
+    if(/^chiller/.test(GS('acType')) && /^thai/.test(stdRef)) bh+='<div class="ecm amber" style="margin-top:8px"><div class="ecm-b">⚠️ เกณฑ์ฉลากเบอร์ไทยใช้กับ split/package — สำหรับ chiller ให้เลือก "Chiller ≤ 0.65 kW/RT" (น้ำ) หรือ "≤ 1.10 kW/RT" (อากาศ) ในช่องมาตรฐาน มิฉะนั้นผลประหยัดจะต่ำเกินจริง (kW/RT ปัจจุบัน '+fN(kwton,3)+')</div></div>';
     SI('EER_BENCH',bh);
 
     // Annual cost
@@ -1278,10 +1294,13 @@ function calcECM(){
 
   var ecms=[];
 
-  // 1. VFD on pump/fan
-  var vfdSave=pw*n*opHrs*0.20*price;
-  ecms.push({cls:'ecm',t:'&#9889; ติดตั้ง VFD บน Chilled Water Pump / AHU Fan',
-    b:'กฎ Affinity Law: ลด Speed 10% → ประหยัด ~27%<br>ประหยัดเฉลี่ย ~20% = <b>'+fN(vfdSave,0)+' ฿/ปี</b>'});
+  // 1. VFD on pump/fan — [แก้ไข 3 ต.ค. 2569 audit] ฐานเดิม = 20 % × กำลังคอมเพรสเซอร์/เครื่องปรับอากาศ (pw×n) ผิด → ใช้กำลังปั๊ม/พัดลมที่กรอก (ว่าง = ไม่แสดง)
+  var pfKW=GV('pumpFanKW'), vfdPct=GV('vfdSavePct');
+  if(pfKW>0 && vfdPct>0){
+    var vfdKWh=pfKW*opHrs*vfdPct/100, vfdSave=vfdKWh*price;
+    ecms.push({cls:'ecm',t:'&#9889; ติดตั้ง VFD บน Chilled Water Pump / AHU Fan',
+      b:'กฎ Affinity Law: ลด Speed 10% → ประหยัด ~27%<br>ฐาน: ปั๊ม/พัดลม '+fN(pfKW,1)+' kW × '+fN(opHrs,0)+' h × '+fN(vfdPct,0)+'% = '+fN(vfdKWh,0)+' kWh/ปี = <b>'+fN(vfdSave,0)+' ฿/ปี</b>'});
+  }
 
   // 2. Thermostat setpoint
   if(tRoom<25){
@@ -1291,12 +1310,12 @@ function calcECM(){
       b:'ทุก 1°C ที่เพิ่ม → ประหยัด ~3% | ประหยัด ~<b>'+fN(sv,0)+' ฿/ปี</b><br>RH ห้องไม่ควรเกิน 75%'});
   }
 
-  // 3. Upgrade to high-EER
-  var benchEER=10.6;
+  // 3. Upgrade to high-EER — [แก้ไข 3 ต.ค. 2569 audit] ใช้เกณฑ์เดียวกับแท็บ Performance (ช่อง stdRef)
+  var stdRefE=GS('stdRef'), benchEER=benchEERof(stdRefE);
   if(eer<benchEER){
     var sv2=pw*n*opHrs*(1-eer/benchEER)*price;
-    ecms.push({cls:'ecm amber',t:'&#128200; เปลี่ยนเครื่องประสิทธิภาพสูง (เบอร์ 5 / Inverter)',
-      b:'EER ปัจจุบัน '+fN(eer,2)+' → เบอร์ 5 = 10.6 Btu/h/W<br>ประหยัด ~<b>'+fN(sv2,0)+' ฿/ปี</b>'});
+    ecms.push({cls:'ecm amber',t:'&#128200; เปลี่ยนเครื่องประสิทธิภาพสูง ('+benchNameOf(stdRefE)+')',
+      b:'EER ปัจจุบัน '+fN(eer,2)+' → '+fN(benchEER,2)+' Btu/h/W ('+benchNameOf(stdRefE)+')<br>ประหยัด ~<b>'+fN(sv2,0)+' ฿/ปี</b>'});
   }
 
   // 4. Supply air temperature
@@ -1459,13 +1478,15 @@ var TE_HINTS={
   envelopeGain:'ความร้อนผ่านผนัง/หลังคา/กระจก kW · ประมาณ 20–60 W/m² ตามทิศและฉนวน · จากการคำนวณ CLTD หรือเครื่องมือ Cooling Load Selector',
   freshAir:'อากาศบริสุทธิ์ที่เติม m³/h · ASHRAE 62.1 ≈ 36 m³/h/คน (10 L/s) · จาก damper/pre-cool unit',
   safetyFactor:'ตัวเผื่อความไม่แน่นอน % · ทั่วไป 10 · ห้อง critical 15 · อย่าเผื่อซ้อนหลายชั้น',
-  stdRef:'เลือกมาตรฐาน benchmark ที่ใช้เทียบ (ฉลากเบอร์ 5 / ASHRAE 90.1 / กฎกระทรวง BEC)'
+  stdRef:'เลือกมาตรฐาน benchmark ที่ใช้เทียบ (ฉลากเบอร์ 5 / ASHRAE 90.1 / กฎกระทรวง BEC) · ฉลากเบอร์ใช้กับ split/package — chiller ให้เลือกเกณฑ์ kW/RT ของ chiller [แก้ไข 3 ต.ค. 2569 audit]',
+  pumpFanKW:'กำลังไฟฟ้ารวมของมอเตอร์ที่จะติด VFD (ปั๊มน้ำเย็น/น้ำหล่อเย็น + พัดลม AHU) kW จาก power meter หรือ nameplate × load factor · ว่างไว้ = ไม่แสดงมาตรการ VFD [แก้ไข 3 ต.ค. 2569 audit]',
+  vfdSavePct:'สัดส่วนพลังงานที่ลดได้ของปั๊ม/พัดลมเมื่อติด VFD % · Affinity law: ลดรอบ 10 % ≈ ลดกำลัง 27 % · ค่าเฉลี่ยตลอดปีทั่วไป 15–30 %'
 };
 function teInjectHints(){ Object.keys(TE_HINTS).forEach(function(id){ var e=G(id); if(!e) return; var n=e.nextElementSibling; if(n&&n.classList&&n.classList.contains('hint')) return; var d=document.createElement('div'); d.className='hint te'; d.textContent=TE_HINTS[id]; e.insertAdjacentElement('afterend',d); }); }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['acType', 'refrigerant', 'ratedCapKW', 'ratedPowerKW', 'numUnits', 'tCWin', 'tCWout', 'floorArea', 'roomHeight', 'numPeople', 'internalElec', 'envelopeGain', 'freshAir'], FK_MEAS=['actualPowerKW', 'tRoom', 'rhRoom', 'tOutdoor', 'tSupply'], FK_SET=['projName', 'auditor', 'testDate', 'opHours', 'elecPrice', 'safetyFactor', 'stdRef'], FK_CALC=[];
+var FK_DESIGN=['acType', 'refrigerant', 'ratedCapKW', 'ratedPowerKW', 'numUnits', 'tCWin', 'tCWout', 'floorArea', 'roomHeight', 'numPeople', 'internalElec', 'envelopeGain', 'freshAir'], FK_MEAS=['actualPowerKW', 'tRoom', 'rhRoom', 'tOutdoor', 'tSupply'], FK_SET=['projName', 'auditor', 'testDate', 'opHours', 'elecPrice', 'safetyFactor', 'stdRef', 'vfdSavePct'], FK_MEAS2=['pumpFanKW'], FK_CALC=[];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
-function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
+function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0||FK_MEAS2.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
 function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=document.querySelectorAll('input[id],select[id]'),map=[],i;
   for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}

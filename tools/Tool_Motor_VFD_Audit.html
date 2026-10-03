@@ -176,6 +176,8 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
   <span class="te-json">
   <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
   <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+  <!-- [แก้ไข 3 ต.ค. 2569] ปุ่มส่งออกมาตรการ TE_ECM -->
+  <button type="button" onclick="teExportECM()" title="ส่งออกมาตรการเป็นไฟล์ TE_ECM เพื่อนำเข้า Tool_ECM_Portfolio">📤 ส่งไป ECM Portfolio</button>
 </span>
 </div>
 
@@ -932,7 +934,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
             <div class="form-group"><label>Conversion Cost (CAPEX)</label><input type="number" id="dca_capex" value="18000000" step="100000"><div class="unit">บาท (Motor+VFD+Civil)</div><div class="hint te">เงินลงทุนเปลี่ยนระบบ (บาท) จากใบเสนอราคา · มอเตอร์+VFD+โยธา+ติดตั้ง</div></div>
             <div class="form-group"><label>Drive Lifetime</label><input type="number" id="dca_life" value="15" step="1"><div class="unit">ปี</div><div class="hint te">อายุใช้งานไดรฟ์ที่ใช้คิด LCC (ปี) · ทั่วไป 15–20 ปี</div></div>
           </div>
-          <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="calcDCDrive()">⟳ Compare DC vs AC+VFD</button>
+          <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="window._teDCUsed=true;calcDCDrive()">⟳ Compare DC vs AC+VFD</button><!-- [แก้ไข 3 ต.ค. 2569 audit] ธงใช้โมดูล DC -->
         </div>
       </div>
     </div>
@@ -2044,18 +2046,29 @@ function buildIETable(highlightKW, measuredEff) {
 // [ระยะ 4 10 ก.ย. 2569] ตัดช่อง DC (dclab_prated/dc_prated/dcd_prated — มอเตอร์ DC โรงรีด คนละเครื่องกับ AC แท็บ 1) ออกจากการลิงก์ ไม่ให้ทับ 5000 → 75
 const PRATED_LINK_IDS = ['m1_prated','m2_prated','vfd_prated','d_prated','rw_kw'];
 function linkTab1ToDownstream(Pin_kW, Nload, Prated) {
-  const setVal = (id, v) => { const el = document.getElementById(id); if (el && v > 0) el.value = Math.round(v*100)/100; };
+  // [แก้ไข 3 ต.ค. 2569 audit] ระหว่าง recalcAll (โหลด JSON) ห้ามเติมทับ — เดิม calcFieldM1/M2 ทับ vfd_p1/vfd_n1 ที่บันทึกไว้ (ผลประหยัด VFD +55 %)
+  if (window._teLinkHold) return;
+  // [แก้ไข 3 ต.ค. 2569 audit] ไม่ทับช่องที่ผู้ใช้กรอกเอง (data-user) — ช่องที่ยังไม่ถูกแก้เอง (รวม P_rated ที่เติมไปแล้ว) อัปเดตตามแท็บ 1 เสมอ ไม่ค้างค่าเก่า
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && v > 0 && !(el.dataset && el.dataset.user === '1')) el.value = Math.round(v*100)/100; };
   if (Pin_kW > 0) setVal('vfd_p1', Pin_kW);
   if (Nload > 0)  setVal('vfd_n1', Nload);
   if (Prated > 0) {
     PRATED_LINK_IDS.forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
-      // เติมเฉพาะเมื่อยังว่าง หรือยังเป็นค่า default ของหน้า (ไม่ทับค่าที่ผู้ใช้กรอกเอง)
-      if (el.value === '' || el.value === el.defaultValue) el.value = Prated;
+      if (el.dataset && el.dataset.user === '1' && el.value !== '') return; // ผู้ใช้กรอกเอง → ไม่ทับ
+      el.value = Prated;
     });
   }
 }
+/* [แก้ไข 3 ต.ค. 2569 audit] ติดธง data-user เมื่อผู้ใช้พิมพ์ในช่องที่ลิงก์จากแท็บ 1 (ลบค่าให้ว่าง = กลับไปเติมอัตโนมัติ) */
+const TE_LINKED_IDS = PRATED_LINK_IDS.concat(['vfd_p1','vfd_n1']);
+function teMarkUserLinked(){
+  TE_LINKED_IDS.forEach(id => { const el = document.getElementById(id); if (!el || el._teUserBound) return; el._teUserBound = true;
+    const h = () => { if (String(el.value).trim() === '') delete el.dataset.user; else el.dataset.user = '1'; };
+    el.addEventListener('input', h); el.addEventListener('change', h); });
+}
+document.addEventListener('DOMContentLoaded', teMarkUserLinked);
 
 // ═══════════════════════════════════════════════
 //  TAB 2: VFD SAVINGS
@@ -2110,9 +2123,11 @@ function calcVFD() {
   const total_save = saving_thb + demand_save;
   const payback = cost > 0 && total_save > 0 ? cost / total_save : 0;
   const co2 = saving_kWh * EF_GRID;  // kg CO2 — [แก้ไข 10 ก.ย. 2569] เดิม 0.4999 คงที่ → ใช้ ef_grid
+  // [แก้ไข 3 ต.ค. 2569 audit] ผลประหยัด ≤ 0 (constant torque / N₂ ≥ N₁) เดิมแสดง "0.0 ปี ✓ ดีมาก" → แสดงคำเตือน ไม่ให้ป้ายดี
+  const noSave = !(saving_kW > 0);
 
   // KPIs
-  const pbClass = payback < 2 ? 's-good' : payback < 4 ? 's-warn' : 's-bad';
+  const pbClass = noSave ? 's-bad' : payback < 2 ? 's-good' : payback < 4 ? 's-warn' : 's-bad';
   document.getElementById('vfdKpi').innerHTML = `
     <div class="kpi-card green">
       <div class="kpi-label">Power Saving</div>
@@ -2129,12 +2144,13 @@ function calcVFD() {
       <div class="kpi-value" style="color:var(--amber);font-size:24px;">${(total_save/1000).toFixed(0)}k</div>
       <div class="kpi-unit">บาท/year (Energy+Demand)</div>
     </div>
-    <div class="kpi-card ${payback<2?'green':payback<4?'amber':'red'}">
+    <div class="kpi-card ${noSave?'red':payback<2?'green':payback<4?'amber':'red'}">
       <div class="kpi-label">Simple Payback</div>
-      <div class="kpi-value" style="font-size:28px;">${payback.toFixed(1)}</div>
+      <div class="kpi-value" style="font-size:28px;">${noSave?'—':payback.toFixed(1)}</div>
       <div class="kpi-unit">ปี</div>
-      <div class="kpi-status ${pbClass}">${payback<2?'✓ ดีมาก':payback<4?'⚠ ยอมรับได้':'✗ นาน'}</div>
-    </div>`;
+      <div class="kpi-status ${pbClass}">${noSave?'✗ ไม่ประหยัด':payback<2?'✓ ดีมาก':payback<4?'⚠ ยอมรับได้':'✗ นาน'}</div>
+    </div>
+    ${noSave?`<div style="grid-column:1/-1;background:var(--red-lt,#fde8e8);border:1px solid #f5a0a0;border-radius:8px;padding:10px 12px;color:var(--red,#c0292b);font-size:13px;">⚠️ <b>ไม่มีผลประหยัด</b> — P₂ หลังติด VFD (${P2_actual.toFixed(2)} kW รวม VFD loss 3.5 %) ≥ P₁ ${P1} kW ${loadType==='constant_torque'?'(โหลดแรงบิดคงที่ที่รอบเท่าเดิมไม่ลดกำลัง)':N2>=N1?'(N₂ ≥ N₁)':''} — ไม่ควรเสนอเป็นมาตรการ (ค่าติดลบไม่ใช่ผลประหยัด)</div>`:''}`;
 
   document.getElementById('vfdDetail').innerHTML = `
     <div style="font-family:var(--mono);font-size:12px;line-height:2;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);">
@@ -2146,7 +2162,8 @@ function calcVFD() {
       <strong>Demand saving:</strong> ${saving_kW.toFixed(2)} kW × ฿${demandRate}×12 = <strong>฿${demand_save.toLocaleString('th-TH',{maximumFractionDigits:0})}/year</strong><br>
       <strong>CO₂ Reduction:</strong> ${(co2/1000).toFixed(2)} tCO₂/year (Grid EF ${EF_GRID} kgCO₂e/kWh)<br>
       ${shaftLF>0?`<strong>Shaft Load Factor (ข้อมูลประกอบ):</strong> P₁×η/P_rated = ${P1}×${eta.toFixed(3)}/${Prated} = <strong>${shaftLF.toFixed(1)}%</strong><br>`:''}
-      <strong>Simple Payback:</strong> ฿${cost.toLocaleString()} ÷ ฿${total_save.toLocaleString('th-TH',{maximumFractionDigits:0})} = <strong>${payback.toFixed(2)} ปี</strong>
+      <strong>Simple Payback:</strong> ฿${cost.toLocaleString()} ÷ ฿${total_save.toLocaleString('th-TH',{maximumFractionDigits:0})} = <strong>${noSave?'— (ไม่ประหยัด)':payback.toFixed(2)+' ปี'}</strong><br>
+      <span style="color:var(--text3,#8a97b0);font-size:11px;">สมมติฐาน: กฎ Affinity ${loadType==='centrifugal'?'P∝N³ ไม่มี static head — ระบบที่มี static head สูง (ปั๊มส่งขึ้นที่สูง/หม้อไอน้ำ) ผลประหยัดจริงต่ำกว่านี้ ควรตรวจกับ system curve':'ตามชนิดโหลดที่เลือก'}</span><!-- [แก้ไข 3 ต.ค. 2569 audit] แจ้งสมมติฐาน -->
     </div>`;
 
   drawVFDChart(N1, P1, speedRatio, loadType);
@@ -2519,6 +2536,7 @@ function switchMotorType(type) {
     acBtn.style.color = 'var(--text2)';
     acWrap.style.display = 'none';
     dcWrap.style.display = 'block';
+    window._teDCUsed = true; // [แก้ไข 3 ต.ค. 2569 audit] ใช้โมดูล DC แล้ว → ส่งออกมาตรการ DC→AC ได้
     buildDCChecklists();
     switchDCMode('field');                  // default = Field Method
     if (window.MathJax) MathJax.typesetPromise();
@@ -3162,7 +3180,9 @@ function teUIState(){
   const mode=MODES.find(m=>disp('mode-'+m))||'lab';
   const dcMode=['lab','field','fw'].find(m=>disp('dcmode-'+m))||'field';
   const tab=(document.querySelector('.tab.active')||{}).id||'tab-eff';
-  return {motorType: disp('dcWrapper')?'dc':'ac', mode, dcMode, tab: tab.replace('tab-',''), auditShown: disp('auditReport')};
+  // [แก้ไข 3 ต.ค. 2569 audit] เพิ่ม dcUsed (ใช้โมดูล DC จริงหรือไม่) + userLinked (ช่องลิงก์ที่ผู้ใช้กรอกเอง)
+  const userLinked=TE_LINKED_IDS.filter(id=>{const e=document.getElementById(id);return e&&e.dataset&&e.dataset.user==='1';});
+  return {motorType: disp('dcWrapper')?'dc':'ac', mode, dcMode, tab: tab.replace('tab-',''), auditShown: disp('auditReport'), dcUsed: !!window._teDCUsed||disp('dcWrapper'), userLinked};
 }
 function teRestoreExtra(x){ // เรียกก่อน apply inputs: สร้าง DOM ของ DC checklist ให้ครบก่อน แล้วค่อยเติมค่า
   if(!x) return; window.TE_ui=x;
@@ -3170,6 +3190,8 @@ function teRestoreExtra(x){ // เรียกก่อน apply inputs: สร�
   try{ if(x.mode) switchMode(x.mode); }catch(e){}
   try{ if(x.motorType==='dc'&&x.dcMode) switchDCMode(x.dcMode); }catch(e){}
   try{ if(x.tab) switchTab(x.tab); }catch(e){}
+  window._teDCUsed = !!x.dcUsed || x.motorType==='dc'; // [แก้ไข 3 ต.ค. 2569 audit]
+  try{ teMarkUserLinked(); TE_LINKED_IDS.forEach(id=>{const e=document.getElementById(id); if(e) delete e.dataset.user;}); (x.userLinked||[]).forEach(id=>{const e=document.getElementById(id); if(e) e.dataset.user='1';}); }catch(e){} // [แก้ไข 3 ต.ค. 2569 audit]
 }
 function syncCheckClass(){ document.querySelectorAll('.check-item input[type=checkbox]').forEach(cb=>{ const w=cb.closest('.check-item'); if(w) w.classList.toggle('checked',cb.checked); }); }
 function recalcAll(){ // ensureAllCalc: เรียกทุกฟังก์ชันคำนวณตามลำดับ (ปิด alert ชั่วคราว — ส่วนที่ยังไม่กรอกจะข้ามไปเอง)
@@ -3178,9 +3200,13 @@ function recalcAll(){ // ensureAllCalc: เรียกทุกฟังก์�
   try{
     // คงค่าช่องที่ลิงก์จากแท็บ 1 ตามที่บันทึกไว้ (ไม่ให้ linkTab1ToDownstream ทับตอนโหลด JSON)
     const keep={}; PRATED_LINK_IDS.concat(['vfd_p1','vfd_n1']).forEach(id=>{const e=document.getElementById(id); if(e) keep[id]=e.value;});
+    window._teLinkHold=true; // [แก้ไข 3 ต.ค. 2569 audit] กัน calcFieldM1/M2 (และ calcMotorEff) เติมทับ vfd_p1/vfd_n1/P_rated ที่โหลดมา
+    try{
     T(calcMotorEff);
     Object.keys(keep).forEach(id=>{ document.getElementById(id).value=keep[id]; });
     T(calcFieldM1); T(calcFieldM2);
+    Object.keys(keep).forEach(id=>{ document.getElementById(id).value=keep[id]; });
+    } finally { window._teLinkHold=false; }
     T(calcDCLab); T(calcFieldWeakening); T(calcDCEfficiency); T(calcDCTorque); T(calcDCLoss); T(calcDCDrive); T(calcBrushLife);
     T(buildAffinityTable); T(calcVFD); T(calcRewinding); T(calcMotorSizing);
     T(runMotorDiag);
@@ -3203,6 +3229,78 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('a_date').value = new Date().toISOString().split('T')[0];
 });
 document.getElementById('tab-vfd').addEventListener('click', buildAffinityTable);
+</script>
+<!-- [แก้ไข 3 ต.ค. 2569] TE_ECM export -->
+<script>
+/* TE_ECM — ส่งออกมาตรการไป ECM Portfolio (schema v1) [แก้ไข 3 ต.ค. 2569] */
+var TE_ECM=(function(){
+  function clean(o){var r={};Object.keys(o||{}).forEach(function(k){var v=o[k];if(v===undefined||v===null)return;if(typeof v==='number'&&!isFinite(v))return;r[k]=v;});return r;}
+  function save(tool,site,measures,pools){
+    var ms=(measures||[]).map(clean).filter(function(m){return m.id&&m.name&&m.effect&&m.carrier;});
+    if(!ms.length){alert('ยังไม่มีมาตรการที่คำนวณผลประหยัดได้ — กรุณากรอกข้อมูล/คำนวณก่อนส่งออก');return null;}
+    var d={meta:{schema:'TE_ECM',version:1,tool:tool,exportedAt:new Date().toISOString(),site:site||''},pools:(pools||[]).map(clean),measures:ms};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');
+    a.href=URL.createObjectURL(b);a.download=tool+'_ECM_'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},2000);return d;}
+  return{save:save,clean:clean};
+})();
+
+// [แก้ไข 3 ต.ค. 2569] teBuildECM — สร้างรายการมาตรการจากผลคำนวณของเครื่องมือ (สูตรเดียวกับ calcVFD / calcRewinding / calcDCDrive)
+function teBuildECM(){
+  // [แก้ไข 3 ต.ค. 2569] recalcAll() มีผลข้างเคียง (linkTab1ToDownstream เติม vfd_n1/rw_kw ทับ) → เก็บค่าที่กรอกไว้ก่อน แล้วคืนค่าหลังคำนวณ
+  const _snap={}; document.querySelectorAll('input[id],select[id]').forEach(e=>{ if(e.type!=='file'&&e.type!=='button') _snap[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value; });
+  try{ recalcAll(); }catch(e){}
+  Object.keys(_snap).forEach(id=>{ const e=document.getElementById(id); if(!e) return; if(e.type==='checkbox'||e.type==='radio') e.checked=_snap[id]; else e.value=_snap[id]; });
+  { const _al=window.alert; window.alert=function(){}; try{ calcVFD(); }catch(e){} try{ calcRewinding(); }catch(e){} try{ calcDCDrive(); }catch(e){} window.alert=_al; }
+  const g=id=>{const e=document.getElementById(id);const v=e?parseFloat(e.value):NaN;return isFinite(v)?v:0;};
+  const sv=id=>{const e=document.getElementById(id);return e?String(e.value||'').trim():'';};
+  const r2=x=>Math.round(x*100)/100;
+  const ms=[];
+  const tag=sv('a_tag'), app=sv('a_app');
+  const eqName=[tag,app].filter(Boolean).join(' ');
+  // 1) VFD — ลดรอบตามกฎ Affinity (calcVFD)
+  (function(){
+    const N1=g('vfd_n1'),N2=g('vfd_n2'),P1=g('vfd_p1'),hrs=g('vfd_hrs'),rate=g('vfd_rate'),cost=g('vfd_cost'),dem=g('vfd_demand');
+    const ltEl=document.getElementById('vfd_loadtype'); const lt=ltEl?ltEl.value:'centrifugal';
+    if(!N1||!N2||!P1||!hrs) return;
+    const ratio=N2/N1; const P2=lt==='centrifugal'?P1*Math.pow(ratio,3):lt==='positive'?P1*ratio:P1;
+    const P2a=P2*1.035; const dkW=P1-P2a; const kWh=dkW*hrs; if(!(kWh>0)) return;
+    const thb=kWh*rate+dkW*dem*12;
+    ms.push({id:'motor-vfd',name:'ติดตั้ง VFD ปรับรอบมอเตอร์'+(eqName?' ('+eqName+')':''),system:'motor',effect:'direct',carrier:'electricity',unit:'kWh',
+      savingQty:r2(kWh),baselineQty:r2(P1*hrs),primary:{electricity_kWh:r2(kWh)},savingTHB:rate>0?r2(thb):undefined,capex:cost>0?cost:undefined,
+      mvOption:'B',keyParams:['kW','hours','speed'],group:'measured',
+      basis:'P₂ = P₁×(N₂/N₁)'+(lt==='centrifugal'?'³':lt==='positive'?'':'⁰')+' ×1.035 (VFD loss 3.5%) = '+P1+'×('+N2+'/'+N1+')'+(lt==='centrifugal'?'³':'')+'×1.035 = '+P2a.toFixed(2)+' kW · ΔkW = '+dkW.toFixed(2)+' kW × '+hrs+' h/ปี = '+kWh.toFixed(0)+' kWh/ปี · ฿ = kWh×'+rate+' + ΔkW×'+dem+'×12 (ค่าความต้องการพลังไฟฟ้า)'});
+  })();
+  // 2) เปลี่ยนมอเตอร์ใหม่ประสิทธิภาพสูง แทนการพันขดลวดซ่อม (calcRewinding)
+  (function(){
+    const kW=g('rw_kw'),hrs=g('rw_hrs'),lf=g('rw_lf')/100,eo=g('rw_eff_old')/100,en=g('rw_eff_new')/100,rate=g('rw_rate');
+    const cr=g('rw_cost_rewind'),cn=g('rw_cost_new');
+    if(!kW||!eo||!en||!hrs||!lf) return;
+    const Eo=(kW/eo)*lf*hrs, En=(kW/en)*lf*hrs, dE=Eo-En; if(!(dE>0)) return;
+    const add=cn-cr;
+    ms.push({id:'motor-hem',name:'เปลี่ยนมอเตอร์ประสิทธิภาพสูง '+kW+' kW แทนการพันขดลวดใหม่',system:'motor',effect:'direct',carrier:'electricity',unit:'kWh',
+      savingQty:r2(dE),baselineQty:r2(Eo),primary:{electricity_kWh:r2(dE)},savingTHB:rate>0?r2(dE*rate):undefined,capex:add>0?add:undefined,
+      mvOption:'A',keyParams:['kW','hours'],group:'estimate',
+      basis:'E = (kW/η)×LF×h (ผชพ 2.5/2.11): E_เดิม = '+kW+'/'+eo.toFixed(3)+'×'+lf+'×'+hrs+' = '+Eo.toFixed(0)+' kWh/ปี · E_ใหม่ = '+kW+'/'+en.toFixed(3)+'×'+lf+'×'+hrs+' = '+En.toFixed(0)+' kWh/ปี · ประหยัด '+dE.toFixed(0)+' kWh/ปี · เงินลงทุน = ส่วนต่างราคามอเตอร์ใหม่ − ค่าพันขดลวด ('+cn+'−'+cr+')'});
+  })();
+  // 3) เปลี่ยนระบบขับ DC → AC + VFD (calcDCDrive) — ใช้ได้เมื่อเปิดใช้โมดูล DC
+  (function(){
+    if(!window._teDCUsed) return; // [แก้ไข 3 ต.ค. 2569 audit] เดิมส่งออกจากค่า default โมดูล DC (5,000 kW → 1.04 GWh) แม้ไม่ได้ตรวจมอเตอร์ DC
+    const P=g('dcd_prated'),emd=g('dcd_eta_m'),edd=g('dcd_eta_d'),mDC=g('dcd_maint'),LF=g('dcd_lf'),hrs=g('dcd_hrs'),rate=g('dcd_rate');
+    const ema=g('dca_eta_m'),eda=g('dca_eta_d'),mAC=g('dca_maint'),capex=g('dca_capex'),life=g('dca_life');
+    if(!P||!emd||!edd||!ema||!eda||!hrs||!LF) return;
+    const Ps=P*LF/100, Pdc=Ps/(emd/100*edd/100), Pac=Ps/(ema/100*eda/100); const dE=(Pdc-Pac)*hrs; if(!(dE>0)) return;
+    ms.push({id:'motor-dc2ac',name:'เปลี่ยนระบบขับมอเตอร์ DC เป็นมอเตอร์ AC + VFD ('+P+' kW)',system:'motor',effect:'direct',carrier:'electricity',unit:'kWh',
+      savingQty:r2(dE),baselineQty:r2(Pdc*hrs),primary:{electricity_kWh:r2(dE)},savingTHB:rate>0?r2(dE*rate+(mDC-mAC)):undefined,
+      capex:capex>0?capex:undefined,life:life>0?life:undefined,omChange:(mDC||mAC)?r2(mAC-mDC):undefined,
+      mvOption:'B',keyParams:['kW','hours','speed'],group:'estimate',
+      basis:'P_shaft = '+P+'×'+LF+'% = '+Ps.toFixed(0)+' kW · P_in,DC = P_shaft/(η_m×η_drive) = '+Pdc.toFixed(1)+' kW · P_in,AC = '+Pac.toFixed(1)+' kW · ΔP×'+hrs+' h = '+dE.toFixed(0)+' kWh/ปี · ฿ รวมผลต่างค่าบำรุงรักษา'});
+  })();
+  const site=sv('a_plant')||'';
+  return {measures:ms,pools:[],site:site};
+}
+window.teBuildECM=teBuildECM; // [แก้ไข 3 ต.ค. 2569]
+function teExportECM(){var r=teBuildECM();TE_ECM.save('Tool_Motor_VFD_Audit',r.site,r.measures,r.pools);} // [แก้ไข 3 ต.ค. 2569]
 </script>
 </body>
 </html>

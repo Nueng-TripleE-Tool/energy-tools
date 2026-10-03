@@ -222,6 +222,7 @@ svg text{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:#5b6b7b}
       <tbody id="perfBody"></tbody>
     </table>
     </div>
+    <div id="effWarn"></div><!-- [แก้ไข 3 ต.ค. 2569 audit] คำเตือน η > 100 % -->
     <h3>สรุประดับสถานี</h3>
     <div class="kpi" id="stationKPI"></div>
     <p class="assump">P<sub>hyd</sub> = ρ·g·Q·H / 3.6×10⁶ (kW) · η<sub>wire-to-water</sub> = P<sub>hyd</sub>/kW<sub>วัดจริง</sub> · η ปั๊ม = η<sub>w-t-w</sub> ÷ (η<sub>มอเตอร์</sub> × η<sub>VFD</sub> ตามช่อง ECM-1 ถ้ามี)<!-- [แก้ไข 10 ก.ย. 2569] เดิมระบุ 0.97 คงที่ --> · เกณฑ์ทั่วไปสถานีสูบน้ำ: ≥70% ดี, 55–70% ควรปรับปรุง, &lt;55% เร่งด่วน (เทียบ MEASUR/PSAT)</p>
@@ -247,6 +248,8 @@ svg text{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:#5b6b7b}
       <div><label>ค่า C ที่ใช้ (แก้ได้)</label><input id="ppC" type="number" value="120" oninput="calcAll()"><div class="hint te">ค่า C ที่ใช้คำนวณ · เติมอัตโนมัติจากวัสดุ แก้ทับได้ (HDPE ใหม่ 145–150 · เหล็กเก่า 90–110)</div></div>
       <div><label>Minor Loss เผื่อ — % ของ friction (วาล์ว/ข้อโค้ง/ทางแยก ปกติ 5–15)</label><input id="ppMinor" type="number" value="10" oninput="calcAll()"><div class="hint te">เผื่อ minor loss วาล์ว/ข้อโค้ง/ทางแยก (% ของ friction) · ทั่วไป 5–15 %</div></div>
       <div><label>อัตราไหลออกแบบของสถานี — ลบ.ม. ต่อชั่วโมง (รวมทุกปั๊มที่เดินพร้อมกัน)</label><input id="ppQ" type="number" value="1800" oninput="calcAll()"><div class="hint te">อัตราไหลออกแบบรวมทุกปั๊มที่เดินพร้อมกัน (m³/h) จากแบบ/แผนส่งน้ำ · ใช้หา TDH ที่ระบบต้องการ</div></div>
+      <!-- [แก้ไข 3 ต.ค. 2569 audit] จำนวนปั๊มเดินขนานขณะวัด: friction ในท่อประธานคิดที่ Q รวมของ header ไม่ใช่ Q ของปั๊มตัวเดียว -->
+      <div><label>จำนวนปั๊มที่เดินขนานพร้อมกันขณะวัด (เครื่อง)</label><input id="ppNpar" type="number" min="1" step="1" value="" placeholder="อัตโนมัติ" oninput="calcAll()"><div class="hint te">ใช้ตรวจ head ส่วนเกิน: Q ในท่อประธาน = N × Q ปั๊ม · เว้นว่าง = ปัด (Q ออกแบบ ÷ Q เฉลี่ยที่วัด) · ใส่ 1 ถ้าปั๊มเดินทีละเครื่อง</div></div>
     </div>
     <details class="help"><summary>วิธีกรอกข้อมูล — ระบบท่อ</summary><div class="hd"><dl>
       <dt>Static Lift</dt><dd>ผลต่างระดับน้ำอย่างเดียว ไม่รวมความเสียดทาน: ระดับน้ำจุดจ่ายปลายทาง (หรือถังสูง/จุดปล่อยสูงสุด) ลบด้วยระดับน้ำแหล่งสูบ — หาจากแบบก่อสร้างหรือ GPS/altimeter</dd>
@@ -515,8 +518,9 @@ function avgRate(){
   const s=V('trPeakShare')/100;
   return s*(V('trPeak')+V('trFt'))+(1-s)*(V('trOff')+V('trFt'));
 }
-function tag(e){
+function tag(e,ep){
   if(!isFinite(e))return '<span class="tag">รอข้อมูล</span>';
+  if(e>1||(isFinite(ep)&&ep>1)||e<0)return '<span class="tag bad">เป็นไปไม่ได้ (η &gt; 100 %)</span>'; // [แก้ไข 3 ต.ค. 2569 audit] เดิม η 117–128 % ได้ป้าย "ดี"
   if(e>=0.70)return '<span class="tag ok">ดี</span>';
   if(e>=0.55)return '<span class="tag warn">ควรปรับปรุง</span>';
   return '<span class="tag bad">เร่งด่วน</span>';
@@ -535,9 +539,13 @@ function calcAll(){
     rows+=`<tr><td>${p.name}</td><td style="font-size:.78rem;color:var(--muted)">${QSRC[p.qsrc||'meas']}</td><td class="num">${fmt(c.tdh,1)}</td><td class="num">${fmt(c.phyd,1)}</td>
       <td class="num">${isFinite(c.eww)?fmt(c.eww*100,1):'–'}</td><td class="num">${isFinite(c.ep)?fmt(c.ep*100,1):'–'}</td>
       <td class="num">${fmt(c.sec,1)}</td><td class="num">${fmt(c.e,0)}</td><td class="num">${fmt(c.vol,0)}</td>
-      <td class="num">${fmt(c.e*rate,0)}</td><td>${tag(c.eww)}</td></tr>`;
+      <td class="num">${fmt(c.e*rate,0)}</td><td>${tag(c.eww,c.ep)}</td></tr>`;
   });
   $('perfBody').innerHTML=rows;
+  /* [แก้ไข 3 ต.ค. 2569 audit] ปั๊มที่ η > 100 % ไม่นับใน η สถานี + แสดงคำเตือน */
+  const bad=pumps.filter(p=>{const c=pumpCalc(p);return isFinite(c.eww)&&(c.eww>1||c.ep>1||c.eww<0);});
+  bad.forEach(p=>{const c=pumpCalc(p); if(isFinite(c.phyd)&&(+p.kwm||0)>0){sumPhyd-=c.phyd;sumKw-=(+p.kwm);}});
+  $('effWarn').innerHTML=bad.length?`<div class="note" style="border-color:var(--danger);color:var(--danger)">🚨 <b>ค่าที่เป็นไปไม่ได้:</b> ${bad.map(p=>{const c=pumpCalc(p);return `${p.name} η w-t-w ${fmt(c.eww*100,1)} % / η ปั๊ม ${fmt(c.ep*100,1)} %`;}).join(' · ')} — ตรวจ kW วัดจริง (kW ไม่ใช่ต่อเฟส), Q, ความดันด้านส่ง/เกจ และระดับ — ไม่นับปั๊มนี้ใน η เฉลี่ยของสถานี</div>`:'';
   const stEww=sumKw>0?sumPhyd/sumKw:NaN, stSec=sumV>0?sumE/sumV*1000:NaN;
   $('stationKPI').innerHTML=
     kpiBox('พลังงานรวม',fmt(sumE,0),'kWh/ปี')+
@@ -559,15 +567,23 @@ function calcAll(){
   drawSysCurve(Hs,k,Qd,Hreq);
   /* throttle warning */
   let tw='';
+  /* [แก้ไข 3 ต.ค. 2569 audit] ปั๊มเดินขนาน: system curve ต้องอ่านที่ Q รวมของ header (N × q) — เดิมใช้ q ของปั๊มตัวเดียว → friction ต่ำไป head ส่วนเกินสูงเกิน
+     และกำลังสูญเดิมเป็น kW เพลา (÷η ปั๊ม) แต่คูณค่าไฟ → แก้เป็น kW ไฟฟ้า (÷η ปั๊ม ÷η มอเตอร์ ÷η VFD) */
+  const qMeas=pumps.filter(p=>(+p.qm||0)>0).map(p=>+p.qm);
+  const nParIn=V('ppNpar');
+  const nPar=nParIn>=1?Math.round(nParIn):Math.max(1,Math.round(qMeas.length&&Qd>0?Qd/(qMeas.reduce((a,b)=>a+b,0)/qMeas.length):1));
+  if(qMeas.length) tw+=`<p class="assump">ตรวจ head ส่วนเกินที่ Q header = ${nPar} × Q ปั๊ม (${nParIn>=1?'ตามที่กรอก':'อัตโนมัติจาก Q ออกแบบ ÷ Q เฉลี่ยที่วัด'}) · ปั๊มเดินขนานใช้ท่อประธานร่วมกัน</p>`;
   pumps.forEach(p=>{
     const tdh=pumpTDH(p);
     if(isFinite(tdh)&&(+p.qm||0)>0){
-      const need=Hs+k*(+p.qm)*(+p.qm);
+      const qH=(+p.qm)*nPar;
+      const need=Hs+k*qH*qH;
       if(tdh>need*1.05){
         // [แก้ไข 10 ก.ย. 2569] เดิมใช้ η ปั๊ม 0.75 คงที่ → ใช้ η ปั๊มของตัวนั้นจาก pumpCalc (fallback 0.75 ถ้าคำนวณไม่ได้)
         const epC=pumpCalc(p).ep, epUse=(isFinite(epC)&&epC>0.2&&epC<=1)?epC:0.75;
-        const exc=tdh-need, wkw=RHO*G*(+p.qm/3600)*exc/1000/epUse;
-        tw+=`<div class="note">⚠ <b>${p.name}</b>: TDH วัดจริง ${fmt(tdh,1)} m สูงกว่า system curve ${fmt(need,1)} m อยู่ ${fmt(exc,1)} m → head ส่วนเกิน (หรี่วาล์ว/ตะกรัน) คิดเป็นกำลังสูญ ~${fmt(wkw,1)} kW (${fmt(wkw*(+p.hrs||0)*avgRate(),0)} บาท/ปี ที่ η ปั๊ม ${fmt(epUse*100,0)}%${epUse===0.75&&!(isFinite(epC)&&epC>0.2&&epC<=1)?' — ค่าสมมติ':' จากตารางปั๊ม'})</div>`;
+        const emU=(+p.em>0&&+p.em<=100)?(+p.em/100):0.92, evU=p.ctl==='vfd'?(V('vfEta')||0.97):1;
+        const exc=tdh-need, wkw=RHO*G*(+p.qm/3600)*exc/1000/epUse/emU/evU;
+        tw+=`<div class="note">⚠ <b>${p.name}</b>: TDH วัดจริง ${fmt(tdh,1)} m สูงกว่า system curve ${fmt(need,1)} m (ที่ Q header ${fmt(qH,0)} m³/h) อยู่ ${fmt(exc,1)} m → head ส่วนเกิน (หรี่วาล์ว/ตะกรัน) คิดเป็นกำลังไฟฟ้าสูญ ~${fmt(wkw,1)} kW (${fmt(wkw*(+p.hrs||0)*avgRate(),0)} บาท/ปี ที่ η ปั๊ม ${fmt(epUse*100,0)}%${epUse===0.75&&!(isFinite(epC)&&epC>0.2&&epC<=1)?' — ค่าสมมติ':' จากตารางปั๊ม'} × η มอเตอร์ ${fmt(emU*100,0)}%)</div>`;
       }
     }
   });
@@ -714,7 +730,7 @@ function addLog(d={}){
 
 /* ───────── JSON save/load ───────── */
 const FIELDS=['stName','stProject','stType','stSource','stAuditor','stDate','trMode','trPeak','trOff','trFt','trDemand','trPeakShare','trFlat',
-'ppHs','ppL','ppD','ppMat','ppC','ppMinor','ppQ','vfKw','vfS','vfCapex','vfEta','vfQ1','vfH1','vfQ2','vfH2','vfQ3','vfH3','vfQ4','vfH4',
+'ppHs','ppL','ppD','ppMat','ppC','ppMinor','ppQ','ppNpar', /* [แก้ไข 3 ต.ค. 2569 audit] */'vfKw','vfS','vfCapex','vfEta','vfQ1','vfH1','vfQ2','vfH2','vfQ3','vfH3','vfQ4','vfH4',
 'imHreq','imHnow','imKw','imHrs','scN','scQr','scQd','toKwh','toKw','toCapex','pfKw','pfNow','pfTarget','pfPenalty',
 'pvKwp','pvKva','pvYield','pvSelf','pvRate','pvCapexUnit','auditNote',
 'fhNr','fhNm','fhQ1','fhH1','fhQ2','fhH2','fhQ3','fhH3','ddShape','ddW','ddL','ddD','ddDL','ddT','ddQin','slNs','slNr','slNm','slKw','slVr','slV'];

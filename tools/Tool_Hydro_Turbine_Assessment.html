@@ -512,8 +512,9 @@ function tpCalc(t){
   const load=u.pr>0?kw/u.pr:NaN;
   return{u,hg,hl,hn,phyd,eo,et,se,load};
 }
-function tagEff(e){
+function tagEff(e,eo){
   if(!isFinite(e))return '<span class="tag">รอข้อมูล</span>';
+  if(e>1||(isFinite(eo)&&eo>1)||e<0)return '<span class="tag bad">เป็นไปไม่ได้ (η &gt; 100 %)</span>'; // [แก้ไข 3 ต.ค. 2569 audit] เดิม η 115–119 % ได้ป้าย "ดี"
   if(e>=0.88)return '<span class="tag ok">ดี</span>';
   if(e>=0.82)return '<span class="tag warn">พอใช้ / จับตา</span>';
   return '<span class="tag bad">ต่ำ — พิจารณา rehab</span>';
@@ -576,17 +577,18 @@ function prefillLinked(id,val,hintText){
 /* ───── main calc ───── */
 function calcAll(){
   /* performance */
-  let rows='',bestEo=NaN,sumSE=0,nSE=0;
+  let rows='',bestEo=NaN,sumSE=0,nSE=0,badTp=[];
   tps.forEach(t=>{
     const c=tpCalc(t); if(!c.u)return;
-    if(isFinite(c.eo)&&!(c.eo<bestEo))bestEo=isFinite(bestEo)?Math.max(bestEo,c.eo):c.eo;
+    const imp=isFinite(c.eo)&&(c.eo>1||c.et>1); if(imp) badTp.push(`${c.u.name}: η รวม ${fmt(c.eo*100,1)} % / η กังหัน ${fmt(c.et*100,1)} %`); // [แก้ไข 3 ต.ค. 2569 audit]
+    if(!imp&&isFinite(c.eo)&&!(c.eo<bestEo))bestEo=isFinite(bestEo)?Math.max(bestEo,c.eo):c.eo; // [แก้ไข 3 ต.ค. 2569 audit] ไม่เอาจุดที่ η > 100 % ไปเติม dpEta
     if(isFinite(c.se)){sumSE+=c.se;nSE++}
     rows+=`<tr><td>${c.u.name}</td><td class="num">${fmt(c.load*100,0)}</td><td class="num">${fmt(c.hg,2)}</td>
       <td class="num">${fmt(c.hl,2)}</td><td class="num">${fmt(c.hn,2)}</td><td class="num">${fmt(c.phyd,0)}</td>
       <td class="num">${isFinite(c.eo)?fmt(c.eo*100,1):'–'}</td><td class="num">${isFinite(c.et)?fmt(c.et*100,1):'–'}</td>
-      <td class="num">${fmt(c.se,3)}</td><td>${t.qsrc==='power'?'<span class="tag warn">Q จาก η สมมุติ — η นี้ไม่ใช่ค่าวัด</span>':tagEff(c.et)}</td></tr>`;
+      <td class="num">${fmt(c.se,3)}</td><td>${t.qsrc==='power'?'<span class="tag warn">Q จาก η สมมุติ — η นี้ไม่ใช่ค่าวัด</span>':tagEff(c.et,c.eo)}</td></tr>`;
   });
-  $('perfBody').innerHTML=rows;
+  $('perfBody').innerHTML=rows+(badTp.length?`<tr><td colspan="10"><div class="note" style="border-color:var(--danger);color:var(--danger)">🚨 <b>ค่าที่เป็นไปไม่ได้ (η &gt; 100 %):</b> ${badTp.join(' · ')} — ตรวจ kW ที่ขั้วเครื่อง, Q (มาตรวัด/ตำแหน่ง gate), ระดับน้ำเหนือ/ท้ายเขื่อน และ head loss · จุดนี้ไม่ถูกนำไปใช้เป็น η ใน Dispatch</div></td></tr>`:''); // [แก้ไข 3 ต.ค. 2569 audit]
   const avgSE=nSE?sumSE/nSE:NaN;
   $('perfKPI').innerHTML=
     kpiBox('η รวมสูงสุดที่วัดได้',isFinite(bestEo)?fmt(bestEo*100,1):'–','% water-to-wire')+

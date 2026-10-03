@@ -339,7 +339,7 @@ var TE_JSON=(function(){
     <div class="grid3">
       <div class="fld"><label class="f">อุณหภูมิน้ำเติม <span class="unit">°C</span></label><input type="number" id="tMake" value="28" step="1"><div class="hint">อุณหภูมิน้ำเติมหลังปรับสภาพ (°C) — วัดจริง 25–32 °C</div></div>
       <div class="fld"><label class="f">ค่าน้ำ + เคมี <span class="unit">บาท/ตัน</span></label><input type="number" id="wCost" value="35" step="1"><div class="hint">ค่าน้ำดิบ + ปรับสภาพ (softener/RO) + เคมี (บาท/ตัน) — ทั่วไป 25–60</div></div>
-      <div class="fld"><label class="f">ประสิทธิภาพหม้อไอน้ำ <span class="unit">%</span></label><input type="number" id="bEff" value="82" step="1"><div class="hint">ประสิทธิภาพหม้อไอน้ำจากผลตรวจวัด BS 845 (%) — 78–88 %</div></div>
+      <div class="fld"><label class="f">ประสิทธิภาพหม้อไอน้ำ <span class="unit">%</span></label><input type="number" id="bEff" value="82" step="1"><div class="hint">ประสิทธิภาพหม้อไอน้ำจากผลตรวจวัด BS 845 (%) — 78–88 % · ใช้แปลงความร้อนคืนเป็นพลังงานเชื้อเพลิงที่ลดได้ (GJ/ปี) เท่านั้น — มูลค่าบาทคิดจากราคาไอน้ำ ฿/ตัน ซึ่งรวม η แล้ว [แก้ไข 3 ต.ค. 2569 audit]</div></div>
     </div>
     <div id="condOut"></div>
   </div>
@@ -452,6 +452,8 @@ function calc(){
   $('vFl').textContent=fmt(flash*100,1);
 
   $('flashOut').innerHTML=`
+   ${p2>=p1?`<div class="note bad"><b>⚠ ความดันปลายน้ำ (${fmt(V('p2'),1)} bar g) ≥ ต้นน้ำ (${fmt(V('p1'),1)} bar g)</b>
+     — ดักระบายคอนเดนเสทไม่ได้ (ไม่มีแรงขับ) flash = 0 ไม่ใช่ผลจริง ตรวจค่าความดัน/ท่อกลับที่ยกสูง (lift) หรือ check valve <!-- [แก้ไข 3 ต.ค. 2569 audit] --></div>`:''}
    <div class="grid4" style="margin-top:12px">
      <div class="stat"><div class="big">${fmt(s1.T,1)}</div><div class="bigu">T อิ่มตัว ต้นน้ำ · °C</div></div>
      <div class="stat"><div class="big">${fmt(s2.T,1)}</div><div class="bigu">T อิ่มตัว ปลายน้ำ · °C</div></div>
@@ -556,8 +558,11 @@ function calc(){
    :'<div class="note">ยังไม่มีข้อมูล — กด “ข้อมูลตัวอย่าง” เพื่อดูวิธีใช้</div>';
 
   /* ── condensate ── */
-  const sp=V('steamProd'), cr=V('condRet'), tR=V('tRet'), tM=V('tMake');
-  const retPct=sp>0?cr/sp*100:0;
+  const sp=V('steamProd'), crIn=V('condRet'), tR=V('tRet'), tM=V('tMake');
+  /* [แก้ไข 3 ต.ค. 2569 audit] คอนเดนเสทกลับ > ไอน้ำที่ผลิต เป็นไปไม่ได้ → เตือน และคิดมูลค่าไม่เกินไอน้ำที่ผลิต */
+  const crBad = sp>0 && crIn>sp;
+  const cr = crBad ? sp : crIn;
+  const retPct=sp>0?crIn/sp*100:0;
   const rl=retPct>70?0:(retPct>50?1:(retPct>30?2:3));
   $('vRet').textContent=fmt(retPct,0); $('vRet').className='vnum mono s'+rl;
   $('vRetb').innerHTML=`% · ${pill(rl,['ดีมาก','พอใช้','ต่ำ','ต่ำมาก'][rl])}`;
@@ -574,6 +579,9 @@ function calc(){
   const energyBaht=steamEquiv*sCost*hrs;
   const waterBaht=cr*hrs*wCost;
   const potential=sp*0.8-cr;
+  /* [แก้ไข 3 ต.ค. 2569 audit] bEff ใช้ที่นี่: แปลงความร้อนที่ได้คืนเป็นพลังงานเชื้อเพลิงที่ลดได้ (GJ/ปี) = Q·ชม./η
+     มูลค่าบาทยังคิดจากราคาไอน้ำ ฿/ตัน (ซึ่งรวม η หม้อไอน้ำไว้แล้ว) จึงไม่คูณ η ซ้ำ */
+  const fuelGJ = bEff>0 ? heatSaved*hrs/1e6/bEff : 0;
   $('condOut').innerHTML=`
    <div class="grid4" style="margin-top:12px">
      <div class="stat"><div class="big s${rl}">${fmt(retPct,1)}</div><div class="bigu">อัตราการนำกลับ · %</div>
@@ -582,6 +590,9 @@ function calc(){
      <div class="stat"><div class="big">${money(waterBaht)}</div><div class="bigu">ค่าน้ำและเคมีที่ประหยัด · บาท/ปี</div></div>
      <div class="stat"><div class="big s${potential>0.5?1:0}">${fmt(Math.max(0,potential),2)}</div><div class="bigu">ศักยภาพเพิ่ม · ตัน/ชม.</div></div>
    </div>
+   ${crBad?`<div class="note bad"><b>⚠ คอนเดนเสทที่กลับ (${fmt(crIn,2)} t/h) มากกว่าไอน้ำที่ผลิต (${fmt(sp,2)} t/h)</b> — เป็นไปไม่ได้
+     ตรวจ flow meter/หน่วย หรือการประเมินจากน้ำเติม · มูลค่าด้านล่างคิดที่ไม่เกินไอน้ำที่ผลิต</div>`:''}
+   <div class="kv" style="margin-top:8px"><span>พลังงานเชื้อเพลิงที่ลดได้ (ความร้อนคืน ÷ η หม้อไอน้ำ ${fmt(bEff*100,0)} %)</span><b>${fmt(fuelGJ,0)} GJ/ปี</b></div>
    <div class="note ${rl>=2?'warn':'good'}">
      คอนเดนเสทที่กลับมาที่ ${fmt(tR,0)} °C พาความร้อนกลับมา ${fmt(dH,0)} kJ/kg
      เทียบกับน้ำเติมที่ ${fmt(tM,0)} °C<br>
@@ -627,7 +638,7 @@ function calc(){
       :`อุณหภูมิก่อนเข้าดักใกล้เคียงอุณหภูมิอิ่มตัวที่ความดันอุปกรณ์ — ระบายคอนเดนเสทได้ทัน`}
    </div>`;
 
-  S={flash,s1,s2,kgh,tKg,tN,tF,failPct,tBaht,tCO2,retPct,energyBaht,waterBaht,dev,wl};
+  S={flash,s1,s2,kgh,tKg,tN,tF,failPct,tBaht,tCO2,retPct,energyBaht,waterBaht,dev,wl,fuelGJ,crBad}; /* [แก้ไข 3 ต.ค. 2569 audit] */
   report();
 }
 
@@ -653,6 +664,7 @@ Flash steam
   อัตราการนำกลับ             ${fmt(S.retPct,1)} %
   มูลค่าความร้อนที่ได้กลับ    ${money(S.energyBaht)} บาท/ปี
   ค่าน้ำและเคมีที่ประหยัด     ${money(S.waterBaht)} บาท/ปี
+  เชื้อเพลิงที่ลดได้ (÷η)      ${fmt(S.fuelGJ,0)} GJ/ปี${S.crBad?'\n  ⚠ คอนเดนเสทกลับ > ไอน้ำที่ผลิต — ตรวจข้อมูล':''}
 
 Waterlogging
   ต่ำกว่าอุณหภูมิอิ่มตัว      ${fmt(S.dev,1)} °C

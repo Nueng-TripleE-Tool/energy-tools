@@ -416,6 +416,17 @@ footer b{color:var(--navy)}
       <div class="fld"><label class="f">ชั่วโมงเดินเครื่อง <span class="unit">ชม./ปี</span></label><input type="number" id="opHours" value="7200" step="100" min="0"><div class="hint">ชั่วโมงเดินหม้อไอน้ำต่อปี · 3 กะ 6 วัน ≈ 7,200 · ต่อเนื่อง 8,000+ · ที่มา: log การเดินเครื่อง</div></div>
       <div class="fld"><label class="f">ราคาเชื้อเพลิง <span class="unit">บาท/ตัน</span></label><input type="number" id="fuelPrice" value="1200" step="50" min="0"><div class="hint">ราคาเชื้อเพลิงหลักส่งถึงโรงงาน (บาท/ตัน) · ปี 2569: ไม้สับ 900–1,300 · ทะลายปาล์ม 300–600 · PKS 2,500–3,200 · แกลบ 1,400–1,800 · ที่มา: ใบแจ้งหนี้</div></div>
     </div>
+    <!-- [แก้ไข 3 ต.ค. 2569 audit] η หม้อไอน้ำสะอาด + รอบทำความสะอาด สำหรับคิดค่าเฉลี่ยตามเวลา -->
+    <div class="grid3">
+      <div class="fld"><label class="f">ประสิทธิภาพหม้อไอน้ำตอนสะอาด η <span class="unit">%</span></label><input type="number" id="boilEta" value="80" step="1" min="1" max="100"><div class="hint">η หลังทำความสะอาด (ฐานเดียวกับที่รายงาน) · stoker ชีวมวล 70–82 % · ใช้แปลง Δη เป็นเชื้อเพลิงเพิ่ม = Δη/η</div></div>
+      <div class="fld"><label class="f">รอบทำความสะอาดที่ใช้คิดเงิน</label>
+        <select id="cleanMode">
+          <option value="rec" selected>ตามรอบ soot blow ที่แนะนำ (ΔT ≤ 15 °C)</option>
+          <option value="user">ตามรอบจริงที่กรอก</option>
+          <option value="none">ไม่ทำความสะอาดเลยทั้งปี</option>
+        </select><div class="hint">ค่าเสียหายคิดจาก ΔT ไอเสียเฉลี่ยตามเวลาในรอบ (ฟันเลื่อย = ½ ของค่าสูงสุด) · ที่มา: log soot blow / รอบหยุดล้าง</div></div>
+      <div class="fld"><label class="f">รอบทำความสะอาดจริง <span class="unit">ชม.</span></label><input type="number" id="cleanHr" value="500" step="50" min="0"><div class="hint">ใช้เมื่อเลือก "ตามรอบจริง" · ชั่วโมงเดินระหว่างการ soot blow/ล้างที่ทำให้ T ไอเสียกลับมาเท่าเดิม</div></div>
+    </div>
     <div id="consqOut"></div>
   </div>
 </section>
@@ -750,13 +761,24 @@ const BANDS=[25,50,75], BANDLAB=['ต่ำ','ปานกลาง','สูง'
 function sevBand(v){ return band(v,BANDS); }
 
 function consequence(sc, inp){
+  /* [แก้ไข 3 ต.ค. 2569 audit] แก้ 2 จุด:
+     (1) คราบโตแบบเส้นตรงแล้วถูกทำความสะอาดเป็นรอบ = ฟันเลื่อย → อุณหภูมิไอเสียที่เพิ่ม "เฉลี่ยตามเวลา" = ครึ่งหนึ่งของค่าสูงสุดในรอบ
+         เดิมใช้ค่าปลายปี (ไม่ทำความสะอาดทั้งปี) คูณเชื้อเพลิงทั้งปี → เกินจริง ≥ 2 เท่า
+         รอบทำความสะอาด: 'rec' = รอบ soot blow ที่เครื่องมือแนะนำ (ΔT ≤ 15 °C) · 'user' = ตามที่กรอก · 'none' = ไม่ทำเลยทั้งปี
+     (2) เชื้อเพลิงที่เสียเพิ่ม (เทียบเชื้อเพลิงที่ใช้จริงซึ่งเป็นสภาพมีคราบ) = Δη/η_สะอาด ไม่ใช่ Δη (จุด %) ตรง ๆ */
   const rate  = (sc.foul/100)*35;
-  const dT    = rate*inp.hours/1000;
-  const dEff  = dT/20;
-  const fuelYr= inp.rate*inp.hours;
-  const cost  = fuelYr*inp.price*dEff/100;
+  const H     = inp.hours;
+  const dT    = rate*H/1000;                         // ถ้าไม่ทำความสะอาดเลยทั้งปี (ค่าปลายปี)
   const sootHr= rate>0 ? 15/rate*1000 : null;
-  return {rate,dT,dEff,fuelYr,cost,sootHr};
+  const eta   = (inp.eta>0 && inp.eta<=100) ? inp.eta : 80;
+  const fuelYr= inp.rate*H;
+  const costOf= tc=>{ const t=Math.max(0,Math.min(tc>0?tc:H, H)); const dTa=rate*t/1000/2;
+                       const de=dTa/20; return {tc:t, dTpk:rate*t/1000, dTavg:dTa, dEff:de, cost:fuelYr*inp.price*de/eta}; };
+  const mode  = inp.mode||'rec';
+  const tcSel = mode==='none' ? H : (mode==='user' ? (inp.cleanHr>0?inp.cleanHr:H) : (sootHr||H));
+  const sel=costOf(tcSel), none=costOf(H), rec=costOf(sootHr||H);
+  return {rate,dT,dEff:sel.dEff,fuelYr,cost:sel.cost,sootHr, eta,mode,tc:sel.tc,dTpk:sel.dTpk,dTavg:sel.dTavg,
+          costNone:none.cost,dEffNone:none.dEff,costRec:rec.cost,dEffRec:rec.dEff};
 }
 
 function solveBlend(fA, fB, soil, tgtAI, tgtSCl){
@@ -859,10 +881,15 @@ function computeAll(){
   const sc = scores(ix, aft, {fegt:tFegt, tad:est.tad}, op);
   const cq = consequence(sc, {rate:parseFloat($('fuelRate').value)||0,
                               hours:parseFloat($('opHours').value)||0,
-                              price:parseFloat($('fuelPrice').value)||0});
+                              price:parseFloat($('fuelPrice').value)||0,
+                              /* [แก้ไข 3 ต.ค. 2569 audit] η หม้อไอน้ำสะอาด + รอบทำความสะอาด */
+                              eta:parseFloat(($('boilEta')||{}).value)||80,
+                              mode:($('cleanMode')||{}).value||'rec',
+                              cleanHr:parseFloat(($('cleanHr')||{}).value)||0});
 
   STATE = {A,B,shB,soil,soilKey:sk,bl,p,pc,ix,ixc,eu,aft,F,est,tBed,tFegt,tTube,op,sc,cq,redPen};
   renderAll();
+  try{ runSolve(); }catch(e){}   /* [แก้ไข 3 ต.ค. 2569 audit] Blend Solver อัปเดตตามเชื้อเพลิง/ค่าที่เปลี่ยนทันที (เดิมค้างผลคู่เดิมจนกดปุ่ม) */
 }
 
 /* ── ตัวช่วยแสดงผล ── */
@@ -1166,16 +1193,23 @@ function renderConsq(S){
   $('consqOut').innerHTML = `
   <div class="grid4" style="margin-top:12px">
     <div><div class="big">${fmt(c.rate,1)}</div><div class="bigu">อุณหภูมิไอเสียเพิ่ม · °C ต่อ 1,000 ชม.</div></div>
-    <div><div class="big">${fmt(c.dEff,2)}</div><div class="bigu">ประสิทธิภาพที่หายไป · %</div></div>
+    <div><div class="big">${fmt(c.dEff,2)}</div><div class="bigu">ประสิทธิภาพที่หายไป (เฉลี่ยตามเวลา) · จุด %</div></div>
     <div><div class="big">${c.sootHr?fmt(c.sootHr,0):'–'}</div><div class="bigu">รอบ soot blow ที่แนะนำ · ชม.</div></div>
     <div><div class="big">${c.cost>0?Math.round(c.cost).toLocaleString('th-TH'):'–'}</div><div class="bigu">ต้นทุนที่สูญไป · บาท/ปี</div></div>
   </div>
   <div class="kv" style="margin-top:12px"><span>เชื้อเพลิงที่ใช้ทั้งปี</span><b>${Math.round(c.fuelYr).toLocaleString('th-TH')} ตัน</b></div>
   <div class="kv"><span>อุณหภูมิไอเสียที่สูงขึ้นสะสม ถ้าไม่ทำความสะอาด</span><b>${fmt(c.dT,0)} °C/ปี</b></div>
+  <!-- [แก้ไข 3 ต.ค. 2569 audit] แสดงฐานคำนวณแบบเฉลี่ยตามเวลา -->
+  <div class="kv"><span>รอบทำความสะอาดที่ใช้คิด (${c.mode==='none'?'ไม่ทำความสะอาดทั้งปี':(c.mode==='user'?'ตามที่กรอก':'รอบ soot blow ที่แนะนำ')})</span><b>${fmt(c.tc,0)} ชม.</b></div>
+  <div class="kv"><span>ΔT ไอเสียสูงสุดในรอบ / เฉลี่ยตามเวลา (ฟันเลื่อย = ½)</span><b>${fmt(c.dTpk,1)} / ${fmt(c.dTavg,1)} °C</b></div>
+  <div class="kv"><span>เชื้อเพลิงเพิ่ม = Δη / η<sub>สะอาด</sub> (${fmt(c.dEff,2)} / ${fmt(c.eta,1)})</span><b>${fmt(c.eta>0?c.dEff/c.eta*100:0,2)} %</b></div>
+  <div class="kv"><span>เทียบ: ไม่ทำความสะอาดทั้งปี / เป่าตามรอบแนะนำ</span><b>${Math.round(c.costNone).toLocaleString('th-TH')} / ${Math.round(c.costRec).toLocaleString('th-TH')} บาท/ปี</b></div>
   <div class="note">
     <b>ที่มา</b> — คราบ slag/fouling ทำตัวเป็นฉนวนบนผิวแลกเปลี่ยนความร้อน (การนำความร้อนเพียง 0.1–0.3 W/m·K)
     ความร้อนจึงถูกพาออกไปทางปล่องแทน ใช้เกณฑ์เชิงปฏิบัติว่าอุณหภูมิไอเสียที่สูงขึ้นทุก <b>20 °C
     ≈ ประสิทธิภาพหม้อไอน้ำลดลง 1 %</b><br>
+    [แก้ไข 3 ต.ค. 2569 audit] คราบโตเป็นเส้นตรงและถูกทำความสะอาดเป็นรอบ อุณหภูมิไอเสียจึงเป็นรูปฟันเลื่อย ใช้ค่าเฉลี่ยตามเวลา = ½ ของค่าสูงสุดในรอบ
+    และเชื้อเพลิงที่เสียเพิ่ม = Δη/η<sub>สะอาด</sub> ของเชื้อเพลิงที่ใช้จริง (เดิมใช้ค่าปลายปีทั้งปีและใช้ Δη เป็น % ตรง ๆ → เกินจริง)<br>
     อัตราการเพิ่มเป็นการประมาณจากคะแนน fouling ใช้เพื่อ<b>เทียบทางเลือก</b>และตั้งรอบทำความสะอาด
     ตัวเลขจริงต้องมาจากการ trend อุณหภูมิไอเสียที่โหลดคงที่ของหม้อไอน้ำเครื่องนั้นเอง
     ซึ่งเป็น KPI เฝ้าระวัง fouling ที่ดีที่สุดและแปลงเป็นเงินได้ตรง ๆ
@@ -1289,8 +1323,8 @@ function renderReport(S){
 
 ผลตามมาที่ประเมินได้
   อุณหภูมิไอเสียเพิ่ม   ${fmt(S.cq.rate,1)} °C ต่อ 1,000 ชม.
-  ประสิทธิภาพที่หายไป   ${fmt(S.cq.dEff,2)} %
-  ต้นทุนที่สูญไป        ${S.cq.cost>0?Math.round(S.cq.cost).toLocaleString('th-TH'):'–'} บาท/ปี
+  ประสิทธิภาพที่หายไป   ${fmt(S.cq.dEff,2)} จุด % (เฉลี่ยตามเวลา รอบทำความสะอาด ${fmt(S.cq.tc,0)} ชม.)
+  ต้นทุนที่สูญไป        ${S.cq.cost>0?Math.round(S.cq.cost).toLocaleString('th-TH'):'–'} บาท/ปี  (เชื้อเพลิงเพิ่ม = Δη/η ${fmt(S.cq.eta,0)} %)
   รอบ soot blow แนะนำ  ${S.cq.sootHr?fmt(S.cq.sootHr,0)+' ชม.':'–'}
 
 หมายเหตุ: ดัชนีเคมีเกือบทั้งหมดพัฒนาจากเถ้าถ่านหิน ใช้กับชีวมวลเป็นเครื่องคัดกรอง
@@ -1365,7 +1399,7 @@ function importRow(P){
 }
 
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['tTube'], FK_MEAS=['A_mc', 'A_ash', 'A_lhv', 'A_s', 'A_cl', 'A_idt', 'B_mc', 'B_ash', 'B_lhv', 'B_s', 'B_cl', 'B_idt', 'soilPct', 'soilYield', 'lambda', 'tBed', 'tFegt', 'opBed', 'opSoot', 'fuelRate'], FK_SET=['fuelA', 'fuelB', 'B_share', 'soilType', 'pasteRow', 'furnType', 'tMode', 'radFac', 'redPen', 'qF', 'opHours', 'fuelPrice', 'tgtAI', 'tgtSCl'], FK_CALC=['idtBlend', 'eutPen'];
+var FK_DESIGN=['tTube'], FK_MEAS=['A_mc', 'A_ash', 'A_lhv', 'A_s', 'A_cl', 'A_idt', 'B_mc', 'B_ash', 'B_lhv', 'B_s', 'B_cl', 'B_idt', 'soilPct', 'soilYield', 'lambda', 'tBed', 'tFegt', 'opBed', 'opSoot', 'fuelRate'], FK_SET=['fuelA', 'fuelB', 'B_share', 'soilType', 'pasteRow', 'furnType', 'tMode', 'radFac', 'redPen', 'qF', 'opHours', 'fuelPrice', 'tgtAI', 'tgtSCl', 'boilEta', 'cleanMode', 'cleanHr'], FK_CALC=['idtBlend', 'eutPen'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(/^[AB]_(SiO2|Al2O3|TiO2|Fe2O3|CaO|MgO|Na2O|K2O|P2O5|SO3)$/.test(id))return'meas';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}

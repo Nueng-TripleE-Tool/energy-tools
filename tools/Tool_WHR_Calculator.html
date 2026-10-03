@@ -734,6 +734,10 @@ Cp แก้ไขได้: Mineral / Synthetic / Custom</div>
             <label>อุณหภูมิอากาศ/ห้อง Ta <span>(°C)</span></label>
             <input type="number" id="g_tamb" value="33" step="0.5" onchange="syncGlobal()"><div class="hint">อุณหภูมิอากาศแวดล้อม/ห้องเครื่อง (°C) — เทอร์โมมิเตอร์ ทั่วไป 30–38 °C ใช้เป็นฐานคำนวณความร้อนที่กู้คืนได้</div>
           </div>
+          <div class="field"><!-- [แก้ไข 3 ต.ค. 2569 audit] เชื้อเพลิงที่ประหยัด = Q ÷ (η × NCV) ทุกโหมด (เดิม Q/NCV ยกเว้น HRSG) -->
+            <label>ประสิทธิภาพเตา/หม้อไอน้ำที่ถูกทดแทนความร้อน η <span>(%)</span></label>
+            <input type="number" id="g_eta_disp" value="85" step="1" min="1" max="100"><div class="hint">ความร้อนที่กู้คืน 1 kWh ทดแทนเชื้อเพลิง 1/η kWh — ใช้กับโหมด Air/Economizer/Metal/Drying/Hot Oil (HRSG ใช้ช่อง η ของตัวเอง) · หม้อไอน้ำ/heater 80–90 % · เตา: ใช้สัดส่วน available heat · ใส่ 100 = คิดแบบเดิม (Q ÷ NCV)</div>
+          </div>
         </div>
         <!-- Computed results column -->
         <div style="display:flex;flex-direction:column;gap:8px;min-width:150px;align-self:start">
@@ -1759,6 +1763,60 @@ const R = {
   hrsg:   { q_kw: 0, q_gj: 0, fuel_save: 0, hrs: 8000, done: false, steam_kg_hr: 0 },
 };
 let recupStage = 1;
+/* [แก้ไข 3 ต.ค. 2569 audit] ค่ากลาง/ตัวช่วยที่เพิ่ม */
+const EF_GRID_WHR = 0.4750;   // EF กริดไฟฟ้า (TGO) kgCO₂e/kWh — ใช้หัก CO₂ ของไฟ ID Fan ที่เพิ่ม
+const FAN_MODE = { hx_panel_air:'air', hx_panel_water:'water', hx_panel_metal:'metal', hx_panel_oil:'oil' };
+// ประสิทธิภาพเตา/หม้อไอน้ำที่ถูกทดแทนความร้อน (ใช้ทุกโหมด ยกเว้น HRSG ที่มี hr_eta) — ใส่ 100 = แบบเดิม (Q/NCV)
+function etaDisp(){ const v=parseFloat((document.getElementById('g_eta_disp')||{}).value); return (v>0&&v<=100)? v/100 : 1; }
+// แสดงกล่องเตือน (ไม่ใช้ alert) และไม่นำโหมดนั้นเข้าสรุปรวม
+function whrGuard(modeKey, bodyId, panelId, msgs){
+  if(!msgs||!msgs.length) return false;
+  if(R[modeKey]) R[modeKey].done=false;
+  const b=document.getElementById(bodyId);
+  if(b) b.innerHTML='<div class="warn">⛔ <b>ข้อมูลไม่สมเหตุสมผลทางฟิสิกส์/ไม่ครบ — ไม่คำนวณและไม่นำโหมดนี้เข้าสรุปรวม</b><br>'+msgs.join('<br>')+'</div>';
+  const p=panelId&&document.getElementById(panelId); if(p) p.innerHTML='';
+  return true;
+}
+/* ── แบบจำลองไอเสียจาก stoichiometry ต่อชนิดเชื้อเพลิง ──
+   ก๊าซ: %vol ; ของเหลว/ของแข็ง: %mass as-received (ultimate analysis, W = ความชื้น, A = เถ้า)
+   เดิม: ก๊าซ ×0.95 (ไม่มีที่มา), ของเหลว/ของแข็ง = อากาศ×1.25, cp_fg = ค่าคงที่ + 0.00015·(T−300) */
+const FG_COMP = {
+  lpg_6040:{m:{C:82.1,H:17.9}}, lpg_propane:{m:{C:81.7,H:18.3}}, lpg_butane:{m:{C:82.7,H:17.3}},
+  ng_methane:{v:{CH4:95,C2H6:3,CO2:1,N2:1}}, biogas_60:{v:{CH4:60,CO2:40}}, hydrogen:{v:{H2:100}},
+  diesel:{m:{C:86.5,H:13.2,S:0.3}}, fuel_oil_a:{m:{C:86.0,H:12.3,S:1.5,O:0.2}}, fuel_oil_c:{m:{C:85.5,H:11.0,S:3.0,O:0.3,N:0.2}},
+  kerosene:{m:{C:86.0,H:14.0}}, palm_oil:{m:{C:77.0,H:12.0,O:11.0}},
+  coal_24m:{m:{C:50.0,H:3.6,O:11.0,N:1.0,S:0.4,W:24,A:10}}, coal_28m:{m:{C:47.4,H:3.4,O:10.4,N:0.9,S:0.4,W:28,A:9.5}},
+  wood_8m:{m:{C:46.0,H:5.52,O:39.56,N:0.28,W:8,A:0.64}}, wood_16m:{m:{C:42.0,H:5.04,O:36.12,N:0.25,W:16,A:0.59}},
+  wood_pellet:{m:{C:46.0,H:5.52,O:39.56,N:0.28,W:8,A:0.64}}, bagasse:{m:{C:23.5,H:3.25,O:22.0,W:50,A:1.25}},
+  rice_husk:{m:{C:36.1,H:4.4,O:30.8,N:0.35,W:12,A:16.35}}, custom:{v:{C3H8:60,C4H10:40}}
+};
+function fgModel(fuelKey, o2pct){
+  const c=FG_COMP[fuelKey]||FG_COMP.custom; let O2=0,CO2=0,H2O=0,N2=0,SO2=0;
+  if(c.v){ const S={CH4:[2,1,2],C2H6:[3.5,2,3],C3H8:[5,3,4],C4H10:[6.5,4,5],H2:[0.5,0,1]};
+    Object.keys(c.v).forEach(k=>{const f=c.v[k]/100; if(S[k]){O2+=f*S[k][0];CO2+=f*S[k][1];H2O+=f*S[k][2];} else if(k==='CO2')CO2+=f; else if(k==='N2')N2+=f;}); }
+  else { const g=x=>(c.m[x]||0)/100, V=22.414;
+    O2=V*(g('C')/12.011+g('H')/4.032+g('S')/32.06-g('O')/31.998); CO2=V*g('C')/12.011; H2O=V*(g('H')/2.016+g('W')/18.015); SO2=V*g('S')/32.06; N2=V*g('N')/28.013; }
+  const Va0=O2/0.21, o=Math.max(0,o2pct)/100, D0=CO2+SO2+N2;
+  const beta=o*(D0+0.79*Va0)/(Va0*(0.21-o));            // O₂ วัดแบบแห้ง: 0.21βVa0 = o·(D0 + 0.79αVa0 + 0.21βVa0)
+  const alpha=1+beta, nO2=0.21*beta*Va0, nN2=N2+0.79*alpha*Va0, Vwet=CO2+SO2+H2O+nN2+nO2;
+  return {Va0, alpha, ea:beta*100, Vwet, x:{CO2:CO2/Vwet,SO2:SO2/Vwet,H2O:H2O/Vwet,N2:nN2/Vwet,O2:nO2/Vwet}};
+}
+// cp เฉลี่ยของไอเสีย (kJ/Nm³·K) ระหว่าง t1–t2 จาก ∫cp dT ของแต่ละก๊าซ (Cengel Table A-2c, 273–1800 K)
+const FG_CPC={N2:[28.90,-0.1571e-2,0.8081e-5,-2.873e-9],O2:[25.48,1.520e-2,-0.7155e-5,1.312e-9],CO2:[22.26,5.981e-2,-3.501e-5,7.469e-9],
+              H2O:[32.24,0.1923e-2,1.055e-5,-3.595e-9],SO2:[25.78,5.795e-2,-3.812e-5,8.612e-9]};
+// [แก้ไข 3 ต.ค. 2569 audit] ถ้าช่อง cp ยังเป็นค่าที่ calcGlobal เติมให้ (ผู้ใช้ไม่ได้แก้) → คิด cp ใหม่ตามช่วงอุณหภูมิไอเสียปัจจุบันของโหมด
+function fgAutoCp(id, tin, tout){
+  const el=document.getElementById(id);
+  if(!el||!window._fgMix||el.dataset.auto===undefined||el.value!==el.dataset.auto) return;
+  if(!(isFinite(tin)&&isFinite(tout)&&tin!==tout)) return;
+  const v=fgCpMix(window._fgMix,tout,tin).toFixed(3); el.value=v; el.dataset.auto=v;
+}
+function fgCpMix(x,t1,t2){
+  const H=(c,T)=>c[0]*T+c[1]*T*T/2+c[2]*T*T*T/3+c[3]*T*T*T*T/4;
+  let a=Math.min(t1,t2)+273.15, b=Math.max(t1,t2)+273.15; if(b-a<1) b=a+1;
+  let s=0; Object.keys(x).forEach(k=>{ if(FG_CPC[k]) s+=x[k]*(H(FG_CPC[k],b)-H(FG_CPC[k],a))/(b-a); });
+  return s/22.414;
+}
 
 // ─── Number formatter with comma separator ───────────────────
 // fmtN(12345.678, 2) → "12,345.68"
@@ -2118,6 +2176,18 @@ function renderHXResult(containerId, hxKey, q_kW, lmtd, hx) {
               style="width:100%;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px"
               oninput="recalcFanPenalty('${containerId}',${q_kW})">
           </div>
+          <div><!-- [แก้ไข 3 ต.ค. 2569 audit] อุณหภูมิไอเสียที่พัดลม (แปลง Nm³→m³ จริง) + ค่าไฟแก้ได้ -->
+            <label style="font-size:10px;color:var(--text3);display:block">T ไอเสียที่ ID Fan (°C)</label>
+            <input type="number" id="fan_T_${containerId}" value="${fanTGuess(containerId)}" step="5"
+              style="width:100%;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px"
+              oninput="recalcFanPenalty('${containerId}',${q_kW})">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text3);display:block">ค่าไฟฟ้า (฿/kWh)</label>
+            <input type="number" id="fan_price_${containerId}" value="4.5" step="0.1"
+              style="width:100%;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px"
+              oninput="recalcFanPenalty('${containerId}',${q_kW})">
+          </div>
         </div>
         <div id="fan_result_${containerId}" style="font-size:12px;color:var(--text)"></div>
       </div>
@@ -2131,6 +2201,12 @@ function fanFlowGuess(containerId) {
   const v = el ? parseFloat(el.value) : NaN;
   return isFinite(v) && v > 0 ? Math.round(v) : 1000;
 }
+function fanTGuess(containerId) { // [แก้ไข 3 ต.ค. 2569 audit] ID Fan อยู่หลัง HX → ไอเสียที่อุณหภูมิออก
+  const map = { hx_panel_air: (recupStage===2?'a_tfg3':'a_tfg2'), hx_panel_water: 'w_tfg_out', hx_panel_metal: 'm_tfg_out', hx_panel_oil: 'oil_tfg_out' };
+  const el = document.getElementById(map[containerId]);
+  const v = el ? parseFloat(el.value) : NaN;
+  return isFinite(v) ? Math.round(v) : 150;
+}
 function fanHrsGuess(containerId) {
   const map = { hx_panel_air: 'a_hrs', hx_panel_water: 'w_hrs', hx_panel_metal: 'm_hrs', hx_panel_oil: 'oil_hrs' };
   const el = document.getElementById(map[containerId]);
@@ -2140,18 +2216,22 @@ function fanHrsGuess(containerId) {
 
 // Compute ID Fan electrical penalty and net saving
 function recalcFanPenalty(containerId, q_rec_kW) {
-  const dP   = parseFloat(document.getElementById('fan_dp_' + containerId).value);     // Pa
-  const flow = parseFloat(document.getElementById('fan_flow_' + containerId).value);   // Nm³/hr
-  const eta  = parseFloat(document.getElementById('fan_eta_' + containerId).value);    // combined
-  const hrs  = parseFloat(document.getElementById('fan_hrs_' + containerId).value);    // hr/yr
+  // [แก้ไข 3 ต.ค. 2569 audit] null-safe (เดิม TypeError เมื่อไม่มีช่อง fan_* เพราะ HX ไม่ถูกแสดง) · ใช้อัตราไหลจริง m³/s ที่ T ไอเสียที่พัดลม
+  //   (เดิมใช้ Nm³ ตรง ๆ → ต่ำกว่าจริง ×(T+273)/273) · ค่าไฟแก้ได้ (เดิมฝัง 4.5) · เก็บผลไว้หักจากผลประหยัดสุทธิในสรุปรวม
+  const gv = k => { const e = document.getElementById('fan_' + k + '_' + containerId); return e ? parseFloat(e.value) : NaN; };
   const out  = document.getElementById('fan_result_' + containerId);
+  const mk = FAN_MODE[containerId];
+  if (mk && R[mk]) { R[mk].fan_kW = 0; R[mk].fan_kWh = 0; R[mk].fan_cost = 0; }
   if (!out) return;
+  const dP = gv('dp'), flow = gv('flow'), eta = gv('eta'), hrs = gv('hrs');
+  let Tfan = gv('T'); if (!isFinite(Tfan)) Tfan = 0;
+  let elecCost = gv('price'); if (!isFinite(elecCost) || elecCost < 0) elecCost = 4.5;
   if (![dP, flow, eta, hrs].every(isFinite) || eta <= 0) {
     out.innerHTML = '<span style="color:var(--red)">กรอกค่าให้ครบและถูกต้อง</span>';
     return;
   }
-  // Volumetric flow m³/s (use actual ~ Nm³ as approximation; conservative)
-  const Q_m3s = flow / 3600;
+  // อัตราไหลจริง m³/s = Nm³/h ÷ 3600 × (T+273.15)/273.15  (ความดันใกล้บรรยากาศ)
+  const Q_m3s = flow / 3600 * (Tfan + 273.15) / 273.15;
   // Fan electric power [W] = ΔP[Pa] × Q[m³/s] / η_combined
   const P_fan_W = (dP * Q_m3s) / eta;
   const P_fan_kW = P_fan_W / 1000;
@@ -2159,18 +2239,18 @@ function recalcFanPenalty(containerId, q_rec_kW) {
   // Convert recovered heat to comparable basis (thermal kWh/yr)
   const E_rec_kWh = q_rec_kW * hrs;                 // kWh-thermal/yr
   const penaltyPct = E_rec_kWh > 0 ? (E_fan_kWh / E_rec_kWh * 100) : 0;
-  const elecCost = 4.5; // ฿/kWh default
   const fanCost_yr = E_fan_kWh * elecCost;
+  if (mk && R[mk]) { R[mk].fan_kW = P_fan_kW; R[mk].fan_kWh = E_fan_kWh; R[mk].fan_cost = fanCost_yr; }
 
   out.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
       <div>กำลังไฟ ID Fan เพิ่ม: <strong>${fmtN(P_fan_kW,2)} kW</strong></div>
       <div>พลังงานไฟฟ้า/ปี: <strong>${fmtN(E_fan_kWh,0)} kWh/yr</strong></div>
-      <div>ค่าไฟเพิ่ม @4.5฿: <strong style="color:var(--accent)">${fmtN(fanCost_yr,0)} ฿/yr</strong></div>
+      <div>ค่าไฟเพิ่ม @${fmtN(elecCost,2)}฿: <strong style="color:var(--accent)">${fmtN(fanCost_yr,0)} ฿/yr</strong> (หักในสรุปรวม)</div>
       <div>คิดเป็น <strong>${fmtN(penaltyPct,1)}%</strong> ของความร้อนที่กู้คืน</div>
     </div>
     <div style="margin-top:6px;font-size:11px;color:var(--text3)">
-      สูตร: P_fan = ΔP × Q ÷ η = ${fmtN(dP,0)} Pa × ${fmtN(Q_m3s,3)} m³/s ÷ ${eta}
+      สูตร: Q จริง = ${fmtN(flow,0)} Nm³/h ÷ 3600 × (${fmtN(Tfan,0)}+273.15)/273.15 = ${fmtN(Q_m3s,3)} m³/s · P_fan = ΔP × Q ÷ η = ${fmtN(dP,0)} Pa × ${fmtN(Q_m3s,3)} m³/s ÷ ${eta}
       = ${fmtN(P_fan_kW,2)} kW${penaltyPct > 15 ? ' &nbsp;⚠️ <span style="color:var(--accent)">penalty สูง — พิจารณา HX ที่ dP ต่ำกว่า</span>' : ''}
     </div>`;
 }
@@ -2238,7 +2318,7 @@ const FUELS = {
   // ─── GAS FUELS (หน่วย Nm³/hr) ──────────────────────────────
   lpg_6040: {
     name:'LPG (C₃H₈:C₄H₁₀ = 60:40)',  phase:'liquid',
-    ncv:46.1,  hhv:50.2, ef:2.99, Ao:13.94,
+    ncv:46.1,  hhv:50.2, ef:2.99, Ao:15.56, // [แก้ไข 3 ต.ค. 2569 audit] stoich C82.1/H17.9 = 15.56 kg/kg (เดิม 13.94 ต่ำ 10 %) — ไอเสียคิดจาก FG_COMP
     label:'kg/hr', fuelUnit:'kg/hr', flowLabel:'อัตราการไหล (kg/hr)',
     cpfg:1.42, co2max:12.7, rho_liq:1.964,
     note:'LPG อุตสาหกรรมไทย ความหนาแน่น ~1.964 kg/Nm³ | NCV 46.1 MJ/kg'
@@ -2417,6 +2497,7 @@ function updateFuelProps() {
   const pEf  = document.getElementById('p_ef');
   if(pNcv) pNcv.value = fuel.ncv;
   if(pEf)  pEf.value  = fuel.ef;
+  if(!_teSilent){ if(pNcv) delete pNcv.dataset.user; if(pEf) delete pEf.dataset.user; } // [แก้ไข 3 ต.ค. 2569 audit] เปลี่ยนเชื้อเพลิง = กลับไปใช้ค่าของเชื้อเพลิง
 }
 function syncGlobal() { // [แก้ไข 10 ก.ย. 2569] เดิมเป็นฟังก์ชันว่าง — ให้คำนวณ Global ใหม่ทันทีเมื่อค่าเปลี่ยน
   const o2 = parseFloat(document.getElementById('g_o2').value);
@@ -2439,27 +2520,22 @@ function calcGlobal() {
     alert('⚠️ %O₂ ต้องน้อยกว่า 21% ครับ (ค่าปัจจุบัน ' + o2_pct + '%)');
     return;
   }
-  const ea = (o2 / denom) * 100;
+  const FGM = fgModel(fuelKey, o2_pct); // [แก้ไข 3 ต.ค. 2569 audit] stoichiometry ต่อเชื้อเพลิง (O₂ แห้ง)
+  const ea = FGM.ea;
   document.getElementById('g_ea').textContent = ea.toFixed(1);
 
   // FG flow calculation — แยกตาม phase
   // Gas: Nm³_fg / Nm³_fuel   |   Liquid/Solid: Nm³_fg / kg_fuel (approx)
   const alpha = 1 + ea/100;
   let mfg;
-  if (fuel.phase === 'gas') {
-    // per Nm³ fuel: FG ≈ Ao*(1+EA) + 1 (wet FG volume)
-    mfg = fuelFlow * (fuel.Ao * alpha + 1) * FG_VOL_CORR;
-  } else {
-    // per kg fuel: stoichiometric air Ao [kg/kg] → convert to Nm³ (÷1.293)
-    const air_nm3 = fuel.Ao * alpha / 1.293;   // kg air/kg fuel ÷ 1.293 kg/Nm³
-    mfg = fuelFlow * (air_nm3 * 1.25);          // FG ≈ air + fuel combustion products
-  }
+  // [แก้ไข 3 ต.ค. 2569 audit] ไอเสียเปียก = CO₂ + SO₂ + H₂O(เผา H + ความชื้น) + N₂ + O₂ ส่วนเกิน จาก FG_COMP (ไม่ใช้ ×0.95 / ×1.25 แบบเดิม)
+  mfg = fuelFlow * FGM.Vwet;
   document.getElementById('g_mfg').textContent = mfg.toFixed(1);
 
   // Cp_fg — estimate at average temp
   const tfg_in = parseFloat(document.getElementById('g_tfg_in').value);
   const tavg = (tfg_in + 150) / 2;
-  const cpfg = fuel.cpfg + (tavg - 300) * 0.00015;
+  const cpfg = fgCpMix(FGM.x, 150, tfg_in); // [แก้ไข 3 ต.ค. 2569 audit] cp เฉลี่ยจริงของส่วนผสมไอเสีย 150 °C → Tfg₁ (เดิม fuel.cpfg + 0.00015·(T−300))
   document.getElementById('g_cpfg').textContent = cpfg.toFixed(3);
 
   // Sync to other tabs
@@ -2473,6 +2549,15 @@ function calcGlobal() {
   // [แก้ไข 10 ก.ย. 2569] ส่งค่าไปแท็บ Hot Oil และ HRSG ด้วย (เดิมต้องกรอกซ้ำ)
   ['oil_mfg','hr_mfg'].forEach(id=>{const el=document.getElementById(id); if(el) el.value = mfg.toFixed(1);});
   ['oil_cpfg','hr_cpfg'].forEach(id=>{const el=document.getElementById(id); if(el) el.value = cpfg.toFixed(3);});
+  // [แก้ไข 3 ต.ค. 2569 audit] cp ของแต่ละโหมดคิดในช่วงอุณหภูมิไอเสียเข้า–ออกของโหมดนั้น
+  { const v=id=>parseFloat((document.getElementById(id)||{}).value);
+    const cpAt=(ti,to)=>(isFinite(ti)&&isFinite(to)&&ti!==to)?fgCpMix(FGM.x,to,ti):cpfg;
+    window._fgMix = FGM.x;
+    const put=(id,val)=>{const el=document.getElementById(id); if(el&&isFinite(val)){ el.value=val.toFixed(3); el.dataset.auto=el.value; }};
+    put('a_cpfg', cpAt(v('g_tfg_in'), recupStage===2?v('a_tfg3'):v('a_tfg2')));
+    put('w_cpfg', cpAt(v('w_tfg_in'), v('w_tfg_out')));
+    put('oil_cpfg', cpAt(v('oil_tfg_in'), v('oil_tfg_out')));
+    put('hr_cpfg', cpAt(v('hr_tgas_in'), 150)); }
 
   // อัปเดต p_ncv สำหรับสรุปรวม
   const pNcv = document.getElementById('p_ncv');
@@ -2534,9 +2619,20 @@ function calcAir() {
   const mair  = parseFloat(document.getElementById('a_mair').value);
   const cpair = parseFloat(document.getElementById('a_cpair').value);
   const mfg   = parseFloat(document.getElementById('a_mfg').value);
+  fgAutoCp('a_cpfg', tfg1, tfg3); // [แก้ไข 3 ต.ค. 2569 audit]
   const cpfg  = parseFloat(document.getElementById('a_cpfg').value);
   const fuelKey = document.getElementById('g_fuel').value;
   const fuel = FUELS[fuelKey];
+  // [แก้ไข 3 ต.ค. 2569 audit] ตรวจข้อมูลก่อนคำนวณ (เดิมรับ ε 121.8 % / ช่องว่าง)
+  { const tfgO = recupStage===2 ? tfg3 : tfg2, tairO = recupStage===2 ? tair3 : tair2, m = [];
+    if (![tfg1, tfgO, tair1, tairO, mair, cpair, mfg, cpfg].every(isFinite)) m.push('กรอกค่าให้ครบ (มีช่องว่างหรือไม่ใช่ตัวเลข)');
+    else {
+      if (tfgO >= tfg1) m.push(`Tfg ออก (${tfgO} °C) ต้องต่ำกว่า Tfg เข้า (${tfg1} °C)`);
+      if (tairO <= tair1) m.push(`Tair ออก (${tairO} °C) ต้องสูงกว่า Tair เข้า (${tair1} °C)`);
+      if (tairO >= tfg1) m.push(`อากาศออก ${tairO} °C ร้อนกว่าไอเสียเข้า ${tfg1} °C — เป็นไปไม่ได้`);
+      if (!(mair > 0) || !(mfg > 0) || !(cpair > 0) || !(cpfg > 0)) m.push('อัตราไหลและ cp ต้องมากกว่า 0');
+    }
+    if (whrGuard('air', 'air_result_body', 'hx_panel_air', m)) return; }
 
   // Heat from FG side  [kJ/hr ÷ 3600 = kW]
   const q_fg_kJ = mfg * cpfg * (tfg1 - (recupStage===2 ? tfg3 : tfg2));
@@ -2552,9 +2648,16 @@ function calcAir() {
   const c_min = Math.min(c_fg, c_air);
   const q_max = c_min * (tfg1 - tair1);
   const eff   = (q_air_kJ / q_max) * 100;
+  if (eff > 100.5) { if (whrGuard('air', 'air_result_body', 'hx_panel_air',
+      [`Effectiveness ε = ${fmtN(eff,1)} % > 100 % — อากาศรับความร้อน (${fmtN(q_air_kJ/3600,1)} kW) มากกว่าที่ไอเสียให้ได้สูงสุด (${fmtN(q_max/3600,1)} kW)`,
+       'ตรวจ ṁ_air, ṁ_fg, cp และอุณหภูมิที่วัด (เป็นไปไม่ได้ทางฟิสิกส์)'])) return; } // [แก้ไข 3 ต.ค. 2569 audit]
+  if (q_air_kJ > q_fg_kJ * 1.10) { if (whrGuard('air', 'air_result_body', 'hx_panel_air',
+      [`สมดุลพลังงานไม่ปิด: อากาศรับ ${fmtN(q_air_kJ/3600,1)} kW มากกว่าความร้อนที่ไอเสียให้ ${fmtN(q_fg_kJ/3600,1)} kW เกิน 10 % — เป็นไปไม่ได้`,
+       'ตรวจ ṁ_air / ṁ_fg / cp / อุณหภูมิที่วัด (ปกติ Q_air ≤ Q_fg − ความร้อนสูญเสียผิว HX)'])) return; } // [แก้ไข 3 ต.ค. 2569 audit]
+  const etaD = etaDisp(); // [แก้ไข 3 ต.ค. 2569 audit]
 
   // Fuel saving: Q_air [kJ/hr] ÷ 1000 = MJ/hr → ÷ NCV [MJ/unit] = unit/hr
-  const fuelSave_hr = (q_air_kJ / 1000) / fuel.ncv;
+  const fuelSave_hr = (q_air_kJ / 1000) / (fuel.ncv * etaD); // [แก้ไข 3 ต.ค. 2569 audit] ÷ η เตา (เดิม Q/NCV)
   const hrs = parseFloat(document.getElementById('a_hrs').value) || 8000; // [แก้ไข 10 ก.ย. 2569] เดิม hardcode 8000 ขณะ fan penalty ใช้ 6000
   const fuelSave_yr = fuelSave_hr * hrs;
   // Annual energy: q_air_kw [kW] × hrs [hr/yr] × 3.6 [kJ/Wh·1000/1000] ÷ 1000 = GJ/yr
@@ -2583,7 +2686,7 @@ function calcAir() {
       </div>`;
   }
 
-  R.air = { q_kw: q_air_kw, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true,
+  R.air = { q_kw: q_air_kw, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true, eta: etaD,
             fuelUnit: fuel.fuelUnit, fuelName: fuel.name, ncv: fuel.ncv, ef: fuel.ef };
 
   // ── Build Trace ──────────────────────────────────────────────
@@ -2619,8 +2722,8 @@ function calcAir() {
     },
     {
       num:5, color:'gold', title:'เชื้อเพลิงที่ประหยัดได้ต่อปี (Fuel Saving)',
-      formula: `Fuel_save [${fuel.fuelUnit.replace('/hr','/hr')}] = Q_air [kJ/hr] ÷ 1,000 [kJ→MJ] ÷ NCV [MJ/${fuel.fuelUnit.replace('/hr','')}]\nFuel_save/yr = Fuel_save_hr × Operating Hours`,
-      sub:     `Fuel_save = (${fmtN(q_air_kJ,1)} kJ/hr ÷ 1,000) ÷ ${fuel.ncv} = ${fmtN(fuelSave_hr,4)} ${fuel.fuelUnit.replace('/hr','/hr')}\nFuel_save/yr = ${fmtN(fuelSave_hr,4)} × ${fmtN(hrs,0)}`,
+      formula: `Fuel_save [${fuel.fuelUnit.replace('/hr','/hr')}] = Q_air [kJ/hr] ÷ 1,000 [kJ→MJ] ÷ (η × NCV [MJ/${fuel.fuelUnit.replace('/hr','')}])\nFuel_save/yr = Fuel_save_hr × Operating Hours`,
+      sub:     `Fuel_save = (${fmtN(q_air_kJ,1)} kJ/hr ÷ 1,000) ÷ (${fmtN(etaD,2)} × ${fuel.ncv}) = ${fmtN(fuelSave_hr,4)} ${fuel.fuelUnit.replace('/hr','/hr')}\nFuel_save/yr = ${fmtN(fuelSave_hr,4)} × ${fmtN(hrs,0)}`,
       result:  `${fmtN(fuelSave_yr,0)} ${fuel.fuelUnit.replace('/hr','/yr')}`,
       note:    `NCV (${fuel.name}) = ${fuel.ncv} MJ/${fuel.fuelUnit.replace('/hr','')} | หน่วย: kJ ÷ 1000 = MJ → ÷ NCV [MJ/unit] = unit/hr`
     }
@@ -2699,6 +2802,7 @@ function calcWater() {
   const tfg_in  = parseFloat(document.getElementById('w_tfg_in').value);
   const tfg_out = parseFloat(document.getElementById('w_tfg_out').value);
   const mfg     = parseFloat(document.getElementById('w_mfg').value);
+  fgAutoCp('w_cpfg', tfg_in, tfg_out); // [แก้ไข 3 ต.ค. 2569 audit]
   const cpfg    = parseFloat(document.getElementById('w_cpfg').value);
   const tw_in   = parseFloat(document.getElementById('w_tw_in').value);
   const tw_out  = parseFloat(document.getElementById('w_tw_out').value);
@@ -2708,6 +2812,18 @@ function calcWater() {
   const hrs     = parseFloat(document.getElementById('w_hrs').value);
   const fuelKey = document.getElementById('g_fuel').value;
   const fuel = FUELS[fuelKey];
+  // [แก้ไข 3 ต.ค. 2569 audit] ตรวจข้อมูล (เดิม Tfg_out > Tfg_in ให้ −2.52 kW เงียบ ๆ, ช่องว่าง → TypeError)
+  { const m = [];
+    if (![tfg_in, tfg_out, mfg, cpfg, tw_in, tw_out, hrs].every(isFinite) || !isFinite(mwater)) m.push('กรอกค่าให้ครบ (มีช่องว่างหรือไม่ใช่ตัวเลข)');
+    else {
+      if (tfg_out >= tfg_in) m.push(`Tfg ออก (${tfg_out} °C) ต้องต่ำกว่า Tfg เข้า (${tfg_in} °C)`);
+      if (tw_out <= tw_in) m.push(`Tw ออก (${tw_out} °C) ต้องสูงกว่า Tw เข้า (${tw_in} °C)`);
+      if (tw_out >= tfg_in) m.push(`น้ำออก ${tw_out} °C ร้อนกว่าไอเสียเข้า ${tfg_in} °C — เป็นไปไม่ได้`);
+      if (tfg_out <= tw_in) m.push(`ไอเสียออก ${tfg_out} °C เย็นกว่าน้ำเข้า ${tw_in} °C — เป็นไปไม่ได้`);
+      if (!(mfg > 0) || !(cpfg > 0)) m.push('ṁ_fg และ cp_fg ต้องมากกว่า 0');
+    }
+    if (whrGuard('water', 'water_result_body', 'hx_panel_water', m)) return; }
+  const etaD = etaDisp(); // [แก้ไข 3 ต.ค. 2569 audit]
 
   // Heat available from FG  [kJ/hr ÷ 3600 = kW]
   const q_fg_kW = (mfg * cpfg * (tfg_in - tfg_out)) / 3600;
@@ -2721,13 +2837,13 @@ function calcWater() {
   // Use min
   const q_rec = Math.min(q_fg_kW, q_water_kW);
 
-  // Fuel saving equivalent
-  const fuelSave_hr = (q_rec * 3.6) / fuel.ncv;
+  // Fuel saving equivalent — [แก้ไข 3 ต.ค. 2569 audit] ÷ η หม้อไอน้ำ/heater (สอดคล้องกับ HRSG)
+  const fuelSave_hr = (q_rec * 3.6) / (fuel.ncv * etaD);
   const fuelSave_yr = fuelSave_hr * hrs;
   const q_gj_yr = q_rec * hrs * 3.6 / 1000;
 
   // ── Save to global state ─────────────────────────────────────
-  R.water = { q_kw: q_rec, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true,
+  R.water = { q_kw: q_rec, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true, eta: etaD,
               fuelUnit: fuel.fuelUnit, fuelName: fuel.name, ncv: fuel.ncv, ef: fuel.ef };
 
   // ── Dew Point warning ────────────────────────────────────────
@@ -2768,8 +2884,8 @@ function calcWater() {
     },
     {
       num:5, color:'gold', title:'เชื้อเพลิงที่ประหยัดได้ต่อปี (Fuel Saving)',
-      formula: `Fuel_save = E_yr [GJ/yr] × 1,000 ÷ NCV [MJ/${fuel.fuelUnit.replace('/hr','')}]`,
-      sub:     `Fuel_save = ${fmtN(q_gj_yr,1)} × 1,000 ÷ ${fuel.ncv}`,
+      formula: `Fuel_save = E_yr [GJ/yr] × 1,000 ÷ (η × NCV [MJ/${fuel.fuelUnit.replace('/hr','')}])`,
+      sub:     `Fuel_save = ${fmtN(q_gj_yr,1)} × 1,000 ÷ (${fmtN(etaD,2)} × ${fuel.ncv})`,
       result:  `${fmtN(fuelSave_yr,0)} ${fuel.fuelUnit.replace('/hr','/yr')}`,
       note:    `NCV (${fuel.name}) = ${fuel.ncv} MJ/${fuel.fuelUnit.replace('/hr','')}`
     }
@@ -2858,6 +2974,7 @@ function calcOil() {
   const tfg_in  = parseFloat(document.getElementById('oil_tfg_in').value);
   const tfg_out = parseFloat(document.getElementById('oil_tfg_out').value);
   const mfg     = parseFloat(document.getElementById('oil_mfg').value);
+  fgAutoCp('oil_cpfg', tfg_in, tfg_out); // [แก้ไข 3 ต.ค. 2569 audit]
   const cpfg    = parseFloat(document.getElementById('oil_cpfg').value);
   const t_in    = parseFloat(document.getElementById('oil_tin').value);
   const t_out   = parseFloat(document.getElementById('oil_tout').value);
@@ -2867,6 +2984,15 @@ function calcOil() {
   const fuelKey = document.getElementById('g_fuel').value;
   const fuel    = FUELS[fuelKey];
   const fluidName = document.getElementById('oil_fluid').selectedOptions[0].text;
+  { const m = []; // [แก้ไข 3 ต.ค. 2569 audit] ตรวจข้อมูล
+    if (![tfg_in, tfg_out, mfg, cpfg, t_in, t_out, cp_f, hrs].every(isFinite) || !isFinite(m_fluid)) m.push('กรอกค่าให้ครบ (มีช่องว่างหรือไม่ใช่ตัวเลข)');
+    else {
+      if (tfg_out >= tfg_in) m.push(`Tfg ออก (${tfg_out} °C) ต้องต่ำกว่า Tfg เข้า (${tfg_in} °C)`);
+      if (t_out <= t_in) m.push(`T ของไหลออก (${t_out} °C) ต้องสูงกว่าเข้า (${t_in} °C)`);
+      if (t_out >= tfg_in) m.push(`ของไหลออก ${t_out} °C ร้อนกว่าไอเสียเข้า ${tfg_in} °C — เป็นไปไม่ได้`);
+    }
+    if (whrGuard('oil', 'oil_result_body', 'hx_panel_oil', m)) return; }
+  const etaD = etaDisp(); // [แก้ไข 3 ต.ค. 2569 audit]
 
   // Heat available from FG  [kW]
   const q_fg_kW = (mfg * cpfg * (tfg_in - tfg_out)) / 3600;
@@ -2878,12 +3004,12 @@ function calcOil() {
   const q_fluid_kW = (m_fluid * cp_f * (t_out - t_in)) / 3600;
   const q_rec = Math.min(q_fg_kW, q_fluid_kW);
 
-  // Fuel saving equivalent
-  const fuelSave_hr = (q_rec * 3.6) / fuel.ncv;
+  // Fuel saving equivalent — [แก้ไข 3 ต.ค. 2569 audit] ÷ η heater
+  const fuelSave_hr = (q_rec * 3.6) / (fuel.ncv * etaD);
   const fuelSave_yr = fuelSave_hr * hrs;
   const q_gj_yr = q_rec * hrs * 3.6 / 1000;
 
-  R.oil = { q_kw: q_rec, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true,
+  R.oil = { q_kw: q_rec, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true, eta: etaD,
             fuelUnit: fuel.fuelUnit, fuelName: fuel.name, ncv: fuel.ncv, ef: fuel.ef };
 
   // Dew point warning
@@ -2911,8 +3037,8 @@ function calcOil() {
       sub:`E_yr = ${fmtN(q_rec,2)} × ${fmtN(hrs,0)} × 3.6 ÷ 1,000`,
       result:`${fmtN(q_gj_yr,1)} GJ/yr` },
     { num:5, color:'gold', title:'เชื้อเพลิงที่ประหยัดได้ต่อปี (Fuel Saving)',
-      formula:`Fuel_save = E_yr × 1,000 ÷ NCV`,
-      sub:`Fuel_save = ${fmtN(q_gj_yr,1)} × 1,000 ÷ ${fuel.ncv}`,
+      formula:`Fuel_save = E_yr × 1,000 ÷ (η × NCV)`,
+      sub:`Fuel_save = ${fmtN(q_gj_yr,1)} × 1,000 ÷ (${fmtN(etaD,2)} × ${fuel.ncv})`,
       result:`${fmtN(fuelSave_yr,0)} ${fuel.fuelUnit.replace('/hr','/yr')}`,
       note:`NCV (${fuel.name}) = ${fuel.ncv} MJ/${fuel.fuelUnit.replace('/hr','')}` }
   ];
@@ -3002,6 +3128,10 @@ function calcHRSG() {
   const fuelKey = document.getElementById('g_fuel').value;
   const fuel    = FUELS[fuelKey];
 
+  { const m = []; // [แก้ไข 3 ต.ค. 2569 audit] ตรวจข้อมูล
+    if (![tgas_in, mfg, cpfg, eta_b, P, tfw, pinch, approach, hrs].every(isFinite)) m.push('กรอกค่าให้ครบ (มีช่องว่างหรือไม่ใช่ตัวเลข)');
+    else if (!(eta_b > 0 && eta_b <= 1)) m.push(`η หม้อไอน้ำ = ${eta_b} — ต้องกรอกเป็นสัดส่วน 0–1 (เช่น 0.85)`);
+    if (whrGuard('hrsg', 'hrsg_result_body', null, m)) return; }
   const s = satProps(P);
   updateHRSGSatHint();
 
@@ -3046,7 +3176,7 @@ function calcHRSG() {
 
   R.hrsg = { q_kw: q_total_kW, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true,
              fuelUnit: fuel.fuelUnit, fuelName: fuel.name, ncv: fuel.ncv, ef: fuel.ef,
-             steam_kg_hr: m_steam };
+             steam_kg_hr: m_steam, eta: eta_b }; // [แก้ไข 3 ต.ค. 2569 audit]
 
   const dewPoint = fuel.phase === 'solid' ? 160 : 130;
   const dewWarning = tg_out < dewPoint
@@ -3178,6 +3308,15 @@ function calcMetal() {
   const fuel = FUELS[fuelKey];
   const cpfg    = parseFloat(document.getElementById('a_cpfg').value) || 1.42;
   const cpfg_m  = cpfg; // alias for trace display
+  { const m = []; // [แก้ไข 3 ต.ค. 2569 audit] ตรวจข้อมูล
+    if (![mrate, cp, t_in, t_out, tfg_in, tfg_out, mfg, hrs].every(isFinite)) m.push('กรอกค่าให้ครบ (มีช่องว่างหรือไม่ใช่ตัวเลข)');
+    else {
+      if (tfg_out >= tfg_in) m.push(`Tfg ออก (${tfg_out} °C) ต้องต่ำกว่า Tfg เข้า (${tfg_in} °C)`);
+      if (t_out <= t_in) m.push(`T โลหะออก (${t_out} °C) ต้องสูงกว่าเข้า (${t_in} °C)`);
+      if (t_out >= tfg_in) m.push(`โลหะออก ${t_out} °C ร้อนกว่าไอเสียเข้า ${tfg_in} °C — เป็นไปไม่ได้`);
+    }
+    if (whrGuard('metal', 'metal_result_body', 'hx_panel_metal', m)) return; }
+  const etaD = etaDisp(); // [แก้ไข 3 ต.ค. 2569 audit]
 
   // Heat demand by metal  [kJ/hr ÷ 3600 = kW]
   const q_metal_kW = (mrate * cp * (t_out - t_in)) / 3600;
@@ -3190,7 +3329,7 @@ function calcMetal() {
   const lmtd = lmtdMetal.valid ? lmtdMetal.lmtd : NaN;
   const q_rec = Math.min(q_metal_kW, q_fg_kW);
 
-  const fuelSave_hr = (q_rec * 3.6) / fuel.ncv;
+  const fuelSave_hr = (q_rec * 3.6) / (fuel.ncv * etaD); // [แก้ไข 3 ต.ค. 2569 audit] ÷ η เตา
   const fuelSave_yr = fuelSave_hr * hrs;
   const q_gj_yr = q_rec * hrs * 3.6 / 1000;
 
@@ -3200,7 +3339,7 @@ function calcMetal() {
     ? `<div class="ok">✅ ΔT_min ≥ 20°C — การถ่ายเทความร้อนเป็นไปได้</div>`
     : `<div class="warn">⚠️ ΔT ระหว่าง FG และโลหะน้อยเกินไป ควรพิจารณาออกแบบ HX ใหม่</div>`;
 
-  R.metal = { q_kw: q_rec, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true,
+  R.metal = { q_kw: q_rec, q_gj: q_gj_yr, fuel_save: fuelSave_yr, hrs, done: true, eta: etaD,
               fuelUnit: fuel.fuelUnit, fuelName: fuel.name, ncv: fuel.ncv, ef: fuel.ef };
 
   // ── Build Trace ──────────────────────────────────────────────
@@ -3246,8 +3385,8 @@ function calcMetal() {
     },
     {
       num:6, color:'gold', title:'เชื้อเพลิงที่ประหยัดได้ต่อปี (Fuel Saving)',
-      formula: `Fuel_save = E_yr [GJ/yr] × 1,000 ÷ NCV [MJ/${fuel.fuelUnit.replace('/hr','')}]`,
-      sub:     `Fuel_save = ${fmtN(q_gj_yr,1)} × 1,000 ÷ ${fuel.ncv}`,
+      formula: `Fuel_save = E_yr [GJ/yr] × 1,000 ÷ (η × NCV [MJ/${fuel.fuelUnit.replace('/hr','')}])`,
+      sub:     `Fuel_save = ${fmtN(q_gj_yr,1)} × 1,000 ÷ (${fmtN(etaD,2)} × ${fuel.ncv})`,
       result:  `${fmtN(fuelSave_yr,0)} ${fuel.fuelUnit.replace('/hr','/yr')}`,
       note:    `NCV (${fuel.name}) = ${fuel.ncv} MJ/${fuel.fuelUnit.replace('/hr','')}`
     }
@@ -3434,12 +3573,15 @@ function calcDrying(silent = false) {
   // ── Store in R ────────────────────────────────────────────
   R.drying.q_kw         = q_recovered_kW;
   R.drying.q_gj         = q_gj_yr;
-  R.drying.fuel_save    = q_gj_yr;   // stored as GJ/yr (heat unit)
+  // [แก้ไข 3 ต.ค. 2569 audit] เดิมเก็บ GJ/yr ไว้ใน fuel_save แล้วสรุปรวมนำไปคูณราคา ฿/kg และ EF kg/kg → แปลงเป็นหน่วยเชื้อเพลิงด้วย NCV และ η
+  { const gf = FUELS[document.getElementById('g_fuel').value] || {}; const etaD = etaDisp();
+    R.drying.fuel_save = (gf.ncv > 0) ? q_gj_yr * 1000 / (gf.ncv * etaD) : 0;
+    R.drying.fuelUnitReal = gf.fuelUnit; R.drying.ncv = gf.ncv; R.drying.ef = gf.ef; R.drying.eta = etaD; R.drying.fuelName = gf.name; }
   R.drying.hrs          = hrs;
   R.drying.evap_kg_hr   = m_evap;
   R.drying.m_dry_out    = m_wet_out;
   R.drying.ncv_gain_gj  = ncv_gain_gj_yr;
-  R.drying.fuelUnit     = 'GJ/hr';
+  R.drying.fuelUnit     = R.drying.fuelUnitReal || 'GJ/hr'; // [แก้ไข 3 ต.ค. 2569 audit]
   R.drying.done         = true;
 
   // ── Render results ────────────────────────────────────────
@@ -3647,11 +3789,14 @@ function buildSummary() {
   const capex     = parseFloat(document.getElementById('p_capex').value);
 
   // อ่าน NCV และ EF จาก field (ผู้ใช้สามารถแก้ไขได้)
-  const ncv_override = parseFloat(document.getElementById('p_ncv').value);
-  const ef_override  = parseFloat(document.getElementById('p_ef').value);
+  // [แก้ไข 3 ต.ค. 2569 audit] ใช้ค่าในช่องเมื่อผู้ใช้แก้เอง (dataset.user) — เดิม m.ef || override ทำให้ช่องที่แก้ไม่มีผล และ EF = 0 (ชีวมวล) ถูกแทนค่า
+  const pNcvEl = document.getElementById('p_ncv'), pEfEl = document.getElementById('p_ef');
+  const ncv_override = parseFloat(pNcvEl.value);
+  const ef_override  = parseFloat(pEfEl.value);
+  const useNcv = pNcvEl.dataset.user === '1' && ncv_override > 0, useEf = pEfEl.dataset.user === '1' && ef_override >= 0;
 
-  // ตรวจสอบว่าทุก Mode ใช้เชื้อเพลิงเดียวกันหรือไม่ (เพื่อแสดงหน่วยรวม)
-  const doneUnits = [R.air, R.water, R.metal, R.oil, R.hrsg]
+  // ตรวจสอบว่าทุก Mode ใช้เชื้อเพลิงเดียวกันหรือไม่ (เพื่อแสดงหน่วยรวม) — [แก้ไข 3 ต.ค. 2569 audit] รวมโหมดอบแห้งแล้ว (เดิมตกหล่น → GJ ถูกรวมกับ kg)
+  const doneUnits = [R.air, R.water, R.metal, R.drying, R.oil, R.hrsg]
     .filter(r => r.done)
     .map(r => r.fuelUnit || 'Nm³/hr');
   const allSameUnit = doneUnits.length > 0 && doneUnits.every(u => u === doneUnits[0]);
@@ -3661,12 +3806,13 @@ function buildSummary() {
     { name:'💨 Air Preheating',   icon:'💨', ...R.air   },
     { name:'💧 Economizer',       icon:'💧', ...R.water },
     { name:'⚙️ Metal Preheating', icon:'⚙️', ...R.metal },
-    { name:'🌿 WHR Drying',       icon:'🌿', ...R.drying, fuelUnit:'GJ/hr' },
+    { name:'🌿 WHR Drying',       icon:'🌿', ...R.drying }, // [แก้ไข 3 ต.ค. 2569 audit] เดิมบังคับ fuelUnit 'GJ/hr'
     { name:'🛢️ Hot Oil',          icon:'🛢️', ...R.oil   },
     { name:'♨️ HRSG Steam',       icon:'♨️', ...R.hrsg  },
   ];
 
   let totalKW = 0, totalGJ = 0, totalFuel = 0, totalCO2 = 0, totalSaving = 0;
+  let totalFanKW = 0, totalFanKWh = 0, totalFanCost = 0; // [แก้ไข 3 ต.ค. 2569 audit] ไฟ ID Fan ที่เพิ่ม
   let rows = '';
   let unitMismatchNote = '';
 
@@ -3676,18 +3822,21 @@ function buildSummary() {
       continue;
     }
     // ใช้ ef จาก Mode นั้น (เก็บใน R) เพื่อความถูกต้อง
-    const ef_use  = m.ef  || ef_override;
-    const ncv_use = m.ncv || ncv_override;
+    const ef_use  = useEf ? ef_override : (isFinite(m.ef) ? m.ef : ef_override);   // [แก้ไข 3 ต.ค. 2569 audit]
+    const ncv_use = useNcv ? ncv_override : (m.ncv || ncv_override);
+    const eta_use = (m.eta > 0) ? m.eta : 1;
+    const fuel_save = (useNcv && m.q_gj > 0) ? m.q_gj * 1000 / (ncv_use * eta_use) : m.fuel_save;
     const fu      = (m.fuelUnit || 'Nm³/hr').replace('/hr','');
 
     // CO₂: fuel_save [unit/yr] × ef [kgCO₂/unit] ÷ 1000 → tCO₂
-    const co2        = m.fuel_save * ef_use / 1000;
+    const co2        = fuel_save * ef_use / 1000;
     // มูลค่าประหยัด: fuel_save [unit/yr] × ราคา [บาท/unit]
-    const saving     = m.fuel_save * fuelPrice;
+    const saving     = fuel_save * fuelPrice;
+    totalFanKW += m.fan_kW || 0; totalFanKWh += m.fan_kWh || 0; totalFanCost += m.fan_cost || 0;
 
     totalKW    += m.q_kw;
     totalGJ    += m.q_gj;
-    totalFuel  += m.fuel_save;
+    totalFuel  += fuel_save;
     totalCO2   += co2;
     totalSaving+= saving;
 
@@ -3695,7 +3844,7 @@ function buildSummary() {
       <td>${m.name}</td>
       <td>${fmtN(m.q_kw, 2)}</td>
       <td>${fmtN(m.q_gj, 1)}</td>
-      <td>${fmtN(m.fuel_save, 0)} ${fu}/yr</td>
+      <td>${fmtN(fuel_save, 0)} ${fu}/yr</td>
       <td>${fmtN(co2, 2)}</td>
     </tr>`;
 
@@ -3704,8 +3853,14 @@ function buildSummary() {
     }
   }
 
+  // [แก้ไข 3 ต.ค. 2569 audit] หักไฟฟ้า ID Fan ที่เพิ่มจาก ΔP ของ HX (เดิมแสดงในแผง HX แต่ไม่หัก)
+  const fanCO2 = totalFanKWh * EF_GRID_WHR / 1000;
+  if (totalFanKWh > 0) rows += `<tr style="color:var(--accent)">
+      <td>🌀 หัก: ไฟฟ้า ID Fan เพิ่ม (ΔP ของ HX)</td><td>−${fmtN(totalFanKW, 2)} kW<sub>e</sub></td><td>—</td>
+      <td>−${fmtN(totalFanKWh, 0)} kWh<sub>e</sub>/yr (−${fmtN(totalFanCost, 0)} ฿)</td><td>−${fmtN(fanCO2, 2)}</td></tr>`;
+  totalCO2 -= fanCO2;
   rows += `<tr style="font-weight:700;background:var(--surface2)">
-    <td>รวมทั้งหมด</td>
+    <td>รวมทั้งหมด (สุทธิ)</td>
     <td>${fmtN(totalKW, 2)}</td>
     <td>${fmtN(totalGJ, 1)}</td>
     <td>${allSameUnit ? fmtN(totalFuel,0)+' '+unitBase+'/yr' : '— (ต่างหน่วย)'}</td>
@@ -3722,7 +3877,9 @@ function buildSummary() {
   // มูลค่า = fuel_save [unit/yr] × fuelPrice [บาท/unit]
   // ** ต้องมั่นใจว่า fuelPrice มีหน่วยเดียวกับ fuelUnit ที่เลือกในแท็บก่อน
   // Simple Payback = capex / total_saving_baht_per_yr
-  const spb = totalSaving > 0 ? capex / totalSaving : Infinity;
+  const grossSaving = totalSaving; // [แก้ไข 3 ต.ค. 2569 audit]
+  const netSaving = grossSaving - totalFanCost;
+  const spb = netSaving > 0 ? capex / netSaving : Infinity;
 
   // แสดง label หน่วยราคา
   const fuelUnitLabel = allSameUnit ? unitBase : 'unit';
@@ -3734,18 +3891,20 @@ function buildSummary() {
   document.getElementById('valuation_result').innerHTML = `
     <div class="result-grid">
       <div class="result-item highlight">
-        <div class="r-label">ประหยัดค่าเชื้อเพลิง/ปี</div>
-        <div class="r-value">${fmtN(totalSaving, 0)}</div>
+        <div class="r-label">ผลประหยัดสุทธิ/ปี (หักไฟ ID Fan)</div>
+        <div class="r-value">${fmtN(netSaving, 0)}</div>
         <div class="r-unit">บาท/ปี</div>
       </div>
       <div class="result-item" style="font-size:11px;color:var(--text3);padding:8px 10px;text-align:left">
         <strong style="display:block;color:var(--text2);margin-bottom:4px">📐 วิธีคำนวณ</strong>
-        มูลค่า = Σ(ประหยัดเชื้อเพลิง × ราคา)<br>
-        = ${fmtN(totalFuel,0)} ${fuelUnitLabel}/yr × ${fuelPrice} บาท/${fuelUnitLabel}<br>
-        = <strong>${fmtN(totalSaving,0)} บาท/ปี</strong>
+        มูลค่า = Σ(ประหยัดเชื้อเพลิง × ราคา) − ค่าไฟ ID Fan<br>
+        = ${fmtN(totalFuel,0)} ${fuelUnitLabel}/yr × ${fuelPrice} บาท/${fuelUnitLabel} = ${fmtN(grossSaving,0)}<br>
+        − ${fmtN(totalFanCost,0)} บาท/ปี (ไฟ ID Fan ${fmtN(totalFanKWh,0)} kWh)<br>
+        = <strong>${fmtN(netSaving,0)} บาท/ปี</strong><br>
+        <span>เชื้อเพลิง = Q ÷ (η × NCV) ต่อโหมด${useNcv||useEf?' · ใช้ NCV/EF ที่แก้ในช่อง':''}</span>
       </div>
       <div class="result-item blue">
-        <div class="r-label">CO₂ ลดได้รวม</div>
+        <div class="r-label">CO₂ ลดได้รวม (สุทธิ)</div>
         <div class="r-value">${fmtN(totalCO2, 2)}</div>
         <div class="r-unit">tCO₂/yr</div>
       </div>
@@ -3791,10 +3950,12 @@ function recalcAll(){
   T(tagFieldKinds);
 }
 var _teSilent=false; // [ระยะ 4 10 ก.ย. 2569] ปิด alert ของ calcGlobal ระหว่างโหลด JSON
+document.addEventListener('DOMContentLoaded',function(){['p_ncv','p_ef'].forEach(function(id){var e=document.getElementById(id);if(e)e.addEventListener('input',function(){e.dataset.user='1';});});}); // [แก้ไข 3 ต.ค. 2569 audit] ติดธงเมื่อผู้ใช้แก้ NCV/EF เอง
 function teCollectExtra(){
   const hxSel={};document.querySelectorAll('.hx-type-btn.selected[id^="hxbtn_"]').forEach(b=>{const m=b.id.match(/^hxbtn_(hx_panel_\w+)_(.+)$/);if(m)hxSel[m[1]]=m[2];});
   const fan={};document.querySelectorAll('input[id^="fan_"]').forEach(e=>{fan[e.id]=e.value;});
-  return {recupStage:recupStage,currentDryMat:currentDryMat,hxSel:hxSel,fan:fan};
+  const pUser={p_ncv:(document.getElementById('p_ncv')||{dataset:{}}).dataset.user==='1',p_ef:(document.getElementById('p_ef')||{dataset:{}}).dataset.user==='1'}; // [แก้ไข 3 ต.ค. 2569 audit]
+  return {recupStage:recupStage,currentDryMat:currentDryMat,hxSel:hxSel,fan:fan,pUser:pUser};
 }
 var _teExtra=null;
 function teRestoreSelections(){
@@ -3805,7 +3966,9 @@ function teRestoreSelections(){
 }
 function teSaveJSON(){TE_JSON.save('Tool_WHR_Calculator',teCollectExtra());}
 function teLoadJSON(file){
-  TE_JSON.load(file,function(){recalcAll();teRestoreSelections();},function(x){
+  TE_JSON.load(file,function(){recalcAll();teRestoreSelections();
+    if(_teExtra&&_teExtra.pUser){['p_ncv','p_ef'].forEach(id=>{const e=document.getElementById(id);if(e){if(_teExtra.pUser[id])e.dataset.user='1';else delete e.dataset.user;}});try{buildSummary();}catch(e){}} // [แก้ไข 3 ต.ค. 2569 audit]
+  },function(x){
     _teExtra=x;
     if(x.recupStage)setRecupStage(+x.recupStage);
     if(x.currentDryMat&&DRY_MAT_DEFAULTS[x.currentDryMat]){currentDryMat=x.currentDryMat;document.querySelectorAll('#drying_mat_grid .hx-type-btn').forEach(b=>b.classList.toggle('selected',(b.getAttribute('onclick')||'').indexOf("'"+x.currentDryMat+"'")>=0));}

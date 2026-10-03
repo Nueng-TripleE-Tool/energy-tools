@@ -359,7 +359,32 @@ window.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('cRhoDiv').style.display=this.value==='custom'?'block':'none';
   });
   updGuide(); loadP(); calcAirDensity();
+  /* [แก้ไข 3 ต.ค. 2569 audit] เปลี่ยน η มอเตอร์/คัปปลิ้ง, ΔZ, ชนิดของเหลว/ρ → คำนวณ head/η ของทุกแถวใหม่ (เดิมค้างค่าตอนกรอก ทำให้ตาราง/BEP ปนฐาน) */
+  ['motorEff','couplingEff','staticZ','fluidType','customRho','airDensity'].forEach(id=>{const e=document.getElementById(id);
+    if(e){e.addEventListener('change',refreshRowsBasis);e.addEventListener('input',refreshRowsBasis);}});
 });
+/* [แก้ไข 3 ต.ค. 2569 audit] คำนวณทุกแถวใหม่จากค่าที่กรอก (P1/P2/Q/kW) ด้วยฐานปัจจุบัน */
+function recomputeRows(){
+  const dz=parseFloat(document.getElementById('staticZ')?.value)||0;
+  const etaM=parseFloat(document.getElementById('motorEff')?.value)||0.92;
+  const etaC=parseFloat(document.getElementById('couplingEff')?.value)||1.0;
+  const rho=getRho();
+  rows.forEach(r=>{
+    if(r.p1!==''&&r.p2!==''){ r.head=MT==='pump'?(parseFloat(r.p2)-parseFloat(r.p1)+dz).toFixed(2):(parseFloat(r.p2)-parseFloat(r.p1)).toFixed(2); }
+    if(r.q!==''&&r.head!==''&&r.kw!==''&&parseFloat(r.kw)>0){
+      const q=parseFloat(r.q),h=parseFloat(r.head),pSh=parseFloat(r.kw)*etaM*etaC*1000;
+      const e=MT==='pump'?(q/3600*h*rho*9.81)/pSh*100:(q/3600*h)/pSh*100;
+      r.eff=(e>0&&e<=100)?e.toFixed(1):'';
+    }
+  });
+}
+function refreshRowsBasis(){
+  recomputeRows(); renderTbl();
+  if(GQs.length && rows.filter(r=>r.q!==''&&r.head!=='').length>=2){   // กราฟเคยวาดแล้ว → อัปเดตสรุป/กราฟ โดยคงแท็บเดิม
+    const cur=TABS.find(x=>document.getElementById('tab-'+x).classList.contains('on'));
+    doDrawAll(); if(cur) goTab(cur);
+  }
+}
 const pad=n=>String(n).padStart(2,'0');
 
 // ══ TABS ══════════════════════════════════════════════════════
@@ -434,6 +459,7 @@ function applyS(s,t,aq,ah,ap){
     rows.push({id:rid,q:String(d.q),p1:String(d.p1),p2:String(d.p2),head:String(head),kw:String(d.kw),rpm:String(s.rpm),eff,note:d.n});
   });
   document.getElementById('sampleBadge').style.display='';
+  recomputeRows(); /* [แก้ไข 3 ต.ค. 2569 audit] ใช้ ρ ของเหลวที่เลือกจริง (เดิมบังคับ 1000) */
   calcK(); renderTbl();
 }
 function loadP(){applyS(SP,'pump',55,33.5,8.2);}
@@ -553,10 +579,9 @@ function doDrawAll(){
   const rpm=document.getElementById('testRPM').value||'—';
   document.getElementById('rpmBadge').textContent=rpm+' RPM';
   document.getElementById('stp').textContent=valid.length;
-  document.getElementById('stsh').textContent=GHs[0].toFixed(1);
-  document.getElementById('su1').textContent=MT==='pump'?'m':'Pa';
-  document.getElementById('stmq').textContent=Math.max(...GQs).toFixed(1);
-  document.getElementById('su2').textContent=MT==='pump'?'m³/h':'CMH';
+  /* [แก้ไข 3 ต.ค. 2569 audit] เดิม textContent ของ stsh/stmq ลบ span หน่วย (su1/su2) ทิ้ง แล้วบรรทัดถัดไป error → กราฟไม่ถูกวาด */
+  document.getElementById('stsh').innerHTML=GHs[0].toFixed(1)+'<span class="su" id="su1">'+(MT==='pump'?'m':'Pa')+'</span>';
+  document.getElementById('stmq').innerHTML=Math.max(...GQs).toFixed(1)+'<span class="su" id="su2">'+(MT==='pump'?'m³/h':'CMH')+'</span>';
   const vE=GEs.filter(e=>e!==null),mE=vE.length?Math.max(...vE):null;
   document.getElementById('stbep').textContent=mE?mE.toFixed(1):'—';
   if(mE){const bi=GEs.indexOf(mE);document.getElementById('bepBox').style.display='block';

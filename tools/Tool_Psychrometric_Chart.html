@@ -668,21 +668,24 @@ function calcP(){
 
   const mT = (pr==='mix') ? m1+m2 : m1;
   const Wbar=(s1.W+s2.W)/2, cp=1.006+1.86*Wbar;
-  const Qt = mT*(s1.h-s2.h);                    // kW (บวก = อากาศคายความร้อน = ภาระคอยล์เย็น)
-  const Qs = mT*cp*(s1.t-s2.t);
+  /* [แก้ไข 3 ต.ค. 2569 audit] การผสมอากาศ 2 สายเป็นกระบวนการอะเดียแบติก (สมดุลมวล+พลังงาน) — ไม่มีภาระความร้อน/น้ำระเหย
+     เดิมคิด (ṁ1+ṁ2)(h1 − h_mix) แสดงเป็น "ภาระทำความร้อน 19.5 kW / น้ำระเหย 20.3 kg/h" ซึ่งไม่มีจริง */
+  const isMix = pr==='mix';
+  const Qt = isMix ? 0 : mT*(s1.h-s2.h);       // kW (บวก = อากาศคายความร้อน = ภาระคอยล์เย็น)
+  const Qs = isMix ? 0 : mT*cp*(s1.t-s2.t);
   const Ql = Qt-Qs;
   const adia = Math.abs(Qt) < 0.06*Math.max(Math.abs(Qs),Math.abs(Ql),1e-9);
   const SHR = adia ? NaN : ((Qs/Qt) || 0);
-  const cond= mT*(s1.W-s2.W)*3600;              // kg/h (บวก = กลั่นตัว)
+  const cond= isMix ? 0 : mT*(s1.W-s2.W)*3600;  // kg/h (บวก = กลั่นตัว) — [แก้ไข 3 ต.ค. 2569 audit] การผสม = 0
   SP={s1,s2,pr};
 
-  const sign = Qt>=0 ? 'ภาระทำความเย็น (คอยล์รับความร้อน)' : 'ภาระทำความร้อน (อากาศรับความร้อน)';
+  const sign = isMix ? 'การผสมอะเดียแบติก — ไม่มีภาระความร้อน' : (Qt>=0 ? 'ภาระทำความเย็น (คอยล์รับความร้อน)' : 'ภาระทำความร้อน (อากาศรับความร้อน)');   // [แก้ไข 3 ต.ค. 2569 audit]
   $('kpiP').innerHTML = `
    <div class="kpi"><div class="lb">${sign} — รวม</div><div class="val">${fmt(Math.abs(Qt),2)}</div><div class="un">kW &nbsp;· ${fmt(Math.abs(Qt)/3.51685,2)} TR</div></div>
    <div class="kpi"><div class="lb">ความร้อนสัมผัส Q<sub>sensible</sub></div><div class="val">${fmt(Math.abs(Qs),2)}</div><div class="un">kW</div></div>
    <div class="kpi"><div class="lb">ความร้อนแฝง Q<sub>latent</sub></div><div class="val">${fmt(Math.abs(Ql),2)}</div><div class="un">kW</div></div>
    <div class="kpi"><div class="lb">SHR (Sensible Heat Ratio)</div><div class="val" ${adia?'style="font-size:1.05rem;padding-top:8px"':''}>${adia?'≈ 0 (อะเดียแบติก)':fmt(SHR,3)}</div><div class="un">Qs / Qt</div></div>
-   <div class="kpi"><div class="lb">${cond>=0?'น้ำกลั่นตัว (condensate)':'น้ำที่ระเหยเข้าอากาศ'}</div><div class="val">${fmt(Math.abs(cond),2)}</div><div class="un">kg/h ≈ L/h</div></div>
+   <div class="kpi"><div class="lb">${isMix?'น้ำกลั่นตัว/ระเหย (การผสม = 0)':(cond>=0?'น้ำกลั่นตัว (condensate)':'น้ำที่ระเหยเข้าอากาศ')}</div><div class="val">${fmt(Math.abs(cond),2)}</div><div class="un">kg/h ≈ L/h</div></div>
    <div class="kpi"><div class="lb">มวลอากาศแห้ง ṁ<sub>da</sub></div><div class="val">${fmt(mT*3600,0)}</div><div class="un">kg/h</div></div>`;
 
   const R=(n,a,b,u,d=2)=>`<tr><td>${n}</td><td class="num">${fmt(a,d)}</td><td class="num">${fmt(b,d)}</td>
@@ -701,6 +704,7 @@ function calcP(){
   $('asmP').innerHTML = `<b>วิธีคำนวณ:</b> ṁ<sub>da</sub> = V̇/v = ${fmtA(q1)} m³/s ÷ ${fmt(s1.v,4)} m³/kg = ${fmt(m1,4)} kg/s
     &nbsp;·&nbsp; Q<sub>total</sub> = ṁ<sub>da</sub>·Δh &nbsp;·&nbsp; Q<sub>sensible</sub> = ṁ<sub>da</sub>·(1.006+1.86W̄)·Δt (c<sub>p</sub> = ${fmt(cp,4)} kJ/kg·K)<br>
     ${extra? '<b>รายละเอียด:</b> '+extra+'<br>':''}
+    ${isMix? '<b>การผสม:</b> สภาวะผสมได้จาก W<sub>mix</sub> = Σṁ·W/Σṁ และ h<sub>mix</sub> = Σṁ·h/Σṁ — เป็นกระบวนการอะเดียแบติก ภาระความร้อนและน้ำ = 0 ใช้เฉพาะสภาวะผสม (จุด 2) ไปคำนวณคอยล์ขั้นต่อไป<br>':''}<!-- [แก้ไข 3 ต.ค. 2569 audit] -->
     <b>ตรวจสอบ:</b> SHR ของคอยล์เย็นทั่วไปอยู่ที่ 0.65–0.80 — ถ้าต่ำกว่า 0.6 แสดงว่าภาระความชื้นสูงมาก
     (ตรวจการรั่วของอากาศภายนอก) ถ้าสูงกว่า 0.9 คอยล์แทบไม่ลดความชื้น (ตรวจอุณหภูมิน้ำเย็น/สารทำความเย็น)<br>
     <b>หมายเหตุ:</b> 1 TR = 3.51685 kW &nbsp;·&nbsp; ค่าโหลดนี้เป็นภาระที่ “อากาศ” เท่านั้น

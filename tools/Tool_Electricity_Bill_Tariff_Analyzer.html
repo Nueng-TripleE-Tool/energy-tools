@@ -221,7 +221,7 @@ footer b{color:var(--navy)}
   <div class="grid3">
     <div class="fld"><label class="f">หน่วยไฟฟ้า On Peak <span class="unit">kWh</span></label>
       <input type="number" id="i_kwh_p" value="196000" onchange="calc()">
-      <div class="hint">TOU: จ.–ศ. 09:00–22:00 (ไม่รวมวันหยุดราชการ) · ถ้าเป็นอัตราปกติ (3.1/4.1) ให้ใส่หน่วยรวมทั้งหมดช่องนี้ และใส่ 0 ในช่อง Off Peak</div></div>
+      <div class="hint">TOU: จ.–ศ. 09:00–22:00 (ไม่รวมวันหยุดราชการ) · ถ้าเป็นอัตราปกติ (3.1/4.1) ให้ใส่หน่วยรวมทั้งหมดช่องนี้ และใส่ 0 ในช่อง Off Peak <b>แล้วกรอก "สัดส่วน On Peak" ด้านล่างเพื่อเทียบอัตรา TOU</b></div></div><!-- [แก้ไข 3 ต.ค. 2569 audit] -->
     <div class="fld"><label class="f">หน่วยไฟฟ้า Off Peak <span class="unit">kWh</span></label>
       <input type="number" id="i_kwh_o" value="154000" onchange="calc()">
       <div class="hint">TOU: จ.–ศ. 22:00–09:00 + เสาร์ อาทิตย์ วันหยุดราชการ (ยกเว้นวันหยุดชดเชย) ทั้งวัน</div></div>
@@ -239,6 +239,12 @@ footer b{color:var(--navy)}
     <div class="fld"><label class="f">TOD: kW ช่วง Partial / Off <span class="unit">kW</span></label>
       <input type="text" id="i_tod" value="0 / 0" onchange="calc()">
       <div class="hint">ใช้เฉพาะอัตรา 4.1 (TOD) — ใส่รูปแบบ "Partial / Off" เช่น 640 / 700; TOD: Peak = 18:30–21:30 (ช่อง kW สูงสุดด้านบน), Partial = 08:00–18:30, Off Peak = 21:30–08:00 ทุกวัน · Partial คิดเฉพาะส่วนที่เกิน Peak, Off Peak ไม่คิดค่า Demand</div></div>
+  </div>
+  <!-- [แก้ไข 3 ต.ค. 2569 audit] สัดส่วน On Peak สำหรับเทียบอัตรา TOU เมื่ออัตราปัจจุบันไม่ใช่ TOU (เดิมเทียบแบบหน่วยทั้งหมดอยู่ On Peak → TOU แพงเกินจริงเสมอ) -->
+  <div class="grid3">
+    <div class="fld"><label class="f">สัดส่วนหน่วย On Peak (สำหรับเทียบอัตรา TOU) <span class="unit">% ของ kWh รวม</span></label>
+      <input type="number" id="i_pkshare" value="" placeholder="เช่น 55" step="1" min="0" max="100" onchange="calc()">
+      <div class="hint">ใช้เมื่ออัตราปัจจุบันไม่ใช่ TOU (3.1/4.1 ฯลฯ) ซึ่งบิลไม่แยกหน่วย On/Off · หาจาก load profile 15 นาที/มิเตอร์ TOU ชั่วคราว · โรงงาน 3 กะเดินทุกวัน ≈ 38–45 % · 2 กะ จ.–ศ. ≈ 55–65 % · กะเดียวกลางวัน ≈ 80–90 % · เว้นว่าง = ใช้หน่วย On/Off ตามที่กรอก (และไม่เสนอเปลี่ยนเป็น TOU)</div></div>
   </div>
   <div class="grid3">
     <div class="fld"><label class="f">Demand สูงสุดย้อนหลัง 12 เดือน <span class="unit">kW</span></label>
@@ -1688,21 +1694,41 @@ function calc(){
   let c='<tr><th>อัตรา</th><th class="n">ค่าพลังงาน</th><th class="n">ค่า Demand</th><th class="n">ค่า Ft</th><th class="n">ค่าปรับ PF</th><th class="n">รวมสุทธิ</th><th class="n">บาท/kWh</th><th>ผลต่าง</th></tr>';
   const cmp=[];
   const AGRI=rk.charAt(0)==='7';
-  const isElig=k=>AGRI?(k.charAt(0)==='7'):(k.charAt(0)!=='7');
-  for(const k in RS){const bb=billFor(k,lv,d); if(!bb)continue; cmp.push([k,bb]);}
+  /* [แก้ไข 3 ต.ค. 2569 audit] เพิ่มเงื่อนไขขนาด (สอดคล้องกับส่วนบิล 12 เดือน): ประเภท 3 ต้องมี Demand < 1,000 kW · ประเภท 4 = ≥1,000 kW หรือ >250,000 kWh/เดือน · ประเภท 5 เฉพาะกิจการที่เป็น 5 อยู่แล้ว
+     (เดิมเสนอ 4.1 → 3.1 ให้ผู้ใช้ 1,500 kW ได้) · หมายเหตุ: เกณฑ์ ≤250,000 kWh ของประเภท 3 ไม่ได้บังคับ (ให้ผู้ใช้ตรวจเอง) */
+  const BIG=(d.dem>=1000||(d.kwhP+d.kwhO)>250000);
+  const sizeOK=k=>{const c=k.charAt(0);if(k===rk||AGRI)return true;if(c==='5')return rk.charAt(0)==='5';if(c==='4')return BIG;if(c==='3')return d.dem<1000;return true;};
+  const isElig=k=>(AGRI?(k.charAt(0)==='7'):(k.charAt(0)!=='7'))&&sizeOK(k);
+  /* [แก้ไข 3 ต.ค. 2569 audit] อัตราปัจจุบันไม่ใช่ TOU → แจกหน่วยรวมเป็น On/Off ตามสัดส่วนที่กรอก ก่อนเทียบอัตรา TOU */
+  const curTOU=((RS[rk]||{}).type==='tou');
+  const shRaw=String(($('i_pkshare')||{}).value||'').trim();
+  const shPk=shRaw===''?null:clamp(parseFloat(shRaw)/100,0,1);
+  const splitUnknown=!curTOU&&(shPk===null||!isFinite(shPk));
+  const kwhTot=d.kwhP+d.kwhO;
+  const dCmp=(!curTOU&&!splitUnknown)?Object.assign({},d,{kwhP:kwhTot*shPk,kwhO:kwhTot*(1-shPk)}):d;
+  for(const k in RS){const bb=billFor(k,lv,dCmp); if(!bb)continue; cmp.push([k,bb]);}
   const cur=B.total;
   cmp.sort((a,b)=>a[1].total-b[1].total);
   cmp.forEach(([k,bb])=>{
     const dv=bb.total-cur;
     h='';
-    c+=`<tr${k===rk?' class="hl"':''}${isElig(k)?'':' style="opacity:.5"'}><td>${k===rk?'<b>'+esc(k)+'</b> (ปัจจุบัน)':esc(k)}${isElig(k)?'':' '+pill('n','คนละประเภทกิจการ')}<br><span class="unit">${esc(RS[k].n)}</span></td>
+    c+=`<tr${k===rk?' class="hl"':''}${isElig(k)?'':' style="opacity:.5"'}><td>${k===rk?'<b>'+esc(k)+'</b> (ปัจจุบัน)':esc(k)}${isElig(k)?'':' '+pill('n',((AGRI?(k.charAt(0)==='7'):(k.charAt(0)!=='7'))?'ไม่เข้าเงื่อนไขขนาด/ประเภท':'คนละประเภทกิจการ'))}<br><span class="unit">${esc(RS[k].n)}</span></td>
       <td class="n">${f(bb.energy,0)}</td><td class="n">${f(bb.demand,0)}</td><td class="n">${f(bb.ft,0)}</td>
       <td class="n">${f(bb.pfPen,0)}</td><td class="n"><b>${f(bb.total,0)}</b></td><td class="n">${f(bb.kwh>0?bb.total/bb.kwh:0,3)}</td>
       <td>${k===rk?'—':(dv<0?pill(0,'ถูกลง '+f0(-dv)+' บาท/เดือน'):pill(2,'แพงขึ้น '+f0(dv)+' บาท/เดือน'))}</td></tr>`;
   });
   $('t_cmp').innerHTML=c;
-  const best=cmp.find(x=>isElig(x[0]))||cmp[0];
+  let best=cmp.find(x=>isElig(x[0]))||cmp[0];
   let cn='';
+  /* [แก้ไข 3 ต.ค. 2569 audit] ไม่รู้สัดส่วน On Peak → ไม่เสนออัตรา TOU เป็นมาตรการ (ผลขึ้นกับการแบ่งหน่วยที่กรอกล้วน ๆ) */
+  if(!curTOU){
+    const pkPct=kwhTot>0?dCmp.kwhP/kwhTot*100:0;
+    if(splitUnknown){
+      cn+=`<div class="note warn"><b>⚠ อัตราปัจจุบัน (${esc(rk)}) ไม่ใช่ TOU และยังไม่ได้กรอก "สัดส่วนหน่วย On Peak"</b> — อัตรา TOU ในตารางถูกคิดจากหน่วยที่กรอก (On Peak ${f(pkPct,0)} %) ตรง ๆ
+      ถ้าใส่หน่วยทั้งหมดในช่อง On Peak ตาม hint อัตรา TOU จะแพงเกินจริง ถ้าใส่ใน Off Peak จะถูกเกินจริง · กรอกสัดส่วนจาก load profile ก่อนสรุป — ระหว่างนี้จะไม่เสนอการเปลี่ยนเป็นอัตรา TOU</div>`;
+      if(RS[best[0]]&&RS[best[0]].type==='tou') best=cmp.find(x=>isElig(x[0])&&RS[x[0]]&&RS[x[0]].type!=='tou')||[rk,B];
+    } else cn+=`<div class="note">อัตรา TOU ในตารางคิดจากหน่วยรวม ${f0(kwhTot)} kWh แบ่งเป็น On Peak ${f(shPk*100,0)} % / Off Peak ${f(100-shPk*100,0)} % ตามสัดส่วนที่กรอก (สมมติฐาน — ยืนยันด้วย load profile)</div>`;
+  }
   if(best[0]!==rk&&cur-best[1].total>0){
     cn+=`<div class="note good"><b>อัตราที่ถูกที่สุดสำหรับรูปแบบการใช้ไฟชุดนี้คือ ${esc(best[0])}</b> — ถูกกว่าปัจจุบัน ${f0(cur-best[1].total)} บาท/เดือน (${f0((cur-best[1].total)*12)} บาท/ปี)
     <br>แต่ก่อนยื่นขอเปลี่ยน ต้องตรวจ 3 ข้อ: (1) คุณสมบัติตามประกาศ เช่น 4.x ต้องมี Demand ≥1,000 kW ต่อเนื่อง 3 เดือน (2) รูปแบบการใช้ไฟเดือนอื่นเหมือนเดือนนี้หรือไม่ ต้องคำนวณย้อนหลังอย่างน้อย 12 เดือน (3) ค่าใช้จ่ายเปลี่ยนมิเตอร์ TOU และเงื่อนไขห้ามเปลี่ยนกลับภายในระยะเวลาที่กำหนด</div>`;
@@ -2156,6 +2182,7 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
   window.scrollTo({top:0,behavior:'smooth'});
 });
 const IDS=['i_rate','i_lv','i_days','i_kwh_p','i_kwh_o','i_dem','i_kvar','i_ft','i_tod','i_dem12','i_vat','i_actual',
+  'i_pkshare','cw_a','cw_l','cw_mat','cw_n','cw_nr','cw_t','est_pf','est_wh', /* [แก้ไข 3 ต.ค. 2569 audit] เพิ่มช่องที่ JSON ไม่เคยบันทึก */
   'pf_rate','pf_tgt','pf_hr','pf_R','u_v','u_kva','u_p3','u_pf3','u_R','u_RN','u_z','u_pk','tx_p0','tx_n','tx_rate','tx_amb',
   'mb_mode','mb_share','mb_pk','m0_k','m0_m','m0_n','m0_t','m1_i1','m1_i2','m1_i3','m1_in','m1_v12','m1_v23','m1_v31','m1_pf','m3_w1','m3_w2','m3_bal'];
 function saveJSON(){

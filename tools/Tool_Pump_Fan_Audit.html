@@ -170,6 +170,8 @@ hr.dv{border:none;border-top:1px solid var(--border);margin:18px 0;}
     <span class="te-json">
   <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
   <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+  <!-- [แก้ไข 3 ต.ค. 2569] ส่งออกมาตรการ TE_ECM -->
+  <button type="button" onclick="teExportECM()" title="ส่งออกมาตรการเป็นไฟล์ TE_ECM เพื่อนำเข้า Tool_ECM_Portfolio">📤 ส่งไป ECM Portfolio</button>
 </span>
   </div>
 </div>
@@ -394,6 +396,17 @@ function unitHTML(t){
           <button class="btn btn-s" onclick="projectCurve('${t}')">📈 Project ทั้งเส้นโค้ง</button>
         </div>
       </div>
+      <!-- [แก้ไข 3 ต.ค. 2569] ข้อมูลประกอบการส่งมาตรการไป ECM Portfolio (TE_ECM) -->
+      <div class="panel">
+        <div class="panel-title">📤 ข้อมูลส่ง ECM Portfolio (ผลประหยัดรายปี)</div>
+        <div class="g2">
+          <div class="fg"><label>ชั่วโมงเดินเครื่อง (ชม./ปี)</label><input type="number" id="${t}_ecmHrs" value="6000"><div class="hint te">ใช้แปลง kW ที่ลดได้เป็น kWh/ปี · ค่าตัวอย่าง 6,000 ชม./ปี — แก้ตามหน้างาน</div></div>
+          <div class="fg"><label>ค่าไฟเฉลี่ย (฿/kWh)</label><input type="number" id="${t}_ecmTariff" value="4.2" step="0.01"><div class="hint te">ใช้คิด savingTHB · ว่างไว้ = ไม่ส่งค่าเงิน</div></div>
+          <div class="fg"><label>เงินลงทุน (฿)</label><input type="number" id="${t}_ecmCapex" placeholder="เช่น 250000"><div class="hint te">ค่า VFD/กลึงใบพัด/ติดตั้ง · ว่างไว้ = ไม่ส่ง</div></div>
+          <div class="fg"><label>อายุมาตรการ (ปี)</label><input type="number" id="${t}_ecmLife" placeholder="เช่น 10"><div class="hint te">ว่างไว้ = ไม่ส่ง</div></div>
+        </div>
+        <div class="u" style="margin-top:4px">P_elec = P_shaft/(η_m×η_c) · หลังปรับรอบหารด้วย η_VSD 0.97 เพิ่ม · ผลประหยัดคิดจากจุดฐาน Affinity ด้านบน</div>
+      </div>
     </div>
     <div>
       <div class="panel" id="${t}_affRes" style="display:none">
@@ -564,22 +577,25 @@ function calcPerf(t){
   if(p){ H=(P2-P1)*1000/(rho*G)+dZ; fluidW=rho*G*(Q/3600)*H; }
   else { H=P2-P1; fluidW=(Q/3600)*H; }
   etaF = Psh>0 ? fluidW/(Psh*1000)*100 : 0;
-  etaF = Math.min(Math.max(etaF,0),100);
+  // [แก้ไข 3 ต.ค. 2569 audit] เดิม clamp η ไว้ที่ 100 % เงียบ ๆ (P_e 5 kW → η 100 %, η_overall 430 %) → แสดงค่าจริง + คำเตือน ไม่ให้ป้าย Good
+  const etaRaw = etaF;
+  etaF = Math.max(etaF,0);
   const etaO = Pe>0 ? fluidW/(Pe*1000)*100 : 0;
+  const impossible = etaRaw>100 || etaO>100 || etaRaw<0 || H<0;
   const Ns = H>0 ? Na*Math.pow(Q/3600,0.5)/Math.pow(p?H:H/1000,0.75) : 0;
   const dq=g(`${t}_dq`), dh=g(`${t}_dh`);
   const qR=dq>0?Q/dq*100:0, hR=dh>0?H/dh*100:0;
 
-  const col = etaF>=70?'var(--teal)':etaF>=50?'var(--amber)':'var(--red)';
-  const sc = etaF>=70?'s-g':etaF>=50?'s-w':'s-b';
-  const stxt = etaF>=70?'✓ Good':etaF>=50?'⚠ Fair':'✕ Poor';
+  const col = impossible?'var(--red)':etaF>=70?'var(--teal)':etaF>=50?'var(--amber)':'var(--red)';
+  const sc = impossible?'s-b':etaF>=70?'s-g':etaF>=50?'s-w':'s-b';
+  const stxt = impossible?'✕ เป็นไปไม่ได้':etaF>=70?'✓ Good':etaF>=50?'⚠ Fair':'✕ Poor'; // [แก้ไข 3 ต.ค. 2569 audit]
   const pct=Math.min(Math.max((etaF-20)/70,0),1);
   byId(`${t}_gp`).style.stroke=col; byId(`${t}_gp`).style.strokeDashoffset=282.7*(1-pct);
   byId(`${t}_gt`).textContent=etaF.toFixed(1)+'%'; byId(`${t}_gt`).style.fill=col;
   byId(`${t}_gl`).textContent=p?'HYDRAULIC η':'AERODYNAMIC η';
 
-  byId(`${t}_perfKpi`).innerHTML=`
-    <div class="kpi ${etaF>=70?'t':etaF>=50?'a':'r'}"><div class="kpi-l">${c.effName}</div><div class="kpi-v" style="color:${col}">${etaF.toFixed(1)}</div><div class="kpi-u">%</div><div class="kpi-s ${sc}">${stxt}</div></div>
+  byId(`${t}_perfKpi`).innerHTML=(impossible?`<div class="alert al-d" style="grid-column:1/-1;font-size:12px"><span>🚨</span><div><strong>ค่าที่ได้เป็นไปไม่ได้ทางกายภาพ</strong> — ${c.effName} ${etaRaw.toFixed(1)} % · η_overall ${etaO.toFixed(1)} % ${H<0?'· หัวดัน/ΔP ติดลบ':''} (ต้อง &lt; 100 %) · ตรวจ P_elec (kW ไม่ใช่ W/ต่อเฟส), อัตราไหล Q (หน่วย ${c.qU}), ความดัน P₁/P₂ และ ΔZ ก่อนนำไปใช้ — <b>ไม่ควรใช้ค่านี้คำนวณมาตรการ</b></div></div>`:'')+`<!-- [แก้ไข 3 ต.ค. 2569 audit] -->
+    <div class="kpi ${impossible?'r':etaF>=70?'t':etaF>=50?'a':'r'}"><div class="kpi-l">${c.effName}</div><div class="kpi-v" style="color:${col}">${etaF.toFixed(1)}</div><div class="kpi-u">%</div><div class="kpi-s ${sc}">${stxt}</div></div>
     <div class="kpi b"><div class="kpi-l">${c.hName}</div><div class="kpi-v" style="color:var(--blue)">${H.toFixed(1)}</div><div class="kpi-u">${c.hU}</div><div class="kpi-s s-n">vs Design ${hR.toFixed(0)}%</div></div>
     <div class="kpi g"><div class="kpi-l">P_shaft</div><div class="kpi-v" style="color:var(--green)">${Psh.toFixed(2)}</div><div class="kpi-u">kW</div><div class="kpi-s s-n">η_overall ${etaO.toFixed(1)}%</div></div>`;
 
@@ -610,6 +626,7 @@ function calcPerf(t){
   // [แก้ไข 10 ก.ย. 2569] ส่งค่าไป Affinity (จุดฐาน) และ Audit/EnPI + Checklist (ผู้ใช้แก้ทับได้)
   const setV=(id,v)=>{ const el=byId(id); if(el) el.value=v; };
   setV(`${t}_aQ1`,Q.toFixed(2)); setV(`${t}_aH1`,H.toFixed(p?2:1)); setV(`${t}_aP1`,Psh.toFixed(2));
+  if(Na>0) setV(`${t}_aN1`,Na); // [แก้ไข 3 ต.ค. 2569 audit] เชื่อม N₁ (จุดฐาน Affinity) จากรอบที่วัดจริง (เดิม Q/H/P ลิงก์แต่ N₁ ต้องกรอกซ้ำ)
   setV('au_type',t); if(typeof auTypeChange==='function') auTypeChange();
   setV('au_q',Q.toFixed(2)); setV('au_h',H.toFixed(p?2:1)); setV('au_pe',Pe.toFixed(2)); setV('au_em',em);
   if(!p) setV('au_rho',rho);
@@ -712,7 +729,8 @@ function calcAffinity(t){
     ${c.hName}₂ = ${c.hName}₁×f² = ${H1}×${(f*f).toFixed(4)} = <strong>${H2.toFixed(2)} ${c.hU}</strong><br>
     P₂ = P₁×f³ = ${P1}×${(f*f*f).toFixed(4)} = <strong>${P2.toFixed(2)} kW</strong><br>
     <span style="color:var(--green)">Power Saving = (1−f³)×100 = <strong>${save.toFixed(1)}%</strong> 🎯</span><br>
-    <span style="font-size:11px">Trim ${trim.toFixed(1)}% — ${trimWarn}</span>`;
+    <span style="font-size:11px">Trim ${trim.toFixed(1)}% — ${trimWarn}</span>${(()=>{ const hs=g(`${t}_sysH`); if(!(hs>0)) return ''; /* [แก้ไข 3 ต.ค. 2569 audit] เตือน static head: affinity ตรง ๆ ใช้ได้เมื่อ static head = 0 */
+      return H2<hs ? `<br><span style="color:var(--red)">🚨 ${c.hName}₂ ${H2.toFixed(1)} ${c.hU} ต่ำกว่า static ${hs} ${c.hU} (แท็บ Curve) — ที่รอบนี้ส่งของไหลไม่ได้ ผลประหยัดใช้ไม่ได้</span>` : `<br><span style="color:var(--amber);font-size:11px">⚠ ระบบมี static ${hs} ${c.hU} (${(hs/H1*100).toFixed(0)} % ของ ${c.hName}₁) — กฎ affinity P∝N³ ประเมินผลประหยัดสูงเกินจริง ควรหาจุดทำงานใหม่จากจุดตัด pump curve × system curve</span>`; })()}`;
   byId(`${t}_affRes`).style.display='block';
 
   // เปรียบเทียบเส้นโค้งจากข้อมูลที่วัดไว้
@@ -1114,7 +1132,7 @@ function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=documen
   for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
   for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
 document.addEventListener('DOMContentLoaded',tagFieldKinds);
-const TE_LINKED=['pump_dgQ','pump_dgH','pump_dgEta','pump_aQ1','pump_aH1','pump_aP1','fan_dgQ','fan_dgH','fan_dgEta','fan_aQ1','fan_aH1','fan_aP1','pump_dgNa','pump_dgNr','fan_rho','au_type','au_q','au_h','au_pe','au_em','au_rho','ck_tag'];
+const TE_LINKED=['pump_aN1','fan_aN1', /* [แก้ไข 3 ต.ค. 2569 audit] */ 'pump_dgQ','pump_dgH','pump_dgEta','pump_aQ1','pump_aH1','pump_aP1','fan_dgQ','fan_dgH','fan_dgEta','fan_aQ1','fan_aH1','fan_aP1','pump_dgNa','pump_dgNr','fan_rho','au_type','au_q','au_h','au_pe','au_em','au_rho','ck_tag'];
 function teUIState(){
   const top=['pump','fan','audit'].find(n=>byId('tt-'+n).classList.contains('active'))||'pump';
   const sub={}; ['pump','fan','audit'].forEach(n=>{ const on=byId('sec-'+n).querySelector('.sub-section.on'); sub[n]=on?on.id.split('-')[1]:null; });
@@ -1142,6 +1160,55 @@ function recalcAll(){ // ensureAllCalc: คำนวณทุกแท็บต�
 }
 function teSaveJSON(){ TE_JSON.save('Tool_Pump_Fan_Audit', teUIState()); }
 function teLoadJSON(file){ TE_JSON.load(file, recalcAll, teRestoreExtra); }
+/* TE_ECM — ส่งออกมาตรการไป ECM Portfolio (schema v1) [แก้ไข 3 ต.ค. 2569] */
+var TE_ECM=(function(){
+  function clean(o){var r={};Object.keys(o||{}).forEach(function(k){var v=o[k];if(v===undefined||v===null)return;if(typeof v==='number'&&!isFinite(v))return;r[k]=v;});return r;}
+  function save(tool,site,measures,pools){
+    var ms=(measures||[]).map(clean).filter(function(m){return m.id&&m.name&&m.effect&&m.carrier;});
+    if(!ms.length){alert('ยังไม่มีมาตรการที่คำนวณผลประหยัดได้ — กรุณากรอกข้อมูล/คำนวณก่อนส่งออก');return null;}
+    var d={meta:{schema:'TE_ECM',version:1,tool:tool,exportedAt:new Date().toISOString(),site:site||''},pools:(pools||[]).map(clean),measures:ms};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');
+    a.href=URL.createObjectURL(b);a.download=tool+'_ECM_'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},2000);return d;}
+  return{save:save,clean:clean};
+})();
+/* [แก้ไข 3 ต.ค. 2569] teBuildECM — สร้างมาตรการ VFD/กลึงใบพัด (Pump & Fan) จากจุดฐาน Affinity → kWh/ปี */
+function teBuildECM(){
+  try{ if(typeof recalcAll==='function') recalcAll(); }catch(e){}
+  var num=function(id){var e=byId(id);if(!e||e.value==='')return NaN;var v=parseFloat(e.value);return isFinite(v)?v:NaN;};
+  var measures=[];
+  ['pump','fan'].forEach(function(t){
+    var p=t==='pump', c=CFG[t];
+    var N1=num(t+'_aN1'),N2=num(t+'_aN2'),D1=num(t+'_aD1'),D2=num(t+'_aD2'),P1=num(t+'_aP1');
+    if(!(N1>0&&N2>0&&P1>0))return;
+    var em=num(t+'_em');if(!(em>0))em=0.92; var ec=num(t+'_ec');if(!(ec>0))ec=1.0;
+    var rN=N2/N1, rD=(D1>0&&D2>0)?D2/D1:1, f=rN*rD, f3=f*f*f;
+    var vsd=rN<0.999, trim=rD<0.999;
+    if(!vsd&&!trim)return;
+    var etaV=vsd?0.97:1;
+    var Pe1=P1/(em*ec), Pe2=P1*f3/(em*ec*etaV), dkW=Pe1-Pe2;
+    if(!(dkW>0))return;
+    var hrs=num(t+'_ecmHrs'), tar=num(t+'_ecmTariff'), capex=num(t+'_ecmCapex'), life=num(t+'_ecmLife');
+    if(!(hrs>0&&hrs<=8784))return;
+    var tag=gv(t+'_tag')||c.name, kwh=dkW*hrs;
+    var nm=(p?'ปั๊ม ':'พัดลม ')+tag+' — '+(vsd&&trim?'ติดตั้ง VFD ปรับรอบ + กลึงใบพัด':vsd?'ติดตั้ง VFD ปรับรอบ':'กลึงใบพัด (Impeller trim)');
+    var m={id:t+'-'+(vsd?'vfd':'')+(vsd&&trim?'-':'')+(trim?'trim':'')+'-'+String(tag).replace(/[^A-Za-z0-9_-]+/g,''),
+      name:nm, system:p?'pump':'fan', effect:'direct', carrier:'electricity', unit:'kWh',
+      savingQty:Math.round(kwh), baselineQty:Math.round(Pe1*hrs),
+      primary:{electricity_kWh:Math.round(kwh)},
+      savingTHB:tar>0?Math.round(kwh*tar):undefined,
+      capex:capex>0?capex:undefined, life:life>0?life:undefined,
+      mvOption:'B', keyParams:['P_elec (kW) มอเตอร์ก่อน/หลัง','ชั่วโมงเดินเครื่อง','อัตราไหล Q ('+c.qU+')','ความเร็วรอบ N (rpm)'],
+      group:'estimate',
+      basis:'Affinity law: f=(N₂/N₁)×(D₂/D₁)='+(N2+'/'+N1)+'×'+(rD===1?'1':(D2+'/'+D1))+'='+f.toFixed(4)+' · P_shaft₂=P_shaft₁×f³='+P1+'×'+f3.toFixed(4)+'='+(P1*f3).toFixed(2)+' kW · P_elec₁=P_shaft₁/(η_m '+em+'×η_c '+ec+')='+Pe1.toFixed(2)+' kW · P_elec₂=P_shaft₂/(η_m×η_c'+(vsd?'×η_VSD 0.97':'')+')='+Pe2.toFixed(2)+' kW · ลด '+dkW.toFixed(2)+' kW × '+hrs+' ชม./ปี = '+Math.round(kwh).toLocaleString()+' kWh/ปี'+(tar>0?' × '+tar+' ฿/kWh':'')+' (สมมุติระบบรับอัตราไหลที่ลดลงได้; ไม่รวม static head)'};
+    measures.push(m);
+  });
+  var site=gv('ck_plant')||'';
+  return {measures:measures, pools:[], site:site};
+}
+window.teBuildECM=teBuildECM;
+function teExportECM(){var r=teBuildECM();TE_ECM.save('Tool_Pump_Fan_Audit',r.site,r.measures,r.pools);} // [แก้ไข 3 ต.ค. 2569]
+
 
 window.addEventListener('DOMContentLoaded',()=>{
   byId('sec-pump').innerHTML=unitHTML('pump');

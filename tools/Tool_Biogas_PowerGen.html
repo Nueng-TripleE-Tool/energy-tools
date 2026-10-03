@@ -184,14 +184,8 @@ canvas{width:100%;display:block;}
       <option value="seafood">โรงงานแปรรูปอาหารทะเล</option>
     </select><div class="hint te">เลือกประเภทโรงงาน → เติมค่า default COD/BOD/pH/T/%CH₄ ตามฐานข้อมูล (แก้ทับได้)</div>
     <label>สัดส่วน %CH&#8324; ในไบโอแก๊ส</label>
-    <select id="ch4Pct">
-      <option value="50">50%</option>
-      <option value="55">55%</option>
-      <option value="60">60%</option>
-      <option value="65" selected>65%</option>
-      <option value="70">70%</option>
-      <option value="75">75%</option>
-    </select><div class="hint te">%CH₄ จาก biogas analyzer หน้างาน · แป้งมัน/ปาล์ม 60–68 % · น้ำตาล/สุรา 55–62 % · ต่ำกว่า 50 % ตรวจ digester</div>
+    <!-- [แก้ไข 3 ต.ค. 2569 audit] เดิมเป็น dropdown 50–75 ขั้น 5 % → preset แป้งข้าวโพด 62 % ไม่มีในรายการ ค่าเป็นว่าง → biogas ∞ / กรอกค่าวัดจริงไม่ได้ → เปลี่ยนเป็นช่องตัวเลข id เดิม (ไฟล์ JSON เก่าโหลดได้) -->
+    <input type="number" id="ch4Pct" value="65" min="30" max="90" step="0.1"><div class="hint te">%CH₄ จาก biogas analyzer หน้างาน (กรอกทศนิยมได้ เช่น 62.4) · แป้งมัน/ปาล์ม 60–68 % · น้ำตาล/สุรา 55–62 % · ต่ำกว่า 50 % ตรวจ digester</div>
   </div>
 
   <div class="ss">
@@ -259,7 +253,11 @@ canvas{width:100%;display:block;}
     <input type="number" id="tExh" value="450" min="150" max="700" step="5">
     <div class="hint">Gas engine: 400–550&#176;C | หลัง HRU: 150–250&#176;C</div>
     <label>%O&#8322; ในไอเสีย (%vol, dry)</label>
-    <input type="number" id="o2Exh" value="5.5" min="0" max="15" step="0.1"><div class="hint te">%O₂ ไอเสีย (dry) จาก flue gas analyzer · lean-burn gas engine 5–8 % · rich-burn ≈ 0.5–1 %</div>
+    <input type="number" id="o2Exh" value="5.5" min="0" max="15" step="0.1"><div class="hint te">%O₂ ไอเสีย (dry) จาก flue gas analyzer · lean-burn gas engine ≈ 6–10 % (λ 1.4–1.9) · rich-burn/stoichiometric ≈ 0.3–1.5 %</div>
+    <!-- [แก้ไข 3 ต.ค. 2569 audit] เดิมแนะนำ excess air 15–25 % แบบหม้อไอน้ำ ซึ่งผิดสำหรับเครื่องยนต์ lean-burn (ออกแบบ λ≈1.6–1.8) -->
+    <label>ชนิดการเผาไหม้ของเครื่องยนต์</label>
+    <select id="engType"><option value="lean" selected>Lean-burn (λ 1.4–1.9, O₂ ≈ 6–10 %)</option><option value="rich">Stoichiometric/rich-burn (λ ≈ 1.0–1.1, O₂ &lt; 2 %)</option></select>
+    <div class="hint te">ดูจาก nameplate/คู่มือผู้ผลิต — ช่วง λ เป้าหมายใช้ประเมินข้อแนะนำการปรับ Air-Fuel</div>
     <label>%CO ในไอเสีย (ppm)</label>
     <input type="number" id="coPpm" value="400" min="0" step="10">
     <div class="hint">เป้าหมาย &lt; 650 ppm | &gt; 1000 ppm: Air/Fuel ผิดปกติ</div>
@@ -275,6 +273,20 @@ canvas{width:100%;display:block;}
     <input type="number" id="elecPrice" value="4.20" min="0.5" step="0.05"><div class="hint te">ราคาไฟที่ขาย (FiT ก๊าซชีวภาพ ≈ 3.2–3.8) หรือค่าไฟที่ทดแทน (โรงงาน 3.8–4.5 บาท/kWh)</div>
     <label>ค่า O&amp;M เครื่องยนต์ (บาท/kWh)</label>
     <input type="number" id="omCost" value="0.50" min="0" step="0.05"><div class="hint te">ค่าซ่อมบำรุงเครื่องยนต์ต่อหน่วยผลิต (บาท/kWh) · gas engine 0.35–0.60 รวม overhaul</div>
+  </div>
+
+  <!-- [แก้ไข 3 ต.ค. 2569 audit] เพิ่มช่อง GHG: EF กริดแก้ได้ (เดิมฝัง 0.5244), baseline MCF, flare, วิธีคิดเครดิต CH₄ -->
+  <div class="ss">
+    <div class="st">ก๊าซเรือนกระจก (GHG)</div>
+    <label>EF ไฟฟ้ากริด (kgCO₂e/kWh)</label>
+    <input type="number" id="efGrid" value="0.4750" min="0" step="0.0001"><div class="hint te">TGO ค่า EF ไฟฟ้ากริด 2565–2567 = 0.4750 (ใช้ตั้งแต่ 1 ก.พ. 2569; ค่าเดิม 0.4999 เลิกใช้) · โครงการ T-VER ให้ใช้ EF ตามระเบียบวิธี (combined margin) ที่ อบก. กำหนด</div>
+    <label>วิธีคิดเครดิต CH₄</label>
+    <select id="ch4Method"><option value="tver" selected>ตาม baseline (T-VER/CDM AMS-III.H): min(CH₄ baseline, CH₄ ที่ถูกเผาจริง)</option><option value="all">แบบเดิม: CH₄ ทั้งหมดที่ผลิตได้ × 365 วัน (ค่าสูงสุด/ไม่ใช่เครดิต)</option></select>
+    <div class="hint te">baseline = COD ที่กำจัด × B₀ 0.25 kgCH₄/kgCOD × MCF ของระบบเดิม · CH₄ ที่ถูกเผา = ส่วนที่เข้าเครื่องยนต์ในชั่วโมงเดินเครื่อง + ส่วนที่เหลือ × ประสิทธิภาพ flare</div>
+    <label>MCF ระบบบำบัดเดิม (baseline)</label>
+    <input type="number" id="mcfBase" value="0.8" min="0" max="1" step="0.05"><div class="hint te">IPCC 2006 Vol.5 Ch.6: บ่อเปิดไม่เติมอากาศ ลึก &gt; 2 m = 0.8 · ตื้น &lt; 2 m = 0.2 · ระบบเติมอากาศดี = 0 · บ่อ anaerobic reactor ปิด (ไม่ใช่ baseline) = 0.8–1.0</div>
+    <label>ประสิทธิภาพ flare ส่วนที่ไม่เข้าเครื่องยนต์ (%)</label>
+    <input type="number" id="flareEff" value="90" min="0" max="100" step="1"><div class="hint te">CDM flare tool: enclosed flare ตรวจวัดต่อเนื่อง ≈ 90 % · open flare default 50 % · ไม่มี flare/ระบาย = 0</div>
   </div>
 
 </div><!-- /sidebar -->
@@ -509,13 +521,17 @@ var LHV_CH4_KWH = 9.94;   // kWh/Nm³ pure CH4
 var LHV_CH4_MJ  = 35.8;   // MJ/Nm³ pure CH4
 var Cp_EXH = 1.05;         // kJ/kg·K flue gas (approx)
 var RHO_EXH = 1.20;        // kg/Nm³ exhaust gas (approx)
-var EF_GRID = 0.5244;      // kgCO2/kWh (Thailand EGAT 2024)
-var EF_CH4_GWP = 21;       // GWP CH4 (CO2 equivalent, IPCC AR4)
+var EF_GRID = 0.4750;      // kgCO2e/kWh — [แก้ไข 3 ต.ค. 2569 audit] เดิม 0.5244 ฝังตาย → TGO 2565–2567 = 0.4750 (ค่าเริ่มต้น; ใช้ค่าจากช่อง efGrid)
+var EF_CH4_GWP = 28;       // GWP CH4 — [แก้ไข 3 ต.ค. 2569 audit] เดิม 21 ป้าย "AR4" (AR4 = 25) → IPCC AR5 = 28 ตามที่ TGO/T-VER ใช้
+var CH4_YIELD_MAX = 0.35;  // Nm³ CH4/kg COD removed ค่าทฤษฎีที่ STP — [แก้ไข 3 ต.ค. 2569 audit]
+var B0_CH4 = 0.25;         // kg CH4/kg COD (IPCC 2006 Vol.5 Ch.6) — [แก้ไข 3 ต.ค. 2569 audit]
+function efGrid(){ var v=GV('efGrid'); return v>0?v:EF_GRID; } // [แก้ไข 3 ต.ค. 2569 audit] อ่าน EF กริดจากช่องกรอก
 
 var INDUSTRY_DB = {
   tapioca:   { name:'โรงงานแป้งมันสำปะหลัง',   yield:0.320, eff:0.85, ch4:65, codDef:25000, bodDef:15000, phDef:4.5, tempDef:38, note:'Starch process water — high COD, acidic' },
   pome:      { name:'โรงงานสกัดน้ำมันปาล์ม',     yield:0.350, eff:0.70, ch4:65, codDef:40000, bodDef:25000, phDef:4.5, tempDef:45, note:'POME — very high organics, high temp' },
-  sugar:     { name:'โรงงานน้ำตาลทราย',          yield:0.380, eff:0.90, ch4:60, codDef:5000,  bodDef:3000,  phDef:6.0, tempDef:35, note:'Molasses stillage — high efficiency' },
+  /* [แก้ไข 3 ต.ค. 2569 audit] sugar yield 0.380 > ค่าทฤษฎี 0.35 Nm³/kg COD → 0.35 × 0.90 = 0.315 (ส่วนหนึ่งของ COD ที่กำจัดไปเป็นชีวมวล/ลดซัลเฟต) */
+  sugar:     { name:'โรงงานน้ำตาลทราย',          yield:0.315, eff:0.90, ch4:60, codDef:5000,  bodDef:3000,  phDef:6.0, tempDef:35, note:'Molasses stillage — high efficiency' },
   distillery:{ name:'โรงงานสุราและเอทานอล',      yield:0.285, eff:0.85, ch4:60, codDef:80000, bodDef:45000, phDef:4.0, tempDef:38, note:'Vinasse — very high COD, alcoholic' },
   brewery:   { name:'โรงงานเบียร์',              yield:0.324, eff:0.80, ch4:70, codDef:3000,  bodDef:1800,  phDef:6.5, tempDef:30, note:'Brewery effluent — moderate COD' },
   starch:    { name:'โรงงานแป้งข้าวโพด',         yield:0.310, eff:0.82, ch4:62, codDef:20000, bodDef:12000, phDef:5.0, tempDef:37, note:'Similar to tapioca, slightly lower COD' },
@@ -710,7 +726,10 @@ function calcBiogas(){
     var codEffAct  = codLoad>0 ? codRemoved/codLoad : d.eff;
 
     // Biogas production
-    var v_ch4   = codRemoved * d.yield;         // Nm³/day CH4
+    /* [แก้ไข 3 ต.ค. 2569 audit] กันค่า %CH₄ ว่าง/0 (เดิมทำให้ biogas = ∞, surplus = NaN) และ yield เกินค่าทฤษฎี */
+    if(!(ch4p>0) || ch4p>1){ SI('RES_BIOGAS','<div class="err-box">&#9888; %CH&#8324; ต้องอยู่ระหว่าง 1–100 % (ค่าปัจจุบัน '+GV('ch4Pct')+') — กรอกค่าจาก biogas analyzer</div>'); SD('RES_BIOGAS','block'); window._biogasResult=null; return; }
+    var yieldUsed = Math.min(d.yield, CH4_YIELD_MAX);
+    var v_ch4   = codRemoved * yieldUsed;         // Nm³/day CH4
     var v_biog  = v_ch4 / ch4p;                 // Nm³/day total biogas
     var v_co2   = v_biog * (1 - ch4p);          // Nm³/day CO2
     var v_biog_h= v_biog / 24;                  // Nm³/h
@@ -719,6 +738,8 @@ function calcBiogas(){
     var warns = '';
     if(ph < 6.5 || ph > 7.8) warns += '<div class="warn-box">&#9888; pH = '+ph+' อยู่นอกช่วงเหมาะสม (6.5–7.5) สำหรับ Methanogen — ระบบอาจล้มเหลว</div>';
     if(temp < 25 || temp > 42) warns += '<div class="warn-box">&#9888; T = '+temp+'°C อยู่นอก Mesophilic Range (30–40°C) — ประสิทธิภาพลดลง</div>';
+    if(ch4p < 0.40 || ch4p > 0.80) warns += '<div class="warn-box">&#9888; %CH&#8324; = '+(ch4p*100).toFixed(1)+' % อยู่นอกช่วงปกติของไบโอแก๊สน้ำเสีย (≈ 50–75 %) — ตรวจ analyzer/การรั่วของอากาศ</div>'; // [แก้ไข 3 ต.ค. 2569 audit]
+    if(codRemoved < 0) warns += '<div class="warn-box">&#9888; COD ขาออก &gt; COD ขาเข้า — ปริมาณ CH&#8324; ติดลบ ไม่สามารถใช้ได้ ตรวจค่าที่กรอก</div>'; // [แก้ไข 3 ต.ค. 2569 audit]
     if(codEffAct < 0.60) warns += '<div class="warn-box">&#9888; COD Removal = '+(codEffAct*100).toFixed(0)+'% ต่ำกว่าเกณฑ์ (60%) — ตรวจสอบระบบ</div>';
 
     var e_ch4_day_bg = v_ch4 * LHV_CH4_KWH;
@@ -773,17 +794,22 @@ function calcPowerGen(){
     var e_ch4_h      = e_ch4_day / 24;                    // kWh/h
 
     // Power generation
-    var pw_actual    = kw * lf;                            // kW actual output
+    /* [แก้ไข 3 ต.ค. 2569 audit] เดิม kWh/ปี = kW พิกัด × LF × ชม. ไม่จำกัดด้วยก๊าซที่มี (500 m³/d: 10.8 GWh แต่ก๊าซพอแค่ 4.79 GWh)
+       ตอนนี้ กำลังผลิตจริง = min(kW พิกัด × LF, กำลังที่ก๊าซรองรับ = E_CH4/h × η_eng × η_gen) และเตือนเมื่อก๊าซไม่พอ */
+    var pw_rated_lf  = kw * lf;                            // kW ตามพิกัด × load factor
     var pw_from_biog = e_ch4_h * etaO;                    // kW potential from biogas
+    var fuelLimited  = pw_rated_lf > pw_from_biog;
+    var pw_actual    = fuelLimited ? pw_from_biog : pw_rated_lf; // kW actual output
     var e_day        = pw_actual * 24;                     // kWh/day
     var e_year       = pw_actual * hrs;                    // kWh/year
 
-    // Fuel consumption
-    var biog_needed_h = pw_actual / (etaO * LHV_CH4_KWH * bg.ch4p); // Nm³/h needed
+    // Fuel consumption (ตามพิกัด × LF — ใช้ดูว่าก๊าซพอหรือไม่)
+    var biog_needed_h = pw_rated_lf / (etaO * LHV_CH4_KWH * bg.ch4p); // Nm³/h needed
     var biog_needed_d = biog_needed_h * 24;
 
     // Compare available vs needed
     var surplus_pct  = bg.v_biog_h>0 ? (bg.v_biog_h - biog_needed_h)/bg.v_biog_h*100 : 0;
+    var biog_used_h  = pw_actual / (etaO * LHV_CH4_KWH * bg.ch4p); // Nm³/h ที่เครื่องยนต์ใช้จริง
 
     // Economics
     var ep = GV('elecPrice');
@@ -797,7 +823,7 @@ function calcPowerGen(){
              biog_needed_h:biog_needed_h, biog_needed_d:biog_needed_d,
              surplus_pct:surplus_pct, bg:bg, hrs:hrs, ep:ep, om:om,
              rev_year:rev_year, cost_year:cost_year, net_year:net_year,
-             pw_from_biog:pw_from_biog };
+             pw_from_biog:pw_from_biog, pw_rated_lf:pw_rated_lf, fuelLimited:fuelLimited, biog_used_h:biog_used_h }; // [แก้ไข 3 ต.ค. 2569 audit]
     window._lastPwr = r;
 
     // KPIs
@@ -810,6 +836,7 @@ function calcPowerGen(){
     h += kpiBox('amber','Biogas ที่ต้องการ',fN(biog_needed_h,1),'Nm³/h');
     h += kpiBox(surplus_pct>=0?'green':'red','Biogas Surplus',(surplus_pct>=0?'+':'')+fN(surplus_pct,1),'%');
     h += '</div>';
+    if(fuelLimited) h += '<div class="warn-box">&#9888; ก๊าซชีวภาพไม่พอเดินเครื่องที่ '+fN(pw_rated_lf,0)+' kW (พิกัด × Load Factor) — ก๊าซที่ผลิตได้ '+fN(bg.v_biog_h,1)+' Nm³/h รองรับได้เพียง <b>'+fN(pw_from_biog,0)+' kW</b> จึงคิดไฟฟ้า/รายได้/GHG ที่กำลังนี้ ('+fN(e_year/1000,0)+' MWh/ปี แทน '+fN(pw_rated_lf*hrs/1000,0)+' MWh/ปี) · ลดจำนวนเครื่องที่เดิน หรือเพิ่มน้ำเสีย/COD เข้าระบบ</div>'; // [แก้ไข 3 ต.ค. 2569 audit]
     SI('PWR_KPIS', h);
 
     // Sankey
@@ -838,7 +865,7 @@ function calcPowerGen(){
     }
     th += '<tr><td>กำลังพิกัดรวม (Running)</td><td class="hl">'+fN(kw,0)+'</td><td>kW</td><td>เครื่องที่ติ๊ก</td></tr>';
     th += '<tr><td>Load Factor</td><td class="hl">'+(lf*100).toFixed(0)+'</td><td>%</td><td></td></tr>';
-    th += '<tr><td>กำลังผลิตจริง</td><td class="hl">'+fN(pw_actual,0)+'</td><td>kW</td><td></td></tr>';
+    th += '<tr><td>กำลังผลิตจริง</td><td class="'+(fuelLimited?'warn':'hl')+'">'+fN(pw_actual,0)+'</td><td>kW</td><td>'+(fuelLimited?'จำกัดด้วยก๊าซ (พิกัด×LF = '+fN(pw_rated_lf,0)+' kW)':'')+'</td></tr>'; // [แก้ไข 3 ต.ค. 2569 audit]
     th += '<tr><td>Engine Thermal Efficiency</td><td class="'+(eta*100>=38?'good':eta*100>=34?'':'warn')+'">'+(eta*100).toFixed(0)+'</td><td>%</td><td></td></tr>';
     th += '<tr><td>Generator Efficiency</td><td>'+(etaG*100).toFixed(0)+'</td><td>%</td><td>Assumed 97%</td></tr>';
     th += '<tr><td>Overall Efficiency</td><td class="hl">'+(etaO*100).toFixed(1)+'</td><td>%</td><td>&#951;_eng &#215; &#951;_gen</td></tr>';
@@ -914,6 +941,8 @@ function calcExhaust(){
     var nox  = GV('noxMg');
     var tAmb = GV('tAmbient');
     var kw   = GV('ratedPowerTotal') * GV('loadFactor')/100;
+    if(window._lastPwr && window._lastPwr.pw_actual>0) kw = window._lastPwr.pw_actual; // [แก้ไข 3 ต.ค. 2569 audit] ใช้กำลังผลิตจริง (จำกัดด้วยก๊าซ) ให้ตรงกับแท็บผลิตไฟฟ้า
+    var lean = (G('engType') ? G('engType').value : 'lean') === 'lean'; // [แก้ไข 3 ต.ค. 2569 audit]
 
     // Excess Air from O2 (dry basis)
     var ea = (o2 < 20.9) ? (o2) / (20.9 - o2) * 100 : 999; // Excess Air %, O2 input as %vol dry basis (20.9% O2 in dry air per ASME PTC 4 / BS 845); guard against O2≥20.9
@@ -935,10 +964,14 @@ function calcExhaust(){
     var q_whr_kW = (exh_flow_h / 3600) * RHO_EXH * Cp_EXH * Math.max(0, tExh - t_target);
 
     // Status
-    var o2Cls  = o2<=4?'good':o2<=7?'warn':'bad';
+    /* [แก้ไข 3 ต.ค. 2569 audit] เกณฑ์ O₂/excess air ตามชนิดเครื่องยนต์: lean-burn ออกแบบ λ ≈ 1.4–1.9 (O₂ ≈ 6–10 %), rich/stoich λ ≈ 1.0–1.1 */
+    var lam = 1 + ea/100;
+    var lamLo = lean?1.4:0.98, lamHi = lean?1.9:1.10;
+    var lamOK = lam>=lamLo && lam<=lamHi;
+    var o2Cls  = lamOK?'good':(lam<lamLo-0.15||lam>lamHi+0.3)?'bad':'warn';
     var coCls  = co<=650?'good':co<=1000?'warn':'bad';
     var noxCls = nox<=500?'good':nox<=1000?'warn':'bad';
-    var eaCls  = ea<=25?'good':ea<=40?'warn':'bad';
+    var eaCls  = o2Cls;
 
     var r = {tExh:tExh, o2:o2, co:co, nox:nox, tAmb:tAmb, ea:ea,
              q_exh_kW:q_exh_kW, q_whr_kW:q_whr_kW, exh_flow_h:exh_flow_h,
@@ -962,7 +995,8 @@ function calcExhaust(){
     ct += '<tr><td>Excess Air</td><td class="'+eaCls+'">'+ea.toFixed(1)+' %</td></tr>';
     ct += '<tr><td>CO</td><td class="'+coCls+'">'+fN(co,0)+' ppm &nbsp;'+(co<=650?'&#10003;':co<=1000?'&#9888;':'&#10060;')+'</td></tr>';
     ct += '<tr><td>NOx</td><td class="'+noxCls+'">'+fN(nox,0)+' mg/Nm&#179;</td></tr>';
-    ct += '<tr><td>Air-Fuel Status</td><td class="'+(o2>2&&o2<6&&co<650?'good':'warn')+'">'+(o2>2&&o2<6&&co<650?'&#10003; เหมาะสม':'&#9888; ตรวจสอบ')+'</td></tr>';
+    ct += '<tr><td>λ (lambda)</td><td class="'+o2Cls+'">'+lam.toFixed(2)+' (เป้า '+lamLo.toFixed(2)+'–'+lamHi.toFixed(2)+', '+(lean?'lean-burn':'stoich/rich')+')</td></tr>'; // [แก้ไข 3 ต.ค. 2569 audit]
+    ct += '<tr><td>Air-Fuel Status</td><td class="'+(lamOK&&co<650?'good':'warn')+'">'+(lamOK&&co<650?'&#10003; เหมาะสม':'&#9888; ตรวจสอบ')+'</td></tr>';
     SI('COMB_TBL', ct);
 
     // WHR table
@@ -990,11 +1024,14 @@ function calcExhaust(){
       crh += 'ใช้สำหรับ: อุ่นน้ำป้อน Digester | Drying | กระบวนการผลิต<br>';
       crh += 'CHP Efficiency รวม &#8776; '+(GV('etaEngine')+30+25).toFixed(0)+'% (Electric + Thermal)</div></div>';
     }
-    if(ea>30){
-      crh += '<div class="ecm"><div class="ecm-t">&#127919; ปรับ Air-Fuel Ratio</div>';
-      crh += '<div class="ecm-b">Excess Air = '+ea.toFixed(0)+'% สูงเกิน (เป้า 15–25%)<br>';
-      crh += 'ปรับ Gas/Air Mixer หรือ Lambda Sensor Controller<br>';
-      crh += 'ประสิทธิภาพเพิ่มขึ้น &#8776; '+(ea>40?4:2)+'–'+( ea>40?8:4)+'%</div></div>';
+    /* [แก้ไข 3 ต.ค. 2569 audit] เดิม: EA > 30 % → "ปรับ Air-Fuel เป้า 15–25 %" (เกณฑ์หม้อไอน้ำ) ซึ่งสำหรับ lean-burn จะทำให้ NOx สูงและเสี่ยง knock
+       ตอนนี้: เทียบ λ กับช่วงออกแบบตามชนิดเครื่องยนต์ และไม่อ้างผลประหยัดเป็น % */
+    if(!lamOK){
+      crh += '<div class="ecm"><div class="ecm-t">&#127919; ตรวจ/ปรับ Air-Fuel Ratio (λ controller)</div>';
+      crh += '<div class="ecm-b">λ วัดได้ = '+lam.toFixed(2)+' (Excess Air '+ea.toFixed(0)+' %) อยู่นอกช่วงออกแบบ '+lamLo.toFixed(2)+'–'+lamHi.toFixed(2)+' ของเครื่องยนต์ '+(lean?'lean-burn':'stoichiometric/rich-burn')+'<br>';
+      if(lean) crh += (lam<lamLo?'ส่วนผสมหนากว่าค่าออกแบบ → NOx สูง เสี่ยง knock/อุณหภูมิไอเสียสูง — ตรวจ gas mixer, λ/NOx controller ตามค่าผู้ผลิต':'ส่วนผสมบางเกิน → เสี่ยง misfire, CO/THC (methane slip) สูง, กำลังลด — ตรวจ gas mixer และค่า CH₄ ที่ตั้งไว้ใน controller')+'<br>';
+      else crh += (lam>lamHi?'อากาศมากเกินสำหรับเครื่องยนต์ stoichiometric — ตัวเร่ง 3-way ทำงานไม่ได้ (NOx สูง) ตรวจ λ sensor/mixer':'ส่วนผสมหนาเกิน → CO สูง สิ้นเปลืองเชื้อเพลิง ตรวจ λ sensor/mixer')+'<br>';
+      crh += 'ปรับตามค่า λ/NOx ที่ผู้ผลิตกำหนด แล้ววัด O₂, CO, NOx ซ้ำ — ผลต่อประสิทธิภาพให้ยืนยันด้วย kWh/Nm³ ก่อน–หลัง</div></div>';
     }
     if(co > 650){
       crh += '<div class="ecm"><div class="ecm-t">&#10071; CO สูง — ตรวจ Air-Fuel Mixture</div>';
@@ -1102,18 +1139,28 @@ function calcOverall(){
 
     // GHG
     var e_year = pw.e_year;
-    var ghg_avoided = e_year * EF_GRID / 1000; // tCO2/y avoided by replacing grid
-    // Methane destruction credit: biogas CH4 not flared
-    var ch4_year = bg.v_ch4 * 365; // Nm³/y
+    var EFg = efGrid(); // [แก้ไข 3 ต.ค. 2569 audit] EF กริดจากช่องกรอก (ค่าเริ่มต้น 0.4750)
+    var ghg_avoided = e_year * EFg / 1000; // tCO2/y avoided by replacing grid
+    /* [แก้ไข 3 ต.ค. 2569 audit] เครดิต CH₄: เดิม = CH₄ ทั้งหมดที่ผลิต × 365 วัน × GWP 21 ไม่สนชั่วโมงเดินเครื่อง/baseline
+       ตอนนี้ (ค่าเริ่มต้น) ตามแนว T-VER/CDM AMS-III.H: BE = COD กำจัด × B0 0.25 × MCF baseline;
+       CH₄ ที่ถูกทำลาย = ส่วนที่เข้าเครื่องยนต์ (ชม.เดินเครื่อง) + ส่วนที่เหลือ × η flare; เครดิต = min(BE, CH₄ ที่ถูกทำลาย) × GWP 28 */
+    var ch4_year = bg.v_ch4 * 365; // Nm³/y ที่ผลิตได้
     var ch4_kg_y = ch4_year * 0.716; // kg CH4 (density)
-    var ch4_co2eq = ch4_kg_y * EF_CH4_GWP / 1000; // tCO2eq/y
+    var ch4_eng_kg = Math.min(ch4_kg_y, (pw.biog_used_h||0) * bg.ch4p * hrs * 0.716);
+    var ch4_flare_kg = Math.max(0, ch4_kg_y - ch4_eng_kg) * Math.min(Math.max(GV('flareEff'),0),100)/100;
+    var ch4_destroyed_kg = ch4_eng_kg + ch4_flare_kg;
+    var ch4_base_kg = Math.max(0, bg.codRemoved) * 365 * B0_CH4 * Math.min(Math.max(GV('mcfBase'),0),1);
+    var ch4Method = G('ch4Method') ? G('ch4Method').value : 'tver';
+    var ch4_credit_kg = ch4Method==='all' ? ch4_kg_y : Math.min(ch4_base_kg, ch4_destroyed_kg);
+    var ch4_co2eq = ch4_credit_kg * EF_CH4_GWP / 1000; // tCO2eq/y
 
     // Specific energy
     var cod_removed_year = bg.codRemoved * 365;
     var sec_kwh_kgcod = cod_removed_year > 0 ? e_year / cod_removed_year : 0; // kWh/kg COD
 
     var r = {etaOverall:etaOverall, chpEff:chpEff, ghg_avoided:ghg_avoided,
-             ch4_co2eq:ch4_co2eq, sec_kwh_kgcod:sec_kwh_kgcod, pw:pw, bg:bg, hrs:hrs};
+             ch4_co2eq:ch4_co2eq, ch4_base_kg:ch4_base_kg, ch4_destroyed_kg:ch4_destroyed_kg, ch4_eng_kg:ch4_eng_kg, ch4_kg_y:ch4_kg_y, ch4Method:ch4Method, EFg:EFg, // [แก้ไข 3 ต.ค. 2569 audit]
+ sec_kwh_kgcod:sec_kwh_kgcod, pw:pw, bg:bg, hrs:hrs};
     window._lastOvr = r;
 
     var etaCls = etaOverall>38?'green':etaOverall>34?'blue':etaOverall>30?'amber':'red';
@@ -1130,8 +1177,9 @@ function calcOverall(){
     // GHG detail
     var gh = '<div class="twrap"><table class="tbl">';
     gh += '<thead><tr><th>รายการ GHG</th><th>ปริมาณ</th><th>หน่วย</th><th>หมายเหตุ</th></tr></thead><tbody>';
-    gh += '<tr><td>&#9889; GHG จากการผลิตไฟฟ้า (แทนกริด)</td><td class="good">'+ghg_avoided.toFixed(0)+'</td><td>tCO&#8322;/ปี</td><td>EF = '+EF_GRID+' kgCO&#8322;/kWh (EGAT)</td></tr>';
-    gh += '<tr><td>&#127807; CH&#8324; Destruction Credit</td><td class="good">'+ch4_co2eq.toFixed(0)+'</td><td>tCO&#8322;eq/ปี</td><td>GWP CH&#8324; = '+EF_CH4_GWP+' (IPCC AR4)</td></tr>';
+    gh += '<tr><td>&#9889; GHG จากการผลิตไฟฟ้า (แทนกริด)</td><td class="good">'+ghg_avoided.toFixed(0)+'</td><td>tCO&#8322;/ปี</td><td>EF = '+EFg.toFixed(4)+' kgCO&#8322;e/kWh (ช่องกรอก; TGO 2565–2567 = 0.4750)</td></tr>'; // [แก้ไข 3 ต.ค. 2569 audit]
+    gh += '<tr><td>&#127807; CH&#8324; Destruction Credit</td><td class="good">'+ch4_co2eq.toFixed(0)+'</td><td>tCO&#8322;eq/ปี</td><td>GWP CH&#8324; = '+EF_CH4_GWP+' (IPCC AR5) · '+(ch4Method==='all'?'<b>แบบเดิม: CH&#8324; ทั้งหมดที่ผลิต</b> (ไม่ใช่เครดิตตามระเบียบวิธี)':'min(baseline '+fN(ch4_base_kg/1000,0)+' t, ถูกเผา '+fN(ch4_destroyed_kg/1000,0)+' t CH&#8324;)')+'</td></tr>'; // [แก้ไข 3 ต.ค. 2569 audit]
+    if(ch4Method!=='all') gh += '<tr><td colspan="4" style="font-size:11px;color:var(--text3)">CH&#8324; ผลิตได้ '+fN(ch4_kg_y/1000,0)+' t/ปี · เข้าเครื่องยนต์ '+fN(ch4_eng_kg/1000,0)+' t ('+fN(hrs,0)+' h) · ส่วนที่เหลือเผาที่ flare '+GV('flareEff')+' % · baseline = COD กำจัด '+fN(Math.max(0,bg.codRemoved)*365/1000,0)+' t/ปี × B₀ '+B0_CH4+' × MCF '+GV('mcfBase')+' — ค่าประมาณเบื้องต้น ต้องคิดตามระเบียบวิธี T-VER ฉบับปัจจุบัน (รวม project/leakage emission)</td></tr>';
     gh += '<tr><td class="hl">รวม GHG Benefit</td><td class="good" style="font-weight:700">'+(ghg_avoided+ch4_co2eq).toFixed(0)+'</td><td>tCO&#8322;eq/ปี</td><td></td></tr>';
     gh += '</tbody></table></div>';
     SI('GHG_BODY', gh);
@@ -1281,17 +1329,26 @@ function makeReport(){
   rpt+='COD out  : '+GV('codOut').toLocaleString()+' mg/L\n';
   if(bg.v_biog) rpt+='Biogas   : '+fN(bg.v_biog,0)+' Nm3/day | CH4: '+fN(bg.v_ch4,0)+' Nm3/day\n';
   rpt+='\n-- POWER GENERATION --\n';
-  rpt+='Rating   : '+GV('ratedPowerTotal').toLocaleString()+' kW ('+GV('numGen')+' units)\n';
+  var nRun=0; for(var gi=0;gi<_gens.length;gi++){ if(_gens[gi].run) nRun++; } // [แก้ไข 3 ต.ค. 2569 audit] เดิม GV('numGen') ไม่มี element → 0 units
+  rpt+='Rating   : '+GV('ratedPowerTotal').toLocaleString()+' kW ('+nRun+'/'+_gens.length+' units running)\n';
   rpt+='Load     : '+GV('loadFactor')+'%\n';
   if(pw.pw_actual) rpt+='Output   : '+fN(pw.pw_actual,0)+' kW\n';
   if(pw.etaO)      rpt+='Eff.     : '+(pw.etaO*100).toFixed(1)+'%\n';
   if(pw.e_year)    rpt+='Energy   : '+fN(pw.e_year,0)+' kWh/year\n';
   if(pw.net_year)  rpt+='Net Rev. : '+fN(pw.net_year/1e6,2)+' MB/year\n';
+  if(pw.fuelLimited) rpt+='NOTE     : biogas-limited — rated x LF = '+fN(pw.pw_rated_lf,0)+' kW, biogas supports '+fN(pw.pw_from_biog,0)+' kW\n'; // [แก้ไข 3 ต.ค. 2569 audit]
   rpt+='\n-- EXHAUST GAS --\n';
   rpt+='T_exh    : '+GV('tExh')+' C\n';
   rpt+='%O2      : '+GV('o2Exh')+'% | CO: '+GV('coPpm')+' ppm | NOx: '+GV('noxMg')+' mg/Nm3\n';
   rpt+='Note     : WHR potential is estimated using assumed flue gas properties\n';
   rpt+='           (rho='+RHO_EXH+' kg/Nm3, Cp='+Cp_EXH+' kJ/kg.K). Verify for detailed design.\n';
+  /* [แก้ไข 3 ต.ค. 2569 audit] เพิ่มผล WHR และ GHG ลงรายงาน (เดิมไม่มี) */
+  var ex=window._lastExh, ov=window._lastOvr;
+  if(ex){ rpt+='Lambda   : '+(1+ex.ea/100).toFixed(2)+' ('+(G('engType')?G('engType').value:'lean')+')\n'; rpt+='Q_exh    : '+fN(ex.q_exh_kW,0)+' kW | WHR (to '+ex.t_target+' C): '+fN(ex.q_whr_kW,0)+' kW\n'; }
+  if(ov){ rpt+='\n-- GHG --\n';
+    rpt+='Grid EF  : '+(ov.EFg||efGrid()).toFixed(4)+' kgCO2e/kWh -> avoided '+fN(ov.ghg_avoided,0)+' tCO2e/y\n';
+    rpt+='CH4      : '+fN(ov.ch4_co2eq,0)+' tCO2e/y (GWP '+EF_CH4_GWP+' AR5, method '+(ov.ch4Method||'tver')+')\n';
+    rpt+='Total    : '+fN(ov.ghg_avoided+ov.ch4_co2eq,0)+' tCO2e/y (estimate - verify with T-VER methodology)\n'; }
   // [แก้ไข 10 ก.ย. 2569] เพิ่มส่วน Measurement Log (เฉพาะแถวที่กรอกค่า) และสถานะ Checklist ลงรายงาน
   try {
     var mrows=document.querySelectorAll('#MEAS_TBL tr'), mlog='', mcount=0;
@@ -1341,7 +1398,7 @@ function resetAll(){
 //  [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า
 // ═══════════════════════════════════════════════
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['etaEngine', 'genEff'], FK_MEAS=['flowDay', 'codIn', 'bodIn', 'codOut', 'phIn', 'tempWW', 'ch4Pct', 'loadFactor', 'h2sPpm', 'tExh', 'o2Exh', 'coPpm', 'noxMg', 'tAmbient'], FK_SET=['projName', 'projLoc', 'auditorName', 'testDate', 'industryType', 'opHours', 'elecPrice', 'omCost'], FK_CALC=['ratedPowerTotal'];
+var FK_DESIGN=['etaEngine', 'genEff'], FK_MEAS=['flowDay', 'codIn', 'bodIn', 'codOut', 'phIn', 'tempWW', 'ch4Pct', 'loadFactor', 'h2sPpm', 'tExh', 'o2Exh', 'coPpm', 'noxMg', 'tAmbient'], FK_SET=['projName', 'projLoc', 'auditorName', 'testDate', 'industryType', 'opHours', 'elecPrice', 'omCost', 'efGrid', 'ch4Method', 'mcfBase', 'flareEff', 'engType'], FK_CALC=['ratedPowerTotal'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}

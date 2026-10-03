@@ -2636,7 +2636,9 @@ function compute(I) {
   R.hrs_dry  = I.op_hours * R.dutyDry;
   R.hrs_idle = I.op_hours * (1 - R.dutyDry);
   R.Q_idle   = (R.batch && I.idle_heated) ? R.Q_air * I.e.e4frac / 100 : 0;
-  R.kWh_th_yr = (R.Q_air * R.hrs_dry + R.Q_idle * R.hrs_idle) / Math.max(0.3, I.eta_dist / 100);
+  // [แก้ไข 3 ต.ค. 2569 audit] ความร้อนที่แหล่งความร้อนต้องจ่าย = Q_air − ความร้อนจากพัดลม (Q_coil) — เดิมใช้ Q_air ทั้งก้อน ทั้งที่ไฟพัดลมคิดเงินแยกแล้ว (นับซ้ำ +15 %)
+  R.Q_idle_coil = R.Q_idle > 0 ? Math.max(0, R.Q_idle - R.Q_fanAir) : 0;
+  R.kWh_th_yr = (R.Q_coil * R.hrs_dry + R.Q_idle_coil * R.hrs_idle) / Math.max(0.3, I.eta_dist / 100);
   R.kWh_el_yr = I.fan_kW * I.op_hours;
   R.cost_th_yr = R.kWh_th_yr * R.cost.cost;
   R.cost_el_yr = R.kWh_el_yr * I.elec_price;
@@ -2792,17 +2794,20 @@ function computeECM(I, R0) {
     R: R0.Rr, m_da: R0.m_da, m_evap: R0.m_evap, T_sup: I.T_supply, W_amb: R0.W_amb,
     T_amb: I.amb_T, T_fresh: I.amb_T, T_prod_in: I.T_prod_in,
     Qwall: R0.Q_wall, Qunacc: R0.Q_unacc, Qprod: R0.Q_prod,
-    eta: I.eta_dist / 100, fan: I.fan_kW, idleCut: 0, reworkCut: 0
+    eta: I.eta_dist / 100, fan: I.fan_kW, idleCut: 0, reworkCut: 0,
+    fanAir: R0.Q_fanAir   // [แก้ไข 3 ต.ค. 2569 audit] ความร้อนพัดลมที่เข้าลม (kW) — หักออกจากภาระ coil
   };
   const hrsD = R0.hrs_dry, hrsI = R0.hrs_idle, hrsT = I.op_hours;
   const cE = R0.cost.cost, cEl = I.elec_price;
-  const reworkBase = I.e.e9rw / 100 * I.e.e9rwE / 100;
+  // [แก้ไข 3 ต.ค. 2569 audit] ภาระอบซ้ำคิดเฉพาะเมื่อเปิด ECM9 (เดิม ×1.036 เสมอ → ฐาน ECM ≠ แท็บสมดุลพลังงาน)
+  const reworkBase = I.e.e9 ? I.e.e9rw / 100 * I.e.e9rwE / 100 : 0;
 
   function annual(s) {
     const so = solveState({ R: s.R, m_da: s.m_da, m_evap: s.m_evap, T_sup: s.T_sup, W_amb: s.W_amb,
       T_amb: s.T_amb, T_fresh: s.T_fresh, T_prod_in: s.T_prod_in, Qloss: s.Qwall + s.Qunacc, Qprod: s.Qprod });
     const Qidle = (R0.batch && I.idle_heated) ? so.Q_air * I.e.e4frac / 100 * (1 - s.idleCut) : 0;
-    const kWhTh = (so.Q_air * hrsD + Qidle * hrsI) / Math.max(0.3, s.eta) * (1 + reworkBase * (1 - s.reworkCut));
+    const Qcoil = Math.max(0, so.Q_air - s.fanAir), QidleCoil = Qidle > 0 ? Math.max(0, Qidle - s.fanAir) : 0; // [แก้ไข 3 ต.ค. 2569 audit] ฐาน coil
+    const kWhTh = (Qcoil * hrsD + QidleCoil * hrsI) / Math.max(0.3, s.eta) * (1 + reworkBase * (1 - s.reworkCut));
     const kWhEl = s.fan * hrsT;
     return { st: so, kWhTh, kWhEl, cost: kWhTh * cE + kWhEl * cEl, Qidle };
   }
@@ -2828,10 +2833,15 @@ function computeECM(I, R0) {
   const out = { items: [], base };
   const maxR = R0.sweep.Ropt / 100;
 
-  if (I.e.e1) {
+  if (I.e.e1 && !R0.sweep.best) {
+    // [แก้ไข 3 ต.ค. 2569 audit] ไม่มี R ใดที่อบแห้งได้ทันตามเกณฑ์ → ไม่นำ ECM1 มาคิด (เดิมเงื่อนไข maxR > 0 ทำให้ใช้เป้าหมายเต็มโดยไม่ถูกจำกัด)
+    const cb = R0.cap && R0.cap.binding ? R0.cap.binding.k : '';
+    list.push({ id: 1, name: 'เพิ่มสัดส่วนลมหมุนเวียนกลับ', capex: I.e.e1c, save: 0, kWhTh: 0, kWhEl: 0, pay: null, co2: 0,
+      note: `⛔ ไม่นำมาคิด — ไม่มีสัดส่วนลมหมุนเวียน R ใด (0–95 %) ที่ยังพาความชื้นออกได้ทันตามเกณฑ์ (ขีดจำกัดที่คุม: ${cb}) · ความสามารถพาความชื้น ${fmtN(R0.cap.capacity,1)} < ต้องการ ${fmtN(R0.cap.required,1)} kg/hr → ต้องแก้ปัญหาการอบแห้งก่อน (เพิ่มลม/อุณหภูมิ) จึงจะลดลมสดได้` });
+  } else if (I.e.e1) {
     let target = clamp(I.e.e1R / 100, 0, 0.95);
     let clipped = false;
-    if (target > maxR && maxR > 0) { target = maxR; clipped = true; }
+    if (target > maxR) { target = maxR; clipped = true; } // [แก้ไข 3 ต.ค. 2569 audit] จำกัดที่ R สูงสุดที่ยังอบได้เสมอ (รวมกรณี R_max = 0)
     const note = clipped
       ? `ปรับเป้าหมายลงเหลือ ${fmtN(target*100,0)} % เพราะเกินขีดที่ยังรักษาแรงขับการอบแห้งได้`
       : `ลดลมสดที่ต้องอุ่นจาก ${fmtN(R0.m_fresh,0)} เหลือ ${fmtN(R0.m_da*(1-target),0)} kg/hr`;
@@ -2873,7 +2883,7 @@ function computeECM(I, R0) {
   if (I.e.e6) {
     const f = 1 - I.e.e6cut / 100;
     step(6, 'ลดอัตราการไหลลมด้วย VSD',
-      () => { st.m_da *= f; st.fan = st.fan * Math.pow(f, 3) / Math.max(0.5, I.e.e6eff / 100); }, I.e.e6c,
+      () => { st.m_da *= f; st.fan = st.fan * Math.pow(f, 3) / Math.max(0.5, I.e.e6eff / 100); st.fanAir = st.fanAir * Math.pow(f, 3) / Math.max(0.5, I.e.e6eff / 100); }, I.e.e6c, // [แก้ไข 3 ต.ค. 2569 audit] ความร้อนพัดลมลดตาม
       `ลมลง ${fmtN(I.e.e6cut,0)} % → กำลังพัดลมลงตามกฎกำลังสาม เหลือ ${fmtN(Math.pow(f,3)*100,0)} %`);
   }
   if (I.e.e7) {
@@ -3011,8 +3021,28 @@ function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=documen
   for(i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='checkbox')continue;var k=fieldKind(e.id);if(!k)continue;var l=labelOfField(e);if(!l)continue;var f=null;for(var j=0;j<map.length;j++){if(map[j].l===l){f=map[j];break;}}if(!f)map.push({l:l,k:k});else if(PRIO[k]>PRIO[f.k])f.k=k;}
   for(i=0;i<map.length;i++){var lb=map[i].l,kk=map[i].k,old=lb.querySelector('.fchip');if(old)old.remove();var sp=document.createElement('span');sp.className='fchip '+kk;sp.textContent=FK_TXT[kk];lb.appendChild(sp);}}
 document.addEventListener('DOMContentLoaded',tagFieldKinds);
+/* [แก้ไข 3 ต.ค. 2569 audit] ตรวจค่าที่เป็นไปไม่ได้ก่อนคำนวณ — แสดงกล่องเตือน (ไม่ใช้ alert) และไม่คำนวณผลใหม่ */
+function hadGuard(I) {
+  const m = [];
+  let mi = I.mc_in, mo = I.mc_out;
+  if (I.mc_basis === 'db') { mi = mi / (100 + mi) * 100; mo = mo / (100 + mo) * 100; }
+  if (!(mo < mi)) m.push(`ความชื้นปลายทาง (${fmtN(I.mc_out,2)} %) ต้องน้อยกว่าความชื้นเริ่มต้น (${fmtN(I.mc_in,2)} %) — ไม่มีน้ำให้ระเหย (เดิมได้ SEC ~10¹⁰ MJ/kg)`);
+  if (!(mi < 100) || mo < 0) m.push('ความชื้นฐานเปียกต้องอยู่ในช่วง 0–100 %');
+  if (!(I.air_flow_val > 0)) m.push('อัตราการไหลลมต้องมากกว่า 0');
+  if (I.air_flow_unit === 'ms' && !(I.air_duct_A > 0)) m.push('พื้นที่หน้าตัดท่อลมต้องมากกว่า 0');
+  if (!(I.T_exhaust < I.T_supply)) m.push(`อุณหภูมิลมทิ้ง (${fmtN(I.T_exhaust,1)} °C) ต้องต่ำกว่าลมร้อนจ่าย (${fmtN(I.T_supply,1)} °C) — ลมทิ้งร้อนกว่าลมจ่ายเป็นไปไม่ได้ (สมดุลเกิน 100 %)`);
+  if (!(I.T_exhaust > I.amb_T)) m.push(`อุณหภูมิลมทิ้ง (${fmtN(I.T_exhaust,1)} °C) ควรสูงกว่าอากาศภายนอก (${fmtN(I.amb_T,1)} °C)`);
+  if (I.dryer === 'conv' ? !(I.m_wet_rate > 0) : !(I.m_wet_batch > 0 && I.t_dry > 0)) m.push('อัตราป้อนผลิตภัณฑ์/น้ำหนักต่อรอบและเวลาอบต้องมากกว่า 0');
+  let g = document.getElementById('te_guard');
+  if (!g) { g = document.createElement('div'); g.id = 'te_guard'; g.className = 'info-box bad'; g.style.cssText = 'margin:10px 16px;border:2px solid #cf222e;background:#ffebe9;color:#82071e;padding:10px 14px;border-radius:8px';
+    const nav = document.querySelector('.nav-tabs'); if (nav && nav.parentNode) nav.parentNode.insertBefore(g, nav.nextSibling); else document.body.insertBefore(g, document.body.firstChild); }
+  g.innerHTML = m.length ? '⛔ <b>ข้อมูลไม่สมเหตุสมผล — ยังไม่คำนวณผลใหม่ (ตัวเลขในแท็บต่าง ๆ เป็นผลเดิม ห้ามนำไปใช้)</b><br>' + m.join('<br>') : '';
+  g.style.display = m.length ? '' : 'none';
+  return m.length > 0;
+}
 function calcAll() {
   const I = readInputs();
+  if (hadGuard(I)) return;   // [แก้ไข 3 ต.ค. 2569 audit] ไม่คำนวณเมื่อข้อมูลเป็นไปไม่ได้ (คงผลเดิม + กล่องเตือน)
   const R = compute(I);
   setv('m_evap_show', fmtN(R.m_evap, 2));
   renderSource(I, R); renderAir(I, R); renderProduct(I, R);
@@ -3295,7 +3325,7 @@ function renderBalance(I, R) {
   g += ri('SMER', fmtN(R.SMER, 3), 'kg น้ำ/kWh', '', 'ทั่วไป 0.6–0.9');
   g += ri('SEC เฉลี่ยทั้งปี (รวมเดินตัวเปล่า)', fmtN(R.SEC_annual, 2), 'MJ/kg น้ำ',
     R.SEC_annual > R.SEC_tot * 1.12 ? 'bad' : '', R.batch ? `สูงกว่าขณะอบ ${fmtN((R.SEC_annual/Math.max(0.01,R.SEC_tot)-1)*100,1)} %` : '');
-  g += ri('พลังงานความร้อนต่อปี', fmtN(R.kWh_th_yr / 1000, 1), 'MWh/ปี', 'gold', `${fmtN(R.cost_th_yr/1e6,3)} ล้านบาท/ปี`);
+  g += ri('พลังงานความร้อนต่อปี', fmtN(R.kWh_th_yr / 1000, 1), 'MWh/ปี', 'gold', `${fmtN(R.cost_th_yr/1e6,3)} ล้านบาท/ปี · ฐาน Q_coil (ไม่รวมความร้อนพัดลม ${fmtN(R.Q_fanAir,2)} kW ที่คิดเป็นค่าไฟแล้ว)`); // [แก้ไข 3 ต.ค. 2569 audit]
   g += ri('ต้นทุนพลังงานรวมต่อปี', fmtN(R.cost_yr / 1e6, 3), 'ล้านบาท/ปี', 'bad', `ไฟฟ้า ${fmtN(R.cost_el_yr/1e6,3)} ล้านบาท`);
   g += ri('CO₂ ต่อปี', fmtN(R.co2_yr / 1000, 1), 'tCO₂e/ปี', '', R.cost.bio ? 'ความร้อนจากชีวมวลเป็น biogenic (รายงานแยก)' : 'ความร้อน + ไฟฟ้า');
   H('kpi_results', g);

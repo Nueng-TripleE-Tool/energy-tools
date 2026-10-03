@@ -447,6 +447,8 @@
                     <div class="stat-card"><span>Adjusted R Square</span><strong id="adjRSquareVal">-</strong></div>
                     <div class="stat-card"><span>Observations (n)</span><strong id="obsVal">-</strong></div>
                     <div class="stat-card" id="r2StatusCard" style="border-left-color: #999;"><span>R² Status</span><strong id="r2StatusVal">-</strong></div>
+                    <!-- [แก้ไข 3 ต.ค. 2569 audit] CV(RMSE) ตาม ASHRAE Guideline 14 ใช้ √(SSE/(n−p)) — เทียบเกณฑ์ G14 ได้โดยตรง -->
+                    <div class="stat-card" id="cvG14Card" title="ASHRAE Guideline 14-2014: CV(RMSE) = √(SSE/(n−p)) ÷ ค่าเฉลี่ย Y · เกณฑ์แบบจำลองรายเดือน ≤ 15 %, รายชั่วโมง ≤ 30 %"><span>CV(RMSE) ASHRAE G14 (n−p)</span><strong id="cvG14Val">-</strong></div>
                 </div>
                 <div style="overflow-x:auto;">
                     <table class="stats-table">
@@ -1118,6 +1120,9 @@
             document.getElementById('rSquareVal').innerText = R2.toFixed(4);
             document.getElementById('adjRSquareVal').innerText = AdjR2.toFixed(4);
             document.getElementById('obsVal').innerText = n;
+            { /* [แก้ไข 3 ต.ค. 2569 audit] CV(RMSE) ASHRAE G14 */ const cvg = fit.meanY ? fit.RMSEg14 / fit.meanY * 100 : NaN; const el = document.getElementById('cvG14Val'), cd = document.getElementById('cvG14Card');
+              if (el) { el.innerText = isFinite(cvg) ? cvg.toFixed(2) + ' %' + (cvg <= 15 ? ' ✅' : ' ⚠️') : '-'; el.style.color = cvg <= 15 ? '#28a745' : '#dc3545'; }
+              if (cd) cd.style.borderLeftColor = cvg <= 15 ? '#28a745' : '#dc3545'; }
             const r2Card = document.getElementById('r2StatusCard');
             const r2Val = document.getElementById('r2StatusVal');
             if (R2 >= 0.75) { r2Val.innerText = '✅ ผ่านเกณฑ์'; r2Card.style.borderLeftColor = '#28a745'; r2Val.style.color = '#28a745'; }
@@ -1148,7 +1153,15 @@
                 vifWarnEl.innerHTML = `📛 <strong>Multicollinearity สูง (VIF &gt; 10):</strong> ${highVifVars.join(', ')} — ตัวแปรเหล่านี้เคลื่อนไหวตามกันมาก สัมประสิทธิ์จะไม่นิ่งและตีความยาก — พิจารณาเลือกตัวแทนเพียงตัวเดียว หรือรวมตัวแปรเข้าด้วยกัน`;
             } else { vifWarnEl.style.display = 'none'; }
         } catch(err) {
-            alert("เกิดข้อผิดพลาดในการคำนวณ — ข้อมูลตัวแปรที่เลือกอาจซ้ำซ้อนหรือคงที่");
+            /* [แก้ไข 3 ต.ค. 2569 audit] เดิม: จุดข้อมูลน้อยเกิน → β/R² เก่ายังค้างบนหน้าจอ + ข้อความทั่วไป "ข้อมูลซ้ำซ้อนหรือคงที่"
+               ตอนนี้: ล้างสมการ/สถิติเก่า และแจ้งสาเหตุจริง */
+            document.getElementById('coeff_const').value = 0;
+            for (let i = 1; i <= 5; i++) document.getElementById(`coeff_x${i}`).value = 0;
+            try { updateEquationDisplay(); } catch(e2) {}
+            document.getElementById('statsContainer').style.display = 'none';
+            const nPts = yArr.length, kSel = activeXIndices.length;
+            if (nPts <= kSel + 1) alert('จุดข้อมูลไม่พอ: มี ' + nPts + ' จุด สำหรับตัวแปร X ' + kSel + ' ตัว — ต้องมีอย่างน้อย ' + (kSel + 2) + ' จุด (n > p = k+1) และควรมี ≥ 12 เดือนตาม ISO 50006 · ล้างสมการเดิมออกแล้ว');
+            else alert("เกิดข้อผิดพลาดในการคำนวณ — ข้อมูลตัวแปรที่เลือกอาจซ้ำซ้อนหรือคงที่ (" + err.message + ") · ล้างสมการเดิมออกแล้ว");
             console.error(err);
         }
     }
@@ -1634,7 +1647,8 @@
         for (const e1 of loocv) ssLoo += e1 * e1;
         return { betaFull, seFull, tFull, pFull, vifFull, kept, n, k, df, R2, AdjR2,
                  RMSE: Math.sqrt(SSE / n), meanY, pred: Yp, resid, loocv,
-                 loocvRMSE: Math.sqrt(ssLoo / n) };
+                 loocvRMSE: Math.sqrt(ssLoo / n),
+                 RMSEg14: Math.sqrt(SSE / df), SSE }; // [แก้ไข 3 ต.ค. 2569 audit] RMSE แบบ ASHRAE G14 = √(SSE/(n−p)), p = k+1
     }
 
     function buildEquationString(yLabel, betaFull, labels) {
@@ -1748,13 +1762,14 @@
             const dfB = n - (fitE.k + fitH.k + 2);
             const AdjR2B = dfB > 0 ? 1 - (1 - R2B) * (n - 1) / dfB : NaN;
             const rmseB = Math.sqrt(sseB / n);
+            const rmseBg14 = dfB > 0 ? Math.sqrt(sseB / dfB) : NaN; // [แก้ไข 3 ต.ค. 2569 audit] ASHRAE G14 n−p
             const looB = Math.sqrt(ssLooB / n);
             const betaComb = [];
             for (let i = 0; i <= 5; i++) betaComb.push(3.6 * fitE.betaFull[i] + fitH.betaFull[i]);
             multiFit = {
                 labels: multiLabels.slice(), selE, selH, union, n, fitE, fitH, fitA, meanT,
-                B: { betaComb, R2: R2B, AdjR2: AdjR2B, RMSE: rmseB, CV: rmseB / meanT, loocvRMSE: looB, loocvCV: looB / meanT },
-                Astat: { R2: fitA.R2, AdjR2: fitA.AdjR2, RMSE: fitA.RMSE, CV: fitA.RMSE / meanT, loocvRMSE: fitA.loocvRMSE, loocvCV: fitA.loocvRMSE / meanT }
+                B: { betaComb, R2: R2B, AdjR2: AdjR2B, RMSE: rmseB, CV: rmseB / meanT, loocvRMSE: looB, loocvCV: looB / meanT, CVg14: rmseBg14 / meanT },
+                Astat: { R2: fitA.R2, AdjR2: fitA.AdjR2, RMSE: fitA.RMSE, CV: fitA.RMSE / meanT, loocvRMSE: fitA.loocvRMSE, loocvCV: fitA.loocvRMSE / meanT, CVg14: fitA.RMSEg14 / meanT }
             };
             renderMultiResults();
         } catch (err) {
@@ -1799,7 +1814,8 @@
             ['R² (in-sample)', M.Astat.R2, M.B.R2, 4, false],
             ['Adjusted R²', M.Astat.AdjR2, M.B.AdjR2, 4, false],
             ['RMSE in-sample (MJ)', M.Astat.RMSE, M.B.RMSE, 2, true],
-            ['CV(RMSE) in-sample', M.Astat.CV, M.B.CV, 4, true],
+            ['CV(RMSE) in-sample √(SSE/n)', M.Astat.CV, M.B.CV, 4, true],
+            ['CV(RMSE) ASHRAE G14 √(SSE/(n−p)) — เทียบเกณฑ์ ≤ 0.15', M.Astat.CVg14, M.B.CVg14, 4, true], // [แก้ไข 3 ต.ค. 2569 audit]
             ['LOOCV RMSE (MJ)', M.Astat.loocvRMSE, M.B.loocvRMSE, 2, true],
             ['LOOCV CV(RMSE) ★ ตัวตัดสิน', M.Astat.loocvCV, M.B.loocvCV, 4, true]
         ];

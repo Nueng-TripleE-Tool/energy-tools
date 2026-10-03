@@ -506,6 +506,11 @@ header h1{letter-spacing:.3px}
           <div style="display:flex;gap:6px"><input id="life" type="number" step="1" value="10" oninput="calcAll()">
           <input id="disc" type="number" step="0.5" value="7" oninput="calcAll()"></div><div class="hint">อายุโครงการ (ปี) — ฉนวนใยหิน/แคลเซียมซิลิเกตทั่วไป 10–15 ปี · อัตราคิดลด (%) — ใช้ต้นทุนเงินทุนของบริษัท 6–10 % (ใส่ 0 = ไม่คิดลด)</div></div>
       </div>
+      <div class="grid4" id="coldRow" style="display:none"><!-- [แก้ไข 3 ต.ค. 2569 audit] งานเย็น: heat gain คิดเป็นไฟฟ้าระบบทำความเย็น -->
+        <div><label>งานเย็น — COP ระบบทำความเย็น</label><input id="coldCOP" type="number" step="0.1" value="3.5" oninput="calcAll()"><div class="hint">ใช้เมื่อ T<sub>f</sub> &lt; T<sub>a</sub>: ความร้อนรั่วเข้า (heat gain) ต้องดึงออกด้วยระบบทำความเย็น → ไฟฟ้า = Q ÷ COP · chiller น้ำเย็น 3–5 · ห้องเย็น/ไกลคอล 1.5–2.5</div></div>
+        <div><label>งานเย็น — ราคาไฟฟ้า (บาท/kWh)</label><input id="coldPrice" type="number" step="0.01" value="4.2" oninput="calcAll()"><div class="hint">ค่าไฟฟ้าเฉลี่ยรวม Ft/VAT จากบิล — งานเย็นไม่ใช้ราคาเชื้อเพลิง/LHV/η ด้านบน</div></div>
+        <div><label>งานเย็น — EF ไฟฟ้า (kgCO₂e/kWh)</label><input id="coldEF" type="number" step="0.0001" value="0.4750" oninput="calcAll()"><div class="hint">EF กริดไฟฟ้าไทย (TGO) 0.4750 kgCO₂e/kWh</div></div>
+      </div>
       <div class="kpis" id="kpiEco" style="margin-top:14px"></div>
       <div style="overflow-x:auto"><table id="tblEco"><tbody></tbody></table></div>
       <p class="assump" id="asmEco"></p>
@@ -1411,6 +1416,7 @@ const INS={
 const kOf=(key,Tm)=>{const m=INS[key];return Math.max(0.005,m.a+m.b*Tm+m.c*Tm*Tm)};
 
 /* ════════════════ FUELS ════════════════ */
+const EF_GRID=0.4750; // [แก้ไข 3 ต.ค. 2569 audit] EF ไฟฟ้ากริดไทย (TGO) kgCO₂e/kWh — จุดเดียว ใช้กับ FUELS.elec และงานเย็น (coldEF)
 const FUELS={
  fo    :{n:'น้ำมันเตา (Fuel Oil) — บาท/ลิตร',lhv:39.77,pr:22,ef:3.1543,u:'ลิตร'},
  diesel:{n:'น้ำมันดีเซล — บาท/ลิตร',lhv:36.42,pr:32,ef:2.7406,u:'ลิตร'},
@@ -1418,8 +1424,8 @@ const FUELS={
  ng    :{n:'ก๊าซธรรมชาติ NG — บาท/MMBTU',lhv:1055.06,pr:420,ef:59.20,u:'MMBTU'},
  coal  :{n:'ถ่านหินบิทูมินัส — บาท/กก.',lhv:25.80,pr:4.5,ef:2.4241,u:'กก.'},
  bio   :{n:'ชีวมวล ไม้สับ (ความชื้น 35 %) — บาท/กก.',lhv:12.50,pr:1.5,ef:0,u:'กก.'},
- elec  :{n:'ไฟฟ้า (ฮีตเตอร์) — บาท/kWh',lhv:3.6,pr:4.2,ef:0.4999,u:'kWh'},
- steam :{n:'ไอน้ำซื้อ — บาท/ตัน (ใช้ 2,100 MJ/ตัน)',lhv:2100,pr:900,ef:150,u:'ตัน'}
+ elec  :{n:'ไฟฟ้า (ฮีตเตอร์) — บาท/kWh',lhv:3.6,pr:4.2,ef:EF_GRID,u:'kWh'}, // [แก้ไข 3 ต.ค. 2569 audit] EF กริด 0.4750 (เดิม 0.4999)
+ steam :{n:'ไอน้ำซื้อ — บาท/ตัน (ใช้ 2,100 MJ/ตัน · EF 150 kgCO₂e/t เป็นค่าสมมติ — ใช้ค่าของผู้ขายไอน้ำ)',lhv:2100,pr:900,ef:150,u:'ตัน'}
 };
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1880,12 +1886,13 @@ function calcAll(){
     <td class="num">${fmt(Qb-Qi,0)}</td><td>—</td></tr>`;
   $('tblComp').querySelector('tbody').innerHTML=tb;
 
-  const red=Qb>0?100*(Qb-Qi)/Qb:0;
+  const _cold=Tf<Ta-0.5, _sg=_cold?-1:1, QbA=_sg*Qb, QiA=_sg*Qi, _nm=_cold?'ความร้อนรั่วเข้า (heat gain)':'การสูญเสียความร้อน'; // [แก้ไข 3 ต.ค. 2569 audit] งานเย็นแสดงขนาด |Q|
+  const red=QbA>0?100*(QbA-QiA)/QbA:0;
   $('kpiMain').innerHTML=`
-   <div class="kpi bad"><div class="lb">การสูญเสียความร้อน — ก่อนปรับปรุง</div><div class="val">${fmt(Qb/1000,2)}</div><div class="un">kW &nbsp;(${fmt(Qb,0)} W)</div></div>
-   <div class="kpi good"><div class="lb">การสูญเสียความร้อน — หลังปรับปรุง</div><div class="val">${fmt(Qi/1000,2)}</div><div class="un">kW &nbsp;(${fmt(Qi,0)} W)</div></div>
-   <div class="kpi good"><div class="lb">ลดการสูญเสียได้</div><div class="val">${fmt((Qb-Qi)/1000,2)}</div><div class="un">kW &nbsp;· ${fmt(red,1)} %</div></div>
-   <div class="kpi"><div class="lb">ฟลักซ์ความร้อนเฉลี่ยหลังหุ้ม</div><div class="val">${fmt(Ai>0?Qi/Ai:0,1)}</div><div class="un">W/m² (เกณฑ์ดี &lt; 100)</div></div>
+   <div class="kpi bad"><div class="lb">${_nm} — ก่อนปรับปรุง</div><div class="val">${fmt(QbA/1000,2)}</div><div class="un">kW &nbsp;(${fmt(QbA,0)} W)</div></div>
+   <div class="kpi good"><div class="lb">${_nm} — หลังปรับปรุง</div><div class="val">${fmt(QiA/1000,2)}</div><div class="un">kW &nbsp;(${fmt(QiA,0)} W)</div></div>
+   <div class="kpi ${QbA-QiA>0?'good':'bad'}"><div class="lb">${_cold?'ลดความร้อนรั่วเข้าได้':'ลดการสูญเสียได้'}</div><div class="val">${fmt((QbA-QiA)/1000,2)}</div><div class="un">kW &nbsp;· ${fmt(red,1)} %</div></div>
+   <div class="kpi"><div class="lb">ฟลักซ์ความร้อนเฉลี่ยหลังหุ้ม</div><div class="val">${fmt(Ai>0?QiA/Ai:0,1)}</div><div class="un">W/m² (เกณฑ์ดี &lt; 100)</div></div>
    <div class="kpi ${maxTs<=_ppLim()?'good':'bad'}"><div class="lb">อุณหภูมิผิวสูงสุดหลังหุ้ม</div><div class="val">${fmt(maxTs,1)}</div><div class="un">°C (เกณฑ์ผิวสัมผัส ≤ ${fmt(_ppLim(),1)})</div></div>
    <div class="kpi"><div class="lb">ค่า k ฉนวนเฉลี่ยที่ใช้</div><div class="val">${fmt(kAvg,4)}</div><div class="un">W/m·K</div></div>`;
 
@@ -1997,19 +2004,21 @@ function compSteps(r){
 }
 function ecoSteps(){
   if(!LAST) return '';
-  const Qb=LAST.Qb, Qi=LAST.Qi, Ai=LAST.Ai, f=FUELS[$('fuel').value];
-  const hrs=num('hrs'), lhv=num('lhv'), pr=num('price'), eff=num('eff')/100, ef=num('ef');
-  const kwhU=lhv/3.6*Math.max(0.01,eff), Es=(Qb-Qi)/1000*hrs, Us=Es/kwhU, Cs=Us*pr;
-  const cap=Ai*(num('cA')+num('cB')*num('insT')), pb=Cs>0?cap/Cs:Infinity;
+  const B=ecoBasis(), CP=capexOf(LAST.rows); // [แก้ไข 3 ต.ค. 2569 audit] งานเย็น + capex ทุกชั้น
+  const Qb=Math.abs(LAST.Qb), Qi=Math.abs(LAST.Qi), Ai=LAST.Ai, f=B.f;
+  const hrs=num('hrs'), lhv=num('lhv'), pr=B.pr, eff=num('eff')/100, ef=B.ef;
+  const kwhU=B.kwhPerUnit, Es=(Qb-Qi)/1000*hrs, Us=Es/kwhU, Cs=Us*pr;
+  const cap=CP.cap, pb=Cs>0?cap/Cs:Infinity;
   const crf=CRF(num('disc')/100,Math.max(1,num('life')));
   let b='';
   b+=`Q<sub>ก่อน</sub> = Σ ทุกชิ้น = ${RD(fmt(Qb/1000,3)+' kW')} &nbsp;·&nbsp; Q<sub>หลัง</sub> = ${GN(fmt(Qi/1000,3)+' kW')} &nbsp;·&nbsp; ลดได้ ${GN(fmt((Qb-Qi)/1000,3)+' kW')}<br>`;
   b+=`พลังงานที่ประหยัดได้ = ΔQ × ชั่วโมง = ${fmt((Qb-Qi)/1000,3)} × ${fmt(hrs,0)} = <b>${fmt(Es,0)}</b> kWh<sub>th</sub>/ปี = ${fmt(Es*0.0036,2)} GJ/ปี<br>`;
-  b+=`พลังงานความร้อนต่อ 1 ${f.u} = LHV/3.6 × η = ${fmt(lhv,2)}/3.6 × ${fmt(eff*100,0)}% = <b>${fmt(kwhU,3)}</b> kWh<sub>th</sub>/${f.u}<br>`;
+  b+= B.cold ? `งานเย็น: ความเย็นที่ได้ต่อไฟฟ้า 1 kWh<sub>e</sub> = COP = <b>${fmt(kwhU,3)}</b> kWh<sub>th</sub>/kWh<sub>e</sub><br>`
+             : `พลังงานความร้อนต่อ 1 ${f.u} = LHV/3.6 × η = ${fmt(lhv,2)}/3.6 × ${fmt(eff*100,0)}% = <b>${fmt(kwhU,3)}</b> kWh<sub>th</sub>/${f.u}<br>`;
   b+=`เชื้อเพลิงที่ประหยัดได้ = ${fmt(Es,0)} ÷ ${fmt(kwhU,3)} = <b>${fmt(Us,0)}</b> ${f.u}/ปี<br>`;
   b+=`มูลค่าผลประหยัด = ${fmt(Us,0)} × ${fmt(pr,2)} = ${GN(fmt(Cs,0)+' บาท/ปี')}<br>`;
   b+=`ก๊าซเรือนกระจกที่ลดได้ = ${fmt(Us,0)} × ${fmt(ef,4)} ÷ 1000 = ${GN(fmt(Us*ef/1000,3)+' tCO₂e/ปี')}<br>`;
-  b+=`เงินลงทุนฉนวน = A<sub>นอก</sub> × (ค่าคงที่ + ค่าต่อความหนา × t) = ${fmt(Ai,2)} × (${fmt(num('cA'),0)} + ${fmt(num('cB'),1)}×${fmt(num('insT'),0)}) = <b>${fmt(cap,0)}</b> บาท<br>`;
+  b+=`เงินลงทุนฉนวน = Σ A<sub>นอก</sub> × (ค่าคงที่ + ค่าต่อความหนา × t<sub>รวมทุกชั้น</sub>) = ${CP.txt} = <b>${fmt(cap,0)}</b> บาท<br>`;
   b+=`ระยะเวลาคืนทุนอย่างง่าย = ${fmt(cap,0)} ÷ ${fmt(Cs,0)} = ${RD((isFinite(pb)?fmt(pb,2):'—')+' ปี')}<br>`;
   b+=`CRF(${fmt(num('disc'),1)} %, ${num('life')} ปี) = i(1+i)ⁿ/[(1+i)ⁿ−1] = ${fmt(crf,5)} → NPV = ${fmt(Cs/crf-cap,0)} บาท`;
   return `<div class="stepbox"><div class="stephead">รวมทั้งอุปกรณ์ · ผลประหยัดและเศรษฐศาสตร์</div>`+
@@ -2076,12 +2085,36 @@ function onFuel(){
   calcAll();
 }
 const CRF=(i,n)=>i<=0?1/n:i*Math.pow(1+i,n)/(Math.pow(1+i,n)-1);
+/* [แก้ไข 3 ต.ค. 2569 audit] ฐานราคาพลังงาน: งานร้อน = เชื้อเพลิง (LHV×η) ; งานเย็น (T_f < T_a) = ไฟฟ้าระบบทำความเย็น (kWh_th ÷ COP)
+   เดิมงานเย็นคิด heat gain (ค่าติดลบ) ด้วยราคาเชื้อเพลิง → ผลประหยัดติดลบ และความหนาเหมาะสม 0 mm */
+function ecoBasis(){
+  const cold = LAST ? (LAST.Tf < LAST.Ta - 0.5) : false;
+  if(cold){
+    const cop=Math.max(0.1,num('coldCOP')||3.5), pr=num('coldPrice'), efv=$('coldEF').value;
+    const ef=(efv!==''&&isFinite(+efv))?+efv:EF_GRID;
+    return {cold:true, kwhPerUnit:cop, pr, ef, f:{u:'kWh<sub>e</sub>'}, lbl:'ไฟฟ้าระบบทำความเย็น (kWh<sub>e</sub>)', cop};
+  }
+  const lhv=num('lhv'), eff=num('eff')/100, f=FUELS[$('fuel').value];
+  return {cold:false, kwhPerUnit:lhv/3.6*Math.max(0.01,eff), pr:num('price'), ef:num('ef'), f, lbl:`ปริมาณเชื้อเพลิง (${f.u})`, lhv, eff};
+}
+/* [แก้ไข 3 ต.ค. 2569 audit] เงินลงทุนฉนวน: คิดทุกชั้น (ชั้น 1–3) และความหนาที่กำหนดรายชิ้น (ti#) — เดิมคิดเฉพาะชั้นที่ 1 ด้วย insT และคิด cA แม้ไม่หุ้มฉนวน */
+function capexOf(rows){
+  const cA=num('cA'), cB=num('cB'); let cap=0, A=0; const parts=[];
+  (rows||[]).forEach(r=>{
+    const t=(r.ins.layers||[]).reduce((a,l)=>a+(l.t>0?l.t:0),0);
+    if(!(t>0)) return;
+    const a=r.ins.Aout*r.c.q; cap+=a*(cA+cB*t); A+=a; parts.push(`${fmt(a,2)} m² × (${fmt(cA,0)} + ${fmt(cB,1)}×${fmt(t,0)} mm)`);
+  });
+  return {cap, A, txt: parts.length ? parts.join(' + ') : 'ไม่มีชิ้นที่หุ้มฉนวน'};
+}
 function eco(){
   if(!LAST) return;
-  const {Qb,Qi,Ai}=LAST;
-  const hrs=num('hrs'), lhv=num('lhv'), pr=num('price'), eff=num('eff')/100, ef=num('ef');
-  const f=FUELS[$('fuel').value];
-  const kwhPerUnit=lhv/3.6*Math.max(0.01,eff);
+  const B=ecoBasis(); // [แก้ไข 3 ต.ค. 2569 audit]
+  try{ $('coldRow').style.display = B.cold ? '' : 'none'; }catch(e){}
+  const Qb=Math.abs(LAST.Qb), Qi=Math.abs(LAST.Qi), Ai=LAST.Ai; // งานเย็น: |heat gain|
+  const hrs=num('hrs'), lhv=num('lhv'), pr=B.pr, eff=num('eff')/100, ef=B.ef;
+  const f=B.f;
+  const kwhPerUnit=B.kwhPerUnit;
   const costPerKWh=kwhPerUnit>0?pr/kwhPerUnit:0;
 
   const Eb=Qb/1000*hrs, Ei=Qi/1000*hrs, Es=Eb-Ei;           // kWh ความร้อน/ปี
@@ -2089,16 +2122,17 @@ function eco(){
   const Cb=Ub*pr, Ci=Ui*pr, Cs=Cb-Ci;
   const Gb=Ub*ef/1000, Gi=Ui*ef/1000, Gs=Gb-Gi;             // tCO2e/ปี
 
-  const cap=Ai*(num('cA')+num('cB')*num('insT'));
+  const CP=capexOf(LAST.rows), cap=CP.cap; // [แก้ไข 3 ต.ค. 2569 audit] ทุกชั้น + ความหนารายชิ้น
   const pb=Cs>0?cap/Cs:Infinity;
   const crf=CRF(num('disc')/100,Math.max(1,num('life')));
   const npvSave=Cs*(1/crf)-cap;
 
   baseWarn(Qb,Qi,Ai,Cs,cap);
+  if(!(Cs>0)) $('baseWarn').innerHTML+=`<span class="badge danger">⚠ ผลประหยัดไม่เป็นบวก (${fmt(Cs,0)} บาท/ปี) — สภาพหลังปรับปรุงสูญเสียมากกว่า/เท่ากับฐาน ตรวจสอบฐานเปรียบเทียบ ความหนา และชนิดฉนวน (ไม่ใช่ผลประหยัด)</span> `; // [แก้ไข 3 ต.ค. 2569 audit]
   $('kpiEco').innerHTML=`
    <div class="kpi bad"><div class="lb">ค่าพลังงานสูญเสีย — ก่อนปรับปรุง</div><div class="val">${fmt(Cb,0)}</div><div class="un">บาท/ปี</div></div>
    <div class="kpi good"><div class="lb">ค่าพลังงานสูญเสีย — หลังปรับปรุง</div><div class="val">${fmt(Ci,0)}</div><div class="un">บาท/ปี</div></div>
-   <div class="kpi good"><div class="lb">ผลประหยัด</div><div class="val">${fmt(Cs,0)}</div><div class="un">บาท/ปี</div></div>
+   <div class="kpi ${Cs>0?'good':'bad'}"><div class="lb">ผลประหยัด${B.cold?' (ไฟฟ้าระบบทำความเย็น)':''}</div><div class="val">${fmt(Cs,0)}</div><div class="un">บาท/ปี</div></div>
    <div class="kpi"><div class="lb">เงินลงทุนฉนวน</div><div class="val">${fmt(cap,0)}</div><div class="un">บาท (${fmt(Ai,1)} m²)</div></div>
    <div class="kpi ${pb<=3?'good':pb<=5?'':'bad'}"><div class="lb">ระยะเวลาคืนทุนอย่างง่าย</div>
      <div class="val">${isFinite(pb)?fmt(pb,2):'—'}</div><div class="un">ปี</div></div>
@@ -2110,20 +2144,23 @@ function eco(){
    R('การสูญเสียความร้อน',fmt(Qb/1000,3),fmt(Qi/1000,3),fmt((Qb-Qi)/1000,3),'kW')+
    R('พลังงานความร้อนสูญเสียต่อปี',fmt(Eb,0),fmt(Ei,0),fmt(Es,0),'kWh<sub>th</sub>/ปี')+
    R('พลังงานความร้อนสูญเสียต่อปี',fmt(Eb*3.6/1000,2),fmt(Ei*3.6/1000,2),fmt(Es*3.6/1000,2),'GJ/ปี')+
-   R(`ปริมาณเชื้อเพลิง (${f.u})`,fmt(Ub,0),fmt(Ui,0),fmt(Us,0),f.u+'/ปี')+
+   R(B.lbl,fmt(Ub,0),fmt(Ui,0),fmt(Us,0),f.u+'/ปี')+
    R('ค่าใช้จ่าย',fmt(Cb,0),fmt(Ci,0),fmt(Cs,0),'บาท/ปี')+
    R('ก๊าซเรือนกระจก',fmt(Gb,3),fmt(Gi,3),fmt(Gs,3),'tCO₂e/ปี')+
    `<tr class="tot"><td>เงินลงทุน / คืนทุน / NPV ที่ ${fmt(num('disc'),1)} % ${num('life')} ปี</td>
      <td class="num">${fmt(cap,0)} บาท</td><td class="num">${isFinite(pb)?fmt(pb,2)+' ปี':'—'}</td>
      <td class="num">${fmt(npvSave,0)} บาท</td><td>—</td></tr>`;
 
-  $('asmEco').innerHTML=`<b>ต้นทุนความร้อน:</b> ${fmt(costPerKWh,3)} บาท/kWh<sub>th</sub>
+  $('asmEco').innerHTML=(B.cold
+    ? `<b>งานเย็น (T<sub>f</sub> &lt; T<sub>a</sub>):</b> ความร้อนรั่วเข้า ${fmt(Qb/1000,3)} → ${fmt(Qi/1000,3)} kW ต้องดึงออกด้วยระบบทำความเย็น
+       → ต้นทุน ${fmt(costPerKWh,3)} บาท/kWh<sub>th</sub> = ค่าไฟ ${fmt(pr,2)} บาท/kWh ÷ COP ${fmt(B.cop,2)} (ไม่ใช้ราคาเชื้อเพลิง/LHV/η)<br>`
+    : `<b>ต้นทุนความร้อน:</b> ${fmt(costPerKWh,3)} บาท/kWh<sub>th</sub>
     = ราคา ${fmt(pr,2)} บาท/${f.u} ÷ (LHV ${fmt(lhv,2)} MJ ÷ 3.6 × η ${fmt(eff*100,0)} %)
-    = ${fmt(kwhPerUnit,3)} kWh<sub>th</sub> ต่อ ${f.u}<br>
-    <b>ต้นทุนฉนวน:</b> ${fmt(num('cA'),0)} + ${fmt(num('cB'),1)} × ${fmt(num('insT'),0)} mm
-    = ${fmt(num('cA')+num('cB')*num('insT'),0)} บาท/m² × ${fmt(Ai,2)} m² = ${fmt(cap,0)} บาท (ปรับค่าตามใบเสนอราคาจริงได้)<br>
+    = ${fmt(kwhPerUnit,3)} kWh<sub>th</sub> ต่อ ${f.u}<br>`)+`
+    <b>ต้นทุนฉนวน (ทุกชั้น):</b> ${CP.txt}
+    = ${fmt(cap,0)} บาท (ปรับค่าตามใบเสนอราคาจริงได้)<br>
     <b>Emission Factor:</b> ${fmt(ef,4)} kgCO₂e/${f.u}
-    ${$('fuel').value==='bio'?'— ชีวมวลเป็น biogenic CO₂ ให้รายงานแยกตาม ISO 14064-1':''}
+    ${(!B.cold&&$('fuel').value==='bio')?'— ชีวมวลเป็น biogenic CO₂ ให้รายงานแยกตาม ISO 14064-1':''}
     · ตรวจสอบค่าล่าสุดจาก TGO ก่อนใช้ในรายงาน`;
 }
 
@@ -2131,21 +2168,23 @@ function eco(){
 function sweep(){
   if(!LAST) calcAll();
   const {rows,Tf,Ta,v,hi,tw,kw,insKey,kMan,emB,emI}=LAST;
-  const tClad=num('tClad'), hrs=num('hrs'), lhv=num('lhv'), pr=num('price'), eff=num('eff')/100;
-  const kwhPerUnit=lhv/3.6*Math.max(0.01,eff), cKwh=kwhPerUnit>0?pr/kwhPerUnit:0;
+  const B=ecoBasis(); // [แก้ไข 3 ต.ค. 2569 audit] งานเย็น = ไฟฟ้า ÷ COP ; ต้นทุนคิดบน |Q|
+  const tClad=num('tClad'), hrs=num('hrs'), pr=B.pr;
+  const kwhPerUnit=B.kwhPerUnit, cKwh=kwhPerUnit>0?pr/kwhPerUnit:0;
   const cA=num('cA'), cB=num('cB'), crf=CRF(num('disc')/100,Math.max(1,num('life')));
 
   const T=[]; for(let t=0;t<=300;t+=5) T.push(t);
   TSTD.forEach(t=>{if(t<=300&&!T.includes(t)) T.push(t)}); T.sort((a,b)=>a-b);
   const D=T.map(t=>{
-    let Q=0,A=0,Ts=-1e9,k=0,n=0;
+    let Q=0,A=0,Ts=-1e9,k=0,n=0,capR=0;
     rows.forEach(r=>{
       const LY=mainLayers(t), tS=LY.reduce((a,l)=>a+(l.t>0?l.t:0),0);
       const s=solveL(r.c.sh,r.c.dim,r.c.ori,Tf,Ta,v,hi,tw,kw,LY,tS>0?emI:emB,tS>0?tClad:0,false);
       Q+=s.Q*r.c.q; A+=s.Aout*r.c.q; Ts=Math.max(Ts,s.Ts); if(t>0){k+=s.k;n++}
+      if(tS>0) capR+=s.Aout*r.c.q*(cA+cB*tS); // [แก้ไข 3 ต.ค. 2569 audit] ต้นทุนรวมทุกชั้น (เดิม t ชั้น 1 เท่านั้น)
     });
-    const cost=Q/1000*hrs*cKwh;
-    const cap=t>0?A*(cA+cB*t):0;
+    const cost=Math.abs(Q)/1000*hrs*cKwh;
+    const cap=capR;
     return {t,Q,A,Ts,k:n?k/n:0,cost,cap,ann:cap*crf,tot:cost+cap*crf};
   });
   const BS=readBase();
@@ -2153,7 +2192,7 @@ function sweep(){
   rows.forEach(r=>{ Qbase += (BS.bare
       ? solve(r.c.sh,r.c.dim,r.c.ori,Tf,Ta,v,hi,tw,kw,0,insKey,kMan,emB,0,false)
       : solve(r.c.sh,r.c.dim,r.c.ori,Tf,Ta,v,hi,tw,kw,BS.t,BS.mat,BS.kMan,BS.em,BS.clad,false)).Q*r.c.q; });
-  const baseCost=Qbase/1000*hrs*cKwh;
+  const baseCost=Math.abs(Qbase)/1000*hrs*cKwh; // [แก้ไข 3 ต.ค. 2569 audit]
   D.forEach(d=>d.pb=(baseCost-d.cost)>0?d.cap/(baseCost-d.cost):Infinity);
   const opt=D.reduce((a,b)=>b.tot<a.tot?b:a);
   const ppLim=($('ppMode').value==='iso')?burnLimit($('ppM').value,parseFloat($('ppT').value)):num('ppFix');
@@ -2190,8 +2229,8 @@ function sweep(){
   $('tblOpt').querySelector('tbody').innerHTML=tb;
 
   $('asmOpt').innerHTML=`<b>วิธี:</b> ที่ความหนาแต่ละค่า คำนวณ Q ใหม่ทั้งอุปกรณ์ (ค่า k ปรับตามอุณหภูมิเฉลี่ยของฉนวน
-    และพื้นที่ผิวนอกโตขึ้นตามความหนา) → ค่าพลังงานสูญเสียต่อปี = Q × ${fmt(hrs,0)} h × ${fmt(cKwh,3)} บาท/kWh<sub>th</sub><br>
-    <b>ค่าฉนวนรายปี</b> = A<sub>นอก</sub>(t) × (${fmt(cA,0)} + ${fmt(cB,1)}·t) × CRF(${fmt(num('disc'),1)} %, ${num('life')} ปี = ${fmt(crf,4)})<br>
+    และพื้นที่ผิวนอกโตขึ้นตามความหนา) → ค่าพลังงานสูญเสียต่อปี = |Q| × ${fmt(hrs,0)} h × ${fmt(cKwh,3)} บาท/kWh<sub>th</sub>${B.cold?` (งานเย็น: ค่าไฟ ÷ COP ${fmt(B.cop,2)})`:''}<br>
+    <b>ค่าฉนวนรายปี</b> = A<sub>นอก</sub>(t) × (${fmt(cA,0)} + ${fmt(cB,1)}·t<sub>รวมทุกชั้น</sub>) × CRF(${fmt(num('disc'),1)} %, ${num('life')} ปี = ${fmt(crf,4)})<br>
     <b>ฐานคืนทุน:</b> คิดจากสภาพ “ก่อนปรับปรุง” ที่ตั้งไว้ในการ์ด ข-2 (Q = ${fmt(Qbase/1000,3)} kW,
     ค่าพลังงาน ${fmt(baseCost,0)} บาท/ปี) ไม่ใช่จากผิวเปลือยเสมอไป<br>
     <b>ความหนาเชิงพาณิชย์:</b> ผลลัพธ์ต่อเนื่องนำไปสั่งซื้อไม่ได้ จึงเทียบเฉพาะขนาดที่มีขายจริงตามแนว
@@ -2606,7 +2645,7 @@ function buildRefTables(){
 }
 
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['tWall', 'kWall', 'emBare', 'emIns', 'tClad', 'insMat', 'insT', 'kMan', 'ins2', 'insT2', 'ins3', 'insT3', 'baseT', 'baseMat', 'baseEm', 'baseClad'], FK_MEAS=['Tf', 'Ta', 'wind', 'rh', 'solG', 'baseMode', 'baseDeg'], FK_SET=['eqName', 'hiSel', 'hi', 'hrs', 'outdoor', 'solAbs', 'solF', 'stepSel', 'stepLv', 'fuel', 'lhv', 'price', 'eff', 'ef', 'cA', 'cB', 'life', 'disc', 'ppMode', 'ppT', 'ppM', 'ppFix', 'cdRH', 'cdMar', 'ttCrit', 'ttGeo', 'ttMat', 'ttFlux', 'ttTemps', 'ttTa', 'ttV', 'ttEm'], FK_CALC=['kShow', 'cdDp', 'cdTgt'];
+var FK_DESIGN=['tWall', 'kWall', 'emBare', 'emIns', 'tClad', 'insMat', 'insT', 'kMan', 'ins2', 'insT2', 'ins3', 'insT3', 'baseT', 'baseMat', 'baseEm', 'baseClad'], FK_MEAS=['Tf', 'Ta', 'wind', 'rh', 'solG', 'baseMode', 'baseDeg'], FK_SET=['eqName', 'hiSel', 'hi', 'hrs', 'outdoor', 'solAbs', 'solF', 'stepSel', 'stepLv', 'fuel', 'lhv', 'price', 'eff', 'ef', 'cA', 'cB', 'life', 'disc', 'coldCOP', 'coldPrice', 'coldEF', 'ppMode', 'ppT', 'ppM', 'ppFix', 'cdRH', 'cdMar', 'ttCrit', 'ttGeo', 'ttMat', 'ttFlux', 'ttTemps', 'ttTa', 'ttV', 'ttEm'], FK_CALC=['kShow', 'cdDp', 'cdTgt'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(/^(d\d+_|sh\d+$|or\d+$|qt\d+$|ti\d+$)/.test(id))return'design';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}

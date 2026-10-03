@@ -276,6 +276,15 @@ var TE_STEAM=(function(){
             <button type="button" class="checkbox-item" style="border:none; color:#6c3483;" onclick="exportInputJSON()"><i class="fas fa-file-export"></i>&nbsp;บันทึกข้อมูล (.json)</button>
             <button type="button" class="checkbox-item" style="border:none; color:#6c3483;" onclick="document.getElementById('jsonFileInput').click()"><i class="fas fa-file-import"></i>&nbsp;โหลดข้อมูล (.json)</button>
             <input type="file" id="jsonFileInput" accept=".json,application/json" style="display:none;" onchange="importInputJSON(this)">
+            <!-- [แก้ไข 3 ต.ค. 2569] ปุ่มส่งออก TE_ECM -->
+            <button type="button" class="checkbox-item" style="border:none; color:#6c3483;" onclick="teExportECM()" title="ส่งออกมาตรการเป็นไฟล์ TE_ECM เพื่อนำเข้า Tool_ECM_Portfolio">📤 ส่งไป ECM Portfolio</button>
+        </div>
+        <!-- [แก้ไข 3 ต.ค. 2569] ค่าประกอบการส่งออก ECM (ไม่บังคับ — ไม่บันทึกใน JSON input) -->
+        <div style="display:flex; justify-content:center; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-top:10px; font-size:0.85em; color:#6c3483;">
+            <div><label for="te_ecm_hours">ชั่วโมงเดินเครื่อง (ชม./ปี)</label><input type="number" id="te_ecm_hours" placeholder="เช่น 7200" style="width:110px;"><div class="hint">ใช้แปลงผลประหยัดเป็นรายปี — ว่างไว้ = ส่งเฉพาะ % (savingPct)</div></div>
+            <div><label for="te_ecm_price">ราคาเชื้อเพลิง (฿/ตัน)</label><input type="number" id="te_ecm_price" placeholder="เช่น 3500" style="width:110px;"><div class="hint">ใช้คิด savingTHB (ต้องมีชั่วโมงเดินเครื่อง)</div></div>
+            <div><label for="te_ecm_o2t">O₂ เป้าหมายหลังจูน (%)</label><input type="number" id="te_ecm_o2t" step="0.1" placeholder="เช่น 6" style="width:90px;"><div class="hint">มาตรการปรับอากาศส่วนเกิน — ว่างไว้ = ไม่ส่งมาตรการนี้</div></div>
+            <div><label for="te_ecm_tgt">T<sub>g</sub> เป้าหมาย (°C)</label><input type="number" id="te_ecm_tgt" placeholder="เช่น 160" style="width:90px;"><div class="hint">มาตรการ economizer/ลดอุณหภูมิไอเสีย — ว่างไว้ = ไม่ส่ง</div></div>
         </div>
         <p id="json_status" style="font-size:0.85em; color:#666; margin-top:8px;">*บันทึกค่าที่กรอกทั้งหมดเป็นไฟล์ JSON (เชื้อเพลิงผสม, Custom Fuel 1–3, ข้อมูลตรวจวัด, ไอน้ำ/น้ำมันร้อน, FD Fan) เพื่อโหลดกลับมาใช้งานภายหลัง</p>
     </div>
@@ -1151,6 +1160,7 @@ var TE_STEAM=(function(){
     };
 
     window.calculateAll = function() {
+        window.TE_BOILER_RES = null; // [แก้ไข 3 ต.ค. 2569] ล้างผลเดิมก่อนคำนวณ (ใช้ส่งออก TE_ECM)
         const totalPct = parseFloat(document.getElementById('totalPct').innerText);
         if(Math.abs(totalPct - 100) > 0.5) { alert("กรุณาระบุสัดส่วนเชื้อเพลิงให้ครบ 100%"); return; }
         if(mix.hhv === 0) { alert("กรุณาเลือกเชื้อเพลิง"); return; }
@@ -1165,8 +1175,32 @@ var TE_STEAM=(function(){
         const Tg = parseFloat(document.getElementById('tg').value);
         const Ta = parseFloat(document.getElementById('ta').value);
         const O2 = parseFloat(document.getElementById('o2').value);
-        const CO_ppm = parseFloat(document.getElementById('co_ppm').value);
-        const LossRad = parseFloat(document.getElementById('rad_loss').value);
+        const CO_raw = parseFloat(document.getElementById('co_ppm').value);
+        const CO_ppm = isFinite(CO_raw) && CO_raw >= 0 ? CO_raw : 0;   // [แก้ไข 3 ต.ค. 2569 audit] CO ว่าง → 0 ppm (เดิม NaN ทำให้ ASME/JIS เป็น NaN)
+        const LossRad_raw = parseFloat(document.getElementById('rad_loss').value);
+        const LossRad = isFinite(LossRad_raw) ? LossRad_raw : 0;       // [แก้ไข 3 ต.ค. 2569 audit]
+        // [แก้ไข 3 ต.ค. 2569 audit] ตรวจค่าที่เป็นไปไม่ได้ก่อนคำนวณ — แสดงกล่องเตือน (ไม่ใช้ alert) และไม่คำนวณ/ไม่ส่งออก ECM
+        const boilerWarns = [], boilerErrs = [];
+        if(!isFinite(O2) || O2 < 0 || O2 >= O2_AIR) boilerErrs.push('O₂ ในไอเสีย = ' + (isFinite(O2) ? O2 + ' %' : '(ว่าง)') + ' — ต้องอยู่ระหว่าง 0 ถึง < ' + O2_AIR + ' % (dry basis) — O₂ ว่าง/≥ 20.9 % ทำให้ Loss 1 = 0 และ η สูงเกินจริง (เช่น 91 %) หรือ JIS > 100 %');
+        if(!isFinite(Tg) || !isFinite(Ta)) boilerErrs.push('กรุณากรอกอุณหภูมิไอเสีย T_g และอุณหภูมิอากาศ T_a');
+        else if(Tg <= Ta) boilerErrs.push('T_g (' + Tg + ' °C) ≤ T_a (' + Ta + ' °C) — ค่าสูญเสียติดลบ เป็นไปไม่ได้');
+        if(!isFinite(CO_raw)) boilerWarns.push('ไม่ได้กรอก CO — คิด CO = 0 ppm (Loss 3 = 0)');
+        else if(CO_raw < 0) boilerWarns.push('CO ติดลบ — คิด CO = 0 ppm');
+        if(!isFinite(LossRad_raw)) boilerWarns.push('ไม่ได้กรอก Radiation loss — คิด 0 %');
+        window.teBoilerWarn = function(errs, warns){
+            const res = document.getElementById('results'); if(!res) return;
+            let w = document.getElementById('boiler_plaus_warn');
+            if(!w){ w = document.createElement('div'); w.id = 'boiler_plaus_warn'; w.style.cssText = 'background:#fdecec;border:1px solid #f5a0a0;border-radius:8px;padding:10px 14px;color:#b42318;margin:10px 0;font-size:0.92rem;line-height:1.6;'; const h = res.querySelector('h2'); if(h && h.nextSibling) res.insertBefore(w, h.nextSibling); else res.insertBefore(w, res.firstChild); }
+            const all = (errs||[]).map(x=>'⛔ '+x).concat((warns||[]).map(x=>'⚠ '+x));
+            if(all.length){ w.style.display = 'block'; w.innerHTML = '<b>' + ((errs&&errs.length) ? 'ค่าที่ป้อนเป็นไปไม่ได้ทางฟิสิกส์ — ยังไม่คำนวณ/อย่านำไปรายงาน' : 'ข้อควรระวังของผลลัพธ์') + '</b><br>' + all.join('<br>'); }
+            else { w.style.display = 'none'; w.innerHTML = ''; }
+        };
+        if(boilerErrs.length){
+            document.getElementById('tableBody').innerHTML = '';
+            document.getElementById('results').style.display = 'block';
+            window.teBoilerWarn(boilerErrs, boilerWarns);
+            return;
+        }
 
         const CO2_act = mix.co2 * (O2_AIR - O2) / O2_AIR; // [แก้ไข 10 ก.ย. 2569] ใช้ O2_AIR
         const Water_Pct = mix.m + (9 * mix.h);
@@ -1194,6 +1228,7 @@ var TE_STEAM=(function(){
         let n_O2_req=0, N_stoich=0, EA=0, M_dg=0, m_CO2=0, m_SO2=0, m_O2_ex=0, m_N2_total=0;
         let T_avg=0, cp_CO2=0, cp_N2=0, cp_O2=0, cp_SO2=0, Cp_dg=0;
         let m_da=0, M_w=0, H_v=0, H_l=0, M_CO=0, n_dg_actual=0;
+        let M_wA=0, asme_L2_fuel=0, asme_L2_air=0; // [แก้ไข 3 ต.ค. 2569 audit] แยก Loss 2 ความชื้นเชื้อเพลิง (latent+sensible) / ความชื้นอากาศ (sensible)
 
         if(useAsmeRigorous && runASME) {
             // Stoichiometric air (dry) per kg fuel [kg/kg]
@@ -1240,10 +1275,15 @@ var TE_STEAM=(function(){
             // Loss 2: Moisture and hydrogen combustion [%GCV]
             let w_A = 0.013;   // humidity of air [kg H2O / kg dry air]
             m_da = 4.76 * n_O2_req * (1 + EA) * 28.97;   // actual dry air mass [kg/kg fuel]
-            M_w  = (H_f * 8.936) + M_f + (w_A * m_da);   // total moisture in flue gas [kg/kg fuel]
+            // [แก้ไข 3 ต.ค. 2569 audit] ASME PTC 4: ความชื้นจากเชื้อเพลิง/H₂ คิด H_v(Tg) − H_l(Ta) (รวม latent) แต่ความชื้นในอากาศเป็นไออยู่แล้ว → คิดเฉพาะ sensible c_p,v·(Tg − Ta)
+            //    เดิม M_w รวม w_A·M_da แล้วคูณ (2501+1.88Tg−4.186Ta) → ถ่านหิน η_ASME ต่ำไป ~1.5 จุด
+            M_w  = (H_f * 8.936) + M_f;                   // ความชื้นจากเชื้อเพลิง + H₂ เผาไหม้ [kg/kg fuel]
+            M_wA = w_A * m_da;                            // ความชื้นในอากาศ (เป็นไออยู่แล้ว) [kg/kg fuel]
             H_v  = 2501 + 1.88 * Tg;                      // enthalpy of steam at Tg [kJ/kg]
             H_l  = 4.186 * Ta;                            // enthalpy of liquid water at Ta [kJ/kg]
-            asme_L2 = GCV > 0 ? (M_w * (H_v - H_l)) / GCV * 100 : 0;
+            asme_L2_fuel = GCV > 0 ? (M_w * (H_v - H_l)) / GCV * 100 : 0;
+            asme_L2_air  = GCV > 0 ? (M_wA * 1.88 * (Tg - Ta)) / GCV * 100 : 0;
+            asme_L2 = asme_L2_fuel + asme_L2_air;
 
             // Loss 3: Unburned CO loss [%GCV]  — LHV of CO = 10,160 kJ/kg (ASME PTC 4)
             n_dg_actual = n_C + n_S + n_N2 + 3.76 * n_O2_req * (1 + EA);  // mol dry gas / kg fuel
@@ -1297,7 +1337,7 @@ var TE_STEAM=(function(){
             // Hot Oil Heater: useful heat in kCal/hr -> kJ/h (1 kCal = 4.186 kJ)
             let q_kcal = parseFloat(document.getElementById('oil_q_kcal').value);
             if(isNaN(q_kcal) || q_kcal <= 0) { q_kcal = estOilQ(); }
-            if(q_kcal > 0) Q_out = q_kcal * 4.186;
+            if(q_kcal > 0) Q_out = q_kcal * 4.1868; // [แก้ไข 3 ต.ค. 2569 audit] 1 kcal(IT) = 4.1868 kJ (เดิม 4.186)
         } else {
             // Steam Boiler: W2(ton/h) x 1000 x (h_steam - h_water)
             const W2_ton = parseFloat(document.getElementById('steam_flow').value);
@@ -1312,6 +1352,14 @@ var TE_STEAM=(function(){
             dir_LHV = (Q_out / (F * mix.lhv * 1000)) * 100;
         }
 
+        // [แก้ไข 3 ต.ค. 2569 audit] ตรวจผลลัพธ์ที่เป็นไปไม่ได้ (η > 100 % หรือ ≤ 0)
+        [['ASME PTC 4 (GCV)', runASME ? asme_Eff : NaN], ['BS 845-1 (GCV)', runBS ? bs_Eff_G : NaN], ['BS 845-1 (NCV)', runBS ? bs_Eff_N : NaN], ['JIS (GCV)', runJIS ? jis_Eff_H : NaN], ['JIS (NCV)', runJIS ? jis_Eff_L : NaN], ['Direct (HHV)', dir_HHV > 0 ? dir_HHV : NaN], ['Direct (LHV)', dir_LHV > 0 ? dir_LHV : NaN]]
+          .forEach(function(p){ if(isFinite(p[1]) && (p[1] > 100 || p[1] <= 0)) boilerWarns.push('η ' + p[0] + ' = ' + p[1].toFixed(1) + ' % — เป็นไปไม่ได้ทางฟิสิกส์ (ตรวจอัตราไอน้ำ/เชื้อเพลิง, ค่าความร้อน, O₂, หน่วย)'); });
+        if(dir_HHV > 0 && runBS && Math.abs(dir_HHV - bs_Eff_G) > 10) boilerWarns.push('η Direct (' + dir_HHV.toFixed(1) + ' %) ต่างจาก Indirect BS 845 (' + bs_Eff_G.toFixed(1) + ' %) เกิน 10 จุด — ตรวจมิเตอร์ไอน้ำ/อัตราเชื้อเพลิง');
+        // [แก้ไข 3 ต.ค. 2569] เก็บผลหลักไว้ให้ teBuildECM() ใช้ (ไม่เปลี่ยนการคำนวณเดิม)
+        window.TE_BOILER_RES = { asme_Eff: asme_Eff, bs_Eff_G: bs_Eff_G, bs_Eff_N: bs_Eff_N, jis_Eff_H: jis_Eff_H, jis_Eff_L: jis_Eff_L,
+            bs_L1: bs_L1, bs_L2: bs_L2, bs_L3: bs_L3, LossRad: LossRad, Tg: Tg, Ta: Ta, O2: O2, CO_ppm: CO_ppm, Water_Pct: Water_Pct,
+            F: F, Q_out: Q_out, dir_HHV: dir_HHV, dir_LHV: dir_LHV, isOilMode: isOilMode, hhv: mix.hhv, lhv: mix.lhv, k: mix.k, co2max: mix.co2, c: mix.c, tramp: null }; // [แก้ไข 3 ต.ค. 2569]
         // --- Render Result Table ---
         const headRow = document.getElementById('tableHeaderRow');
         const body = document.getElementById('tableBody');
@@ -1364,7 +1412,7 @@ var TE_STEAM=(function(){
         if(isOilMode) {
             let q_kcal_p = parseFloat(document.getElementById('oil_q_kcal').value);
             if(isNaN(q_kcal_p) || q_kcal_p <= 0) { q_kcal_p = estOilQ(); }
-            if(q_kcal_p > 0) Q_pred = q_kcal_p * 4.186;
+            if(q_kcal_p > 0) Q_pred = q_kcal_p * 4.1868; // [แก้ไข 3 ต.ค. 2569 audit]
         } else {
             const W2_p = parseFloat(document.getElementById('steam_flow').value);
             const hx_p = parseFloat(document.getElementById('h_steam').value);
@@ -1421,6 +1469,7 @@ var TE_STEAM=(function(){
         }
 
         document.getElementById('results').style.display = 'block';
+        window.teBoilerWarn([], boilerWarns); // [แก้ไข 3 ต.ค. 2569 audit]
 
         // --- Render MathJax Steps (Formula Layout Version) ---
         let m_N2_fuel_disp = (n_N2 * 28.01);
@@ -1473,13 +1522,14 @@ var TE_STEAM=(function(){
 
                 <div class="calc-step-box">
                     <h4 class="step-title">Step 5: Moisture & Hydrogen Combustion Loss (\\( Q_{loss2} \\))</h4>
-                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ M_w = 8.936\\,H_f + M_f + w_A \\cdot M_{da} \\quad [\\text{kg moisture / kg fuel}] \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ M_w = 8.936\\,H_f + M_f \\;,\\quad M_{w,A} = w_A \\cdot M_{da} \\quad [\\text{kg/kg fuel}] \\]</div></div><!-- [แก้ไข 3 ต.ค. 2569 audit] แยกความชื้นอากาศ -->
                     <div class="calc-row"><div class="calc-label">Dry air mass:</div><div class="calc-content">\\[ M_{da} = 4.76 \\times n_{O_2,req} \\times (1+EA) \\times 28.97 = ${m_da.toFixed(4)} \\text{ kg/kg} \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ M_w = 8.936(${H_f.toFixed(4)}) + ${M_f.toFixed(4)} + 0.013(${m_da.toFixed(4)}) = ${M_w.toFixed(4)} \\text{ kg/kg} \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ M_w = 8.936(${H_f.toFixed(4)}) + ${M_f.toFixed(4)} = ${M_w.toFixed(4)} \\;,\\quad M_{w,A} = 0.013(${m_da.toFixed(4)}) = ${M_wA.toFixed(4)} \\text{ kg/kg} \\]</div></div>
                     <hr style="border-top:1px dashed #eee; margin: 10px 0;">
                     <div class="calc-row"><div class="calc-label">Enthalpy:</div><div class="calc-content">\\[ H_{v,T_g} = 2501 + 1.88\\,T_g = ${H_v.toFixed(2)} \\text{ kJ/kg}, \\quad H_{l,T_a} = 4.186\\,T_a = ${H_l.toFixed(2)} \\text{ kJ/kg} \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ Q_{loss2} = \\frac{M_w \\times (H_{v,T_g} - H_{l,T_a})}{GCV} \\times 100 \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ Q_{loss2} = \\frac{${M_w.toFixed(4)} \\times (${H_v.toFixed(2)} - ${H_l.toFixed(2)})}{${GCV.toFixed(0)}} \\times 100 = ${asme_L2.toFixed(2)}\\% \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ Q_{loss2} = \\frac{M_w (H_{v,T_g} - H_{l,T_a}) + M_{w,A}\\, c_{p,v} (T_g - T_a)}{GCV} \\times 100 ,\\; c_{p,v}=1.88 \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ Q_{loss2} = \\frac{${M_w.toFixed(4)} (${H_v.toFixed(2)} - ${H_l.toFixed(2)}) + ${M_wA.toFixed(4)} \\times 1.88 \\times (${Tg.toFixed(1)} - ${Ta.toFixed(1)})}{${GCV.toFixed(0)}} \\times 100 = ${asme_L2_fuel.toFixed(2)} + ${asme_L2_air.toFixed(2)} = ${asme_L2.toFixed(2)}\\% \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">หมายเหตุ:</div><div class="calc-content">ความชื้นในอากาศเป็นไอน้ำอยู่แล้วเมื่อเข้าหม้อไอน้ำ จึงคิดเฉพาะความร้อนสัมผัส (ASME PTC 4) — แก้ไข 3 ต.ค. 2569</div></div>
                 </div>
 
                 <div class="calc-step-box">
@@ -1677,18 +1727,25 @@ var TE_STEAM=(function(){
                 return (co2f+cof) > 0 ? (mix.kco * cof)/(co2f+cof) : 0;
             };
 
+            // [แก้ไข 3 ต.ค. 2569 audit] CO loss (มวล CO ต่อ kg เชื้อเพลิงเท่ากันทุกกรณี) ไม่ใช่ผลของอากาศรั่ว/การตั้งพัดลม → ใส่ค่าเดียวกันทั้ง 3 กรณี
+            //    เดิม l3_fan = 0 ทำให้ Infiltration Penalty รวม CO loss ทั้งหมด → มาตรการ Tramp Air เกิน ~12.5 %
             const l1_st = dryLoss(0),   l1_fan = dryLoss(o2Fan), l1_act = dryLoss(O2);
             const l2_st = moistLoss,    l2_fan = moistLoss,       l2_act = moistLoss;
-            const l3_st = 0,            l3_fan = 0,               l3_act = coLoss(O2);
+            const l3_act = coLoss(O2),  l3_st = l3_act,           l3_fan = l3_act;
             const tot_st  = l1_st  + l2_st  + l3_st;
             const tot_fan = l1_fan + l2_fan + l3_fan;
             const tot_act = l1_act + l2_act + l3_act;
-            const penFan  = tot_fan - tot_st;
-            const penLeak = tot_act - tot_fan;
+            const trampValid = mix.c > 0 && fanMass > 0 && fanMass < totalMass;   // [แก้ไข 3 ต.ค. 2569 audit] ใช้ได้เมื่อมีธาตุ C และลมพัดลม < ลมรวม
+            const penFan  = mix.c > 0 ? tot_fan - tot_st : NaN;
+            const penLeak = trampValid ? tot_act - tot_fan : 0;
+            const trampWarn = [];
+            if (mix.c <= 0) trampWarn.push('เชื้อเพลิงไม่มีข้อมูลธาตุ C (เลือกจากฐานข้อมูลสำเร็จรูป) — อากาศเชิงทฤษฎีคำนวณไม่ได้ ผลแท็บนี้ใช้ไม่ได้ (ไม่ส่งออกมาตรการ Tramp Air)');
+            else if (fanMass >= totalMass) trampWarn.push('ลมจากพัดลม (' + Math.round(fanMass).toLocaleString('en-US') + ' kg/h) ≥ ลมรวมจาก O₂ ไอเสีย (' + Math.round(totalMass).toLocaleString('en-US') + ' kg/h) — ไม่พบอากาศรั่ว หรือค่าลมพัดลม/อัตราเชื้อเพลิงคลาดเคลื่อน (Infiltration Penalty = 0, O₂ พัดลมล้วน ' + o2Fan.toFixed(1) + ' % > O₂ วัดจริง เป็นไปไม่ได้)');
+            if (window.TE_BOILER_RES) window.TE_BOILER_RES.tramp = trampValid ? { fanMass: fanMass, totalMass: totalMass, leakMass: leakMass, leakPct: leakPct, o2Fan: o2Fan, eaFan: eaFan, eaAct: eaAct, tot_fan: tot_fan, tot_act: tot_act, penFan: penFan, penLeak: penLeak } : null; // [แก้ไข 3 ต.ค. 2569] [แก้ไข 3 ต.ค. 2569 audit] null เมื่อผลใช้ไม่ได้
 
             const fmt0 = (x) => x.toLocaleString('en-US', {maximumFractionDigits: 0});
 
-            trampHtml = `
+            trampHtml = (trampWarn.length ? `<div style="background:#fdecec;border:1px solid #f5a0a0;border-radius:8px;padding:10px 14px;color:#b42318;margin-bottom:12px;">⛔ ${trampWarn.join('<br>⛔ ')}</div>` : ``) + `
                 <div style="background:#fdf6e3; border:1px solid #f5d28a; border-radius:8px; padding:12px 15px; margin-bottom:20px;">
                     <div style="font-weight:bold; color:#b9770d; margin-bottom:8px;"><i class="fas fa-link"></i> ข้อมูลที่ดึงมาใช้อัตโนมัติ (Inherited from Fuel Mix & Flue Gas)</div>
                     <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:6px 14px; font-size:0.88rem; color:#5b4a1f;">
@@ -1740,7 +1797,7 @@ var TE_STEAM=(function(){
                             <tr><td style="text-align:left;">Excess Air (%)</td><td>0.00</td><td style="color:#2471a3;">${eaFan.toFixed(2)}</td><td style="color:#c0392b; font-weight:bold;">${eaAct.toFixed(2)}</td></tr>
                             <tr><td style="text-align:left;">Dry Flue Gas (Q<sub>loss1</sub>)</td><td>${l1_st.toFixed(2)}</td><td style="color:#2471a3;">${l1_fan.toFixed(2)}</td><td style="color:#c0392b; font-weight:bold;">${l1_act.toFixed(2)}</td></tr>
                             <tr><td style="text-align:left;">Moisture (Q<sub>loss2</sub>)</td><td>${l2_st.toFixed(2)}</td><td style="color:#2471a3;">${l2_fan.toFixed(2)}</td><td style="color:#c0392b; font-weight:bold;">${l2_act.toFixed(2)}</td></tr>
-                            <tr><td style="text-align:left;">Incomplete CO (Q<sub>loss3</sub>)</td><td style="color:#999;">0.00</td><td style="color:#2471a3;">${l3_fan.toFixed(2)}</td><td style="color:#c0392b; font-weight:bold;">${l3_act.toFixed(2)}</td></tr>
+                            <tr><td style="text-align:left;">Incomplete CO (Q<sub>loss3</sub>) <span style="font-size:0.8em;color:#777;">— คงที่ทุกกรณี ไม่นับเป็นผลของอากาศรั่ว</span></td><td style="color:#999;">${l3_st.toFixed(2)}</td><td style="color:#2471a3;">${l3_fan.toFixed(2)}</td><td style="color:#c0392b; font-weight:bold;">${l3_act.toFixed(2)}</td></tr>
                             <tr class="hl-row"><td style="text-align:left;">รวมสูญเสียทางปล่อง (Total Stack Loss %)</td><td>${tot_st.toFixed(2)}</td><td>${tot_fan.toFixed(2)}</td><td>${tot_act.toFixed(2)}</td></tr>
                         </tbody>
                     </table>
@@ -1749,7 +1806,7 @@ var TE_STEAM=(function(){
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:5px;">
                     <div style="border:1px solid #f5cba7; background:#fef5e7; border-radius:8px; padding:15px; text-align:center;">
                         <div style="font-size:0.85rem; color:#b9770d; font-weight:bold; text-transform:uppercase; margin-bottom:6px;">Fan Tuning Penalty<br><span style="font-size:0.78em; font-weight:normal;">สูญเสียจากการตั้งพัดลม (เกินอุดมคติ)</span></div>
-                        <div style="font-family:monospace; font-size:1.6rem; font-weight:bold; color:#e67e22;">${penFan.toFixed(2)} %</div>
+                        <div style="font-family:monospace; font-size:1.6rem; font-weight:bold; color:#e67e22;">${isFinite(penFan) ? penFan.toFixed(2) + ' %' : '—'}</div>
                     </div>
                     <div style="border:1px solid #f5b7b1; background:#fdedec; border-radius:8px; padding:15px; text-align:center;">
                         <div style="font-size:0.85rem; color:#c0392b; font-weight:bold; text-transform:uppercase; margin-bottom:6px;">Infiltration Penalty<br><span style="font-size:0.78em; font-weight:normal;">สูญเสียเพิ่มจากอากาศรั่วไหล</span></div>
@@ -1797,7 +1854,8 @@ var TE_STEAM=(function(){
     const JSON_NUM_FIELDS = ['ta','tg','o2','co_ppm','rad_loss','fuel_flow',
         'steam_flow','steam_press','steam_temp','cp_sup','feed_temp','h_steam',
         'oil_q_kcal','oil_flow','oil_cp','oil_tin','oil_tout',
-        'fan_vol','fan_rh'];
+        'fan_vol','fan_rh',
+        'te_ecm_hours','te_ecm_price','te_ecm_o2t','te_ecm_tgt']; // [แก้ไข 3 ต.ค. 2569 audit] เดิมไม่บันทึกช่อง ECM 4 ช่อง → โหลดกลับแล้วมาตรการ/ค่าเงินหาย
     const CUST_JSON_FIELDS = ['c','h','o','n','s','ash','w'];
 
     function jsGetVal(id){ const el = document.getElementById(id); return el ? el.value : ''; }
@@ -2016,5 +2074,99 @@ var TE_STEAM=(function(){
     };
 </script>
 
+<!-- [แก้ไข 3 ต.ค. 2569] TE_ECM export -->
+<script>
+/* TE_ECM — ส่งออกมาตรการไป ECM Portfolio (schema v1) [แก้ไข 3 ต.ค. 2569] */
+var TE_ECM=(function(){
+  function clean(o){var r={};Object.keys(o||{}).forEach(function(k){var v=o[k];if(v===undefined||v===null)return;if(typeof v==='number'&&!isFinite(v))return;r[k]=v;});return r;}
+  function save(tool,site,measures,pools){
+    var ms=(measures||[]).map(clean).filter(function(m){return m.id&&m.name&&m.effect&&m.carrier;});
+    if(!ms.length){alert('ยังไม่มีมาตรการที่คำนวณผลประหยัดได้ — กรุณากรอกข้อมูล/คำนวณก่อนส่งออก');return null;}
+    var d={meta:{schema:'TE_ECM',version:1,tool:tool,exportedAt:new Date().toISOString(),site:site||''},pools:(pools||[]).map(clean),measures:ms};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');
+    a.href=URL.createObjectURL(b);a.download=tool+'_ECM_'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},2000);return d;}
+  return{save:save,clean:clean};
+})();
+
+/* [แก้ไข 3 ต.ค. 2569] teBuildECM — สร้างรายการมาตรการจากผล calculateAll() (window.TE_BOILER_RES) */
+function teBuildECM(){
+  try { if (typeof calculateAll === 'function') calculateAll(); } catch(e) { console.warn('calculateAll', e); }
+  var R = window.TE_BOILER_RES, measures = [], pools = [];
+  var site = ((document.getElementById('save_note') || {}).value || '').trim();
+  if (!R) return { measures: measures, pools: pools, site: site };
+  function num(id){ var el = document.getElementById(id); var v = el ? parseFloat(el.value) : NaN; return isFinite(v) ? v : NaN; }
+  function r(x, d){ var p = Math.pow(10, d == null ? 3 : d); return Math.round(x * p) / p; }
+  var hours = num('te_ecm_hours'); if (!(hours > 0)) hours = NaN;
+  var price = num('te_ecm_price'); if (!(price > 0)) price = NaN;
+  var o2t = num('te_ecm_o2t'), tgt = num('te_ecm_tgt');
+  var oil = !!R.isOilMode;
+  var carrier = oil ? 'thermaloil' : 'steam', unit = oil ? 'GJ' : 't';
+  // ชื่อเชื้อเพลิงจากตารางผสม
+  var fuelName = '';
+  try { fuelName = (collectInputData().fuelMix || []).filter(function(f){ return f.fuelName && parseFloat(f.pct) > 0; })
+        .map(function(f){ return f.fuelName.replace(/^[>\s]+|[<\s]+$/g, '') + (parseFloat(f.pct) < 100 ? ' ' + parseFloat(f.pct) + '%' : ''); }).join(' + '); } catch(e) {}
+  // พลังงานเชื้อเพลิง (LHV) ต่อชั่วโมง: ใช้ F ที่วัดจริง ถ้าไม่มีใช้ Q_out / η_LHV(BS 845)
+  var fuelGJh = NaN, fuelKgh = NaN, fuelSrc = '';
+  if (R.F > 0 && R.lhv > 0) { fuelKgh = R.F; fuelGJh = R.F * R.lhv / 1000; fuelSrc = 'F วัดจริง'; }
+  else if (R.Q_out > 0 && R.bs_Eff_N > 0) { fuelGJh = R.Q_out / (R.bs_Eff_N / 100) / 1e6; if (R.lhv > 0) fuelKgh = fuelGJh * 1000 / R.lhv; fuelSrc = 'Q_out/η_LHV'; }
+  // ปริมาณทุติยภูมิต่อชั่วโมง
+  var W2 = num('steam_flow');
+  var secPerH = oil ? (R.Q_out > 0 ? R.Q_out / 1e6 : NaN) : (W2 > 0 ? W2 : NaN);   // t/h หรือ GJ/h
+  var factor = (fuelGJh > 0 && secPerH > 0) ? fuelGJh / secPerH : NaN;
+  var baseSec = (secPerH > 0 && hours > 0) ? secPerH * hours : NaN;
+  if (secPerH > 0) pools.push({ carrier: carrier, name: oil ? ('น้ำมันร้อน' + (site ? ' ' + site : '')) : ('ไอน้ำ' + (site ? ' ' + site : '')),
+      unit: unit, baselineQty: isFinite(baseSec) ? r(baseSec, 1) : undefined,
+      factor: isFinite(factor) ? r(factor, 4) : undefined, factorUnit: oil ? 'GJ/GJ' : 'GJ/t', drawFrom: 'fuel', fuelName: fuelName || undefined, hvBasis: 'LHV' }); // [แก้ไข 3 ต.ค. 2569 audit] ระบุฐานค่าความร้อนของ factor (Steam Master = HHV)
+  var eta0 = R.bs_Eff_G; // η (GCV) ตาม BS 845-1 Siegert — ฐานเดียวกับการคิดค่าสูญเสียด้านล่าง
+  function siegertL1(o2, tg){ var co2c = R.co2max * (O2_AIR - o2) / O2_AIR; return co2c > 0 ? R.k * (tg - R.Ta) / co2c : NaN; }
+  function siegertL2(tg){ return R.hhv > 0 ? R.Water_Pct * (2488 + 2.1 * tg - 4.2 * R.Ta) / (R.hhv * 1000) : NaN; }
+  function add(m, dEta, etaBase){
+    var etaB = (etaBase > 0) ? etaBase : eta0;  // [แก้ไข 3 ต.ค. 2569 audit] ฐาน η ของมาตรการ (มาตรการที่ทำต่อจากอีกมาตรการเริ่มจาก η หลังมาตรการก่อนหน้า)
+    if (!(etaB > 0) || !(dEta > 0)) return;
+    var eta1 = etaB + dEta, pct = (1 - etaB / eta1) * 100;
+    if (!(pct > 0)) return;
+    m.system = 'boiler'; m.effect = 'conversion'; m.carrier = carrier; m.unit = unit; m.group = 'measured';
+    m.savingPct = r(pct, 3);
+    if (isFinite(baseSec)) m.baselineQty = r(baseSec, 1);
+    if (fuelName) m.fuelName = fuelName;
+    if (fuelGJh > 0 && hours > 0) {
+      m.primary = { fuel_GJ: r(fuelGJh * hours * pct / 100, 1) };
+      if (fuelKgh > 0 && price > 0) m.savingTHB = Math.round(fuelKgh * hours * pct / 100 / 1000 * price);
+    }
+    m.basis = m.basis + ' · η เดิม ' + etaB.toFixed(2) + '% → η ใหม่ ' + eta1.toFixed(2) + '% (GCV, BS 845-1) · savingPct = (1 − η เดิม/η ใหม่)×100'
+      + (fuelGJh > 0 ? ' · เชื้อเพลิงฐาน ' + fuelGJh.toFixed(3) + ' GJ/h (' + fuelSrc + ')' + (fuelKgh > 0 ? ' ≈ ' + fuelKgh.toFixed(1) + ' kg/h' : '') : '')
+      + (hours > 0 ? ' × ' + hours + ' ชม./ปี' : ' · ไม่ระบุชั่วโมงเดินเครื่อง จึงไม่คิดปริมาณรายปี');
+    measures.push(m);
+  }
+  // M1 อุดอากาศรั่ว (Tramp Air) — penalty จากแท็บ Tramp Air
+  var T = R.tramp;
+  var trampOn = !!(T && T.penLeak > 0 && T.leakMass > 0 && T.o2Fan < R.O2);  // [แก้ไข 3 ต.ค. 2569 audit]
+  if (trampOn) add({ id: 'boiler-tramp-air', name: 'อุดรอยรั่วอากาศเข้าห้องเผาไหม้/ทางเดินไอเสีย (Tramp Air)',
+      mvOption: 'A', keyParams: ['O₂ ไอเสีย (%)', 'T_g ไอเสีย (°C)', 'ปริมาณลม FD (m³/h)', 'อัตราเชื้อเพลิง (kg/h)'],
+      basis: 'ลดอากาศรั่ว ' + T.leakMass.toFixed(0) + ' kg/h (' + T.leakPct.toFixed(1) + '% ของอากาศรวม) ทำให้ O₂ ลดจาก ' + R.O2.toFixed(2) + '% เหลือ ' + T.o2Fan.toFixed(2) + '% (เท่าลมพัดลมล้วน) · Infiltration Penalty = ' + T.penLeak.toFixed(2) + '% (Siegert)' }, T.penLeak);
+  // M2 ปรับอากาศส่วนเกินให้ได้ O₂ เป้าหมาย (กรอกเอง)
+  // [แก้ไข 3 ต.ค. 2569 audit] มาตรการอุดอากาศรั่วกับปรับ O₂ ลด O₂ ตัวเดียวกัน — ปรับ O₂ เริ่มจาก O₂ หลังอุดรั่ว (o2Fan) และ η หลังอุดรั่ว เพื่อไม่นับซ้ำ
+  var o2Start = trampOn ? T.o2Fan : R.O2, etaStart = trampOn ? eta0 + T.penLeak : eta0;
+  if (o2t >= 0 && o2t < o2Start) {
+    var d2 = siegertL1(o2Start, R.Tg) - siegertL1(o2t, R.Tg);
+    add({ id: 'boiler-o2-tuning', name: 'ปรับแต่งการเผาไหม้ ลดอากาศส่วนเกิน (O₂ ' + o2Start.toFixed(1) + '→' + o2t.toFixed(1) + '%)',
+      mvOption: 'B', keyParams: ['O₂ ไอเสีย (%)', 'CO (ppm)', 'T_g ไอเสีย (°C)', 'อัตราเชื้อเพลิง (kg/h)', 'ปริมาณไอน้ำ (t/h)'],
+      basis: 'ΔL1 = k(Tg−Ta)/CO₂ ที่ O₂ เริ่ม − ที่ O₂ เป้าหมาย = ' + (d2 > 0 ? d2.toFixed(2) : '0') + '% (Siegert, Tg คงที่)'
+        + (trampOn ? ' · ต่อจากมาตรการอุดอากาศรั่ว: O₂ เริ่มที่ ' + o2Start.toFixed(2) + '% (หลังอุดรั่ว) ไม่ใช่ ' + R.O2.toFixed(2) + '% เพื่อไม่นับผลลด O₂ ซ้ำ' : '') }, d2, etaStart);
+  }
+  // M3 ลดอุณหภูมิไอเสีย (economizer / ทำความสะอาดผิวถ่ายเทความร้อน) — Tg เป้าหมาย (กรอกเอง)
+  if (tgt > R.Ta && tgt < R.Tg) {
+    var d3 = (siegertL1(R.O2, R.Tg) + siegertL2(R.Tg)) - (siegertL1(R.O2, tgt) + siegertL2(tgt));
+    add({ id: 'boiler-flue-temp', name: 'ลดอุณหภูมิไอเสีย (Economizer/ทำความสะอาดผิวถ่ายเทความร้อน) Tg ' + R.Tg.toFixed(0) + '→' + tgt.toFixed(0) + ' °C',
+      mvOption: 'B', keyParams: ['T_g ไอเสีย (°C)', 'O₂ ไอเสีย (%)', 'อุณหภูมิน้ำป้อน (°C)', 'อัตราเชื้อเพลิง (kg/h)', 'ปริมาณไอน้ำ (t/h)'],
+      basis: 'ΔL = (L1+L2 ที่ Tg เดิม) − (L1+L2 ที่ Tg เป้าหมาย) = ' + (d3 > 0 ? d3.toFixed(2) : '0') + '% (Siegert)' }, d3);
+  }
+  return { measures: measures, pools: pools, site: site };
+}
+window.teBuildECM = teBuildECM;
+function teExportECM(){ var r = teBuildECM(); TE_ECM.save('EnPI_Boiler_Efficiency_Calculator', r.site, r.measures, r.pools); } // [แก้ไข 3 ต.ค. 2569]
+window.teExportECM = teExportECM;
+</script>
 </body>
 </html>

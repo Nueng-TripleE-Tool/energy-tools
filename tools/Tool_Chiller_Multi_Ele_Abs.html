@@ -1251,10 +1251,13 @@ function buildSeqConfig() {
   const num = parseInt(document.getElementById('numChillers').value);
   const container = document.getElementById('seqChillerConfig');
   // [แก้ไข 10 ก.ย. 2569] เก็บค่าที่ผู้ใช้แก้ไว้ก่อน rebuild (เดิมคลิกแท็บ Sequencing ทีไร ค่า Cap/Min/Priority ถูกล้างทุกครั้ง)
+  // [แก้ไข 3 ต.ค. 2569 audit] เดิม "เก็บค่าที่ผู้ใช้แก้" เก็บทุกช่องที่ไม่ว่าง → ค่าความจุ/ลำดับเก่าค้างแม้แท็บ 1 เปลี่ยนแล้ว (Seq ใช้ 500/300 RT แทน 600/400)
+  //   ตอนนี้แต่ละช่องจำค่าต้นทาง (data-src) ที่ใช้สร้าง — ถือว่า "ผู้ใช้แก้" เฉพาะเมื่อค่าปัจจุบัน ≠ ค่าต้นทาง; ถ้าไม่ได้แก้ → ดึงค่าใหม่จากแท็บ 1
   const prev = {};
+  const edited = el => !!el && el.value !== '' && (el.dataset.src === undefined || String(el.value) !== String(el.dataset.src));
   for (let i = 1; i <= 20; i++) {
     const c = document.getElementById(`seq_cap_${i}`), m = document.getElementById(`seq_min_${i}`), p = document.getElementById(`seq_prio_${i}`);
-    if (c) prev[i] = { cap: c.value, min: m ? m.value : null, prio: p ? p.value : null };
+    if (c) prev[i] = { cap: edited(c) ? c.value : null, min: edited(m) ? m.value : null, prio: edited(p) ? p.value : null };
   }
   container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>#</th><th>Name</th><th>Type</th><th>Source</th><th>Cap (RT)</th><th>Min Load %</th><th>Priority</th></tr></thead><tbody id="seqBody"></tbody></table></div>';
   const sb = document.getElementById('seqBody');
@@ -1267,16 +1270,18 @@ function buildSeqConfig() {
     let minLoad = type === 'Centrifugal' ? 25 : type.startsWith('Abs') ? 30 : 30;
     let prio = src==='Exhaust'?1:src==='Steam'||src==='Hot Water'?2:type==='Centrifugal'?3:type==='Screw'?4:5;
     let capVal = cap;
-    if (prev[i]) { if (prev[i].cap !== '') capVal = prev[i].cap; if (prev[i].min !== null && prev[i].min !== '') minLoad = +prev[i].min; if (prev[i].prio) prio = +prev[i].prio; }
+    const srcCap = cap, srcMin = minLoad, srcPrio = prio; // [แก้ไข 3 ต.ค. 2569 audit] ค่าต้นทางจากแท็บ 1 / ค่าอัตโนมัติ
+    if (prev[i]) { if (prev[i].cap !== null) capVal = prev[i].cap; if (prev[i].min !== null) minLoad = +prev[i].min; if (prev[i].prio !== null) prio = +prev[i].prio; }
+    const capNote = (String(capVal) !== String(srcCap)) ? `<div style="font-size:10px;color:var(--amber);">แท็บ 1: ${srcCap}</div>` : '';
     sb.insertAdjacentHTML('beforeend', `
       <tr>
         <td>${i}</td>
         <td class="hi">${name}</td>
         <td style="font-size:11px;">${type}</td>
         <td style="color:${isElec?'var(--green)':'var(--amber)'}; font-weight:600;">${src}</td>
-        <td><input type="number" id="seq_cap_${i}" value="${capVal}" style="width:70px; padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-family:var(--mono); font-size:12px; outline:none; background:#f8faff;"></td>
-        <td><input type="number" id="seq_min_${i}" value="${minLoad}" style="width:60px; padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-family:var(--mono); font-size:12px; outline:none; background:#f8faff;">%</td>
-        <td><select id="seq_prio_${i}" style="padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-family:var(--mono); font-size:12px; outline:none; background:#f8faff;">
+        <td><input type="number" id="seq_cap_${i}" value="${capVal}" data-src="${srcCap}" style="width:70px; padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-family:var(--mono); font-size:12px; outline:none; background:#f8faff;">${capNote}</td>
+        <td><input type="number" id="seq_min_${i}" value="${minLoad}" data-src="${srcMin}" style="width:60px; padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-family:var(--mono); font-size:12px; outline:none; background:#f8faff;">%</td>
+        <td><select id="seq_prio_${i}" data-src="${srcPrio}" style="padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-family:var(--mono); font-size:12px; outline:none; background:#f8faff;">
           ${[1,2,3,4,5].map(p=>`<option value="${p}" ${p===prio?'selected':''}>P${p}</option>`).join('')}
         </select></td>
       </tr>`);
@@ -1291,7 +1296,7 @@ function runSequencing() {
   let chillers = [];
   for (let i = 1; i <= num; i++) {
     const cap  = parseFloat(document.getElementById(`seq_cap_${i}`)?.value) || 0;
-    const minL = parseFloat(document.getElementById(`seq_min_${i}`)?.value) || 30;
+    const minLv = parseFloat(document.getElementById(`seq_min_${i}`)?.value); const minL = isFinite(minLv) ? minLv : 30; // [แก้ไข 3 ต.ค. 2569 audit] 0 % ไม่ถูกแทนเป็น 30 %
     const prio = parseInt(document.getElementById(`seq_prio_${i}`)?.value) || 3;
     const name = document.getElementById(`name_${i}`)?.value || 'CH-'+i;
     const type = document.getElementById(`type_${i}`)?.value || 'Screw';

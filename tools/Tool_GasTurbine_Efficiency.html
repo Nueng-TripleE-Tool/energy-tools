@@ -425,6 +425,12 @@ details.steps .steps-body{padding:10px 12px;}
     <label>ประสิทธิภาพห้องเผาไหม้ η_cc (%)</label>
     <input type="number" id="eta_cc" value="99" step="0.5" min="80" max="100" onchange="markStale()">
     <div class="src"><b>ข้อมูล:</b> สัดส่วนความร้อนเชื้อเพลิงที่ปล่อยจริงในห้องเผาไหม้ <b>ที่มา:</b> OEM Spec — Natural Gas ทั่วไป 98–99.5% (ไม่ทราบใช้ 99)</div>
+    <!-- [แก้ไข 3 ต.ค. 2569 audit] ฐาน Q_in ของ η_th/HR: ค่าเริ่มต้น = พลังงานเชื้อเพลิงที่ป้อน (ṁ_f×LHV, ASME PTC 22) ให้ตรงกับแท็บ Trend Log; ทางเลือกเดิม = ความร้อนที่ก๊าซรับ (×η_cc) -->
+    <label>ฐาน Q_in สำหรับ η_th / Heat Rate</label>
+    <select id="qinBasis" onchange="markStale()">
+      <option value="fuel" selected>พลังงานเชื้อเพลิงที่ป้อน ṁ_f×LHV (ASME PTC 22 — แนะนำ)</option>
+      <option value="absorbed">ความร้อนที่ก๊าซรับ ṁ_f×LHV×η_cc (แบบเดิม)</option>
+    </select><div class="hint te">Heat Rate ตาม datasheet/ASME PTC 22 คิดจากพลังงานเชื้อเพลิงที่ป้อน — แบบเดิม (×η_cc) ให้ η สูงไป/HR ต่ำไป ≈ 1/η_cc (~1 %) และไม่ตรงกับแท็บ Trend Log</div>
     <label>ค่าความร้อน LHV เชื้อเพลิง (kJ/kg)</label>
     <input type="number" id="lhv" value="50000" step="100" onchange="markStale()">
     <div class="src"><b>ข้อมูล:</b> ค่าความร้อนต่ำ (LHV) ของเชื้อเพลิง หน่วย kJ/kg <b>ที่มา:</b> ใบวิเคราะห์คุณภาพแก๊สรายเดือน (Gas Chromatograph) จาก ปตท./ผู้ขาย — ถ้าได้เป็น MJ/Nm³ ให้หาร &#961; (kg/Nm³) ก่อน เช่น 38 MJ/Nm³ ÷ 0.76 = 50,000 kJ/kg</div>
@@ -591,7 +597,7 @@ details.steps .steps-body{padding:10px 12px;}
           <div class="feq">W_turbine = m&#775;_exhaust &#215; w_t &nbsp;|&nbsp; W_comp = m&#775;_comp,in &#215; w_c</div>
           <div class="feq">P_shaft = W_turbine &#8722; W_comp &nbsp;|&nbsp; BWR = W_comp/W_turbine &#215; 100%</div>
           <div class="feq">P_elec = P_shaft &#215; &#951;_mech &#215; &#951;_gen</div>
-          <div class="feq">Q_in = m&#775;_fuel &#215; LHV &#215; &#951;_cc &nbsp;|&nbsp; &#951;_th = P_elec / Q_in</div>
+          <div class="feq">Q_in = m&#775;_fuel &#215; LHV (ASME PTC 22) &nbsp;|&nbsp; &#951;_th = P_elec / Q_in</div><!-- [แก้ไข 3 ต.ค. 2569 audit] ฐานเชื้อเพลิงที่ป้อน -->
           <div class="feq">Heat Rate = 3600 / &#951;_th &nbsp;(kJ/kWh)</div>
         </div>
         <div class="fbox">
@@ -749,7 +755,7 @@ details.steps .steps-body{padding:10px 12px;}
       <div class="fbox">
         <div class="ftitle">Conservation of Energy</div>
         <div class="feq">Q_in = W_net + Q_out</div>
-        <div class="feq">Q_in = ṁ_fuel × LHV × η_cc &nbsp;(kW)</div>
+        <div class="feq">Q_in = ṁ_fuel × LHV &nbsp;(kW, เชื้อเพลิงที่ป้อน) · ความร้อนที่ก๊าซรับ = ṁ_fuel × LHV × η_cc</div><!-- [แก้ไข 3 ต.ค. 2569 audit] -->
         <div class="feq">W_turbine = ṁ_gas × w_t,actual &nbsp;(kW)</div>
         <div class="feq">W_compressor = ṁ_air × w_c,actual &nbsp;(kW)</div>
         <div class="feq">P_shaft = W_turbine − W_compressor</div>
@@ -815,7 +821,7 @@ details.steps .steps-body{padding:10px 12px;}
         <div class="ftitle">Heat Rate &amp; Efficiency Conversion</div>
         <div class="feq">HR (kJ/kWh) = 3600 / η_th</div>
         <div class="feq">HR (BTU/kWh) = 3412 / η_th</div>
-        <div class="feq">η_th = P_elec / Q_in = P_elec / (ṁ_f × LHV × η_cc)</div>
+        <div class="feq">η_th = P_elec / Q_in = P_elec / (ṁ_f × LHV)</div><!-- [แก้ไข 3 ต.ค. 2569 audit] -->
       </div>
       <div class="fbox">
         <div class="ftitle">Regenerative Cycle (Boyce, Ch.2)</div>
@@ -914,7 +920,7 @@ details.steps .steps-body{padding:10px 12px;}
             <div class="feq">η_th = P_gross ÷ Q_in &nbsp;|&nbsp; HR = 3600 ÷ η_th &nbsp;(kJ/kWh, ฐาน LHV, Gross)</div>
             <div class="feq">P_corr,ISO ≈ P_gross × (1013.25 ÷ P_baro) × [1 + k_P × (T_amb − 15)]</div>
             <div class="feq">HR_corr,ISO ≈ HR × [1 − k_HR × (T_amb − 15)]</div>
-            <div class="feq sub">หมายเหตุ: Q_in ใน Log = พลังงานเชื้อเพลิงที่ป้อน (Fuel × LHV) ตาม ASME PTC 22 — ไม่คูณ η_cc เหมือนแท็บผลลัพธ์ จึงได้ HR สูงกว่าแท็บผลลัพธ์ ≈ 1/η_cc (เช่น η_cc 99 % → ต่าง ~1 %)</div>
+            <div class="feq sub">หมายเหตุ: Q_in ใน Log = พลังงานเชื้อเพลิงที่ป้อน (Fuel × LHV) ตาม ASME PTC 22 — ฐานเดียวกับแท็บผลลัพธ์ (ค่าเริ่มต้น) <!-- [แก้ไข 3 ต.ค. 2569 audit] แท็บผลลัพธ์เปลี่ยนมาใช้ฐานเชื้อเพลิงที่ป้อนแล้ว HR สองแท็บจึงตรงกัน --></div>
             <div class="feq sub">การปรับแก้แบบเชิงเส้นนี้เป็นค่าประมาณสำหรับดูแนวโน้ม — การทดสอบตาม ASME PTC 22 ต้องใช้ Correction Curve ของ OEM (อุณหภูมิ, ความดัน, ความชื้น, ΔP inlet/exhaust, ความถี่, PF)</div>
           </div>
         </div>
@@ -1123,9 +1129,11 @@ function calcAll(){
   const h3  = Cp_g * T3_C;
   // Fuel-air ratio (FAR): q_in = Cp_g*(T3-T2) per kg air
   const q_in_perkg = Cp_g * (T3_C - T2_C);  // kJ/kg-air
-  const FAR  = q_in_perkg / (eta_cc * LHV);  // kg_fuel/kg_air
-  const m_fuel = m_air * FAR;                 // kg/s
   const m_comp_in = m_air + m_spray;          // มวลผ่านคอมเพรสเซอร์ = อากาศชื้น + สเปรย์ที่ระเหย
+  // [แก้ไข 3 ต.ค. 2569 audit] ไอน้ำจากสเปรย์ (fog/evap) ผ่านห้องเผาไหม้ด้วย ต้องได้รับความร้อน T₂→T₃ เช่นกัน — เดิมคิดเชื้อเพลิงต่อ kg อากาศแห้งอย่างเดียว (η สูงไป ~1 %)
+  const heatFac = m_air>0 ? m_comp_in/m_air : 1;
+  const FAR  = q_in_perkg * heatFac / (eta_cc * LHV);  // kg_fuel/kg_air (รวมความร้อนให้สเปรย์)
+  const m_fuel = m_air * FAR;                 // kg/s
   const m_gas = m_comp_in + m_fuel;           // มวลไอเสียออกกังหัน = อากาศ + สเปรย์ + เชื้อเพลิง
 
   // ── STEP 4: Turbine Expander / State 4 ───────────────────────────────────
@@ -1150,7 +1158,10 @@ function calcAll(){
   const w_net_kg  = P_shaft / m_air;         // kJ/kg-air (specific work)
 
   // ── STEP 6: Heat Input & Efficiency ──────────────────────────────────────
-  const Q_in  = m_fuel * LHV * eta_cc;       // kW (heat input)
+  // [แก้ไข 3 ต.ค. 2569 audit] Q_in = พลังงานเชื้อเพลิงที่ป้อน (ASME PTC 22) เป็นค่าเริ่มต้น ให้ HR ตรงกับแท็บ Trend Log; เลือกฐานเดิม (×η_cc) ได้ที่ qinBasis
+  const qinBasis = v('qinBasis')||'fuel';
+  const Q_abs = m_fuel * LHV * eta_cc;        // kW ความร้อนที่ก๊าซรับจริง
+  const Q_in  = qinBasis==='absorbed' ? Q_abs : m_fuel * LHV;   // kW (heat input สำหรับ η_th/HR)
   const Q_exh = m_gas * Cp_g * (T4_C - T1_C); // kW exhaust enthalpy above ambient
   const eta_th= P_elec / Q_in;               // thermal efficiency
   const HR    = 3600 / eta_th;               // kJ/kWh
@@ -1162,9 +1173,9 @@ function calcAll(){
   if(hasRegen && T4_C > T2_C){
     T2r_C = T2_C + eps_r * (T4_C - T2_C);
     q_in_regen = Cp_g * (T3_C - T2r_C);
-    const FAR_regen = q_in_regen / (eta_cc * LHV);
+    const FAR_regen = q_in_regen * heatFac / (eta_cc * LHV);  // [แก้ไข 3 ต.ค. 2569 audit] รวมความร้อนให้สเปรย์
     m_fuel_regen = m_air * FAR_regen;
-    const Q_in_regen = m_fuel_regen * LHV * eta_cc;
+    const Q_in_regen = m_fuel_regen * LHV * (qinBasis==='absorbed' ? eta_cc : 1);  // [แก้ไข 3 ต.ค. 2569 audit] ฐานเดียวกับ Q_in
     eta_th_regen = P_elec / Q_in_regen;
     Q_regen = m_air * Cp_a * (T2r_C - T2_C);  // kW heat recovered
   }
@@ -1177,8 +1188,21 @@ function calcAll(){
   }
   const P_display = P_meas > 0 ? P_meas : P_elec;
 
+  // ── [แก้ไข 3 ต.ค. 2569 audit] ตรวจความเป็นไปได้ทางฟิสิกส์ (กล่องเตือน ไม่ใช้ alert) ──
+  const plaus=[];
+  if(!(T3_C > T2_C)) plaus.push('TIT/T₃ ('+T3_C.toFixed(0)+' °C) ≤ T₂ ขาออกคอมเพรสเซอร์ ('+T2_C.toFixed(1)+' °C) — ห้องเผาไหม้ไม่ได้เติมความร้อน (FAR ติดลบ) ผลลัพธ์ใช้ไม่ได้');
+  if(!(eta_c>0) || !(eta_t>0) || !(eta_cc>0) || !(LHV>0) || !(m_air>0)) plaus.push('η_c, η_t, η_cc, LHV และ ṁ_air ต้องมากกว่า 0');
+  if(isFinite(P_elec) && P_elec<=0) plaus.push('กำลังไฟฟ้าสุทธิที่คำนวณได้ ≤ 0 kW ('+P_elec.toFixed(0)+' kW) — งานคอมเพรสเซอร์มากกว่างานกังหัน');
+  if(isFinite(eta_th_field) && (eta_th_field>=0.65 || eta_th_field<=0)) plaus.push('η_th = '+(eta_th_field*100).toFixed(1)+' % อยู่นอกช่วงที่เป็นไปได้ของกังหันก๊าซวัฏจักรเดี่ยว (0–60 %) — ตรวจ P_elec วัด, ṁ_air, LHV, TIT');
+  if(P_amb<0.5 || P_amb>1.2) plaus.push('ความดันบรรยากาศ '+P_amb.toFixed(3)+' bar a ผิดปกติ (ควร ≈ 0.9–1.05 bar a) — ตรวจหน่วย barG/barA ของ P₁');
+  (function(){ let w=document.getElementById('gt_plaus_warn'); const sb=document.getElementById('sum_result_box');
+    if(!w && sb && sb.parentNode){ w=document.createElement('div'); w.id='gt_plaus_warn'; w.className='err-box warn-box'; sb.parentNode.insertBefore(w,sb); }
+    if(w){ if(plaus.length){ w.style.display='block'; w.innerHTML='⛔ ค่าที่ป้อน/ผลลัพธ์เป็นไปไม่ได้ทางฟิสิกส์ — อย่านำไปรายงาน:<br>• '+plaus.join('<br>• '); } else { w.style.display='none'; w.innerHTML=''; } }
+  })();
+
   // ── Store ─────────────────────────────────────────────────────────────────
   RES = {
+    plaus, Q_abs, qinBasis, heatFac,
     T1_C,T2s_C,T2_C,T3_C,T4s_C,T4_C,
     P1,P2,
     h1,h2s,h2,h3,h4s,h4,
@@ -1238,7 +1262,7 @@ function updateUI(){
   const st_hr   = Math.abs(dev_hr)<2  ? 'good' : Math.abs(dev_hr)<5  ? 'warn' : 'bad';
   setH('ct_eth_des',f(r.ratedEff*100)+'%');setH('ct_eth_act',f(r.eta_th_field*100)+'%');
   setH('ct_eth_dev',(dev_eth>=0?'+':'')+f(dev_eth)+'%');
-  setH('ct_eth_st', badge(st_eth,'GOOD','CHECK','LOW'));
+  setH('ct_eth_st', (r.plaus&&r.plaus.length)?'<span class="badge bb">⛔ ตรวจสอบ</span>':badge(st_eth,'GOOD','CHECK','LOW')); /* [แก้ไข 3 ต.ค. 2569 audit] ไม่ติด GOOD เมื่อค่าเป็นไปไม่ได้ */
   setH('ct_pow_des',f(r.ratedPow,0)+' kW');setH('ct_pow_act',f(r.P_display,0)+' kW');
   setH('ct_pow_dev',(dev_pow>=0?'+':'')+f(dev_pow,1)+'%');
   setH('ct_pow_st', badge(st_pow,'OK','CHECK','LOW'));
@@ -1252,8 +1276,9 @@ function updateUI(){
 
   // ── Summary box ──
   const eta_pct = r.eta_th_field*100;
-  const cls = eta_pct>=34?'ok-box':eta_pct>=28?'warn-box':'err-box warn-box';
-  const msg = eta_pct>=34 ? '✅ η_th '+f(eta_pct)+'% — ดีเกินเกณฑ์ (≥34% Simple Cycle Modern GT)'
+  const bad_ = r.plaus&&r.plaus.length; /* [แก้ไข 3 ต.ค. 2569 audit] */
+  const cls = bad_?'err-box warn-box':eta_pct>=34?'ok-box':eta_pct>=28?'warn-box':'err-box warn-box';
+  const msg = bad_ ? '⛔ η_th '+f(eta_pct)+'% — เป็นไปไม่ได้ทางฟิสิกส์ ตรวจสอบค่าที่ป้อน: '+r.plaus.join(' · ') : eta_pct>=34 ? '✅ η_th '+f(eta_pct)+'% — ดีเกินเกณฑ์ (≥34% Simple Cycle Modern GT)'
     : eta_pct>=28 ? '⚠️ η_th '+f(eta_pct)+'% — ปานกลาง ตรวจสอบ TIT, Compressor Condition'
     : '❌ η_th '+f(eta_pct)+'% — ต่ำกว่าเกณฑ์ แนะนำ Full Inspection';
   document.getElementById('sum_result_box').innerHTML = `
@@ -1313,7 +1338,7 @@ STEP 7: NET POWER & EFFICIENCY
   W_compressor = ṁ_comp,in × w_c,act = ${f(r.m_comp_in,2)} × ${f(r.wc_act,2)} = ${f(r.W_comp,1)} kW
   P_shaft = W_turbine − W_comp = ${f(r.W_turbine,1)} − ${f(r.W_comp,1)} = ${f(r.P_shaft,1)} kW
   P_electric = P_shaft × η_mech × η_gen = ${f(r.P_shaft,1)} × ${f(r.eta_mech,4)} × ${f(r.eta_gen,4)} = ${f(r.P_elec,1)} kW
-  Q_in = ṁ_fuel × LHV × η_cc = ${f(r.m_fuel,4)} × ${f(r.LHV,0)} × ${f(r.eta_cc,3)} = ${f(r.Q_in,1)} kW
+  Q_in = ${r.qinBasis==='absorbed'?'ṁ_fuel × LHV × η_cc = '+f(r.m_fuel,4)+' × '+f(r.LHV,0)+' × '+f(r.eta_cc,3):'ṁ_fuel × LHV (เชื้อเพลิงที่ป้อน, ASME PTC 22) = '+f(r.m_fuel,4)+' × '+f(r.LHV,0)} = ${f(r.Q_in,1)} kW
   η_th = P_elec / Q_in = ${f(r.P_display,1)} / ${f(r.Q_in,1)} = ${f(r.eta_th_field*100,2)}%
   Heat Rate = 3600 / η_th = 3600 / ${f(r.eta_th_field,4)} = ${f(r.HR_field,1)} kJ/kWh
   BWR = W_comp / W_turbine = ${f(r.W_comp,1)} / ${f(r.W_turbine,1)} = ${f(r.BWR,2)}%`;
@@ -1329,7 +1354,7 @@ STEP 7: NET POWER & EFFICIENCY
   P_electric             = ${f(r.P_display,1)} kW
   Q_exhaust              = ${f(r.Q_exh,1)} kW  [T₄=${f(r.T4_C,1)}°C above ambient]
   Check: P_shaft + Q_exhaust ≈ Q_in?
-    ${f(r.P_shaft,1)} + ${f(r.Q_exh,1)} = ${f(r.P_shaft+r.Q_exh,1)} kW  |  Q_in = ${f(r.Q_in,1)} kW ${Math.abs(r.P_shaft+r.Q_exh-r.Q_in)<r.Q_in*0.01?'✓ OK':'⚠ CHECK Cp values'}
+    ${f(r.P_shaft,1)} + ${f(r.Q_exh,1)} = ${f(r.P_shaft+r.Q_exh,1)} kW  |  Q_absorbed (ṁ_f×LHV×η_cc) = ${f(r.Q_abs,1)} kW ${Math.abs(r.P_shaft+r.Q_exh-r.Q_abs)<r.Q_abs*0.01?'✓ OK':'⚠ CHECK Cp values'}
   η_th = ${f(r.eta_th_field*100,3)}%  |  HR = ${f(r.HR_field,1)} kJ/kWh
   ${r.hasRegen?`\nREGENERATOR:\n  T₄ = ${f(r.T4_C,1)}°C > T₂ = ${f(r.T2_C,1)}°C → regen possible\n  T₂r = T₂ + ε×(T₄−T₂) = ${f(r.T2_C,1)} + ${f(vn('eps_regen')/100,2)}×(${f(r.T4_C,1)}−${f(r.T2_C,1)}) = ${f(r.T2r_C,2)}°C\n  Q_regen = ${f(r.Q_regen,1)} kW  |  ṁ_fuel saved = ${f(r.m_fuel_save,4)} kg/s\n  η_th,regen = ${f(r.eta_th_regen*100,2)}%`:''}`;
   document.getElementById('energy_steps_text').textContent = estep;
@@ -1402,6 +1427,8 @@ function loadSample(name){
     document.getElementById('hasRegen').value='1'; onRegenChange();
     gv('eps_regen','82');
   }
+  // [แก้ไข 3 ต.ค. 2569 audit] ตัวอย่างเขียน p1 เป็น bar a (1.013) แต่หน่วยเริ่มต้นคือ barG → P_amb กลายเป็น 2.026 bar a; แปลงให้ตรงหน่วยปัจจุบัน
+  if(name!=='ssut_sgt800' && pressUnit==='barG'){ const pa=parseFloat(document.getElementById('p1').value); if(!isNaN(pa)) gv('p1', +(pa-P_ATM).toFixed(5)); }
   setTimeout(calcAll, 100);
 }
 
@@ -1430,7 +1457,7 @@ function togglePressUnit(){
     btn.style.background='rgba(245,158,11,.15)';
     // Convert displayed p1 barA → barG
     const cur = parseFloat(document.getElementById('p1').value)||1.013;
-    document.getElementById('p1').value = Math.max(0,(cur-P_ATM)).toFixed(4)*1;
+    document.getElementById('p1').value = Math.max(-P_ATM,(cur-P_ATM)).toFixed(5)*1;  // [แก้ไข 3 ต.ค. 2569 audit] ยอมให้ติดลบ (บรรยากาศ < 1 atm บนที่สูง)
     const c2 = parseFloat(document.getElementById('p2meas').value);
     if(!isNaN(c2)) document.getElementById('p2meas').value = Math.max(0,(c2-P_ATM)).toFixed(3)*1;
     if(hint) hint.textContent = 'barG: ระดับน้ำทะเล = 0.000 barG (= 1.013 barA)';

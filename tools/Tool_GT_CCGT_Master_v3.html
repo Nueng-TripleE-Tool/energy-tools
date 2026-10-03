@@ -419,6 +419,16 @@ var TE_STEAM=(function(){
     <div class="hint" id="gateHint">ยังไม่ได้กรอกมิเตอร์ซื้อขาย — ระบบใช้มิเตอร์ก่อนเข้าเครื่องเป็นฐานเดียว</div>
     <label>ราคาก๊าซ (บาท/MMBTU)</label>
     <input type="number" id="gasPrice" value="280" step="5">
+    <!-- [แก้ไข 3 ต.ค. 2569 audit] เพิ่มฐานราคาก๊าซ + ราคาไฟฟ้า (เดิมฝังค่า 800 และใช้ผิดหน่วย) -->
+    <label>ฐานค่าความร้อนของราคาก๊าซ</label>
+    <select id="gasPriceBasis">
+      <option value="gcv" selected>฿/MMBTU ฐาน GCV/HHV (ใบแจ้งหนี้ ปตท.)</option>
+      <option value="ncv">฿/MMBTU ฐาน NCV/LHV</option>
+    </select>
+    <div class="hint">ราคาก๊าซ ปตท. คิดต่อ MMBTU ฐาน GCV — ระบบแปลงเชื้อเพลิง (ฐาน LHV) เป็น MMBTU ด้วย GJ ÷ 1.055056 × HHV/LHV (ใช้อัตราส่วนจากช่อง HHV/LHV ที่กรอก)</div>
+    <label>ราคาพลังงานไฟฟ้า (บาท/kWh) — ใช้ตีค่ามาตรการเพิ่มกำลังผลิต</label>
+    <input type="number" id="elecPrice" value="3.0" step="0.05" min="0">
+    <div class="hint">ค่าตั้งต้น 3.0 ฿/kWh ≈ ราคาค่าพลังงาน (energy payment) ตามสัญญา PPA — <b>แก้ได้</b> ตามสัญญาจริง (เช่น ขายลูกค้าอุตสาหกรรม ~3.5–4.5 ฿/kWh) · ผลประหยัด = MW × 1000 × h/ปี × ฿/kWh ÷ 10⁶ = ล้านบาท/ปี</div>
     <label>ชั่วโมงเดิน/ปี (h/y)</label>
     <input type="number" id="opHours" value="8000" step="100">
     <label>T Ambient Site (°C)</label>
@@ -684,7 +694,8 @@ var TE_STEAM=(function(){
 // ══════════════════════════════════════════
 // CONSTANTS
 // ══════════════════════════════════════════
-var EF_NG=0.05444,EF_GRID=0.5244,MSCF_NM3=28.317,Cp_EXH=1.08,Cp_AIR=1.005,GAMMA=1.35;
+// [แก้ไข 3 ต.ค. 2569 audit] EF_NG 0.05444→0.0561 tCO₂/GJ (IPCC 2006 NG ฐาน NCV 56,100 kg/TJ) · EF_GRID 0.5244→0.4750 kgCO₂e/kWh (อบก./TGO)
+var EF_NG=0.0561,EF_GRID=0.4750,MSCF_NM3=28.317,Cp_EXH=1.08,Cp_AIR=1.005,GAMMA=1.35;
 var UCOLS=['#1a4fa0','#5c35a0','#0d7a6b','#b06a00'];
 var _res={gt:{},hrsg:{}},_ovr=null;
 
@@ -754,7 +765,7 @@ var GLOSS={
   'Power Correction':'ตัวคูณลดกำลัง GT จากสภาวะอากาศจริงเทียบ ISO (15°C, RH 60%, ระดับน้ำทะเล) — อากาศร้อน/เบาบาง ทำให้กำลังตก',
   'GT Site Rating':'พิกัดกำลัง GT ที่สภาวะอากาศหน้างานจริง (หลังคูณ Site Correction) — ใช้เป็นฐานเทียบแทนค่า ISO',
   'Site η':'ประสิทธิภาพ GT ที่คาดหวัง ณ สภาวะหน้างาน (ลดจากค่า ISO ตามอุณหภูมิ)',
-  'Emission Intensity':'ความเข้มการปล่อย CO₂ ต่อไฟฟ้า 1 kWh — เทียบ Grid EF 0.5244 | CCGT ที่ดี ~0.35 kgCO₂/kWh'
+  'Emission Intensity':'ความเข้มการปล่อย CO₂ ต่อไฟฟ้า 1 kWh — เทียบ Grid EF 0.4750 (อบก.) | CCGT ที่ดี ~0.35 kgCO₂/kWh'
 };
 var GLOSS_KEYS=Object.keys(GLOSS).sort(function(a,b){return b.length-a.length;});
 function glossTip(lbl){
@@ -1767,6 +1778,15 @@ function calcSite(){
 // ══════════════════════════════════════════
 // SINGLE GT CALCULATION CORE
 // ══════════════════════════════════════════
+// [แก้ไข 3 ต.ค. 2569 audit] Brayton η ทางทฤษฎี: ความร้อนที่เติม = Cp_exh·(T3 − T2) โดย T2 = T1 + W_c,actual/Cp_air (เดิมหารด้วย Cp·(T3 − T1) → ได้ต่ำกว่า η วัดจริง)
+function braytonEta(pRatio,T1K,T3K,compEA,turbED,mechEf){
+  if(!(pRatio>1)||!(compEA>0)||!(turbED>0)) return 0;
+  var expG=(GAMMA-1)/GAMMA;
+  var Wca=Cp_AIR*T1K*(Math.pow(pRatio,expG)-1)/compEA;
+  var Wta=Cp_EXH*T3K*(1-Math.pow(pRatio,-expG))*turbED;
+  var T2K=T1K+Wca/Cp_AIR, qin=Cp_EXH*(T3K-T2K);
+  return qin>0?(Wta-Wca)*mechEf/qin*100:0;
+}
 function calcOneGT(u, gt){
   // gt = 'a' or 'b'
   var stopped = GB('u'+u+'_'+gt+'_stopped');
@@ -1799,19 +1819,20 @@ function calcOneGT(u, gt){
   var fuelKW=fNm3h*fLHV/3600;
   var loadFactor=gR>0?gtMW/gR*100:0;
   var etaGT=fuelKW>0?gtMW*1000/fuelKW*100:isoEff*100;
+  var fuelMissing=!(fuelKW>0)&&gtMW>0;   // [แก้ไข 3 ต.ค. 2569 audit] เชื้อเพลิงว่าง/ศูนย์ → η ถูกแทนด้วย ISO ต้องเตือน
   var heatRate=etaGT>0?3600/etaGT*100:9999;
   var pRatio=p1>0?p3/p1:prDes;
   var t7Dev=t7-t7des;
   var exhHeat=exhFl*Cp_EXH*(t7-t0)/1000; // MW
-  var ea=(21-o2)>0?o2/(21-o2)*100:0;
+  var ea=(20.9-o2)>0?o2/(20.9-o2)*100:0;   // [แก้ไข 3 ต.ค. 2569 audit] O₂ อากาศ 20.9 %
   var compDevPct=(compEA-compED)*100;
   // Brayton theoretical
   var expG=(GAMMA-1)/GAMMA,T1K=t0+273.15,T3K=GV('titDesign')+273.15;
   var Wci=Cp_AIR*T1K*(Math.pow(pRatio,expG)-1),Wca=Wci/compEA;
   var Wti=Cp_EXH*T3K*(1-Math.pow(pRatio,-expG)),Wta=Wti*turbED;
-  var etaBrayton=Cp_EXH*(T3K-T1K)>0?(Wta-Wca)*mechEf/Cp_EXH/(T3K-T1K)*100:0;
+  var etaBrayton=braytonEta(pRatio,T1K,T3K,compEA,turbED,mechEf);   // [แก้ไข 3 ต.ค. 2569 audit]
 
-  return{stopped:false,gt:gt.toUpperCase(),u,
+  return{stopped:false,gt:gt.toUpperCase(),u,fuelMissing,
     gtMW,fuelKW,fNm3h,fuel,fuelDisp:fIn.disp,fuelFormula:fIn.f,loadFactor,etaGT,heatRate,
     t7,t7Dev,t7des,pRatio,prDes,exhHeat,ea,o2,co,nox,
     compEA,compED,compDevPct,foulF,vgv,etaBrayton,gR,exhFl,exhFlMeas,t0};   // [ระยะ 4 10 ก.ย. 2569] exhFlMeas
@@ -1854,19 +1875,20 @@ function calcOneGTSingle(u){
   var gtMW=gtEst;                              // "gtMW" carries the estimated GT power
   var loadFactor=gR>0?gtMW/gR*100:0;
   var etaGT=fuelKW>0?gtMW*1000/fuelKW*100:isoEff*100;        // estimated (single generator)
+  var fuelMissing=!(fuelKW>0)&&grossGen>0;   // [แก้ไข 3 ต.ค. 2569 audit] เชื้อเพลิงว่าง → เตือน
   var etaCC_unit=fuelKW>0?grossGen*1000/fuelKW*100:0;        // DIRECT measurable η_CC of the unit
   var heatRate=etaGT>0?3600/etaGT*100:9999;
   var pRatio=p1>0?p3/p1:prDes;
   var t7Dev=t7-t7des;
   var exhHeat=exhFl*Cp_EXH*(t7-t0)/1000;
-  var ea=(21-o2)>0?o2/(21-o2)*100:0;
+  var ea=(20.9-o2)>0?o2/(20.9-o2)*100:0;   // [แก้ไข 3 ต.ค. 2569 audit] O₂ อากาศ 20.9 %
   var compDevPct=(compEA-compED)*100;
   var expG=(GAMMA-1)/GAMMA,T1K=t0+273.15,T3K=GV('titDesign')+273.15;
   var Wci=Cp_AIR*T1K*(Math.pow(pRatio,expG)-1),Wca=Wci/compEA;
   var Wti=Cp_EXH*T3K*(1-Math.pow(pRatio,-expG)),Wta=Wti*turbED;
-  var etaBrayton=Cp_EXH*(T3K-T1K)>0?(Wta-Wca)*mechEf/Cp_EXH/(T3K-T1K)*100:0;
+  var etaBrayton=braytonEta(pRatio,T1K,T3K,compEA,turbED,mechEf);   // [แก้ไข 3 ต.ค. 2569 audit]
 
-  return{stopped:false,gt:'GT',u,single:true,clutch,
+  return{stopped:false,gt:'GT',u,single:true,clutch,fuelMissing,
     gtMW,fuelKW,fNm3h,fuel,fuelDisp:fIn.disp,fuelFormula:fIn.f,loadFactor,etaGT,heatRate,
     t7,t7Dev,t7des,pRatio,prDes,exhHeat,ea,o2,co,nox,
     compEA,compED,compDevPct,foulF,vgv,etaBrayton,gR,exhFl,exhFlMeas,t0,   // [ระยะ 4 10 ก.ย. 2569] exhFlMeas
@@ -1893,9 +1915,13 @@ function renderOneGT(r){
     '<span class="running-badge">RUNNING</span>&nbsp;'+
     'Load: '+r.loadFactor.toFixed(1)+'% | η: '+r.etaGT.toFixed(2)+'% | HR: '+fN(r.heatRate,0)+' kJ/kWh'+
   '</div>';
+  // [แก้ไข 3 ต.ค. 2569 audit] ตรวจความเป็นไปได้ทางฟิสิกส์ — แสดงกล่องเตือน (ไม่ใช้ alert)
+  if(r.fuelMissing) h+='<div class="err-box">⚠ ไม่ได้กรอกอัตราเชื้อเพลิง GT-'+r.gt+' (ว่าง/ศูนย์) — η_GT ที่แสดงเป็นค่า ISO แทน ไม่ใช่ค่าวัดจริง ผลรวมทั้งโรงจะคลาดเคลื่อน</div>';
+  if(r.etaGT>100) h+='<div class="err-box">⛔ η_GT-'+r.gt+' = '+r.etaGT.toFixed(1)+' % เกิน 100 % — เป็นไปไม่ได้ทางฟิสิกส์ ตรวจหน่วยค่าความร้อน (kJ/Nm³ vs BTU/SCF) และหน่วยอัตราเชื้อเพลิง</div>';
+  else if(r.etaGT>45) h+='<div class="err-box">⚠ η_GT-'+r.gt+' = '+r.etaGT.toFixed(1)+' % สูงกว่าที่ GT simple cycle ทำได้จริง (~≤ 43 % LHV) — ตรวจข้อมูลเชื้อเพลิง/MW</div>';
   h+='<div class="kpi-grid">';
   h+=kpi(r.loadFactor>85?'green':r.loadFactor>70?'blue':'amber','Output',fN(r.gtMW,1),'MW','Rated: '+r.gR+' MW');
-  h+=kpi(r.etaGT>37?'green':r.etaGT>33?'blue':r.etaGT>29?'amber':'red','GT Efficiency',r.etaGT.toFixed(2),'%','ISO: '+GV('gtISOEff')+'%');
+  h+=kpi(r.etaGT>45?'red':r.etaGT>37?'green':r.etaGT>33?'blue':r.etaGT>29?'amber':'red','GT Efficiency',r.etaGT.toFixed(2),'%','ISO: '+GV('gtISOEff')+'%');
   h+=kpi(r.heatRate<9500?'green':r.heatRate<10500?'amber':'red','Heat Rate',fN(r.heatRate,0),'kJ/kWh',fN(r.heatRate/1.055056,0)+' BTU/kWh (LHV)');
   h+=kpi(Math.abs(r.t7Dev)<25?'green':Math.abs(r.t7Dev)<45?'amber':'red','T7 Exhaust',r.t7,'°C','Δ'+(r.t7Dev>=0?'+':'')+r.t7Dev+'°C');
   h+=kpi(r.ea<220?'green':r.ea<280?'amber':'red','Excess Air',r.ea.toFixed(0),'%','O₂: '+r.o2+'%');
@@ -1911,9 +1937,9 @@ function renderOneGT(r){
   h+=cs('Pressure Ratio GT-'+r.gt,'= P3÷P1 = '+GV('u'+r.u+'_'+r.gt.toLowerCase()+'_p3')+'÷'+GV('u'+r.u+'_'+r.gt.toLowerCase()+'_p1'),'= '+r.pRatio.toFixed(2)+' (Design: '+r.prDes+')');
   h+=cs('Exhaust Heat GT-'+r.gt,'= '+r.exhFl+' kg/s'+(r.exhFlMeas?' [วัดจริง]':' [Design]')+' × 1.08 × ('+r.t7+'−'+r.t0.toFixed(1)+')÷1000','= '+fN(r.exhHeat,2)+' MW');   // [ระยะ 4 10 ก.ย. 2569]
   h+=cs('T7 Deviation GT-'+r.gt,'= '+r.t7+'−'+r.t7des,'= '+(r.t7Dev>=0?'+':'')+r.t7Dev+' °C');
-  h+=cs('Excess Air GT-'+r.gt,'= '+r.o2+'÷(21−'+r.o2+')×100','= '+r.ea.toFixed(1)+'%');
+  h+=cs('Excess Air GT-'+r.gt,'= '+r.o2+'÷(20.9−'+r.o2+')×100','= '+r.ea.toFixed(1)+'%');
   h+=cs('Comp Eff Dev GT-'+r.gt,'= '+GV('u'+r.u+'_'+r.gt.toLowerCase()+'_compEff').toFixed(1)+'−'+GV('compEffDes').toFixed(1)+'%','= '+(r.compDevPct>=0?'+':'')+r.compDevPct.toFixed(2)+'%');
-  h+=cs('Brayton η Theor. GT-'+r.gt,'TIT='+GV('titDesign')+'°C, rp='+r.pRatio.toFixed(1),'≈ '+r.etaBrayton.toFixed(1)+'%');
+  h+=cs('Brayton η Theor. GT-'+r.gt,'TIT='+GV('titDesign')+'°C, rp='+r.pRatio.toFixed(1)+' · q_in = Cp(T3−T2)','≈ '+r.etaBrayton.toFixed(1)+'%');
   h+='</div>';
 
   // Alerts
@@ -2035,12 +2061,16 @@ function renderGTUnitSingle(u,r){
     return h;
   }
 
+  // [แก้ไข 3 ต.ค. 2569 audit] ตรวจความเป็นไปได้ทางฟิสิกส์
+  if(r.fuelMissing) h+='<div class="err-box">⚠ ไม่ได้กรอกอัตราเชื้อเพลิง Unit '+u+' (ว่าง/ศูนย์) — η ที่แสดงไม่ใช่ค่าวัดจริง</div>';
+  if(r.etaCC_unit>100||r.etaGT>100) h+='<div class="err-box">⛔ η_CC Unit = '+r.etaCC_unit.toFixed(1)+' % / η_GT = '+r.etaGT.toFixed(1)+' % — เกิน 100 % เป็นไปไม่ได้ ตรวจหน่วยค่าความร้อนและอัตราเชื้อเพลิง</div>';
+  else if(r.etaCC_unit>65) h+='<div class="err-box">⚠ η_CC Unit = '+r.etaCC_unit.toFixed(1)+' % สูงกว่าขีดจำกัดเทคโนโลยี CCGT ปัจจุบัน (~64 % LHV) — ตรวจข้อมูล</div>';
   h+='<div class="kpi-grid">';
   h+=kpi('navy','Unit Gross (Gen.)',fN(r.grossGen,1),'MW','Generator เดียว GT+ST');
   h+=kpi('blue','GT Output (est.)',fN(r.gtEst,1),'MW','Load: '+r.loadFactor.toFixed(0)+'%');
   h+=kpi('purple','ST Output (derived)',fN(r.stMW,1),'MW',r.clutch==='disengaged'?'Clutch ปลด':'= Gross − GT');
-  h+=kpi(r.etaCC_unit>52?'green':r.etaCC_unit>48?'blue':r.etaCC_unit>44?'amber':'red','η_CC Unit (วัดจริง)',r.etaCC_unit.toFixed(2),'%','Gross÷Fuel — ค่าหลัก');
-  h+=kpi(r.etaGT>37?'green':r.etaGT>33?'blue':'amber','η_GT (est.)',r.etaGT.toFixed(2),'%','จาก GT_est');
+  h+=kpi(r.etaCC_unit>65?'red':r.etaCC_unit>52?'green':r.etaCC_unit>48?'blue':r.etaCC_unit>44?'amber':'red','η_CC Unit (วัดจริง)',r.etaCC_unit.toFixed(2),'%','Gross÷Fuel — ค่าหลัก');
+  h+=kpi(r.etaGT>45?'red':r.etaGT>37?'green':r.etaGT>33?'blue':'amber','η_GT (est.)',r.etaGT.toFixed(2),'%','จาก GT_est');
   h+=kpi(Math.abs(r.t7Dev)<25?'green':Math.abs(r.t7Dev)<45?'amber':'red','T7 Exhaust',r.t7,'°C','Δ'+(r.t7Dev>=0?'+':'')+r.t7Dev+'°C');
   h+=kpi('teal','Exhaust Heat',fN(r.exhHeat,2),'MW','ป้อน HRSG');
   h+=kpi(r.ea<220?'green':r.ea<280?'amber':'red','Excess Air',r.ea.toFixed(0),'%','O₂: '+r.o2+'%');
@@ -2857,6 +2887,7 @@ function calcOverall(){
   var hrNet=etaNet>0?3600/etaNet*100:9999;
   var q_stmKW;
   q_stmKW=0; for(var uq=1;uq<=n;uq++){ q_stmKW+=(_res.hrsg[uq]||{}).q_stmExpKW||0; }   // [ระยะ 4 10 ก.ย. 2569] ทุกโหมดใช้ q_stmExpKW ต่อ Unit จาก IF97 (block: h_ext; twin/single: h_hp−h_fw) — เดิม fallback 3100−150
+  var etaCHPraw=fuelKW>0?(net*1000+q_stmKW)/fuelKW*100:0;   // [แก้ไข 3 ต.ค. 2569 audit] เก็บค่าก่อน cap เพื่อเตือน
   var etaCHP=fuelKW>0?Math.min((net*1000+q_stmKW)/fuelKW*100,90):0;
   var e_yr=net*opH;
   var fuelGJh=fuelKW*3.6/1000;
@@ -2869,7 +2900,7 @@ function calcOverall(){
     if(rg.b&&!rg.b.stopped){sumT7+=rg.b.t7||0;cntT7++;}
   }
   var avgT7=cntT7>0?sumT7/cntT7:560;
-  var etaCarnot=(1-308/(avgT7+273))*100;
+  var etaCarnot=(1-(GV('t0')+273.15)/(avgT7+273.15))*100;   // [แก้ไข 3 ต.ค. 2569 audit] T_cold = T ambient ไซต์ (เดิมฝัง 308 K)
   var exRatio=etaCarnot>0?etaNet/etaCarnot*100:0;
   // Kehlhofer avg
   var avgEtaGT=0,avgHrsgE=0,avgStE=0,cntU=0;
@@ -2961,9 +2992,16 @@ function calcOverall(){
     hrNet_m:hrNet_m,hrNet_g:hrNet_g,hrGCV_m:hrNet_m/1.055056*HHV_LHV,hrGCV_g:hrNet_g/1.055056*HHV_LHV,etaNet_m:fuelKW_m>0?net*1000/fuelKW_m*100:0,etaNet_g:GR.netGate>0?net*1000/GR.netGate*100:0};
   _ovr.fuelKW_m=fuelKW_m;_ovr.fuelBasis=(GR.use&&GR.netGate>0)?'gate':'machine';
 
-  var eCls=etaNet>52?'green':etaNet>48?'blue':etaNet>44?'amber':'red';
+  var eCls=etaNet>65?'red':etaNet>52?'green':etaNet>48?'blue':etaNet>44?'amber':'red';   // [แก้ไข 3 ต.ค. 2569 audit] ไม่ให้ป้าย "ดี" เมื่อ η เกินจริง
   var runLbl=sg?(totalRunning+'/'+n+' Unit เดิน'):(totalRunning+'/'+(n*2)+(blk?' Line เดิน':' GT เดิน'));
-  var h='<div class="kpi-grid">';
+  var h='';
+  // [แก้ไข 3 ต.ค. 2569 audit] กล่องเตือนความเป็นไปได้ทางฟิสิกส์ (η > 100 %, η_CHP ถูก cap 90 %, เชื้อเพลิงว่าง)
+  var fMiss=[];for(var uw=1;uw<=n;uw++){var rgw=_res.gt[uw]||{};if(rgw.a&&rgw.a.fuelMissing)fMiss.push('U'+uw+(sg?'':'-A'));if(rgw.b&&rgw.b.fuelMissing)fMiss.push('U'+uw+'-B');}
+  if(fMiss.length) h+='<div class="err-box">⚠ ไม่ได้กรอกอัตราเชื้อเพลิง: '+fMiss.join(', ')+' — เชื้อเพลิงรวมทั้งโรงต่ำกว่าจริง η_net/Heat Rate ใช้รายงานไม่ได้</div>';
+  if(etaNet>100||etaGross>100) h+='<div class="err-box">⛔ η_net = '+etaNet.toFixed(1)+' % เกิน 100 % — เป็นไปไม่ได้ทางฟิสิกส์ ตรวจหน่วยค่าความร้อน LHV และหน่วยอัตราเชื้อเพลิง ห้ามนำผลไปรายงาน</div>';
+  else if(etaNet>65) h+='<div class="err-box">⚠ η_net = '+etaNet.toFixed(1)+' % สูงกว่าขีดจำกัด CCGT ปัจจุบัน (~64 % LHV) — ตรวจข้อมูลเชื้อเพลิง/MW</div>';
+  if(etaCHPraw>90) h+='<div class="err-box">⚠ η_CHP คำนวณได้ '+etaCHPraw.toFixed(1)+' % (แสดงแบบจำกัดที่ 90 %) — ตรวจอัตราไอน้ำขาย/สภาวะไอน้ำ และค่าความร้อนเชื้อเพลิง</div>';
+  h+='<div class="kpi-grid">';
   h+=kpi('navy','Gross Output',fN(gross,1),'MW',runLbl);
   h+=kpi('blue','Net Output',fN(net,1),'MW','หัก Station Load '+fN(parasitic,1)+' MW ('+(gross>0?(parasitic/gross*100).toFixed(1):'0')+'% ของ Gross)');
   h+=kpi(eCls,'Net CC Efficiency',etaNet.toFixed(2),'%','Benchmark: 50–56%');
@@ -3145,8 +3183,8 @@ function calcOverall(){
   h+=cs('Net Heat Rate','= 3600÷('+etaNet.toFixed(2)+'÷100)','= '+fN(hrNet,0)+' kJ/kWh');
   h+=cs('CHP Efficiency'+(blk?' (ไฟ + ไอน้ำขายโรงงาน)':''),'= ('+fN(net,1)+'×1000+'+fN(q_stmKW,0)+')÷'+fN(fuelKW,0)+'×100','= '+etaCHP.toFixed(2)+'%');
   h+=cs('Annual Generation','= '+fN(net,1)+' MW × '+fN(opH,0)+' h','= '+fN(e_yr/1000,1)+' GWh');
-  h+=cs('CO₂ จากเชื้อเพลิง','= '+fN(fuelGJh,2)+' GJ/h × 0.05444 tCO₂/GJ × '+opH+' h','= '+fN(co2_yr,0)+' tCO₂/y ('+fN(co2_yr/1000,1)+' ktCO₂/y)');
-  h+=cs('CO₂ Avoided (vs Grid)','= '+fN(e_yr,0)+' MWh × 0.5244 tCO₂/MWh','= '+fN(co2_av,0)+' tCO₂/y ('+fN(co2_av/1000,1)+' ktCO₂/y)');
+  h+=cs('CO₂ จากเชื้อเพลิง','= '+fN(fuelGJh,2)+' GJ/h × '+EF_NG+' tCO₂/GJ × '+opH+' h','= '+fN(co2_yr,0)+' tCO₂/y ('+fN(co2_yr/1000,1)+' ktCO₂/y)');
+  h+=cs('CO₂ Avoided (vs Grid)','= '+fN(e_yr,0)+' MWh × '+EF_GRID.toFixed(4)+' tCO₂/MWh','= '+fN(co2_av,0)+' tCO₂/y ('+fN(co2_av/1000,1)+' ktCO₂/y)');
   h+=cs('Emission Intensity','= '+fN(co2_yr,0)+' tCO₂ ÷ '+fN(e_yr,0)+' MWh','= '+emInt.toFixed(4)+' kgCO₂/kWh');
   h+=cs('Carnot η (T_hot='+avgT7.toFixed(0)+'°C)','= 1 − 308÷'+(avgT7+273).toFixed(0),'= '+etaCarnot.toFixed(2)+'%');
   h+=cs('Exergy Utilization','= '+etaNet.toFixed(2)+'÷'+etaCarnot.toFixed(2)+'×100','= '+exRatio.toFixed(2)+'%');
@@ -3214,10 +3252,10 @@ function calcOverall(){
   // GHG
   h+='<div class="card"><div class="ctitle">🌍 GHG Assessment</div>';
   h+='<div class="twrap"><table class="tbl"><thead><tr><th>รายการ</th><th>ค่า</th><th>หน่วย</th><th>หมายเหตุ</th></tr></thead><tbody>';
-  h+='<tr><td>CO₂ จากเชื้อเพลิง</td><td class="bad">'+fN(co2_yr,0)+'</td><td>tCO₂/y</td><td>EF_NG=0.05444 tCO₂/GJ (IPCC AR6)</td></tr>';
-  h+='<tr><td>CO₂ Avoided (vs Grid)</td><td class="good">'+fN(co2_av,0)+'</td><td>tCO₂/y</td><td>EF_Grid=0.5244 kgCO₂/kWh (EGAT 2024)</td></tr>';
+  h+='<tr><td>CO₂ จากเชื้อเพลิง</td><td class="bad">'+fN(co2_yr,0)+'</td><td>tCO₂/y</td><td>EF_NG='+EF_NG+' tCO₂/GJ (IPCC 2006, NCV)</td>'; /* [แก้ไข 3 ต.ค. 2569 audit] */ h+='</tr>';
+  h+='<tr><td>CO₂ Avoided (vs Grid)</td><td class="good">'+fN(co2_av,0)+'</td><td>tCO₂/y</td><td>EF_Grid='+EF_GRID.toFixed(4)+' kgCO₂/kWh (อบก./TGO)</td></tr>';
   h+='<tr><td>Net CO₂ Impact</td><td class="'+(co2_av>co2_yr?'good':'warn')+'">'+fN(co2_av-co2_yr,0)+'</td><td>tCO₂/y</td><td>'+(co2_av>co2_yr?'✓ ดีกว่า Grid':'ต้องปรับปรุง')+'</td></tr>';
-  h+='<tr><td>Emission Intensity</td><td class="'+cls3(0.52-emInt,0.15,0.05)+'">'+emInt.toFixed(4)+'</td><td>kgCO₂/kWh</td><td>Grid: 0.5244 | CCGT Best: ~0.35</td></tr>';
+  h+='<tr><td>Emission Intensity</td><td class="'+cls3(EF_GRID-emInt,0.15,0.05)+'">'+emInt.toFixed(4)+'</td><td>kgCO₂/kWh</td><td>Grid: '+EF_GRID.toFixed(4)+' | CCGT Best: ~0.35</td></tr>';
   h+='<tr><td>Annual Generation</td><td class="hl">'+fN(e_yr/1000,1)+'</td><td>GWh/y</td><td>'+fN(opH,0)+' h/y × '+fN(net,1)+' MW Net</td></tr>';
   h+='</tbody></table></div></div>';
 
@@ -3267,8 +3305,14 @@ function calcEnhancement(){
   var r=_ovr,n=r.n,sg=r.sg,blk=r.blk||isBlock(),maxGT=r.maxGT||(sg?1:2);
   var opH=GV('opHours'),gP=GV('gasPrice'),t0=GV('t0'),cool=GS('inletCooling'),t0c=GV('t0cooled');
   var gR=GV('gtRatedMW');
-  var costPerMWh=800;
-  var fuelBahtYr=r.fuelKW*3.6/1000*1.05506*gP*opH/1e6;
+  // [แก้ไข 3 ต.ค. 2569 audit] เดิม costPerMWh=800 ถูกใช้แบบ MW×1000×h×800 = 800 ฿/kWh → ผลประหยัดเกินจริง 1,000 เท่า
+  //   แก้: อ่านราคาไฟฟ้าจากช่อง elecPrice (฿/kWh) แล้วคิด MW × h × ฿/MWh ÷ 10⁶ = ล้านบาท/ปี
+  var elecP=GV('elecPrice'); if(!(elecP>0)) elecP=3.0;
+  var costPerMWh=elecP*1000;                               // ฿/MWh
+  // [แก้ไข 3 ต.ค. 2569 audit] เดิม GJ × 1.05506 (ต้องหาร) และไม่ใช้อัตราส่วน HHV/LHV — แก้: GJ_LHV ÷ 1.055056 × (HHV/LHV ถ้าราคาเป็นฐาน GCV)
+  var gpHHV=(GS('gasPriceBasis')||'gcv')==='gcv'?hhvRatio():1;
+  function gjLHVtoMB(gjh){return gjh/1.055056*gpHHV*gP*opH/1e6;}   // GJ/h (LHV) → ล้านบาท/ปี
+  var fuelBahtYr=gjLHVtoMB(r.fuelKW*3.6/1000);
 
   // Stopped units/GTs analysis
   var stoppedList=[];
@@ -3300,9 +3344,16 @@ function calcEnhancement(){
     }
   }
 
-  var dT=Math.max(0,t0-15);
-  var pGain_cool=gR*n*maxGT*dT*0.005;
-  var sav_cool=pGain_cool*1000*opH*costPerMWh/1e6;
+  // [แก้ไข 3 ต.ค. 2569 audit] Inlet cooling ใช้ช่อง kPwrT / t0cooled / inletCooling ให้สอดคล้องกับ calcSite (เดิมใช้ ΔT ถึง 15 °C × 0.5 %/°C ฝังค่า)
+  var kPc=GV('kPwrT')>0?GV('kPwrT'):0.50, rhC=GV('rh');
+  var coolOn=(cool!=='none'&&t0c>0&&t0c<t0), tCoolTgt, coolSrc;
+  if(coolOn){ tCoolTgt=t0; coolSrc='มีระบบ '+cool+' ทำงานแล้ว (T เข้า '+t0c.toFixed(1)+' °C) — ผลถูกนับในกำลังไซต์แล้ว ไม่นับซ้ำ'; }
+  else if(t0c>0&&t0c<t0){ tCoolTgt=t0c; coolSrc='เป้าหมาย T หลังระบบ = '+t0c.toFixed(1)+' °C (ช่อง T After Inlet Cooling)'; }
+  else { var twC=wetBulbC(t0,rhC); tCoolTgt=t0-0.85*(t0-twC); coolSrc='ประมาณแบบ Evaporative 85 % ของ wet-bulb depression (T_wb '+twC.toFixed(1)+' °C) → '+tCoolTgt.toFixed(1)+' °C'; }
+  var dT=Math.max(0,t0-tCoolTgt);
+  var coolGT=r.totalRunning||0;
+  var pGain_cool=gR*coolGT*dT*kPc/100;
+  var sav_cool=pGain_cool*opH*costPerMWh/1e6;
 
   var avgFoulA=0,avgFoulB=0,cntFA=0,cntFB=0;
   for(var u=1;u<=n;u++){
@@ -3312,30 +3363,32 @@ function calcEnhancement(){
   }
   var avgFoulAll=(avgFoulA+avgFoulB)/((cntFA+cntFB)||1);
   var pGain_wash=gR*r.totalRunning*avgFoulAll*0.8;
-  var sav_wash=pGain_wash*1000*opH*costPerMWh/1e6;
+  var sav_wash=pGain_wash*opH*costPerMWh/1e6;   // [แก้ไข 3 ต.ค. 2569 audit]
 
   var hrsgT=GS('hrsgType');
   var hrsgGain=hrsgT==='single'?3:hrsgT==='dual'?1.5:0;
-  var sav_hrsg=r.fuelKW*hrsgGain/100*3.6/1000*1.05506*gP*opH/1e6;
+  // [แก้ไข 3 ต.ค. 2569 audit] +x จุด η_CC → เชื้อเพลิงลดลง 1 − η_old/η_new (เดิมคิดเป็น x % ของเชื้อเพลิงตรง ๆ)
+  var etaOldH=r.etaNet>0?r.etaNet:0, hrsgFuelFrac=(hrsgGain>0&&etaOldH>0)?1-etaOldH/(etaOldH+hrsgGain):0;
+  var sav_hrsg=fuelBahtYr*hrsgFuelFrac;
 
   var avgStack=0,stackCnt=0;
   for(var u=1;u<=n;u++){var rh=_res.hrsg[u]||{};avgStack+=rh.tStack||0;stackCnt++;}
   avgStack/=stackCnt||1;
   var stackEx=Math.max(0,avgStack-120);
-  var sav_stack=r.fuelKW*stackEx*0.05/100*3.6/1000*1.05506*gP*opH/1e6;
+  var sav_stack=gjLHVtoMB(r.fuelKW*stackEx*0.05/100*3.6/1000);   // [แก้ไข 3 ต.ค. 2569 audit] แปลง GJ→MMBTU ให้ถูก
 
   var avgCondEx=0;
   for(var u=1;u<=n;u++) avgCondEx+=Math.max(0,GV('u'+u+'_condP')-GV('condPdes'));
   avgCondEx/=n;
-  var sav_cond=r.stOut*avgCondEx*100*0.3/100*1000*opH*costPerMWh/1e6;
+  var sav_cond=r.stOut*avgCondEx*100*0.3/100*opH*costPerMWh/1e6;   // [แก้ไข 3 ต.ค. 2569 audit]
 
   var h='<div class="kpi-grid">';
   h+=kpi(r.totalRunning<n*maxGT?'red':'blue',sg?'Units Running':blk?'Lines Running':'GT Running',r.totalRunning+'/'+(n*maxGT),sg?'Unit':blk?'Line':'เครื่อง',nStopped>0?nStopped+(sg?' Unit หยุด':blk?' Line หยุด':' เครื่องหยุด'):(blk?'ทุก Line เดิน':'ทุกเครื่องเดิน'));
-  h+=kpi(r.etaNet>52?'green':r.etaNet>48?'blue':'amber','η_CC Net',r.etaNet.toFixed(1),'%','Benchmark: 50–56%');
+  h+=kpi(r.etaNet>65?'red':r.etaNet>52?'green':r.etaNet>48?'blue':'amber','η_CC Net'   /* [แก้ไข 3 ต.ค. 2569 audit] η เกินจริงไม่ให้ป้ายดี */,r.etaNet.toFixed(1),'%','Benchmark: 50–56%');
   h+=kpi('gold','Carnot Limit',r.etaCarnot.toFixed(1),'%','T_hot='+r.avgT7.toFixed(0)+'°C');
   h+=kpi('purple','Exergy Ratio',r.exRatio.toFixed(1),'%');
   h+=kpi('orange','Fuel Cost',fuelBahtYr.toFixed(1),'ล้านบาท/ปี',opH+' h/y');
-  h+=kpi('navy','Net Heat Rate',fN(r.hrNet,0),'kJ/kWh','Design ~6,700');
+  h+=kpi('navy','Net Heat Rate',fN(r.hrNet,0),'kJ/kWh','Design ~'+fN((r.designHRgcv||7300)*1.055056/hhvRatio(),0)+' (LHV)');   // [แก้ไข 3 ต.ค. 2569 audit] จากช่อง Design HR
   h+='</div>';
 
   h+='<div class="card"><div class="ctitle">💡 Enhancement Opportunities</div>';
@@ -3346,7 +3399,7 @@ function calcEnhancement(){
     h+='<div class="ecm-b"><b>กำลังผลิตสูญเสีย:</b> ~'+fN(lostMW,1)+' MW ('+fN(lostMW*opH/1000,0)+' GWh/y)'+(blk?' — รวม GT ของ Line + ส่วนแบ่ง ST ~ครึ่งเครื่อง':'')+'<br>';
     h+=(blk?'<b>ผลกระทบ:</b> HRSG ของ Line ที่หยุดไม่ผลิตไอน้ำ → ST เหลือไอน้ำ ~ครึ่งเดียว เดิน part-load (η_ST ลดลง)<br>':'<b>ผลกระทบต่อ HRSG:</b> Exhaust Heat ลดลง → HP Steam ลดลง → ST Output ลดลง<br>');
     h+='<b>ดำเนินการ:</b> ระบุ Trip Cause → Corrective Maintenance → Start-up → Monitor<br>';
-    h+='<b>Potential Revenue Lost:</b> ~'+fN(lostMW*1000*opH*costPerMWh/1e6,0)+' ล้านบาท/ปี (ถ้าทุกเครื่องเดิน)</div></div>';
+    h+='<b>Potential Revenue Lost:</b> ~'+fN(lostMW*opH*costPerMWh/1e6,0)+' ล้านบาท/ปี (ถ้าทุกเครื่องเดิน · '+elecP.toFixed(2)+' ฿/kWh)</div></div>';
   }
 
   // 1. GT-A vs GT-B Imbalance
@@ -3368,7 +3421,7 @@ function calcEnhancement(){
   // 1.5 Let-down (block/extraction-condensing): ไอน้ำ bypass ST = เสียโอกาสผลิตไฟ
   var totLd=0,totLdLoss=0;
   if(blk){for(var u=1;u<=n;u++){var rhh=_res.hrsg[u]||{};totLd+=rhh.ldFlow||0;totLdLoss+=rhh.ldLossMW||0;}}
-  var sav_ld=totLdLoss*1000*opH*costPerMWh/1e6;
+  var sav_ld=totLdLoss*opH*costPerMWh/1e6;   // [แก้ไข 3 ต.ค. 2569 audit]
   if(blk&&totLd>0.1){
     h+='<div class="ecm red"><div class="ecm-t">♨️ Let-down '+fN(totLd,1)+' t/h — ไอน้ำ HP bypass ST (สภาวะ 3)</div>';
     h+='<div class="ecm-b"><b>โอกาสผลิตไฟที่เสียไป:</b> ~'+fN(totLdLoss,2)+' MW → ~'+sav_ld.toFixed(1)+' ล้านบาท/ปี (ถ้าเกิดต่อเนื่อง)<br>';
@@ -3378,7 +3431,8 @@ function calcEnhancement(){
 
   // 2. Inlet Cooling
   h+='<div class="ecm '+(dT>10?'red':dT>5?'amber':'blue')+'"><div class="ecm-t">① Inlet Air Cooling — T₀='+t0.toFixed(1)+'°C</div>';
-  h+='<div class="ecm-b"><b>Power Gain:</b> +'+pGain_cool.toFixed(1)+' MW ('+(n*maxGT)+' GT) → '+sav_cool.toFixed(1)+' ล้านบาท/ปี<br>';
+  h+='<div class="ecm-b"><b>Power Gain:</b> +'+pGain_cool.toFixed(1)+' MW ('+coolGT+' GT เดิน × '+gR+' MW × ΔT '+dT.toFixed(1)+' °C × '+kPc.toFixed(2)+' %/°C) → '+sav_cool.toFixed(1)+' ล้านบาท/ปี @ '+elecP.toFixed(2)+' ฿/kWh<br>';
+  h+='<b>ฐานการประเมิน:</b> '+coolSrc+'<br>';   // [แก้ไข 3 ต.ค. 2569 audit]
   h+='<b>Options:</b> Evaporative (−2–4°C) | Fogging (−3–6°C) | Chiller (−8–15°C)<br>';
   h+='<b>อ้างอิง:</b> Boyce 4th Ed. Ch.2 — Power Augmentation</div></div>';
 
@@ -3395,7 +3449,7 @@ function calcEnhancement(){
 
   // 4. HRSG upgrade
   h+='<div class="ecm blue"><div class="ecm-t">③ HRSG Multi-Pressure Upgrade</div>';
-  h+='<div class="ecm-b"><b>Current:</b> '+hrsgT.toUpperCase()+'-pressure '+( hrsgGain>0?'→ Potential gain: +'+hrsgGain.toFixed(1)+'% η_CC':'(Best practice)') +'<br>';
+  h+='<div class="ecm-b"><b>Current:</b> '+hrsgT.toUpperCase()+'-pressure '+( hrsgGain>0?'→ Potential gain: +'+hrsgGain.toFixed(1)+' จุด η_CC ('+etaOldH.toFixed(1)+' → '+(etaOldH+hrsgGain).toFixed(1)+' %) = ลดเชื้อเพลิง '+(hrsgFuelFrac*100).toFixed(2)+' %':'(Best practice)') +'<br>';   // [แก้ไข 3 ต.ค. 2569 audit]
   if(hrsgGain>0) h+='<b>Saving:</b> '+sav_hrsg.toFixed(1)+' ล้านบาท/ปี<br>';
   h+='<b>Key:</b> ลด Exergy Loss ใน heat exchange GT exhaust → Steam<br>';
   h+='<b>อ้างอิง:</b> Kehlhofer 3rd Ed. Ch.3 — System Layouts</div></div>';
@@ -3431,13 +3485,15 @@ function calcEnhancement(){
   // Savings table
   var totalSav=sav_cool+sav_wash+sav_stack+sav_cond+(hrsgGain>0?sav_hrsg:0);
   h+='<div class="card"><div class="ctitle">💰 Potential Savings Summary</div>';
+  h+='<div class="csub">ราคาไฟฟ้า '+elecP.toFixed(2)+' ฿/kWh (ช่อง elecPrice) · ราคาก๊าซ '+gP+' ฿/MMBTU ฐาน '+((GS('gasPriceBasis')||'gcv')==='gcv'?'GCV (×HHV/LHV '+hhvRatio().toFixed(4)+')':'NCV')+' · '+opH+' h/ปี</div>';   // [แก้ไข 3 ต.ค. 2569 audit]
   h+='<div class="twrap"><table class="tbl"><thead><tr><th>มาตรการ</th><th>Potential</th><th>Estimated Saving</th><th>Priority</th></tr></thead><tbody>';
-  if(nStopped>0) h+='<tr style="background:var(--red-lt)"><td style="color:var(--red);font-weight:700">🔴 Start '+(sg?'Stopped Unit':'Stopped GT')+' ('+stoppedList.join(', ')+')</td><td style="color:var(--red)">+'+fN(lostMW,1)+' MW</td><td class="bad">'+fN(lostMW*1000*opH*costPerMWh/1e6,0)+' ล้านบาท/ปี</td><td class="bad">สูงสุด</td></tr>';
+  if(nStopped>0) h+='<tr style="background:var(--red-lt)"><td style="color:var(--red);font-weight:700">🔴 Start '+(sg?'Stopped Unit':'Stopped GT')+' ('+stoppedList.join(', ')+')</td><td style="color:var(--red)">+'+fN(lostMW,1)+' MW</td><td class="bad">'+fN(lostMW*opH*costPerMWh/1e6,0)+' ล้านบาท/ปี</td><td class="bad">สูงสุด</td></tr>';
   if(imbalanceList.length>0) h+='<tr style="background:var(--amber-lt)"><td style="color:var(--amber);font-weight:700">⚖️ '+(blk?'Line 1/2 Balance':'GT-A/B Balance')+'</td><td style="color:var(--amber)">η +0.5–1%</td><td class="warn">—</td><td class="warn">สูง</td></tr>';
   if(blk&&totLd>0.1) h+='<tr style="background:var(--red-lt)"><td style="color:var(--red);font-weight:700">♨️ ลด Let-down (จ่ายผ่าน Extraction แทน)</td><td style="color:var(--red)">+'+fN(totLdLoss,2)+' MW</td><td class="bad">'+sav_ld.toFixed(1)+' ล้านบาท/ปี</td><td class="bad">สูง</td></tr>';
   var rows2=[['① Inlet Cooling','+'+pGain_cool.toFixed(1)+' MW',sav_cool.toFixed(1),dT>10?'bad':dT>5?'warn':'good',dT>10?'สูง':dT>5?'กลาง':'ต่ำ'],
     ['② Compressor Washing','+'+fN(pGain_wash*1000,0)+' kW',sav_wash.toFixed(1),avgFoulAll>0.02?'warn':'good',avgFoulAll>0.02?'สูง':'ต่ำ'],
-    ['③ HRSG Upgrade','+'+hrsgGain.toFixed(1)+'% η',sav_hrsg.toFixed(1),hrsgGain>2?'warn':'good',hrsgGain>2?'กลาง':'—'],
+    ['③ HRSG Upgrade','+'+hrsgGain.toFixed(1)+' จุด η ('+(hrsgFuelFrac*100).toFixed(1)+' % fuel)',   // [แก้ไข 3 ต.ค. 2569 audit] ระบุเป็นจุด η
+    sav_hrsg.toFixed(1),hrsgGain>2?'warn':'good',hrsgGain>2?'กลาง':'—'],
     ['④ Stack Reduction','−'+stackEx.toFixed(0)+'°C',sav_stack.toFixed(2),stackEx>50?'warn':'good',stackEx>50?'กลาง':'ต่ำ'],
     ['⑤ Condenser Opt.','P −0.01 barA/U',sav_cond.toFixed(2),avgCondEx>0.01?'warn':'good',avgCondEx>0.01?'กลาง':'ต่ำ']];
   for(var si=0;si<rows2.length;si++) h+='<tr><td>'+rows2[si][0]+'</td><td>'+rows2[si][1]+'</td><td class="hl">'+rows2[si][2]+' ล้านบาท/ปี</td><td class="'+rows2[si][3]+'">'+rows2[si][4]+'</td></tr>';
@@ -3817,7 +3873,7 @@ var FK_DESIGN=['gtModel','gtClass','gtRatedMW','gtISOEff','titDesign','prDesign'
   'compEffDes','turbEffDes','mechEff','hrsgType','hpSteamDes','hpPressDes','hpTempDes','lpSteamDes','lpPressDes','lpTempDes','fwTempDes', /* [ระยะ 4 10 ก.ย. 2569] */
   'stRatedMW','stIsoEff','stMechEff','genEff','condPdes','hrsgEffDes','designHR','licensedMW'];
 var FK_MEAS=['repStab','repDur','repPts','repVarP','repVarF','repVarT','repLoadAvg','t0','rh','altm','pAmbIn','t0cooled','ngRhoIn','fuelLHVin','fuelHHVin','gateFuel','gateOther','exportMW','parasiticMW'];
-var FK_SET=['repPeriod','repCritP','repCritF','repCritT','repCritMin','repNLoad','plantConfig','numUnits','suppFiring','scfBasis','fuelBasis','gateAlloc','gasPrice','opHours',
+var FK_SET=['repPeriod','repCritP','repCritF','repCritT','repCritMin','repNLoad','plantConfig','numUnits','suppFiring','scfBasis','fuelBasis','gateAlloc','gasPrice','opHours','gasPriceBasis','elecPrice', /* [แก้ไข 3 ต.ค. 2569 audit] */
   'inletCooling','parasiticMode','parasiticPct','kPwrT','kEffT','refEtaE','refEtaH','hrBasis','hvBasis',
   'pAmbUnit','ngRhoUnit','fuelLHVUnit','pesEbasis','pesTcorr','pesGridF'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',calc:'คำนวณ',set:'ตั้งค่า'};
