@@ -168,8 +168,25 @@
         .cusum-summary-card .cs-main { font-size: 1.25em; font-weight: bold; }
         .cusum-summary-card .cs-sub { font-size: 0.85em; color: #888; margin-top: 4px; }
 
+        /* [แก้ไข 3 ต.ค. 2569] Outlier Screening (ส่วนที่ 3) */
+        .scr-box { border: 2px solid #17a2b8; border-radius: 8px; padding: 14px 16px; margin: 15px 0; background: #f4fbfd; }
+        .scr-head { font-weight: bold; color: #0c5460; font-size: 1.05em; margin-bottom: 10px; }
+        .scr-tol-wrap { display: flex; align-items: center; gap: 10px; }
+        .scr-tol-wrap input[type=range] { flex: 1; }
+        .scr-tol-wrap input[type=number] { width: 80px; }
+        .scr-table { width: 100%; border-collapse: collapse; font-size: 0.85em; white-space: normal; }
+        .scr-table th { background: #0c5460; color: #fff; padding: 7px 5px; position: static; }
+        .scr-table td { border: 1px solid #dee2e6; padding: 6px 5px; vertical-align: top; text-align: center; }
+        .scr-table td.l { text-align: left; }
+        .scr-table tr.hi td { background: #fdecea; }
+        .scr-table tr.lo td { background: #fff8e1; }
+        .scr-table tr.kept td { background: #eef7ee; }
+        .scr-table input[type=text] { width: 100%; min-width: 140px; box-sizing: border-box; font-size: 0.95em; padding: 4px; }
+        .scr-tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 0.85em; font-weight: bold; }
+        .scr-tag.hi { background: #dc3545; color: #fff; } .scr-tag.lo { background: #ffc107; color: #333; } .scr-tag.mn { background: #6c757d; color: #fff; }
         @media print {
             .no-print { display: none !important; }
+            .scr-table input[type=text] { border: none; }
             body, .dashboard-container { background: white !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; max-width: 100% !important; }
             .section-box { border: none !important; padding: 0 !important; margin-bottom: 15px !important; }
             table { font-size: 8.5px !important; }
@@ -187,7 +204,7 @@
 <body>
 
 <div class="dashboard-container">
-    <h1>ระบบวิเคราะห์และติดตามสมรรถนะพลังงาน (ISO 50001)<br>Multiple Linear Regression &amp; CUSUM Dashboard <span style="font-size:0.65em; color:#666;">v4.1 — Multi-Stream · JSON ทุกแท็บ</span></h1>
+    <h1>ระบบวิเคราะห์และติดตามสมรรถนะพลังงาน (ISO 50001)<br>Multiple Linear Regression &amp; CUSUM Dashboard <span style="font-size:0.65em; color:#666;">v4.2 — Multi-Stream · Outlier Screening · JSON ทุกแท็บ</span></h1>
 
     <!-- [แก้ไข 23 ก.ย. 2569] ข้อมูลโรงงาน (ติดไปในไฟล์ JSON และหัวรายงานพิมพ์) -->
     <div class="proj-box no-print">
@@ -301,6 +318,15 @@
             </div>
         </div>
         <div class="guide-step">
+            <div class="step-num">2C</div>
+            <div class="step-body">
+                <h4>แนะนำ: คัดกรองจุดเบี่ยงเบนที่แท็บ "ส่วนที่ 3: Scatter &amp; SEC" ก่อนสรุปสมการ</h4>
+                <p>เปิด "การคัดกรอง" → เลือกค่าอ้างอิง (แนะนำ: ค่าคาดการณ์จากเส้นแนวโน้ม หรือ SEC มัธยฐาน) → ตั้งเกณฑ์ ±0–15% → ระบบแสดงจุดที่หลุดเกณฑ์บนกราฟและในตาราง <strong>"รายงานจุดข้อมูลเบี่ยงเบน"</strong>
+                พร้อมประเด็นที่ควรทวนสอบ → ส่งออก Excel ให้โรงงานตรวจสอบ → กด <strong>"ส่งข้อมูลที่คัดกรองแล้วไปคำนวณในส่วนที่ 1A"</strong> (ข้อมูลดิบไม่ถูกลบ กดกลับได้เสมอ)
+                · <em>ตัดได้เฉพาะจุดที่หาสาเหตุได้ว่าไม่ใช่สภาวะปกติ</em> (ISO 50006: ข้อมูลที่ไม่เป็นตัวแทนการดำเนินงานปกติ) ถ้าเป็นสภาวะที่เกิดซ้ำได้ ควรเก็บไว้หรือเพิ่มตัวแปร</p>
+            </div>
+        </div>
+        <div class="guide-step">
             <div class="step-num">3</div>
             <div class="step-body">
                 <h4>ตรวจสอบและปรับสมการ</h4>
@@ -393,6 +419,7 @@
                 <button class="btn-gold" onclick="downloadSampleExcel()" title="ดาวน์โหลดไฟล์ตัวอย่าง">📥 ตัวอย่าง Excel</button>
             </div>
 
+            <div id="scrBaselineBanner" class="alert-warn" style="display:none;"></div>
             <div class="equation-display" id="equationText">Target Energy = 0.0000</div>
 
             <div id="statsContainer" class="stats-box" style="display:none;">
@@ -685,6 +712,48 @@
                 </div>
             </div>
 
+            <!-- [แก้ไข 3 ต.ค. 2569] คัดกรองจุดเบี่ยงเบน (Outlier Screening) -->
+            <div class="scr-box">
+                <div class="scr-head">🧹 คัดกรองจุดข้อมูลที่เบี่ยงเบน (Outlier Screening) — ทำก่อนสร้างสมการ Baseline</div>
+                <div class="input-group no-print" style="margin-bottom:6px;">
+                    <div class="input-item" style="flex:0.7;">
+                        <label for="scrEnable">สถานะ</label>
+                        <label style="font-weight:normal;"><input type="checkbox" id="scrEnable" onchange="renderScatterCharts()"> เปิดการคัดกรอง</label>
+                    </div>
+                    <div class="input-item" style="flex:1.6;">
+                        <label for="scrMethod">ค่าอ้างอิงที่ใช้วัดความเบี่ยงเบน</label>
+                        <select id="scrMethod" onchange="renderScatterCharts()">
+                            <option value="pred" selected>① ค่าคาดการณ์จากเส้นแนวโน้ม Ŷ = β₀ + β₁X (แนะนำ)</option>
+                            <option value="secMed">② SEC (Y/X) เทียบค่ามัธยฐาน SEC</option>
+                            <option value="secMean">③ SEC (Y/X) เทียบค่าเฉลี่ย SEC</option>
+                            <option value="yMed">④ Y เทียบค่ามัธยฐาน Y</option>
+                            <option value="yMean">⑤ Y เทียบค่าเฉลี่ย Y</option>
+                        </select>
+                    </div>
+                    <div class="input-item" style="flex:1.4;">
+                        <label for="scrTol">เกณฑ์ยอมรับ ± (%) — ช่วง 0–15% (0 = ไม่ตัด)</label>
+                        <div class="scr-tol-wrap">
+                            <input type="range" id="scrTolRange" min="0" max="15" step="0.5" value="10" oninput="document.getElementById('scrTol').value=this.value; renderScatterCharts();">
+                            <input type="number" id="scrTol" min="0" max="15" step="0.5" value="10" onchange="scrSyncTol()">
+                        </div>
+                    </div>
+                    <div class="input-item" style="flex:1;">
+                        <label for="scrIter">การคำนวณค่าอ้างอิง</label>
+                        <label style="font-weight:normal;"><input type="checkbox" id="scrIter" checked onchange="renderScatterCharts()"> ตัดทีละจุดแล้วคำนวณใหม่ (iterative — แนะนำ)</label>
+                    </div>
+                </div>
+                <div id="scrMethodNote" class="chart-note no-print" style="margin-top:6px;"></div>
+                <div class="summary-stats" id="scrCompare" style="margin-top:12px; margin-bottom:8px;"></div>
+                <div id="scrWarn" class="alert-warn" style="display:none;"></div>
+                <div class="input-group no-print" style="margin-top:8px;">
+                    <button class="btn-baseline" onclick="scrPushToBaseline()">✅ ส่งข้อมูลที่คัดกรองแล้วไปคำนวณในส่วนที่ 1A</button>
+                    <button class="btn-primary" onclick="scrRestoreRawBaseline(true)">↩️ ให้ 1A กลับไปใช้ข้อมูลดิบ</button>
+                    <button class="btn-gold" onclick="scrExportExcel()">📥 ส่งออกรายการทวนสอบหน้างาน (Excel)</button>
+                    <button class="btn-danger" onclick="scrResetManual()">🗑️ ล้างการเลือกด้วยมือ/บันทึกผล</button>
+                </div>
+                <p class="no-print" style="font-size:0.85em; color:#666; margin:8px 0 0;">💡 คลิกจุดบนกราฟ 1 หรือ 2 เพื่อสลับ "ใช้/ไม่ใช้" จุดนั้นด้วยดุลยพินิจ (เช่น ทวนสอบแล้วว่าเป็นสภาวะปกติ → นำกลับมาใช้) · การตัดจุดไม่ลบข้อมูลดิบ</p>
+            </div>
+
             <div id="scatterMsg" class="alert-warn" style="display:none;">ยังไม่มีข้อมูล — กรุณาอัปโหลดไฟล์ หรือไปอัปโหลดที่ "ส่วนที่ 1A: Baseline Regression" ก่อน</div>
 
             <!-- ===== GRAPH 1 ===== -->
@@ -708,6 +777,14 @@
             <div class="chart-note" id="scatter2Note">
                 เมื่อ X (กำลังผลิต) ลดลง SEC จะพุ่งขึ้นตามรูป SEC = β₀/X + β₁ — ถ้าพลังงานฐาน β₀ สูง เส้นจะชันมาก หมายถึงลดกำลังผลิตแล้วต้นทุนพลังงานต่อหน่วยพุ่งเร็ว (อ่อนไหวต่อ utilization)
             </div>
+
+            <!-- ===== [แก้ไข 3 ต.ค. 2569] รายงานจุดเบี่ยงเบน ===== -->
+            <h3 style="text-align:left; border-bottom:1px solid #ccc; padding-bottom:6px; margin-top:35px;">
+                📋 รายงานจุดข้อมูลเบี่ยงเบน — สำหรับทวนสอบกับหน้างาน
+            </h3>
+            <div id="scrReportInfo" class="chart-note" style="margin-top:0;">เปิด "การคัดกรอง" ด้านบนเพื่อสร้างรายงาน</div>
+            <div style="overflow-x:auto;"><div id="scrReport"></div></div>
+            <div id="scrIncomplete"></div>
         </div>
     </div>
 
@@ -732,7 +809,7 @@
 
     <div class="footer-credit">
         ระบบพัฒนาโดย <strong>อ.หนึ่ง กลับทวี</strong> | <strong>บริษัท ทริปเปิ้ล อี เทคโนโลยี จำกัด</strong>
-        <br><span style="font-size:0.85em; color:#aaa;">ISO 50001 Energy Performance Monitoring System v4.1 — Multi-Stream Edition (บันทึก/โหลดทุกแท็บ 23 ก.ย. 2569)</span>
+        <br><span style="font-size:0.85em; color:#aaa;">ISO 50001 Energy Performance Monitoring System v4.2 — Multi-Stream + Outlier Screening Edition (บันทึก/โหลดทุกแท็บ 23 ก.ย. 2569)</span>
     </div>
 </div>
 
@@ -768,6 +845,11 @@
     let _fm = (v, d = 2) => (v === null || v === undefined || !isFinite(v)) ? '-' : v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
     let multiData = null, multiLabels = ['X1','X2','X3','X4','X5'], multiFit = null, multiMonRecords = [], multiCusumChart = null, _saveMode = 'single';
     let scatterData = null, scatterChart1 = null, scatterChart2 = null;
+    // [แก้ไข 3 ต.ค. 2569] Outlier Screening
+    let baselineRawData = null;               // ข้อมูลดิบของ 1A เมื่อ 1A ใช้ข้อมูลที่คัดกรองแล้ว (null = 1A ใช้ข้อมูลดิบ)
+    let scrPushInfo = null;                   // สรุปการส่งข้อมูลคัดกรองไป 1A (แสดง banner)
+    let scrState = { overrides: {}, notes: {} };   // overrides[rowIdx] = 'keep' | 'drop' ; notes[rowIdx] = ผลทวนสอบ
+    let scrLast = null;                       // ผลคัดกรองล่าสุด
     let monitoringRaw = null, multiMonRaw = null, eqLoadedName = '';   // [แก้ไข 23 ก.ย. 2569] เก็บข้อมูลดิบของแท็บ 2 และ 1B-CUSUM เพื่อบันทึกลง JSON
 
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
@@ -892,7 +974,14 @@
     function processBaselineFile() {
         const fi = document.getElementById('baselineFile');
         if (!fi.files.length) { alert("กรุณาเลือกไฟล์ Excel สำหรับ Baseline"); return; }
-        readExcelFile(fi.files[0], function(data) { applyBaselineData(data, true); });
+        readExcelFile(fi.files[0], function(data) {
+            // [แก้ไข 3 ต.ค. 2569] ไฟล์ใหม่ → ยกเลิกสถานะข้อมูลคัดกรอง และให้ส่วนที่ 3 ชี้ข้อมูลชุดใหม่ (ถ้าเดิมชี้ข้อมูล 1A)
+            const scWasBase = scatterData && (scatterData === globalBaselineData || scatterData === baselineRawData);
+            baselineRawData = null; scrPushInfo = null;
+            applyBaselineData(data, true);
+            if (scWasBase) { scatterData = globalBaselineData; scrState = { overrides: {}, notes: {} }; }
+            scrUpdateBaselineBanner();
+        });
     }
     // [แก้ไข 23 ก.ย. 2569] แยกส่วน "ใส่ข้อมูล" ออกจาก "อ่านไฟล์" เพื่อให้โหลดคืนจาก JSON ได้ (recalc=false → ตั้ง label อย่างเดียว)
     function applyBaselineData(data, recalc) {
@@ -1907,13 +1996,15 @@
     }
 
     function initScatterTab() {
-        if (!scatterData && globalBaselineData) scatterData = globalBaselineData;
+        if (!scatterData && globalBaselineData) scatterData = baselineRawData || globalBaselineData;
         populateScatterSelectors();
         renderScatterCharts();
     }
     function useBaselineForScatter() {
         if (!globalBaselineData) { alert('ยังไม่ได้อัปโหลดไฟล์ในส่วนที่ 1A (Baseline)'); return; }
-        scatterData = globalBaselineData;
+        const src = baselineRawData || globalBaselineData;   // [แก้ไข 3 ต.ค. 2569] ใช้ข้อมูลดิบเสมอ (คัดกรองบนข้อมูลดิบ)
+        if (scatterData !== src) scrState = { overrides: {}, notes: {} };
+        scatterData = src;
         populateScatterSelectors();
         renderScatterCharts();
     }
@@ -1923,6 +2014,7 @@
         readExcelFile(fi.files[0], function(data) { applyScatterData(data); });
     }
     function applyScatterData(data) {   // [แก้ไข 23 ก.ย. 2569]
+        if (scatterData !== data) scrState = { overrides: {}, notes: {} };   // [แก้ไข 3 ต.ค. 2569]
         scatterData = data;
         populateScatterSelectors();
         renderScatterCharts();
@@ -1951,16 +2043,24 @@
         if ([...ySel.options].some(o => o.value === yPrev)) ySel.value = yPrev; else ySel.value = 'total';
     }
 
-    function _scDraw(which, canvasId, points, trendline, curve, xTitle, yTitle) {
+    // [แก้ไข 3 ต.ค. 2569] รองรับจุดที่ถูกตัด (กากบาทแดง), เส้นขอบเกณฑ์, เส้นแนวโน้มข้อมูลดิบ และคลิกจุดเพื่อสลับใช้/ไม่ใช้
+    function _scDraw(which, canvasId, points, trendline, curve, xTitle, yTitle, ex) {
+        ex = ex || {};
         const ctx = document.getElementById(canvasId).getContext('2d');
         const datasets = [
-            { type: 'scatter', label: 'ข้อมูลจริง', data: points, pointRadius: 4,
-              backgroundColor: 'rgba(0,86,179,0.55)', borderColor: '#0056b3' },
-            { type: 'line', label: 'เส้นแนวโน้ม (Linear)', data: trendline,
+            { type: 'scatter', label: ex.excluded ? 'ข้อมูลที่ใช้' : 'ข้อมูลจริง', data: points, pointRadius: 4,
+              backgroundColor: 'rgba(0,86,179,0.55)', borderColor: '#0056b3', _pick: true },
+            { type: 'line', label: ex.excluded && ex.excluded.length ? 'เส้นแนวโน้ม (หลังคัดกรอง)' : 'เส้นแนวโน้ม (Linear)', data: trendline,
               borderColor: '#dc3545', borderWidth: 2, pointRadius: 0, fill: false, tension: 0 }
         ];
         if (curve) datasets.push({ type: 'line', label: 'แบบจำลอง SEC = β₀/X + β₁', data: curve,
             borderColor: '#17a2b8', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: false, tension: 0.2 });
+        if (ex.excluded && ex.excluded.length) datasets.push({ type: 'scatter', label: 'จุดที่ตัดออก (ต้องทวนสอบ)', data: ex.excluded,
+            pointStyle: 'crossRot', pointRadius: 8, pointHoverRadius: 10, borderWidth: 3, borderColor: '#dc3545', backgroundColor: '#dc3545', _pick: true });
+        if (ex.rawTrend) datasets.push({ type: 'line', label: 'เส้นแนวโน้ม (ข้อมูลดิบทั้งหมด)', data: ex.rawTrend,
+            borderColor: 'rgba(108,117,125,0.8)', borderWidth: 1.5, borderDash: [3, 3], pointRadius: 0, fill: false, tension: 0 });
+        if (ex.bands) ex.bands.forEach((b, k) => datasets.push({ type: 'line', label: k === 0 ? `ขอบเกณฑ์ ±${ex.tolPct}%` : '', data: b,
+            borderColor: 'rgba(23,162,184,0.9)', borderWidth: 1.2, borderDash: [8, 5], pointRadius: 0, fill: false, tension: 0 }));
         const cfg = {
             type: 'scatter',
             data: { datasets },
@@ -1971,9 +2071,19 @@
                     y: { title: { display: true, text: yTitle, font: { weight: 'bold' } } }
                 },
                 plugins: {
-                    legend: { display: true },
-                    tooltip: { callbacks: { label: c =>
-                        `(${c.parsed.x.toLocaleString(undefined,{maximumFractionDigits:2})}, ${c.parsed.y.toLocaleString(undefined,{maximumFractionDigits:2})})` } }
+                    legend: { display: true, labels: { filter: it => !!it.text } },
+                    tooltip: { callbacks: { label: c => {
+                        const r = c.raw || {};
+                        const base = `(${c.parsed.x.toLocaleString(undefined,{maximumFractionDigits:2})}, ${c.parsed.y.toLocaleString(undefined,{maximumFractionDigits:2})})`;
+                        return r.r !== undefined ? `แถว ${r.r + 1}${r.lbl ? ' · ' + r.lbl : ''} ${base}${r.dev !== undefined && isFinite(r.dev) ? ' · เบี่ยง ' + (r.dev * 100).toFixed(1) + '%' : ''}` : base;
+                    } } }
+                },
+                onClick: (evt, els, chart) => {
+                    if (!els || !els.length) return;
+                    const el = els[0], ds = chart.data.datasets[el.datasetIndex];
+                    if (!ds._pick) return;
+                    const p = ds.data[el.index];
+                    if (p && p.r !== undefined) scrToggle(p.r);
                 },
                 animation: { duration: 0 }
             }
@@ -1992,17 +2102,27 @@
         const yUnit = yChoice === 'elec' ? 'kWh' : 'MJ';
         const xUnit = _scUnitX(xLabel);
 
-        let pairs = [];
+        let allPairs = [], incomplete = [];
         for (let i = 1; i < scatterData.length; i++) {
             const row = scatterData[i];
-            if (!row || row.length < 2) continue;
+            if (!row || row.length < 2 || row.every(v => v === null || v === undefined || v === '')) continue;
             const x = parseFloat(row[xnum + 3]);   // X1->col4(E) ... X5->col8(I)
             const y = getSelectedYValue(row, yChoice);
-            if (!isFinite(x) || !isFinite(y) || y === 0) continue;
-            pairs.push({ x, y });
+            const lbl = scrPeriodLabel(row[0]);
+            if (!isFinite(x) || !isFinite(y) || y === 0) {   // [แก้ไข 3 ต.ค. 2569] เก็บแถวที่ข้อมูลไม่ครบไว้รายงาน
+                incomplete.push({ r: i, lbl, why: (!isFinite(y) || y === 0) ? `${yLabel} ว่าง/เป็น 0` : `${xLabel} ว่าง/ไม่ใช่ตัวเลข` });
+                continue;
+            }
+            allPairs.push({ x, y, r: i, lbl });
         }
-        if (pairs.length < 2) { if (msg) { msg.style.display = 'block'; msg.innerText = 'ข้อมูลไม่พอสำหรับวาดกราฟ (ต้องมีอย่างน้อย 2 จุด)'; } return; }
+        if (allPairs.length < 2) { if (msg) { msg.style.display = 'block'; msg.innerText = 'ข้อมูลไม่พอสำหรับวาดกราฟ (ต้องมีอย่างน้อย 2 จุด)'; } return; }
         if (msg) msg.style.display = 'none';
+
+        // ----- [แก้ไข 3 ต.ค. 2569] OUTLIER SCREENING -----
+        const scr = scrRun(allPairs, xLabel, yLabel, xUnit, yUnit);
+        const pairs = scr.kept.length >= 2 ? scr.kept : allPairs;
+        const excl = scr.kept.length >= 2 ? scr.excluded : [];
+        scrRenderReport(scr, incomplete, xLabel, yLabel, xUnit, yUnit);
 
         // ----- GRAPH 1: Y vs X -----
         const reg = _scLinreg(pairs);
@@ -2010,7 +2130,15 @@
             { x: reg.minx, y: reg.intercept + reg.slope * reg.minx },
             { x: reg.maxx, y: reg.intercept + reg.slope * reg.maxx }
         ];
-        _scDraw(1, 'scatterCanvas1', pairs, tl1, null, `${xLabel} (${xUnit})`, `${yLabel} (${yUnit})`);
+        const ex1 = { excluded: excl, tolPct: scr.tolPct };
+        if (excl.length) { const rr = _scLinreg(allPairs); ex1.rawTrend = [{ x: rr.minx, y: rr.intercept + rr.slope * rr.minx }, { x: rr.maxx, y: rr.intercept + rr.slope * rr.maxx }]; }
+        if (scr.on && scr.ref) {
+            const xs = allPairs.map(p => p.x), x0 = Math.min(...xs), x1 = Math.max(...xs), t = scr.tol;
+            if (scr.ref.kind === 'line') ex1.bands = [1 + t, 1 - t].map(f => { const a = []; for (let k = 0; k <= 20; k++) { const xv = x0 + (x1 - x0) * k / 20; a.push({ x: xv, y: (scr.ref.b0 + scr.ref.b1 * xv) * f }); } return a; });
+            else if (scr.ref.kind === 'y') ex1.bands = [1 + t, 1 - t].map(f => [{ x: x0, y: scr.ref.v * f }, { x: x1, y: scr.ref.v * f }]);
+            else if (scr.ref.kind === 'sec') ex1.bands = [1 + t, 1 - t].map(f => [{ x: Math.max(x0, 0), y: scr.ref.v * Math.max(x0, 0) * f }, { x: x1, y: scr.ref.v * x1 * f }]);
+        }
+        _scDraw(1, 'scatterCanvas1', pairs, tl1, null, `${xLabel} (${xUnit})`, `${yLabel} (${yUnit})`, ex1);
         _scSetStats('scatter1Stats', [
             ['ความชัน β₁ (SEC ส่วนเพิ่ม)', `${_scFmt(reg.slope)} ${yUnit}/${xUnit}`],
             ['ค่าคงที่ β₀ (พลังงานฐาน Baseload)', `${_scFmt(reg.intercept)} ${yUnit}`],
@@ -2025,7 +2153,7 @@
             `ค่าคงที่ β₀ = พลังงานฐาน (Baseload) ที่ใช้แม้ไม่ผลิต ≈ <b>${blShare.toFixed(0)}%</b> ของพลังงานเฉลี่ย — ยิ่งสูงยิ่งมีภาระคงที่/standby มาก · จุดยิ่งเกาะแนบเส้นยิ่งสะท้อนประสิทธิภาพการผลิตสม่ำเสมอ`;
 
         // ----- GRAPH 2: SEC (Y/X) vs X -----
-        const secpts = pairs.filter(p => p.x > 0).map(p => ({ x: p.x, y: p.y / p.x }));
+        const secpts = pairs.filter(p => p.x > 0).map(p => ({ x: p.x, y: p.y / p.x, r: p.r, lbl: p.lbl, dev: p.dev }));
         const reg2 = _scLinreg(secpts);
         const tl2 = [
             { x: reg2.minx, y: reg2.intercept + reg2.slope * reg2.minx },
@@ -2038,7 +2166,12 @@
             if (xv <= 0) continue;
             curve.push({ x: xv, y: reg.intercept / xv + reg.slope });
         }
-        _scDraw(2, 'scatterCanvas2', secpts, tl2, curve, `${xLabel} (${xUnit})`, `SEC = ${yLabel}/${xLabel} (${yUnit}/${xUnit})`);
+        const ex2 = { excluded: excl.filter(p => p.x > 0).map(p => ({ x: p.x, y: p.y / p.x, r: p.r, lbl: p.lbl, dev: p.dev })), tolPct: scr.tolPct };
+        if (scr.on && scr.ref && scr.ref.kind === 'sec') {
+            const xs = allPairs.filter(p => p.x > 0).map(p => p.x), x0 = Math.min(...xs), x1 = Math.max(...xs);
+            ex2.bands = [1 + scr.tol, 1 - scr.tol].map(f => [{ x: x0, y: scr.ref.v * f }, { x: x1, y: scr.ref.v * f }]);
+        }
+        _scDraw(2, 'scatterCanvas2', secpts, tl2, curve, `${xLabel} (${xUnit})`, `SEC = ${yLabel}/${xLabel} (${yUnit}/${xUnit})`, ex2);
         const secLo = reg.intercept / reg.minx + reg.slope;  // model SEC at min X
         const secHi = reg.intercept / reg.maxx + reg.slope;  // model SEC at max X
         const riseFactor = secHi !== 0 ? secLo / secHi : 0;
@@ -2052,6 +2185,241 @@
             `เส้นแนวโน้ม SEC มีความชัน <b>${_scFmt(reg2.slope)}</b> (ติดลบ = SEC สูงขึ้นเมื่อ X ลดลง) · ` +
             `จากแบบจำลอง SEC = β₀/X + β₁ เมื่อกำลังผลิตลดจากสูงสุดมาต่ำสุด SEC พุ่งขึ้น <b>${riseFactor.toFixed(2)} เท่า</b> — ` +
             `สาเหตุหลักคือพลังงานฐาน β₀ ถูกหารด้วยจำนวนหน่วยที่น้อยลง ยิ่ง β₀ สูงเส้นยิ่งชัน (อ่อนไหวต่อ utilization)`;
+    }
+
+    // =====================================================================
+    // [แก้ไข 3 ต.ค. 2569] OUTLIER SCREENING ENGINE (ส่วนที่ 3)
+    //   เบี่ยงเบน (%) = (Y − Ŷอ้างอิง) / |Ŷอ้างอิง| × 100
+    //   ① pred   : Ŷ = β₀ + β₁X (OLS จากจุดที่ใช้)          ② secMed / ③ secMean : Ŷ = SECอ้างอิง × X
+    //   ④ yMed / ⑤ yMean : Ŷ = มัธยฐาน/ค่าเฉลี่ยของ Y      (②③ ≡ เทียบ SEC รายจุดกับ SEC อ้างอิง)
+    //   iterative: คำนวณค่าอ้างอิงใหม่จากจุดที่ผ่านเกณฑ์ จนชุดจุดนิ่ง (≤10 รอบ)
+    //   overrides: 'keep' = วิศวกรยืนยันให้ใช้, 'drop' = วิศวกรสั่งตัด
+    // =====================================================================
+    const SCR_METHOD_NOTE = {
+        pred: '① <b>ค่าคาดการณ์จากเส้นแนวโน้ม</b> — เทียบ Y แต่ละจุดกับค่าที่สมการ Ŷ = β₀ + β₁X คาดไว้ ณ ผลผลิตเดียวกัน (residual %) · <b>เหมาะที่สุด</b> เพราะคำนึงถึงทั้งพลังงานฐาน β₀ และผลผลิตที่แปรผัน',
+        secMed: '② <b>SEC มัธยฐาน</b> — เทียบพลังงานต่อหน่วยผลผลิตรายจุดกับค่ามัธยฐาน (ทนต่อ outlier) · เหมาะเมื่อพลังงานฐาน β₀ ต่ำ (Y แปรผันตาม X เกือบเป็นสัดส่วน) — ถ้า β₀ สูง เดือนผลิตน้อยจะถูกตัดเกินจริง',
+        secMean: '③ <b>SEC เฉลี่ย</b> — เหมือน ② แต่ใช้ค่าเฉลี่ย ซึ่งถูก outlier ดึงได้ (แนะนำเปิด iterative)',
+        yMed: '④ <b>Y มัธยฐาน</b> — เทียบพลังงานรายจุดกับค่ามัธยฐาน โดยไม่สนใจผลผลิต · ใช้ได้เฉพาะเมื่อผลผลิตค่อนข้างคงที่',
+        yMean: '⑤ <b>Y เฉลี่ย</b> — เทียบพลังงานรายจุดกับค่าเฉลี่ย · ⚠️ <b>ไม่แนะนำเมื่อผลผลิตแปรผันมาก</b>: เดือนที่ผลิตมาก/น้อยจะใช้พลังงานมาก/น้อยตามธรรมชาติ แต่ถูกตัดทิ้งทั้งที่ปกติ'
+    };
+    function _scrMedian(a) { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : NaN; }
+    function _scrMean(a) { return a.length ? a.reduce((t, v) => t + v, 0) / a.length : NaN; }
+    function scrSyncTol() {
+        const e = document.getElementById('scrTol');
+        let v = parseFloat(e.value); if (!isFinite(v)) v = 0; v = Math.min(15, Math.max(0, v)); e.value = v;
+        document.getElementById('scrTolRange').value = v;
+        renderScatterCharts();
+    }
+    function scrPeriodLabel(v) {
+        if (v === null || v === undefined || v === '') return '';
+        if (typeof v === 'number' && v > 20000 && v < 80000) {   // Excel serial date
+            const d = new Date(Math.round((v - 25569) * 864e5));
+            return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+        return String(v);
+    }
+    function scrRun(pairs, xLabel, yLabel, xUnit, yUnit) {
+        const on = document.getElementById('scrEnable').checked;
+        const method = document.getElementById('scrMethod').value;
+        const tolPct = Math.min(15, Math.max(0, parseFloat(document.getElementById('scrTol').value) || 0));
+        const tol = tolPct / 100, iter = document.getElementById('scrIter').checked;
+        const ov = scrState.overrides;
+        pairs.forEach(p => { delete p.dev; delete p.yref; delete p.auto; delete p.use; });
+        const res = { on: on && tolPct > 0, method, tol, tolPct, ref: null, kept: pairs, excluded: [], all: pairs, passes: 0 };
+        document.getElementById('scrMethodNote').innerHTML = SCR_METHOD_NOTE[method] +
+            (on && tolPct === 0 ? '<br>ℹ️ เกณฑ์ = 0% → ไม่ตัดจุดใด (ปิดการคัดกรองชั่วคราว)' : '');
+        if (!res.on) { scrLast = res; return res; }
+        // วิธีคำนวณ: (ก) ครั้งเดียว — ค่าอ้างอิงจากทุกจุด (ยกเว้นที่สั่งตัดด้วยมือ)
+        //           (ข) iterative — ตัดจุดที่เบี่ยงมากที่สุดทีละ 1 จุด แล้วคำนวณค่าอ้างอิงใหม่ จนทุกจุดที่เหลืออยู่ในเกณฑ์
+        //               (ทนต่อค่าผิดปกติรุนแรง เช่น คีย์ผิดหลัก ×10 ที่ทำให้ค่าเฉลี่ย/เส้นถดถอยเพี้ยนทั้งชุด)
+        //               จากนั้นตรวจจุดที่ถูกตัดซ้ำกับค่าอ้างอิงสุดท้าย — ถ้าอยู่ในเกณฑ์ให้คืนกลับ
+        const calcRef = basis => {
+            if (method === 'pred') { const g = _scLinreg(basis); res.ref = { kind: 'line', b0: g.intercept, b1: g.slope }; return p => g.intercept + g.slope * p.x; }
+            if (method === 'secMed' || method === 'secMean') {
+                const sv = basis.filter(p => p.x > 0).map(p => p.y / p.x);
+                const v = method === 'secMed' ? _scrMedian(sv) : _scrMean(sv);
+                res.ref = { kind: 'sec', v }; return p => v * p.x;
+            }
+            const yv = basis.map(p => p.y);
+            const v = method === 'yMed' ? _scrMedian(yv) : _scrMean(yv);
+            res.ref = { kind: 'y', v }; return () => v;
+        };
+        const evalDev = fn => pairs.forEach(p => { const e = fn(p); p.yref = e; p.dev = (isFinite(e) && Math.abs(e) > 1e-12) ? (p.y - e) / Math.abs(e) : NaN; });
+        const within = p => isFinite(p.dev) && Math.abs(p.dev) <= tol + 1e-12;
+        const removed = new Set();
+        const inBasis = p => ov[p.r] === 'keep' || (ov[p.r] !== 'drop' && !removed.has(p.r));
+        let fn = null;
+        const maxPass = iter ? Math.max(1, pairs.length - 3) : 1;
+        for (let pass = 0; pass < maxPass; pass++) {
+            const basis = pairs.filter(inBasis);
+            if (basis.length < 3) break;
+            fn = calcRef(basis); evalDev(fn); res.passes = pass + 1;
+            if (!iter) break;
+            let worst = null;
+            basis.forEach(p => { if (ov[p.r] === 'keep') return; const d = isFinite(p.dev) ? Math.abs(p.dev) : Infinity; if (d > tol + 1e-12 && (!worst || d > worst.d)) worst = { p, d }; });
+            if (!worst) break;
+            removed.add(worst.p.r);
+        }
+        if (fn) { fn = calcRef(pairs.filter(inBasis)); evalDev(fn); }
+        const inc = pairs.map(p => within(p));
+        pairs.forEach((p, i) => { p.auto = inc[i]; p.use = ov[p.r] === 'keep' ? true : ov[p.r] === 'drop' ? false : inc[i]; });
+        res.kept = pairs.filter(p => p.use);
+        res.excluded = pairs.filter(p => !p.use);
+        res.flagged = pairs.filter(p => !p.auto || ov[p.r] === 'drop');   // ทุกจุดที่ต้องอยู่ในรายงาน
+        // สถิติก่อน/หลัง
+        res.before = _scLinreg(pairs);
+        res.after = res.kept.length >= 2 ? _scLinreg(res.kept) : null;
+        const xs = pairs.map(p => p.x); res.medX = _scrMedian(xs);
+        scrLast = res;
+        return res;
+    }
+    // ประเด็นที่ควรทวนสอบหน้างาน (อัตโนมัติ — เป็นแนวทาง ไม่ใช่ข้อสรุป)
+    function scrHint(p, scr) {
+        const h = [];
+        if (scr.ref && p.yref > 0) {
+            const lr = Math.log10(p.y / p.yref), k = Math.round(lr);
+            if (k !== 0 && Math.abs(lr - k) < 0.12) h.push(`🔢 ค่าห่างจากที่คาด ~${k > 0 ? '×' : '÷'}${Math.pow(10, Math.abs(k))} — สงสัยคีย์ผิดหลัก/หน่วย (kWh↔MWh, kg↔ตัน)`);
+        }
+        if (p.x <= 0) h.push('⛔ ผลผลิต = 0 แต่มีการใช้พลังงาน — ช่วงหยุดผลิต/ซ่อมบำรุง/standby หรือบันทึกผลผลิตตกหล่น');
+        else if (isFinite(scr.medX) && p.x < 0.5 * scr.medX) h.push('📉 ผลผลิตต่ำกว่าครึ่งของค่ามัธยฐาน — หยุดผลิตบางส่วน/เดินเครื่องไม่เต็มกำลัง (ถ้าเกิดซ้ำได้ในอนาคตไม่ควรตัด)');
+        else if (isFinite(scr.medX) && p.x > 1.8 * scr.medX) h.push('📈 ผลผลิตสูงผิดปกติ — ตรวจหน่วย/การรวมยอดข้ามรอบ หรือมีสต๊อกยกมา');
+        if (p.dev > 0) h.push('🔺 ใช้พลังงานสูงกว่าที่คาด — ตรวจ: start-up/หยุดเดินบ่อย, เครื่องจักรขัดข้อง/รั่ว, งานซ่อม/ทดลองเดินเครื่อง/โครงการพิเศษ, รอบอ่านมิเตอร์ยาวกว่าปกติ, ผลผลิตบันทึกต่ำกว่าจริง, สภาพอากาศ/วัตถุดิบเปลี่ยน');
+        else if (p.dev < 0) h.push('🔻 ใช้พลังงานต่ำกว่าที่คาด — ตรวจ: รอบบิล/วันทำงานสั้น, มิเตอร์เสีย/ข้อมูลขาดหาย, ผลผลิตบันทึกเกินจริงหรือรวมงานจ้างผลิตภายนอก, เปลี่ยนผลิตภัณฑ์/ใช้เชื้อเพลิงอื่นที่ไม่ได้นับ');
+        else if (!isFinite(p.dev)) h.push('ค่าอ้างอิง ≤ 0 — คำนวณ % เบี่ยงเบนไม่ได้');
+        return h.join('<br>');
+    }
+    function _scrEsc(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+    function scrRenderReport(scr, incomplete, xLabel, yLabel, xUnit, yUnit) {
+        const info = document.getElementById('scrReportInfo'), box = document.getElementById('scrReport');
+        const cmp = document.getElementById('scrCompare'), warn = document.getElementById('scrWarn');
+        const inc = document.getElementById('scrIncomplete');
+        inc.innerHTML = incomplete.length ? `<div class="alert-warn">⚠️ <b>แถวข้อมูลไม่ครบ ${incomplete.length} แถว</b> (ไม่ได้ใช้ในกราฟ/สมการ — ควรสอบถามโรงงานด้วย): ` +
+            incomplete.map(q => `แถว ${q.r + 1}${q.lbl ? ' (' + _scrEsc(q.lbl) + ')' : ''} – ${_scrEsc(q.why)}`).join(' · ') + '</div>' : '';
+        if (!scr.on) {
+            cmp.innerHTML = ''; warn.style.display = 'none'; box.innerHTML = '';
+            info.innerHTML = 'เปิด "การคัดกรอง" ด้านบนและตั้งเกณฑ์ &gt; 0% เพื่อสร้างรายงานจุดเบี่ยงเบน';
+            return;
+        }
+        const b = scr.before, a = scr.after, nAll = scr.all.length, nEx = scr.excluded.length;
+        const arrow = (v0, v1, f) => `${f(v0)} → <span style="color:${'#0056b3'}">${a ? f(v1) : '-'}</span>`;
+        _scSetStats('scrCompare', [
+            ['จำนวนจุด (ใช้ / ทั้งหมด)', `${scr.kept.length} / ${nAll}`],
+            ['จุดที่ตัดออก', `${nEx} จุด (${(nEx / nAll * 100).toFixed(0)}%)`],
+            ['R² ก่อน → หลังคัดกรอง', arrow(b.r2, a && a.r2, v => v.toFixed(4))],
+            ['β₀ พลังงานฐาน ก่อน → หลัง', arrow(b.intercept, a && a.intercept, _scFmt)],
+            ['β₁ SEC ส่วนเพิ่ม ก่อน → หลัง', arrow(b.slope, a && a.slope, _scFmt)]
+        ]);
+        const w = [];
+        if (nEx / nAll > 0.2) w.push(`ตัดออก ${(nEx / nAll * 100).toFixed(0)}% ของข้อมูล (&gt;20%) — เกณฑ์อาจแคบเกินไป หรือมีการเปลี่ยนแปลงเชิงระบบ (เปลี่ยนเครื่องจักร/ผลิตภัณฑ์/ฤดูกาล) ควรพิจารณาแยกช่วง Baseline หรือเพิ่มตัวแปร X แทนการตัดจุด`);
+        if (scr.kept.length < 12) w.push(`เหลือข้อมูล ${scr.kept.length} จุด — น้อยกว่า 12 จุด (เช่น 12 เดือน) ความเชื่อมั่นของสมการต่ำ`);
+        if (a && a.slope < 0) w.push('ความชันหลังคัดกรองติดลบ (non-physical) — ตรวจสอบตัวแปร X ที่เลือก');
+        warn.style.display = w.length ? 'block' : 'none';
+        warn.innerHTML = w.map(t => '⚠️ ' + t).join('<br>');
+        const mName = document.getElementById('scrMethod').selectedOptions[0].text;
+        info.innerHTML = `วิธีอ้างอิง: <b>${_scrEsc(mName)}</b> · เกณฑ์ ±<b>${scr.tolPct}%</b> · ${document.getElementById('scrIter').checked ? 'iterative ' + scr.passes + ' รอบ' : 'คำนวณครั้งเดียว'}` +
+            (scr.ref ? (scr.ref.kind === 'line' ? ` · Ŷ = ${_scFmt(scr.ref.b0)} + ${_scFmt(scr.ref.b1)}·X` : scr.ref.kind === 'sec' ? ` · SEC อ้างอิง = ${_scFmt(scr.ref.v)} ${yUnit}/${xUnit}` : ` · Y อ้างอิง = ${_scFmt(scr.ref.v)} ${yUnit}`) : '') +
+            ` · พบจุดหลุดเกณฑ์/ถูกตัด <b>${scr.flagged.length}</b> จุด — <u>ไม่ควรตัดทิ้งโดยไม่ทราบสาเหตุ</u> ให้ทวนสอบกับบันทึกการผลิต/มิเตอร์/บันทึกซ่อมบำรุงก่อน`;
+        if (!scr.flagged.length) { box.innerHTML = '<div class="alert-info">✅ ไม่พบจุดที่เบี่ยงเบนเกินเกณฑ์</div>'; return; }
+        const rows = scr.flagged.slice().sort((p, q) => Math.abs(q.dev || 0) - Math.abs(p.dev || 0));
+        let html = `<table class="scr-table"><thead><tr><th>#</th><th>แถว Excel</th><th>ช่วงเวลา<br>(คอลัมน์ A)</th><th>${_scrEsc(xLabel)}<br>(${xUnit})</th><th>${_scrEsc(yLabel)} จริง<br>(${yUnit})</th><th>Ŷ อ้างอิง<br>(${yUnit})</th><th>เบี่ยงเบน<br>(%)</th><th>SEC จริง /<br>SEC อ้างอิง</th><th style="min-width:260px;">ประเด็นที่ควรทวนสอบ (แนวทาง)</th><th style="min-width:170px;">ผลทวนสอบ / สาเหตุจากหน้างาน</th><th>ใช้ใน<br>สมการ</th></tr></thead><tbody>`;
+        rows.forEach((p, k) => {
+            const ovv = scrState.overrides[p.r];
+            const cls = p.use ? 'kept' : (p.dev > 0 ? 'hi' : 'lo');
+            const tag = ovv === 'drop' && p.auto ? '<span class="scr-tag mn">ตัดด้วยมือ</span>' : (p.dev > 0 ? '<span class="scr-tag hi">สูง</span>' : '<span class="scr-tag lo">ต่ำ</span>');
+            const secA = p.x > 0 ? _scFmt(p.y / p.x) : '-', secR = p.x > 0 && isFinite(p.yref) ? _scFmt(p.yref / p.x) : '-';
+            html += `<tr class="${cls}"><td>${k + 1}</td><td>${p.r + 1}</td><td>${_scrEsc(p.lbl)}</td><td>${_scFmt(p.x)}</td><td>${_scFmt(p.y)}</td><td>${_scFmt(p.yref)}</td>` +
+                `<td><b>${isFinite(p.dev) ? (p.dev > 0 ? '+' : '') + (p.dev * 100).toFixed(1) : '-'}</b><br>${tag}</td><td>${secA}<br><span style="color:#666">${secR}</span></td>` +
+                `<td class="l">${scrHint(p, scr)}</td>` +
+                `<td><input type="text" data-scr-note="${p.r}" value="${_scrEsc(scrState.notes[p.r] || '')}" placeholder="เช่น หยุดซ่อม 10 วัน" oninput="scrState.notes[${p.r}]=this.value"></td>` +
+                `<td><input type="checkbox" ${p.use ? 'checked' : ''} onchange="scrToggle(${p.r})" title="ติ๊ก = ทวนสอบแล้วเป็นสภาวะปกติ ใช้ในสมการ"></td></tr>`;
+        });
+        html += '</tbody></table><p style="font-size:0.82em;color:#666;">เรียงตามขนาดความเบี่ยงเบน · แถวสีเขียว = ติ๊กให้ใช้ในสมการ (ทวนสอบแล้วเป็นสภาวะปกติ) · SEC อ้างอิง = Ŷ อ้างอิง / X</p>';
+        box.innerHTML = html;
+    }
+    function scrToggle(r) {
+        if (!document.getElementById('scrEnable').checked) { alert('กรุณาเปิด "การคัดกรอง" ก่อน จึงจะเลือกใช้/ไม่ใช้จุดได้'); return; }
+        const p = scrLast && scrLast.all ? scrLast.all.find(q => q.r === r) : null;
+        if (!p) return;
+        const ov = scrState.overrides;
+        if (p.use) { if (ov[r] === 'keep') delete ov[r]; else ov[r] = 'drop'; }
+        else { if (ov[r] === 'drop') delete ov[r]; else ov[r] = 'keep'; }
+        renderScatterCharts();
+    }
+    function scrResetManual() {
+        if (!confirm('ล้างการเลือกใช้/ไม่ใช้ด้วยมือ และข้อความผลทวนสอบทั้งหมด?')) return;
+        scrState = { overrides: {}, notes: {} }; renderScatterCharts();
+    }
+    function scrPushToBaseline() {
+        const scr = scrLast;
+        if (!scatterData || !scr || !scr.on) { alert('กรุณาเปิด "การคัดกรอง" และตั้งเกณฑ์ > 0% ก่อน'); return; }
+        if (scr.kept.length < 3) { alert('ข้อมูลที่เหลือน้อยเกินไป (< 3 จุด)'); return; }
+        const exRows = new Set(scr.excluded.map(p => p.r));
+        const raw = scatterData;
+        if (globalBaselineData && raw !== globalBaselineData && raw !== baselineRawData &&
+            !confirm('ข้อมูลในส่วนที่ 3 มาจากไฟล์ที่อัปโหลดแยก (ไม่ใช่ไฟล์ของส่วนที่ 1A)\nต้องการแทนที่ข้อมูล 1A ด้วยไฟล์นี้ (หลังคัดกรอง) หรือไม่?')) return;
+        const filtered = [raw[0]].concat(raw.slice(1).filter((row, k) => !exRows.has(k + 1)));
+        const unexplained = scr.excluded.filter(p => !(scrState.notes[p.r] || '').trim()).length;
+        if (unexplained && !confirm(`มี ${unexplained} จุดที่ตัดออกแต่ยังไม่ได้บันทึกผลทวนสอบ/สาเหตุ\n(ISO 50006: ควรตัดเฉพาะข้อมูลที่ไม่เป็นตัวแทนการดำเนินงานปกติและระบุเหตุผลได้)\n\nยืนยันส่งข้อมูลไปคำนวณในส่วนที่ 1A หรือไม่?`)) return;
+        // เก็บติ๊ก X ของ 1A ไว้
+        const chk = []; for (let i = 1; i <= 5; i++) { const e = document.getElementById('chk_x' + i); chk.push(e ? e.checked : true); }
+        const hadBase = !!globalBaselineData;
+        baselineRawData = raw;
+        applyBaselineData(filtered, false);
+        if (hadBase) for (let i = 1; i <= 5; i++) document.getElementById('chk_x' + i).checked = chk[i - 1];
+        scatterData = raw;   // ส่วนที่ 3 ยังแสดงข้อมูลดิบ
+        const xl = document.getElementById('scatterXSelect').selectedOptions[0].text, yl = document.getElementById('scatterYSelect').selectedOptions[0].text;
+        scrPushInfo = { nKept: filtered.length - 1, nRaw: raw.length - 1, rows: scr.excluded.map(p => p.r + 1).sort((a, b) => a - b),
+            method: document.getElementById('scrMethod').selectedOptions[0].text, tol: scr.tolPct, pair: `${yl} ↔ ${xl}`, at: new Date().toLocaleString('th-TH') };
+        recalculateBaseline();
+        scrUpdateBaselineBanner();
+        switchTab('baseline');
+    }
+    function scrRestoreRawBaseline(ask) {
+        if (!baselineRawData) { if (ask) alert('ส่วนที่ 1A ใช้ข้อมูลดิบอยู่แล้ว'); return; }
+        const chk = []; for (let i = 1; i <= 5; i++) chk.push(document.getElementById('chk_x' + i).checked);
+        const raw = baselineRawData; baselineRawData = null; scrPushInfo = null;
+        applyBaselineData(raw, false);
+        for (let i = 1; i <= 5; i++) document.getElementById('chk_x' + i).checked = chk[i - 1];
+        if (scatterData === raw) scatterData = globalBaselineData;
+        recalculateBaseline();
+        scrUpdateBaselineBanner();
+        if (ask) alert('ส่วนที่ 1A กลับไปใช้ข้อมูลดิบทั้งหมดแล้ว');
+    }
+    function scrUpdateBaselineBanner() {
+        const b = document.getElementById('scrBaselineBanner'); if (!b) return;
+        if (!baselineRawData || !scrPushInfo) { b.style.display = 'none'; b.innerHTML = ''; return; }
+        const I = scrPushInfo;
+        b.style.display = 'block';
+        b.innerHTML = `🧹 <b>สมการนี้คำนวณจากข้อมูลที่คัดกรองแล้ว</b> — ใช้ ${I.nKept} จาก ${I.nRaw} แถว · ตัดออกแถว Excel: <b>${I.rows.join(', ')}</b><br>` +
+            `<span style="font-size:0.9em;">เกณฑ์: ${_scrEsc(I.method)} ±${I.tol}% (คู่ ${_scrEsc(I.pair)}) · ${_scrEsc(I.at)} · ดูรายละเอียดที่แท็บ "ส่วนที่ 3"</span> ` +
+            `<button class="btn-primary no-print" style="padding:4px 10px; font-size:0.85em; margin-left:6px;" onclick="scrRestoreRawBaseline(true)">↩️ กลับไปใช้ข้อมูลดิบ</button>`;
+    }
+    function scrExportExcel() {
+        const scr = scrLast;
+        if (!scr || !scr.on) { alert('กรุณาเปิด "การคัดกรอง" ก่อน'); return; }
+        if (typeof XLSX === 'undefined') { alert('ไลบรารี Excel ยังไม่พร้อม (ต้องต่ออินเทอร์เน็ต)'); return; }
+        const xl = document.getElementById('scatterXSelect').selectedOptions[0].text, yl = document.getElementById('scatterYSelect').selectedOptions[0].text;
+        const plant = document.getElementById('projName').value || '';
+        const aoa = [
+            ['รายการจุดข้อมูลเบี่ยงเบน — สำหรับทวนสอบหน้างาน (EnMS Baseline)'],
+            ['โรงงาน', plant, '', 'ระบบ', document.getElementById('projSystem').value || ''],
+            ['ช่วงข้อมูล', document.getElementById('projPeriod').value || '', '', 'ผู้วิเคราะห์', document.getElementById('projBy').value || ''],
+            ['คู่ตัวแปร', `${yl} ↔ ${xl}`, '', 'วิธีอ้างอิง', document.getElementById('scrMethod').selectedOptions[0].text],
+            ['เกณฑ์ยอมรับ (±%)', scr.tolPct, '', 'R² ก่อน → หลัง', `${scr.before.r2.toFixed(4)} → ${scr.after ? scr.after.r2.toFixed(4) : '-'}`],
+            [],
+            ['#', 'แถว Excel', 'ช่วงเวลา', xl, `${yl} จริง`, 'Ŷ อ้างอิง', 'เบี่ยงเบน (%)', 'SEC จริง', 'SEC อ้างอิง', 'สถานะ', 'ประเด็นที่ควรทวนสอบ', 'ผลทวนสอบ/สาเหตุจากหน้างาน (โรงงานกรอก)']
+        ];
+        scr.flagged.slice().sort((p, q) => Math.abs(q.dev || 0) - Math.abs(p.dev || 0)).forEach((p, k) => {
+            const hint = scrHint(p, scr).replace(/<br>/g, ' | ');
+            aoa.push([k + 1, p.r + 1, p.lbl, p.x, p.y, +(+p.yref).toFixed(3), isFinite(p.dev) ? +(p.dev * 100).toFixed(2) : '',
+                p.x > 0 ? +(p.y / p.x).toFixed(5) : '', p.x > 0 && isFinite(p.yref) ? +(p.yref / p.x).toFixed(5) : '',
+                p.use ? 'ใช้ในสมการ (ทวนสอบแล้ว)' : 'ตัดออก – รอทวนสอบ', hint, scrState.notes[p.r] || '']);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = [{ wch: 4 }, { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 11 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 80 }, { wch: 40 }];
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Outlier_Check');
+        const d = new Date(), ds = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+        XLSX.writeFile(wb, `EnMS_Outlier_Check${plant ? '_' + _teSafeName(plant) : ''}_${ds}.xlsx`);
     }
 
     // ====== INIT ======
@@ -2081,10 +2449,10 @@
         return {
             schemaTool:'EnMS_MLR_CUSUM_Dashboard', schemaVer:2,
             project:{ name:document.getElementById('projName').value, system:document.getElementById('projSystem').value, period:document.getElementById('projPeriod').value, by:document.getElementById('projBy').value },
-            baseline:{ data:globalBaselineData, xLabels:xLabels.slice(), eqLoaded:eqLoaded, eqLoadedName:eqLoadedName },
+            baseline:{ data:globalBaselineData, rawData:baselineRawData, pushInfo:scrPushInfo, xLabels:xLabels.slice(), eqLoaded:eqLoaded, eqLoadedName:eqLoadedName },
             multi:{ data:multiData, labels:multiLabels.slice(), fit:_teMultiFitRecord(), monRaw:multiMonRaw, hasData:!!multiData },
             monitoring:{ raw:monitoringRaw },
-            scatter:{ data:(scatterData===globalBaselineData)?'__BASELINE__':scatterData },
+            scatter:{ data:(scatterData===globalBaselineData)?'__BASELINE__':(baselineRawData&&scatterData===baselineRawData)?'__BASELINE_RAW__':scatterData, screening:{ overrides:scrState.overrides, notes:scrState.notes } },
             savedEquations:getSavedEquations(),
             ui:{ activeTab:_teActiveTab() }
         };
@@ -2121,6 +2489,7 @@
             A(inp);
             // 1A
             eqLoaded=false; eqLoadedName=''; setEqLoadedBanner(false);
+            baselineRawData=(X.baseline&&X.baseline.rawData)||null; scrPushInfo=baselineRawData?((X.baseline&&X.baseline.pushInfo)||null):null; scrUpdateBaselineBanner();
             if(X.baseline&&X.baseline.data){ applyBaselineData(X.baseline.data,false); A(inp); recalculateBaseline(); }
             else if(X.baseline&&X.baseline.xLabels){ X.baseline.xLabels.forEach((lbl,i)=>{ xLabels[i]=lbl; document.getElementById('lbl_x'+(i+1)).innerHTML='<input type="checkbox" id="chk_x'+(i+1)+'" onchange="recalculateBaseline()"> <span>'+lbl+'</span>'; document.getElementById('th_x'+(i+1)).innerText=lbl; }); A(inp); }
             A(inp);   // คืนค่า β ที่บันทึก (กรณี Manual Override / สมการที่โหลดจากคลัง)
@@ -2137,7 +2506,8 @@
             if(X.monitoring&&X.monitoring.raw){ const P=_monitoringParams(); if(P) applyMonitoringData(X.monitoring.raw,P.src,P.yChoice,P.coeffs); }
             updateCusumSourceInfo();
             // 3 Scatter
-            if(X.scatter&&X.scatter.data){ scatterData=(X.scatter.data==='__BASELINE__')?globalBaselineData:X.scatter.data; if(scatterData){ populateScatterSelectors(); A(inp); renderScatterCharts(); } }
+            scrState={ overrides:(X.scatter&&X.scatter.screening&&X.scatter.screening.overrides)||{}, notes:(X.scatter&&X.scatter.screening&&X.scatter.screening.notes)||{} };
+            if(X.scatter&&X.scatter.data){ scatterData=(X.scatter.data==='__BASELINE__')?globalBaselineData:(X.scatter.data==='__BASELINE_RAW__')?(baselineRawData||globalBaselineData):X.scatter.data; if(scatterData){ populateScatterSelectors(); A(inp); renderScatterCharts(); } }
             // สมการที่บันทึก — รวมเข้าคลังในเครื่อง (ไม่ลบของเดิม)
             if(Array.isArray(X.savedEquations)){ const ex=getSavedEquations(); const ids=new Set(ex.map(x=>x.id)); const nw=X.savedEquations.filter(x=>!ids.has(x.id)); if(nw.length) setSavedEquations([...nw,...ex]); }
             renderSavedList();
