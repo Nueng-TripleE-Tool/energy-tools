@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- [แก้ไข 15 ต.ค. 2569] ไม่ส่ง Referer ไปยัง API ภายนอก — ThaiWater ตอบ 429 เมื่อเรียกจากโดเมนเว็บ (เปิดจาก file:// ไม่มี Referer จึงผ่าน) -->
+<meta name="referrer" content="no-referrer">
 <title>Thailand CDD Analyzer — Cooling Degree Days 77 จังหวัด</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -535,7 +537,7 @@ td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 </div>
 
 <div class="card no-print" style="font-size:.82rem;color:var(--muted)">
-  Triple E Technology Co., Ltd. · Thailand CDD Analyzer v2.2 (+Water Level) · แหล่งข้อมูล: Open-Meteo.com (ERA5, CC-BY 4.0) · ระดับน้ำ: ThaiWater.net API (สสน. คลังข้อมูลน้ำแห่งชาติ — รวมสถานี สสน./กรมชลประทาน/กฟผ./มูลนิธิเพื่อนพึ่งภาฯ)
+  Triple E Technology Co., Ltd. · Thailand CDD Analyzer v2.3 (+Water Level · no-referrer fix) · แหล่งข้อมูล: Open-Meteo.com (ERA5, CC-BY 4.0) · ระดับน้ำ: ThaiWater.net API (สสน. คลังข้อมูลน้ำแห่งชาติ — รวมสถานี สสน./กรมชลประทาน/กฟผ./มูลนิธิเพื่อนพึ่งภาฯ)
   · เครื่องมือนี้คำนวณฝั่งผู้ใช้ทั้งหมด ไม่ส่งข้อมูลพลังงานของท่านออกไปภายนอก
 </div>
 </div>
@@ -2133,8 +2135,8 @@ async function loadStations(){
   const btn=$('btnLoad');btn.disabled=true;
   $('loadStatus').textContent='กำลังดึงข้อมูลสถานีทั่วประเทศ …';
   try{
-    const r=await fetch(API+'/waterlevel_load');
-    if(!r.ok)throw new Error('HTTP '+r.status);
+    const r=await fetch(API+'/waterlevel_load',{referrerPolicy:'no-referrer'});   // [แก้ไข 15 ต.ค. 2569]
+    if(!r.ok)throw new Error('HTTP '+r.status+(r.status===429?' (API จำกัดการเรียกจากโดเมนเว็บ/เรียกถี่เกิน — รอ 1–2 นาทีแล้วลองใหม่)':''));
     const j=await r.json();
     if(!j.waterlevel_data||!Array.isArray(j.waterlevel_data.data))throw new Error('รูปแบบข้อมูลเปลี่ยน');
     ST=normalize(j.waterlevel_data.data);
@@ -2323,7 +2325,7 @@ async function openGraph(id){
   $('graphTitle').innerHTML=esc(x.name)+(x.code?' ('+esc(x.code)+')':'')+' · '+esc(x.river||x.basin)+' · จ.'+esc(x.prov)+' '+starBtn(x);
   $('graphBox').innerHTML='<p class="assump">กำลังโหลดกราฟ …</p>';
   try{
-    const r=await fetch(API+'/waterlevel_graph?station_type=tele_waterlevel&station_id='+id+'&duration=7d');
+    const r=await fetch(API+'/waterlevel_graph?station_type=tele_waterlevel&station_id='+id+'&duration=7d',{referrerPolicy:'no-referrer'});   // [แก้ไข 15 ต.ค. 2569]
     if(!r.ok)throw new Error('HTTP '+r.status);
     const j=await r.json();
     const g=(j.data&&j.data.graph_data)||[];
