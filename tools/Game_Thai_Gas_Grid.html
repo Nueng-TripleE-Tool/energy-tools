@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thai Gas Grid — เกมบริหารความมั่นคงก๊าซธรรมชาติไทย | Triple E Energy Tools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0f2a4a; --teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa; --card:#ffffff; --ink:#1c2b3a; --muted:#5b6b7b; --line:#e2e8f0;
+  --accent:#12a4a4; --warn:#e08a00; --ok:#1e9e5a; --danger:#d1495b;
+  --azure:#0a84ff; --sun:#ffc83d; --coral:#ff7a45; --ice:#9fe3ff;
+  --radius:14px; --shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+.mono{font-family:'IBM Plex Mono',monospace}
+.bc{font-family:'Barlow Condensed',sans-serif}
+
+/* ───────── header ───────── */
+header{background:var(--header-grad);color:#fff;padding:18px 22px 14px;position:relative;overflow:hidden}
+header::after{content:'';position:absolute;right:-60px;top:-80px;width:280px;height:280px;border-radius:50%;background:rgba(255,255,255,.06)}
+.h-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.h-logo{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:30px;letter-spacing:1px;line-height:1.05}
+.h-logo small{display:block;font-family:'IBM Plex Sans Thai',sans-serif;font-weight:400;font-size:13.5px;letter-spacing:0;opacity:.85}
+.h-score{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap}
+.chip{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:7px;backdrop-filter:blur(3px)}
+.chip b{font-family:'IBM Plex Mono',monospace;font-size:15px}
+.chip .ico{font-size:15px}
+/* month timeline */
+.timeline{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.tl-dot{width:34px;height:26px;border-radius:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);
+ font-size:11.5px;display:flex;align-items:center;justify-content:center;color:#dfefff;transition:all .3s}
+.tl-dot.done{background:rgba(255,255,255,.85);color:var(--navy);font-weight:600}
+.tl-dot.now{background:var(--sun);color:#5c4300;font-weight:700;box-shadow:0 0 0 3px rgba(255,200,61,.35);transform:scale(1.12)}
+
+/* ───────── layout ───────── */
+.wrap{max-width:1180px;margin:0 auto;padding:18px 16px 60px}
+.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px}
+@media(max-width:920px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
+.card h2{font-size:17px;color:var(--navy);display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.card h2 .ico{font-size:19px}
+.card h2 .tag{margin-left:auto;font-size:11px;font-weight:500;color:var(--muted);background:var(--bg);border-radius:999px;padding:3px 10px}
+
+/* ───────── event card ───────── */
+.news{border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;border:1.5px solid var(--line);background:#fbfdff}
+.news.warn{border-color:#f2c88a;background:#fff9ef}
+.news.bad{border-color:#f0b9c1;background:#fdf2f4}
+.news.good{border-color:#bfe6cf;background:#f2fbf6}
+.news .n-ico{font-size:30px;line-height:1}
+.news .n-t{font-weight:600;font-size:15.5px;margin-bottom:3px}
+.news .n-d{font-size:13.5px;color:var(--muted);line-height:1.55}
+.forecast{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+@media(max-width:560px){.forecast{grid-template-columns:1fr 1fr}}
+.fc{background:var(--bg);border-radius:10px;padding:10px 12px;text-align:center}
+.fc .v{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:24px;color:var(--navy)}
+.fc .u{font-size:11px;color:var(--muted)}
+.fc .l{font-size:12px;color:var(--muted);margin-bottom:2px}
+
+/* ───────── decision sliders ───────── */
+.dec{margin-bottom:16px}
+.dec-head{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.dec-head .ic{font-size:17px}
+.dec-head .nm{font-weight:600;font-size:14.5px}
+.dec-head .val{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:16px;color:var(--navy)}
+.dec-head .val small{font-size:11px;color:var(--muted);font-family:'IBM Plex Sans Thai',sans-serif}
+.hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:4px}
+input[type=range]{width:100%;height:30px;-webkit-appearance:none;appearance:none;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px;background:linear-gradient(90deg,var(--teal) var(--p,50%),#e2e8f0 var(--p,50%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--teal);margin-top:-7px;box-shadow:0 2px 6px rgba(15,42,74,.25)}
+input[type=range].orange::-webkit-slider-runnable-track{background:linear-gradient(90deg,var(--coral) var(--p,50%),#e2e8f0 var(--p,50%))}
+input[type=range].orange::-webkit-slider-thumb{border-color:var(--coral)}
+.stepper{display:flex;align-items:center;gap:12px}
+.stepper button{width:40px;height:40px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:20px;cursor:pointer;color:var(--navy);transition:all .15s}
+.stepper button:hover{border-color:var(--teal);background:#f0fafa}
+.stepper button:disabled{opacity:.35;cursor:not-allowed}
+.stepper .sv{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:30px;min-width:46px;text-align:center;color:var(--navy)}
+.btn-go{width:100%;padding:15px;border:none;border-radius:13px;background:var(--header-grad);color:#fff;
+ font-family:'IBM Plex Sans Thai',sans-serif;font-weight:700;font-size:17px;cursor:pointer;box-shadow:0 6px 18px rgba(18,164,164,.35);
+ transition:transform .15s, box-shadow .15s;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn-go:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(18,164,164,.45)}
+.btn-go:active{transform:translateY(0)}
+.btn-go:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* ───────── dashboard ───────── */
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--bg);border-radius:11px;padding:11px 13px;position:relative;overflow:hidden}
+.kpi .l{font-size:11.5px;color:var(--muted)}
+.kpi .v{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:27px;color:var(--navy);line-height:1.15}
+.kpi .v small{font-size:13px;font-weight:600;color:var(--muted)}
+.kpi.good .v{color:var(--ok)} .kpi.warn .v{color:var(--warn)} .kpi.bad .v{color:var(--danger)}
+.tankwrap{display:flex;gap:18px;align-items:center}
+.tanksvg{flex-shrink:0}
+.tank-info{flex:1}
+.bar-outer{height:10px;background:#e8eef4;border-radius:5px;overflow:hidden;margin-top:6px}
+.bar-inner{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--azure),var(--ice));transition:width .6s}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+/* ───────── log ───────── */
+.log{max-height:230px;overflow-y:auto;font-size:13px}
+.log-item{padding:9px 12px;border-left:3px solid var(--line);margin-bottom:8px;background:var(--bg);border-radius:0 9px 9px 0;line-height:1.55}
+.log-item.ok{border-color:var(--ok)} .log-item.warn{border-color:var(--warn)} .log-item.bad{border-color:var(--danger)}
+.log-item b{color:var(--navy)}
+
+/* ───────── modal ───────── */
+.overlay{position:fixed;inset:0;background:rgba(10,25,45,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;backdrop-filter:blur(2px)}
+.overlay.show{display:flex;animation:fadein .25s}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.modal{background:#fff;border-radius:18px;max-width:640px;width:100%;max-height:92vh;overflow-y:auto;padding:26px 28px;animation:pop .3s}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+.modal h3{font-size:20px;color:var(--navy);margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.m-sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+.m-rows{margin:12px 0}
+.m-row{display:flex;justify-content:space-between;padding:8px 2px;border-bottom:1px dashed var(--line);font-size:14px}
+.m-row b{font-family:'IBM Plex Mono',monospace}
+.m-flash{border-radius:11px;padding:12px 14px;margin:12px 0;font-size:14px;line-height:1.6}
+.m-flash.ok{background:#f2fbf6;border:1.5px solid #bfe6cf}
+.m-flash.warn{background:#fff9ef;border:1.5px solid #f2c88a}
+.m-flash.bad{background:#fdf2f4;border:1.5px solid #f0b9c1}
+.btn2{width:100%;padding:13px;border:none;border-radius:12px;background:var(--navy);color:#fff;font-family:'IBM Plex Sans Thai',sans-serif;font-weight:600;font-size:15.5px;cursor:pointer;margin-top:10px}
+.btn2:hover{background:#163a63}
+.btn2.teal{background:var(--teal)} .btn2.teal:hover{background:#0e8c8c}
+
+/* ───────── end screen ───────── */
+.grade-big{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:110px;line-height:1;text-align:center;
+ background:var(--header-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.grade-word{text-align:center;font-size:17px;font-weight:600;color:var(--navy);margin-bottom:16px}
+.score-row{margin-bottom:13px}
+.score-row .sl{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:4px}
+.score-row .sl b{font-family:'IBM Plex Mono',monospace}
+.sbar{height:12px;background:#e8eef4;border-radius:6px;overflow:hidden}
+.sbar i{display:block;height:100%;border-radius:6px;transition:width 1s ease}
+.lessons{background:var(--bg);border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.7;margin-top:14px}
+.lessons b{color:var(--navy)}
+
+/* ───────── collapsible ───────── */
+details{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden}
+details summary{padding:15px 20px;font-weight:600;font-size:15px;color:var(--navy);cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px}
+details summary::after{content:'▾';margin-left:auto;color:var(--muted);transition:transform .25s}
+details[open] summary::after{transform:rotate(180deg)}
+details .d-body{padding:0 20px 18px;font-size:14px;line-height:1.75;color:var(--ink)}
+details .d-body table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
+details .d-body th{background:var(--bg);text-align:left;padding:7px 10px;color:var(--navy)}
+details .d-body td{padding:7px 10px;border-bottom:1px solid var(--line)}
+details .d-body td.n{font-family:'IBM Plex Mono',monospace;text-align:right}
+kbd{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:12px}
+
+footer{text-align:center;font-size:12px;color:var(--muted);padding:20px;line-height:1.7}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-width:560px){
+  .h-logo{font-size:24px}
+  .kpis{grid-template-columns:1fr 1fr}
+  .tl-dot{width:28px;height:23px;font-size:10px}
+  .modal{padding:20px 18px}
+  .grade-big{font-size:84px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-top">
+    <div class="h-logo">THAI GAS GRID<small>เกมบริหารความมั่นคงก๊าซธรรมชาติไทย · Triple E Energy Tools</small></div>
+    <div class="h-score">
+      <div class="chip"><span class="ico">🛡️</span>มั่นคง <b id="c-sec">100</b></div>
+      <div class="chip"><span class="ico">💰</span>เฉลี่ย <b id="c-cost">—</b><span style="font-size:11px">฿/MMBtu</span></div>
+      <div class="chip"><span class="ico">🌱</span>CO₂ <b id="c-co2">0</b><span style="font-size:11px">ล้านตัน</span></div>
+    </div>
+  </div>
+  <div class="timeline" id="timeline"></div>
+</header>
+
+<div class="wrap">
+  <details>
+    <summary>📖 วิธีเล่น และเป้าหมายของเกม</summary>
+    <div class="d-body">
+      คุณคือ <b>ผู้ว่าการพลังงาน</b> ดูแลระบบก๊าซธรรมชาติของประเทศไทยตลอด 12 เดือน
+      ความต้องการใช้ก๊าซ (~4,400-5,000 BBtu/วัน) มาจาก <b>โรงไฟฟ้า ~63%</b> · <b>โรงงาน/GSP ~32%</b> · <b>ภาคขนส่ง NGV ~5%</b>
+      และแกว่งตามฤดูกาล (พีคหน้าร้อน เม.ย.–พ.ค.) + เหตุการณ์ไม่คาดฝัน<br><br>
+      <b>เครื่องมือของคุณ 4 อย่าง:</b><br>
+      ⛽ <b>ขุดก๊าซอ่าวไทย/เมียนมา</b> — ถูกที่สุด แต่กำลังผลิตถดถอยทุกเดือน (แหล่งก๊าซกำลังหมด)<br>
+      📜 <b>สัญญา LNG ระยะยาว</b> — ราคาคงที่ มีเงื่อนไข take-or-pay (ไม่รับก็ต้องจ่ายขั้นต่ำ 80%)<br>
+      🚢 <b>สั่งเรือ LNG spot</b> — ยืดหยุ่น แต่ราคาผันผวนแรง และ<b>เรือมาถึงเดือนถัดไป</b> (ต้องวางแผนล่วงหน้า!) ก๊าซเข้าคลังมาบตาพุด/หนองแฟบ แล้วค่อยแปลงเป็นก๊าซ (regas) จ่ายเข้าท่อ<br>
+      🌱 <b>สร้างโรง CBG</b> — ไบโอมีเทนจากฟาร์ม/น้ำเสีย ป้อนภาคขนส่งแทน CNG จากก๊าซฟอสซิล ลด CO₂ ได้ถาวร<br><br>
+      <b>เป้าหมาย:</b> ① ห้ามเกิดก๊าซขาด (ไฟดับ = คะแนนมั่นคงหาย) ② คุมต้นทุนเฉลี่ยให้ต่ำ ③ ลดคาร์บอน
+      — จบปีรับเกรด A–F · เคล็ดลับ: รักษาระดับคลัง LNG ไว้ ≥ 30% และสำรองกำลังผลิต (reserve margin) 10–25% เสมอ
+    </div>
+  </details>
+
+  <div class="grid">
+    <!-- ═══ ซ้าย: สถานการณ์ + ตัดสินใจ ═══ -->
+    <div>
+      <div class="card">
+        <h2><span class="ico">📰</span>สถานการณ์ต้นเดือน <span class="tag" id="month-tag">เดือน 1/12</span></h2>
+        <div class="news" id="news-box">
+          <div class="n-ico" id="news-ico">🗞️</div>
+          <div><div class="n-t" id="news-t">—</div><div class="n-d" id="news-d">—</div></div>
+        </div>
+        <div class="forecast">
+          <div class="fc"><div class="l">คาดการณ์ความต้องการ</div><div class="v" id="fc-dem">—</div><div class="u">BBtu/วัน (±4%)</div></div>
+          <div class="fc"><div class="l">ราคา LNG spot ตอนนี้</div><div class="v" id="fc-spot">—</div><div class="u">฿/MMBtu</div></div>
+          <div class="fc"><div class="l">กำลังผลิตอ่าวไทยคงเหลือ</div><div class="v" id="fc-gulf">—</div><div class="u">BBtu/วัน</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="ico">🎛️</span>แผนจัดหาก๊าซเดือนนี้</h2>
+
+        <div class="dec">
+          <div class="dec-head"><span class="ic">⛽</span><span class="nm">ขุดก๊าซอ่าวไทย + เมียนมา</span>
+            <span class="val"><span id="v-gulf">0</span> <small>BBtu/d · 225 ฿/MMBtu</small></span></div>
+          <input type="range" id="in-gulf" min="0" max="3350" step="25" value="3350">
+          <div class="hint">แหล่งในประเทศ ถูกที่สุด — แต่เพดานการผลิตลดลงราว 0.6% ทุกเดือน และอาจหยุดซ่อมบำรุงกะทันหัน</div>
+        </div>
+
+        <div class="dec">
+          <div class="dec-head"><span class="ic">📜</span><span class="nm">รับก๊าซจากสัญญา LNG ระยะยาว</span>
+            <span class="val"><span id="v-con">0</span> <small>BBtu/d · 380 ฿/MMBtu</small></span></div>
+          <input type="range" id="in-con" min="0" max="740" step="10" value="740">
+          <div class="hint">สัญญา 5.2 ล้านตัน/ปี ≈ 740 BBtu/d — <b>take-or-pay:</b> รับน้อยกว่า 592 BBtu/d ก็ต้องจ่ายเท่า 592 · ก๊าซเข้าคลังก่อน regas</div>
+        </div>
+
+        <div class="dec">
+          <div class="dec-head"><span class="ic">🚢</span><span class="nm">สั่งเรือ LNG spot (มาถึงเดือนหน้า)</span>
+            <span class="val"><span id="v-ship-cost">0</span> <small>ล้านบาท</small></span></div>
+          <div class="stepper">
+            <button id="ship-minus" type="button">−</button>
+            <div class="sv" id="v-ship">0</div>
+            <button id="ship-plus" type="button">+</button>
+            <div class="hint" style="margin:0 0 0 6px">ลำละ ~80,000 ตัน ≈ 4.16 TBtu (ล็อกราคา ณ วันสั่ง) — เข้าคลังเดือนถัดไป<br>🧮 แผนกวิเคราะห์แนะนำ: <b id="ship-sugg">~3 ลำ</b> <span id="ship-why"></span></div>
+          </div>
+        </div>
+
+        <div class="dec">
+          <div class="dec-head"><span class="ic">🌱</span><span class="nm">ลงทุนสร้างโรง CBG (เริ่มผลิตเดือนหน้า)</span>
+            <span class="val"><span id="v-cbg-cost">0</span> <small>ล้านบาท</small></span></div>
+          <div class="stepper">
+            <button id="cbg-minus" type="button">−</button>
+            <div class="sv" id="v-cbg">0</div>
+            <button id="cbg-plus" type="button">+</button>
+            <div class="hint" style="margin:0 0 0 6px">โรงละ 500 ล้านบาท ผลิต +5 BBtu/d ถาวร ป้อนภาคขนส่ง (คาร์บอนชีวภาพ ≈ 0) · สร้างได้สูงสุด 2 โรง/เดือน รวม 8 โรง</div>
+          </div>
+        </div>
+
+        <div class="hint" style="margin-bottom:12px">💧 <b>regas อัตโนมัติ:</b> ระบบดึง LNG จากคลังมาแปลงเป็นก๊าซเติมส่วนที่ขาดให้เอง (สูงสุด 2,700 BBtu/d และไม่เกินปริมาณในคลัง + ค่า regas 25 ฿/MMBtu)</div>
+
+        <button class="btn-go" id="btn-go">▶️ ยืนยันแผน — เดินเครื่องเดือนนี้</button>
+      </div>
+    </div>
+
+    <!-- ═══ ขวา: แดชบอร์ด ═══ -->
+    <div>
+      <div class="card">
+        <h2><span class="ico">🧊</span>คลัง LNG มาบตาพุด + หนองแฟบ</h2>
+        <div class="tankwrap">
+          <svg class="tanksvg" width="110" height="150" viewBox="0 0 110 150">
+            <defs>
+              <clipPath id="tankclip"><rect x="15" y="12" width="80" height="126" rx="14"/></clipPath>
+              <linearGradient id="lng-liq" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#9fe3ff"/><stop offset="1" stop-color="#0a84ff"/>
+              </linearGradient>
+            </defs>
+            <rect x="15" y="12" width="80" height="126" rx="14" fill="#eef5fa" stroke="#0f2a4a" stroke-width="2.5"/>
+            <g clip-path="url(#tankclip)">
+              <g id="tank-liquid">
+                <rect id="tank-fill" x="15" y="80" width="80" height="70" fill="url(#lng-liq)"/>
+                <path id="tank-wave" d="M15 80 q10 -6 20 0 t20 0 t20 0 t20 0 v8 h-80 z" fill="#cfeeff" opacity=".85">
+                  <animateTransform attributeName="transform" type="translate" values="0 0; -10 0; 0 0" dur="3.2s" repeatCount="indefinite"/>
+                </path>
+              </g>
+            </g>
+            <rect x="15" y="12" width="80" height="126" rx="14" fill="none" stroke="#0f2a4a" stroke-width="2.5"/>
+            <text id="tank-pct" x="55" y="82" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="24" fill="#0f2a4a">46%</text>
+          </svg>
+          <div class="tank-info">
+            <div style="font-size:13px;color:var(--muted)">ปริมาณในคลัง</div>
+            <div class="bc" style="font-weight:700;font-size:34px;color:var(--navy)"><span id="tank-val">18.0</span> <span style="font-size:16px;color:var(--muted)">/ 26 TBtu</span></div>
+            <div class="bar-outer"><div class="bar-inner" id="tank-bar" style="width:46%"></div></div>
+            <div class="hint" id="tank-hint" style="margin-top:7px">จ่ายได้สูงสุด 2,700 BBtu/d (กำลัง regas 19 ล้านตัน/ปี)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="ico">📊</span>สมดุลจัดหา–ความต้องการ</h2>
+        <div class="kpis">
+          <div class="kpi" id="k-margin"><div class="l">สำรองกำลังผลิต (margin)</div><div class="v"><span id="kv-margin">—</span><small> %</small></div></div>
+          <div class="kpi" id="k-served"><div class="l">จ่ายก๊าซได้ / ความต้องการ</div><div class="v"><span id="kv-served">—</span><small> %</small></div></div>
+          <div class="kpi"><div class="l">โรง CBG ที่เดินเครื่อง</div><div class="v"><span id="kv-cbg">0</span><small> โรง (+<span id="kv-cbgbb">0</span> BBtu/d)</small></div></div>
+          <div class="kpi"><div class="l">เรือที่กำลังเดินทางมา</div><div class="v"><span id="kv-ship">0</span><small> ลำ</small></div></div>
+        </div>
+        <svg id="histchart" width="100%" height="190" viewBox="0 0 520 190" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="legend">
+          <span><i style="background:#0f2a4a"></i>อ่าวไทย/เมียนมา</span>
+          <span><i style="background:#12a4a4"></i>LNG จากคลัง (regas)</span>
+          <span><i style="background:#1e9e5a"></i>CBG</span>
+          <span><i style="background:#ffc83d"></i>ขาด (ไฟดับ)</span>
+          <span><i style="background:none;border-bottom:2.5px dashed #d1495b;width:18px;height:0;vertical-align:4px"></i>ความต้องการ</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="ico">📜</span>บันทึกเหตุการณ์</h2>
+        <div class="log" id="log"><div class="log-item">ยินดีต้อนรับ ผู้ว่าการพลังงานคนใหม่ — เริ่มวางแผนเดือนมกราคมได้เลย</div></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- [แก้ไข 27 ต.ค. 2569] ผังระบบ Single Line Diagram สด -->
+  <div class="card">
+    <h2><span class="ico">🗺️</span>ผังระบบก๊าซประเทศไทย — Single Line Diagram
+      <span class="tag">อัปเดตสดตามแผนที่คุณปรับ (BBtu/วัน)</span></h2>
+    <div style="overflow-x:auto">
+    <svg id="sld" width="100%" height="430" viewBox="0 0 1120 430" preserveAspectRatio="xMidYMid meet" style="min-width:860px">
+      <defs>
+        <marker id="sld-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="13" markerHeight="13" markerUnits="userSpaceOnUse" orient="auto">
+          <path d="M0 1L9 5L0 9z" fill="context-stroke"/></marker>
+        <linearGradient id="sld-liq" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#9fe3ff"/><stop offset="1" stop-color="#0a84ff"/></linearGradient>
+        <style>
+          .sld-flow{fill:none;stroke-linecap:round;stroke-dasharray:14 10;animation:sldmove 1.1s linear infinite}
+          @keyframes sldmove{to{stroke-dashoffset:-24}}
+          @media(prefers-reduced-motion:reduce){.sld-flow{animation:none}}
+          .sld-nd{font-family:'IBM Plex Sans Thai',sans-serif;font-size:13px;font-weight:600;fill:#1c2b3a}
+          .sld-sm{font-family:'IBM Plex Sans Thai',sans-serif;font-size:10.5px;fill:#5b6b7b}
+          .sld-v{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:500;fill:#0f2a4a}
+          .sld-box{fill:#ffffff;stroke:#e2e8f0;stroke-width:1.5;rx:10}
+          .sld-emoji{font-size:26px}
+        </style>
+      </defs>
+
+      <!-- เส้นการไหล (วาดก่อน node เพื่อให้ node ทับปลายเส้น) -->
+      <path id="f-ship"  class="sld-flow" stroke="#0a84ff" d="M118 78 H196"/>
+      <path id="f-regas" class="sld-flow" stroke="#12a4a4" d="M318 78 H420 Q444 78 444 102 V176 Q444 200 468 200 H520"/>
+      <path id="f-gulf"  class="sld-flow" stroke="#0f2a4a" d="M118 200 H520"/>
+      <path id="f-pow"   class="sld-flow" stroke="#ff7a45" d="M628 200 H700 Q724 200 724 176 V102 Q724 78 748 78 H872"/>
+      <path id="f-ind"   class="sld-flow" stroke="#e08a00" d="M628 200 H872"/>
+      <path id="f-cng"   class="sld-flow" stroke="#5b6b7b" d="M628 200 H660 Q684 200 684 224 V300 Q684 324 708 324 H742"/>
+      <path id="f-cngtr" class="sld-flow" stroke="#5b6b7b" d="M836 324 H872"/>
+      <path id="f-cbg"   class="sld-flow" stroke="#1e9e5a" d="M118 384 H560 Q596 384 620 366 L742 338"/>
+
+      <!-- ป้ายตัวเลขการไหล -->
+      <text id="v-f-ship"  class="sld-v" x="157" y="64"  text-anchor="middle">0</text>
+      <text id="v-f-regas" class="sld-v" x="376" y="64"  text-anchor="middle">0</text>
+      <text id="v-f-gulf"  class="sld-v" x="320" y="188" text-anchor="middle">0</text>
+      <text id="v-f-pow"   class="sld-v" x="800" y="64"  text-anchor="middle">0</text>
+      <text id="v-f-ind"   class="sld-v" x="760" y="188" text-anchor="middle">0</text>
+      <text id="v-f-cng"   class="sld-v" x="660" y="268" text-anchor="start">0</text>
+      <text id="v-f-cbg"   class="sld-v" x="380" y="372" text-anchor="middle">0</text>
+
+      <!-- node: เรือ LNG -->
+      <g transform="translate(28,46)">
+        <rect class="sld-box" width="90" height="64" rx="10"/>
+        <text class="sld-emoji" x="45" y="34" text-anchor="middle">🚢</text>
+        <text class="sld-nd" x="45" y="54" text-anchor="middle">เรือ LNG</text>
+        <text id="sld-ship-n" class="sld-sm" x="45" y="-6" text-anchor="middle">สัญญา + spot</text>
+      </g>
+      <!-- node: ท่าเรือ + คลัง -->
+      <g transform="translate(192,34)">
+        <rect class="sld-box" width="132" height="88" rx="10"/>
+        <rect x="12" y="12" width="26" height="56" rx="6" fill="#eef5fa" stroke="#0f2a4a" stroke-width="1.5"/>
+        <rect id="sld-tank" x="12" y="40" width="26" height="28" rx="4" fill="url(#sld-liq)"/>
+        <text class="sld-nd" x="84" y="34" text-anchor="middle">ท่าเรือรับ</text>
+        <text class="sld-sm" x="84" y="50" text-anchor="middle">มาบตาพุด/หนองแฟบ</text>
+        <text id="sld-tank-t" class="sld-v" x="84" y="70" text-anchor="middle">18.0 TBtu</text>
+        <text class="sld-sm" x="61" y="104" text-anchor="middle">⚙️ regas สูงสุด 2,700</text>
+      </g>
+      <!-- node: แหล่งอ่าวไทย -->
+      <g transform="translate(28,168)">
+        <rect class="sld-box" width="90" height="64" rx="10"/>
+        <text class="sld-emoji" x="45" y="34" text-anchor="middle">🏗️</text>
+        <text class="sld-nd" x="45" y="54" text-anchor="middle">อ่าวไทย/เมียนมา</text>
+      </g>
+      <!-- node: ชุมทางระบบท่อ -->
+      <g transform="translate(520,168)">
+        <rect width="108" height="64" rx="12" fill="#0f2a4a"/>
+        <text class="sld-nd" x="54" y="28" text-anchor="middle" style="fill:#ffffff">ระบบท่อส่งก๊าซ</text>
+        <text class="sld-sm" x="54" y="46" text-anchor="middle" style="fill:#bfd6e4">โครงข่าย PTT</text>
+      </g>
+      <!-- node: โรงไฟฟ้า -->
+      <g transform="translate(872,46)">
+        <rect class="sld-box" width="120" height="64" rx="10"/>
+        <text class="sld-emoji" x="24" y="40" text-anchor="middle">⚡</text>
+        <text class="sld-nd" x="74" y="30" text-anchor="middle">โรงไฟฟ้า</text>
+        <text id="sld-pow-d" class="sld-sm" x="74" y="48" text-anchor="middle">ต้องการ 0</text>
+        <g id="sld-short" style="display:none">
+          <rect x="18" y="-14" width="104" height="22" rx="11" fill="#d1495b"/>
+          <text x="70" y="1" text-anchor="middle" style="fill:#fff;font-family:'IBM Plex Sans Thai';font-size:11.5px;font-weight:600" id="sld-short-t">⚠ ขาด 0</text>
+        </g>
+      </g>
+      <!-- node: โรงงาน -->
+      <g transform="translate(872,168)">
+        <rect class="sld-box" width="120" height="64" rx="10"/>
+        <text class="sld-emoji" x="24" y="40" text-anchor="middle">🏭</text>
+        <text class="sld-nd" x="76" y="30" text-anchor="middle" font-size="12.5">โรงงาน + GSP</text>
+        <text id="sld-ind-d" class="sld-sm" x="76" y="48" text-anchor="middle">ต้องการ 0</text>
+      </g>
+      <!-- node: สถานี CNG -->
+      <g transform="translate(742,292)">
+        <rect class="sld-box" width="94" height="64" rx="10"/>
+        <text class="sld-emoji" x="47" y="34" text-anchor="middle">⛽</text>
+        <text class="sld-nd" x="47" y="54" text-anchor="middle">สถานี CNG</text>
+      </g>
+      <!-- node: ภาคขนส่ง -->
+      <g transform="translate(872,292)">
+        <rect class="sld-box" width="120" height="64" rx="10"/>
+        <text class="sld-emoji" x="24" y="40" text-anchor="middle">🚛</text>
+        <text class="sld-nd" x="76" y="30" text-anchor="middle" font-size="12.5">ภาคขนส่ง NGV</text>
+        <text id="sld-ngv-d" class="sld-sm" x="76" y="48" text-anchor="middle">ต้องการ 0</text>
+      </g>
+      <!-- node: โรง CBG -->
+      <g transform="translate(28,352)">
+        <rect class="sld-box" width="90" height="64" rx="10"/>
+        <text class="sld-emoji" x="45" y="34" text-anchor="middle">🌱</text>
+        <text class="sld-nd" x="45" y="54" text-anchor="middle">โรง CBG</text>
+        <text id="sld-cbg-n" class="sld-sm" x="45" y="-6" text-anchor="middle">0 โรง · ส่งทางรถบรรทุก 🚚</text>
+      </g>
+      <text class="sld-sm" x="560" y="422" text-anchor="middle">ความหนาเส้น ∝ อัตราไหล (BBtu/วัน) · เส้นประเคลื่อน = ทิศทางก๊าซ · ประมาณการสดจากแผนเดือนนี้</text>
+    </svg>
+    </div>
+  </div>
+
+  <details>
+    <summary>📚 ข้อมูลจริงเบื้องหลังเกมนี้ (สำหรับผู้เรียน)</summary>
+    <div class="d-body">
+      ตัวเลขหลักในเกมจำลองจากระบบก๊าซไทยจริง (ปรับให้เล่นง่าย — ใช้เพื่อการเรียนรู้ ไม่ใช่ข้อมูลปฏิบัติการ):
+      <table>
+        <tr><th>รายการในเกม</th><th>ค่าในเกม</th><th>ข้อมูลจริงอ้างอิง</th></tr>
+        <tr><td>ความต้องการก๊าซทั้งประเทศ</td><td class="n">~4,400 BBtu/d</td><td>EPPO/ERIA ~4,700 BBtu/d (ฐาน 1,000 Btu/scf)</td></tr>
+        <tr><td>สัดส่วนผู้ใช้</td><td class="n">63 / 32 / 5 %</td><td>โรงไฟฟ้า ~60% · โรงงาน+GSP · NGV</td></tr>
+        <tr><td>เรือ LNG 1 ลำ</td><td class="n">4.16 TBtu</td><td>~80,000 ตัน × 52 MMBtu/ตัน (Platts)</td></tr>
+        <tr><td>สัญญา LNG ระยะยาว</td><td class="n">740 BBtu/d</td><td>Qatar+Shell+BP+Petronas รวม 5.2 MTPA</td></tr>
+        <tr><td>กำลัง regas สูงสุด</td><td class="n">2,700 BBtu/d</td><td>มาบตาพุด 11.5 + หนองแฟบ 7.5 = 19 MTPA</td></tr>
+        <tr><td>ความจุคลัง LNG</td><td class="n">26 TBtu</td><td>ถังรวม ~1.1 ล้าน m³ × 450 kg/m³ × 52 MMBtu/ตัน</td></tr>
+        <tr><td>การถดถอยแหล่งอ่าวไทย</td><td class="n">−0.6%/เดือน</td><td>แนวโน้มการผลิตในประเทศลดลงต่อเนื่อง</td></tr>
+        <tr><td>CO₂ จากก๊าซฟอสซิล</td><td class="n">59.2 tCO₂/BBtu</td><td>56.1 tCO₂/TJ (IPCC) × 1.0551 TJ/BBtu</td></tr>
+      </table>
+      แนวคิดที่อยากให้ได้จากเกม: <b>ความมั่นคงพลังงานคือการบริหาร "พอร์ตโฟลิโอ"</b> — แหล่งในประเทศ (ถูกแต่กำลังหมด) ·
+      สัญญาระยะยาว (แพงกว่าแต่นิ่ง) · ตลาด spot (ยืดหยุ่นแต่ผันผวนและต้องสั่งล่วงหน้า) · พลังงานหมุนเวียน (ลงทุนก่อน ได้ผลระยะยาว)
+      โดยมี <b>คลัง LNG เป็นกันชนเสถียรภาพ</b> ของทั้งระบบ
+    </div>
+  </details>
+</div>
+
+<!-- ═══ modal ผลประจำเดือน ═══ -->
+<div class="overlay" id="ov-month">
+  <div class="modal">
+    <h3 id="m-title">📅 สรุปผลเดือนมกราคม</h3>
+    <div class="m-sub" id="m-sub">—</div>
+    <div class="m-flash" id="m-flash">—</div>
+    <div class="m-rows" id="m-rows"></div>
+    <button class="btn2 teal" id="btn-next">ไปเดือนถัดไป ▶</button>
+  </div>
+</div>
+
+<!-- ═══ modal จบเกม ═══ -->
+<div class="overlay" id="ov-end">
+  <div class="modal">
+    <h3>🏁 ครบ 12 เดือน — ผลงานผู้ว่าการพลังงาน</h3>
+    <div class="grade-big" id="g-grade">A</div>
+    <div class="grade-word" id="g-word">—</div>
+    <div class="score-row"><div class="sl"><span>🛡️ ความมั่นคง (ไม่มีก๊าซขาด + สำรองเหมาะสม)</span><b id="g-sec">0</b></div><div class="sbar"><i id="gb-sec" style="background:linear-gradient(90deg,#0a84ff,#12a4a4);width:0%"></i></div></div>
+    <div class="score-row"><div class="sl"><span>💰 ต้นทุน (เทียบเกณฑ์ 330 ฿/MMBtu)</span><b id="g-cost">0</b></div><div class="sbar"><i id="gb-cost" style="background:linear-gradient(90deg,#ffc83d,#e08a00);width:0%"></i></div></div>
+    <div class="score-row"><div class="sl"><span>🌱 ความยั่งยืน (CBG + ความเข้มคาร์บอน)</span><b id="g-green">0</b></div><div class="sbar"><i id="gb-green" style="background:linear-gradient(90deg,#8fe3b0,#1e9e5a);width:0%"></i></div></div>
+    <div class="lessons" id="g-lessons">—</div>
+    <button class="btn2" id="btn-replay">🔄 เล่นใหม่อีกครั้ง</button>
+  </div>
+</div>
+
+<footer>
+  Thai Gas Grid v1.1 — เกมจำลองเพื่อการเรียนรู้การบริหารความมั่นคงพลังงาน · ตัวเลขอ้างอิง IGU · PTT · EPPO · Platts (ค่าโดยประมาณ)<br>
+  © อ.หนึ่ง กลับทวี — Triple E Technology Co., Ltd. · tripleeenergytools.com
+</footer>
+
+<script>
+'use strict';
+/* ═══════════════ ค่าคงที่ของแบบจำลอง (อ้างอิงข้อมูลจริง — ดูตาราง "ข้อมูลจริงเบื้องหลังเกม") ═══════════════ */
+var CARGO_TBTU = 4.16;          // เรือ 1 ลำ ~80,000 ตัน × 52 MMBtu/ตัน
+var TANK_CAP   = 26;            // TBtu (~1.1 ล้าน m³)
+var REGAS_MAX  = 2700;          // BBtu/d (19 MTPA)
+var CON_MAX    = 740;           // BBtu/d (สัญญา 5.2 MTPA)
+var CON_TOP    = 0.8;           // take-or-pay 80%
+var P_GULF     = 225;           // ฿/MMBtu
+var P_CON      = 380;
+var P_REGAS    = 25;            // ค่าบริการ regas ฿/MMBtu
+var P_CBG      = 350;           // opex CBG ฿/MMBtu
+var CBG_CAPEX  = 500;           // ล้านบาท/โรง
+var CBG_UNIT   = 5;             // BBtu/d/โรง
+var CBG_MAX    = 8;
+var CO2_FOSSIL = 59.2;          // tCO2/BBtu (56.1 tCO2/TJ × 1.0551)
+var GULF_DECAY = 0.994;         // กำลังผลิตถดถอย 0.6%/เดือน
+var COST_BENCH = 330;           // ฿/MMBtu เกณฑ์ให้คะแนนต้นทุน
+var MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+var SEAS   = [0.98,1.00,1.06,1.10,1.08,1.02,0.97,0.96,0.97,0.98,0.96,1.01];  // ฤดูกาลโหลดไฟฟ้า
+
+var EVENTS = [
+ {id:'quiet',  w:28, cls:'',     ico:'🗞️', t:'เดือนนี้ตลาดสงบ',               d:'ไม่มีเหตุการณ์พิเศษ — โอกาสดีในการเติมคลังและวางแผนล่วงหน้า'},
+ {id:'erawan', w:10, cls:'bad',  ico:'🔧', t:'แหล่งก๊าซหลักหยุดซ่อมบำรุง',     d:'กำลังผลิตอ่าวไทยหายไป 350 BBtu/d ตลอดเดือนนี้ — หาก๊าซทดแทนด่วน!', gulfCut:350},
+ {id:'myanmar',w:8,  cls:'bad',  ico:'🛑', t:'ก๊าซเมียนมาลดการส่ง',            d:'ท่อฝั่งตะวันตกส่งได้ลดลง 250 BBtu/d เดือนนี้', gulfCut:250},
+ {id:'heat',   w:12, cls:'warn', ico:'🌡️', t:'คลื่นความร้อนปกคลุมประเทศ',      d:'แอร์ทำงานหนัก โรงไฟฟ้าต้องการก๊าซเพิ่ม ~8%', demMult:0.08},
+ {id:'drought',w:8,  cls:'warn', ico:'🏜️', t:'ภัยแล้ง เขื่อนผลิตไฟฟ้าได้น้อย', d:'โรงไฟฟ้าก๊าซต้องเดินเครื่องชดเชย ความต้องการ +6% ต่อเนื่อง 2 เดือน', demMult:0.06, dur:2},
+ {id:'hormuz', w:9,  cls:'bad',  ico:'🌍', t:'วิกฤตการเมืองโลก ราคา spot พุ่ง', d:'เส้นทางขนส่ง LNG ตึงตัว ราคา spot ×1.8 ต่อเนื่อง 2 เดือน', spotMult:1.8, dur:2},
+ {id:'typhoon',w:7,  cls:'warn', ico:'🌀', t:'พายุเข้าอ่าวไทย เรือเทียบท่าไม่ได้', d:'เรือ LNG ที่กำหนดถึงเดือนนี้ ถูกเลื่อนไปเดือนหน้า', delay:true},
+ {id:'econ',   w:8,  cls:'warn', ico:'📈', t:'เศรษฐกิจขยายตัวเกินคาด',          d:'โรงงานเดินเครื่องเพิ่ม ความต้องการพื้นฐาน +4% ถาวร', econAdd:0.04},
+ {id:'cheap',  w:10, cls:'good', ico:'📉', t:'ตลาด LNG โลกอ่อนตัว',             d:'อุปทานล้น ราคา spot ลดลง ~15% — จังหวะดีในการตุนคลัง', spotMult:0.85, dur:1},
+];
+
+/* ═══════════════ state ═══════════════ */
+var S;
+function reset(){
+  S = {m:0, tank:18, gulfCap:3350, cbg:0, pending:[], spot:420, econ:1.0,
+       sec:100, spent:0, served:0, co2:0, hist:[], shortMonths:0,
+       fx:{spotMult:1, spotDur:0, demMult:0, demDur:0, gulfCut:0, delay:false},
+       ev:null, over:false, cbgEnergy:0, fossilEnergy:0};
+  newMonth(true);
+}
+
+function G(id){return document.getElementById(id);}
+function fmt(x,d){return x.toLocaleString('th-TH',{maximumFractionDigits:(d===undefined?0:d),minimumFractionDigits:(d||0)});}
+function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+
+/* ═══════════════ เริ่มเดือนใหม่: สุ่มข่าว + พยากรณ์ ═══════════════ */
+function pickEvent(){
+  var tot=0,i; for(i=0;i<EVENTS.length;i++)tot+=EVENTS[i].w;
+  var r=Math.random()*tot;
+  for(i=0;i<EVENTS.length;i++){ r-=EVENTS[i].w; if(r<=0) return EVENTS[i]; }
+  return EVENTS[0];
+}
+function demandForecast(){
+  var base=(2750*SEAS[S.m]+1400+230)*S.econ;
+  return base*(1+S.fx.demMult);
+}
+function newMonth(first){
+  // อัปเดตผลต่อเนื่องจากเดือนก่อน
+  if(!first){
+    S.m++;
+    S.gulfCap=Math.round(S.gulfCap*GULF_DECAY);
+    if(S.fx.spotDur>0){S.fx.spotDur--; if(S.fx.spotDur<=0)S.fx.spotMult=1;}
+    if(S.fx.demDur>0){S.fx.demDur--; if(S.fx.demDur<=0)S.fx.demMult=0;}
+    S.fx.gulfCut=0; S.fx.delay=false;
+  }
+  // ราคา spot เดินสุ่ม
+  S.spot=Math.round(clamp(S.spot*(0.92+Math.random()*0.2)*(S.fx.spotMult>1?1.05:1),260,950));
+  // ข่าวต้นเดือน (เดือนแรกบังคับสงบ เพื่อให้ผู้เล่นตั้งตัว)
+  var ev = (S.m===0)?EVENTS[0]:pickEvent();
+  S.ev=ev;
+  if(ev.gulfCut)S.fx.gulfCut=ev.gulfCut;
+  if(ev.demMult){S.fx.demMult=ev.demMult; S.fx.demDur=ev.dur||1;}
+  if(ev.spotMult){S.fx.spotMult=ev.spotMult; S.fx.spotDur=ev.dur||1; S.spot=Math.round(clamp(S.spot*ev.spotMult,260,950));}
+  if(ev.econAdd)S.econ+=ev.econAdd;
+  if(ev.delay)S.fx.delay=true;
+  render();
+}
+
+/* ═══════════════ เดินเครื่องประจำเดือน ═══════════════ */
+function resolve(){
+  var m=S.m;
+  var effGulfCap=Math.max(0,S.gulfCap-S.fx.gulfCut);
+  var gulf=Math.min(+G('in-gulf').value,effGulfCap);
+  var con=+G('in-con').value;
+  var ships=+G('v-ship').textContent;
+  var builds=+G('v-cbg').textContent;
+
+  // ความต้องการจริง (±4%)
+  var dem=Math.round(demandForecast()*(0.96+Math.random()*0.08));
+  // CBG ป้อนภาคขนส่ง
+  var ngvDem=Math.round(230*S.econ);
+  var cbgSup=Math.min(S.cbg*CBG_UNIT,ngvDem);
+  var pipeDem=dem-cbgSup;
+
+  // เรือที่ถึงเดือนนี้ → เข้าคลัง (ถ้าพายุ เลื่อน)
+  var arrived=0, arrivedCost=0, delayedN=0;
+  var stillPending=[];
+  for(var i=0;i<S.pending.length;i++){
+    var c=S.pending[i];
+    if(c.due<=m){
+      if(S.fx.delay){c.due=m+1; stillPending.push(c); delayedN+=c.n;}
+      else{arrived+=c.n;}
+    } else stillPending.push(c);
+  }
+  S.pending=stillPending;
+  // [แก้ไข 27 ต.ค. 2569] จ่ายออกคิดจาก สต็อกต้นเดือน + ก๊าซเข้า (สัญญา+เรือ) ภายในเดือน
+  var boiloff=0;
+  var inflow=arrived*CARGO_TBTU+con*30/1000;            // TBtu เข้าในเดือนนี้
+  var avail=S.tank+inflow;                               // TBtu พร้อมจ่าย
+  var need=Math.max(0,pipeDem-gulf);
+  var sendMax=Math.min(REGAS_MAX,avail*1000/30);         // BBtu/d
+  var sendOut=Math.round(Math.min(need,sendMax));
+  S.tank=avail-sendOut*30/1000;                          // สต็อกปลายเดือน
+  if(S.tank>TANK_CAP){boiloff=S.tank-TANK_CAP; S.tank=TANK_CAP;}  // คลังล้น ขายต่อขาดทุน
+  if(S.tank<0)S.tank=0;
+
+  var supply=gulf+sendOut+cbgSup;
+  var shortfall=Math.max(0,dem-supply);
+  var servedPct=100*(dem-shortfall)/dem;
+
+  // ค่าใช้จ่าย (ล้านบาท)
+  var cGulf=gulf*30*P_GULF/1000;
+  var conPay=Math.max(con,CON_MAX*CON_TOP);
+  var cCon=conPay*30*P_CON/1000;
+  var cShip=ships*CARGO_TBTU*S.spot;            // TBtu×1,000,000 MMBtu×฿ /1e6 = TBtu×฿(spot)
+  var cRegas=sendOut*30*P_REGAS/1000;
+  var cCbg=cbgSup*30*P_CBG/1000+builds*CBG_CAPEX;
+  var cBoil=boiloff*120;                        // ค่าเสียโอกาสคลังล้น (ขายต่อขาดทุน)
+  var cost=cGulf+cCon+cShip+cRegas+cCbg+cBoil;
+  S.spent+=cost;
+  var servedBBtu=(dem-shortfall);
+  S.served+=servedBBtu*30/1000;                 // TBtu
+  S.fossilEnergy+=(gulf+sendOut)*30/1000;
+  S.cbgEnergy+=cbgSup*30/1000;
+  S.co2+=(gulf+sendOut)*30*CO2_FOSSIL/1e6;      // ล้านตัน CO2
+
+  // คะแนนความมั่นคง
+  var secLoss=0, margin=Math.round(100*((effGulfCap+sendMax+S.cbg*CBG_UNIT)/dem-1));
+  if(shortfall>0){var sfp=shortfall/dem*100; secLoss=(sfp<=2)?3:Math.min(25,Math.round(sfp*3)); S.shortMonths++;}
+  else if(margin<5)secLoss=4;
+  if(S.tank<3)secLoss+=5;
+  S.sec=clamp(S.sec-secLoss+(shortfall===0?2:0)+(shortfall===0&&margin>=10&&margin<=30?1:0),0,100);  // [แก้ไข 27 ต.ค. 2569] เดือนสะอาดฟื้นคะแนน
+
+  // สั่งของเดือนนี้
+  if(ships>0)S.pending.push({n:ships,due:m+1,price:S.spot});
+  S.cbg=Math.min(CBG_MAX,S.cbg+builds);
+
+  S.hist.push({gulf:gulf,regas:sendOut,cbg:cbgSup,dem:dem,short:shortfall});
+
+  // log + modal
+  var flash, fcls;
+  if(shortfall>0){
+    var hh=Math.round(shortfall/dem*100);
+    if(hh<=2){flash='⚠️ <b>ก๊าซตึง ขาด '+fmt(shortfall)+' BBtu/d ('+hh+'%)</b> — ต้องขอโรงงานลดการใช้ชั่วคราว (คะแนนมั่นคง −'+secLoss+') รอดมาได้แบบเฉียดฉิว';fcls='warn';}
+    else{flash='🚨 <b>ก๊าซขาด '+fmt(shortfall)+' BBtu/d ('+hh+'% ของความต้องการ)</b> — โรงไฟฟ้าบางส่วนต้องดับ/ใช้น้ำมันแทน ประชาชนได้รับผลกระทบ คะแนนมั่นคง −'+secLoss;fcls='bad';}
+  }else if(boiloff>0.2){
+    flash='⚠️ จ่ายก๊าซครบทุกภาคส่วน แต่<b>คลังล้น '+fmt(boiloff,1)+' TBtu</b> ต้องระบายขายต่อขาดทุน — วางแผนปริมาณเรือ/สัญญาให้พอดีขึ้น';
+    fcls='warn';
+  }else if(S.tank<4){
+    flash='⚠️ จ่ายก๊าซครบ แต่<b>คลัง LNG เหลือ '+fmt(S.tank,1)+' TBtu</b> — บางเฉียบ! ถ้าเดือนหน้ามีเหตุไม่คาดฝันจะเสี่ยงมาก';
+    fcls='warn';
+  }else{
+    flash='✅ จ่ายก๊าซครบทุกภาคส่วน ระบบมั่นคงดี (สำรอง margin '+margin+'%)';
+    fcls='ok';
+  }
+  if(delayedN>0)flash+='<br>🌀 เรือ '+delayedN+' ลำถูกพายุเลื่อนไปถึงเดือนหน้า';
+
+  var avg=S.spent/Math.max(S.served,0.001);  // ฿/MMBtu = ล้านบาท / TBtu (1 TBtu = 1 ล้าน MMBtu)
+  addLog((shortfall>0?'bad':(fcls==='warn'?'warn':'ok')),
+    '<b>'+MONTHS[m]+'</b> — จ่าย '+fmt(supply)+' / ต้องการ '+fmt(dem)+' BBtu/d · ใช้เงิน '+fmt(cost)+' ลบ. · คลังเหลือ '+fmt(S.tank,1)+' TBtu');
+
+  showMonthModal(m,dem,gulf,sendOut,cbgSup,shortfall,cost,arrived,flash,fcls,avg);
+}
+
+/* ═══════════════ UI ═══════════════ */
+function addLog(cls,html){
+  var d=document.createElement('div');d.className='log-item '+cls;d.innerHTML=html;
+  var lg=G('log');lg.insertBefore(d,lg.firstChild);
+}
+function showMonthModal(m,dem,gulf,regas,cbg,short,cost,arrived,flash,fcls,avg){
+  G('m-title').textContent='📅 สรุปผลเดือน'+['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'][m];
+  G('m-sub').textContent='เดือนที่ '+(m+1)+' จาก 12 · ความต้องการจริง '+fmt(dem)+' BBtu/วัน';
+  var fl=G('m-flash');fl.className='m-flash '+fcls;fl.innerHTML=flash;
+  G('m-rows').innerHTML=
+    row('⛽ ก๊าซอ่าวไทย/เมียนมา',fmt(gulf)+' BBtu/d')+
+    row('🧊 LNG จากคลัง (regas)',fmt(regas)+' BBtu/d')+
+    row('🌱 CBG ป้อนภาคขนส่ง',fmt(cbg)+' BBtu/d')+
+    (arrived>0?row('🚢 เรือเข้าเทียบท่าเดือนนี้',arrived+' ลำ (+'+fmt(arrived*CARGO_TBTU,1)+' TBtu)'):'')+
+    (short>0?row('🚨 ส่วนที่ขาด',fmt(short)+' BBtu/d'):'')+
+    row('💸 ค่าใช้จ่ายเดือนนี้',fmt(cost)+' ล้านบาท')+
+    row('📈 ต้นทุนเฉลี่ยสะสม',fmt(avg,0)+' ฿/MMBtu');
+  G('ov-month').classList.add('show');
+}
+function row(a,b){return '<div class="m-row"><span>'+a+'</span><b>'+b+'</b></div>';}
+
+function render(){
+  var m=S.m;
+  // timeline
+  var tl='';
+  for(var i=0;i<12;i++){
+    var c=i<m?'done':(i===m?'now':'');
+    tl+='<div class="tl-dot '+c+'">'+MONTHS[i]+'</div>';
+  }
+  G('timeline').innerHTML=tl;
+  G('month-tag').textContent='เดือน '+(m+1)+'/12 · '+MONTHS[m]+' 2569';
+  // news
+  var ev=S.ev;
+  var nb=G('news-box');nb.className='news '+(ev.cls||'');
+  G('news-ico').textContent=ev.ico;G('news-t').textContent=ev.t;G('news-d').textContent=ev.d;
+  // forecast
+  var effCap=Math.max(0,S.gulfCap-S.fx.gulfCut);
+  G('fc-dem').textContent=fmt(Math.round(demandForecast()));
+  G('fc-spot').textContent=fmt(S.spot);
+  G('fc-gulf').textContent=fmt(effCap);
+  // sliders
+  var sg=G('in-gulf');sg.max=effCap;if(+sg.value>effCap)sg.value=effCap;
+  upSlider();
+  // scores
+  G('c-sec').textContent=S.sec;
+  G('c-co2').textContent=fmt(S.co2,2);
+  G('c-cost').textContent=S.served>0?fmt(S.spent/S.served,0):'—';
+  // tank
+  var pct=Math.round(100*S.tank/TANK_CAP);
+  G('tank-val').textContent=fmt(S.tank,1);
+  G('tank-pct').textContent=pct+'%';
+  G('tank-bar').style.width=pct+'%';
+  var fillH=126*pct/100, y=138-fillH;
+  G('tank-fill').setAttribute('y',y);G('tank-fill').setAttribute('height',fillH+12);
+  G('tank-wave').setAttribute('d','M15 '+y+' q10 -6 20 0 t20 0 t20 0 t20 0 v8 h-80 z');
+  G('tank-pct').setAttribute('y',Math.max(34,y-8));
+  // kpis
+  var dem=demandForecast();
+  var margin=Math.round(100*((effCap+Math.min(REGAS_MAX,(S.tank+CON_MAX*30/1000)*1000/30)+S.cbg*CBG_UNIT)/dem-1));
+  var km=G('k-margin');kv('kv-margin',fmt(margin));
+  km.className='kpi '+(margin<5?'bad':(margin<10||margin>45?'warn':'good'));
+  var last=S.hist[S.hist.length-1];
+  var ks=G('k-served');
+  if(last){var sp=Math.round(100*(last.dem-last.short)/last.dem);kv('kv-served',sp);ks.className='kpi '+(sp<100?'bad':'good');}
+  else kv('kv-served','—');
+  kv('kv-cbg',S.cbg);kv('kv-cbgbb',S.cbg*CBG_UNIT);
+  var pend=0;for(i=0;i<S.pending.length;i++)pend+=S.pending[i].n;
+  kv('kv-ship',pend);
+  // [แก้ไข 27 ต.ค. 2569] คำแนะนำเรือเดือนหน้า: ปิดช่องว่าง LNG เดือนหน้า + เติมคลังสู่เป้า 18 TBtu
+  var nm=Math.min(11,S.m+1);
+  var fcN=(2750*SEAS[nm]+1400+230)*S.econ*1.03;
+  var gulfN=S.gulfCap*GULF_DECAY;
+  var needL=Math.max(0,fcN-gulfN-S.cbg*CBG_UNIT)*30/1000-CON_MAX*30/1000;
+  var sug=clamp(Math.ceil((needL+Math.max(0,18-S.tank))/CARGO_TBTU),0,8);
+  G('ship-sugg').textContent='~'+sug+' ลำ';
+  G('ship-why').textContent='(ปิดช่องว่าง LNG เดือนหน้า '+fmt(Math.max(0,needL),1)+' TBtu + เติมคลังให้ถึง 18 TBtu)';
+  drawHist();
+  updateDiagram();
+}
+function kv(id,v){G(id).textContent=v;}
+
+/* [แก้ไข 27 ต.ค. 2569] ผังระบบ: ประมาณการไหลสดจากแผนปัจจุบัน */
+function sldW(f){return Math.max(2.5,Math.min(16,2.5+f/160));}
+function updateDiagram(){
+  if(!G('sld'))return;
+  var dem=Math.round(demandForecast());
+  var ngv=Math.round(230*S.econ);
+  var ind=Math.round(1400*S.econ);
+  var pow=dem-ngv-ind;
+  var cbgSup=Math.min(S.cbg*CBG_UNIT,ngv);
+  var gulf=+G('in-gulf').value, con=+G('in-con').value;
+  var arriveNow=0;for(var i=0;i<S.pending.length;i++)if(S.pending[i].due<=S.m)arriveNow+=S.pending[i].n;
+  var shipIn=Math.round(con+arriveNow*CARGO_TBTU*1000/30);          // BBtu/d เข้าเทียบท่า
+  var avail=S.tank+con*30/1000+arriveNow*CARGO_TBTU;
+  var need=Math.max(0,(dem-cbgSup)-gulf);
+  var regas=Math.round(Math.min(need,Math.min(REGAS_MAX,avail*1000/30)));
+  var short=Math.max(0,need-regas);
+  var cng=Math.max(0,ngv-cbgSup);
+  var fl={ship:shipIn,regas:regas,gulf:gulf,pow:Math.max(0,pow-short),ind:ind,cng:cng,cbg:cbgSup};
+  var ks=['ship','regas','gulf','pow','ind','cng','cbg'];
+  for(i=0;i<ks.length;i++){
+    var k=ks[i],p=G('f-'+k),v=G('v-f-'+k);
+    if(p)p.setAttribute('stroke-width',sldW(fl[k]));
+    if(p)p.setAttribute('marker-end',fl[k]>0?'url(#sld-ar)':'');
+    if(p)p.style.opacity=fl[k]>0?'1':'0.22';
+    if(v)v.textContent=fmt(fl[k]);
+  }
+  var tr=G('f-cngtr');if(tr){tr.setAttribute('stroke-width',sldW(cng));tr.style.opacity=cng>0?'1':'0.22';tr.setAttribute('marker-end',cng>0?'url(#sld-ar)':'');}
+  G('sld-pow-d').textContent='ต้องการ '+fmt(pow);
+  G('sld-ind-d').textContent='ต้องการ '+fmt(ind);
+  G('sld-ngv-d').textContent='ต้องการ '+fmt(ngv);
+  G('sld-cbg-n').textContent=S.cbg+' โรง · ส่งทางรถบรรทุก 🚚';
+  G('sld-ship-n').textContent=arriveNow>0?('ถึงเดือนนี้ '+arriveNow+' ลำ + สัญญา'):'สัญญา + spot';
+  var pct=S.tank/TANK_CAP, th=56*pct;
+  G('sld-tank').setAttribute('y',12+56-th);G('sld-tank').setAttribute('height',Math.max(1,th));
+  G('sld-tank-t').textContent=fmt(S.tank,1)+' TBtu';
+  var sh=G('sld-short');
+  if(short>0){sh.style.display='';G('sld-short-t').textContent='⚠ เสี่ยงขาด '+fmt(short);}
+  else sh.style.display='none';
+}
+
+function upSlider(){
+  var g=G('in-gulf'),c=G('in-con');
+  G('v-gulf').textContent=fmt(+g.value);
+  G('v-con').textContent=fmt(+c.value);
+  g.style.setProperty('--p',(100*g.value/g.max)+'%');
+  c.style.setProperty('--p',(100*c.value/c.max)+'%');
+  var n=+G('v-ship').textContent;
+  G('v-ship-cost').textContent=fmt(n*CARGO_TBTU*S.spot);
+  var b=+G('v-cbg').textContent;
+  G('v-cbg-cost').textContent=fmt(b*CBG_CAPEX);
+  updateDiagram();
+}
+
+function drawHist(){
+  var svg=G('histchart');
+  var W=520,H=190,pad=34,bw=28,gap=12;
+  var maxY=5600;
+  var s='';
+  // แกน
+  for(var gy=0;gy<=5000;gy+=1000){
+    var yy=H-18-(H-42)*gy/maxY;
+    s+='<line x1="'+pad+'" y1="'+yy+'" x2="'+(W-4)+'" y2="'+yy+'" stroke="#e2e8f0" stroke-width="1"/>';
+    s+='<text x="'+(pad-5)+'" y="'+(yy+3.5)+'" text-anchor="end" font-size="9.5" fill="#5b6b7b" font-family="IBM Plex Mono">'+(gy/1000)+'k</text>';
+  }
+  for(var i=0;i<12;i++){
+    var x=pad+8+i*(bw+gap);
+    var h=S.hist[i];
+    s+='<text x="'+(x+bw/2)+'" y="'+(H-4)+'" text-anchor="middle" font-size="9.5" fill="#5b6b7b">'+MONTHS[i]+'</text>';
+    if(!h)continue;
+    var y0=H-18;
+    var parts=[[h.gulf,'#0f2a4a'],[h.regas,'#12a4a4'],[h.cbg,'#1e9e5a'],[h.short,'#ffc83d']];
+    for(var p=0;p<parts.length;p++){
+      var hh=(H-42)*parts[p][0]/maxY;
+      if(hh>0.5){y0-=hh;s+='<rect x="'+x+'" y="'+y0+'" width="'+bw+'" height="'+hh+'" rx="2" fill="'+parts[p][1]+'"/>';}
+    }
+    var dy=H-18-(H-42)*h.dem/maxY;
+    s+='<line x1="'+(x-3)+'" y1="'+dy+'" x2="'+(x+bw+3)+'" y2="'+dy+'" stroke="#d1495b" stroke-width="2.5" stroke-dasharray="5 3"/>';
+  }
+  svg.innerHTML=s;
+}
+
+/* ═══════════════ จบเกม ═══════════════ */
+function endGame(){
+  S.over=true;
+  var avg=S.spent/Math.max(S.served,0.001);
+  var costScore=Math.round(clamp(100-(avg-COST_BENCH)*0.55,0,100));
+  var cbgShare=S.cbgEnergy/(S.cbgEnergy+S.fossilEnergy)*100;
+  var intens=S.co2*1e6/((S.cbgEnergy+S.fossilEnergy)*1000); // tCO2/BBtu
+  var greenScore=Math.round(clamp(S.cbg*11+cbgShare*15+(CO2_FOSSIL-intens)*2,0,100));
+  var secScore=S.sec;
+  var total=Math.round(secScore*0.5+costScore*0.3+greenScore*0.2);
+  var g,word;
+  if(total>=85){g='A';word='ยอดเยี่ยม! ประเทศไทยผ่านปีนี้อย่างมั่นคงและคุ้มค่า';}
+  else if(total>=72){g='B';word='ดีมาก — ระบบพลังงานมั่นคง มีจุดให้ขัดเกลาอีกเล็กน้อย';}
+  else if(total>=58){g='C';word='พอใช้ — ประเทศรอดมาได้ แต่เฉียดฉิวหลายครั้ง';}
+  else if(total>=40){g='D';word='น่าเป็นห่วง — ไฟดับ/ต้นทุนบาน ประชาชนเดือดร้อน';}
+  else{g='F';word='วิกฤตพลังงาน! คณะกรรมการขอเชิญท่านปรับแผนแล้วลองใหม่';}
+  G('g-grade').textContent=g;G('g-word').textContent=word+' (รวม '+total+'/100)';
+  G('g-sec').textContent=secScore;G('gb-sec').style.width=secScore+'%';
+  G('g-cost').textContent=costScore+' ('+fmt(avg,0)+' ฿/MMBtu)';G('gb-cost').style.width=costScore+'%';
+  G('g-green').textContent=greenScore+' (CBG '+fmt(cbgShare,1)+'%)';G('gb-green').style.width=greenScore+'%';
+  var L=[];
+  L.push('<b>บทเรียนจากปีนี้:</b>');
+  if(S.shortMonths>0)L.push('• เกิดก๊าซขาด '+S.shortMonths+' เดือน — กันชนที่ดีที่สุดคือ "คลัง LNG" เติมล่วงหน้าก่อนหน้าร้อนและก่อนช่วงซ่อมบำรุง');
+  else L.push('• ไม่มีก๊าซขาดตลอดปี — การสั่งเรือล่วงหน้า 1 เดือนและรักษาระดับคลังคือหัวใจของเสถียรภาพ');
+  L.push('• แหล่งอ่าวไทยถดถอยจาก 3,350 เหลือ '+fmt(S.gulfCap)+' BBtu/d ใน 1 ปี — ของจริงไทยก็เผชิญแบบเดียวกัน จึงต้องพึ่ง LNG นำเข้ามากขึ้นเรื่อย ๆ');
+  if(S.cbg>0)L.push('• CBG '+S.cbg+' โรงของคุณลดการนำเข้าและลด CO₂ — พลังงานหมุนเวียนต้อง "ลงทุนก่อน เห็นผลทีหลัง"');
+  else L.push('• ปีนี้ยังไม่ได้ลงทุน CBG เลย — ลองดูว่าการลงทุนช่วงต้นปีเปลี่ยนคะแนนความยั่งยืนได้แค่ไหน');
+  L.push('• ต้นทุนเฉลี่ยของคุณ '+fmt(avg,0)+' ฿/MMBtu เทียบเกณฑ์ '+COST_BENCH+' — สัดส่วน spot ที่พอดีช่วยทั้งต้นทุนและความเสี่ยง');
+  G('g-lessons').innerHTML=L.join('<br>');
+  G('ov-month').classList.remove('show');
+  G('ov-end').classList.add('show');
+}
+
+/* ═══════════════ events ═══════════════ */
+G('in-gulf').addEventListener('input',upSlider);
+G('in-con').addEventListener('input',upSlider);
+function step(id,delta,min,max){var e=G(id);var v=clamp(+e.textContent+delta,min,max);e.textContent=v;upSlider();}
+G('ship-plus').addEventListener('click',function(){step('v-ship',1,0,8);});
+G('ship-minus').addEventListener('click',function(){step('v-ship',-1,0,8);});
+G('cbg-plus').addEventListener('click',function(){step('v-cbg',1,0,Math.min(2,CBG_MAX-S.cbg));});
+G('cbg-minus').addEventListener('click',function(){step('v-cbg',-1,0,2);});
+G('btn-go').addEventListener('click',function(){
+  if(S.over)return;
+  resolve();
+});
+G('btn-next').addEventListener('click',function(){
+  G('ov-month').classList.remove('show');
+  G('v-ship').textContent='0';G('v-cbg').textContent='0';
+  if(S.m>=11){endGame();return;}
+  newMonth(false);
+});
+G('btn-replay').addEventListener('click',function(){
+  G('ov-end').classList.remove('show');
+  G('log').innerHTML='<div class="log-item">เริ่มวาระใหม่ — ขอให้ปีนี้มั่นคงกว่าเดิม!</div>';
+  G('v-ship').textContent='0';G('v-cbg').textContent='0';
+  reset();
+});
+
+reset();
+</script>
+<!-- [แก้ไข 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>
