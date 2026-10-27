@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>เกมบ้านประหยัดไฟ — Energy Sense Games</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม 1 "บ้านประหยัดไฟ" v0.1 — Energy Sense Games · Triple E Technology
+     สอนหลัก sensitivity "ปุ่มไหนแรง ปุ่มไหนเบา" สำหรับเด็กประถม · HTML ไฟล์เดียว เล่นออฟไลน์ได้
+     ฟิสิกส์เบื้องหลัง: kW = K·(Tout−Tset)·(1 + SUN·แดดเข้า + INF·ประตูเปิด) + หลอดไฟ + ตู้เย็น -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sky2:#cdeaff;
+  --sun:#ffd23f; --sun2:#ff9f1c;
+  --grass:#7ed957;
+  --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff;
+  --good:#1fb45f; --mid:#f5a623; --bad:#ef4b4b;
+  --btn-grad:linear-gradient(135deg,#ff5d8f,#ff8f1c);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,var(--sky1),var(--sky2) 55%,#eafbe0 56%,#d8f5c8);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:860px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(33,48,71,.15);backdrop-filter:blur(4px)}
+#hud .lvl-name{font-weight:600;font-size:1.02rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 10px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink)}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(33,48,71,.18);background:#bfe6ff;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto}
+#adultBar{position:absolute;left:10px;top:10px;background:rgba(20,30,48,.82);color:#fff;border-radius:12px;
+  padding:6px 10px;font-size:.85rem;line-height:1.35;display:none;pointer-events:none}
+#adultBar b{color:#ffd23f;font-size:1.05rem}
+body.adult #adultBar{display:block}
+
+/* speech bubble */
+#bubble{position:absolute;right:10px;top:10px;max-width:58%;background:#fff;border-radius:16px;border:3px solid #ffd23f;
+  padding:8px 12px;font-size:.95rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.12);transition:opacity .25s;opacity:0;pointer-events:none}
+#bubble.show{opacity:1}
+
+/* ───── Control panel ───── */
+#panel{background:#fff;border-radius:20px;padding:14px 16px;box-shadow:0 6px 18px rgba(33,48,71,.14);display:flex;flex-direction:column;gap:12px}
+.ctl-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center}
+.goal{font-size:1.02rem;font-weight:600;text-align:center;background:#fff6d9;border:2px dashed #ffd23f;border-radius:14px;padding:8px 12px}
+
+/* temp slider */
+.temp-box{flex:1 1 100%;display:flex;flex-direction:column;gap:6px;align-items:center}
+.temp-val{font-size:1.9rem;font-weight:700;line-height:1}
+.temp-val small{font-size:1rem;font-weight:500;color:var(--subtext,#6a7a90)}
+input[type=range]{width:min(92%,460px);height:40px;appearance:none;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:16px;border-radius:10px;
+  background:linear-gradient(90deg,#4aa8ff,#9be37a 45%,#9be37a 62%,#ff9f1c 85%,#ef4b4b)}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:38px;height:38px;border-radius:50%;margin-top:-11px;
+  background:#fff;border:5px solid var(--purple);box-shadow:0 3px 8px rgba(0,0,0,.25)}
+input[type=range]::-moz-range-track{height:16px;border-radius:10px;
+  background:linear-gradient(90deg,#4aa8ff,#9be37a 45%,#9be37a 62%,#ff9f1c 85%,#ef4b4b)}
+input[type=range]::-moz-range-thumb{width:34px;height:34px;border-radius:50%;background:#fff;border:5px solid var(--purple)}
+
+/* toggle buttons */
+.tgl{display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:#f1f5fb;border-radius:18px;
+  padding:10px 16px;font-family:inherit;cursor:pointer;min-width:118px;border:3px solid transparent;transition:transform .12s,border-color .2s,background .2s}
+.tgl:active{transform:scale(.94)}
+.tgl .ic{font-size:1.9rem;line-height:1}
+.tgl .nm{font-size:.92rem;font-weight:600}
+.tgl .st{font-size:.82rem;font-weight:500;color:#6a7a90}
+.tgl.bad-on{background:#ffe3e3;border-color:#ef9a9a}
+.tgl.good-on{background:#e1f8ea;border-color:#7fd8a5}
+.tgl:disabled{opacity:.45;cursor:default}
+
+/* big action buttons */
+.big-btn{border:none;border-radius:999px;padding:14px 34px;font-family:inherit;font-size:1.2rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #d14b76,0 10px 18px rgba(0,0,0,.2);transition:transform .1s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #d14b76}
+.big-btn.alt{background:linear-gradient(135deg,var(--teal),#19a0ff);box-shadow:0 6px 0 #0d8aa0,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #0d8aa0}
+.big-btn.small{font-size:1rem;padding:10px 22px}
+
+/* quiz choice */
+.choice{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.choice button{border:3px solid #cfd9e6;background:#fff;border-radius:18px;padding:12px 18px;font-family:inherit;
+  font-size:1.05rem;font-weight:600;cursor:pointer;min-width:140px}
+.choice button:active{transform:scale(.95)}
+
+/* timer bar (bonus) */
+#timerWrap{display:none;width:100%;background:#eef3fa;border-radius:10px;height:18px;overflow:hidden}
+#timerBar{height:100%;width:100%;background:linear-gradient(90deg,#00c2a8,#19a0ff);transition:width .2s linear}
+#timerTxt{display:none;text-align:center;font-weight:700;font-size:1.1rem}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(18,28,46,.55);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:16px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:26px;max-width:460px;width:100%;padding:24px 20px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.5rem;margin-bottom:6px}
+.card p{font-size:1rem;line-height:1.55}
+.result-stars{font-size:3rem;letter-spacing:6px;margin:10px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#fff6d9;border-radius:14px;padding:10px 12px;font-weight:600;margin:8px 0}
+.rankbar{display:flex;align-items:center;gap:8px;margin:7px 0;text-align:left}
+.rankbar .lb{width:112px;font-size:.92rem;font-weight:600;flex:none}
+.rankbar .tr{flex:1;background:#eef3fa;border-radius:9px;height:22px;overflow:hidden}
+.rankbar .fl{height:100%;width:0;border-radius:9px;transition:width 1s cubic-bezier(.3,.9,.4,1);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:#fff;font-size:.78rem;font-weight:700}
+.lvl-pick{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:8px 12px;font-family:inherit;cursor:pointer;min-width:84px}
+.lvl-pick .nm{font-size:.85rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.9rem;letter-spacing:1px}
+#startCard h1{font-size:1.9rem;line-height:1.25;background:linear-gradient(135deg,#ff5d8f,#ff8f1c);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#6a7a90;margin:4px 0 10px}
+.brand{font-size:.8rem;color:#8795a8;margin-top:12px}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* SVG animations */
+.sunray{transform-origin:655px 60px;animation:spinray 14s linear infinite}
+@keyframes spinray{to{transform:rotate(360deg)}}
+@keyframes floatp{0%{transform:translateY(0);opacity:.9}100%{transform:translateY(-26px);opacity:0}}
+.heatp{animation:floatp 1.2s ease-out infinite}
+@keyframes breeze{0%{opacity:0;transform:translateX(0)}30%{opacity:.85}100%{opacity:0;transform:translateX(-46px)}}
+.breezeln{animation:breeze 1.6s ease-out infinite}
+@keyframes blinkA{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+.eye{transform-box:fill-box;transform-origin:center;animation:blinkA 4.2s infinite}
+@keyframes shiverA{0%,100%{transform:translateX(0)}25%{transform:translateX(-2.2px)}75%{transform:translateX(2.2px)}}
+.shivering #kidG{animation:shiverA .18s linear infinite}
+@keyframes sweatA{0%{transform:translateY(0);opacity:0}25%{opacity:1}100%{transform:translateY(16px);opacity:0}}
+.sweatd{animation:sweatA 1.1s ease-in infinite;opacity:0}
+@keyframes wag{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}}
+#dogTail{transform-box:fill-box;transform-origin:left center;animation:wag .5s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .sunray,.heatp,.breezeln,.eye,.shivering #kidG,.sweatd,#dogTail{animation:none}
+}
+@media (max-width:480px){
+  .tgl{min-width:96px;padding:8px 10px}
+  #bubble{font-size:.85rem}
+  .card h2{font-size:1.3rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">บ้านประหยัดไฟ</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/12</div>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="adultBtn" title="โหมดผู้ใหญ่ แสดง kW และ บาท">👷</button>
+  </div>
+
+  <!-- SCENE -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 860 470" xmlns="http://www.w3.org/2000/svg" aria-label="ห้องในบ้านการ์ตูน">
+      <!-- sky & sun -->
+      <rect x="0" y="0" width="860" height="470" fill="#bfe6ff"/>
+      <g id="sunG">
+        <g class="sunray">
+          <g fill="#ffd23f" opacity=".85">
+            <rect x="651" y="8" width="8" height="26" rx="4"/><rect x="651" y="86" width="8" height="26" rx="4"/>
+            <rect x="603" y="56" width="26" height="8" rx="4"/><rect x="681" y="56" width="26" height="8" rx="4"/>
+            <rect x="618" y="22" width="8" height="24" rx="4" transform="rotate(-45 622 34)"/>
+            <rect x="684" y="22" width="8" height="24" rx="4" transform="rotate(45 688 34)"/>
+            <rect x="618" y="74" width="8" height="24" rx="4" transform="rotate(45 622 86)"/>
+            <rect x="684" y="74" width="8" height="24" rx="4" transform="rotate(-45 688 86)"/>
+          </g>
+        </g>
+        <circle cx="655" cy="60" r="30" fill="#ffd23f" stroke="#ff9f1c" stroke-width="5"/>
+        <circle cx="646" cy="54" r="4" fill="#213047"/><circle cx="664" cy="54" r="4" fill="#213047"/>
+        <path d="M646 68 Q655 75 664 68" stroke="#213047" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      </g>
+      <ellipse cx="140" cy="60" rx="46" ry="16" fill="#fff" opacity=".9"/>
+      <ellipse cx="190" cy="52" rx="34" ry="13" fill="#fff" opacity=".85"/>
+
+      <!-- house shell -->
+      <path d="M30 150 L430 55 L830 150 Z" fill="#ff8f6b" stroke="#d96a4a" stroke-width="6" stroke-linejoin="round"/>
+      <rect x="60" y="150" width="740" height="290" fill="#fff8ec" stroke="#e8c9a0" stroke-width="5"/>
+      <rect x="60" y="150" width="740" height="18" fill="#ffe3bf"/>
+      <rect x="60" y="414" width="740" height="26" fill="#caa06a"/>
+      <rect x="0" y="438" width="860" height="32" fill="#7ed957"/>
+
+      <!-- window + sun beam + curtain -->
+      <g id="windowG">
+        <rect x="585" y="185" width="150" height="120" rx="8" fill="#aee3ff" stroke="#5d7ea8" stroke-width="6"/>
+        <line x1="660" y1="188" x2="660" y2="302" stroke="#5d7ea8" stroke-width="5"/>
+        <line x1="588" y1="245" x2="732" y2="245" stroke="#5d7ea8" stroke-width="5"/>
+        <polygon id="sunBeam" points="588,188 732,188 700,330 540,360" fill="#ffe27a" opacity=".55"/>
+        <g id="curtainG">
+          <path id="curtL" d="M585 183 q20 60 0 124 l40 0 q-14 -62 0 -124 Z" fill="#ff7bac" stroke="#e2558d" stroke-width="4"/>
+          <path id="curtR" d="M735 183 q-20 60 0 124 l-40 0 q14 -62 0 -124 Z" fill="#ff7bac" stroke="#e2558d" stroke-width="4"/>
+        </g>
+        <rect x="575" y="174" width="170" height="12" rx="6" fill="#9b6b3f"/>
+      </g>
+
+      <!-- door -->
+      <g id="doorG">
+        <rect x="90" y="235" width="104" height="180" rx="8" fill="#5d4037" opacity=".25"/>
+        <g id="doorLeaf">
+          <rect x="90" y="235" width="104" height="180" rx="8" fill="#a9703f" stroke="#7c4c24" stroke-width="6"/>
+          <circle cx="176" cy="330" r="7" fill="#ffd23f" stroke="#b8860b" stroke-width="3"/>
+          <rect x="104" y="252" width="76" height="60" rx="6" fill="#c08b57"/>
+          <rect x="104" y="326" width="76" height="70" rx="6" fill="#c08b57"/>
+        </g>
+        <g id="hotAir" opacity="0">
+          <path class="heatp" d="M120 390 q8 -12 0 -24 q-8 -12 0 -24" stroke="#ff6b4a" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <path class="heatp" style="animation-delay:.35s" d="M146 395 q8 -12 0 -24 q-8 -12 0 -24" stroke="#ff9f1c" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <path class="heatp" style="animation-delay:.7s" d="M172 390 q8 -12 0 -24 q-8 -12 0 -24" stroke="#ff6b4a" stroke-width="5" fill="none" stroke-linecap="round"/>
+        </g>
+      </g>
+
+      <!-- AC unit + breeze -->
+      <g id="acG">
+        <rect x="300" y="178" width="190" height="56" rx="14" fill="#fff" stroke="#9fb4cc" stroke-width="5"/>
+        <rect x="314" y="214" width="162" height="9" rx="4" fill="#cfe2f5"/>
+        <circle id="acLed" cx="470" cy="196" r="5" fill="#1fb45f"/>
+        <text id="acTemp" x="340" y="206" font-size="24" font-weight="700" fill="#2d6cdf" font-family="Mitr,sans-serif">25°</text>
+        <g id="breezeG" stroke="#7fd0ff" stroke-width="5" fill="none" stroke-linecap="round">
+          <path class="breezeln" d="M330 248 q-12 10 -24 8"/>
+          <path class="breezeln" style="animation-delay:.4s" d="M390 252 q-12 12 -26 10"/>
+          <path class="breezeln" style="animation-delay:.8s" d="M450 248 q-12 10 -24 8"/>
+        </g>
+      </g>
+
+      <!-- lamp -->
+      <g id="lampG">
+        <line x1="540" y1="150" x2="540" y2="196" stroke="#5d7ea8" stroke-width="5"/>
+        <path d="M512 196 h56 l12 26 h-80 Z" fill="#ffb648" stroke="#d98a1f" stroke-width="4"/>
+        <circle id="bulb" cx="540" cy="236" r="13" fill="#fff2b8" stroke="#d9b21f" stroke-width="4"/>
+        <g id="lampGlow" opacity=".85"><circle cx="540" cy="238" r="30" fill="#ffe27a" opacity=".45"/></g>
+        <text id="lampTag" x="540" y="275" font-size="15" font-weight="600" text-anchor="middle" fill="#8a6d1a" font-family="Mitr,sans-serif">หลอดเก่า</text>
+      </g>
+
+      <!-- fridge -->
+      <g id="fridgeG">
+        <rect x="712" y="320" width="66" height="96" rx="8" fill="#bfe8ff" stroke="#6fa9d8" stroke-width="5"/>
+        <line x1="712" y1="352" x2="778" y2="352" stroke="#6fa9d8" stroke-width="4"/>
+        <rect x="720" y="332" width="6" height="12" rx="3" fill="#4d7ba8"/>
+        <rect x="720" y="362" width="6" height="22" rx="3" fill="#4d7ba8"/>
+      </g>
+
+      <!-- kid character -->
+      <g id="kidG">
+        <ellipse cx="400" cy="420" rx="56" ry="10" fill="#000" opacity=".1"/>
+        <rect x="372" y="330" width="56" height="64" rx="18" fill="#7b5bff"/>
+        <rect x="372" y="388" width="22" height="26" rx="9" fill="#3f51b5"/>
+        <rect x="406" y="388" width="22" height="26" rx="9" fill="#3f51b5"/>
+        <circle cx="400" cy="294" r="44" fill="#ffd9b3" stroke="#e8b27f" stroke-width="3"/>
+        <path d="M358 282 q10 -34 42 -34 q32 0 42 34 q-20 -14 -42 -14 q-22 0 -42 14" fill="#5d4037"/>
+        <g class="eye"><circle id="eyeL" cx="384" cy="292" r="5.5" fill="#213047"/></g>
+        <g class="eye"><circle id="eyeR" cx="416" cy="292" r="5.5" fill="#213047"/></g>
+        <circle cx="372" cy="306" r="6" fill="#ff9d9d" opacity=".7"/>
+        <circle cx="428" cy="306" r="6" fill="#ff9d9d" opacity=".7"/>
+        <path id="mouth" d="M386 312 Q400 324 414 312" stroke="#b34a4a" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+        <g id="sweatG" opacity="0">
+          <path class="sweatd" d="M352 276 q-6 10 0 14 q7 -4 0 -14" fill="#4aa8ff"/>
+          <path class="sweatd" style="animation-delay:.5s" d="M450 272 q-6 10 0 14 q7 -4 0 -14" fill="#4aa8ff"/>
+        </g>
+        <g id="coldG" opacity="0">
+          <text x="344" y="268" font-size="20">❄</text><text x="442" y="258" font-size="16">❄</text>
+        </g>
+      </g>
+
+      <!-- dog -->
+      <g id="dogGrp">
+        <ellipse cx="520" cy="416" rx="34" ry="8" fill="#000" opacity=".1"/>
+        <rect x="492" y="382" width="58" height="30" rx="14" fill="#c99455"/>
+        <circle cx="552" cy="384" r="17" fill="#c99455"/>
+        <path d="M542 370 q-4 -12 6 -14 q6 8 2 15 Z" fill="#8a5a28"/>
+        <path d="M562 370 q4 -12 -6 -14 q-6 8 -2 15 Z" fill="#8a5a28"/>
+        <circle cx="548" cy="382" r="2.6" fill="#213047"/><circle cx="558" cy="382" r="2.6" fill="#213047"/>
+        <circle cx="553" cy="390" r="3.4" fill="#213047"/>
+        <rect id="dogTail" x="486" y="384" width="16" height="7" rx="4" fill="#8a5a28"/>
+      </g>
+
+      <!-- electricity meter -->
+      <g id="meterG">
+        <rect x="222" y="252" width="118" height="140" rx="14" fill="#2c3a52" stroke="#1a2436" stroke-width="5"/>
+        <rect x="236" y="266" width="90" height="30" rx="6" fill="#0e1622"/>
+        <text id="meterDigits" x="281" y="288" font-size="19" font-weight="700" text-anchor="middle" fill="#7CFC9A" font-family="'IBM Plex Mono',monospace">00000</text>
+        <circle cx="281" cy="338" r="30" fill="#e8eef7" stroke="#9fb4cc" stroke-width="4"/>
+        <g id="meterDisc">
+          <circle cx="281" cy="338" r="23" fill="#fff" stroke="#c4d2e4" stroke-width="2"/>
+          <rect x="259" y="335.5" width="44" height="5" rx="2.5" fill="#ef4b4b"/>
+          <circle cx="281" cy="338" r="4.5" fill="#395a86"/>
+        </g>
+        <text id="meterLabel" x="281" y="384" font-size="13" font-weight="600" text-anchor="middle" fill="#cfe0f5" font-family="Mitr,sans-serif">มิเตอร์ไฟ</text>
+        <g id="speedZap" opacity="0">
+          <text x="206" y="330" font-size="22">⚡</text><text x="340" y="312" font-size="22">⚡</text>
+        </g>
+      </g>
+    </svg>
+
+    <div id="adultBar">กำลังไฟฟ้า <b id="abKW">0.0</b> kW<br>ค่าไฟ ≈ <b id="abBaht">0</b> บาท/ชั่วโมง</div>
+    <div id="bubble"></div>
+  </div>
+
+  <!-- CONTROL PANEL -->
+  <div id="panel">
+    <div class="goal" id="goalTxt">—</div>
+    <div id="timerTxt">⏱ <span id="timeLeft">30</span> วิ</div>
+    <div id="timerWrap"><div id="timerBar"></div></div>
+
+    <div class="temp-box" id="tempBox">
+      <div class="temp-val"><span id="tempVal">25</span><small> °C — อุณหภูมิแอร์</small></div>
+      <input type="range" id="tempSlider" min="20" max="30" step="1" value="25" aria-label="อุณหภูมิแอร์">
+    </div>
+
+    <div class="ctl-row" id="toggleRow">
+      <button class="tgl" id="tglCurtain"><span class="ic">🪟</span><span class="nm">ม่านบังแดด</span><span class="st">—</span></button>
+      <button class="tgl" id="tglDoor"><span class="ic">🚪</span><span class="nm">ประตูบ้าน</span><span class="st">—</span></button>
+      <button class="tgl" id="tglLamp"><span class="ic">💡</span><span class="nm">หลอดไฟ</span><span class="st">—</span></button>
+    </div>
+
+    <div class="ctl-row" id="quizRow" style="display:none">
+      <div class="choice">
+        <button data-ans="door">🚪 ประตู</button>
+        <button data-ans="lamp">💡 หลอดไฟ</button>
+      </div>
+    </div>
+
+    <div class="ctl-row">
+      <button class="big-btn" id="okBtn">โอเค! ✔</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Overlays ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:3rem">🏠⚡</div>
+    <h1>บ้านประหยัดไฟ</h1>
+    <div class="sub">มาหากันว่า… ปุ่มไหน "กินไฟแรง" ปุ่มไหน "เบา" 🔍</div>
+    <p>ดูน้องในบ้านให้ยิ้มได้ 😊 และทำให้มิเตอร์ไฟหมุนช้าที่สุด!</p>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px"><button class="big-btn" id="playBtn">▶ เริ่มเล่น</button></div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <h2 id="resTitle">จบด่าน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <p id="resDetail"></p>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.6rem">🏆</div>
+    <h2>เก่งมาก! จบทุกด่านแล้ว</h2>
+    <p>ได้ดาวทั้งหมด <b id="endStars">0</b> / 12 ดวง</p>
+    <div class="lesson">สรุป: ปุ่มไหน "แรง" ที่สุดในบ้านเรา?</div>
+    <div id="rankBox">
+      <div class="rankbar"><span class="lb">🚪 เปิดประตูทิ้งไว้</span><div class="tr"><div class="fl" data-w="100" style="background:#ef4b4b">แรงมาก!</div></div></div>
+      <div class="rankbar"><span class="lb">❄ แอร์เย็นเกิน (20°)</span><div class="tr"><div class="fl" data-w="36" style="background:#ff8f1c">แรง</div></div></div>
+      <div class="rankbar"><span class="lb">☀ ไม่ปิดม่าน</span><div class="tr"><div class="fl" data-w="25" style="background:#f5c518">กลาง</div></div></div>
+      <div class="rankbar"><span class="lb">💡 หลอดไฟเก่า</span><div class="tr"><div class="fl" data-w="21" style="background:#1fb45f">เบา</div></div></div>
+    </div>
+    <p style="margin-top:8px;font-size:.92rem">จำไว้นะ: <b>ปิดประตู-หน้าต่างตอนเปิดแอร์</b> ช่วยประหยัดได้มากที่สุด!</p>
+    <div style="margin-top:12px"><button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button></div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ บ้านประหยัดไฟ v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+
+/* ── ฟิสิกส์ (สัดส่วนสมจริง อ้างอิงงานตรวจวัด Triple E) ──
+   kW = K·(Tout−Tset)·(1 + SUN·sunIn + INF·doorOpen) + lamp + fridge
+   Tout 35°C · ที่ 25°C ปิดทุกอย่าง: แอร์ 0.90 kW (≈66% ของโหลด), ตู้เย็น 0.15, LED 0.04 */
+var PH={TOUT:35,K:0.09,SUN:0.35,INF:1.4,LAMP_OLD:0.30,LAMP_LED:0.04,FRIDGE:0.15,TARIFF:4.5};
+function calcKW(s){
+  return PH.K*(PH.TOUT-s.tset)*(1+PH.SUN*(s.curtainOpen?1:0)+PH.INF*(s.doorOpen?1:0))
+         +(s.lampOld?PH.LAMP_OLD:PH.LAMP_LED)+PH.FRIDGE;
+}
+function effTemp(s){return s.tset+(s.doorOpen?3:0)+(s.curtainOpen?1:0);}
+var KW_MIN=PH.K*(PH.TOUT-26)+PH.LAMP_LED+PH.FRIDGE;           /* ดีสุดแบบยังยิ้ม */
+var KW_MAX=PH.K*(PH.TOUT-20)*(1+PH.SUN+PH.INF)+PH.LAMP_OLD+PH.FRIDGE;
+
+/* ── สถานะเกม ── */
+var S={tset:25,curtainOpen:false,doorOpen:false,lampOld:false};
+var level=0, stars=[0,0,0,0], locked=false, touched={};
+var bonus={on:false,t:30,used:0,best:0,worst:0};
+var discAng=0, kwhShown=0, lastTs=0;
+
+/* ── เสียง Web Audio ── */
+var AC=null, sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.07,'square',0.08);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sTick(){tone(1000,0,0.04,'square',0.05);}
+
+/* ── localStorage ── */
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_game_home_stars')||'[]');for(var i=0;i<4;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_game_home_stars',JSON.stringify(stars));}catch(e){}}
+
+/* ── ด่าน ── */
+var LEVELS=[
+ {name:'ด่าน 1 · แอร์เย็นพอดี 😊', icon:'❄',
+  goal:'เลื่อนปุ่มอุณหภูมิแอร์ ให้น้อง "ยิ้ม" และมิเตอร์หมุน "ช้า" แล้วกด โอเค!',
+  setup:function(){S.tset=20;S.curtainOpen=false;S.doorOpen=false;S.lampOld=false;
+    show('tempBox',true);show('toggleRow',false);show('quizRow',false);}},
+ {name:'ด่าน 2 · ม่านวิเศษ 🪟', icon:'☀',
+  goal:'แดดส่องเข้าบ้าน! ลองกดเปิด–ปิดม่าน แล้วดูมิเตอร์ (ห้ามแตะแอร์นะ) เสร็จแล้วกด โอเค!',
+  setup:function(){S.tset=25;S.curtainOpen=true;S.doorOpen=false;S.lampOld=false;
+    show('tempBox',false);show('toggleRow',true);show('quizRow',false);
+    btnEnable({curtain:true,door:false,lamp:false});}},
+ {name:'ด่าน 3 · ประตู vs หลอดไฟ 🚪💡', icon:'🚪',
+  goal:'ลองกดปิดประตู และเปลี่ยนหลอดไฟ ทีละอย่าง — อันไหนทำให้มิเตอร์ช้าลง "มากกว่า"? แล้วกด โอเค!',
+  setup:function(){S.tset=25;S.curtainOpen=false;S.doorOpen=true;S.lampOld=true;touched={};
+    show('tempBox',false);show('toggleRow',true);show('quizRow',false);
+    btnEnable({curtain:false,door:true,lamp:true});}},
+ {name:'ด่านโบนัส · ฮีโร่ประหยัดไฟ 🦸', icon:'🦸',
+  goal:'มี 30 วินาที! จัดการทุกปุ่มให้บ้านกินไฟน้อยที่สุด โดยน้องต้องยังยิ้มอยู่ 😊',
+  setup:function(){S.tset=30;S.curtainOpen=true;S.doorOpen=true;S.lampOld=true;
+    show('tempBox',true);show('toggleRow',true);show('quizRow',false);
+    btnEnable({curtain:true,door:true,lamp:true});startBonus();}}
+];
+
+function show(id,on){$(id).style.display=on?'':'none';}
+function btnEnable(o){$('tglCurtain').disabled=!o.curtain;$('tglDoor').disabled=!o.door;$('tglLamp').disabled=!o.lamp;}
+
+/* ── render scene ── */
+function render(){
+  var kw=calcKW(S), te=effTemp(S);
+  /* AC */
+  $('acTemp').textContent=S.tset+'°';
+  $('tempVal').textContent=S.tset;
+  $('tempSlider').value=S.tset;
+  var cool=Math.max(0,Math.min(1,(PH.TOUT-S.tset-5)/10));
+  $('acLed').setAttribute('fill',cool>0.7?'#19a0ff':'#1fb45f');
+  /* curtain */
+  $('curtL').style.display=S.curtainOpen?'none':'';
+  $('curtR').style.display=S.curtainOpen?'none':'';
+  $('sunBeam').style.display=S.curtainOpen?'':'none';
+  setTgl('tglCurtain',S.curtainOpen,'เปิดอยู่ ☀ แดดเข้า!','ปิดแล้ว ✔');
+  /* door */
+  $('doorLeaf').setAttribute('transform',S.doorOpen?'translate(-62,0) scale(0.42,1)':'');
+  $('hotAir').setAttribute('opacity',S.doorOpen?'1':'0');
+  setTgl('tglDoor',S.doorOpen,'เปิดอยู่ 🔥 ลมร้อนเข้า!','ปิดแล้ว ✔');
+  /* lamp */
+  $('bulb').setAttribute('fill',S.lampOld?'#ffcf4a':'#eafff4');
+  $('lampGlow').setAttribute('opacity',S.lampOld?'0.95':'0.35');
+  $('lampTag').textContent=S.lampOld?'หลอดเก่า':'หลอด LED';
+  setTgl('tglLamp',S.lampOld,'หลอดเก่า (ร้อน)','หลอด LED ✔');
+  var tl=$('tglLamp');tl.classList.toggle('bad-on',S.lampOld);tl.classList.toggle('good-on',!S.lampOld);
+  var td=$('tglDoor');td.classList.toggle('bad-on',S.doorOpen);td.classList.toggle('good-on',!S.doorOpen);
+  var tc=$('tglCurtain');tc.classList.toggle('bad-on',S.curtainOpen);tc.classList.toggle('good-on',!S.curtainOpen);
+  /* face */
+  var m=$('mouth'), sweat=0, cold=0, happy=false;
+  if(te<22){ $('scene').classList.add('shivering'); cold=1;
+    m.setAttribute('d','M388 318 Q400 310 412 318'); }
+  else{ $('scene').classList.remove('shivering');
+    if(te<=23.5){ m.setAttribute('d','M390 315 L410 315'); }
+    else if(te<=26){ m.setAttribute('d','M384 310 Q400 326 416 310'); happy=true; }
+    else if(te<=28){ m.setAttribute('d','M390 316 L410 316'); sweat=0.5; }
+    else { m.setAttribute('d','M388 320 Q400 310 412 320'); sweat=1; } }
+  $('sweatG').setAttribute('opacity',sweat?'1':'0');
+  $('coldG').setAttribute('opacity',cold?'1':'0');
+  /* meter colour + zap */
+  var frac=Math.max(0,Math.min(1,(kw-KW_MIN)/(KW_MAX-KW_MIN)));
+  $('meterDigits').setAttribute('fill',frac<0.33?'#7CFC9A':(frac<0.66?'#ffd23f':'#ff7a7a'));
+  $('speedZap').setAttribute('opacity',frac>0.72?'1':'0');
+  /* adult bar */
+  $('abKW').textContent=kw.toFixed(2);
+  $('abBaht').textContent=(kw*PH.TARIFF).toFixed(1);
+  return {kw:kw,te:te,happy:happy,frac:frac};
+}
+function setTgl(id,bad,txtBad,txtGood){var b=$(id);b.querySelector('.st').textContent=bad?txtBad:txtGood;}
+
+/* ── animation loop: มิเตอร์หมุน + เลขวิ่ง ── */
+function loop(ts){
+  if(!lastTs)lastTs=ts;
+  var dt=Math.min(0.1,(ts-lastTs)/1000); lastTs=ts;
+  var kw=calcKW(S);
+  discAng=(discAng+kw*260*dt)%360;                 /* เร็วตาม kW เห็นชัด */
+  var d=$('meterDisc');
+  d.setAttribute('transform','rotate('+discAng.toFixed(1)+' 281 338)');
+  kwhShown+=kw*dt*4;                                /* เลขวิ่งให้เด็กเห็น (สเกลสนุก) */
+  $('meterDigits').textContent=('00000'+Math.floor(kwhShown)).slice(-5);
+  if(bonus.on){ bonus.used+=kw*dt; }
+  requestAnimationFrame(loop);
+}
+
+/* ── speech bubble ── */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');
+  clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2600);}
+
+/* ── เริ่มด่าน ── */
+function startLevel(i){
+  level=i; locked=false; bonus.on=false;
+  show('timerWrap',false);$('timerTxt').style.display='none';
+  LEVELS[i].setup();
+  $('lvlName').textContent=LEVELS[i].name;
+  $('goalTxt').textContent=LEVELS[i].goal;
+  $('okBtn').style.display='';
+  render();
+  say(i===0?'หนาวจัง ช่วยปรับแอร์หน่อย! 🥶':(i===1?'แดดร้อนเข้ามาเลย! ☀':(i===2?'มิเตอร์หมุนติ้วเลย ลองกดดูสิ':'ไฟกำลังพุ่ง ช่วยด้วย! 🔥')),3000);
+}
+
+/* ── bonus timer ── */
+var bonusInt=null;
+function startBonus(){
+  bonus.on=true;bonus.t=30;bonus.used=0;
+  /* best = ทำดีทุกอย่างตั้งแต่ต้น (26°C ปิดหมด LED) · worst = ปล่อยไว้ตามเดิม */
+  bonus.best=(PH.K*(PH.TOUT-26)+PH.LAMP_LED+PH.FRIDGE)*30;
+  bonus.worst=(PH.K*(PH.TOUT-30)*(1+PH.SUN+PH.INF)+PH.LAMP_OLD+PH.FRIDGE)*30;
+  show('timerWrap',true);$('timerTxt').style.display='';
+  $('timeLeft').textContent='30';$('timerBar').style.width='100%';
+  clearInterval(bonusInt);
+  bonusInt=setInterval(function(){
+    bonus.t--; $('timeLeft').textContent=bonus.t;
+    $('timerBar').style.width=(bonus.t/30*100)+'%';
+    if(bonus.t<=5&&bonus.t>0)sTick();
+    if(bonus.t<=0){clearInterval(bonusInt);finishLevel();}
+  },1000);
+}
+
+/* ── ให้ดาว ── */
+function evalStars(){
+  var r=render();
+  if(level===0){
+    if(S.tset>=24&&S.tset<=26)return {st:3,lesson:'เก่งมาก! 24–26 °C คือ "เย็นพอดี" — ยิ้มได้ และไฟไม่แพง',
+      detail:'ยิ่งตั้งแอร์เย็นจัด มิเตอร์ยิ่งหมุนเร็ว แต่เย็นไปน้องก็หนาวสั่นนะ'};
+    if(S.tset===23||S.tset===27)return {st:2,lesson:'ใกล้แล้ว! ลอง 24–26 °C จะยิ้มกว้างและประหยัดกว่านี้',detail:''};
+    return {st:1,lesson:(S.tset<24?'เย็นเกินไป! น้องหนาวสั่น แถมมิเตอร์หมุนเร็วมาก':'ร้อนเกินไป! น้องเหงื่อแตกแล้ว'),
+      detail:'อุณหภูมิที่พอดีคือ 24–26 °C'};
+  }
+  if(level===1){
+    if(!S.curtainOpen)return {st:3,lesson:'ปิดม่านปุ๊บ มิเตอร์ช้าลงปั๊บ! แดดที่ส่องเข้าบ้านทำให้แอร์ทำงานหนักขึ้น',
+      detail:'ทั้งที่ไม่ได้แตะแอร์เลยสักนิด — นี่แหละพลังของม่านบังแดด'};
+    return {st:1,lesson:'ม่านยังเปิดอยู่ แดดเข้าเต็ม ๆ แอร์เลยทำงานหนัก',detail:'ลองปิดม่านดูสิ มิเตอร์จะช้าลงทันที'};
+  }
+  if(level===2){
+    var tried=touched.door&&touched.lamp;
+    if(!S.doorOpen&&!S.lampOld&&tried)return {st:3,lesson:'สุดยอด! "ปิดประตู" ประหยัดกว่า "เปลี่ยนหลอดไฟ" ประมาณ 5 เท่า!',
+      detail:'ประตูเปิดทิ้งไว้ = ลมร้อนไหลเข้า แอร์ต้องสู้ตลอดเวลา — ปุ่มนี้ "แรง" ที่สุด'};
+    if(!S.doorOpen&&!S.lampOld)return {st:2,lesson:'บ้านประหยัดแล้ว! แต่ลองกดสลับดูทีละปุ่ม จะเห็นว่าปุ่มไหนแรงกว่า',detail:''};
+    if(!S.doorOpen)return {st:2,lesson:'ปิดประตูแล้วดีมาก! อย่าลืมเปลี่ยนเป็นหลอด LED ด้วยนะ',detail:''};
+    return {st:1,lesson:'ประตูยังเปิดอยู่! นี่คือตัวกินไฟที่ "แรง" ที่สุดในบ้าน',detail:'เปลี่ยนหลอดอย่างเดียวช่วยได้นิดเดียว ปิดประตูช่วยได้เยอะกว่ามาก'};
+  }
+  /* bonus */
+  var saveFrac=(bonus.worst-bonus.used)/(bonus.worst-bonus.best);
+  saveFrac=Math.max(0,Math.min(1,saveFrac));
+  var happyEnd=r.happy&&!S.doorOpen;
+  var st=saveFrac>0.85&&happyEnd?3:(saveFrac>0.55&&r.te<=28?2:1);
+  return {st:st,lesson:st===3?'ฮีโร่ตัวจริง! ประหยัดไฟได้เกือบเต็มที่ และน้องยังยิ้มอยู่ 😊':
+    (st===2?'เยี่ยม! ประหยัดได้เยอะ ลองจัดการ "ประตู" ก่อนเป็นอันดับแรกนะ':'หมดเวลา! จำไว้: ปิดประตูก่อน → ปิดม่าน → ตั้งแอร์ 25–26 → หลอด LED'),
+    detail:'คะแนนประหยัด: '+Math.round(saveFrac*100)+'%'};
+}
+
+/* ── จบด่าน ── */
+function finishLevel(){
+  if(locked)return; locked=true; bonus.on=false; clearInterval(bonusInt);
+  var r=evalStars();
+  if(r.st>stars[level]){stars[level]=r.st;saveStars();}
+  updateStarTotal();
+  $('resTitle').textContent=LEVELS[level].name;
+  $('resLesson').textContent=r.lesson;
+  $('resDetail').textContent=r.detail||'';
+  var ss=$('resStars').children;
+  for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(r.st>=2)sGood();else sBad();
+  for(let i=0;i<r.st;i++)setTimeout(function(){ss[i].classList.add('on');sStar(i);},350+i*380);
+  if(r.st===3)confetti(26);
+  $('nextBtn').textContent=level<3?'ด่านต่อไป ➜':'ดูสรุป 🏆';
+}
+function updateStarTotal(){var t=stars[0]+stars[1]+stars[2]+stars[3];$('starTotal').textContent=t;return t;}
+
+/* ── confetti ── */
+function confetti(n){var cols=['#ff5d8f','#ffd23f','#00c2a8','#7b5bff','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ── ปุ่ม / อีเวนต์ ── */
+$('tempSlider').addEventListener('input',function(){S.tset=+this.value;sClick();render();});
+$('tglCurtain').addEventListener('click',function(){S.curtainOpen=!S.curtainOpen;touched.curtain=1;sClick();var r=render();
+  say(S.curtainOpen?'แดดเข้ามาแล้ว มิเตอร์เร็วขึ้น! ☀':'ปิดม่านแล้ว มิเตอร์ช้าลง ✔');});
+$('tglDoor').addEventListener('click',function(){S.doorOpen=!S.doorOpen;touched.door=1;sClick();render();
+  say(S.doorOpen?'ลมร้อนเข้าบ้าน มิเตอร์พุ่งเลย! 🔥':'ปิดประตูแล้ว มิเตอร์ช้าลงเยอะมาก! ✔');});
+$('tglLamp').addEventListener('click',function(){S.lampOld=!S.lampOld;touched.lamp=1;sClick();render();
+  say(S.lampOld?'หลอดเก่ากินไฟกว่านิดหน่อย':'เปลี่ยนเป็น LED แล้ว ช้าลงนิดนึง ✔');});
+$('okBtn').addEventListener('click',function(){audio();finishLevel();});
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(level);});
+$('nextBtn').addEventListener('click',function(){
+  $('resultOv').classList.remove('show');
+  if(level<3)startLevel(level+1);
+  else{$('endStars').textContent=updateStarTotal();$('endOv').classList.add('show');
+    setTimeout(function(){var fs=document.querySelectorAll('#rankBox .fl');
+      fs.forEach(function(f){f.style.width=f.dataset.w+'%';});},250);
+    confetti(40);sGood();}
+});
+$('againBtn').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('adultBtn').addEventListener('click',function(){document.body.classList.toggle('adult');this.classList.toggle('on');sClick();});
+
+/* เลือกด่านจากหน้าแรก (เล่นซ้ำด่านที่เคยผ่าน) */
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<4;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.3rem">'+LEVELS[i].icon+'</span><span class="nm">ด่าน '+(i<3?(i+1):'โบนัส')+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();
+LEVELS[0].setup();render();
+requestAnimationFrame(loop);
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>
