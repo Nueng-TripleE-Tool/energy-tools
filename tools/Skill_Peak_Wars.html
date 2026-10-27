@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>สงครามพีค — Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "สงครามพีค" (Peak Wars) v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: เด็กโต/อาชีวะ (ปวช./ปวส.)
+     หลักที่สอน: ค่าไฟอัตรา TOU (Time of Use) + ค่าความต้องการพลังไฟฟ้าสูงสุด (Demand charge)
+       — เลื่อนโหลดหนีช่วง On-Peak, สลับเวลาสตาร์ท (staggering), ตัดยอดพีค (peak shaving) ด้วยแบตเตอรี่/โซลาร์
+     สูตรเบื้องหลัง (ค่าตัวอย่างใกล้เคียงโครงสร้าง TOU ประเภท 3/4 แรงดัน 22–33 kV ของ กฟภ./กฟน.):
+       ความละเอียดเวลา 15 นาที (96 ช่อง/วัน) · Demand = กำลังเฉลี่ย 15 นาที = kWh(15 นาที) × 4
+       On-Peak = จ.–ศ. 09:00–22:00 · Off-Peak = ช่วงที่เหลือ
+       บิล/เดือน = 22 × (ΣkWh_on × 4.1025 + ΣkWh_off × 2.5849) + kW_max(On-Peak) × 132.93   [บาท]
+       ไม่รวมค่าบริการรายเดือน, ค่า Ft และ VAT 7% · ใช้ 1 วันทำการเป็นตัวแทน × 22 วัน
+       BESS: η_rt = 90% → η_ชาร์จ = η_จ่าย = √0.9 ; SOC += P_ch·0.25·η ; SOC −= P_dis·0.25/η ; สภาวะคงตัว SOC ต้นวัน = ปลายวัน
+             ควบคุมแบบ peak-shaving: จ่ายเฉพาะช่วง On-Peak เมื่อโหลดสุทธิ > เป้า (kW) ; P ≤ พิกัด, SOC ≥ 0
+       PV: P = kWp × PR(0.8) × sin(π(h−6.5)/12) ช่วง 06:30–18:30 ; เมฆ → เหลือ 20% ; ไม่ขายไฟคืน (ส่วนเกินถูกตัด)
+       ห้องเย็น: 45 kW เฉลี่ย ; พักได้ 2 ชม. → rebound 90 kW 2 ชม. (ชดเชยพลังงาน 90 kWh ที่เลื่อนไป)
+       Load factor = kWh/วัน ÷ (kW_max × 24) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --mid:#f5a623; --warn:#f5a623; --bad:#ef4b4b;
+  --ind:#3f51b5; --cyan:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+  --lab:72px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai','Loma',system-ui,sans-serif;
+  background:linear-gradient(180deg,#26335a,#1d2747 55%,#161d36);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:880px;padding:10px 12px 22px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.93);
+  border:3px solid #fff;border-radius:18px;padding:7px 10px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hud .lvl-name{font-weight:600;font-size:1rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap;font-size:.95rem}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 8px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:40px}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4);background:#9fd3ff;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto}
+#bubble{position:absolute;right:8px;top:8px;max-width:60%;background:#fff;border-radius:14px;border:3px solid var(--cyan);
+  padding:6px 10px;font-size:.86rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.25);transition:opacity .25s;opacity:0;pointer-events:none;line-height:1.35}
+#bubble.show{opacity:1}
+#prevChip{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);background:rgba(20,28,52,.82);color:#fff;
+  border-radius:999px;padding:3px 12px;font-size:.78rem;white-space:nowrap;pointer-events:none}
+@keyframes shakeS{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+#sceneWrap.shake{animation:shakeS .3s linear 2}
+
+/* ───── Panel ───── */
+#panel{background:#fff;border-radius:20px;padding:12px 12px 14px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:8px}
+.goal{font-size:.92rem;font-weight:500;background:#e8f4fb;border:2px dashed var(--cyan);border-radius:14px;padding:7px 11px;line-height:1.45}
+.goal b{color:var(--ind)}
+#planInfo{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;font-size:.82rem;font-weight:600}
+#planInfo span{background:#f1f5fb;border-radius:999px;padding:3px 10px}
+#planInfo .up{background:#ffe3e3;color:#b3261e}
+#planInfo .dn{background:#ddf6e6;color:#14753c}
+
+/* chart */
+#chartBox{display:flex;align-items:stretch}
+.clab{width:var(--lab);flex:none;position:relative;font-size:.66rem;color:#6a7a90}
+.clab div{position:absolute;right:6px;transform:translateY(-50%);white-space:nowrap}
+.cplot{position:relative;flex:1;height:132px;border-radius:10px;overflow:hidden;background:#fbfcfe;border:1px solid #e3e9f2}
+#chart{position:absolute;inset:0;width:100%;height:100%}
+.ctag{position:absolute;right:4px;transform:translateY(-100%);font-size:.66rem;font-weight:600;padding:0 5px;border-radius:6px;background:rgba(255,255,255,.85);white-space:nowrap;pointer-events:none}
+.legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:.7rem;color:#55657c;padding-left:var(--lab)}
+.legend i{display:inline-block;width:14px;height:4px;border-radius:2px;vertical-align:middle;margin-right:3px}
+
+/* gantt */
+#gantt{display:flex;flex-direction:column}
+.grow{display:flex;align-items:center;height:38px;border-bottom:1px solid #eef2f7}
+.glab{width:var(--lab);flex:none;font-size:.72rem;line-height:1.15;font-weight:600;padding-right:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.glab small{display:block;font-weight:400;color:#6a7a90;font-size:.66rem}
+.gtrack{position:relative;flex:1;height:32px;border-radius:8px;
+  background:
+   repeating-linear-gradient(90deg,transparent 0,transparent calc(12.5% - 1px),rgba(33,48,71,.13) calc(12.5% - 1px),rgba(33,48,71,.13) 12.5%),
+   linear-gradient(90deg,#e4f6ea 0,#e4f6ea 37.5%,#fde3e3 37.5%,#fde3e3 91.667%,#e4f6ea 91.667%);}
+.win{position:absolute;top:0;bottom:0;border:2px dashed rgba(31,140,80,.75);border-radius:8px;background:rgba(31,180,95,.08);pointer-events:none}
+.flag{position:absolute;top:-2px;font-size:.6rem;font-weight:700;color:#b3261e;transform:translateX(-100%);pointer-events:none;white-space:nowrap;background:rgba(255,255,255,.8);border-radius:4px;padding:0 2px;line-height:1.2}
+.blk{position:absolute;top:3px;bottom:3px;border-radius:7px;color:#fff;font-size:.68rem;font-weight:600;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;white-space:nowrap;box-shadow:0 2px 0 rgba(0,0,0,.28);touch-action:none;transition:outline-color .15s}
+.blk.mov{cursor:grab;outline:2px solid #fff;outline-offset:-1px}
+.blk.mov::after{content:'↔';position:absolute;right:2px;top:-1px;font-size:.6rem;opacity:.85}
+.blk.sel{outline:3px solid #ffd23f;z-index:3}
+.blk.lock{filter:saturate(.45) brightness(1.05);opacity:.85}
+.blk.bad{background-image:repeating-linear-gradient(45deg,rgba(239,75,75,.95) 0 5px,transparent 5px 10px);outline:2px solid #ef4b4b}
+.blk .wu{position:absolute;left:0;top:0;bottom:0;background:rgba(0,0,0,.28);border-right:1px dashed rgba(255,255,255,.6)}
+.blk span{position:relative;pointer-events:none;text-shadow:0 1px 1px rgba(0,0,0,.35)}
+.coldbar{position:absolute;left:0;right:0;top:9px;bottom:9px;background:#90caf9;border-radius:6px}
+.reb{position:absolute;top:5px;bottom:5px;background:repeating-linear-gradient(45deg,#1565c0 0 4px,#42a5f5 4px 8px);border-radius:5px;pointer-events:none}
+.dis{position:absolute;bottom:1px;height:7px;background:#ff8f1c;border-radius:3px;pointer-events:none}
+.socsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#axis{position:relative;height:16px;margin-left:var(--lab);font-size:.64rem;color:#6a7a90}
+#axis span{position:absolute;transform:translateX(-50%)}
+#axis span:first-child{transform:none}
+#axis span:last-child{transform:translateX(-100%)}
+
+/* controls */
+#ctrl{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center}
+#selInfo{flex:1 1 180px;font-size:.84rem;font-weight:500;background:#f6f8fc;border-radius:12px;padding:6px 10px;min-height:44px;display:flex;align-items:center;line-height:1.3}
+.nudge{border:none;border-radius:12px;background:#e8eaf6;color:var(--ind);font-family:inherit;font-weight:700;font-size:.9rem;min-width:56px;min-height:44px;cursor:pointer}
+.nudge:active{transform:translateY(2px)}
+#tRow{display:none;align-items:center;gap:8px;background:#fff7e6;border-radius:12px;padding:4px 10px;font-size:.85rem;font-weight:600}
+#tRow input{flex:1}
+#tVal{min-width:66px;text-align:right;color:#c25e00}
+input[type=range]{height:44px;appearance:none;-webkit-appearance:none;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:8px;background:linear-gradient(90deg,#ffe0b2,#ff8f1c)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:32px;height:32px;border-radius:50%;margin-top:-10px;background:#fff;border:6px solid #ff8f1c;box-shadow:0 3px 8px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:12px;border-radius:8px;background:linear-gradient(90deg,#ffe0b2,#ff8f1c)}
+input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:6px solid #ff8f1c}
+#btnRow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:2px}
+
+.big-btn{border:none;border-radius:999px;padding:13px 28px;font-family:inherit;font-size:1.12rem;font-weight:700;color:#fff;min-height:48px;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #283593,0 10px 18px rgba(0,0,0,.2);transition:transform .1s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #283593}
+.big-btn:disabled{filter:grayscale(.7);opacity:.6;cursor:default}
+.big-btn.alt{background:linear-gradient(135deg,#eceff1,#cfd8dc);color:var(--ink);box-shadow:0 6px 0 #90a4ae,0 10px 18px rgba(0,0,0,.15)}
+.big-btn.alt:active{box-shadow:0 2px 0 #90a4ae}
+.big-btn.small{font-size:.98rem;padding:10px 18px}
+#skipBtn{display:none}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(10,18,40,.68);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:24px;max-width:500px;width:100%;padding:20px 16px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.4);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.35rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:2.7rem;letter-spacing:6px;margin:4px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e8f4fb;border-radius:14px;padding:9px 12px;font-weight:600;margin:8px 0;font-size:.92rem;color:#1a3a6b}
+.save{font-size:1.1rem;font-weight:700;margin:2px 0}
+.save.g{color:var(--good)} .save.b{color:var(--bad)}
+table.bill{width:100%;border-collapse:collapse;font-size:.8rem;margin:6px 0;text-align:right}
+table.bill th,table.bill td{padding:4px 5px;border-bottom:1px solid #eef2f7}
+table.bill th{background:#eef1fb;color:#283593;font-weight:600}
+table.bill td:first-child,table.bill th:first-child{text-align:left}
+table.bill tr.tot td{font-weight:700;background:#fff8e1}
+table.bill td.g{color:var(--good);font-weight:600} table.bill td.b{color:var(--bad);font-weight:600}
+.fb{text-align:left;display:flex;flex-direction:column;gap:5px;margin:6px 0}
+.fb h3{font-size:.95rem;color:#283593;margin-top:4px}
+.fb div{font-size:.84rem;line-height:1.45;border-radius:10px;padding:6px 9px;background:#f4f7fb;border-left:5px solid #90a4ae}
+.fb div.bad{background:#fff0f0;border-color:var(--bad)}
+.fb div.good{background:#ecfaf1;border-color:var(--good)}
+.fb div.tip{background:#fff8e6;border-color:var(--warn)}
+.fb div.info{background:#eef3ff;border-color:var(--ind)}
+.lvl-pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:7px;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:7px 6px;font-family:inherit;cursor:pointer;min-height:64px;color:var(--ink)}
+.lvl-pick button:active{transform:translateY(2px)}
+.lvl-pick .nm{font-size:.78rem;font-weight:600;display:block;line-height:1.25}
+.lvl-pick .st{font-size:.8rem;letter-spacing:1px}
+#startCard h1{font-size:2rem;line-height:1.2;background:linear-gradient(135deg,#3f51b5,#00acc1);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#55657c;margin:4px 0 6px;font-size:.92rem}
+.tag{display:inline-block;background:#e8eaf6;color:#283593;border-radius:999px;padding:2px 12px;font-size:.8rem;font-weight:600;margin:2px}
+.brand{font-size:.78rem;color:#8795a8;margin-top:10px}
+footer.brand{color:#aab6cf;text-align:center}
+.row-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+
+/* help overlay */
+#helpStage{background:#eef4fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:340px;height:auto}
+#helpTxt{font-size:.98rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd9e6}
+.dots i.on{background:var(--cyan)}
+
+/* formula panel */
+#fCard{text-align:left}
+#fCard h2{text-align:center}
+#fCard h3{font-size:.95rem;color:#283593;margin:10px 0 4px}
+#fCard p,#fCard li{font-size:.86rem;line-height:1.55}
+#fCard ul{padding-left:18px}
+.fx{background:#1d2747;color:#e6f0ff;border-radius:12px;padding:8px 10px;font-family:ui-monospace,Consolas,monospace;font-size:.78rem;line-height:1.6;overflow-x:auto;white-space:pre-wrap}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── SVG scene animations (ผูกกับสถานะ .run) ───── */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{transform-box:fill-box;transform-origin:center}
+.run .spin{animation:spin .7s linear infinite}
+.reb .spin,.fast .spin{animation-duration:.35s}
+@keyframes riseSm{0%{transform:translateY(0) scale(.6);opacity:.85}100%{transform:translateY(-22px) scale(1.4);opacity:0}}
+.smk{opacity:0}
+.run .smk{animation:riseSm 1.6s linear infinite}
+@keyframes heatW{0%{transform:translateY(4px);opacity:0}40%{opacity:.9}100%{transform:translateY(-8px);opacity:0}}
+.hw{opacity:0}
+.run .hw{animation:heatW 1.2s ease-out infinite}
+@keyframes glow{0%,100%{fill:#ff9800}50%{fill:#ffcc33}}
+.run #ovenWin{animation:glow .8s ease-in-out infinite}
+@keyframes conv{from{transform:translateX(0)}to{transform:translateX(26px)}}
+.run .conv{animation:conv 1.2s linear infinite}
+@keyframes fallP{0%{transform:translateY(0);opacity:1}100%{transform:translateY(12px);opacity:0}}
+.fp{opacity:0}
+.run .fp{animation:fallP .6s linear infinite}
+@keyframes puffA{0%{transform:translateX(0) scale(.5);opacity:.9}100%{transform:translateX(18px) scale(1.4);opacity:0}}
+.pa{opacity:0}
+.run .pa{animation:puffA 1s ease-out infinite}
+@keyframes snowF{0%{transform:translateY(0);opacity:0}30%{opacity:1}100%{transform:translateY(16px);opacity:0}}
+.sn{opacity:0}
+.run .sn{animation:snowF 1.4s linear infinite}
+@keyframes dropUp{0%{transform:translateY(0);opacity:0}20%{opacity:1}100%{transform:translateY(-34px);opacity:0}}
+.du{opacity:0}
+.run .du{animation:dropUp 1s linear infinite}
+@keyframes flowDown{0%{transform:translateY(-10px);opacity:0}50%{opacity:1}100%{transform:translateY(8px);opacity:0}}
+@keyframes flowUp{0%{transform:translateY(8px);opacity:0}50%{opacity:1}100%{transform:translateY(-10px);opacity:0}}
+#bArrCh path{animation:flowDown 1s linear infinite}
+#bArrDis path{animation:flowUp .8s linear infinite}
+@keyframes lampB{0%,100%{opacity:1}50%{opacity:.35}}
+.lampOn{animation:lampB 1s ease-in-out infinite}
+/* tutorial anims */
+@keyframes hMark{0%{transform:translateX(0)}100%{transform:translateX(300px)}}
+.hMark{animation:hMark 4s linear infinite}
+@keyframes hHand{to{transform:rotate(360deg)}}
+.hHand{transform-box:fill-box;transform-origin:center;animation:hHand 4s linear infinite}
+@keyframes hDrag{0%,15%{transform:translateX(0)}55%,80%{transform:translateX(-118px)}100%{transform:translateX(0)}}
+.hDrag{animation:hDrag 3.2s ease-in-out infinite}
+@keyframes hBar{0%,20%{transform:scaleY(1);fill:#ef4b4b}60%,100%{transform:scaleY(.62);fill:#00acc1}}
+.hBar{transform-box:fill-box;transform-origin:center bottom;animation:hBar 3s ease-in-out infinite alternate}
+@keyframes hBlink{0%,100%{opacity:1}50%{opacity:.2}}
+.hBlink{animation:hBlink .8s linear infinite}
+@keyframes hD1{0%,30%{opacity:1}33%,100%{opacity:0}}
+@keyframes hD2{0%,32%{opacity:0}35%,63%{opacity:1}66%,100%{opacity:0}}
+@keyframes hD3{0%,65%{opacity:0}68%,100%{opacity:1}}
+.hD1{animation:hD1 3s steps(1) infinite}.hD2{animation:hD2 3s steps(1) infinite}.hD3{animation:hD3 3s steps(1) infinite}
+@keyframes hShrink{0%,25%{transform:scaleY(1)}70%,100%{transform:scaleY(.45)}}
+.hShrink{transform-box:fill-box;transform-origin:center bottom;animation:hShrink 3s ease-in-out infinite alternate}
+@keyframes hPop{0%,60%{transform:scale(0)}80%{transform:scale(1.25)}100%{transform:scale(1)}}
+.hPop{transform-box:fill-box;transform-origin:center;animation:hPop 3s ease-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .run .spin,.run .smk,.run .hw,.run #ovenWin,.run .conv,.run .fp,.run .pa,.run .sn,.run .du,#bArrCh path,#bArrDis path,.lampOn,
+  .hMark,.hHand,.hDrag,.hBar,.hBlink,.hD1,.hD2,.hD3,.hShrink,.hPop,#sceneWrap.shake,.confetti{animation:none}
+  .run .smk,.run .hw,.run .fp,.run .pa,.run .sn,.run .du{opacity:.7}
+  .hD2,.hD3{opacity:0}
+}
+@media (max-width:480px){
+  :root{--lab:64px}
+  #bubble{font-size:.78rem;max-width:66%}
+  .card h2{font-size:1.18rem}
+  .glab{font-size:.68rem}
+  .big-btn{padding:12px 20px;font-size:1.02rem}
+  table.bill{font-size:.74rem}
+}
+@media (min-width:900px){
+  #app{max-width:1000px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">⚡ สงครามพีค</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="homeBtn" title="เลือกด่าน">🏠</button>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="fxBtn" title="สูตร/ที่มา">📐</button>
+  </div>
+
+  <!-- SCENE -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 640 330" xmlns="http://www.w3.org/2000/svg" aria-label="โรงงานการ์ตูนตัดขวาง พร้อมมิเตอร์ แบตเตอรี่ และโซลาร์">
+      <defs>
+        <linearGradient id="skyD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5fb8ff"/><stop offset="1" stop-color="#d9f1ff"/></linearGradient>
+        <linearGradient id="skyN" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1433"/><stop offset="1" stop-color="#2b3d72"/></linearGradient>
+        <linearGradient id="pvG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#3b5bdb"/></linearGradient>
+        <linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef2f8"/><stop offset="1" stop-color="#dfe5ee"/></linearGradient>
+      </defs>
+      <!-- sky -->
+      <rect x="0" y="0" width="640" height="300" fill="url(#skyD)"/>
+      <rect id="nightSky" x="0" y="0" width="640" height="300" fill="url(#skyN)" opacity="0"/>
+      <g id="starsG" opacity="0" fill="#fff">
+        <circle cx="40" cy="22" r="1.5"/><circle cx="180" cy="14" r="1.2"/><circle cx="260" cy="30" r="1.6"/>
+        <circle cx="400" cy="12" r="1.3"/><circle cx="470" cy="34" r="1.5"/><circle cx="610" cy="18" r="1.2"/><circle cx="560" cy="64" r="1.4"/>
+      </g>
+      <g id="sunG" transform="translate(330 30)"><circle r="26" fill="#ffd23f" opacity=".25"/><circle r="16" fill="#ffd23f"/></g>
+      <g id="moonG" transform="translate(590 34)" opacity="0"><circle r="11" fill="#f4f1d0"/><circle cx="5" cy="-3" r="10" fill="#1a2550"/></g>
+      <!-- grid line incoming -->
+      <path id="wireA" d="M0 34 Q70 56 136 62" stroke="#2d3748" stroke-width="2.5" fill="none"/>
+      <path id="wireB" d="M136 62 Q144 78 152 96" stroke="#2d3748" stroke-width="2.5" fill="none"/>
+      <path id="flowA" d="M0 34 Q70 56 136 62 Q144 78 152 96" stroke="#ffd23f" stroke-width="3" fill="none" stroke-dasharray="4 10" stroke-linecap="round"/>
+      <!-- ground -->
+      <rect x="0" y="296" width="640" height="34" fill="#55644a"/>
+      <rect x="0" y="296" width="640" height="6" fill="#77895f"/>
+
+      <!-- pole + transformer -->
+      <rect x="133" y="56" width="6" height="242" fill="#6d5a45"/>
+      <rect x="120" y="58" width="32" height="5" rx="2" fill="#4a3d2f"/>
+      <rect x="126" y="74" width="20" height="26" rx="4" fill="#90a4ae" stroke="#455a64" stroke-width="2"/>
+
+      <!-- METER -->
+      <g id="meterG">
+        <rect x="6" y="110" width="120" height="164" rx="12" fill="#18212f" stroke="#c9d3e0" stroke-width="4"/>
+        <text x="66" y="128" font-size="11" text-anchor="middle" fill="#9fb0c8" font-family="Mitr,sans-serif">มิเตอร์ (เฉลี่ย 15 นาที)</text>
+        <rect id="touBadge" x="16" y="134" width="100" height="20" rx="10" fill="#1fb45f"/>
+        <text id="touTxt" x="66" y="149" font-size="12" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">OFF-PEAK</text>
+        <rect x="16" y="159" width="100" height="44" rx="6" fill="#0d2a1e"/>
+        <text x="21" y="171" font-size="9" fill="#6dffb0" font-family="Mitr,sans-serif">kW ขณะนี้</text>
+        <text id="mNow" x="111" y="198" font-size="26" font-weight="700" text-anchor="end" fill="#6dffb0" font-family="ui-monospace,Consolas,monospace">0</text>
+        <rect x="16" y="208" width="100" height="44" rx="6" fill="#2a240b"/>
+        <text x="21" y="220" font-size="9" fill="#ffd23f" font-family="Mitr,sans-serif">kW สูงสุด On-Peak</text>
+        <text id="mMax" x="111" y="246" font-size="23" font-weight="700" text-anchor="end" fill="#ffd23f" font-family="ui-monospace,Consolas,monospace">0</text>
+        <text id="mClock" x="66" y="268" font-size="13" font-weight="600" text-anchor="middle" fill="#fff" font-family="ui-monospace,Consolas,monospace">00:00</text>
+      </g>
+
+      <!-- FACTORY -->
+      <g id="factory">
+        <!-- roof sawtooth -->
+        <polygon points="148,82 148,46 272,82" fill="#7b8796" stroke="#4a5568" stroke-width="3"/>
+        <polygon points="272,82 272,46 396,82" fill="#7b8796" stroke="#4a5568" stroke-width="3"/>
+        <polygon points="396,82 396,46 520,82" fill="#7b8796" stroke="#4a5568" stroke-width="3"/>
+        <g id="pvPanels">
+          <g transform="translate(150 43) rotate(16.2)"><rect x="0" y="-9" width="122" height="9" fill="url(#pvG)" stroke="#cbd5e1" stroke-width="1"/><path d="M20 -9v9M40 -9v9M61 -9v9M81 -9v9M101 -9v9" stroke="#9fb3d9" stroke-width=".8"/><rect class="pvShine" x="0" y="-9" width="122" height="9" fill="#fff59d" opacity="0"/></g>
+          <g transform="translate(274 43) rotate(16.2)"><rect x="0" y="-9" width="122" height="9" fill="url(#pvG)" stroke="#cbd5e1" stroke-width="1"/><path d="M20 -9v9M40 -9v9M61 -9v9M81 -9v9M101 -9v9" stroke="#9fb3d9" stroke-width=".8"/><rect class="pvShine" x="0" y="-9" width="122" height="9" fill="#fff59d" opacity="0"/></g>
+          <g transform="translate(398 43) rotate(16.2)"><rect x="0" y="-9" width="122" height="9" fill="url(#pvG)" stroke="#cbd5e1" stroke-width="1"/><path d="M20 -9v9M40 -9v9M61 -9v9M81 -9v9M101 -9v9" stroke="#9fb3d9" stroke-width=".8"/><rect class="pvShine" x="0" y="-9" width="122" height="9" fill="#fff59d" opacity="0"/></g>
+        </g>
+        <!-- body -->
+        <rect x="150" y="80" width="370" height="216" fill="#f3f5f9" stroke="#4a5568" stroke-width="5"/>
+        <rect x="156" y="86" width="358" height="204" fill="url(#wallG)"/>
+        <rect x="156" y="186" width="358" height="7" fill="#9aa5b5"/>
+        <path d="M274 90V184M394 90V184M274 196V290M394 196V290" stroke="#c5cfdc" stroke-width="2" stroke-dasharray="5 5"/>
+
+        <!-- CHILLER (upper-left) -->
+        <g id="m_chill">
+          <rect x="166" y="128" width="92" height="40" rx="6" fill="#4fc3f7" stroke="#01579b" stroke-width="3"/>
+          <rect x="166" y="117" width="92" height="13" rx="4" fill="#b3e5fc" stroke="#01579b" stroke-width="2"/>
+          <circle cx="190" cy="110" r="11" fill="#263238"/><circle cx="234" cy="110" r="11" fill="#263238"/>
+          <g class="spin"><path d="M190 101v18M181 110h18" stroke="#cfd8dc" stroke-width="3.5" stroke-linecap="round"/></g>
+          <g class="spin"><path d="M234 101v18M225 110h18" stroke="#cfd8dc" stroke-width="3.5" stroke-linecap="round"/></g>
+          <rect x="178" y="138" width="68" height="8" rx="3" fill="#0288d1" opacity=".55"/>
+          <rect x="178" y="151" width="68" height="8" rx="3" fill="#0288d1" opacity=".55"/>
+          <g fill="#e1f5fe" stroke="#0277bd" stroke-width="1">
+            <circle class="sn" cx="180" cy="170" r="2.6"/><circle class="sn" style="animation-delay:.45s" cx="212" cy="170" r="2.6"/><circle class="sn" style="animation-delay:.9s" cx="244" cy="170" r="2.6"/>
+          </g>
+          <circle id="lamp_chill" cx="172" cy="96" r="5" fill="#9e9e9e" stroke="#fff" stroke-width="1.5"/>
+          <text x="214" y="100" font-size="13" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">ชิลเลอร์</text>
+          <rect x="182" y="166" width="64" height="16" rx="8" fill="#213047" opacity=".85"/>
+          <text id="kw_chill" x="214" y="178" font-size="11.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">0 kW</text>
+        </g>
+
+        <!-- COMPRESSOR (upper-mid) -->
+        <g id="m_comp">
+          <rect x="352" y="100" width="28" height="68" rx="14" fill="#b0bec5" stroke="#455a64" stroke-width="3"/>
+          <circle cx="366" cy="118" r="7" fill="#fff" stroke="#455a64" stroke-width="2"/><path d="M366 118l3 -4" stroke="#c62828" stroke-width="2"/>
+          <rect x="288" y="136" width="56" height="32" rx="6" fill="#1e88e5" stroke="#0d47a1" stroke-width="3"/>
+          <circle cx="303" cy="124" r="13" fill="#eceff1" stroke="#455a64" stroke-width="3"/>
+          <g class="spin"><path d="M303 113v22M292 124h22M295 116l16 16M311 116l-16 16" stroke="#455a64" stroke-width="2"/></g>
+          <path d="M344 150h8" stroke="#455a64" stroke-width="5"/>
+          <g fill="#e3f2fd" stroke="#90caf9"><circle class="pa" cx="382" cy="150" r="4"/><circle class="pa" style="animation-delay:.5s" cx="382" cy="146" r="3.5"/></g>
+          <circle id="lamp_comp" cx="290" cy="96" r="5" fill="#9e9e9e" stroke="#fff" stroke-width="1.5"/>
+          <text x="334" y="100" font-size="13" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">อัดอากาศ</text>
+          <rect x="302" y="166" width="64" height="16" rx="8" fill="#213047" opacity=".85"/>
+          <text id="kw_comp" x="334" y="178" font-size="11.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">0 kW</text>
+        </g>
+
+        <!-- COLD ROOM (upper-right) -->
+        <g id="m_cold">
+          <rect x="404" y="106" width="102" height="62" rx="6" fill="#e3f2fd" stroke="#1565c0" stroke-width="3"/>
+          <rect x="412" y="114" width="36" height="52" rx="3" fill="#bbdefb" stroke="#1565c0" stroke-width="2"/>
+          <rect x="440" y="136" width="4" height="12" rx="2" fill="#1565c0"/>
+          <g id="frost" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M430 124v20M420 134h20M423 127l14 14M437 127l-14 14"/></g>
+          <rect x="456" y="110" width="44" height="13" rx="3" fill="#78909c"/>
+          <circle cx="470" cy="116.5" r="5" fill="#37474f"/>
+          <g class="spin"><path d="M470 112v9M465.5 116.5h9" stroke="#eceff1" stroke-width="2"/></g>
+          <rect x="458" y="128" width="42" height="24" rx="5" fill="#fff" stroke="#1565c0" stroke-width="1.5"/>
+          <text id="coldT" x="479" y="145" font-size="11.5" font-weight="700" text-anchor="middle" fill="#1565c0" font-family="ui-monospace,Consolas,monospace">-18°C</text>
+          <circle id="lamp_cold" cx="410" cy="96" r="5" fill="#9e9e9e" stroke="#fff" stroke-width="1.5"/>
+          <text x="455" y="100" font-size="13" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">ห้องเย็น</text>
+          <rect x="423" y="166" width="64" height="16" rx="8" fill="#213047" opacity=".85"/>
+          <text id="kw_cold" x="455" y="178" font-size="11.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">45 kW</text>
+        </g>
+
+        <!-- OVEN (lower-left) -->
+        <g id="m_oven">
+          
+          <rect x="166" y="218" width="92" height="54" rx="8" fill="#8d6e63" stroke="#4e342e" stroke-width="3"/>
+          <rect id="ovenWin" x="180" y="228" width="64" height="28" rx="6" fill="#3e2723" stroke="#4e342e" stroke-width="2"/>
+          <rect x="246" y="208" width="8" height="12" fill="#5d4037"/>
+          <g fill="#9e9e9e"><circle class="smk" cx="250" cy="204" r="4"/><circle class="smk" style="animation-delay:.8s" cx="250" cy="204" r="3.5"/></g>
+          <rect x="160" y="274" width="104" height="6" rx="3" fill="#546e7a"/>
+          <g class="conv" fill="#d7a35c" stroke="#8d5a2b" stroke-width="1"><ellipse cx="170" cy="271" rx="8" ry="4"/><ellipse cx="196" cy="271" rx="8" ry="4"/><ellipse cx="222" cy="271" rx="8" ry="4"/></g>
+          <circle id="lamp_oven" cx="172" cy="204" r="5" fill="#9e9e9e" stroke="#fff" stroke-width="1.5"/>
+          <text x="212" y="209" font-size="13" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">เตาอบ</text>
+          <rect x="182" y="244" width="64" height="16" rx="8" fill="#213047" opacity=".85"/>
+          <text id="kw_oven" x="214" y="256" font-size="11.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">0 kW</text>
+        </g>
+
+        <!-- GRINDER (lower-mid) -->
+        <g id="m_grind">
+          <polygon points="302,214 366,214 352,232 316,232" fill="#a1887f" stroke="#4e342e" stroke-width="3"/>
+          <rect x="306" y="232" width="56" height="34" rx="5" fill="#6d4c41" stroke="#3e2723" stroke-width="3"/>
+          <g class="spin"><circle cx="334" cy="249" r="11" fill="#ffca28" stroke="#8d6e00" stroke-width="2"/>
+            <path d="M334 235v6M334 257v6M320 249h6M342 249h6M324 239l4 4M340 255l4 4M344 239l-4 4M328 255l-4 4" stroke="#8d6e00" stroke-width="3"/></g>
+                    <g fill="#8d6e63"><circle class="fp" cx="328" cy="266" r="2"/><circle class="fp" style="animation-delay:.2s" cx="334" cy="266" r="2"/><circle class="fp" style="animation-delay:.4s" cx="340" cy="266" r="2"/></g>
+          <circle id="lamp_grind" cx="292" cy="204" r="5" fill="#9e9e9e" stroke="#fff" stroke-width="1.5"/>
+          <text x="334" y="209" font-size="13" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">เครื่องบด</text>
+                    <rect x="302" y="268" width="64" height="16" rx="8" fill="#213047" opacity=".85"/>
+          <text id="kw_grind" x="334" y="280" font-size="11.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">0 kW</text>
+        </g>
+
+        <!-- PUMP (lower-right) -->
+        <g id="m_pump">
+          <rect x="474" y="212" width="34" height="22" rx="4" fill="#bbdefb" stroke="#1565c0" stroke-width="2"/>
+          <rect id="tankLvl" x="476" y="222" width="30" height="10" fill="#42a5f5"/>
+          <rect x="484" y="234" width="7" height="24" fill="#90a4ae"/>
+          <g fill="#29b6f6"><circle class="du" cx="487.5" cy="258" r="2.4"/><circle class="du" style="animation-delay:.33s" cx="487.5" cy="258" r="2.4"/><circle class="du" style="animation-delay:.66s" cx="487.5" cy="258" r="2.4"/></g>
+          <rect x="412" y="244" width="40" height="24" rx="5" fill="#5c6bc0" stroke="#283593" stroke-width="3"/>
+          <circle cx="470" cy="258" r="13" fill="#7986cb" stroke="#283593" stroke-width="3"/>
+          <g class="spin"><path d="M470 248v20M460 258h20M463 251l14 14M477 251l-14 14" stroke="#e8eaf6" stroke-width="2"/></g>
+          <rect x="466" y="271" width="8" height="26" fill="#78909c"/>
+          <path d="M470 300v26" stroke="#78909c" stroke-width="6" stroke-dasharray="4 3"/>
+          <circle id="lamp_pump" cx="408" cy="204" r="5" fill="#9e9e9e" stroke="#fff" stroke-width="1.5"/>
+          <text x="446" y="209" font-size="13" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">ปั๊มบาดาล</text>
+          <rect x="406" y="272" width="56" height="16" rx="8" fill="#213047" opacity=".85"/>
+          <text id="kw_pump" x="434" y="284" font-size="11.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">0 kW</text>
+        </g>
+      </g>
+
+      <!-- PV text -->
+      <g id="pvTag" opacity="0">
+        <rect x="430" y="6" width="98" height="20" rx="10" fill="#fff8d6" stroke="#f5a623" stroke-width="2"/>
+        <text id="pvTxt" x="479" y="20" font-size="11.5" font-weight="700" text-anchor="middle" fill="#8a5a00" font-family="Mitr,sans-serif">PV 0 kW</text>
+      </g>
+      <!-- clouds -->
+      <g id="cloudG" opacity="0">
+        <g fill="#7d8796"><ellipse cx="310" cy="34" rx="44" ry="17"/><ellipse cx="350" cy="26" rx="34" ry="19"/><ellipse cx="380" cy="38" rx="34" ry="14"/></g>
+        <g fill="#9aa4b2"><ellipse cx="318" cy="30" rx="30" ry="11"/><ellipse cx="356" cy="22" rx="22" ry="12"/></g>
+      </g>
+
+      <!-- BESS -->
+      <g id="bessG">
+        <rect x="528" y="196" width="106" height="100" rx="8" fill="#37474f" stroke="#263238" stroke-width="3"/>
+        <text x="581" y="212" font-size="12" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">BESS</text>
+        <rect x="571" y="218" width="20" height="6" rx="2" fill="#cfd8dc"/>
+        <rect x="553" y="223" width="56" height="62" rx="6" fill="#1c262b" stroke="#cfd8dc" stroke-width="3"/>
+        <rect id="socFill" x="557" y="281" width="48" height="0" rx="3" fill="#1fb45f"/>
+        <text id="socTxt" x="581" y="259" font-size="12.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">0%</text>
+        <g id="bArrCh" opacity="0" fill="none" stroke="#69f0ae" stroke-width="3" stroke-linecap="round"><path d="M541 226l0 12M536 233l5 5 5 -5"/><path style="animation-delay:.5s" d="M541 250l0 12M536 257l5 5 5 -5"/></g>
+        <g id="bArrDis" opacity="0" fill="none" stroke="#ffb74d" stroke-width="3" stroke-linecap="round"><path d="M621 262l0 -12M616 255l5 -5 5 5"/><path style="animation-delay:.4s" d="M621 240l0 -12M616 233l5 -5 5 5"/></g>
+        <text id="bessKW" x="581" y="294" font-size="10" text-anchor="middle" fill="#cfd8dc" font-family="Mitr,sans-serif">พัก</text>
+        <g id="bessNone"><rect x="528" y="196" width="106" height="100" rx="8" fill="#4b5a44" stroke="#3a4634" stroke-width="3"/><text x="581" y="250" font-size="11" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">(ยังไม่ติดตั้ง</text><text x="581" y="265" font-size="11" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">แบตเตอรี่)</text></g>
+      </g>
+    </svg>
+    <div id="bubble"></div>
+    <div id="prevChip">👁 พรีวิวช่วงพีคตามแผน</div>
+  </div>
+
+  <!-- PANEL -->
+  <div id="panel">
+    <div class="goal" id="goalTxt">—</div>
+    <div id="planInfo"></div>
+    <div id="chartBox">
+      <div class="clab" id="cLab"></div>
+      <div class="cplot">
+        <svg id="chart" viewBox="0 0 960 200" preserveAspectRatio="none">
+          <rect x="0" y="0" width="360" height="200" fill="#e4f6ea"/>
+          <rect x="360" y="0" width="520" height="200" fill="#fde3e3"/>
+          <rect x="880" y="0" width="80" height="200" fill="#e4f6ea"/>
+          <rect id="cCloud" x="0" y="0" width="0" height="200" fill="#9aa4b2" opacity=".28"/>
+          <g id="cGrid" stroke="#c9d3e0" stroke-width="1" vector-effect="non-scaling-stroke"></g>
+          <path id="cPlan" d="" fill="rgba(63,81,181,.20)" stroke="#3f51b5" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+          <path id="cBase" d="" fill="none" stroke="#6b7a90" stroke-width="1.5" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/>
+          <path id="cPV" d="" fill="none" stroke="#f5a623" stroke-width="2" vector-effect="non-scaling-stroke"/>
+          <path id="cLive" d="" fill="none" stroke="#00acc1" stroke-width="3" vector-effect="non-scaling-stroke"/>
+          <line id="cOld" x1="0" x2="960" y1="0" y2="0" stroke="#ef4b4b" stroke-width="2" stroke-dasharray="7 5" vector-effect="non-scaling-stroke"/>
+          <line id="cCur" x1="0" x2="0" y1="0" y2="200" stroke="#213047" stroke-width="2" vector-effect="non-scaling-stroke" opacity="0"/>
+        </svg>
+        <div id="cTags"></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i style="background:#6b7a90"></i>ตารางเดิม</span>
+      <span><i style="background:#3f51b5"></i>แผนของคุณ</span>
+      <span><i style="background:#00acc1;height:5px"></i>เดินเครื่องจริง</span>
+      <span><i style="background:#ef4b4b"></i>พีคเดิม</span>
+      <span id="lgPV" style="display:none"><i style="background:#f5a623"></i>โซลาร์</span>
+      <span><i style="background:#fde3e3;border:1px solid #f3b3b3;height:8px"></i>On-Peak</span>
+    </div>
+    <div id="gantt"></div>
+    <div id="axis"></div>
+    <div id="ctrl">
+      <button class="nudge" id="nL" aria-label="เลื่อนก่อน 30 นาที">◀ 30น.</button>
+      <div id="selInfo">แตะหรือลากบล็อกที่มี ↔ เพื่อย้ายเวลา</div>
+      <button class="nudge" id="nR" aria-label="เลื่อนหลัง 30 นาที">30น. ▶</button>
+    </div>
+    <div id="tRow"><span>🔋 เป้าตัดพีค</span><input type="range" id="tSld" min="150" max="500" step="5" value="400"><span id="tVal">400 kW</span></div>
+    <div id="btnRow">
+      <button class="big-btn alt small" id="resetBtn">↺ ตารางเดิม</button>
+      <button class="big-btn" id="runBtn">▶ เดินเครื่อง 1 วัน</button>
+      <button class="big-btn alt small" id="skipBtn">⏩ ข้าม</button>
+    </div>
+  </div>
+  <footer class="brand">Energy Skills Lab · Triple E Technology</footer>
+</div>
+
+<!-- START -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.6rem">⚡🏭🔋</div>
+    <h1>สงครามพีค</h1>
+    <div class="sub">Peak Wars · ฝึกจัดตารางเครื่องจักรหนีค่าไฟ TOU + ค่า Demand</div>
+    <div><span class="tag">กลุ่ม: เด็กโต/อาชีวะ</span><span class="tag">5 ด่าน · ด่านละ ≤ 2 นาที</span></div>
+    <p style="margin-top:8px;font-size:.92rem">ค่าไฟโรงงานไม่ได้คิดแค่ "ใช้กี่หน่วย" — ช่วง <b style="color:#c62828">On-Peak</b> แพงกว่า และ <b>kW สูงสุดแค่ 15 นาทีเดียว</b> ก็โดนคิดทั้งเดือน!</p>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div class="row-btns">
+      <button class="big-btn alt small" id="startHelp">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">เริ่มเล่น ▶</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- HELP -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2 id="helpTitle">วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt"></div>
+    <div class="dots" id="helpDots"></div>
+    <div class="row-btns">
+      <button class="big-btn alt small" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <h2 id="resTitle">สรุปบิล</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="save" id="resSave"></div>
+    <div id="resProd" style="font-size:.88rem;font-weight:600"></div>
+    <table class="bill" id="resBill"></table>
+    <div class="lesson" id="resLesson"></div>
+    <div class="fb" id="resFb"></div>
+    <div class="row-btns">
+      <button class="big-btn alt small" id="retryBtn">✏️ ปรับตาราง</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+  </div>
+</div>
+
+<!-- END -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.6rem">🏆</div>
+    <h2>จบภารกิจสงครามพีค!</h2>
+    <div class="result-stars" style="font-size:1.6rem" id="endStars"></div>
+    <div class="fb" id="endFb"></div>
+    <div class="row-btns">
+      <button class="big-btn alt small" id="endHome">🏠 เลือกด่าน</button>
+      <button class="big-btn small" id="endReplay">↻ เล่นใหม่ตั้งแต่ด่าน 1</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- FORMULA -->
+<div class="overlay" id="fxOv">
+  <div class="card" id="fCard">
+    <h2>📐 สูตร / ที่มา</h2>
+    <h3>1) อัตราค่าไฟ TOU (ค่าตัวอย่างใกล้เคียงจริง)</h3>
+    <p>อิงโครงสร้างอัตรา TOU ประเภท 3/4 (กิจการขนาดกลาง/ใหญ่) แรงดัน 22–33 kV ของ กฟภ./กฟน.</p>
+    <ul>
+      <li><b>On-Peak</b> จ.–ศ. 09:00–22:00 = <b>4.1025 บาท/kWh</b></li>
+      <li><b>Off-Peak</b> 22:00–09:00 (และ ส.–อา./วันหยุดทั้งวัน) = <b>2.5849 บาท/kWh</b></li>
+      <li><b>ค่าความต้องการพลังไฟฟ้า (Demand charge)</b> = <b>132.93 บาท/kW</b> คิดจาก kW สูงสุดช่วง On-Peak ของเดือน</li>
+      <li>ไม่รวมค่าบริการรายเดือน, ค่า Ft และ VAT 7% (ใช้เทียบ "ก่อน–หลัง" ได้ถูกต้อง)</li>
+    </ul>
+    <h3>2) สูตรบิล</h3>
+    <div class="fx">บิล/เดือน = 22 × (ΣkWh_on × 4.1025 + ΣkWh_off × 2.5849)
+           + kW_max,on × 132.93
+Demand (kW) = กำลังเฉลี่ยในช่วง 15 นาที
+            = kWh ใน 15 นาที × 4
+kW_max,on = ค่าสูงสุดของ 15 นาทีใดก็ได้ ช่วง On-Peak</div>
+    <ul>
+      <li>เกมใช้ <b>1 วันทำการเป็นตัวแทน × 22 วัน</b> (สมมติหยุด ส.–อา.) — ของจริง วันเดียวที่พีคหลุดก็โดนคิดทั้งเดือน</li>
+      <li>ไฟกระชากตอนสตาร์ทมอเตอร์ (ไม่กี่วินาที) แทบไม่มีผลต่อค่าเฉลี่ย 15 นาที แต่ <b>ช่วงอุ่นเครื่อง/ดึงความเย็น (pull-down) ~1 ชม.</b> มีผลเต็ม ๆ → จึงต้องสลับเวลาสตาร์ท (staggering)</li>
+    </ul>
+    <h3>3) แบบจำลองเครื่องจักร</h3>
+    <ul>
+      <li>เตาอบ 200 kW ชั่วโมงแรก (อุ่นเตา) → 110 kW (คงอุณหภูมิ)</li>
+      <li>ชิลเลอร์ 110 kW ชั่วโมงแรก (pull-down) → 71.5 kW · เครื่องอัดอากาศ 75 kW 30 นาทีแรก → 60 kW</li>
+      <li>เครื่องบด 160 kW คงที่ · ปั๊มบาดาล 37 kW · ห้องเย็นเฉลี่ย 45 kW · ไฟ/สำนักงาน 30 kW (08–17) / 15 kW</li>
+      <li>ห้องเย็นพักได้ 2 ชม. (อุณหภูมิขึ้น ~2°C/ชม. จาก −18°C ยังไม่เกิน −12°C) แล้ว <b>rebound 90 kW 2 ชม.</b> ชดเชยพลังงานที่เลื่อนไป</li>
+    </ul>
+    <h3>4) แบตเตอรี่ (BESS) และโซลาร์ (PV)</h3>
+    <div class="fx">BESS 250 kWh / 100 kW, η_rt = 90%
+η_ชาร์จ = η_จ่าย = √0.9 ≈ 94.9%
+ชาร์จ:  SOC += P·0.25 h·η   (หยุดเมื่อเต็ม)
+สภาวะคงตัว: SOC ต้นวัน = SOC ปลายวัน
+(วันทำการซ้ำทุกวัน ชาร์จเท่าที่ใช้ไป)
+จ่าย:   ช่วง On-Peak เมื่อ โหลดสุทธิ > เป้า
+        P = min(100, โหลด−เป้า, SOC·η/0.25)
+PV = kWp × 0.8 × sin(π(h−6.5)/12)  06:30–18:30
+เมฆ → เหลือ 20% · ไม่ขายไฟคืน (ส่วนเกินตัดทิ้ง)</div>
+    <h3>5) ข้อควรระวัง: Load factor</h3>
+    <div class="fx">LF = kWh ต่อวัน ÷ (kW_max × 24 ชม.)</div>
+    <ul>
+      <li>LF สูง = ใช้ไฟสม่ำเสมอ → ค่าไฟเฉลี่ยต่อหน่วยถูกลง (ค่า Demand ถูกเฉลี่ยไปบนหน่วยที่มากขึ้น)</li>
+      <li>ย้ายโหลดไป Off-Peak มาก ๆ อาจเกิด "พีคใหม่ตอนกลางคืน" — TOU ไม่คิด Demand ช่วงนั้น แต่ต้องไม่เกินพิกัดหม้อแปลง/สายป้อน และต้องมีคนคุมกะดึก</li>
+      <li>การตัดโหลดชั่วคราว (ห้องเย็น) มี rebound — ถ้า rebound ไปตกช่วงพีค จะได้พีคใหม่แทน</li>
+    </ul>
+    <h3>📊 แผนปัจจุบัน (ตัวเลขจริงจากเกม)</h3>
+    <div id="fxLive" class="fx"></div>
+    <p style="font-size:.78rem;color:#6a7a90;margin-top:8px">อ้างอิง: โครงสร้างอัตรา TOU ของการไฟฟ้าส่วนภูมิภาค/การไฟฟ้านครหลวง (ประเภท 3–4), หลักการจัดการด้านการใช้ไฟฟ้า (Demand Side Management) และ ISO 50001 — ตัวเลขในเกมเป็นค่าตัวอย่างเพื่อการสอน</p>
+    <div class="row-btns"><button class="big-btn small" id="fxClose">ปิด</button></div>
+  </div>
+</div>
+
+<script>
+/* ═════════ สงครามพีค (Peak Wars) v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+
+/* ── อัตราค่าไฟ (ค่าตัวอย่าง TOU 22–33 kV) ── */
+var RATE={on:4.1025,off:2.5849,dem:132.93,days:22};
+var NS=96, ETA=Math.sqrt(0.9), SIM_SEC=20;
+function isOn(s){return s>=36&&s<88;}            /* 09:00–21:45 (ช่อง 15 นาที) */
+function hm(h){h=((h%24)+24)%24;var H=Math.floor(h+1e-9),M=Math.round((h-H)*60);if(M===60){H++;M=0;}return (H<10?'0':'')+H+':'+(M<10?'0':'')+M;}
+function hmS(s){return hm(s/4);}
+function hmE(h){return h>=24-1e-9?'24:00':hm(h);}
+function f0(x){return Math.round(x).toLocaleString('en-US');}
+function f1(x){return (Math.round(x*10)/10).toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1});}
+function f2(x){return (Math.round(x*100)/100).toFixed(2);}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+/* ── เครื่องจักร ── */
+var JOBDEF={
+  oven: {n:'เตาอบ',ic:'🔥',kw:200,col:'#f4511e',wu:4,wuF:1,runF:0.55,wuTxt:'อุ่นเตา'},
+  comp: {n:'เครื่องอัดอากาศ',sn:'อัดอากาศ',ic:'💨',kw:75,col:'#1e88e5',wu:2,wuF:1,runF:0.8,wuTxt:'อัดถังลม'},
+  chill:{n:'ชิลเลอร์',ic:'🧊',kw:110,col:'#00acc1',wu:4,wuF:1,runF:0.65,wuTxt:'ดึงความเย็น'},
+  grind:{n:'เครื่องบด',ic:'⚙️',kw:160,col:'#795548',wu:0,wuF:1,runF:1},
+  pump: {n:'ปั๊มน้ำบาดาล',sn:'ปั๊มบาดาล',ic:'💧',kw:37,col:'#5c6bc0',wu:0,wuF:1,runF:1}
+};
+var COLD={kw:45,rebKW:90};
+var JOBS=['oven','comp','chill','grind','pump'];
+function baseKW(s){return (s>=32&&s<68)?30:15;}
+
+/* ── ด่าน ── */
+var LEVELS=[
+ {name:'① ย้ายเตาอบไปกะดึก',short:'ย้ายเตาอบ',
+  goal:'เตาอบ <b>200 kW</b> อบช่วง 10:00–14:00 ตรง <b>On-Peak</b> พอดี! ลากบล็อก 🔥 ไปไว้ช่วง <b>Off-Peak</b> (แถบเขียว) — เครื่องอื่นล็อกไว้',
+  jobs:{oven:{st:10,dur:4,win:[0,24],mov:1},comp:{st:8,dur:9,win:[8,17],mov:0},chill:{st:8,dur:9,win:[8,17],mov:0},
+        grind:{st:5,dur:3,win:[5,8],mov:0},pump:{st:18,dur:4,win:[18,22],mov:0}},
+  stars:[5,9,11.5],
+  lesson:'งานที่ย้ายเวลาได้ → ทำช่วง Off-Peak ได้ทั้งค่าพลังงานถูกลง และตัดพีค On-Peak'},
+ {name:'② สตาร์ทพร้อมกันตอน 9 โมง',short:'สลับสตาร์ท',
+  goal:'ออเดอร์ด่วน ทุกงานต้องอยู่ในกรอบเวลา (เส้นประเขียว) แต่ 09:00 <b>กดสตาร์ทพร้อมกันทุกเครื่อง</b> — ส่วนสีเข้มคือช่วงอุ่นเครื่อง/ดึงโหลด ลองสลับเวลาสตาร์ท (staggering)',
+  jobs:{oven:{st:9,dur:4,win:[9,17],mov:1},comp:{st:9,dur:8,win:[8,18],mov:1},chill:{st:9,dur:8,win:[8,18],mov:1},
+        grind:{st:9,dur:3,win:[9,17],mov:1},pump:{st:18,dur:4,win:[18,22],mov:0}},
+  stars:[4,7,8.8],
+  lesson:'Demand คิดจากค่าเฉลี่ย 15 นาทีที่สูงสุด — ช่วงอุ่นเครื่องของหลายเครื่องห้ามซ้อนกัน'},
+ {name:'③ แบตเตอรี่ตัดพีค',short:'แบตเตอรี่',
+  goal:'ติด <b>BESS 250 kWh / 100 kW</b> แล้ว แต่ผู้รับเหมาตั้งให้ชาร์จตอนบ่าย! ลากบล็อกชาร์จ 🔋 ไป Off-Peak แล้วตั้ง <b>เป้าตัดพีค</b> ให้แบตพอใช้ถึงสิ้นพีค (เครื่องจักรล็อก)',
+  jobs:{oven:{st:14,dur:4,win:[14,18],mov:0},comp:{st:8,dur:9,win:[8,17],mov:0},chill:{st:8,dur:9,win:[8,17],mov:0},
+        grind:{st:10,dur:3,win:[10,13],mov:0},pump:{st:18,dur:4,win:[18,22],mov:0}},
+  bess:{cap:250,kw:100,chDef:13,Tdef:380,Tmin:200,Tmax:450},
+  stars:[1.5,3,4.2],
+  lesson:'แบต: ชาร์จ Off-Peak แล้วจ่ายเฉพาะส่วนที่เกินเป้า — ตั้งเป้าให้พลังงานในแบตพอถึงสิ้นพีค'},
+ {name:'④ โซลาร์ + เมฆช่วงบ่าย',short:'โซลาร์+เมฆ',
+  goal:'หลังคามี <b>โซลาร์ 150 kWp</b> ทีมวางงานหนักไว้ตอนเที่ยงให้ตรงแดด แต่พยากรณ์บอก ☁️ <b>เมฆหนา 13:00–14:30</b> โซลาร์เหลือ 20% — จัดเตาอบ/เครื่องบดใหม่ และใช้แบตกันพีคโผล่',
+  jobs:{oven:{st:11,dur:4,win:[9,17],mov:1},comp:{st:8,dur:9,win:[8,17],mov:0},chill:{st:8,dur:9,win:[8,17],mov:0},
+        grind:{st:12,dur:3,win:[9,17],mov:1},pump:{st:18,dur:4,win:[18,22],mov:0}},
+  pv:{kwp:150,cloud:[13,14.5]},
+  bess:{cap:250,kw:100,chDef:0,Tdef:450,Tmin:150,Tmax:450},
+  stars:[4,7.5,10],
+  lesson:'โซลาร์ลดค่าพลังงาน แต่ไม่รับประกันว่าลด Demand — เมฆแค่ 15 นาทีก็ตั้งพีคทั้งเดือนได้'},
+ {name:'⑤ ภารกิจ: ลดบิล ≥ 20%',short:'ภารกิจ 20%',
+  goal:'ปลดล็อกทุกอย่าง! <b>ลดบิลเดือน ≥ 20%</b> โดยงานทุกชิ้นต้องอยู่ในกรอบเวลา (ผลผลิตครบ) · ห้องเย็นพักได้ 2 ชม. (มี rebound) · โซลาร์ 150 kWp เมฆ 14:00–15:00 · BESS 250 kWh',
+  jobs:{oven:{st:8,dur:4,win:[0,12],mov:1},comp:{st:8,dur:8,win:[7,19],mov:1},chill:{st:8,dur:8,win:[7,19],mov:1},
+        grind:{st:9,dur:3,win:[6,18],mov:1},pump:{st:18,dur:4,win:[0,24],mov:1}},
+  pv:{kwp:150,cloud:[14,15]},
+  bess:{cap:250,kw:100,chDef:0,Tdef:450,Tmin:150,Tmax:450},
+  coldMov:true,coldDef:2,
+  stars:[20,22.5,24],pass:20,
+  lesson:'รวมทุกมาตรการ: ย้ายงาน → สลับสตาร์ท → ใช้แบต/โซลาร์อุดพีคที่เหลือ'}
+];
+
+/* ── PV ── */
+function pvKW(lv,s){
+  if(!lv.pv)return 0;
+  var h=s/4+0.125; if(h<=6.5||h>=18.5)return 0;
+  var p=lv.pv.kwp*0.8*Math.sin(Math.PI*(h-6.5)/12);
+  if(lv.pv.cloud&&h>=lv.pv.cloud[0]&&h<lv.pv.cloud[1])p*=0.2;
+  return p;
+}
+
+/* ── จำลอง 1 วัน (96 ช่อง × 15 นาที) ── */
+function simulate(lv,plan,useBess){
+  var parts={},load=[],s,i,id;
+  for(var k=0;k<JOBS.length;k++){id=JOBS[k];
+    var j=lv.jobs[id],d=JOBDEF[id],arr=[],n=Math.round(j.dur*4),s0=Math.round(plan.jobs[id]*4);
+    for(s=0;s<NS;s++)arr[s]=0;
+    for(i=0;i<n;i++){s=s0+i;if(s>=NS||s<0)continue;arr[s]=d.kw*(i<d.wu?d.wuF:d.runF);}
+    parts[id]=arr;}
+  var cold=[],cst=[];for(s=0;s<NS;s++){cold[s]=COLD.kw;cst[s]=0;}
+  if(lv.coldMov&&plan.cold!=null){var c0=Math.round(plan.cold*4);
+    for(i=0;i<8;i++){s=(c0+i)%NS;cold[s]=0;cst[s]=1;}
+    for(i=8;i<16;i++){s=(c0+i)%NS;cold[s]=COLD.rebKW;cst[s]=2;}}
+  parts.cold=cold;
+  var base=[];for(s=0;s<NS;s++)base[s]=baseKW(s);
+  parts.base=base;
+  for(s=0;s<NS;s++){var L=base[s]+cold[s];for(k=0;k<JOBS.length;k++)L+=parts[JOBS[k]][s];load[s]=L;}
+  var B=(lv.bess&&useBess)?lv.bess:null, ch0=(B&&plan.ch!=null)?Math.round(plan.ch*4):-999, T=plan.T;
+  var pv=[],grid=[],bess=[],soc,SOC,unmet,chIn,disOut,pre=[],SOC0=0;
+  for(var it=0;it<8;it++){ /* สภาวะคงตัว: SOC ต้นวัน = SOC ปลายวัน (วันทำการซ้ำทุกวัน) */
+  soc=[SOC0];SOC=SOC0;unmet=[];chIn=0;disOut=0;
+  for(s=0;s<NS;s++){
+    var p=pvKW(lv,s);pv[s]=p;
+    var net=load[s]-p,c=0,dis=0;
+    if(B&&s>=ch0&&s<ch0+12){var room=B.cap-SOC;c=Math.min(B.kw,room/(ETA*0.25));if(c<1e-6)c=0;SOC+=c*0.25*ETA;chIn+=c*0.25;}
+    var g=Math.max(0,net+c);pre[s]=g;
+    if(B&&c===0&&isOn(s)&&g>T){var need=g-T;dis=Math.min(B.kw,need,SOC*ETA/0.25);
+      SOC=Math.max(0,SOC-dis*0.25/ETA);disOut+=dis*0.25;
+      if(dis<need-0.01&&dis<B.kw-0.01)unmet.push(s);g-=dis;}
+    grid[s]=g;bess[s]=c-dis;soc.push(SOC);
+  }
+  if(!B||Math.abs(SOC-SOC0)<0.01)break;SOC0=SOC;}
+  var kOn=0,kOff=0,mx=0,mxS=-1,mxAll=0;
+  for(s=0;s<NS;s++){var e=grid[s]*0.25;
+    if(isOn(s)){kOn+=e;if(grid[s]>mx+1e-9){mx=grid[s];mxS=s;}}else kOff+=e;
+    if(grid[s]>mxAll)mxAll=grid[s];}
+  var eOn=kOn*RATE.days*RATE.on,eOff=kOff*RATE.days*RATE.off,dem=mx*RATE.dem,total=eOn+eOff+dem;
+  var viol=[];
+  for(k=0;k<JOBS.length;k++){id=JOBS[k];var jj=lv.jobs[id],st=plan.jobs[id];
+    if(st<jj.win[0]-1e-9||st+jj.dur>jj.win[1]+1e-9)viol.push(id);}
+  return {parts:parts,cst:cst,load:load,pv:pv,grid:grid,bess:bess,soc:soc,pre:pre,unmet:unmet,chIn:chIn,disOut:disOut,
+    kOn:kOn,kOff:kOff,mx:mx,mxS:mxS,mxAll:mxAll,eOn:eOn,eOff:eOff,dem:dem,total:total,
+    LF:(kOn+kOff)/(Math.max(1,mxAll)*24),avg:total/Math.max(1,(kOn+kOff)*RATE.days),viol:viol,prodOK:viol.length===0};
+}
+function basePlan(lv){var p={jobs:{},cold:null,ch:null,T:99999};JOBS.forEach(function(id){p.jobs[id]=lv.jobs[id].st;});return p;}
+function defPlan(lv){var p=basePlan(lv);if(lv.coldMov)p.cold=lv.coldDef;if(lv.bess){p.ch=lv.bess.chDef;p.T=lv.bess.Tdef;}return p;}
+function clonePlan(p){return {jobs:JSON.parse(JSON.stringify(p.jobs)),cold:p.cold,ch:p.ch,T:p.T};}
+function starsFor(lv,pct,ok){if(!ok)return 0;var t=lv.stars;return pct>=t[2]?3:pct>=t[1]?2:pct>=t[0]?1:0;}
+
+/* ── เสียง Web Audio ── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.06,'square',0.07);}
+function sTick(){tone(1200,0,0.03,'square',0.04);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sAlarm(){tone(980,0,0.12,'square',0.13);tone(720,0.14,0.12,'square',0.13);tone(980,0.28,0.12,'square',0.13);}
+function sPeakOn(){tone(440,0,0.12,'triangle',0.14);tone(330,0.13,0.18,'triangle',0.14);}
+function sPeakOff(){tone(330,0,0.12,'triangle',0.14);tone(494,0.13,0.18,'triangle',0.14);}
+
+/* ── localStorage ── */
+var stars=[0,0,0,0,0];
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_skill_peak_stars')||'[]');for(var i=0;i<5;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_skill_peak_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_skill_peak_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_skill_peak_seen','1');}catch(e){}}
+
+/* ── สถานะ ── */
+var G={lv:0,plan:null,base:null,res:null,running:false,t:0,sel:null,yMax:500,maxLive:0,lastSlot:-1,alarmT:0,dispNow:0,flowOff:0,lastTs:0};
+var LV=LEVELS[0];
+
+/* ── bubble ── */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2800);}
+
+/* ═════════ GANTT ═════════ */
+function rowKeyDur(key){if(key==='cold')return 2;if(key==='ch')return 3;return LV.jobs[key].dur;}
+function getSt(key){if(key==='cold')return G.plan.cold;if(key==='ch')return G.plan.ch;return G.plan.jobs[key];}
+function setSt(key,v){if(key==='cold')G.plan.cold=v;else if(key==='ch')G.plan.ch=v;else G.plan.jobs[key]=v;}
+function clampSt(key,v){var d=rowKeyDur(key);return clamp(v,0,24-d);}
+function pct(h){return (h/24*100)+'%';}
+function buildGantt(){
+  var g=$('gantt'),html='';
+  JOBS.forEach(function(id){
+    var d=JOBDEF[id],j=LV.jobs[id];
+    html+='<div class="grow"><div class="glab">'+d.ic+' '+(d.sn||d.n)+'<small>'+d.kw+' kW</small></div><div class="gtrack" id="tr_'+id+'">';
+    if(j.mov&&(j.win[0]>0||j.win[1]<24)){
+      html+='<div class="win" style="left:'+pct(j.win[0])+';width:'+pct(j.win[1]-j.win[0])+'"></div>';
+      if(j.win[1]<24)html+='<div class="flag" style="left:'+pct(j.win[1])+'">⏰'+hmE(j.win[1])+'</div>';
+    }
+    html+='<div class="blk '+(j.mov?'mov':'lock')+'" id="b_'+id+'" data-key="'+id+'" style="background-color:'+d.col+';width:'+pct(j.dur)+'">'+
+      (d.wu?'<div class="wu" style="width:'+(d.wu/4/j.dur*100)+'%"></div>':'')+'<span>'+(j.mov?'':'🔒')+d.ic+' '+j.dur+'ชม.</span></div>';
+    html+='</div></div>';
+  });
+  /* ห้องเย็น */
+  html+='<div class="grow"><div class="glab">❄️ ห้องเย็น<small>45 kW</small></div><div class="gtrack" id="tr_cold"><div class="coldbar"></div>';
+  if(LV.coldMov){
+    html+='<div class="reb" id="reb1"></div><div class="reb" id="reb2"></div>'+
+      '<div class="blk mov" id="b_cold" data-key="cold" style="background-color:#eceff1;color:#1565c0;width:'+pct(2)+'"><span style="text-shadow:none">พัก 2ชม.</span></div>';
+  }else html+='<div class="flag" style="left:99%;top:8px;color:#1565c0">เดินต่อเนื่อง 🔒</div>';
+  html+='</div></div>';
+  /* BESS */
+  if(LV.bess){
+    html+='<div class="grow"><div class="glab">🔋 แบต<small>'+LV.bess.cap+' kWh</small></div><div class="gtrack" id="tr_ch">'+
+      '<svg class="socsvg" viewBox="0 0 96 100" preserveAspectRatio="none"><polyline id="socLine" fill="none" stroke="#2e7d32" stroke-width="2" vector-effect="non-scaling-stroke" points=""/></svg>'+
+      '<div id="disBox"></div>'+
+      '<div class="blk mov" id="b_ch" data-key="ch" style="background-color:#2e7d32;width:'+pct(3)+'"><span>⚡ชาร์จ 3ชม.</span></div></div></div>';
+  }
+  g.innerHTML=html;
+  /* axis */
+  var ax='';for(var h=0;h<=24;h+=3)ax+='<span style="left:'+pct(h)+'">'+(h<10?'0':'')+h+'</span>';
+  $('axis').innerHTML=ax;
+  g.querySelectorAll('.blk.mov').forEach(function(b){
+    b.addEventListener('pointerdown',onDown);b.addEventListener('pointermove',onMove);
+    b.addEventListener('pointerup',onUp);b.addEventListener('pointercancel',onUp);});
+}
+function updateGantt(){
+  var r=G.res;
+  JOBS.forEach(function(id){var b=$('b_'+id);if(!b)return;b.style.left=pct(G.plan.jobs[id]);
+    b.classList.toggle('bad',r.viol.indexOf(id)>=0);b.classList.toggle('sel',G.sel===id);});
+  if(LV.coldMov){var c=G.plan.cold,b=$('b_cold');b.style.left=pct(c);b.classList.toggle('sel',G.sel==='cold');
+    var r0=c+2,r1=r0+2,e1=$('reb1'),e2=$('reb2');
+    if(r1<=24){e1.style.left=pct(r0);e1.style.width=pct(2);e2.style.width='0';}
+    else{var a=Math.max(0,24-r0);e1.style.left=pct(Math.min(r0,24));e1.style.width=pct(a);e2.style.left='0';e2.style.width=pct(2-a);}}
+  if(LV.bess){var bc=$('b_ch');bc.style.left=pct(G.plan.ch);bc.classList.toggle('sel',G.sel==='ch');
+    var pts=[];for(var s=0;s<=NS;s++)pts.push(s+','+(96-r.soc[s]/LV.bess.cap*88).toFixed(1));
+    $('socLine').setAttribute('points',pts.join(' '));
+    var dh='',s0=-1;for(s=0;s<=NS;s++){var on=s<NS&&r.bess[s]<-0.01;
+      if(on&&s0<0)s0=s;if(!on&&s0>=0){dh+='<div class="dis" style="left:'+(s0/96*100)+'%;width:'+((s-s0)/96*100)+'%"></div>';s0=-1;}}
+    $('disBox').innerHTML=dh;}
+  updateSel();
+}
+function updateSel(){
+  var k=G.sel,t='แตะหรือลากบล็อกที่มี ↔ เพื่อย้ายเวลา';
+  if(k){var st=getSt(k),d=rowKeyDur(k);
+    if(k==='cold')t='❄️ พักห้องเย็น '+hm(st)+'–'+hmE(st+2)+' → rebound '+hm(st+2)+'–'+hmE((st+4)>24?st+4-24:st+4);
+    else if(k==='ch')t='🔋 ชาร์จแบต '+hm(st)+'–'+hmE(st+3)+(isOn(Math.round(st*4))||isOn(Math.round(st*4)+11)?' ⚠ ชนช่วง On-Peak':' ✓ Off-Peak');
+    else{var j=LV.jobs[k];t=JOBDEF[k].ic+' '+JOBDEF[k].n+' '+hm(st)+'–'+hmE(st+d)+
+      ((st<j.win[0]-1e-9||st+d>j.win[1]+1e-9)?' ⚠ นอกกรอบ '+hm(j.win[0])+'–'+hmE(j.win[1]):'');}}
+  $('selInfo').textContent=t;
+  var can=!!k&&!G.running;$('nL').disabled=!can;$('nR').disabled=!can;
+}
+var drag=null;
+function onDown(e){if(G.running)return;var b=e.currentTarget,key=b.dataset.key;e.preventDefault();audio();
+  G.sel=key;var tr=b.parentNode.getBoundingClientRect();
+  drag={key:key,x0:e.clientX,st0:getSt(key),w:tr.width};
+  try{b.setPointerCapture(e.pointerId);}catch(er){}
+  updateGantt();}
+function onMove(e){if(!drag)return;var dh=(e.clientX-drag.x0)/drag.w*24;
+  var ns=clampSt(drag.key,Math.round((drag.st0+dh)*2)/2);
+  if(Math.abs(ns-getSt(drag.key))>1e-9){setSt(drag.key,ns);sTick();refresh();}}
+function onUp(){if(!drag)return;drag=null;sClick();}
+function nudge(dir){if(!G.sel||G.running)return;audio();var k=G.sel,ns=clampSt(k,getSt(k)+dir*0.5);
+  if(ns!==getSt(k)){setSt(k,ns);sClick();refresh();}else sBad();}
+
+/* ═════════ CHART ═════════ */
+function yOf(kw){return 196-kw/G.yMax*186;}
+function stepPath(arr,upto){var d='',n=(upto==null?NS:upto);if(n<=0)return '';
+  for(var s=0;s<n;s++){var x0=s*10,x1=(s+1)*10,y=yOf(arr[s]).toFixed(1);d+=(s===0?'M'+x0+' '+y:'V'+y)+'H'+x1;}return d;}
+function setYMax(){var m=Math.max(G.base.mxAll,G.res.mxAll,G.base.mx);G.yMax=Math.max(200,Math.ceil(m*1.15/100)*100);}
+function renderChart(){
+  var r=G.res,b=G.base;
+  if(Math.max(r.mxAll,b.mxAll)*1.05>G.yMax){setYMax();}
+  var gp='';for(var k=100;k<G.yMax;k+=100){var y=yOf(k).toFixed(1);gp+='<line x1="0" x2="960" y1="'+y+'" y2="'+y+'" vector-effect="non-scaling-stroke" stroke-dasharray="3 4"/>';}
+  $('cGrid').innerHTML=gp;
+  var lab='';[0,G.yMax/2,G.yMax].forEach(function(v){lab+='<div style="top:'+(yOf(v)/200*100)+'%">'+f0(v)+(v===G.yMax?' kW':'')+'</div>';});
+  $('cLab').innerHTML=lab;
+  $('cBase').setAttribute('d',stepPath(b.grid));
+  var pd=stepPath(r.grid);$('cPlan').setAttribute('d',pd?pd+'V196H0Z':'');
+  if(LV.pv){$('cPV').setAttribute('d',stepPath(r.pv));$('lgPV').style.display='inline';
+    var cl=LV.pv.cloud;$('cCloud').setAttribute('x',cl[0]*40);$('cCloud').setAttribute('width',(cl[1]-cl[0])*40);}
+  else{$('cPV').setAttribute('d','');$('lgPV').style.display='none';$('cCloud').setAttribute('width',0);}
+  var yo=yOf(b.mx);$('cOld').setAttribute('y1',yo);$('cOld').setAttribute('y2',yo);
+  var tg='<div class="ctag" style="top:'+(yo/200*100)+'%;color:#c62828">พีคเดิม '+f0(b.mx)+' kW</div>';
+  if(Math.abs(r.mx-b.mx)>0.5){var yp=yOf(r.mx);var top=yp/200*100;if(Math.abs(yp-yo)<16)top=(yo+18)/200*100+6;
+    tg+='<div class="ctag" style="top:'+top+'%;color:#283593;right:auto;left:4px">แผนนี้ '+f0(r.mx)+' kW</div>';}
+  $('cTags').innerHTML=tg;
+}
+function renderPlanInfo(){
+  var r=G.res,b=G.base,d=r.mx-b.mx;
+  var h='<span>พีค On-Peak ตามแผน <b>'+f0(r.mx)+' kW</b></span>';
+  h+=Math.abs(d)<0.5?'<span>เท่าเดิม</span>':'<span class="'+(d<0?'dn':'up')+'">'+(d<0?'▼ ':'▲ ')+f0(Math.abs(d))+' kW</span>';
+  h+='<span>On-Peak '+f0(r.kOn)+' kWh/วัน</span>';
+  if(r.viol.length)h+='<span class="up">⚠ งานนอกกรอบ '+r.viol.length+'</span>';
+  $('planInfo').innerHTML=h;
+}
+
+/* ═════════ SCENE ═════════ */
+var MACH=['oven','comp','chill','grind','pump'];
+function renderScene(slot,hour,maxShown){
+  var r=G.res,s=clamp(slot,0,NS-1);
+  MACH.forEach(function(id){var kw=r.parts[id][s],g=$('m_'+id);
+    g.classList.toggle('run',kw>0);$('kw_'+id).textContent=f0(kw)+' kW';
+    var l=$('lamp_'+id);l.setAttribute('fill',kw>0?'#1fb45f':'#9e9e9e');l.classList.toggle('lampOn',kw>0);});
+  /* ห้องเย็น */
+  var cs=r.cst[s],ck=r.parts.cold[s],cg=$('m_cold');
+  cg.classList.toggle('run',ck>0);cg.classList.toggle('fast',cs===2);
+  $('kw_cold').textContent=f0(ck)+' kW';
+  var lc=$('lamp_cold');lc.setAttribute('fill',cs===1?'#f5a623':(cs===2?'#ef4b4b':'#1fb45f'));lc.classList.toggle('lampOn',ck>0);
+  var temp=-18;if(LV.coldMov&&G.plan.cold!=null){var c0=Math.round(G.plan.cold*4),o=((s-c0)%NS+NS)%NS;
+    if(o<8)temp=-18+(o+1)*0.5;else if(o<16)temp=-14+(o-7)*0.5;}
+  $('coldT').textContent=(temp<0?'-':'')+Math.abs(temp).toFixed(0)+'°C';
+  $('frost').setAttribute('opacity',cs===1?'0.25':'1');
+  /* ปั๊ม: ระดับถัง */
+  var pj=LV.jobs.pump,ps=G.plan.jobs.pump,fr=clamp((hour-ps)/pj.dur,0,1);
+  if(hour>=ps+pj.dur)fr=1;var th=3+fr*16;$('tankLvl').setAttribute('y',(232-th).toFixed(1));$('tankLvl').setAttribute('height',th.toFixed(1));
+  /* ท้องฟ้า */
+  var h=hour,night=h<5||h>20?1:(h<7?(7-h)/2:(h>18?(h-18)/2:0));
+  $('nightSky').setAttribute('opacity',night.toFixed(2));$('starsG').setAttribute('opacity',night.toFixed(2));
+  $('moonG').setAttribute('opacity',night.toFixed(2));
+  if(h>5.5&&h<18.5){var a=(h-6)/12;$('sunG').setAttribute('transform','translate('+(150+a*360).toFixed(1)+' '+(130-110*Math.sin(Math.PI*clamp(a,0,1))).toFixed(1)+')');$('sunG').setAttribute('opacity','1');}
+  else $('sunG').setAttribute('opacity','0');
+  /* PV */
+  var pv=r.pv[s];
+  document.querySelectorAll('.pvShine').forEach(function(e){e.setAttribute('opacity',LV.pv?(pv/120*0.55).toFixed(2):'0');});
+  $('pvTag').setAttribute('opacity',LV.pv?'1':'0');$('pvTxt').textContent='☀ PV '+f0(pv)+' kW';
+  var cl=0;if(LV.pv&&LV.pv.cloud){var c=LV.pv.cloud;cl=(h>=c[0]-0.25&&h<c[1]+0.25)?1:0;}
+  $('cloudG').setAttribute('opacity',cl?'1':'0');
+  /* BESS */
+  $('bessNone').style.display=LV.bess?'none':'inline';
+  if(LV.bess){var soc=r.soc[s+1]/LV.bess.cap,bh=soc*54;$('socFill').setAttribute('y',(281-bh).toFixed(1));$('socFill').setAttribute('height',bh.toFixed(1));
+    $('socFill').setAttribute('fill',soc<0.15?'#ef4b4b':(soc<0.4?'#f5a623':'#1fb45f'));
+    $('socTxt').textContent=Math.round(soc*100)+'%';var bk=r.bess[s];
+    $('bArrCh').setAttribute('opacity',bk>0.01?'1':'0');$('bArrDis').setAttribute('opacity',bk<-0.01?'1':'0');
+    $('bessKW').textContent=bk>0.01?'ชาร์จ '+f0(bk)+' kW':(bk<-0.01?'จ่าย '+f0(-bk)+' kW':'พัก');}
+  /* มิเตอร์ */
+  var on=isOn(s);$('touBadge').setAttribute('fill',on?'#ef4b4b':'#1fb45f');$('touTxt').textContent=on?'ON-PEAK':'OFF-PEAK';
+  $('mClock').textContent=hm(hour);
+  $('mMax').textContent=f0(maxShown);
+}
+function previewScene(){
+  var s=G.res.mxS>=0?G.res.mxS:36;
+  renderScene(s,s/4,G.res.mx);
+  G.dispNow=G.res.grid[s];$('mNow').textContent=f0(G.dispNow);
+  $('prevChip').style.display='block';$('prevChip').textContent='👁 พรีวิวช่วงพีคตามแผน '+hmS(s)+'–'+hmS(s+1);
+}
+
+/* ═════════ REFRESH ═════════ */
+function refresh(){
+  G.res=simulate(LV,G.plan,true);
+  updateGantt();renderChart();renderPlanInfo();
+  if(!G.running){previewScene();$('cLive').setAttribute('d','');}
+  if($('fxOv').classList.contains('show'))renderFxLive();
+}
+
+/* ═════════ LEVEL ═════════ */
+function startLevel(i){
+  G.lv=i;LV=LEVELS[i];G.running=false;G.sel=null;
+  G.plan=defPlan(LV);G.base=simulate(LV,basePlan(LV),false);G.res=simulate(LV,G.plan,true);
+  setYMax();
+  $('lvlName').textContent=LV.name;$('goalTxt').innerHTML=LV.goal;
+  buildGantt();
+  var tr=$('tRow');
+  if(LV.bess){tr.style.display='flex';var ts=$('tSld');ts.min=LV.bess.Tmin;ts.max=LV.bess.Tmax;ts.value=G.plan.T;$('tVal').textContent=G.plan.T+' kW';}
+  else tr.style.display='none';
+  setRunUI(false);
+  refresh();
+  var first=JOBS.filter(function(id){return LV.jobs[id].mov;})[0];
+  say(i===2?'ชาร์จตอนบ่ายคือชาร์จช่วงแพง! ย้ายไปกลางคืน 🔋':(i===3?'☁️ เมฆ 13:00–14:30 โซลาร์จะหาย — เตรียมรับมือ':
+      (i===4?'ภารกิจใหญ่! ลดบิล ≥ 20% ผลผลิตต้องครบ 💪':'ลากบล็อกที่มี ↔ แล้วดูกราฟเปลี่ยนทันที 👇')),3600);
+}
+function setRunUI(on){
+  $('runBtn').disabled=on;$('resetBtn').disabled=on;$('tSld').disabled=on;
+  $('skipBtn').style.display=on?'inline-block':'none';
+  $('gantt').style.pointerEvents=on?'none':'auto';
+  updateSel();
+}
+
+/* ═════════ RUN 1 DAY ═════════ */
+function runDay(){
+  if(G.running)return;audio();sClick();
+  G.res=simulate(LV,G.plan,true);
+  G.running=true;G.t=0;G.maxLive=0;G.lastSlot=-1;G.alarmT=0;G.sel=null;G.dispNow=0;
+  setRunUI(true);updateGantt();
+  $('prevChip').style.display='none';$('cCur').setAttribute('opacity','1');
+  try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}
+  say('เดินเครื่อง! เวลา 24 ชม. ใน ~20 วินาที ⏱',2200);
+}
+function skipRun(){if(G.running){G.t=24;sClick();}}
+function stepRun(dt){
+  G.t=Math.min(24,G.t+dt*24/SIM_SEC);
+  var s=Math.min(NS-1,Math.floor(G.t*4));
+  var r=G.res;
+  if(s!==G.lastSlot){
+    for(var q=G.lastSlot+1;q<=s;q++){
+      if(isOn(q)&&r.grid[q]>G.maxLive)G.maxLive=r.grid[q];
+      if(q===36){sPeakOn();say('09:00 เข้า On-Peak — ไฟแพง + เริ่มนับ Demand!',2200);}
+      if(q===88){sPeakOff();say('22:00 Off-Peak แล้ว ไฟถูกลง 🌙',2000);}
+      if(isOn(q)&&r.grid[q]>G.base.mx+0.5&&G.alarmT<=0){sAlarm();G.alarmT=1.2;
+        say('🚨 '+hmS(q)+' ทะลุเส้นพีคเดิม '+f0(r.grid[q])+' kW!',2400);
+        var sw=$('sceneWrap');sw.classList.remove('shake');void sw.offsetWidth;sw.classList.add('shake');}
+    }
+    G.lastSlot=s;
+    $('cLive').setAttribute('d',stepPath(r.grid,s+1));
+  }
+  G.alarmT-=dt;
+  $('cCur').setAttribute('x1',G.t*40);$('cCur').setAttribute('x2',G.t*40);
+  renderScene(s,G.t,G.maxLive);
+  if(G.t>=24){G.running=false;$('cLive').setAttribute('d',stepPath(r.grid));setTimeout(function(){finishDay();},450);}
+}
+function finishDay(){
+  setRunUI(false);$('cCur').setAttribute('opacity','0');
+  showResult();
+}
+
+/* ═════════ ANALYSIS (เฉลย/ข้อคิด) ═════════ */
+function onKWhAt(id,st){var d=JOBDEF[id],j=LV.jobs[id],n=Math.round(j.dur*4),s0=Math.round(st*4),e=0;
+  for(var i=0;i<n;i++){var s=s0+i;if(s<NS&&isOn(s))e+=d.kw*(i<d.wu?d.wuF:d.runF)*0.25;}return e;}
+function suggestT(){ /* หาเป้าต่ำสุดที่แบตพอจ่ายถึงสิ้นพีค */
+  var lo=50,hi=G.res.mx+100,p=clonePlan(G.plan);
+  for(var it=0;it<30;it++){var m=(lo+hi)/2;p.T=m;var rr=simulate(LV,p,true);if(rr.unmet.length)lo=m;else hi=m;}
+  return Math.ceil(hi/5)*5;}
+function analyze(){
+  var r=G.res,b=G.base,out=[],s;
+  /* 1 งานนอกกรอบ */
+  r.viol.forEach(function(id){var j=LV.jobs[id],st=G.plan.jobs[id];
+    out.push(['bad','❌ <b>'+JOBDEF[id].n+'</b> ทำ '+hm(st)+'–'+hmE(st+j.dur)+' แต่กรอบที่ทำได้คือ '+hm(j.win[0])+'–'+hmE(j.win[1])+' → <b>ผลผลิตไม่ครบ</b> ด่านนี้ไม่นับดาว']);});
+  /* 2 ใครทำพีค */
+  if(r.mxS>=0){s=r.mxS;var con=[];
+    JOBS.forEach(function(id){if(r.parts[id][s]>0)con.push([JOBDEF[id].n,r.parts[id][s]]);});
+    if(r.parts.cold[s]>0)con.push([r.cst[s]===2?'ห้องเย็น (rebound)':'ห้องเย็น',r.parts.cold[s]]);
+    con.push(['ไฟ/สำนักงาน',r.parts.base[s]]);
+    con.sort(function(a,c){return c[1]-a[1];});
+    var txt=con.map(function(c){return c[0]+' '+f1(c[1]).replace('.0','');}).join(' + ');
+    if(r.pv[s]>0.5)txt+=' − โซลาร์ '+f0(r.pv[s]);
+    if(r.bess[s]<-0.5)txt+=' − แบต '+f0(-r.bess[s]);
+    if(r.bess[s]>0.5)txt+=' + ชาร์จแบต '+f0(r.bess[s]);
+    out.push(['info','🔎 พีค On-Peak ของคุณ <b>'+f1(r.mx)+' kW</b> เกิดช่วง <b>'+hmS(s)+'–'+hmS(s+1)+'</b> = '+txt]);
+    if(r.mx<b.mx-0.5)out.push(['good','✅ ตัดพีคจาก '+f1(b.mx)+' → '+f1(r.mx)+' kW (−'+f1(b.mx-r.mx)+' kW) ค่า Demand ลด ฿'+f0((b.mx-r.mx)*RATE.dem)+'/เดือน']);
+    else if(r.mx>b.mx+0.5)out.push(['bad','🚨 พีคสูงกว่าตารางเดิม '+f1(r.mx-b.mx)+' kW → ค่า Demand เพิ่ม ฿'+f0((r.mx-b.mx)*RATE.dem)+'/เดือน']);
+    else out.push(['tip','➖ พีคเท่าเดิม '+f1(r.mx)+' kW — ค่า Demand ไม่ลดเลย']);
+    /* 3 อุ่นเครื่องซ้อนกัน */
+    var wus=[];JOBS.forEach(function(id){var d=JOBDEF[id];if(!d.wu)return;var o=s-Math.round(G.plan.jobs[id]*4);if(o>=0&&o<d.wu&&r.parts[id][s]>0)wus.push(id);});
+    if(wus.length>=2)out.push(['bad','⚡ '+wus.map(function(id){return JOBDEF[id].n+' ('+JOBDEF[id].wuTxt+')';}).join(' + ')+' อยู่ช่วงโหลดสูงพร้อมกัน → สลับเวลาสตาร์ทให้ห่างกัน ≥ 1 ชม. หรือเริ่มก่อน 09:00']);
+    else if(wus.length===1&&r.parts.grind[s]>0)out.push(['tip','⚡ ช่วง'+JOBDEF[wus[0]].wuTxt+'ของ'+JOBDEF[wus[0]].n+'ไปซ้อนกับเครื่องบด 160 kW — แยกให้ไม่ทับกันจะตัดพีคได้อีก']);
+  }
+  /* 4 งานที่ย้ายหนี On-Peak ได้อีก */
+  var nTip=0;
+  JOBS.forEach(function(id){var j=LV.jobs[id];if(!j.mov||nTip>=2||r.viol.indexOf(id)>=0)return;
+    var cur=onKWhAt(id,G.plan.jobs[id]),best=cur,bst=G.plan.jobs[id];
+    for(var st=j.win[0];st<=j.win[1]-j.dur+1e-9;st+=0.5){var e=onKWhAt(id,st);if(e<best-1e-6){best=e;bst=st;}}
+    if(cur-best>5){nTip++;out.push(['tip','🕘 <b>'+JOBDEF[id].n+'</b> ใช้ไฟช่วง On-Peak '+f0(cur)+' kWh/วัน — ถ้าเริ่ม '+hm(bst)+' จะเหลือ '+f0(best)+' kWh (ค่าพลังงานลด ≈ ฿'+f0((cur-best)*RATE.days*(RATE.on-RATE.off))+'/เดือน) แต่อย่าลืมเช็กว่าพีคไม่เพิ่ม']);}
+  });
+  /* 5 แบตเตอรี่ */
+  if(LV.bess){
+    var chOn=0;for(s=0;s<NS;s++)if(r.bess[s]>0.01&&isOn(s))chOn+=0.25;
+    if(chOn>0)out.push(['bad','🔋 ชาร์จแบตช่วง On-Peak '+chOn+' ชม. — ซื้อไฟแพงมาเก็บ และกำลังชาร์จ 100 kW ไปบวกพีคด้วย → ย้ายไปช่วงกลางคืน']);
+    var Ts=suggestT();
+    if(r.disOut<0.5)out.push(['bad','🔋 แบตไม่ได้จ่ายไฟเลย — '+(r.chIn<1?'ยังไม่ได้ชาร์จ / ชาร์จไม่เข้า':'เป้า '+G.plan.T+' kW สูงกว่าโหลดจริง')+' ลองเป้า ≈ '+Ts+' kW']);
+    else if(r.unmet.length){var u=r.unmet[0];
+      out.push(['bad','🔋 แบตหมดตอน <b>'+hmS(u)+'</b> ทั้งที่โหลดยังเกินเป้า '+G.plan.T+' kW → พีคหลุด! เป้าที่แบต 250 kWh รับไหวคือ ≈ <b>'+Ts+' kW</b>']);}
+    else{var left=r.soc[NS];
+      if(left>LV.bess.cap*0.15&&G.plan.T>Ts+4)out.push(['tip','🔋 แบตเหลือ '+f0(left)+' kWh ไม่ได้ใช้ — ลดเป้าลงได้ถึง ≈ '+Ts+' kW พีคจะต่ำลงอีก']);
+      else out.push(['good','🔋 ตั้งเป้าได้ดี แบตจ่าย '+f0(r.disOut)+' kWh ตัดพีคพอดีจนจบช่วง On-Peak']);}
+    if(r.chIn>1)out.push(['info','♻️ ซื้อไฟชาร์จ '+f0(r.chIn)+' kWh ได้ใช้จริงสูงสุด '+f0(r.chIn*0.9)+' kWh (round-trip 90%) — กำไรจากส่วนต่างราคา On/Off ต้องชนะการสูญเสีย 10%']);
+  }
+  /* 6 ห้องเย็น */
+  if(LV.coldMov&&G.plan.cold!=null){var c0=Math.round(G.plan.cold*4),offOn=0,rebHit=false;
+    for(var i=0;i<8;i++)if(isOn((c0+i)%NS))offOn++;
+    for(i=8;i<16;i++){var q=(c0+i)%NS;if(q===r.mxS)rebHit=true;}
+    if(rebHit)out.push(['bad','❄️ rebound 90 kW ของห้องเย็นไปตกตรงพีคพอดี — พักห้องเย็นแล้วต้องให้ช่วงชดเชยไปอยู่ช่วงโหลดต่ำ/หลัง 22:00']);
+    else if(offOn===0)out.push(['tip','❄️ พักห้องเย็นช่วง Off-Peak ไม่ได้ช่วยอะไร (Demand คิดเฉพาะ On-Peak) — ใช้มันตัดยอดพีคช่วงสั้น ๆ แทน']);
+    else out.push(['good','❄️ ใช้การพักห้องเย็น '+(offOn/4)+' ชม. ช่วย On-Peak โดย rebound ไม่ไปสร้างพีคใหม่']);}
+  /* 7 เมฆ */
+  if(LV.pv&&LV.pv.cloud&&r.mxS>=0){var hh=r.mxS/4+0.125;
+    if(hh>=LV.pv.cloud[0]&&hh<LV.pv.cloud[1])out.push(['bad','☁️ พีคเกิดตอนเมฆบัง — โซลาร์เหลือแค่ '+f0(r.pv[r.mxS])+' kW (ปกติ ~'+f0(r.pv[r.mxS]*5)+' kW) ต้องเลี่ยงงานหนักหรือเก็บแบตไว้ช่วงนี้']);}
+  /* 8 LF / ค่าไฟเฉลี่ย */
+  out.push(['info','📈 Load factor '+Math.round(r.LF*100)+'% (เดิม '+Math.round(b.LF*100)+'%) · ค่าไฟเฉลี่ย '+f2(r.avg)+' ฿/kWh (เดิม '+f2(b.avg)+')']);
+  return out;
+}
+
+/* ═════════ RESULT ═════════ */
+function billRows(r,b){
+  function row(lbl,bv,rv,unit,money){var d=rv-bv,cls=Math.abs(d)<0.5?'':(d<0?'g':'b');
+    return '<tr><td>'+lbl+'</td><td>'+(money?'฿':'')+f0(bv)+unit+'</td><td class="'+cls+'">'+(money?'฿':'')+f0(rv)+unit+'</td></tr>';}
+  return '<tr><th>รายการ/เดือน</th><th>ตารางเดิม</th><th>ของคุณ</th></tr>'+
+    row('kWh On-Peak',b.kOn*RATE.days,r.kOn*RATE.days,'',false)+
+    row('kWh Off-Peak',b.kOff*RATE.days,r.kOff*RATE.days,'',false)+
+    row('kW สูงสุด On-Peak',b.mx,r.mx,'',false)+
+    row('ค่าพลังงาน On-Peak',b.eOn,r.eOn,'',true)+
+    row('ค่าพลังงาน Off-Peak',b.eOff,r.eOff,'',true)+
+    row('ค่า Demand',b.dem,r.dem,'',true)+
+    row('<b>รวม (ไม่รวม Ft/VAT)</b>',b.total,r.total,'',true).replace('<tr>','<tr class="tot">');
+}
+var lastResult=null;
+function showResult(){
+  var r=G.res,b=G.base,save=(b.total-r.total)/b.total*100,st=starsFor(LV,save,r.prodOK);
+  if(LV.pass&&save<LV.pass)st=0;
+  lastResult={st:st,save:save,total:r.total,base:b.total,mx:r.mx,prodOK:r.prodOK};
+  if(st>stars[G.lv]){stars[G.lv]=st;saveStars();}
+  updateStarTotal();
+  $('resTitle').textContent=(st>0?'🧾 สรุปบิล — ':'🧾 ยังไม่ผ่าน — ')+LV.short;
+  var sv=$('resSave');sv.className='save '+(save>0?'g':'b');
+  sv.textContent=(save>=0?'ประหยัด ':'แพงขึ้น ')+f1(Math.abs(save))+'% = ฿'+f0(Math.abs(b.total-r.total))+'/เดือน';
+  var t=LV.stars;
+  $('resProd').innerHTML=(r.prodOK?'<span style="color:#1fb45f">✓ ผลผลิตครบทุกงาน</span>':'<span style="color:#ef4b4b">✗ มีงานนอกกรอบเวลา</span>')+
+    ' · เกณฑ์ดาว ≥'+t[0]+'% / '+t[1]+'% / '+t[2]+'%'+(LV.pass?' (ผ่าน ≥'+LV.pass+'%)':'');
+  $('resBill').innerHTML=billRows(r,b);
+  $('resLesson').textContent='💡 '+LV.lesson;
+  var fb=analyze(),h='<h3>🔍 เฉลย / ข้อคิด</h3>';
+  fb.forEach(function(x){h+='<div class="'+x[0]+'">'+x[1]+'</div>';});
+  $('resFb').innerHTML=h;
+  var ss=$('resStars').children;for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');$('resultOv').querySelector('.card').scrollTop=0;
+  if(st>=1)sGood();else sBad();
+  for(let i=0;i<st;i++)setTimeout(function(){ss[i].classList.add('on');sStar(i);},350+i*380);
+  if(st===3)confetti(30);
+  $('nextBtn').textContent=G.lv<4?'ด่านต่อไป ➜':'🏁 สรุปภารกิจ';
+}
+function updateStarTotal(){$('starTotal').textContent=stars.reduce(function(a,c){return a+c;},0);}
+function showEnd(){
+  var tot=stars.reduce(function(a,c){return a+c;},0);
+  $('endStars').textContent='⭐ '+tot+' / 15';
+  var L=['① งานที่ย้ายได้ → Off-Peak (22:00–09:00) ค่าพลังงานถูกลง ~37%',
+    '② Demand = ค่าเฉลี่ย 15 นาทีสูงสุดของเดือน — สลับเวลาสตาร์ท อย่าให้ช่วงอุ่นเครื่องซ้อนกัน',
+    '③ แบตเตอรี่: ชาร์จ Off-Peak, ตั้งเป้าตัดพีคให้พลังงานพอถึงสิ้นพีค (round-trip 90%)',
+    '④ โซลาร์ลด kWh แต่เมฆ 15 นาทีก็ตั้งพีคได้ — ต้องมีแผนสำรอง (แบต/เลื่อนงาน)',
+    '⑤ แผนที่ดีต้องผลิตครบ + ลดทั้ง kWh On-Peak และ kW สูงสุด และดู Load factor ด้วย'];
+  var h='<h3>สรุปบทเรียนรวม</h3>';L.forEach(function(x,i){h+='<div class="'+(stars[i]>0?'good':'info')+'">'+x+' '+'⭐'.repeat(stars[i])+'</div>';});
+  $('endFb').innerHTML=h;$('endOv').classList.add('show');sGood();if(tot>=12)confetti(36);
+}
+function confetti(n){if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  var cols=['#3f51b5','#ffd23f','#00acc1','#7b5bff','#ff8f1c','#1fb45f'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3600);}}
+
+/* ═════════ FORMULA LIVE ═════════ */
+function renderFxLive(){
+  var r=G.res,b=G.base;
+  $('fxLive').textContent=
+    'ด่าน: '+LV.name+'\n'+
+    'kWh On-Peak/วัน  = '+f1(r.kOn)+'  (เดิม '+f1(b.kOn)+')\n'+
+    'kWh Off-Peak/วัน = '+f1(r.kOff)+'  (เดิม '+f1(b.kOff)+')\n'+
+    'kW_max On-Peak   = '+f1(r.mx)+'  (เดิม '+f1(b.mx)+')\n'+
+    'ค่าพลังงาน = 22×('+f1(r.kOn)+'×4.1025 + '+f1(r.kOff)+'×2.5849)\n'+
+    '           = ฿'+f0(r.eOn+r.eOff)+'\n'+
+    'ค่า Demand = '+f1(r.mx)+'×132.93 = ฿'+f0(r.dem)+'\n'+
+    'รวม/เดือน  = ฿'+f0(r.total)+'  (เดิม ฿'+f0(b.total)+')\n'+
+    'Load factor = '+f1(r.kOn+r.kOff)+'/('+f1(r.mxAll)+'×24) = '+Math.round(r.LF*100)+'%'+
+    (LV.bess?'\nแบต: ชาร์จ '+f1(r.chIn)+' kWh · จ่าย '+f1(r.disOut)+' kWh · เป้า '+G.plan.T+' kW':'');
+}
+
+/* ═════════ HELP ═════════ */
+var HELP=[
+ {t:'1/5 · ค่าไฟ 2 ราคา (TOU)',txt:'On-Peak จ.–ศ. 09:00–22:00 แพง ~4.10 ฿/kWh · Off-Peak ถูก ~2.58 ฿/kWh',
+  svg:'<svg viewBox="0 0 340 170"><text x="170" y="22" font-size="14" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">24 ชั่วโมงของโรงงาน</text>'+
+   '<rect x="20" y="60" width="300" height="38" rx="9" fill="#cdeed8"/><rect x="132.5" y="60" width="162.5" height="38" fill="#f9c9c9"/>'+
+   '<text x="76" y="84" font-size="12" text-anchor="middle" fill="#14753c" font-family="Mitr,sans-serif">Off-Peak ถูก</text><text x="214" y="84" font-size="13" font-weight="700" text-anchor="middle" fill="#b3261e" font-family="Mitr,sans-serif">On-Peak แพง</text>'+
+   '<text x="20" y="114" font-size="11" fill="#55657c">00</text><text x="132" y="114" font-size="11" text-anchor="middle" fill="#55657c">09</text><text x="295" y="114" font-size="11" text-anchor="middle" fill="#55657c">22</text><text x="320" y="114" font-size="11" text-anchor="end" fill="#55657c">24</text>'+
+   '<g class="hMark"><path d="M20 54l-7 -12h14z" fill="#213047"/><line x1="20" y1="58" x2="20" y2="100" stroke="#213047" stroke-width="2"/></g>'+
+   '<g transform="translate(170 142)"><circle r="18" fill="#fff" stroke="#213047" stroke-width="3"/><g class="hHand"><circle r="16" fill="none"/><line x1="0" y1="0" x2="0" y2="-13" stroke="#ef4b4b" stroke-width="3" stroke-linecap="round"/></g><circle r="2.5" fill="#213047"/></g></svg>'},
+ {t:'2/5 · ลากบล็อกงาน',txt:'ลากบล็อกเครื่องจักร (มี ↔) ไปช่วงเวลาใหม่ ส่วนสีเข้ม = ช่วงอุ่นเครื่องกินไฟสูง · ต้องอยู่ในกรอบเส้นประ',
+  svg:'<svg viewBox="0 0 340 170"><rect x="20" y="62" width="300" height="44" rx="9" fill="#cdeed8"/><rect x="132.5" y="62" width="162.5" height="44" fill="#f9c9c9"/>'+
+   '<rect x="24" y="58" width="290" height="52" rx="10" fill="none" stroke="#1f8c50" stroke-width="2" stroke-dasharray="6 5"/>'+
+   '<g class="hDrag"><rect x="170" y="68" width="66" height="32" rx="7" fill="#f4511e"/><rect x="170" y="68" width="17" height="32" rx="7" fill="#000" opacity=".28"/>'+
+   '<text x="210" y="89" font-size="13" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">เตาอบ</text>'+
+   '<g transform="translate(214 104)"><circle r="13" fill="#ffd23f" opacity=".5"/><path d="M-4 -6 v18 M-4 -6 q0 -5 4 -5 q4 0 4 5 v10 h6 q5 0 5 5 v5 q0 8 -8 8 h-6 q-6 0 -9 -6 l-5 -9" fill="#ffe0b2" stroke="#8d5a2b" stroke-width="2"/></g></g>'+
+   '<text x="170" y="30" font-size="13" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">ย้ายงานหนักออกจากช่วงแพง</text>'+
+   '<text x="76" y="150" font-size="12" text-anchor="middle" fill="#14753c" font-family="Mitr,sans-serif">✓ ปลายทาง</text><text x="214" y="150" font-size="12" text-anchor="middle" fill="#b3261e" font-family="Mitr,sans-serif">✗ ต้นทาง</text></svg>'},
+ {t:'3/5 · ดูเส้นพีค',txt:'กราฟเปลี่ยนทันทีที่ลาก · เส้นแดงประ = พีคเดิม ต้องกดยอดกราฟช่วง On-Peak ให้ต่ำกว่าเส้นนี้',
+  svg:'<svg viewBox="0 0 340 170"><rect x="20" y="20" width="300" height="120" fill="#fbfcfe" stroke="#e3e9f2"/><rect x="132" y="20" width="162" height="120" fill="#fde3e3"/>'+
+   '<g fill="#7986cb"><rect x="30" y="110" width="18" height="30"/><rect x="56" y="104" width="18" height="36"/><rect x="82" y="100" width="18" height="40"/><rect x="108" y="96" width="18" height="44"/>'+
+   '<rect x="160" y="84" width="18" height="56"/><rect x="186" y="80" width="18" height="60"/><rect x="238" y="88" width="18" height="52"/><rect x="264" y="100" width="18" height="40"/><rect x="296" y="112" width="18" height="28"/></g>'+
+   '<rect class="hBar" x="212" y="40" width="18" height="100" fill="#ef4b4b"/>'+
+   '<line x1="20" y1="58" x2="320" y2="58" stroke="#ef4b4b" stroke-width="3" stroke-dasharray="8 6"/>'+
+   '<text x="316" y="52" font-size="12" font-weight="700" text-anchor="end" fill="#c62828" font-family="Mitr,sans-serif">พีคเดิม</text>'+
+   '<text class="hBlink" x="221" y="34" font-size="16" font-weight="700" text-anchor="middle" fill="#ef4b4b">!</text>'+
+   '<text x="170" y="160" font-size="12" text-anchor="middle" fill="#55657c" font-family="Mitr,sans-serif">kW เฉลี่ยทุก 15 นาที</text></svg>'},
+ {t:'4/5 · เดินเครื่อง 1 วัน',txt:'กด ▶ เดินเครื่อง — 24 ชม. ใน ~20 วิ มิเตอร์ไล่ค่า kW และจำค่าสูงสุดช่วง On-Peak · ทะลุพีคเดิมมีเสียงเตือน',
+  svg:'<svg viewBox="0 0 340 170"><rect x="18" y="44" width="120" height="44" rx="22" fill="#3f51b5"/><text x="78" y="72" font-size="15" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">▶ เดินเครื่อง</text>'+
+   '<g transform="translate(78 128)"><circle r="24" fill="#fff" stroke="#213047" stroke-width="3"/><g class="hHand"><circle r="21" fill="none"/><line x1="0" y1="0" x2="0" y2="-18" stroke="#00acc1" stroke-width="3.5" stroke-linecap="round"/></g><circle r="3" fill="#213047"/></g>'+
+   '<rect x="168" y="30" width="150" height="118" rx="12" fill="#18212f" stroke="#c9d3e0" stroke-width="3"/>'+
+   '<rect x="180" y="42" width="126" height="20" rx="10" fill="#ef4b4b"/><text x="243" y="57" font-size="12" font-weight="700" text-anchor="middle" fill="#fff">ON-PEAK</text>'+
+   '<rect x="180" y="70" width="126" height="42" rx="6" fill="#0d2a1e"/>'+
+   '<text class="hD1" x="296" y="102" font-size="26" font-weight="700" text-anchor="end" fill="#6dffb0" font-family="monospace">212</text>'+
+   '<text class="hD2" x="296" y="102" font-size="26" font-weight="700" text-anchor="end" fill="#6dffb0" font-family="monospace">366</text>'+
+   '<text class="hD3" x="296" y="102" font-size="26" font-weight="700" text-anchor="end" fill="#ff6b6b" font-family="monospace">407</text>'+
+   '<text x="186" y="84" font-size="9" fill="#6dffb0" font-family="Mitr,sans-serif">kW</text>'+
+   '<text x="243" y="134" font-size="11" text-anchor="middle" fill="#ffd23f" font-family="Mitr,sans-serif">จำค่าสูงสุด On-Peak</text></svg>'},
+ {t:'5/5 · อ่านบิล',txt:'จบวันได้บิลเดือน (×22 วัน): ค่าพลังงาน On + Off + ค่า Demand เทียบตารางเดิม → ประหยัดมาก = ได้ดาวมาก',
+  svg:'<svg viewBox="0 0 340 170"><text x="90" y="160" font-size="12" text-anchor="middle" fill="#55657c" font-family="Mitr,sans-serif">ตารางเดิม</text><text x="200" y="160" font-size="12" text-anchor="middle" fill="#55657c" font-family="Mitr,sans-serif">ของคุณ</text>'+
+   '<rect x="60" y="30" width="60" height="40" fill="#7b5bff"/><rect x="60" y="70" width="60" height="50" fill="#ef4b4b"/><rect x="60" y="120" width="60" height="25" fill="#1fb45f"/>'+
+   '<g class="hShrink"><rect x="170" y="50" width="60" height="30" fill="#7b5bff"/><rect x="170" y="80" width="60" height="40" fill="#ef4b4b"/></g><rect x="170" y="120" width="60" height="25" fill="#1fb45f"/>'+
+   '<g font-size="11" font-family="Mitr,sans-serif" fill="#213047"><rect x="246" y="40" width="12" height="12" fill="#7b5bff"/><text x="262" y="50">Demand</text>'+
+   '<rect x="246" y="62" width="12" height="12" fill="#ef4b4b"/><text x="262" y="72">On-Peak</text><rect x="246" y="84" width="12" height="12" fill="#1fb45f"/><text x="262" y="94">Off-Peak</text></g>'+
+   '<g class="hPop"><text x="292" y="132" font-size="26" text-anchor="middle">⭐</text></g></svg>'}
+];
+var helpPg=0;
+function renderHelp(){
+  $('helpTitle').textContent=HELP[helpPg].t;$('helpStage').innerHTML=HELP[helpPg].svg;$('helpTxt').textContent=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';
+  $('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';
+}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){$('helpOv').classList.remove('show');markSeen();
+  if(start&&$('startOv').classList.contains('show')){$('startOv').classList.remove('show');startLevel(pickNext());}}
+function pickNext(){for(var i=0;i<5;i++)if(stars[i]===0)return i;return 0;}
+
+/* ═════════ MENU ═════════ */
+function buildLvlPick(){
+  var w=$('lvlPick');w.innerHTML='';
+  LEVELS.forEach(function(L,i){var b=document.createElement('button');
+    b.innerHTML='<span class="nm">'+L.name+'</span><span class="st">'+('⭐'.repeat(stars[i])||'☆☆☆')+'</span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});w.appendChild(b);});
+}
+function goHome(){if(G.running)return;buildLvlPick();$('resultOv').classList.remove('show');$('endOv').classList.remove('show');$('startOv').classList.add('show');}
+
+/* ═════════ EVENTS ═════════ */
+$('runBtn').addEventListener('click',runDay);
+$('skipBtn').addEventListener('click',skipRun);
+$('resetBtn').addEventListener('click',function(){audio();sClick();G.plan=defPlan(LV);
+  if(LV.bess){$('tSld').value=G.plan.T;$('tVal').textContent=G.plan.T+' kW';}refresh();say('กลับไปตารางเดิมแล้ว',1600);});
+$('nL').addEventListener('click',function(){nudge(-1);});
+$('nR').addEventListener('click',function(){nudge(1);});
+$('tSld').addEventListener('input',function(){G.plan.T=+this.value;$('tVal').textContent=this.value+' kW';refresh();});
+$('tSld').addEventListener('change',function(){audio();sClick();});
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('startHelp').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('homeBtn').addEventListener('click',function(){audio();sClick();goHome();});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn){audio();sClick();}});
+$('fxBtn').addEventListener('click',function(){audio();sClick();renderFxLive();$('fxOv').classList.add('show');$('fxOv').querySelector('.card').scrollTop=0;});
+$('fxClose').addEventListener('click',function(){sClick();$('fxOv').classList.remove('show');});
+$('retryBtn').addEventListener('click',function(){sClick();$('resultOv').classList.remove('show');refresh();});
+$('nextBtn').addEventListener('click',function(){sClick();$('resultOv').classList.remove('show');if(G.lv<4)startLevel(G.lv+1);else showEnd();});
+$('endHome').addEventListener('click',function(){sClick();goHome();});
+$('endReplay').addEventListener('click',function(){sClick();$('endOv').classList.remove('show');startLevel(0);});
+document.addEventListener('keydown',function(e){if(G.running)return;if(e.key==='ArrowLeft')nudge(-1);if(e.key==='ArrowRight')nudge(1);});
+window.addEventListener('resize',function(){if(G.res)renderChart();});
+
+/* ═════════ LOOP ═════════ */
+function loop(ts){
+  if(!G.lastTs)G.lastTs=ts;var dt=Math.min(0.1,(ts-G.lastTs)/1000);G.lastTs=ts;
+  if(G.running)stepRun(dt);
+  /* มิเตอร์ไล่ค่า + สายไฟไหล ∝ kW */
+  if(G.res){var s=G.running?clamp(Math.floor(G.t*4),0,NS-1):(G.res.mxS>=0?G.res.mxS:36),tgt=G.res.grid[s];
+    G.dispNow+=(tgt-G.dispNow)*Math.min(1,dt*10);$('mNow').textContent=f0(G.dispNow);
+    G.flowOff-=dt*(8+G.dispNow/8);$('flowA').setAttribute('stroke-dashoffset',G.flowOff.toFixed(1));}
+  requestAnimationFrame(loop);
+}
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();
+startLevel(0);
+requestAnimationFrame(loop);
+if(!seenHelp())setTimeout(openHelp,400);
+
+/* ── QA hook ── */
+window.PEAK={LEVELS:LEVELS,JOBDEF:JOBDEF,RATE:RATE,simulate:simulate,basePlan:basePlan,defPlan:defPlan,starsFor:starsFor,
+  G:G,startLevel:startLevel,runDay:runDay,skipRun:skipRun,refresh:refresh,analyze:analyze,showResult:showResult,showEnd:showEnd};
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

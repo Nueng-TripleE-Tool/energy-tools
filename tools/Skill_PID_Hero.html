@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PID Hero — จอมจูนลูปควบคุม · Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "PID Hero — จอมจูนลูปควบคุม" v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: มหาวิทยาลัย/วิศวกรใหม่ (ใช้ประกอบคู่มือการตั้งค่า PID หม้อไอน้ำ ของ อ.หนึ่ง กลับทวี)
+     หลักที่สอน: ผลของ Kp/Ti/Td ต่อ response (overshoot, settling time, steady-state error, oscillation),
+       การจูนแบบ Ziegler–Nichols (ultimate gain) และ lambda tuning, disturbance rejection,
+       วาล์วอิ่มตัว (0–100%) + integral windup / anti-windup แบบ clamping
+     ฟิสิกส์/สูตรเบื้องหลัง (จำลอง discrete dt = 0.1 s เวลาเกม, เร่งเวลาได้ 1–8×; หน่วยภายใน % ของ span):
+       กระบวนการ self-regulating FOPDT  G(s) = K·e^(−θs)/(τs+1)
+         x[k+1] = x[k] + dt/τ·(K·u(t−θ) + b + Kd·d − x[k])      (Euler, dead time = buffer θ/dt ตัวอย่าง)
+       กระบวนการ integrating (ระดับน้ำดรัม)  dL/dt = ki·(Fw(t−θ) − Fs) ;  swell: L_วัด = L + Ksw·(Fs − Fs_lag), Fs_lag ผ่าน lag τsw
+       PID แบบ ISA (ideal / non-interacting):  u = Kp·[ e + (1/Ti)∫e dt + Td·de/dt ]
+         · derivative on PV (ไม่มี derivative kick) + filter Tf = Td/N, N = 10:
+           D[k] = Tf/(Tf+dt)·D[k−1] − Kp·Td/(Tf+dt)·act·(PV[k] − PV[k−1])
+         · P-only: u = bias + Kp·e (bias = manual reset ตั้งตอนสลับ M→A แบบ bumpless)
+         · วาล์วจำกัด 0–100% · anti-windup แบบ clamping (conditional integration): หยุดอินทิเกรตเมื่อ u อิ่มตัวและ e ดันไปทางเดิม
+         · act = +1 reverse acting (ความดัน/ระดับ), −1 direct acting (สเปรย์ลดอุณหภูมิ: K < 0)
+       PV วัดมี noise เกาส์เซียนเล็กน้อย (σ 0.05–0.12 % span) · ตัวชี้วัดคำนวณจาก PV จริง (ไม่รวม noise เครื่องวัด)
+       ตัวชี้วัด: IAE = ∫|SP − PV| dt (%·s) · overshoot = (peak − final)/|final − initial| ×100
+                  settling time = เวลาที่ PV เข้าแถบ ±2% ของขนาด step (ขั้นต่ำ 0.12 % span) แล้วไม่ออกอีก
+       P-only + self-regulating: offset = ΔSP/(1 + K·Kp)
+       Ultimate ของ FOPDT: atan(ωu·τ) + ωu·θ = π ; Ku = √(1+(ωu·τ)²)/|K| ; Pu = 2π/ωu
+       Ziegler–Nichols (closed loop, 1942): P: Kp=0.5Ku · PI: Kp=0.45Ku, Ti=Pu/1.2 · PID: Kp=0.6Ku, Ti=Pu/2, Td=Pu/8
+       Lambda tuning FOPDT: Kp = τ/(K·(λ+θ)), Ti = τ · integrating: Kp = (2λ+θ)/(ki·(λ+θ)²), Ti = 2λ+θ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --mid:#f5a623; --warn:#f5a623; --bad:#ef4b4b;
+  --indigo:#3f51b5; --cyan:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+  --c-sp:#213047; --c-pv:#1e88e5; --c-out:#ff8f1c;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+html{background:#1e2534}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#323d55,#262f42 60%,#1e2534);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:900px;padding:10px 12px 84px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.93);
+  border:3px solid #fff;border-radius:18px;padding:7px 10px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hud .lvl-name{font-weight:600;font-size:1rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap;font-size:.95rem}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 8px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:44px}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4);background:#2f3a4d;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto}
+#bubble{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;max-width:92%;background:#fff;border-radius:14px;border:3px solid #00acc1;
+  padding:6px 12px;font-size:.88rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.25);transition:opacity .25s;opacity:0;pointer-events:none;text-align:center}
+#bubble.show{opacity:1}
+#testBadge{position:absolute;left:8px;top:8px;background:rgba(63,81,181,.92);color:#fff;border-radius:12px;padding:4px 10px;font-size:.8rem;font-weight:600;display:none}
+#testBadge .bar{height:6px;background:rgba(255,255,255,.3);border-radius:4px;margin-top:3px;overflow:hidden}
+#testBadge .bar i{display:block;height:100%;width:0;background:#ffd23f}
+
+/* ───── Panel ───── */
+.panel{background:#fff;border-radius:20px;padding:10px 12px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:8px}
+.goal{font-size:.9rem;font-weight:500;background:#e8f4fb;border:2px dashed #00acc1;border-radius:14px;padding:6px 10px;line-height:1.45}
+.goal b{color:#3f51b5}
+#chartBox{position:relative}
+#chart{display:block;width:100%;height:200px;border-radius:12px;background:#f7fafd;border:1px solid #e2e9f2}
+.legend{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;font-size:.8rem;color:#55657a;margin-top:3px}
+.legend i{display:inline-block;width:18px;height:0;border-top:3px solid;vertical-align:middle;margin-right:4px}
+#chips{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;font-weight:600;font-size:.82rem}
+#chips span{background:#f1f5fb;border-radius:999px;padding:3px 10px}
+#oscCard{display:none;background:#fff8e1;border:2px solid #ffd23f;border-radius:14px;padding:6px 10px;font-size:.88rem;font-weight:500;text-align:center}
+#oscCard b{color:#3f51b5}
+
+.tune{display:flex;flex-direction:column;gap:4px}
+.trow{display:grid;grid-template-columns:62px 44px 1fr 44px 74px;align-items:center;gap:6px}
+.trow .nm{font-weight:700;font-size:1rem;line-height:1.1}
+.trow .nm small{display:block;font-size:.66rem;font-weight:500;color:#6a7a90}
+.trow .v{font-weight:700;font-size:1.05rem;text-align:right;font-variant-numeric:tabular-nums}
+.trow .v small{font-size:.7rem;font-weight:500;color:#6a7a90}
+.pm{border:none;border-radius:12px;background:#e8eefb;color:#3f51b5;font-family:inherit;font-weight:700;font-size:1.3rem;min-height:44px;cursor:pointer;box-shadow:0 3px 0 #c5cfe8}
+.pm:active{transform:translateY(2px);box-shadow:0 1px 0 #c5cfe8}
+.trow.locked{opacity:.38;pointer-events:none}
+.trow .lock{display:none}
+input[type=range]{width:100%;height:44px;appearance:none;-webkit-appearance:none;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:10px;background:var(--trk,#ccc)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:32px;height:32px;border-radius:50%;margin-top:-9px;
+  background:#fff;border:6px solid var(--thm,#555);box-shadow:0 3px 8px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:14px;border-radius:10px;background:var(--trk,#ccc)}
+input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:6px solid var(--thm,#555)}
+#sKp{--trk:linear-gradient(90deg,#c5cae9,#3f51b5);--thm:#3f51b5}
+#sTi{--trk:linear-gradient(90deg,#00838f,#b2ebf2);--thm:#00acc1}
+#sTd{--trk:linear-gradient(90deg,#f3e5f5,#7b5bff);--thm:#7b5bff}
+#sMan{--trk:linear-gradient(90deg,#ffe0b2,#ff8f1c);--thm:#ff8f1c}
+#manRow{display:none}
+.tog{border:none;border-radius:10px;font-family:inherit;font-weight:600;font-size:.8rem;min-height:44px;cursor:pointer;background:#eceff4;color:#55657a;padding:0 4px}
+.tog.on{background:#00acc1;color:#fff}
+
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.sb{border:none;border-radius:14px;font-family:inherit;font-weight:600;font-size:.88rem;min-height:46px;cursor:pointer;background:#eef3fa;color:var(--ink);box-shadow:0 3px 0 #cfd9e6;padding:4px 6px;line-height:1.2}
+.sb:active{transform:translateY(2px);box-shadow:0 1px 0 #cfd9e6}
+.sb.on{background:#213047;color:#fff;box-shadow:0 3px 0 #000}
+.sb.man{background:#ff8f1c;color:#fff;box-shadow:0 3px 0 #c76a0c}
+.sb.hot{background:#ffe3e3;color:#b3261e;box-shadow:0 3px 0 #f0b4b4}
+.sb.awon{background:#1fb45f;color:#fff;box-shadow:0 3px 0 #13843f}
+.sb[disabled]{opacity:.35;pointer-events:none}
+.rowmain{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+
+.big-btn{border:none;border-radius:999px;padding:13px 30px;font-family:inherit;font-size:1.12rem;font-weight:700;color:#fff;min-height:48px;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #283593,0 10px 18px rgba(0,0,0,.2);transition:transform .1s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #283593}
+.big-btn.alt{background:linear-gradient(135deg,#00acc1,#26c6da);box-shadow:0 6px 0 #00838f,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #00838f}
+.big-btn.grey{background:linear-gradient(135deg,#78869a,#9aa7b8);box-shadow:0 6px 0 #56627a,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.small{font-size:.98rem;padding:10px 20px}
+.big-btn[disabled]{opacity:.45;pointer-events:none}
+.foot{text-align:center;color:#9fb0c8;font-size:.78rem;margin-top:2px}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(10,18,32,.66);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:12px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:24px;max-width:500px;width:100%;padding:20px 16px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.4);transform:translateY(14px);transition:transform .3s;max-height:94vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.35rem;margin-bottom:6px;color:#283593}
+.card p{font-size:.96rem;line-height:1.55}
+.result-stars{font-size:2.6rem;letter-spacing:6px;margin:4px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e8f4fb;border-radius:14px;padding:8px 12px;font-weight:600;margin:8px 0;font-size:.92rem;color:#1a3a5c}
+.mtbl{width:100%;border-collapse:collapse;font-size:.84rem;margin:6px 0}
+.mtbl th{background:#3f51b5;color:#fff;font-weight:500;padding:4px 6px}
+.mtbl th:first-child{border-radius:8px 0 0 0}.mtbl th:last-child{border-radius:0 8px 0 0}
+.mtbl td{padding:4px 6px;border-bottom:1px solid #e6ecf3;text-align:right;font-variant-numeric:tabular-nums}
+.mtbl td:first-child{text-align:left}
+.ok{color:var(--good);font-weight:700}.ng{color:var(--bad);font-weight:700}
+.fb{text-align:left;background:#fffaf0;border:2px solid #ffe0a3;border-radius:14px;padding:8px 10px 8px 26px;margin:6px 0;font-size:.88rem;line-height:1.5}
+.fb li{margin:3px 0}
+.fb-h{text-align:left;font-weight:700;color:#b26a00;font-size:.92rem;margin-top:6px}
+#resChart{width:100%;height:150px;display:block;border-radius:10px;background:#f7fafd;border:1px solid #e2e9f2}
+.lvl-pick{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:14px;padding:6px 2px;font-family:inherit;cursor:pointer;min-height:64px}
+.lvl-pick .nm{font-size:.72rem;font-weight:600;display:block;line-height:1.2}
+.lvl-pick .st{font-size:.68rem;letter-spacing:0}
+#startCard h1{font-size:1.75rem;line-height:1.25;background:linear-gradient(135deg,#3f51b5,#00acc1);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#55657a;margin:4px 0 6px;font-size:.92rem;line-height:1.5}
+.tgt{display:inline-block;background:#e8eaf6;color:#283593;border-radius:999px;padding:3px 12px;font-size:.8rem;font-weight:600}
+.brand{font-size:.78rem;color:#8795a8;margin-top:10px}
+.brief-proc{background:#f4f7fb;border-radius:12px;padding:8px 10px;font-size:.85rem;text-align:left;line-height:1.55;margin:6px 0}
+.brief-proc code{font-family:ui-monospace,Consolas,monospace;background:#e8eaf6;border-radius:6px;padding:0 4px;font-size:.82rem}
+.crit{text-align:left;font-size:.86rem;line-height:1.6;margin:6px 0;background:#fffaf0;border-radius:12px;padding:6px 10px}
+.zn-tbl{width:100%;border-collapse:collapse;font-size:.88rem;margin:6px 0}
+.zn-tbl td,.zn-tbl th{border:1px solid #dfe6ef;padding:4px 6px}
+.zn-tbl th{background:#e8eaf6}
+.zn-tbl tr.hl td{background:#fff3c4;font-weight:600}
+
+/* formula panel */
+#fmCard{text-align:left;max-width:560px}
+#fmCard h3{font-size:1rem;color:#283593;margin:10px 0 4px}
+#fmCard p,#fmCard li{font-size:.86rem;line-height:1.55}
+#fmCard ul{padding-left:18px}
+.eq{background:#f4f7fb;border-left:4px solid #3f51b5;border-radius:8px;padding:6px 10px;margin:4px 0;font-family:ui-monospace,Consolas,monospace;font-size:.82rem;line-height:1.6;overflow-x:auto;white-space:pre-wrap}
+.lam{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+.lam button{border:2px solid #c5cae9;background:#f5f6fc;border-radius:12px;font-family:inherit;font-size:.82rem;padding:6px 8px;cursor:pointer;min-height:44px}
+
+/* help overlay */
+#helpStage{background:#eef4fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:360px;height:auto}
+#helpTxt{font-size:.98rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd9e6}
+.dots i.on{background:var(--cyan)}
+.help-nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── SVG scene animations ───── */
+@keyframes flick{0%,100%{transform:scaleY(1) scaleX(1)}50%{transform:scaleY(1.13) scaleX(.94)}}
+#flameFlick{transform-box:fill-box;transform-origin:center bottom;animation:flick .45s ease-in-out infinite}
+@keyframes puffR{0%{transform:translate(0,0) scale(.5);opacity:0}20%{opacity:.9}100%{transform:translate(-14px,-46px) scale(1.5);opacity:0}}
+.puff{transform-box:fill-box;transform-origin:center;animation:puffR 2s linear infinite}
+@keyframes wave{0%,100%{transform:translateX(0)}50%{transform:translateX(-10px)}}
+.wave{animation:wave 1.6s ease-in-out infinite}
+@keyframes glow{0%,100%{opacity:.35}50%{opacity:.95}}
+.hiRing{animation:glow 1.4s ease-in-out infinite}
+@keyframes blinkM{0%,100%{opacity:1}50%{opacity:.25}}
+.blink{animation:blinkM .8s linear infinite}
+@keyframes heatSh{0%{transform:translateY(0);opacity:0}30%{opacity:.7}100%{transform:translateY(-22px);opacity:0}}
+.heatL{animation:heatSh 1.4s ease-out infinite}
+/* tutorial anims */
+@keyframes tDot{0%{offset-distance:0%}100%{offset-distance:100%}}
+@keyframes tStem{0%,100%{transform:translateY(0)}50%{transform:translateY(12px)}}
+.tStem{animation:tStem 2.4s ease-in-out infinite}
+@keyframes tThumb{0%,100%{transform:translateX(0)}50%{transform:translateX(150px)}}
+.tThumb{animation:tThumb 2.6s ease-in-out infinite}
+@keyframes tDraw{0%{stroke-dashoffset:420}60%,100%{stroke-dashoffset:0}}
+.tDraw{stroke-dasharray:420;animation:tDraw 3.2s ease-out infinite}
+@keyframes tPop{0%,20%{transform:scale(0)}40%{transform:scale(1.25)}55%,100%{transform:scale(1)}}
+.tPop{transform-box:fill-box;transform-origin:center;animation:tPop 2.4s ease-out infinite}
+@keyframes tBlink{0%,100%{opacity:.25}50%{opacity:.9}}
+.tBlink{animation:tBlink 1.2s ease-in-out infinite}
+@keyframes tMove{0%{transform:translateX(0)}100%{transform:translateX(-80px)}}
+.tMove{animation:tMove 2s linear infinite}
+@media (prefers-reduced-motion:reduce){
+  #flameFlick,.puff,.wave,.hiRing,.blink,.heatL,.tStem,.tThumb,.tDraw,.tPop,.tBlink,.tMove{animation:none!important}
+  .tDraw{stroke-dasharray:none}
+}
+@media (min-width:760px){
+  #chart{height:240px}
+  .trow{grid-template-columns:90px 48px 1fr 48px 90px}
+  .btns{grid-template-columns:repeat(6,1fr)}
+}
+@media (max-width:400px){
+  .trow{grid-template-columns:52px 44px 1fr 44px 66px;gap:4px}
+  .sb{font-size:.8rem}
+  #hud .lvl-name{font-size:.9rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">PID Hero</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น" aria-label="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง" aria-label="เสียง">🔊</button>
+    <button id="fmBtn" title="สูตร/ที่มา" aria-label="สูตร/ที่มา">📐</button>
+  </div>
+
+  <!-- SCENE -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 640 330" xmlns="http://www.w3.org/2000/svg" aria-label="ห้องหม้อไอน้ำและลูปควบคุม PID">
+      <defs>
+        <linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#465572"/><stop offset="1" stop-color="#2f3a4d"/></linearGradient>
+        <linearGradient id="drumG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9d4e6"/><stop offset=".45" stop-color="#eef3fa"/><stop offset="1" stop-color="#8797b3"/></linearGradient>
+        <linearGradient id="bodyG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7d8ca8"/><stop offset=".5" stop-color="#b3c0d6"/><stop offset="1" stop-color="#6c7a96"/></linearGradient>
+        <linearGradient id="waterG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5ec8ff"/><stop offset="1" stop-color="#1565c0"/></linearGradient>
+        <linearGradient id="pipeG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b8c4d8"/><stop offset="1" stop-color="#7a879e"/></linearGradient>
+        <radialGradient id="fireBg" cx=".5" cy=".7" r=".7"><stop offset="0" stop-color="#3a1f08"/><stop offset="1" stop-color="#140b04"/></radialGradient>
+        <clipPath id="drumClip"><rect x="44" y="40" width="222" height="56" rx="28"/></clipPath>
+        <clipPath id="glassClip"><rect x="287" y="34" width="8" height="70" rx="3"/></clipPath>
+      </defs>
+      <rect x="0" y="0" width="640" height="310" fill="url(#wallG)"/>
+      <rect x="0" y="308" width="640" height="22" fill="#232a38"/>
+      <rect x="0" y="305" width="640" height="5" fill="#56647e"/>
+      <g stroke="#3d4a62" stroke-width="2" opacity=".55">
+        <line x1="0" y1="150" x2="640" y2="150"/><line x1="320" y1="150" x2="320" y2="305"/>
+      </g>
+
+      <!-- boiler body / furnace -->
+      <rect x="50" y="98" width="210" height="196" rx="16" fill="url(#bodyG)" stroke="#2f3a4d" stroke-width="5"/>
+      <g stroke="#5e6c88" stroke-width="3" opacity=".6"><line x1="72" y1="104" x2="72" y2="288"/><line x1="238" y1="104" x2="238" y2="288"/></g>
+      <circle cx="155" cy="208" r="56" fill="#2f3a4d"/>
+      <circle cx="155" cy="208" r="47" fill="url(#fireBg)" stroke="#ffb74d" stroke-width="5"/>
+      <g id="flameSize" transform="translate(155 250) scale(0.8)">
+        <g id="flameFlick">
+          <path id="flOut" d="M0 0 C -34 -6 -34 -46 -18 -62 C -12 -46 -8 -44 -6 -56 C 4 -78 18 -72 14 -52 C 24 -58 30 -44 26 -30 C 34 -18 20 2 0 0 Z" fill="#ff6a1f"/>
+          <path d="M0 -2 C -20 -4 -22 -30 -10 -44 C -6 -32 0 -32 2 -44 C 12 -52 18 -36 12 -24 C 18 -14 10 -2 0 -2 Z" fill="#ff9f1c"/>
+          <path d="M0 -4 C -10 -6 -12 -20 -4 -30 C 0 -22 4 -22 6 -30 C 12 -20 8 -6 0 -4 Z" fill="#ffd23f"/>
+        </g>
+      </g>
+      <circle cx="155" cy="208" r="47" fill="#fff" opacity=".06"/>
+      <!-- burner -->
+      <rect x="26" y="196" width="28" height="26" rx="6" fill="#5a6983" stroke="#2f3a4d" stroke-width="3"/>
+      <text x="155" y="285" font-size="13" text-anchor="middle" fill="#2f3a4d" font-weight="600" font-family="Mitr,sans-serif">BOILER 10 t/h</text>
+
+      <!-- steam drum -->
+      <rect x="40" y="36" width="230" height="64" rx="32" fill="url(#drumG)" stroke="#2f3a4d" stroke-width="5"/>
+      <g clip-path="url(#drumClip)">
+        <rect id="drumWater" x="40" y="68" width="232" height="40" fill="url(#waterG)" opacity=".85"/>
+        <path id="drumWave" class="wave" d="M30 68 q10 -4 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" stroke="#b3e5fc" stroke-width="3" fill="none"/>
+      </g>
+      <text x="155" y="60" font-size="12" text-anchor="middle" fill="#2f3a4d" font-weight="600" font-family="Mitr,sans-serif">ดรัมไอน้ำ</text>
+      <!-- gauge glass -->
+      <g id="glassGrp">
+        <rect id="hiLvl" class="hiRing" x="278" y="24" width="26" height="90" rx="9" fill="none" stroke="#ffd23f" stroke-width="4" opacity="0"/>
+        <line x1="266" y1="46" x2="286" y2="46" stroke="#5a6983" stroke-width="5"/>
+        <line x1="266" y1="92" x2="286" y2="92" stroke="#5a6983" stroke-width="5"/>
+        <rect x="283" y="30" width="16" height="78" rx="5" fill="#39465c" stroke="#1e2534" stroke-width="2"/>
+        <rect x="287" y="34" width="8" height="70" rx="3" fill="#dfe9f5"/>
+        <g clip-path="url(#glassClip)"><rect id="glassWater" x="287" y="69" width="8" height="40" fill="#1e88e5"/></g>
+        <line x1="280" y1="69" x2="302" y2="69" stroke="#ffd23f" stroke-width="1.5" stroke-dasharray="3 2"/>
+        <text x="306" y="73" font-size="10" fill="#ffd23f" font-family="Mitr,sans-serif">NWL</text>
+      </g>
+
+      <!-- steam line → superheater → header -->
+      <path d="M232 38 L232 18 L330 18" stroke="url(#pipeG)" stroke-width="10" fill="none" stroke-linejoin="round"/>
+      <g id="shGrp">
+        <rect x="326" y="4" width="104" height="54" rx="10" fill="#4a3b36" stroke="#2f3a4d" stroke-width="3"/>
+        <path d="M334 18 h18 v28 h14 v-28 h14 v28 h14 v-28 h14" stroke="#ff8a50" stroke-width="5" fill="none" stroke-linejoin="round"/>
+        <g id="shHeat" stroke="#ffb74d" stroke-width="2.5" fill="none" opacity=".6">
+          <path class="heatL" d="M344 52 q4 -6 0 -12"/><path class="heatL" style="animation-delay:.5s" d="M378 52 q4 -6 0 -12"/><path class="heatL" style="animation-delay:1s" d="M410 52 q4 -6 0 -12"/>
+        </g>
+        <text x="331" y="56" font-size="9" fill="#ffccbc" font-family="Mitr,sans-serif">ซูเปอร์ฮีตเตอร์</text>
+        <circle cx="414" cy="58" r="5" fill="#00acc1" stroke="#fff" stroke-width="1.5"/>
+      </g>
+      <path d="M430 18 L640 18" stroke="url(#pipeG)" stroke-width="10" fill="none"/>
+      <!-- steam out to plant -->
+      <g id="puffG" fill="#eaf4ff">
+        <circle class="puff" cx="626" cy="12" r="7"/>
+        <circle class="puff" style="animation-delay:.7s" cx="626" cy="12" r="6"/>
+        <circle class="puff" style="animation-delay:1.4s" cx="626" cy="12" r="7"/>
+      </g>
+      <text x="600" y="40" font-size="11" text-anchor="middle" fill="#cfe0f5" font-family="Mitr,sans-serif">→ โรงงาน</text>
+      <g id="demandGrp">
+        <rect x="574" y="46" width="52" height="11" rx="5" fill="#1a202b" stroke="#56647e" stroke-width="1.5"/>
+        <rect id="demandFill" x="576" y="48" width="24" height="7" rx="3" fill="#00c2a8"/>
+        <text x="600" y="70" font-size="10" text-anchor="middle" fill="#cfe0f5" font-family="Mitr,sans-serif">โหลดไอน้ำ</text>
+      </g>
+
+      <!-- thermometer TT -->
+      <g id="ttGrp">
+        <rect id="hiTmp" class="hiRing" x="440" y="22" width="30" height="96" rx="12" fill="none" stroke="#ffd23f" stroke-width="4" opacity="0"/>
+        <line x1="455" y1="18" x2="455" y2="30" stroke="#5a6983" stroke-width="4"/>
+        <rect x="449" y="28" width="12" height="70" rx="6" fill="#f4f7fb" stroke="#2f3a4d" stroke-width="2"/>
+        <rect id="ttFill" x="452" y="60" width="6" height="40" rx="3" fill="#ef4b4b"/>
+        <circle cx="455" cy="104" r="9" fill="#ef4b4b" stroke="#2f3a4d" stroke-width="2"/>
+        <text x="455" y="128" font-size="11" text-anchor="middle" fill="#cfe0f5" font-family="Mitr,sans-serif">TT</text>
+      </g>
+      <!-- pressure gauge PT -->
+      <g id="ptGrp">
+        <circle id="hiPrs" class="hiRing" cx="520" cy="72" r="38" fill="none" stroke="#ffd23f" stroke-width="4" opacity="0"/>
+        <line x1="520" y1="18" x2="520" y2="40" stroke="#5a6983" stroke-width="5"/>
+        <circle cx="520" cy="72" r="32" fill="#f4f7fb" stroke="#2f3a4d" stroke-width="4"/>
+        <path d="M497 95 A32 32 0 0 1 543 49" stroke="#1fb45f" stroke-width="5" fill="none" opacity=".7"/>
+        <path d="M543 49 A32 32 0 0 1 543 95" stroke="#ef4b4b" stroke-width="5" fill="none" opacity=".7"/>
+        <g id="gNeedle"><line x1="520" y1="78" x2="520" y2="48" stroke="#213047" stroke-width="3.5" stroke-linecap="round"/></g>
+        <circle cx="520" cy="72" r="4.5" fill="#213047"/>
+        <text x="520" y="92" font-size="8" text-anchor="middle" fill="#55657a" font-family="Mitr,sans-serif">bar g</text>
+      </g>
+
+      <!-- control valve + routing -->
+      <g id="routes" fill="none" stroke-linejoin="round">
+        <path id="rFuel" d="M334 268 L40 268 L40 224" stroke="#ffb74d" stroke-width="7" opacity=".25"/>
+        <path id="rFw" d="M334 268 L298 268 L298 128 L262 128 L262 98" stroke="#4fc3f7" stroke-width="7" opacity=".25"/>
+        <path id="rSp" d="M334 268 L314 268 L314 150 L414 150 L414 64" stroke="#4dd0e1" stroke-width="7" opacity=".25"/>
+        <path id="rFlow" d="M334 268 L40 268 L40 224" stroke="#fff" stroke-width="3" stroke-dasharray="4 12" opacity=".9"/>
+      </g>
+      <path d="M402 268 L440 268" stroke="url(#pipeG)" stroke-width="10"/>
+      <text id="supplyTxt" x="420" y="292" font-size="10" text-anchor="middle" fill="#cfe0f5" font-family="Mitr,sans-serif">แก๊ส</text>
+      <g id="valveGrp">
+        <path d="M334 254 L368 268 L334 282 Z M402 254 L368 268 L402 282 Z" fill="#3f51b5" stroke="#1a237e" stroke-width="3"/>
+        <rect x="362" y="240" width="12" height="16" fill="#5c6bc0" stroke="#1a237e" stroke-width="2"/>
+        <g id="vStem"><rect x="365" y="214" width="6" height="34" rx="2" fill="#cfd8dc" stroke="#455a64" stroke-width="1.5"/>
+          <rect x="358" y="226" width="20" height="4" rx="2" fill="#ffd23f"/></g>
+        <path d="M344 214 Q368 186 392 214 Z" fill="#7986cb" stroke="#1a237e" stroke-width="3"/>
+        <line x1="344" y1="214" x2="392" y2="214" stroke="#1a237e" stroke-width="3"/>
+        <!-- travel scale -->
+        <line x1="384" y1="222" x2="384" y2="240" stroke="#cfe0f5" stroke-width="2"/>
+        <text x="390" y="225" font-size="8" fill="#cfe0f5" font-family="Mitr,sans-serif">0</text>
+        <text x="390" y="243" font-size="8" fill="#cfe0f5" font-family="Mitr,sans-serif">100</text>
+        <text id="valveTag" x="368" y="306" font-size="13" text-anchor="middle" fill="#fff" font-weight="600" font-family="Mitr,sans-serif">FCV</text>
+        <rect id="satLamp" x="340" y="182" width="56" height="14" rx="7" fill="#ef4b4b" opacity="0"/>
+        <text id="satTxt" x="368" y="193" font-size="9" text-anchor="middle" fill="#fff" font-weight="700" font-family="Mitr,sans-serif" opacity="0">อิ่มตัว!</text>
+      </g>
+
+      <!-- signal lines -->
+      <path id="sigPV" d="M520 104 L540 148" stroke="#ffd23f" stroke-width="2" stroke-dasharray="5 4" fill="none"/>
+      <path d="M470 250 L410 250 L410 204 L392 204" stroke="#ffd23f" stroke-width="2" stroke-dasharray="5 4" fill="none"/>
+
+      <!-- PID controller faceplate -->
+      <g id="fpGrp">
+        <rect x="470" y="146" width="160" height="152" rx="14" fill="#1b2230" stroke="#9fb0c8" stroke-width="3"/>
+        <rect x="470" y="146" width="160" height="24" rx="12" fill="#3f51b5"/>
+        <rect x="470" y="160" width="160" height="10" fill="#3f51b5"/>
+        <text id="fpTag" x="482" y="163" font-size="13" fill="#fff" font-weight="700" font-family="Mitr,sans-serif">PIC-101</text>
+        <text id="fpMode" x="618" y="163" font-size="13" text-anchor="end" fill="#ffd23f" font-weight="700" font-family="Mitr,sans-serif">AUTO</text>
+        <g font-family="ui-monospace,Consolas,monospace" font-weight="700">
+          <text x="480" y="194" font-size="12" fill="#9fb0c8">SP</text>
+          <text id="fpSP" x="620" y="195" font-size="19" text-anchor="end" fill="#ffffff">8.00</text>
+          <text x="480" y="222" font-size="12" fill="#9fb0c8">PV</text>
+          <text id="fpPV" x="620" y="223" font-size="19" text-anchor="end" fill="#64ffda">8.00</text>
+          <text x="480" y="250" font-size="12" fill="#9fb0c8">OUT</text>
+          <text id="fpOUT" x="620" y="251" font-size="19" text-anchor="end" fill="#ffb74d">40.0%</text>
+        </g>
+        <rect x="480" y="262" width="140" height="10" rx="5" fill="#2c3648"/>
+        <rect id="fpBar" x="480" y="262" width="56" height="10" rx="5" fill="#ff8f1c"/>
+        <text id="fpUnit" x="480" y="290" font-size="10" fill="#9fb0c8" font-family="Mitr,sans-serif">bar g</text>
+        <rect id="fpAW" x="566" y="280" width="54" height="13" rx="6" fill="#1fb45f" opacity="0"/>
+        <text id="fpAWt" x="593" y="290" font-size="9" text-anchor="middle" fill="#fff" font-weight="700" font-family="Mitr,sans-serif" opacity="0">ANTI-WU</text>
+      </g>
+    </svg>
+    <div id="testBadge">🧪 กำลังทดสอบ <span id="tbTxt">0</span><div class="bar"><i id="tbBar"></i></div></div>
+    <div id="bubble"></div>
+  </div>
+
+  <!-- CHART + TUNING -->
+  <div class="panel">
+    <div class="goal" id="goalTxt">—</div>
+    <div id="chartBox">
+      <canvas id="chart"></canvas>
+      <div class="legend"><span><i style="border-color:#213047;border-top-style:dashed"></i>SP</span><span><i style="border-color:#1e88e5"></i>PV</span><span><i style="border-color:#ff8f1c"></i>OUT % (แกนขวา)</span></div>
+    </div>
+    <div id="chips">
+      <span>⏱ <span id="chT">0</span> s</span>
+      <span>⏩ <span id="chSpd">2</span>×</span>
+      <span>IAE <span id="chIAE">0</span></span>
+      <span id="chE">e = 0</span>
+    </div>
+    <div id="oscCard">—</div>
+    <div class="tune">
+      <div class="trow" id="rowKp">
+        <div class="nm">Kp<small>gain (%/%)</small></div>
+        <button class="pm" id="kpM" aria-label="ลด Kp">−</button>
+        <input type="range" id="sKp" min="0" max="1000" step="1" value="500" aria-label="Kp">
+        <button class="pm" id="kpP" aria-label="เพิ่ม Kp">+</button>
+        <div class="v" id="vKp">1.00</div>
+      </div>
+      <div class="trow" id="rowTi">
+        <div class="nm">Ti<small>integral (s)</small></div>
+        <button class="pm" id="tiM" aria-label="ลด Ti">−</button>
+        <input type="range" id="sTi" min="5" max="600" step="1" value="100" aria-label="Ti">
+        <button class="pm" id="tiP" aria-label="เพิ่ม Ti">+</button>
+        <div class="v"><button class="tog on" id="iTog" style="width:100%">I: ON</button></div>
+      </div>
+      <div class="trow" id="rowTd">
+        <div class="nm">Td<small>derivative (s)</small></div>
+        <button class="pm" id="tdM" aria-label="ลด Td">−</button>
+        <input type="range" id="sTd" min="0" max="100" step="1" value="0" aria-label="Td">
+        <button class="pm" id="tdP" aria-label="เพิ่ม Td">+</button>
+        <div class="v" id="vTd">0.0<small> s</small></div>
+      </div>
+      <div class="trow" id="manRow">
+        <div class="nm">OUT<small>manual (%)</small></div>
+        <button class="pm" id="mnM" aria-label="ลด OUT">−</button>
+        <input type="range" id="sMan" min="0" max="100" step="0.5" value="40" aria-label="OUT manual">
+        <button class="pm" id="mnP" aria-label="เพิ่ม OUT">+</button>
+        <div class="v" id="vMan">40%</div>
+      </div>
+      <div id="tiVal" style="text-align:center;font-size:.8rem;color:#55657a;margin-top:-2px">Ti = <b id="vTi">10.0</b> s</div>
+    </div>
+    <div class="btns">
+      <button class="sb" id="bAM">🅰 AUTO</button>
+      <button class="sb" id="bSpU">SP ▲</button>
+      <button class="sb" id="bSpD">SP ▼</button>
+      <button class="sb" id="bDist">⚡ Disturbance</button>
+      <button class="sb" id="bSpd">⏩ ความเร็ว</button>
+      <button class="sb" id="bAux">⚡ กระตุ้น</button>
+    </div>
+    <div class="rowmain">
+      <button class="big-btn grey small" id="bReset">↺ รีเซ็ต</button>
+      <button class="big-btn" id="bTest">▶ ทดสอบส่งตรวจ</button>
+    </div>
+  </div>
+  <div class="foot">Energy Skills Lab · Triple E Technology · PID Hero v0.1</div>
+</div>
+
+<!-- ───── Start overlay ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.6rem">🎛️📈</div>
+    <h1>PID Hero<br><span style="font-size:1.15rem">จอมจูนลูปควบคุม</span></h1>
+    <div class="tgt">กลุ่มเป้าหมาย: มหาวิทยาลัย/วิศวกรใหม่</div>
+    <div class="sub">จูน Kp · Ti · Td ให้ลูปหม้อไอน้ำ "นิ่ง ไว ไม่แกว่ง"<br>ความดันไอ → ระดับน้ำดรัม → อุณหภูมิไอร้อน</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology<br>ประกอบคู่มือการตั้งค่า PID หม้อไอน้ำ — อ.หนึ่ง กลับทวี</div>
+  </div>
+</div>
+
+<!-- ───── Brief overlay ───── -->
+<div class="overlay" id="briefOv">
+  <div class="card">
+    <h2 id="brTitle">ด่าน</h2>
+    <p id="brStory" style="font-size:.92rem"></p>
+    <div class="brief-proc" id="brProc"></div>
+    <div class="crit" id="brCrit"></div>
+    <button class="big-btn" id="brGo">เริ่มจูน ▶</button>
+  </div>
+</div>
+
+<!-- ───── Help overlay ───── -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2>วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt">—</div>
+    <div class="dots" id="helpDots"></div>
+    <div class="help-nav">
+      <button class="big-btn small alt" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Formula overlay ───── -->
+<div class="overlay" id="fmOv">
+  <div class="card" id="fmCard">
+    <h2 style="text-align:center">📐 สูตร/ที่มา</h2>
+    <div id="fmBody"></div>
+    <div style="text-align:center;margin-top:10px"><button class="big-btn small" id="fmClose">ปิด ✕</button></div>
+  </div>
+</div>
+
+<!-- ───── Ku found overlay ───── -->
+<div class="overlay" id="kuOv">
+  <div class="card">
+    <div style="font-size:2.2rem">🎯〰️</div>
+    <h2>เจอการแกว่งคงที่แล้ว!</h2>
+    <p id="kuTxt"></p>
+    <table class="zn-tbl" id="znTbl"></table>
+    <p style="font-size:.84rem;color:#55657a">เกมจะใส่ค่า Z-N แบบ PID ให้ แล้วทดสอบ step + disturbance ทันที</p>
+    <div style="margin-top:8px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small grey" id="kuBack">หาใหม่</button>
+      <button class="big-btn small" id="kuUse">ใช้ค่า Z-N แล้วทดสอบ ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Result overlay (เฉลย/ข้อคิด) ───── -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <div id="resEmoji" style="font-size:2rem">🏁</div>
+    <h2 id="resTitle">ผลทดสอบ</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <canvas id="resChart"></canvas>
+    <table class="mtbl" id="resTbl"></table>
+    <div class="fb-h">🔍 เฉลย/ข้อคิด — จากค่าที่คุณตั้ง</div>
+    <ul class="fb" id="resFb"></ul>
+    <div class="lesson" id="resLesson">—</div>
+    <div style="margin-top:8px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">🔧 ปรับแล้วลองใหม่</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── End summary ───── -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.4rem">🏆🎛️</div>
+    <h2>จบหลักสูตร PID Hero!</h2>
+    <div class="result-stars" style="font-size:1.6rem" id="endStars">⭐ 0/15</div>
+    <ul class="fb" id="endList"></ul>
+    <div style="margin-top:8px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="endHome">🏠 หน้าแรก</button>
+      <button class="big-btn small" id="endReplay">↻ เล่นใหม่ตั้งแต่ด่าน 1</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ PID Hero v0.1 — engine (FOPDT / integrating + ISA PID) ═════════ */
+'use strict';
+/* ═══ PID HERO ENGINE (ใช้ร่วม node test + HTML) ═══ */
+var DT=0.1;
+var LV=[
+ {key:'p',name:'① P-only · ความดันไอ',type:'fopdt',K:1.0,tau:12,theta:1.5,b:10,Kd:-1,act:1,
+  sp0:50,step:6.25,distT:30,dist:8,tEnd:55,stepT:2,noise:0.05,
+  unit:'bar g',lo:0,hi:16,dec:2,mode:'P',
+  kp:1.0,ti:0,td:0,speed:2,win:60},
+ {key:'pi',name:'② เพิ่ม I · ความดันไอ',type:'fopdt',K:1.0,tau:12,theta:1.5,b:10,Kd:-1,act:1,
+  sp0:50,step:6.25,distT:40,dist:8,tEnd:85,stepT:2,noise:0.05,
+  unit:'bar g',lo:0,hi:16,dec:2,mode:'PI',
+  kp:2.0,ti:2,td:0,speed:2,win:90},
+ {key:'zn',name:'③ Ziegler–Nichols',type:'fopdt',K:1.0,tau:10,theta:2,b:10,Kd:-1,act:1,
+  sp0:50,step:6.25,distT:45,dist:8,tEnd:90,stepT:2,noise:0.05,
+  unit:'bar g',lo:0,hi:16,dec:2,mode:'ZN',
+  kp:2.0,ti:0,td:0,speed:2,win:90},
+ {key:'lvl',name:'④ ระดับน้ำดรัม',type:'int',ki:0.04,theta:1.0,Fs0:50,Ksw:0.25,tsw:6,act:1,
+  sp0:50,step:4,distT:40,dist:20,tEnd:110,stepT:2,noise:0.08,
+  unit:'mm',lo:-250,hi:250,dec:0,mode:'PID',
+  kp:12,ti:4,td:0,speed:2,win:110},
+ {key:'tmp',name:'⑤ อุณหภูมิไอร้อน + วาล์วอิ่มตัว',type:'fopdt',K:-0.5,tau:20,theta:8,b:75,Kd:1,act:-1,
+  sp0:60,step:-6.667,distT:80,distEnd:140,dist:45,tEnd:240,stepT:5,noise:0.05,
+  unit:'°C',lo:450,hi:600,dec:1,mode:'PID',awAvail:true,
+  kp:2.5,ti:12,td:0,speed:4,win:240}
+];
+function toEng(L,p){return L.lo+(L.hi-L.lo)*p/100;}
+function newSim(L,c){
+  var S={L:L,t:0,sp:L.sp0,dist:0,man:false,uMan:0,
+    Kp:c.Kp,Ti:c.Ti,Td:c.Td,Ion:c.Ti>0,aw:!!c.aw,
+    I:0,D:0,pvPrev:L.sp0,u:0,x:L.sp0,Lv:L.sp0,Fsf:L.Fs0||0,buf:[],sat:0,seed:12345};
+  var u0;
+  if(L.type==='int'){u0=L.Fs0;}
+  else u0=(L.sp0-L.b)/L.K;
+  S.u=u0;S.I=u0;S.uMan=u0;
+  var n=Math.max(1,Math.round(L.theta/DT));
+  for(var i=0;i<n;i++)S.buf.push(u0);
+  S.pvTrue=L.sp0;S.pvm=L.sp0;
+  return S;
+}
+function rnd(S){ /* gaussian-ish deterministic */
+  var s=0;for(var i=0;i<3;i++){S.seed=(S.seed*1103515245+12345)&0x7fffffff;s+=S.seed/0x7fffffff;}
+  return (s-1.5)*2; /* ~N(0,1) */
+}
+function fin(v,d){return (typeof v==='number'&&isFinite(v))?v:d;}
+function simStep(S){
+  var L=S.L;
+  /* measured PV */
+  var pvm=S.pvTrue+L.noise*rnd(S);
+  pvm=Math.max(0,Math.min(100,pvm));
+  S.pvm=pvm;
+  var Kp=Math.max(0,fin(S.Kp,0)),Ti=fin(S.Ti,0),Td=Math.max(0,fin(S.Td,0));
+  var e=L.act*(S.sp-pvm);
+  /* D on PV, filter N=10 (backward diff): D=(Tf/(Tf+dt))D − Kp·Td/(Tf+dt)·act·ΔPV */
+  if(Td>0){var Tf=Td/10;S.D=(Tf/(Tf+DT))*S.D-(Kp*Td/(Tf+DT))*L.act*(pvm-S.pvPrev);}
+  else S.D=0;
+  S.pvPrev=pvm;
+  var P=Kp*e,u;
+  if(S.man){
+    u=Math.max(0,Math.min(100,S.uMan));
+    S.I=u-P-S.D; /* bumpless: I (หรือ bias) ตาม output */
+  }else{
+    var useI=S.Ion&&Ti>0;
+    var Inew=S.I;
+    if(useI)Inew=S.I+Kp*DT/Ti*e;
+    var uu=P+Inew+S.D;
+    if(useI&&S.aw){
+      /* clamping: หยุดอินทิเกรตเมื่ออิ่มตัวและ e ดันไปทางเดิม */
+      if((uu>100&&e>0)||(uu<0&&e<0)){Inew=S.I;uu=P+Inew+S.D;}
+    }
+    Inew=Math.max(-5000,Math.min(5000,Inew));
+    S.I=Inew;
+    u=Math.max(0,Math.min(100,fin(uu,S.u)));
+  }
+  S.u=u;
+  if(u<=0.01||u>=99.99)S.sat+=DT;
+  /* process */
+  S.buf.push(u);var ud=S.buf.shift();
+  if(L.type==='int'){
+    var Fs=L.Fs0+S.dist;
+    S.Fsf+=DT/L.tsw*(Fs-S.Fsf);
+    S.Lv+=DT*L.ki*(ud-Fs);
+    S.Lv=Math.max(-10,Math.min(110,S.Lv));
+    S.pvTrue=S.Lv+L.Ksw*(Fs-S.Fsf);
+  }else{
+    S.x+=DT/L.tau*(L.K*ud+L.b+L.Kd*S.dist-S.x);
+    S.pvTrue=S.x;
+  }
+  S.pvTrue=Math.max(-20,Math.min(120,fin(S.pvTrue,50)));
+  S.t+=DT;
+}
+/* graded test: scripted SP step + disturbance */
+function testScript(S){
+  var L=S.L,t=S.t+1e-9;
+  S.sp=t>=L.stepT?L.sp0+L.step:L.sp0;
+  if(L.distEnd)S.dist=(t>=L.distT&&t<L.distEnd)?L.dist:0;
+  else S.dist=t>=L.distT?L.dist:0;
+}
+function runTest(L,c){
+  var S=newSim(L,c),tr={t:[],sp:[],pv:[],out:[],pvm:[]};
+  var N=Math.round(L.tEnd/DT);
+  for(var k=0;k<N;k++){testScript(S);simStep(S);
+    tr.t.push(S.t);tr.sp.push(S.sp);tr.pv.push(S.pvTrue);tr.out.push(S.u);tr.pvm.push(S.pvm);}
+  tr.sat=S.sat;
+  return {S:S,tr:tr,m:metrics(L,tr)};
+}
+/* metrics: window1 = step (stepT..distT), window2 = disturbance (distT..tEnd) */
+function winMetrics(L,tr,t0,t1,stepSize,kind){
+  var iae=0,i,n=tr.t.length,idx=[];
+  for(i=0;i<n;i++)if(tr.t[i]>t0&&tr.t[i]<=t1)idx.push(i);
+  if(!idx.length)return null;
+  for(i=0;i<idx.length;i++)iae+=Math.abs(tr.sp[idx[i]]-tr.pv[idx[i]])*DT;
+  var nl=Math.max(1,Math.round(4/DT)),fv=0,last=idx.slice(-nl);
+  for(i=0;i<last.length;i++)fv+=tr.pv[last[i]];fv/=last.length;
+  var sp=tr.sp[idx[idx.length-1]];
+  var band=Math.max(0.02*Math.abs(stepSize),0.12);
+  /* settling (±2%) วัดเทียบค่าสุดท้าย (final value) — นิยามมาตรฐาน; ess วัดแยก */
+  var lastOut=-1,ref=(kind==='step')?fv:sp,tsFrom=(kind==='dist'&&L.distEnd)?L.distEnd:t0;
+  for(i=0;i<idx.length;i++)if(Math.abs(tr.pv[idx[i]]-ref)>band)lastOut=i;
+  var settled=lastOut<idx.length-Math.round(3/DT)&&Math.abs(fv-sp)<Math.max(band,0.3*Math.abs(stepSize)+0.5);
+  var ts=settled?Math.max(0,(lastOut<0?t0:tr.t[idx[lastOut]])-tsFrom):null;
+  /* oscillation: peak-to-peak in last 30% */
+  var tail=idx.slice(Math.floor(idx.length*0.7)),mn=1e9,mx=-1e9;
+  for(i=0;i<tail.length;i++){mn=Math.min(mn,tr.pv[tail[i]]);mx=Math.max(mx,tr.pv[tail[i]]);}
+  var r={iae:iae,final:fv,ess:sp-fv,ts:ts,band:band,ptp:mx-mn};
+  if(kind==='step'){
+    var y0=tr.pv[Math.max(0,idx[0]-1)],d=fv-y0,pk=0;
+    for(i=0;i<idx.length;i++){var o=(tr.pv[idx[i]]-fv)*(d>=0?1:-1);if(o>pk)pk=o;}
+    r.os=Math.abs(d)>0.05?pk/Math.abs(d)*100:0;
+    r.essPct=Math.abs(stepSize)>0?(sp-fv)/stepSize*100:0;
+  }else{
+    var mdev=0;for(i=0;i<idx.length;i++)mdev=Math.max(mdev,Math.abs(tr.pv[idx[i]]-sp));
+    r.maxDev=mdev;
+    if(L.distEnd){var us=0;for(i=0;i<idx.length;i++)if(tr.t[idx[i]]>=L.distEnd)us=Math.max(us,sp-tr.pv[idx[i]]);r.under=us;}
+  }
+  return r;
+}
+function metrics(L,tr){
+  var a=winMetrics(L,tr,L.stepT,L.distT,L.step,'step');
+  var b=winMetrics(L,tr,L.distT,L.tEnd,L.step,'dist');
+  return {step:a,dist:b,iaeTot:a.iae+b.iae,sat:tr.sat};
+}
+/* theoretical ultimate gain / period for FOPDT and integrator+deadtime */
+function ultimate(L){
+  if(L.type==='int'){var w=Math.PI/(2*L.theta);return {Ku:w/L.ki,Pu:2*Math.PI/w};}
+  var lo=1e-4,hi=Math.PI/L.theta;
+  for(var k=0;k<100;k++){var m=(lo+hi)/2;if(Math.atan(m*L.tau)+m*L.theta<Math.PI)lo=m;else hi=m;}
+  var w=(lo+hi)/2;return {Ku:Math.sqrt(1+w*w*L.tau*L.tau)/Math.abs(L.K),Pu:2*Math.PI/w};
+}
+
+/* ── ตัวตรวจจับการแกว่งต่อเนื่อง (Z-N ultimate gain) ── */
+function newOsc(){return {f:null,dir:0,ext:null,extT:0,peaks:[],kpT:0,lastKp:null,satT:-1e9,status:'idle',ratio:null,per:null,amp:0};}
+function oscFeed(O,t,e,Kp,u){
+  if(O.lastKp===null||Math.abs(Kp-O.lastKp)>1e-9){O.lastKp=Kp;O.kpT=t;O.peaks=[];}
+  if(u<=0.01||u>=99.99)O.satT=t;
+  O.f=O.f===null?e:O.f+(e-O.f)*0.25;   /* EMA ~0.3 s กรอง noise */
+  var v=O.f,h=0.25;
+  if(O.ext===null){O.ext=v;O.dir=0;return;}
+  if(O.dir>=0){ if(v>O.ext){O.ext=v;O.extT=t;} else if(v<O.ext-h){ if(O.dir===1)O.peaks.push({t:O.extT,v:O.ext,k:1}); O.dir=-1;O.ext=v;O.extT=t;} }
+  if(O.dir<=0){ if(v<O.ext){O.ext=v;O.extT=t;} else if(v>O.ext+h){ if(O.dir===-1)O.peaks.push({t:O.extT,v:O.ext,k:-1}); O.dir=1;O.ext=v;O.extT=t;} }
+  if(O.peaks.length>12)O.peaks.shift();
+  /* วิเคราะห์ 3 รอบล่าสุด: ต้องมี max 4 ลูก (3 คาบ) */
+  var mx=O.peaks.filter(function(p){return p.k===1;}),mn=O.peaks.filter(function(p){return p.k===-1;});
+  O.status='idle';O.ratio=null;O.per=null;O.amp=0;
+  if(mx.length>=2&&mn.length>=1){
+    var amps=[];for(var i=0;i<mx.length;i++){var m=null;for(var j=0;j<mn.length;j++)if(mn[j].t<mx[i].t)m=mn[j];if(m)amps.push({t:mx[i].t,a:mx[i].v-m.v});}
+    if(amps.length>=2){
+      var a0=amps[Math.max(0,amps.length-4)],a1=amps[amps.length-1],nc=Math.min(3,amps.length-1);
+      var r=Math.pow(a1.a/Math.max(1e-6,a0.a),1/Math.max(1,nc));
+      O.ratio=r;O.amp=a1.a;
+      var m4=mx.slice(-4),ps=[];for(i=1;i<m4.length;i++)ps.push(m4[i].t-m4[i-1].t);
+      var pm=0;ps.forEach(function(p){pm+=p;});pm/=ps.length;O.per=pm;
+      if(t-O.satT<pm*3.2&&a1.a>1)O.status='sat';
+      else if(r>1.07)O.status='grow';
+      else if(r<0.93)O.status='decay';
+      else if(amps.length>=4&&a1.a>=0.8&&O.kpT<m4[0].t-pm*0.5)O.status='sustained';
+      else O.status='near';
+      if(t-mx[mx.length-1].t>pm*2.5){O.status='idle';}
+    }
+  }
+}
+</script>
+<script>
+/* ═════════ PID Hero v0.1 — UI / game ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var RM=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ── ข้อมูลด่านฝั่ง UI ── */
+var LVX=[
+ {tag:'PIC-101',valve:'FCV เชื้อเพลิง',supply:'แก๊ส/น้ำมัน',route:'rFuel',hi:'hiPrs',sig:'M520 104 L540 148',yr:[6.5,10.5],kpMax:20,icon:'🅿️',
+  story:'คุมความดันไอด้วยวาล์วเชื้อเพลิง ใช้ <b>P อย่างเดียว</b> (proportional-only) — ดูว่าทำไม PV ไม่ถึง SP',
+  crit:'⭐ ทดสอบผ่านโดยไม่แกว่งค้าง<br>⭐⭐ offset ≤ 25% ของ step และ overshoot ≤ 50%<br>⭐⭐⭐ offset ≤ 15% และ overshoot ≤ 35%',
+  goal:'ด่าน 1: ใช้ <b>Kp อย่างเดียว</b> ทำให้ offset หลัง step ≤ 15% โดย overshoot ≤ 35% · ลองกด SP ▲ ดูก่อน แล้วกด ▶ ทดสอบส่งตรวจ',
+  lesson:'P-only แลกกันระหว่าง offset กับ overshoot — offset = 1/(1+K·Kp) ไม่มีวันเป็นศูนย์ ต้องเพิ่ม I'},
+ {tag:'PIC-101',valve:'FCV เชื้อเพลิง',supply:'แก๊ส/น้ำมัน',route:'rFuel',hi:'hiPrs',sig:'M520 104 L540 148',yr:[6.5,10.5],kpMax:20,icon:'∫',
+  story:'กระบวนการเดิม แต่ตอนนี้มี <b>Integral (Ti)</b> — offset จะหาย แต่ค่าเริ่มต้น Ti = 2 s สั้นเกินไป ลองดูว่าเกิดอะไร',
+  crit:'⭐ ทดสอบผ่านโดยไม่แกว่งค้าง<br>⭐⭐ offset ≤ 2%, overshoot ≤ 25%, settle ได้<br>⭐⭐⭐ overshoot ≤ 15%, IAE ≤ 55, settle หลัง disturbance ≤ 30 s',
+  goal:'ด่าน 2: offset หายด้วย I · ปรับ <b>Ti</b> ให้ไม่แกว่ง: overshoot ≤ 15%, IAE ≤ 55, กู้ disturbance ≤ 30 s',
+  lesson:'I ขจัด offset — แต่ Ti สั้นเกิน (เทียบกับ τ) = integral ดันแรง → overshoot และแกว่ง'},
+ {tag:'PIC-102',valve:'FCV เชื้อเพลิง',supply:'แก๊ส/น้ำมัน',route:'rFuel',hi:'hiPrs',sig:'M520 104 L540 148',yr:[6.5,10.5],kpMax:20,icon:'〰',
+  story:'หม้ออีกลูกที่มี dead time มากขึ้น ใช้วิธี <b>Ziegler–Nichols (ultimate gain)</b>: ใช้ P อย่างเดียว เพิ่ม Kp จนแกว่ง "คงที่" แล้วให้เกมวัด Ku และ Pu',
+  crit:'⭐ หา Ku/Pu สำเร็จ (แกว่งคงที่ 3 รอบ วาล์วไม่ชนขอบ)<br>⭐⭐ ทดสอบด้วยค่า Z-N แล้ว<br>⭐⭐⭐ ปรับเองจน overshoot ≤ 20%, settle ≤ 30 s, IAE ≤ 55',
+  goal:'ด่าน 3: เพิ่ม Kp ทีละนิด + กด <b>⚡ กระตุ้น</b> จนแกว่งคงที่ (ไม่โต ไม่หด) → ได้ Ku, Pu → ลองค่า Z-N → ปรับลดเอง',
+  lesson:'Z-N ได้ค่าเร็ว แต่ "แรง" (overshoot ~50–60%) — ใช้เป็นจุดเริ่ม แล้วลด Kp/เพิ่ม Ti'},
+ {tag:'LIC-201',valve:'LCV น้ำป้อน',supply:'น้ำป้อนจากปั๊ม',route:'rFw',hi:'hiLvl',sig:'M299 104 L470 200',yr:[-60,80],kpMax:40,icon:'💧',
+  story:'คุม <b>ระดับน้ำดรัม</b> ด้วยวาล์วน้ำป้อน — เป็นกระบวนการ <b>integrating</b> (น้ำเข้า≠ออก ระดับไหลไปเรื่อย ๆ) และไอน้ำออกจะกระชาก +20%',
+  crit:'⭐ ทดสอบผ่านโดยไม่แกว่งค้าง<br>⭐⭐ หลังไอน้ำกระชาก ระดับกลับ NWL (offset ≤ 2.5 mm), overshoot ≤ 40%<br>⭐⭐⭐ overshoot ≤ 25%, settle หลังกระชาก ≤ 30 s, IAE ≤ 70',
+  goal:'ด่าน 4: ระดับน้ำ (integrating) · ค่าเริ่มต้น Kp 12 / Ti 4 s แกว่ง — หา Kp·Ti ที่พอดี และกำจัด offset หลังไอน้ำกระชาก',
+  lesson:'Integrating process: P-only มี offset เมื่อโหลดเปลี่ยน · PI ต้องให้ Kp·Ti ใหญ่พอ ไม่งั้นแกว่ง · swell หลอกตัวควบคุม'},
+ {tag:'TIC-301',valve:'TCV สเปรย์',supply:'น้ำสเปรย์',route:'rSp',hi:'hiTmp',sig:'M461 108 L520 146',yr:[505,570],kpMax:12,icon:'🌡️',
+  story:'คุม <b>อุณหภูมิไอร้อน</b> ด้วยสเปรย์ (attemperator) — dead time ยาว 8 s · ช่วงกลางทดสอบไฟจะพุ่งจนวาล์วสเปรย์ <b>อิ่มตัว 100%</b> นาน ~60 s',
+  crit:'⭐ ทดสอบผ่านโดยไม่แกว่งค้าง<br>⭐⭐ หลังไฟลดกลับ อุณหภูมิตกต่ำกว่า SP ≤ 15 °C และ overshoot step ≤ 30%<br>⭐⭐⭐ ตกต่ำกว่า SP ≤ 8 °C, overshoot ≤ 20%, settle ได้',
+  goal:'ด่าน 5: dead time ยาว + วาล์วอิ่มตัว → เปิด <b>🛡 Anti-windup</b>, ปรับ Ti และใส่ <b>D เบา ๆ</b> ให้ไม่ดิ่งหลังไฟลด',
+  lesson:'วาล์วอิ่มตัว + I ไม่หยุด = integral windup → วาล์วค้างหลังโหลดหาย อุณหภูมิดิ่ง · anti-windup แก้ได้'}
+];
+
+/* ── เสียง Web Audio ── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;try{var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.16,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}catch(e){}}
+function sClick(){tone(620,0,0.05,'square',0.06);}
+function sGood(){tone(523,0,0.12);tone(659,0.1,0.12);tone(784,0.2,0.2);}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.11);tone(180,0.18,0.3,'sawtooth',0.11);}
+function sStep(){tone(740,0,0.08,'square',0.08);tone(988,0.09,0.1,'square',0.08);}
+function sAlarm(){tone(950,0,0.1,'square',0.1);tone(700,0.12,0.1,'square',0.1);}
+
+/* ── localStorage ── */
+var stars=[0,0,0,0,0];
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_skill_pid_stars')||'[]');for(var i=0;i<5;i++)stars[i]=Math.max(0,Math.min(3,v[i]|0));}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_skill_pid_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_skill_pid_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_skill_pid_seen','1');}catch(e){}}
+function updateStarTotal(){var t=0;for(var i=0;i<5;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+
+/* ── สถานะเกม ── */
+var CUR=0,L=LV[0],X=LVX[0],S=null,OSC=newOsc();
+var ctl={Kp:1,Ti:10,Td:0,Ion:false,aw:false};
+var RUN={mode:'free',speed:2,acc:0,k:0,N:0,tr:null,ev:0,isZN:false,spBase:50,bumpEnd:-1,iae:0,lastTs:0,distOn:false};
+var ZN={found:false,Ku:0,Pu:0,tested:false};
+var CH={t:[],sp:[],pv:[],out:[]};
+var lastRes=null;
+
+/* ── bubble ── */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2600);}
+
+/* ── ตัวช่วยตัวเลข ── */
+function eng(p){return toEng(L,p);}
+function engD(dp){return dp*(L.hi-L.lo)/100;}   /* ส่วนต่าง % → หน่วยจริง */
+function fmtE(p){return eng(p).toFixed(L.dec);}
+function fx(v,d){return (v==null||!isFinite(v))?'—':v.toFixed(d);}
+function kpToS(k){var mx=X.kpMax;return Math.round(Math.log(k/0.1)/Math.log(mx/0.1)*1000);}
+function sToKp(s){var mx=X.kpMax;return 0.1*Math.pow(mx/0.1,s/1000);}
+function kpStep(k){return k<2?0.05:(k<10?0.1:0.5);}
+function roundKp(k){var s=kpStep(k);return Math.round(k/s)*s;}
+
+/* ── ควบคุม: ค่าปรับเข้า sim ── */
+function pushCtl(){
+  if(!S)return;
+  S.Kp=ctl.Kp;S.Ion=ctl.Ion;S.Ti=ctl.Ion?ctl.Ti:0;S.Td=ctl.Td;S.aw=ctl.aw;
+}
+function ctlForTest(){return {Kp:ctl.Kp,Ti:ctl.Ion?ctl.Ti:0,Td:ctl.Td,aw:ctl.aw};}
+function syncUI(){
+  $('sKp').value=kpToS(ctl.Kp);$('vKp').textContent=ctl.Kp.toFixed(ctl.Kp<2?2:(ctl.Kp<10?1:1));
+  $('sTi').value=Math.round(ctl.Ti*10);$('vTi').textContent=ctl.Ti.toFixed(1);
+  $('sTd').value=Math.round(ctl.Td*10);$('vTd').innerHTML=ctl.Td.toFixed(1)+'<small> s</small>';
+  $('iTog').textContent=ctl.Ion?'I: ON':'I: OFF';$('iTog').classList.toggle('on',ctl.Ion);
+  $('tiVal').style.opacity=ctl.Ion?1:.4;
+  var testing=RUN.mode==='test';
+  var lockTi=(L.mode==='P')||(L.mode==='ZN'&&!ZN.found);
+  var lockTd=(L.mode==='P')||(L.mode==='PI')||(L.mode==='ZN'&&!ZN.found);
+  $('rowKp').classList.toggle('locked',testing);
+  $('rowTi').classList.toggle('locked',testing||lockTi);
+  $('rowTd').classList.toggle('locked',testing||lockTd);
+  $('sKp').max=1000;
+  /* ปุ่ม */
+  $('bAM').textContent=S&&S.man?'Ⓜ MANUAL':'🅰 AUTO';$('bAM').classList.toggle('man',!!(S&&S.man));
+  $('manRow').style.display=(S&&S.man)?'grid':'none';
+  ['bAM','bSpU','bSpD','bDist'].forEach(function(id){$(id).disabled=testing;});
+  $('bDist').classList.toggle('hot',RUN.distOn);
+  $('bDist').textContent=RUN.distOn?'⚡ Dist: ON':'⚡ Disturbance';
+  $('bSpd').textContent='⏩ '+RUN.speed+'×';
+  var aux=$('bAux');
+  if(L.mode==='ZN'&&!ZN.found){aux.style.visibility='visible';aux.textContent='⚡ กระตุ้น';aux.className='sb';aux.disabled=testing;}
+  else if(L.awAvail){aux.style.visibility='visible';aux.textContent=ctl.aw?'🛡 AW: ON':'🛡 AW: OFF';aux.className='sb'+(ctl.aw?' awon':'');aux.disabled=testing;}
+  else {aux.style.visibility='hidden';}
+  $('bTest').disabled=testing||(L.mode==='ZN'&&!ZN.found);
+  $('bReset').disabled=testing;
+  $('bTest').textContent=(L.mode==='ZN'&&!ZN.found)?'🔒 หา Ku ก่อน':'▶ ทดสอบส่งตรวจ';
+}
+
+/* ── เริ่มด่าน ── */
+function startLevel(i,noBrief){
+  CUR=i;L=LV[i];X=LVX[i];
+  ctl.Kp=L.kp;ctl.Td=L.td;ctl.aw=false;
+  ctl.Ion=(L.mode==='PI'||L.mode==='PID')&&L.ti>0;ctl.Ti=L.ti>0?L.ti:10;
+  if(L.mode==='ZN'){ZN={found:false,Ku:0,Pu:0,tested:false};ctl.Ion=false;ctl.Td=0;ctl.Ti=10;}
+  RUN.speed=L.speed;RUN.distOn=false;
+  resetFree();
+  $('lvlName').textContent=L.name;
+  $('goalTxt').innerHTML=X.goal;
+  sceneSetup();
+  syncUI();
+  if(!noBrief)openBrief();
+}
+function resetFree(){
+  RUN.mode='free';RUN.acc=0;RUN.bumpEnd=-1;RUN.iae=0;RUN.distOn=false;
+  S=newSim(L,ctlForTest());pushCtl();
+  RUN.spBase=L.sp0;
+  CH={t:[],sp:[],pv:[],out:[]};
+  OSC=newOsc();
+  $('oscCard').style.display=(L.mode==='ZN'&&!ZN.found)?'block':'none';
+  $('oscCard').innerHTML='เพิ่ม Kp แล้วกด <b>⚡ กระตุ้น</b> — เกมจะดูว่ากราฟ "หด / คงที่ / โต"';
+  $('testBadge').style.display='none';
+  $('sMan').value=S.u;$('vMan').textContent=Math.round(S.u)+'%';
+}
+
+/* ── ฉาก: ตั้งค่าตามด่าน ── */
+function sceneSetup(){
+  ['rFuel','rFw','rSp'].forEach(function(id){$(id).setAttribute('opacity',id===X.route?'1':'.18');});
+  $('rFlow').setAttribute('d',$(X.route).getAttribute('d'));
+  $('valveTag').textContent=X.valve;$('supplyTxt').textContent=X.supply;
+  ['hiPrs','hiLvl','hiTmp'].forEach(function(id){$(id).setAttribute('opacity',id===X.hi?'1':'0');});
+  $('sigPV').setAttribute('d',X.sig);
+  $('fpTag').textContent=X.tag;$('fpUnit').textContent=L.unit+(L.act<0?' · direct acting':' · reverse acting');
+}
+
+/* ── จำลองหนึ่งก้าว (free / test) ── */
+function oneStep(){
+  if(RUN.mode==='test'){
+    testScript(S);
+    var t=S.t+1e-9;
+    if(RUN.ev===0&&t>=L.stepT){RUN.ev=1;sStep();say('Step SP '+(L.step>0?'+':'')+engD(L.step).toFixed(L.dec>0?1:0)+' '+L.unit,2000);}
+    if(RUN.ev===1&&t>=L.distT){RUN.ev=2;sAlarm();say(CUR===4?'🔥 ไฟพุ่ง! อุณหภูมิไอร้อนขึ้น — สเปรย์ต้องเปิดเพิ่ม':(CUR===3?'⚡ ไอน้ำออกกระชาก +20%!':'⚡ ไอน้ำออกเพิ่ม — ความดันจะตก'),2600);}
+    if(RUN.ev===2&&L.distEnd&&t>=L.distEnd){RUN.ev=3;say('ไฟลดกลับปกติ — ดูวาล์วสเปรย์ปิดทันไหม?',2600);}
+    simStep(S);RUN.k++;
+    var tr=RUN.tr;tr.t.push(S.t);tr.sp.push(S.sp);tr.pv.push(S.pvTrue);tr.out.push(S.u);
+    RUN.iae+=Math.abs(S.sp-S.pvTrue)*DT;
+    if(RUN.k>=RUN.N){finishTest();return false;}
+  }else{
+    if(RUN.bumpEnd>0&&S.t>=RUN.bumpEnd){S.sp=RUN.spBase;RUN.bumpEnd=-1;}
+    S.dist=RUN.distOn?L.dist:0;
+    simStep(S);
+    RUN.iae+=Math.abs(S.sp-S.pvTrue)*DT;
+    if(L.mode==='ZN'&&!ZN.found){
+      oscFeed(OSC,S.t,S.sp-S.pvm,S.Kp,S.u);
+      if(OSC.status==='sustained'){onKuFound();return false;}
+    }
+  }
+  /* บันทึกกราฟ ทุก 0.2 s */
+  if(Math.round(S.t/DT)%2===0){
+    CH.t.push(S.t);CH.sp.push(S.sp);CH.pv.push(S.pvm);CH.out.push(S.u);
+    if(RUN.mode==='free'){var tmin=S.t-L.win;while(CH.t.length&&CH.t[0]<tmin){CH.t.shift();CH.sp.shift();CH.pv.shift();CH.out.shift();}}
+  }
+  return true;
+}
+
+/* ── ตัวช่วย Z-N ── */
+var oscMsgT=0;
+function oscMessage(){
+  if(!(L.mode==='ZN'&&!ZN.found))return;
+  var c=$('oscCard'),s=OSC.status,r=OSC.ratio;
+  var m={idle:'เพิ่ม Kp แล้วกด <b>⚡ กระตุ้น</b> — ดูว่าคลื่น "หด / คงที่ / โต"',
+    decay:'〰 คลื่น <b>หดลง</b> (แอมพลิจูด ×'+fx(r,2)+'/รอบ) → Kp ยังต่ำกว่า Ku — <b>เพิ่ม Kp</b>',
+    grow:'📈 คลื่น <b>โตขึ้น</b> (×'+fx(r,2)+'/รอบ) → Kp เกิน Ku — <b>ลด Kp</b> ทีละนิด',
+    sat:'⛔ วาล์ว<b>ชนขอบ 0/100%</b> — Kp เกิน Ku แล้ว ลด Kp แล้วรอให้นิ่ง/กระตุ้นใหม่',
+    near:'🎯 ใกล้แล้ว! คลื่นเกือบคงที่ (×'+fx(r,2)+'/รอบ) รออีก 1–2 รอบ…'};
+  c.innerHTML=(m[s]||m.idle)+(OSC.per?' · คาบ ≈ <b>'+OSC.per.toFixed(1)+' s</b>':'');
+}
+function onKuFound(){
+  ZN.found=true;ZN.Ku=ctl.Kp;ZN.Pu=OSC.per;
+  sGood();
+  var u=ultimate(L);
+  $('kuTxt').innerHTML='Kp = <b>'+ZN.Ku.toFixed(2)+'</b> ทำให้ PV แกว่งคงที่ → <b>Ku = '+ZN.Ku.toFixed(2)+'</b> · คาบ <b>Pu = '+ZN.Pu.toFixed(2)+' s</b>'+
+    '<br><small style="color:#55657a">ทฤษฎี FOPDT (K=1, τ=10, θ=2): Ku = '+u.Ku.toFixed(2)+', Pu = '+u.Pu.toFixed(2)+' s</small>';
+  var K=ZN.Ku,P=ZN.Pu;
+  $('znTbl').innerHTML='<tr><th>Z-N</th><th>Kp</th><th>Ti (s)</th><th>Td (s)</th></tr>'+
+    '<tr><td>P</td><td>0.5Ku = '+(0.5*K).toFixed(2)+'</td><td>—</td><td>—</td></tr>'+
+    '<tr><td>PI</td><td>0.45Ku = '+(0.45*K).toFixed(2)+'</td><td>Pu/1.2 = '+(P/1.2).toFixed(2)+'</td><td>—</td></tr>'+
+    '<tr class="hl"><td>PID</td><td>0.6Ku = '+(0.6*K).toFixed(2)+'</td><td>Pu/2 = '+(P/2).toFixed(2)+'</td><td>Pu/8 = '+(P/8).toFixed(2)+'</td></tr>';
+  $('kuOv').classList.add('show');
+  $('oscCard').style.display='none';
+  syncUI();
+}
+
+/* ── ทดสอบส่งตรวจ ── */
+function startTest(){
+  if(L.mode==='ZN'&&!ZN.found){say('ต้องหา Ku/Pu ให้ได้ก่อน 〰',2200);sBad();return;}
+  RUN.mode='test';RUN.k=0;RUN.N=Math.round(L.tEnd/DT);RUN.ev=0;RUN.iae=0;RUN.acc=0;RUN.distOn=false;
+  S=newSim(L,ctlForTest());pushCtl();
+  RUN.tr={t:[],sp:[],pv:[],out:[]};
+  CH={t:[],sp:[],pv:[],out:[]};
+  RUN.isZN=(L.mode==='ZN'&&Math.abs(ctl.Kp-0.6*ZN.Ku)<0.02&&Math.abs(ctl.Ti-ZN.Pu/2)<0.06&&Math.abs(ctl.Td-ZN.Pu/8)<0.06);
+  $('testBadge').style.display='block';
+  syncUI();sGood();
+  say('ทดสอบ: step SP → disturbance · ห้ามแตะค่าจูนระหว่างทดสอบ',2400);
+}
+function finishTest(){
+  var tr=RUN.tr;tr.sat=S.sat;
+  var m=metrics(L,tr);
+  RUN.mode='free';
+  $('testBadge').style.display='none';
+  if(L.mode==='ZN'&&RUN.isZN)ZN.tested=true;
+  var R=evaluate(CUR,ctlForTest(),m,tr);
+  lastRes={m:m,R:R,tr:tr,c:ctlForTest()};
+  showResult(R,tr);
+}
+
+/* ── ประเมินผล + เฉลยเฉพาะจุด ── */
+function evaluate(i,c,m,tr){
+  var a=m.step,b=m.dist,fb=[],rows=[],st=0;
+  var u=ultimate(L);
+  var unstable=b.ptp>(i===4?6:1.0)||(i!==4&&a.ts==null&&a.ptp>1.5);
+  var osc=b.ptp;
+  function row(n,v,cr,ok){rows.push({n:n,v:v,c:cr,ok:ok});}
+  var essAbs=Math.abs(a.essPct), os=a.os, ts=a.ts, tsD=b.ts, iae=m.iaeTot;
+  var stepE=engD(L.step);
+  var kpRatio=c.Kp/u.Ku;
+  if(unstable&&i===4&&!c.aw)fb.push('ปลายการทดสอบอุณหภูมิยัง<b>สวิงไม่นิ่ง</b> '+engD(osc).toFixed(0)+' °C — ต้นเหตุหลักคือ integral windup (ดูข้อถัดไป) ไม่ใช่ Kp');
+  else if(unstable)fb.push('ลูป<b>แกว่งไม่หยุด</b> (ปลายการทดสอบ PV ขึ้นลง '+engD(osc).toFixed(L.dec)+' '+L.unit+') — Kp = '+c.Kp.toFixed(2)+' คิดเป็น '+(kpRatio*100).toFixed(0)+'% ของ Ku ('+u.Ku.toFixed(1)+')'+(c.Ti>0?' และ/หรือ Ti = '+c.Ti.toFixed(1)+' s สั้นเกิน':'')+' → ลด Kp ก่อน');
+  if(i===0){
+    var th=100/(1+L.K*c.Kp);
+    row('offset (% ของ step)',fx(essAbs,1)+'%','≤ 15%',essAbs<=15);
+    row('overshoot',fx(os,1)+'%','≤ 35%',os<=35);
+    row('settling ±2%',ts==null?'ไม่ settle':fx(ts,1)+' s','—',ts!=null);
+    row('IAE รวม',fx(iae,0),'—',true);
+    if(!unstable){st=1;if(essAbs<=25&&os<=50)st=2;if(essAbs<=15&&os<=35)st=3;}
+    fb.push('offset ที่วัดได้ <b>'+fx(essAbs,1)+'%</b> ของ step · ทฤษฎี 1/(1+K·Kp) = 1/(1+1.0×'+c.Kp.toFixed(2)+') = <b>'+th.toFixed(1)+'%</b> — ตรงกัน: P-only ต้องมี error ค้างไว้เพื่อ "ดัน" วาล์วให้อยู่ตำแหน่งใหม่');
+    if(essAbs>15)fb.push('Kp = '+c.Kp.toFixed(2)+' ต่ำไป → offset ใหญ่ · ต้อง Kp ≥ '+(100/15/L.K-1/L.K).toFixed(1)+' ถึงจะได้ offset ≤ 15%');
+    if(os>35)fb.push('Kp สูงจน overshoot '+fx(os,0)+'% (Kp/Ku = '+(kpRatio*100).toFixed(0)+'%) — ยิ่งเข้าใกล้ Ku ≈ '+u.Ku.toFixed(1)+' ยิ่งแกว่ง');
+    fb.push('หลังไอน้ำออกเพิ่ม ความดันค้างต่ำกว่า SP อีก <b>'+engD(Math.abs(b.ess)).toFixed(2)+' bar</b> (load offset = Δd·K/(1+K·Kp)) — P-only แก้ไม่หมด ต้องมี I');
+  }else if(i===1||i===2){
+    var crOS=i===1?15:20;
+    row('offset',fx(essAbs,1)+'%','≤ 2%',essAbs<=2);
+    row('overshoot',fx(os,1)+'%','≤ '+crOS+'%',os<=crOS);
+    row('settling step',ts==null?'ไม่ settle':fx(ts,1)+' s',i===2?'≤ 30 s':'—',ts!=null&&(i===1||ts<=30));
+    row('settling disturbance',tsD==null?'ไม่ settle':fx(tsD,1)+' s',i===1?'≤ 30 s':'—',tsD!=null&&(i===2||tsD<=30));
+    row('IAE รวม',fx(iae,0),'≤ 55',iae<=55);
+    if(i===1){
+      if(!unstable){st=1;if(c.Ti>0&&essAbs<=2&&os<=25&&ts!=null)st=2;if(st===2&&os<=15&&iae<=55&&tsD!=null&&tsD<=30)st=3;}
+      if(c.Ti<=0)fb.push('ปิด I อยู่ — offset จึงยังค้าง '+fx(essAbs,1)+'% เหมือนด่าน 1 · เปิด I แล้วตั้ง Ti');
+      else if(c.Ti<L.tau/2&&os>15)fb.push('Ti = <b>'+c.Ti.toFixed(1)+' s</b> สั้นกว่า τ/2 (= '+(L.tau/2)+' s) → integral สะสมเร็วเกิน ดันวาล์วเลยจุด → overshoot '+fx(os,0)+'% · ลอง Ti ใกล้ τ = '+L.tau+' s');
+      else if(c.Ti>1.5*L.tau&&(tsD==null||tsD>30))fb.push('Ti = '+c.Ti.toFixed(1)+' s ยาวกว่า τ มาก → integral ดึงกลับช้า กู้ disturbance '+(tsD==null?'ไม่ทัน':fx(tsD,0)+' s')+' · ลด Ti หรือเพิ่ม Kp');
+      if(c.Ti>0&&os<=15&&iae>55)fb.push('ไม่แกว่งแล้ว แต่ช้า (IAE '+fx(iae,0)+') — Kp = '+c.Kp.toFixed(2)+' ลองเพิ่ม Kp ทีละน้อย (λ-tuning λ=θ ให้ Kp ≈ '+(L.tau/(L.K*2*L.theta)).toFixed(1)+')');
+      if(c.Ti>0&&essAbs<=2)fb.push('offset หลัง step เหลือ '+fx(essAbs,1)+'% และหลัง disturbance เหลือ '+engD(Math.abs(b.ess)).toFixed(2)+' bar → I ทำงาน: error ใดค้างอยู่ integral จะสะสมจนหาย');
+    }else{
+      var p3=!unstable&&essAbs<=2&&os<=20&&ts!=null&&ts<=30&&iae<=55;
+      st=(ZN.found?1:0)+(ZN.tested?1:0)+(p3?1:0);
+      rows.unshift({n:'Ku / Pu ที่วัด',v:ZN.Ku.toFixed(2)+' / '+fx(ZN.Pu,2)+' s',c:'ทฤษฎี '+u.Ku.toFixed(2)+' / '+u.Pu.toFixed(2),ok:Math.abs(ZN.Ku/u.Ku-1)<=0.12});
+      if(RUN.isZN)fb.push('ค่า Z-N (Kp '+c.Kp.toFixed(2)+', Ti '+c.Ti.toFixed(2)+', Td '+c.Td.toFixed(2)+') ให้ overshoot <b>'+fx(os,0)+'%</b> — Z-N ออกแบบเพื่อ quarter-amplitude decay จึง "แรง" เกินสำหรับหม้อไอน้ำ');
+      if(os>20)fb.push('ลด Kp ราว 40–50% (≈ '+(0.33*ZN.Ku).toFixed(1)+') และเพิ่ม Ti ≈ 1.5–2 เท่า (≈ '+(ZN.Pu).toFixed(1)+' s) — หรือใช้ Tyreus–Luyben: Kp = Ku/2.2 = '+(ZN.Ku/2.2).toFixed(2)+', Ti = 2.2·Pu = '+(2.2*ZN.Pu).toFixed(1)+' s');
+      if(!ZN.tested)fb.push('ยังไม่ได้ลองค่า Z-N ตรง ๆ — กด 📐 สูตร/ที่มา หรือหา Ku ใหม่เพื่อเทียบ (ดาวที่ 2)');
+      if(c.Td>0){var tv=0,nn=0;for(var q=tr.out.length-Math.round(10/DT);q<tr.out.length;q++){tv+=Math.abs(tr.out[q]-tr.out[q-1]);nn++;}
+        fb.push('Td = '+c.Td.toFixed(2)+' s ช่วยหน่วง (phase lead) — D คำนวณจาก PV + filter N=10 จึงไม่เตะวาล์วตอน step SP · แต่ noise ถูกขยายสูงสุด Kp·(1+N) = '+(c.Kp*11).toFixed(0)+' เท่า: ช่วงท้าย OUT ขยับเฉลี่ย '+(tv/nn).toFixed(2)+' %/ตัวอย่าง (วาล์วสึก)');}
+      if(p3)fb.push('ผ่านเกณฑ์: เร็วพอและแกว่งน้อย — สังเกตว่าค่าที่ดีมัก "อ่อนกว่า" Z-N ชัดเจน');
+    }
+  }else if(i===3){
+    var essD=Math.abs(engD(b.ess));
+    var zeta=c.Ti>0?0.5*Math.sqrt(c.Kp*c.Ti*L.ki):null;
+    row('offset หลังไอน้ำกระชาก',fx(essD,1)+' mm','≤ 2.5 mm',essD<=2.5);
+    row('overshoot step',fx(os,1)+'%','≤ 25%',os<=25);
+    row('settling หลังกระชาก',tsD==null?'ไม่ settle':fx(tsD,1)+' s','≤ 30 s',tsD!=null&&tsD<=30);
+    row('IAE รวม',fx(iae,0),'≤ 70',iae<=70);
+    if(!unstable){st=1;if(essD<=2.5&&os<=40&&ts!=null)st=2;if(st===2&&os<=25&&tsD!=null&&tsD<=30&&iae<=70)st=3;}
+    if(c.Ti<=0)fb.push('P-only: step SP ไม่มี offset (กระบวนการ integrating มี "I ในตัว") แต่หลังไอน้ำกระชาก ระดับค้างต่ำ <b>'+fx(essD,0)+' mm</b> = ΔFs/Kp — ต้องมี I');
+    if(zeta!=null){
+      fb.push('PI กับ integrating: ζ ≈ ½√(Kp·Ti·ki) = ½√('+c.Kp.toFixed(1)+'×'+c.Ti.toFixed(1)+'×'+L.ki+') = <b>'+zeta.toFixed(2)+'</b>'+(zeta<0.8?' → ต่ำ แกว่งง่าย: เพิ่ม Ti (หรือ Kp) ให้ Kp·Ti ≥ '+(4*0.8*0.8/L.ki).toFixed(0):' → หน่วงดี'));
+      if(os>25&&zeta>=0.8)fb.push('ζ ดีแล้วแต่ overshoot ยัง '+fx(os,0)+'% จาก zero ของ PI — เพิ่ม Ti อีกเล็กน้อย');
+    }
+    var i0=Math.round(L.distT/DT)-1,u0=tr.out[Math.max(0,i0)],umin=u0;
+    for(var k=i0;k<Math.min(tr.out.length,i0+Math.round(8/DT));k++)umin=Math.min(umin,tr.out[k]);
+    var pk=0;for(k=i0;k<Math.min(tr.pv.length,i0+Math.round(8/DT));k++)pk=Math.max(pk,tr.pv[k]-L.sp0-L.step);
+    fb.push('Swell: ไอน้ำกระชากแล้วระดับ "พอง" ขึ้นก่อน '+engD(pk).toFixed(0)+' mm ทั้งที่น้ำจริงลดลง → ตัวควบคุมหรี่วาล์วผิดทาง '+(u0-umin).toFixed(0)+'% · ของจริงใช้ 3-element (feedforward จาก steam flow)');
+    if(c.Kp>20)fb.push('Kp = '+c.Kp.toFixed(1)+' สูง → ไวต่อ swell และ noise ระดับน้ำ วาล์วสั่น');
+  }else{
+    var under=b.under*(L.hi-L.lo)/100;
+    var i1=Math.round(L.distEnd/DT),stuck=0;
+    for(var k2=i1;k2<tr.out.length&&tr.out[k2]>=99.9;k2++)stuck+=DT;
+    row('ตกต่ำกว่า SP หลังไฟลด',fx(under,1)+' °C','≤ 8 °C',under<=8);
+    row('overshoot step',fx(os,1)+'%','≤ 20%',os<=20);
+    row('settling หลังไฟลด',tsD==null?'ไม่ settle':fx(tsD,0)+' s','settle ได้',tsD!=null);
+    row('วาล์วอิ่มตัวรวม',fx(m.sat,0)+' s','—',true);
+    row('Anti-windup',c.aw?'เปิด':'ปิด','เปิด',c.aw);
+    if(!unstable){st=1;if(under<=15&&os<=30)st=2;if(under<=8&&os<=20&&tsD!=null)st=3;}
+    fb.push('วาล์วสเปรย์ชน 100% รวม <b>'+fx(m.sat,0)+' s</b> — ช่วงนี้ไม่มีตัวควบคุมไหนช่วยได้ (ต้องการสเปรย์ > 100%)');
+    if(!c.aw)fb.push('ไม่มี anti-windup: ระหว่างอิ่มตัว I ยังสะสม (windup) → หลังไฟลด วาล์วค้าง 100% ต่ออีก <b>'+stuck.toFixed(0)+' s</b> → อุณหภูมิดิ่งต่ำกว่า SP <b>'+fx(under,0)+' °C</b> · กด 🛡 AW');
+    else fb.push('Anti-windup เปิด: วาล์วค้างหลังไฟลดเพียง '+stuck.toFixed(0)+' s · ตกต่ำกว่า SP '+fx(under,1)+' °C');
+    if(c.aw&&under>8&&c.Td<0.5)fb.push('ยังดิ่ง '+fx(under,1)+' °C — ใส่ D เบา ๆ (Td ≈ θ/4 = '+(L.theta/4).toFixed(0)+' s) ช่วย "เบรก" ตอนอุณหภูมิกำลังตก');
+    if(c.Ti>0&&c.Ti<L.tau*0.75)fb.push('Ti = '+c.Ti.toFixed(1)+' s สั้นกว่า τ ('+L.tau+' s) ในกระบวนการ dead time ยาว (θ = '+L.theta+' s) → overshoot step '+fx(os,0)+'% · λ-tuning แนะนำ Ti = τ = '+L.tau+' s');
+    if(kpRatio>0.45)fb.push('Kp = '+c.Kp.toFixed(2)+' = '+(kpRatio*100).toFixed(0)+'% ของ Ku ('+u.Ku.toFixed(1)+') — dead time ยาวทำให้ margin แคบ');
+    if(c.Td>0.4*L.theta)fb.push('Td = '+c.Td.toFixed(1)+' s ค่อนข้างมาก — D ขยาย noise ×(1+N)=11 เท่าที่ความถี่สูง วาล์วจะสั่น');
+  }
+  if(st===0&&!unstable)st=1;
+  var titles=['ยังไม่ผ่าน','ผ่าน','ดี','ยอดเยี่ยม'];
+  return {st:st,rows:rows,fb:fb,title:titles[st],lesson:X.lesson};
+}
+
+/* ── หน้าผล ── */
+function showResult(R,tr){
+  if(R.st>stars[CUR]){stars[CUR]=R.st;saveStars();}
+  updateStarTotal();buildLvlPick();
+  $('resEmoji').textContent=R.st>=3?'🏆':(R.st===2?'👍':(R.st===1?'🔧':'〰️'));
+  $('resTitle').textContent=L.name+' — '+R.title;
+  var h='<tr><th>ตัวชี้วัด</th><th>ได้</th><th>เกณฑ์ ⭐3</th><th></th></tr>';
+  R.rows.forEach(function(r){h+='<tr><td>'+r.n+'</td><td>'+r.v+'</td><td>'+r.c+'</td><td class="'+(r.ok?'ok':'ng')+'">'+(r.ok?'✓':'✗')+'</td></tr>';});
+  $('resTbl').innerHTML=h;
+  $('resFb').innerHTML=R.fb.map(function(s){return '<li>'+s+'</li>';}).join('');
+  $('resLesson').textContent='💡 '+R.lesson;
+  var ss=$('resStars').children;for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('nextBtn').textContent=CUR<4?'ด่านต่อไป ➜':'🏁 สรุปบทเรียน';
+  $('resultOv').classList.add('show');
+  requestAnimationFrame(function(){drawChart($('resChart'),tr,0,L.tEnd,true);});
+  if(R.st>=2)sGood();else sBad();
+  for(let j=0;j<R.st;j++)setTimeout(function(){ss[j].classList.add('on');sStar(j);},350+j*380);
+  if(R.st===3)confetti(30);
+  syncUI();
+}
+
+/* ── strip chart (canvas) ── */
+function drawChart(cv,D,t0,t1,isRes){
+  var dpr=window.devicePixelRatio||1,w=cv.clientWidth||300,h=cv.clientHeight||200;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+  var g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+  var pl=40,pr=34,pt=14,pb=18,W=w-pl-pr,H=h-pt-pb;
+  var lo=X.yr[0],hi=X.yr[1],i,n=D.t.length;
+  var pvA=D.pv;
+  for(i=0;i<n;i++){var e=eng(pvA[i]);if(e<lo)lo=e;if(e>hi)hi=e;var s=eng(D.sp[i]);if(s<lo)lo=s;if(s>hi)hi=s;}
+  var pad=(hi-lo)*0.04;lo-=pad;hi+=pad;
+  function xs(t){return pl+(t-t0)/(t1-t0)*W;}
+  function ys(v){return pt+(1-(v-lo)/(hi-lo))*H;}
+  function yo(u){return pt+(1-u/100)*H;}
+  g.fillStyle='#ffffff';g.fillRect(pl,pt,W,H);
+  g.strokeStyle='#e6ecf3';g.lineWidth=1;g.font='10px Mitr,sans-serif';g.fillStyle='#6a7a90';
+  var nt=4;for(i=0;i<=nt;i++){var v=lo+(hi-lo)*i/nt,y=ys(v);g.beginPath();g.moveTo(pl,y);g.lineTo(pl+W,y);g.stroke();
+    if(i<nt){g.textAlign='right';g.fillText(v.toFixed(L.dec>1?1:0),pl-4,y+3);
+    g.textAlign='left';g.fillStyle='#d9822b';g.fillText(Math.round(100*i/nt)+'%',pl+W+3,yo(100*i/nt)+3);g.fillStyle='#6a7a90';}}
+  g.textAlign='center';
+  var span=t1-t0,dtk=span>150?40:(span>70?20:10);
+  for(var tk=Math.ceil(t0/dtk)*dtk;tk<=t1;tk+=dtk){var x=xs(tk);g.beginPath();g.moveTo(x,pt);g.lineTo(x,pt+H);g.stroke();g.fillText(Math.round(tk)+' s',x,h-4);}
+  g.save();g.textAlign='left';g.fillStyle='#55657a';g.fillText(L.unit+' (บน '+hi.toFixed(L.dec>1?1:0)+')',2,10);g.textAlign='right';g.fillStyle='#d9822b';g.fillText('OUT 100%',w-2,10);g.restore();
+  /* event markers */
+  if(isRes||RUN.mode==='test'){
+    g.setLineDash([3,3]);g.strokeStyle='#b0bccb';
+    [L.stepT,L.distT,L.distEnd].forEach(function(te){if(te&&te>=t0&&te<=t1){var x=xs(te);g.beginPath();g.moveTo(x,pt);g.lineTo(x,pt+H);g.stroke();}});
+    g.setLineDash([]);
+  }
+  g.save();g.beginPath();g.rect(pl,pt,W,H);g.clip();
+  /* settle band (result) */
+  if(isRes&&lastRes){var bd=lastRes.m.step.band,spf=L.sp0+L.step;g.fillStyle='rgba(31,180,95,.12)';
+    var y1=ys(eng(spf+bd*3)),y2=ys(eng(spf-bd*3));g.fillRect(xs(L.stepT),Math.min(y1,y2),W,Math.abs(y2-y1));}
+  function line(arr,col,wid,dash,isOut){if(n<2)return;g.strokeStyle=col;g.lineWidth=wid;g.setLineDash(dash||[]);g.beginPath();
+    for(var k=0;k<n;k++){var x=xs(D.t[k]),y=isOut?yo(arr[k]):ys(eng(arr[k]));if(k===0)g.moveTo(x,y);else g.lineTo(x,y);}g.stroke();g.setLineDash([]);}
+  line(D.out,'rgba(255,143,28,.85)',1.6,null,true);
+  line(D.sp,'#213047',1.8,[6,4]);
+  line(pvA,'#1e88e5',2.4);
+  g.restore();
+  g.strokeStyle='#c9d4e2';g.strokeRect(pl,pt,W,H);
+}
+
+/* ── render ฉาก + faceplate ── */
+var flowOff=0;
+function render(dtR){
+  if(!S)return;
+  var pvm=S.pvm,u=S.u;
+  $('fpSP').textContent=fmtE(S.sp);$('fpPV').textContent=fmtE(pvm);$('fpOUT').textContent=u.toFixed(1)+'%';
+  $('fpBar').setAttribute('width',(1.4*u).toFixed(1));
+  $('fpMode').textContent=S.man?'MAN':'AUTO';$('fpMode').setAttribute('fill',S.man?'#ff8f1c':'#ffd23f');
+  var awOn=L.awAvail&&ctl.aw;$('fpAW').setAttribute('opacity',awOn?'1':'0');$('fpAWt').setAttribute('opacity',awOn?'1':'0');
+  /* valve stem: 0% = ปิด (ก้านลง), 100% = เปิด (ก้านขึ้น) */
+  $('vStem').setAttribute('transform','translate(0 '+(18-0.18*u).toFixed(1)+')');
+  var sat=(u<=0.01||u>=99.99)&&!S.man;
+  $('satLamp').setAttribute('opacity',sat?'1':'0');$('satTxt').setAttribute('opacity',sat?'1':'0');
+  /* flow dashes */
+  if(!RM){flowOff-=dtR*(4+u*0.9);$('rFlow').setAttribute('stroke-dashoffset',flowOff.toFixed(1));}
+  $('rFlow').setAttribute('opacity',u<1?'0':'.9');
+  /* firing / flame */
+  var fire;
+  if(CUR<=2)fire=u/100;else if(CUR===3)fire=0.5+(S.dist/100);else fire=0.55+(S.dist/100)*0.9;
+  var sc=0.35+Math.min(1.3,fire)*0.75;
+  $('flameSize').setAttribute('transform','translate(155 250) scale('+sc.toFixed(2)+')');
+  $('flOut').setAttribute('fill',fire>1.0?'#ff3d00':'#ff6a1f');
+  $('shHeat').setAttribute('opacity',(0.3+Math.min(1,fire)*0.6).toFixed(2));
+  /* steam demand */
+  var dem=CUR<=2?0.5+S.dist/100*2.5:(CUR===3?0.5+S.dist/100:0.55);
+  $('demandFill').setAttribute('width',(48*Math.min(1,dem)).toFixed(1));
+  $('demandFill').setAttribute('fill',S.dist>0?'#ff8f1c':'#00c2a8');
+  $('puffG').setAttribute('opacity',Math.min(1,0.3+dem).toFixed(2));
+  /* pressure gauge: 0–16 bar → −135..+135° */
+  var pb=CUR<=2?eng(pvm):10.0+0.02*Math.sin(S.t*0.7);
+  $('gNeedle').setAttribute('transform','rotate('+(-135+270*pb/16).toFixed(1)+' 520 72)');
+  /* drum level */
+  var lvMM=CUR===3?eng(pvm):0+3*Math.sin(S.t*0.9);
+  var yW=68-lvMM*0.08;   /* 1 mm = 0.08 px ในดรัม */
+  $('drumWater').setAttribute('y',yW.toFixed(1));$('drumWave').setAttribute('transform','translate(0 '+(yW-68).toFixed(1)+')');
+  var yG=Math.max(34,Math.min(104,69-lvMM*0.14));$('glassWater').setAttribute('y',yG.toFixed(1));
+  /* thermometer 450–600 °C */
+  var tC=CUR===4?eng(pvm):540;
+  var fh=Math.max(4,Math.min(68,(tC-450)/150*68));$('ttFill').setAttribute('y',(98-fh).toFixed(1));$('ttFill').setAttribute('height',(fh+2).toFixed(1));
+  /* chips */
+  $('chT').textContent=Math.floor(S.t);$('chSpd').textContent=RUN.speed;
+  $('chIAE').textContent=RUN.iae.toFixed(0);
+  $('chE').textContent='e = '+(engD(S.sp-pvm)).toFixed(L.dec)+' '+L.unit;
+  if(RUN.mode==='test'){$('tbTxt').textContent=Math.floor(S.t)+'/'+L.tEnd+' s';$('tbBar').style.width=(100*RUN.k/RUN.N).toFixed(1)+'%';}
+  if(S.man)$('vMan').textContent=Math.round(S.uMan)+'%';
+}
+
+/* ── loop ── */
+function anyOverlay(){return !!document.querySelector('.overlay.show');}
+function loop(ts){
+  if(!RUN.lastTs)RUN.lastTs=ts;
+  var dtR=Math.min(0.1,(ts-RUN.lastTs)/1000);RUN.lastTs=ts;
+  if(S&&!anyOverlay()){
+    RUN.acc+=dtR*RUN.speed;var cnt=0;
+    while(RUN.acc>=DT&&cnt<400){RUN.acc-=DT;cnt++;if(!oneStep()){RUN.acc=0;break;}}
+    oscMsgT-=dtR;if(oscMsgT<=0){oscMessage();oscMsgT=0.4;}
+  }
+  render(dtR);
+  if(S){var t1=RUN.mode==='test'?L.tEnd:Math.max(L.win,S.t),t0=RUN.mode==='test'?0:t1-L.win;drawChart($('chart'),CH,t0,t1,false);}
+  requestAnimationFrame(loop);
+}
+
+/* ── ปุ่ม/สไลเดอร์ ── */
+function onKp(v){ctl.Kp=Math.max(0.1,Math.min(X.kpMax,v));pushCtl();syncUI();}
+$('sKp').addEventListener('input',function(){onKp(roundKp(sToKp(+this.value)));});
+$('kpM').addEventListener('click',function(){sClick();onKp(roundKp(ctl.Kp-kpStep(ctl.Kp-1e-6)));});
+$('kpP').addEventListener('click',function(){sClick();onKp(roundKp(ctl.Kp+kpStep(ctl.Kp)));});
+function tiStep(t){return t<10?0.5:1;}
+function onTi(v){ctl.Ti=Math.max(0.5,Math.min(60,Math.round(v*10)/10));pushCtl();syncUI();}
+$('sTi').addEventListener('input',function(){onTi(+this.value/10);});
+$('tiM').addEventListener('click',function(){sClick();onTi(ctl.Ti-tiStep(ctl.Ti-1e-6));});
+$('tiP').addEventListener('click',function(){sClick();onTi(ctl.Ti+tiStep(ctl.Ti));});
+$('iTog').addEventListener('click',function(){sClick();ctl.Ion=!ctl.Ion;pushCtl();syncUI();});
+function onTd(v){ctl.Td=Math.max(0,Math.min(10,Math.round(v*10)/10));pushCtl();syncUI();}
+$('sTd').addEventListener('input',function(){onTd(+this.value/10);});
+$('tdM').addEventListener('click',function(){sClick();onTd(ctl.Td-0.1);});
+$('tdP').addEventListener('click',function(){sClick();onTd(ctl.Td+0.1);});
+function onMan(v){if(!S)return;S.uMan=Math.max(0,Math.min(100,v));$('sMan').value=S.uMan;$('vMan').textContent=Math.round(S.uMan)+'%';}
+$('sMan').addEventListener('input',function(){onMan(+this.value);});
+$('mnM').addEventListener('click',function(){sClick();onMan(S.uMan-2);});
+$('mnP').addEventListener('click',function(){sClick();onMan(S.uMan+2);});
+$('bAM').addEventListener('click',function(){
+  audio();sClick();if(!S)return;
+  S.man=!S.man;if(S.man){S.uMan=S.u;onMan(S.u);say('Manual: คุมวาล์วเอง (open loop) — สลับกลับ Auto แบบ bumpless',2400);}
+  else say('Auto: PID รับช่วงต่อจาก OUT ปัจจุบัน (bumpless)',2000);
+  syncUI();
+});
+function spMove(dir){if(!S||RUN.mode==='test')return;audio();sStep();
+  var st=Math.abs(L.step);RUN.spBase=Math.max(10,Math.min(90,RUN.spBase+dir*st));S.sp=RUN.spBase;RUN.bumpEnd=-1;
+  say('SP = '+fmtE(S.sp)+' '+L.unit,1500);}
+$('bSpU').addEventListener('click',function(){spMove(1);});
+$('bSpD').addEventListener('click',function(){spMove(-1);});
+$('bDist').addEventListener('click',function(){audio();if(RUN.mode==='test')return;RUN.distOn=!RUN.distOn;
+  if(RUN.distOn){sAlarm();say(CUR===4?'🔥 ไฟพุ่ง (+45% heat)':(CUR===3?'⚡ ไอน้ำออก +20%':'⚡ ไอน้ำออกเพิ่ม (−8% equivalent)'),2000);}else{sClick();say('disturbance หยุดแล้ว',1500);}
+  syncUI();});
+var SPEEDS=[1,2,4,8];
+$('bSpd').addEventListener('click',function(){sClick();var i=SPEEDS.indexOf(RUN.speed);RUN.speed=SPEEDS[(i+1)%SPEEDS.length];syncUI();});
+$('bAux').addEventListener('click',function(){
+  audio();
+  if(L.mode==='ZN'&&!ZN.found){if(!S)return;sStep();S.sp=RUN.spBase+4;RUN.bumpEnd=S.t+1.0;say('⚡ กระตุ้น: SP กระตุก 1 วินาที — ดูคลื่นที่ตามมา',1800);}
+  else if(L.awAvail){sClick();ctl.aw=!ctl.aw;pushCtl();syncUI();say(ctl.aw?'🛡 Anti-windup (clamping) เปิด: หยุดอินทิเกรตเมื่อวาล์วอิ่มตัว':'Anti-windup ปิด',2200);}
+});
+$('bReset').addEventListener('click',function(){sClick();resetFree();syncUI();say('รีเซ็ตกระบวนการกลับจุดทำงานเดิม',1500);});
+$('bTest').addEventListener('click',function(){audio();startTest();});
+
+/* ── overlays ── */
+function openBrief(){
+  $('brTitle').textContent=X.icon+' '+L.name;
+  $('brStory').innerHTML=X.story;
+  var p;
+  if(L.type==='int')p='กระบวนการ <b>integrating</b>: <code>dL/dt = ki·(Fw − Fs)</code> · ki = '+L.ki+' %/s ต่อ % · θ = '+L.theta+' s · swell Ksw = '+L.Ksw+', τsw = '+L.tsw+' s · span ±250 mm (NWL = 0)';
+  else p='กระบวนการ <b>FOPDT</b>: <code>G(s) = K·e^(−θs)/(τs+1)</code> · K = '+L.K+' %/% · τ = '+L.tau+' s · θ = '+L.theta+' s · span '+L.lo+'–'+L.hi+' '+L.unit+(L.act<0?' · สเปรย์มาก→อุณหภูมิลด (direct acting)':'');
+  p+='<br>ทดสอบ: step SP '+(L.step>0?'+':'')+engD(L.step).toFixed(L.dec>0?1:0)+' '+L.unit+' ที่ '+L.stepT+' s → disturbance ที่ '+L.distT+' s'+(L.distEnd?'–'+L.distEnd+' s':'')+' · ยาว '+L.tEnd+' s (เร่ง '+L.speed+'×)';
+  $('brProc').innerHTML=p;
+  $('brCrit').innerHTML=X.crit;
+  $('briefOv').classList.add('show');
+}
+$('brGo').addEventListener('click',function(){audio();sClick();$('briefOv').classList.remove('show');
+  say(CUR===2?'เพิ่ม Kp ทีละขั้น แล้วกด ⚡ กระตุ้น 〰':'ลองกด SP ▲ / ⚡ Disturbance ดูก่อน แล้วค่อยส่งตรวจ',2600);});
+$('kuUse').addEventListener('click',function(){audio();sClick();$('kuOv').classList.remove('show');
+  ctl.Kp=Math.round(0.6*ZN.Ku*100)/100;ctl.Ti=Math.round(ZN.Pu/2*100)/100;ctl.Td=Math.round(ZN.Pu/8*100)/100;ctl.Ion=true;
+  resetFree();syncUI();startTest();});
+$('kuBack').addEventListener('click',function(){sClick();$('kuOv').classList.remove('show');ZN.found=false;OSC=newOsc();resetFree();syncUI();});
+$('retryBtn').addEventListener('click',function(){sClick();$('resultOv').classList.remove('show');resetFree();syncUI();say('ปรับ Kp/Ti/Td ตามเฉลย แล้วส่งตรวจใหม่ 🔧',2200);});
+$('nextBtn').addEventListener('click',function(){sClick();$('resultOv').classList.remove('show');
+  if(CUR<4)startLevel(CUR+1);else openEnd();});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn2').addEventListener('click',function(){audio();sClick();openHelp();});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('fmBtn').addEventListener('click',function(){audio();sClick();openFormula();});
+$('fmClose').addEventListener('click',function(){sClick();$('fmOv').classList.remove('show');});
+$('endHome').addEventListener('click',function(){sClick();$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('endReplay').addEventListener('click',function(){sClick();$('endOv').classList.remove('show');startLevel(0);});
+function pickNext(){for(var i=0;i<5;i++)if(stars[i]<1)return i;return 0;}
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  var nm=['P-only','เพิ่ม I','Z-N','ระดับน้ำ','อุณหภูมิ'];
+  for(let i=0;i<5;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.2rem">'+LVX[i].icon+'</span><span class="nm">'+(i+1)+'. '+nm[i]+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+function openEnd(){
+  var t=updateStarTotal();
+  $('endStars').textContent='⭐ '+t+'/15';
+  var ls=['<b>Kp</b> เพิ่ม = เร็วขึ้น offset (P-only) ลด แต่ overshoot/แกว่งมากขึ้น — offset = 1/(1+K·Kp)',
+    '<b>Ti</b> ขจัด offset · Ti สั้นเกิน (&lt; τ/2) = แกว่ง · Ti ≈ τ เป็นจุดเริ่มที่ดี (λ-tuning)',
+    '<b>Ziegler–Nichols</b>: หา Ku/Pu จากการแกว่งคงที่ → Kp=0.6Ku, Ti=Pu/2, Td=Pu/8 — เร็วแต่แรง ต้องลดลง',
+    '<b>ระดับน้ำ (integrating)</b>: ต้องมี I สู้โหลด · Kp·Ti ต้องพอ (ζ = ½√(Kp·Ti·ki)) · ระวัง shrink/swell → 3-element',
+    '<b>Dead time ยาว + วาล์วอิ่มตัว</b>: ใช้ anti-windup เสมอ · Kp อ่อน Ti≈τ · D เบา ๆ ช่วยเบรก'];
+  $('endList').innerHTML=ls.map(function(s,i){return '<li>'+'⭐'.repeat(stars[i])+' '+s+'</li>';}).join('');
+  $('endOv').classList.add('show');
+  if(t>=12)confetti(40);
+  sGood();
+}
+
+/* ── 📐 สูตร/ที่มา ── */
+function openFormula(){
+  var u=ultimate(L),h='';
+  h+='<h3>ด่านนี้: '+L.name+'</h3>';
+  if(L.type==='int')h+='<div class="eq">dL/dt = ki·(Fw(t−θ) − Fs)      ki = '+L.ki+' %/s ต่อ %, θ = '+L.theta+' s\nswell: L_วัด = L + Ksw·(Fs − Fs_lag)   Ksw = '+L.Ksw+', τsw = '+L.tsw+' s\nultimate (P-only): ωu = π/(2θ) → Ku = ωu/ki = '+u.Ku.toFixed(1)+', Pu = 4θ = '+u.Pu.toFixed(1)+' s</div>';
+  else h+='<div class="eq">G(s) = K·e^(−θs)/(τs+1)      K = '+L.K+', τ = '+L.tau+' s, θ = '+L.theta+' s\natan(ωu·τ) + ωu·θ = π\n→ Ku = √(1+(ωu·τ)²)/|K| = '+u.Ku.toFixed(2)+' ,  Pu = 2π/ωu = '+u.Pu.toFixed(2)+' s</div>';
+  if(CUR===0)h+='<div class="eq">P-only (self-regulating):  offset = ΔSP/(1 + K·Kp)\nโหลด Δd:  offset = K·Δd/(1 + K·Kp)</div>';
+  /* lambda helper */
+  var opts=[];
+  if(L.type==='int'){[5,10,20].forEach(function(l){opts.push({l:l,kp:(2*l+L.theta)/(L.ki*Math.pow(l+L.theta,2)),ti:2*l+L.theta});});
+    h+='<h3>Lambda tuning (integrating)</h3><div class="eq">Kp = (2λ+θ)/(ki·(λ+θ)²)   Ti = 2λ+θ</div>';}
+  else{[L.theta,2*L.theta,L.tau].forEach(function(l){opts.push({l:l,kp:L.tau/(Math.abs(L.K)*(l+L.theta)),ti:L.tau});});
+    h+='<h3>Lambda tuning (FOPDT)</h3><div class="eq">Kp = τ/(|K|·(λ+θ))   Ti = τ   (λ = เวลาคงที่ closed loop ที่ต้องการ)</div>';}
+  var canUse=!(L.mode==='P'||(L.mode==='ZN'&&!ZN.found))&&RUN.mode!=='test';
+  h+='<div class="lam">'+opts.map(function(o,i){return '<button data-i="'+i+'" '+(canUse?'':'disabled style="opacity:.5"')+'>λ = '+o.l.toFixed(0)+' s<br><b>Kp '+o.kp.toFixed(2)+' · Ti '+o.ti.toFixed(1)+'</b></button>';}).join('')+'</div>';
+  if(!canUse)h+='<p style="color:#8795a8">'+(L.mode==='P'?'ด่าน 1 ใช้ P อย่างเดียว — λ-tuning ต้องมี I':(RUN.mode==='test'?'กำลังทดสอบอยู่':'หา Ku ให้ได้ก่อนจึงนำค่าไปใช้ได้'))+'</p>';
+  h+='<h3>PID แบบ ISA (ideal / non-interacting)</h3><div class="eq">u = Kp·[ e + (1/Ti)∫e dt + Td·de/dt ]     e = act·(SP − PV)\nD บน PV + filter: Tf = Td/N, N = 10   (ไม่มี derivative kick ตอน step SP)\nP-only: u = bias + Kp·e   (bias = manual reset)</div>';
+  h+='<h3>Anti-windup แบบ clamping</h3><div class="eq">ถ้า u > 100% และ e > 0  หรือ  u < 0% และ e < 0  →  หยุดอินทิเกรต (I คงค่า)</div>';
+  h+='<h3>Ziegler–Nichols (closed loop, 1942)</h3><div class="eq">P  : Kp = 0.5·Ku\nPI : Kp = 0.45·Ku , Ti = Pu/1.2\nPID: Kp = 0.6·Ku  , Ti = Pu/2 , Td = Pu/8</div>'+(ZN.found?'<p>Ku/Pu ที่วัดในด่าน 3: <b>'+ZN.Ku.toFixed(2)+' / '+ZN.Pu.toFixed(2)+' s</b></p>':'');
+  h+='<h3>ตัวชี้วัด</h3><div class="eq">IAE = ∫|SP − PV| dt   (% span · s)\novershoot = (peak − final)/|final − initial| × 100\nsettling time = เข้าแถบ ±2% ของขนาด step แล้วไม่ออก</div>';
+  h+='<h3>สมมติฐาน</h3><ul><li>จำลอง discrete dt = 0.1 s (Euler) · dead time = buffer · เวลาเกมเร่งได้ 1–8×</li><li>หน่วยภายใน % ของ span (Kp เป็น %/%) · วาล์ว linear 0–100% ไม่มี hysteresis</li><li>PV มี noise σ ≈ '+L.noise+'% span · ตัวชี้วัดคำนวณจาก PV จริงไม่รวม noise</li><li>ค่ากระบวนการเลือกให้สมจริงเชิงสัดส่วนแต่ย่อเวลาเพื่อเล่นได้ในด่านสั้น (หม้อจริง τ ความดัน ~1–3 นาที)</li></ul>';
+  h+='<h3>อ้างอิง</h3><ul><li>Ziegler &amp; Nichols (1942) Trans. ASME 64:759</li><li>Åström &amp; Hägglund, <i>Advanced PID Control</i>, ISA 2006</li><li>Skogestad (2003) SIMC / Lambda tuning (Dahlin 1968)</li><li>ISA-5.1 สัญลักษณ์เครื่องมือวัด (PIC/LIC/TIC)</li></ul>';
+  $('fmBody').innerHTML=h;
+  var bs=$('fmBody').querySelectorAll('.lam button');
+  for(var i=0;i<bs.length;i++)bs[i].addEventListener('click',function(){
+    if(!canUse)return;var o=opts[+this.getAttribute('data-i')];sClick();
+    ctl.Kp=Math.max(0.1,Math.min(X.kpMax,Math.round(o.kp*100)/100));ctl.Ti=Math.round(o.ti*10)/10;ctl.Ion=true;pushCtl();syncUI();
+    $('fmOv').classList.remove('show');say('ใส่ค่า λ-tuning แล้ว: Kp '+ctl.Kp.toFixed(2)+' · Ti '+ctl.Ti.toFixed(1)+' s',2400);});
+  $('fmOv').classList.add('show');
+}
+
+/* ── คู่มือวิธีเล่น (5 ขั้น SVG เคลื่อนไหว) ── */
+var HELP=[
+ {txt:'① ลูปควบคุม: วัด PV → เทียบกับ SP → PID คำนวณ OUT → ขยับวาล์ว → กระบวนการเปลี่ยน',
+  svg:'<svg viewBox="0 0 360 170"><rect width="360" height="170" rx="12" fill="#2f3a4d"/>'+
+   '<path id="hl1" d="M70 60 L180 60 L290 60 L290 120 L180 120 L70 120 Z" fill="none" stroke="#ffd23f" stroke-width="2" stroke-dasharray="5 4"/>'+
+   '<rect x="20" y="40" width="100" height="40" rx="10" fill="#3f51b5"/><text x="70" y="65" font-size="14" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">PID</text>'+
+   '<g><path d="M220 106 L250 120 L220 134 Z M280 106 L250 120 L280 134 Z" fill="#7986cb" stroke="#1a237e" stroke-width="2"/>'+
+   '<g class="tStem"><rect x="247" y="76" width="6" height="34" fill="#cfd8dc"/></g><path d="M232 82 Q250 62 268 82 Z" fill="#9fa8da"/></g>'+
+   '<rect x="130" y="100" width="70" height="44" rx="10" fill="#c4d0e4"/><text x="165" y="127" font-size="12" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">หม้อไอน้ำ</text>'+
+   '<circle r="7" fill="#ffd23f"><animateMotion dur="3s" repeatCount="indefinite" path="M70 60 L290 60 L290 120 L70 120 Z"/></circle>'+
+   '<text x="180" y="52" font-size="12" fill="#ffd23f" text-anchor="middle" font-family="Mitr,sans-serif">OUT → วาล์ว</text>'+
+   '<text x="96" y="160" font-size="12" fill="#64ffda" text-anchor="middle" font-family="Mitr,sans-serif">PV (วัด) ← SP เทียบ</text></svg>'},
+ {txt:'② ปรับ Kp · Ti · Td ด้วยสไลเดอร์หรือปุ่ม − / + · Manual = คุมวาล์วเอง, Auto = ให้ PID คุม',
+  svg:'<svg viewBox="0 0 360 170"><rect width="360" height="170" rx="12" fill="#eef4fb"/>'+
+   '<g font-family="Mitr,sans-serif" font-size="15" font-weight="700" fill="#213047"><text x="16" y="44">Kp</text><text x="16" y="94">Ti</text><text x="16" y="144">Td</text></g>'+
+   '<rect x="60" y="34" width="250" height="12" rx="6" fill="#c5cae9"/><rect x="60" y="84" width="250" height="12" rx="6" fill="#b2ebf2"/><rect x="60" y="134" width="250" height="12" rx="6" fill="#e1d5ff"/>'+
+   '<circle class="tThumb" cx="90" cy="40" r="14" fill="#fff" stroke="#3f51b5" stroke-width="6"/>'+
+   '<circle cx="200" cy="90" r="14" fill="#fff" stroke="#00acc1" stroke-width="6"/>'+
+   '<circle class="tThumb" style="animation-delay:-1.3s" cx="90" cy="140" r="14" fill="#fff" stroke="#7b5bff" stroke-width="6"/>'+
+   '<text x="318" y="45" font-size="16" font-family="Mitr,sans-serif" fill="#3f51b5">±</text></svg>'},
+ {txt:'③ ผลของ Kp ต่อ step: ต่ำ = ช้า/มี offset · พอดี = เข้าเร็ว overshoot น้อย · สูง = แกว่ง',
+  svg:'<svg viewBox="0 0 360 170"><rect width="360" height="170" rx="12" fill="#fff"/>'+
+   '<g font-family="Mitr,sans-serif" font-size="12" text-anchor="middle"><text x="62" y="160" fill="#55657a">Kp ต่ำ</text><text x="180" y="160" fill="#1fb45f">พอดี ✔</text><text x="298" y="160" fill="#ef4b4b">Kp สูง</text></g>'+
+   '<g stroke="#213047" stroke-dasharray="5 4" stroke-width="1.5"><line x1="10" y1="50" x2="114" y2="50"/><line x1="128" y1="50" x2="232" y2="50"/><line x1="246" y1="50" x2="350" y2="50"/></g>'+
+   '<path class="tDraw" d="M10 130 C 30 130 40 80 60 74 S 100 70 114 70" stroke="#1e88e5" stroke-width="3" fill="none"/>'+
+   '<path class="tDraw" d="M128 130 C 140 130 150 44 166 42 S 190 52 200 50 S 225 50 232 50" stroke="#1e88e5" stroke-width="3" fill="none"/>'+
+   '<path class="tDraw" d="M246 130 C 254 130 258 20 268 22 S 280 80 290 78 S 302 26 312 28 S 324 70 334 68 S 346 36 350 38" stroke="#1e88e5" stroke-width="3" fill="none"/>'+
+   '<text x="62" y="96" font-size="10" fill="#ef4b4b" text-anchor="middle" font-family="Mitr,sans-serif">offset</text>'+
+   '<line x1="100" y1="52" x2="100" y2="68" stroke="#ef4b4b" stroke-width="2"/></svg>'},
+ {txt:'④ ทดสอบด้วย SP ▲▼ และ ⚡ Disturbance · เกมวัด IAE (พื้นที่ error), overshoot, settling ±2%',
+  svg:'<svg viewBox="0 0 360 170"><rect width="360" height="170" rx="12" fill="#fff"/>'+
+   '<rect x="20" y="58" width="320" height="14" fill="#1fb45f" opacity=".15"/>'+
+   '<path d="M20 130 L70 130 L70 65 L340 65" stroke="#213047" stroke-dasharray="6 4" stroke-width="2" fill="none"/>'+
+   '<path class="tBlink" d="M70 130 C 90 130 100 42 120 40 C 140 38 150 74 170 72 C 190 70 200 64 220 65 L220 65 L70 65 Z" fill="#ff8f1c" opacity=".4"/>'+
+   '<path d="M20 130 L70 130 C 90 130 100 42 120 40 C 140 38 150 74 170 72 C 190 70 200 64 220 65 L340 65" stroke="#1e88e5" stroke-width="3" fill="none"/>'+
+   '<line x1="120" y1="40" x2="120" y2="65" stroke="#ef4b4b" stroke-width="2"/><text x="124" y="36" font-size="11" fill="#ef4b4b" font-family="Mitr,sans-serif">overshoot</text>'+
+   '<text x="100" y="112" font-size="11" fill="#d9822b" font-family="Mitr,sans-serif">IAE</text>'+
+   '<line x1="220" y1="80" x2="220" y2="140" stroke="#1fb45f" stroke-width="2"/><text x="226" y="140" font-size="11" fill="#1fb45f" font-family="Mitr,sans-serif">settle ±2%</text>'+
+   '<g class="tPop"><text x="290" y="120" font-size="26">⚡</text></g></svg>'},
+ {txt:'⑤ กด ▶ ทดสอบส่งตรวจ → รับดาว + เฉลยเฉพาะจุด · ด่าน 3 ต้องเพิ่ม Kp จนแกว่ง "คงที่" เพื่อหา Ku/Pu',
+  svg:'<svg viewBox="0 0 360 170"><rect width="360" height="170" rx="12" fill="#eef4fb"/>'+
+   '<clipPath id="hcl"><rect x="16" y="20" width="200" height="110"/></clipPath>'+
+   '<g clip-path="url(#hcl)"><g class="tMove"><path d="M16 75 q20 -40 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" stroke="#1e88e5" stroke-width="3" fill="none"/></g></g>'+
+   '<line x1="16" y1="35" x2="216" y2="35" stroke="#7b5bff" stroke-dasharray="4 3"/><line x1="16" y1="115" x2="216" y2="115" stroke="#7b5bff" stroke-dasharray="4 3"/>'+
+   '<text x="116" y="152" font-size="12" text-anchor="middle" fill="#3f51b5" font-family="Mitr,sans-serif">แกว่งคงที่ → Ku, Pu</text>'+
+   '<g class="tPop"><text x="236" y="80" font-size="30">⭐</text></g><g class="tPop" style="animation-delay:.3s"><text x="272" y="80" font-size="30">⭐</text></g><g class="tPop" style="animation-delay:.6s"><text x="308" y="80" font-size="30">⭐</text></g>'+
+   '<rect x="232" y="100" width="116" height="34" rx="17" fill="#3f51b5"/><text x="290" y="122" font-size="13" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">▶ ส่งตรวจ</text></svg>'}
+];
+var helpPg=0;
+function renderHelp(){
+  $('helpStage').innerHTML=HELP[helpPg].svg;$('helpTxt').textContent=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';
+  for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';
+  $('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';
+}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){
+  $('helpOv').classList.remove('show');markSeen();
+  if(start&&$('startOv').classList.contains('show')){$('startOv').classList.remove('show');startLevel(pickNext());}
+}
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+
+/* ── confetti ── */
+function confetti(n){if(RM)return;var cols=['#3f51b5','#ffd23f','#00acc1','#7b5bff','#ff8f1c','#1fb45f'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3600);}}
+
+/* ── QA hook ── */
+window.PIDH={LV:LV,LVX:LVX,DT:DT,newSim:newSim,simStep:simStep,runTest:runTest,metrics:metrics,ultimate:ultimate,newOsc:newOsc,oscFeed:oscFeed,
+  evaluate:evaluate,startLevel:startLevel,startTest:startTest,
+  get S(){return S;},get RUN(){return RUN;},get ZN(){return ZN;},get ctl(){return ctl;},get OSC(){return OSC;},stars:stars,
+  setCtl:function(o){for(var k in o)ctl[k]=o[k];pushCtl();syncUI();},
+  ff:function(sec){var n=Math.round(sec/DT);for(var i=0;i<n;i++){if(!oneStep())break;}render(0);}};
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();
+startLevel(0,true);
+requestAnimationFrame(loop);
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+window.addEventListener('resize',function(){if(lastRes&&$('resultOv').classList.contains('show'))drawChart($('resChart'),lastRes.tr,0,L.tEnd,true);});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ช่างแอร์มือโปร — Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "ช่างแอร์มือโปร" (HVAC Tech) v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: ช่าง ปวช./ปวส. (ช่างเครื่องทำความเย็น)
+     หลักที่สอน: วินิจฉัยแอร์แยกส่วน (split type) ด้วยเกจ manifold — ความดันด้านต่ำ/สูง, superheat/subcooling,
+                 ΔT ลมเข้า-ออก, กระแสคอมเพรสเซอร์ → วินิจฉัยโรค → เลือกงานซ่อมให้คุ้มงบ
+     ฟิสิกส์/สูตรเบื้องหลัง:
+       • ตารางอิ่มตัว P–T ของ R32 และ R410A (dew/bubble) −20…65 °C ทุก 5 K หน่วย bar g (P_atm = 1.01325 bar)
+         ประมาณค่าจาก CoolProp 6.x (สมการสถานะเดียวกับ NIST REFPROP) · ระหว่างจุดใช้ interpolate ln(P_abs) เชิงเส้นกับ T
+       • Superheat  SH = T_suction_line − T_sat(P_low)    [R410A ใช้ค่า dew]
+       • Subcooling SC = T_sat(P_high) − T_liquid_line    [R410A ใช้ค่า bubble]
+       • ค่าปกติ (ห้อง 27 °C, นอก 35 °C): T_evap 6.5 °C (R32 ≈ 9.0 bar g), T_cond 45 °C (≈ 26.9 bar g),
+         SH 6 K, SC 5.5 K, ΔT ลม 12 K, กระแส 4.6 A (R32) / 5.0 A (R410A)
+       • แบบจำลองอาการเสีย (severity 0–1 รวมแบบบวก): น้ำยาขาด u, น้ำยาเกิน o, คอยล์ร้อนตัน/พัดลมเสีย b,
+         ฟิลเตอร์ตัน f, คอมอ่อน w, ท่อตัน r
+           T_evap = 6.5 − 8u + 2o + 2b − 8f + 7w − 12r
+           T_cond = 45 − 5u + 7o + 13b − 3f − 8w − 2r
+           SH = 6 + 16u − 4.5o − b − 4.5f + 4w + 20r ;  SC = 5.5 − 5u + 8o + 1.5b + 0.5f − 3w + 7r
+           ΔT_air = 12 − 5u − 1.5o − 2.5b + 7f − 6w − 7r ; airflow = 100 − 55f %
+           I/I0 = 1 − 0.26u + 0.2o + 0.35b − 0.13f − 0.28w − 0.24r
+         (ทิศทางตามตาราง troubleshooting ของ ACCA/Sporlan: เช่น น้ำยาขาด P↓↓ SH↑ SC↓ A↓, ท่อตัน P_low↓ SH↑↑ SC↑)
+       • COP โดยประมาณ = 0.48 × T_evap,K / (T_cond − T_evap)  (Carnot × 0.48) → condensing สูงขึ้น COP ลด
+       • สมมติ: อุปกรณ์ลดความดันอยู่ที่ชุดคอยล์เย็น ท่อเล็กเป็นของเหลวความดันสูง และมี service port ด้านสูงที่วาล์วท่อเล็ก -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --mid:#f5a623; --warn:#f5a623; --bad:#ef4b4b;
+  --indigo:#3f51b5; --cyan:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#1f2a44,#263859 55%,#1b2438);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:760px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.93);
+  border:3px solid #fff;border-radius:18px;padding:8px 10px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hud .lvl-name{font-weight:600;font-size:.98rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap;font-size:.95rem}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 8px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:44px}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4);background:#cfe8fb;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto;touch-action:manipulation}
+#bubble{position:absolute;right:8px;top:8px;max-width:58%;background:#fff;border-radius:14px;border:3px solid var(--cyan);
+  padding:6px 10px;font-size:.86rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.25);transition:opacity .25s;opacity:0;pointer-events:none;line-height:1.4}
+#bubble.show{opacity:1}
+@keyframes shakeS{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+#sceneWrap.shake{animation:shakeS .3s linear 2}
+.hoseEnd{cursor:grab;touch-action:none}
+.portHit,.toolSpot{cursor:pointer}
+
+/* ───── Panel ───── */
+#panel{background:#fff;border-radius:20px;padding:12px 14px 14px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:10px}
+#steps{display:flex;gap:4px;justify-content:space-between}
+#steps span{flex:1;text-align:center;font-size:.74rem;font-weight:600;padding:5px 2px;border-radius:10px;background:#eef2f8;color:#7b8798;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#steps span.on{background:var(--btn-grad);color:#fff}
+#steps span.done{background:#d9f5e6;color:#137a40}
+.goal{font-size:.95rem;font-weight:500;background:#eaf2ff;border:2px dashed #7986cb;border-radius:14px;padding:8px 12px;line-height:1.5}
+.goal b{color:#3f51b5}
+.rd-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.rd{background:#f3f6fb;border-radius:12px;padding:5px 6px;text-align:center;line-height:1.25}
+.rd .k{font-size:.7rem;color:#64748b;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rd .v{font-size:1rem;font-weight:700}
+.rd.lo{border:2px solid #1e88e5}.rd.hi{border:2px solid #e53935}
+.chk{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.chk span{background:#f1f5fb;border-radius:999px;padding:4px 10px;font-size:.82rem;font-weight:600;color:#6b7686}
+.chk span.ok{background:#d9f5e6;color:#137a40}
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.opt{border:3px solid #e0e7f1;background:#f8fafd;border-radius:14px;padding:8px 8px;font-family:inherit;font-size:.92rem;font-weight:600;
+  cursor:pointer;min-height:48px;color:var(--ink);line-height:1.3;text-align:center}
+.opt.sel{border-color:#3f51b5;background:#e8eaf6}
+.opt.right{border-color:var(--good);background:#e3f7ec}
+.opt.wrong{border-color:var(--bad);background:#fdeaea}
+.opt:disabled{opacity:.45;cursor:not-allowed}
+.opt .pr{display:block;font-size:.8rem;color:#3f51b5;font-weight:700}
+.qlab{font-weight:600;font-size:.95rem;margin:2px 0 4px}
+.qlab small{font-weight:400;color:#64748b}
+.fb{border-radius:12px;padding:8px 12px;font-size:.9rem;line-height:1.5}
+.fb.good{background:#e3f7ec;color:#11633a}.fb.bad{background:#fdeaea;color:#8f1d1d}.fb.info{background:#fff6d9;color:#5c4400}
+.row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.budget{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.9rem}
+.budget .tr{flex:1;height:14px;background:#e8edf4;border-radius:8px;overflow:hidden}
+.budget .fl{height:100%;background:linear-gradient(90deg,#00acc1,#3f51b5);width:0}
+.plate{background:#fdfdfd;border:3px solid #8a97a8;border-radius:12px;padding:8px 12px;font-size:.9rem;line-height:1.55;text-align:left;
+  font-family:'Courier New',monospace,'Mitr';box-shadow:inset 0 0 0 3px #eef2f6}
+.plate b{font-size:1.15rem;color:#b3261e}
+#chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;font-weight:600;font-size:.86rem}
+#chips span{background:#f1f5fb;border-radius:999px;padding:4px 12px}
+
+.big-btn{border:none;border-radius:999px;padding:13px 30px;font-family:inherit;font-size:1.12rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #2c3a8a,0 10px 18px rgba(0,0,0,.2);transition:transform .1s;min-height:48px}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #2c3a8a}
+.big-btn.alt{background:linear-gradient(135deg,#00acc1,#26c6da);box-shadow:0 6px 0 #00838f,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #00838f}
+.big-btn.small{font-size:.98rem;padding:10px 20px}
+.big-btn:disabled{opacity:.45;cursor:not-allowed}
+.big-btn.ghost{background:#eef2f8;color:#3f51b5;box-shadow:0 4px 0 #c5cde0}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(10,18,32,.66);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:24px;max-width:480px;width:100%;padding:20px 16px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.4);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.35rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:2.8rem;letter-spacing:6px;margin:6px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e8f7fa;border-radius:14px;padding:9px 12px;font-weight:600;margin:8px 0;font-size:.93rem;line-height:1.5}
+.crit{display:flex;flex-direction:column;gap:4px;margin:6px 0;text-align:left;font-size:.92rem}
+.crit div{background:#f4f7fb;border-radius:10px;padding:6px 10px}
+.debrief{text-align:left;background:#fff8ec;border:2px solid #ffd59a;border-radius:14px;padding:8px 12px;margin:8px 0;font-size:.9rem;line-height:1.55}
+.debrief h3{font-size:1rem;margin-bottom:4px;color:#8a4b00}
+.debrief li{margin:4px 0 4px 18px}
+table.ba{width:100%;border-collapse:collapse;font-size:.85rem;margin:6px 0}
+table.ba th,table.ba td{padding:4px 5px;border-bottom:1px solid #e5eaf1;text-align:center}
+table.ba th{background:#eef2f8;font-weight:600}
+table.ba td.n{color:#11633a;font-weight:700}table.ba td.x{color:#c62828;font-weight:700}
+.lvl-pick{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:6px 6px;font-family:inherit;cursor:pointer;min-width:76px;min-height:60px}
+.lvl-pick .nm{font-size:.78rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.78rem;letter-spacing:1px}
+#startCard h1{font-size:1.9rem;line-height:1.25;background:var(--btn-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#5a6a80;margin:4px 0 8px;font-size:.93rem;line-height:1.5}
+.tag{display:inline-block;background:#e8eaf6;color:#3f51b5;border-radius:999px;padding:3px 12px;font-size:.82rem;font-weight:600}
+.brand{font-size:.78rem;color:#8795a8;margin-top:12px}
+.fx{text-align:left;font-size:.88rem;line-height:1.55}
+.fx h3{font-size:1rem;color:#3f51b5;margin:10px 0 4px}
+.fx code{background:#eef2f8;border-radius:6px;padding:1px 6px;font-family:inherit;font-weight:600}
+.fx table{width:100%;border-collapse:collapse;font-size:.8rem}
+.fx th,.fx td{border:1px solid #e1e7ef;padding:3px 4px;text-align:center}
+.fx th{background:#eef2f8}
+.pt-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:.88rem;text-align:center}
+.pt-grid table{width:100%;border-collapse:collapse}
+.pt-grid td,.pt-grid th{padding:3px 2px;border-bottom:1px solid #e8edf4}
+.pt-grid th{background:#eef2f8;font-size:.8rem}
+
+/* help */
+#helpStage{background:#eef4fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:340px;height:auto}
+#helpTxt{font-size:.98rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd9e6}
+.dots i.on{background:var(--cyan)}
+.help-nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── SVG animations ───── */
+@keyframes cAirA{0%{transform:translateY(0);opacity:0}25%{opacity:.95}100%{transform:translateY(30px);opacity:0}}
+.cAir{animation:cAirA 1.5s linear infinite}
+@keyframes hAirA{0%{transform:translateY(0);opacity:0}25%{opacity:.9}100%{transform:translateY(-28px);opacity:0}}
+.hAir{animation:hAirA 1.4s linear infinite}
+@keyframes pulseA{0%,100%{transform:scale(.85);opacity:.95}50%{transform:scale(1.25);opacity:.45}}
+.pulse{transform-box:fill-box;transform-origin:center;animation:pulseA 1.1s ease-in-out infinite}
+@keyframes sgBA{0%{transform:translateX(-8px);opacity:0}30%{opacity:1}100%{transform:translateX(8px);opacity:0}}
+.sgB{animation:sgBA .9s linear infinite}
+@keyframes vibA{0%,100%{transform:translate(0,0)}25%{transform:translate(.8px,0)}75%{transform:translate(-.8px,0)}}
+.vib{animation:vibA .12s linear infinite}
+@keyframes sparkA{0%,100%{opacity:.2}50%{opacity:1}}
+.spark{animation:sparkA 1.4s ease-in-out infinite}
+@keyframes workA{0%{transform:rotate(-30deg) scale(.6);opacity:0}20%{opacity:1}50%{transform:rotate(30deg) scale(1.1)}80%{opacity:1}100%{transform:rotate(-20deg) scale(.9);opacity:0}}
+.work{transform-box:fill-box;transform-origin:center;animation:workA 1.3s ease-in-out}
+@keyframes sprayA{0%{transform:translate(0,0);opacity:0}20%{opacity:1}100%{transform:translate(30px,26px);opacity:0}}
+.spray{animation:sprayA .6s linear infinite}
+/* tutorial */
+@keyframes tHB{0%,15%{transform:translate(0,0)}55%,100%{transform:translate(138px,-74px)}}
+.tHB{animation:tHB 3s ease-in-out infinite}
+@keyframes tHR{0%,35%{transform:translate(0,0)}80%,100%{transform:translate(88px,-12px)}}
+.tHR{animation:tHR 3s ease-in-out infinite}
+@keyframes tBlink{0%,100%{opacity:1}50%{opacity:.25}}
+.tBlink{animation:tBlink 1s ease-in-out infinite}
+@keyframes tNeedle{0%{transform:rotate(-130deg)}55%,100%{transform:rotate(-20deg)}}
+.tNeedle{transform-box:view-box;transform-origin:70px 90px;animation:tNeedle 2.6s ease-out infinite}
+@keyframes tGrow{0%,20%{transform:scaleX(.15)}70%,100%{transform:scaleX(1)}}
+.tGrow{transform-box:fill-box;transform-origin:left center;animation:tGrow 2.8s ease-in-out infinite}
+@keyframes tCol{0%,30%{fill:#ef4b4b}70%,100%{fill:#1fb45f}}
+.tCol{animation:tCol 2.8s ease-in-out infinite}
+@keyframes tSpin{to{transform:rotate(360deg)}}
+.tSpin{transform-box:fill-box;transform-origin:center;animation:tSpin 1.2s linear infinite}
+@media (prefers-reduced-motion:reduce){
+  .cAir,.hAir,.pulse,.sgB,.vib,.spark,.work,.spray,.tHB,.tHR,.tBlink,.tNeedle,.tGrow,.tCol,.tSpin{animation:none}
+  .cAir,.hAir{opacity:.7}
+}
+@media (max-width:480px){
+  .rd-grid{grid-template-columns:repeat(4,1fr);gap:4px}
+  .rd .v{font-size:.9rem}
+  .rd .k{font-size:.64rem}
+  .card h2{font-size:1.2rem}
+  #steps span{font-size:.68rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">ช่างแอร์มือโปร</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="fxBtn" title="สูตร/ที่มา">📐</button>
+  </div>
+
+  <!-- SCENE -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 640 470" xmlns="http://www.w3.org/2000/svg" aria-label="แอร์แยกส่วน คอยล์เย็น คอยล์ร้อน และเกจ manifold">
+      <defs>
+        <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#8fd0ff"/><stop offset="1" stop-color="#e3f3ff"/>
+        </linearGradient>
+        <linearGradient id="odG" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#e9eef4"/><stop offset=".6" stop-color="#f8fafc"/><stop offset="1" stop-color="#d6dee8"/>
+        </linearGradient>
+        <linearGradient id="cylG" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#4db6ac"/><stop offset=".5" stop-color="#b2dfdb"/><stop offset="1" stop-color="#26a69a"/>
+        </linearGradient>
+        <pattern id="dirtP" width="10" height="10" patternUnits="userSpaceOnUse">
+          <rect width="10" height="10" fill="#7b5e3b" opacity=".55"/>
+          <circle cx="3" cy="3" r="2" fill="#4e3a22"/><circle cx="8" cy="7" r="1.6" fill="#5d4428"/>
+        </pattern>
+      </defs>
+
+      <!-- outside & ground -->
+      <rect x="0" y="0" width="640" height="470" fill="url(#skyG)"/>
+      <circle cx="604" cy="40" r="22" fill="#ffd23f"/>
+      <g stroke="#ffd23f" stroke-width="4" stroke-linecap="round">
+        <line x1="604" y1="6" x2="604" y2="12"/><line x1="570" y1="40" x2="576" y2="40"/><line x1="580" y1="16" x2="584" y2="20"/>
+      </g>
+      <text x="560" y="84" font-size="16" font-weight="600" fill="#1d4e7a" text-anchor="middle" font-family="Mitr,sans-serif">นอกอาคาร 35°C</text>
+      <rect x="0" y="432" width="640" height="38" fill="#9aa7b8"/>
+      <rect x="0" y="428" width="640" height="6" fill="#7cb342"/>
+      <rect x="412" y="424" width="226" height="10" rx="3" fill="#7d8896"/>
+
+      <!-- room -->
+      <rect x="0" y="0" width="322" height="236" fill="#f6ecdb"/>
+      <rect x="0" y="236" width="338" height="12" fill="#c9b79a"/>
+      <rect x="322" y="0" width="16" height="248" fill="#c9b79a"/>
+      <text x="160" y="226" font-size="15" font-weight="600" fill="#8a7352" text-anchor="middle" font-family="Mitr,sans-serif">ในห้อง 27°C</text>
+
+      <!-- indoor unit -->
+      <g id="indoorG">
+        <rect x="40" y="46" width="240" height="74" rx="20" fill="#fff" stroke="#c5cfdb" stroke-width="3"/>
+        <g stroke="#dbe3ec" stroke-width="3">
+          <line x1="58" y1="56" x2="262" y2="56"/><line x1="58" y1="63" x2="262" y2="63"/><line x1="58" y1="70" x2="262" y2="70"/>
+        </g>
+        <rect id="filterDirt" x="54" y="52" width="212" height="22" rx="6" fill="url(#dirtP)" opacity="0"/>
+        <rect x="60" y="106" width="200" height="9" rx="4" fill="#dfe6ee"/>
+        <circle cx="258" cy="92" r="4" fill="#1fb45f"/>
+        <text x="160" y="96" font-size="14" font-weight="600" fill="#9aa7b8" text-anchor="middle" font-family="Mitr,sans-serif">คอยล์เย็น (Indoor)</text>
+      </g>
+      <!-- return air thermometer -->
+      <g id="retProbe">
+        <rect x="150" y="20" width="6" height="22" rx="3" fill="#ef4b4b"/>
+        <rect x="160" y="14" width="100" height="24" rx="8" fill="#102030"/>
+        <text id="tRetTxt" x="210" y="31" font-size="14" font-weight="600" fill="#ffd23f" text-anchor="middle" font-family="Mitr,sans-serif">ลมกลับ 27.0°</text>
+      </g>
+      <!-- cold air -->
+      <g id="coldAir" stroke="#4fc3f7" stroke-width="5" fill="none" stroke-linecap="round">
+        <path class="cAir" d="M82 124 q9 14 0 28 q-9 14 0 28"/>
+        <path class="cAir" style="animation-delay:.4s" d="M130 124 q9 14 0 28 q-9 14 0 28"/>
+        <path class="cAir" style="animation-delay:.8s" d="M178 124 q9 14 0 28 q-9 14 0 28"/>
+        <path class="cAir" style="animation-delay:1.1s" d="M226 124 q9 14 0 28 q-9 14 0 28"/>
+      </g>
+      <g id="supProbe">
+        <rect x="22" y="186" width="118" height="26" rx="8" fill="#102030"/>
+        <text id="tSupTxt" x="81" y="204" font-size="14" font-weight="600" fill="#7fd0ff" text-anchor="middle" font-family="Mitr,sans-serif">ลมออก —</text>
+      </g>
+      <!-- frost at indoor inlet -->
+      <g id="frostIn" opacity="0">
+        <rect x="282" y="94" width="30" height="20" rx="8" fill="#eaf7ff" stroke="#b3e1ff" stroke-width="2"/>
+        <circle class="spark" cx="290" cy="100" r="2" fill="#fff"/><circle class="spark" style="animation-delay:.6s" cx="304" cy="108" r="2" fill="#fff"/>
+      </g>
+
+      <!-- refrigerant pipes -->
+      <path id="pSucIns" d="M280 84 H360 V320 H396" stroke="#3c4654" stroke-width="14" fill="none" stroke-linejoin="round"/>
+      <path id="pSucFlow" d="M280 84 H360 V320 H396" stroke="#9fd8ff" stroke-width="4" fill="none" stroke-dasharray="6 14" stroke-linejoin="round"/>
+      <path id="pLiq" d="M280 104 H346 V384 H396" stroke="#c77b3b" stroke-width="8" fill="none" stroke-linejoin="round"/>
+      <path id="pLiqFlow" d="M280 104 H346 V384 H396" stroke="#ffd59a" stroke-width="3" fill="none" stroke-dasharray="5 12" stroke-linejoin="round"/>
+      <!-- ice on suction line -->
+      <g id="iceSuc" opacity="0">
+        <rect x="350" y="118" width="20" height="196" rx="9" fill="#e8f6ff" stroke="#42a5f5" stroke-width="2.5"/>
+        <rect x="356" y="310" width="40" height="20" rx="9" fill="#e8f6ff" stroke="#42a5f5" stroke-width="2.5"/>
+        <circle class="spark" cx="356" cy="150" r="2.5" fill="#fff"/><circle class="spark" style="animation-delay:.5s" cx="364" cy="210" r="2.5" fill="#fff"/>
+        <circle class="spark" style="animation-delay:1s" cx="357" cy="270" r="2.5" fill="#fff"/>
+        <text x="372" y="140" font-size="13" font-weight="600" fill="#1565c0" font-family="Mitr,sans-serif">น้ำแข็งเกาะ!</text>
+      </g>
+      <!-- sight glass -->
+      <g id="sightG">
+        <circle cx="372" cy="384" r="11" fill="#bfe9ff" stroke="#46536b" stroke-width="3"/>
+        <g id="sgBub" opacity="0" fill="#fff">
+          <circle class="sgB" cx="372" cy="381" r="2.4"/><circle class="sgB" style="animation-delay:.3s" cx="372" cy="387" r="2"/>
+          <circle class="sgB" style="animation-delay:.6s" cx="372" cy="384" r="1.8"/>
+          <rect x="380" y="356" width="34" height="18" rx="6" fill="#1565c0"/><text x="397" y="369" font-size="11" font-weight="600" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">ฟอง!</text>
+        </g>
+      </g>
+
+      <!-- level-1 port labels -->
+      <g id="portLabels" opacity="0" font-family="Mitr,sans-serif" font-size="12" font-weight="600">
+        <rect x="256" y="334" width="84" height="22" rx="7" fill="#1e88e5"/><text x="298" y="349" fill="#fff" text-anchor="middle">ต่ำ·ท่อใหญ่ →</text>
+        <rect x="256" y="400" width="84" height="22" rx="7" fill="#e53935"/><text x="298" y="415" fill="#fff" text-anchor="middle">สูง·ท่อเล็ก →</text>
+      </g>
+
+      <!-- outdoor unit -->
+      <g id="outdoorG">
+        <rect x="420" y="236" width="208" height="190" rx="14" fill="url(#odG)" stroke="#8a97a8" stroke-width="4"/>
+        <rect x="420" y="236" width="208" height="12" rx="6" fill="#cfd8e3"/>
+        <circle cx="505" cy="332" r="68" fill="#2f3a48"/>
+        <g id="fanBlades" fill="#9fb0c4">
+          <path d="M505 332 C 485 300 500 272 518 276 C 524 296 516 316 505 332 Z"/>
+          <path d="M505 332 C 485 300 500 272 518 276 C 524 296 516 316 505 332 Z" transform="rotate(120 505 332)"/>
+          <path d="M505 332 C 485 300 500 272 518 276 C 524 296 516 316 505 332 Z" transform="rotate(240 505 332)"/>
+          <circle cx="505" cy="332" r="11" fill="#cfd8e3"/>
+        </g>
+        <g stroke="#8a97a8" stroke-width="2.5" fill="none">
+          <circle cx="505" cy="332" r="66"/><circle cx="505" cy="332" r="50"/><circle cx="505" cy="332" r="33"/>
+          <line x1="439" y1="332" x2="571" y2="332"/><line x1="505" y1="266" x2="505" y2="398"/>
+        </g>
+        <circle id="dirtG" cx="505" cy="332" r="66" fill="url(#dirtP)" opacity="0"/>
+        <g id="fanX" opacity="0"><circle cx="505" cy="332" r="20" fill="#ef4b4b"/>
+          <path d="M496 323 L514 341 M514 323 L496 341" stroke="#fff" stroke-width="5" stroke-linecap="round"/></g>
+        <!-- nameplate -->
+        <rect x="578" y="250" width="44" height="80" rx="6" fill="#fff" stroke="#46536b" stroke-width="2"/>
+        <text id="npRef" x="600" y="274" font-size="15" font-weight="700" fill="#b3261e" text-anchor="middle" font-family="Mitr,sans-serif">R32</text>
+        <text id="npKg" x="600" y="294" font-size="11" fill="#213047" text-anchor="middle" font-family="Mitr,sans-serif">0.55kg</text>
+        <text id="npA" x="600" y="312" font-size="11" fill="#213047" text-anchor="middle" font-family="Mitr,sans-serif">5.2A</text>
+        <!-- compressor window -->
+        <rect x="578" y="340" width="44" height="72" rx="6" fill="#26303c"/>
+        <g id="compG"><ellipse cx="600" cy="382" rx="15" ry="22" fill="#151a20" stroke="#46536b" stroke-width="2"/>
+          <rect x="594" y="356" width="12" height="6" rx="2" fill="#46536b"/></g>
+        <text x="505" y="420" font-size="13" font-weight="600" fill="#6b7686" text-anchor="middle" font-family="Mitr,sans-serif">คอยล์ร้อน (Outdoor)</text>
+      </g>
+      <!-- hot air -->
+      <g id="hotAir" stroke="#ff8f1c" stroke-width="5" fill="none" stroke-linecap="round" opacity=".8">
+        <path class="hAir" d="M470 226 q8 -10 0 -20 q-8 -10 0 -20"/>
+        <path class="hAir" style="animation-delay:.45s" d="M505 226 q8 -10 0 -20 q-8 -10 0 -20"/>
+        <path class="hAir" style="animation-delay:.9s" d="M540 226 q8 -10 0 -20 q-8 -10 0 -20"/>
+      </g>
+      <!-- power cable -->
+      <path d="M600 404 V466" stroke="#222" stroke-width="5" fill="none"/>
+
+      <!-- service valves & ports -->
+      <g id="valves">
+        <rect x="392" y="308" width="28" height="24" rx="5" fill="#c9a227" stroke="#8a6d10" stroke-width="2"/>
+        <rect x="400" y="330" width="8" height="12" fill="#c9a227"/>
+        <circle id="portLowC" cx="404" cy="348" r="8" fill="#5d6b80" stroke="#2c3542" stroke-width="2"/>
+        <rect x="392" y="372" width="28" height="24" rx="5" fill="#c9a227" stroke="#8a6d10" stroke-width="2"/>
+        <rect x="400" y="394" width="8" height="12" fill="#c9a227"/>
+        <circle id="portHighC" cx="404" cy="412" r="8" fill="#5d6b80" stroke="#2c3542" stroke-width="2"/>
+      </g>
+      <circle id="portLowRing" class="pulse" cx="404" cy="348" r="16" fill="none" stroke="#ffd23f" stroke-width="4" opacity="0"/>
+      <circle id="portHighRing" class="pulse" cx="404" cy="412" r="16" fill="none" stroke="#ffd23f" stroke-width="4" opacity="0"/>
+
+      <!-- clamp thermometers (attached) -->
+      <g id="clSuc" opacity="0">
+        <rect x="350" y="192" width="20" height="16" rx="4" fill="#111"/>
+        <rect x="372" y="186" width="96" height="28" rx="8" fill="#102030"/>
+        <text id="tSucTxt" x="420" y="205" font-size="14" font-weight="600" fill="#7fd0ff" text-anchor="middle" font-family="Mitr,sans-serif">—</text>
+      </g>
+      <g id="clLiq" opacity="0">
+        <rect x="337" y="292" width="18" height="16" rx="4" fill="#111"/>
+        <rect x="240" y="286" width="96" height="28" rx="8" fill="#102030"/>
+        <text id="tLiqTxt" x="288" y="305" font-size="14" font-weight="600" fill="#ffb36b" text-anchor="middle" font-family="Mitr,sans-serif">—</text>
+      </g>
+      <!-- clamp meter -->
+      <g id="clAmp" opacity="0">
+        <circle cx="600" cy="446" r="10" fill="none" stroke="#ffcc00" stroke-width="6"/>
+        <rect x="528" y="430" width="58" height="34" rx="7" fill="#ffcc00" stroke="#a88600" stroke-width="2"/>
+        <rect x="532" y="435" width="50" height="17" rx="3" fill="#d6f0cf"/>
+        <text id="ampTxt" x="557" y="448" font-size="13" font-weight="700" fill="#1b3a1b" text-anchor="middle" font-family="Mitr,sans-serif">0.0A</text>
+      </g>
+
+      <!-- refrigerant cylinder -->
+      <g id="cylG">
+        <rect x="222" y="398" width="34" height="50" rx="10" fill="url(#cylG)" stroke="#2c6e66" stroke-width="2"/>
+        <rect x="232" y="390" width="14" height="10" rx="3" fill="#5d6b80"/>
+        <text id="cylTxt" x="239" y="428" font-size="10" font-weight="700" fill="#123" text-anchor="middle" font-family="Mitr,sans-serif">?</text>
+      </g>
+
+      <!-- manifold gauge set -->
+      <g id="manifoldG">
+        <path d="M121 384 C 121 440 228 446 239 392" stroke="#f2c200" stroke-width="5" fill="none"/>
+        <rect x="40" y="356" width="162" height="26" rx="9" fill="#cfd8e3" stroke="#7a8899" stroke-width="2"/>
+        <rect x="26" y="360" width="16" height="18" rx="4" fill="#1e88e5"/>
+        <rect x="200" y="360" width="16" height="18" rx="4" fill="#e53935"/>
+        <rect x="114" y="378" width="14" height="10" rx="2" fill="#f2c200"/>
+        <g id="gBlue"></g>
+        <g id="gRed"></g>
+      </g>
+      <!-- hoses (drawn by JS) -->
+      <path id="hoseBlue" d="" stroke="#1e88e5" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <path id="hoseRed" d="" stroke="#e53935" stroke-width="6" fill="none" stroke-linecap="round"/>
+
+      <!-- port hit areas -->
+      <circle id="portLow" class="portHit" cx="404" cy="348" r="28" fill="transparent"/>
+      <circle id="portHigh" class="portHit" cx="404" cy="412" r="28" fill="transparent"/>
+
+      <!-- hose ends -->
+      <g id="endBlue" class="hoseEnd" data-h="blue">
+        <circle r="26" fill="transparent"/>
+        <circle id="selBlue" r="17" fill="none" stroke="#ffd23f" stroke-width="4" opacity="0"/>
+        <circle r="11" fill="#1e88e5" stroke="#fff" stroke-width="3"/>
+      </g>
+      <g id="endRed" class="hoseEnd" data-h="red">
+        <circle r="26" fill="transparent"/>
+        <circle id="selRed" r="17" fill="none" stroke="#ffd23f" stroke-width="4" opacity="0"/>
+        <circle r="11" fill="#e53935" stroke="#fff" stroke-width="3"/>
+      </g>
+
+      <!-- tool spots -->
+      <g id="spotSuc" class="toolSpot" data-tool="tsuc"><circle cx="360" cy="200" r="24" fill="transparent"/>
+        <circle class="pulse" cx="360" cy="200" r="15" fill="rgba(255,210,63,.35)" stroke="#ffb300" stroke-width="4"/>
+        <text x="360" y="206" font-size="15" text-anchor="middle">🌡</text></g>
+      <g id="spotLiq" class="toolSpot" data-tool="tliq"><circle cx="346" cy="300" r="24" fill="transparent"/>
+        <circle class="pulse" cx="346" cy="300" r="15" fill="rgba(255,210,63,.35)" stroke="#ffb300" stroke-width="4"/>
+        <text x="346" y="306" font-size="15" text-anchor="middle">🌡</text></g>
+      <g id="spotAmp" class="toolSpot" data-tool="clamp"><circle cx="600" cy="446" r="24" fill="transparent"/>
+        <circle class="pulse" cx="600" cy="446" r="15" fill="rgba(255,210,63,.35)" stroke="#ffb300" stroke-width="4"/>
+        <text x="600" y="452" font-size="15" text-anchor="middle">⚡</text></g>
+
+      <!-- repair effects -->
+      <g id="workFx" opacity="0"><text id="workTxt" x="0" y="0" font-size="40" text-anchor="middle">🔧</text></g>
+      <g id="sprayG" opacity="0" fill="#4fc3f7">
+        <circle class="spray" cx="455" cy="280" r="4"/><circle class="spray" style="animation-delay:.15s" cx="470" cy="300" r="4"/>
+        <circle class="spray" style="animation-delay:.3s" cx="490" cy="270" r="4"/><circle class="spray" style="animation-delay:.45s" cx="520" cy="300" r="4"/>
+        <circle class="spray" style="animation-delay:.2s" cx="80" cy="56" r="4"/><circle class="spray" style="animation-delay:.4s" cx="150" cy="56" r="4"/>
+      </g>
+    </svg>
+    <div id="bubble"></div>
+  </div>
+
+  <!-- PANEL -->
+  <div id="panel">
+    <div id="steps"><span>① ต่อเกจ</span><span>② น้ำยา</span><span>③ อ่านค่า</span><span>④ วินิจฉัย</span><span>⑤ ซ่อม</span></div>
+    <div class="goal" id="goalTxt">—</div>
+    <div class="rd-grid" id="readings" style="display:none">
+      <div class="rd lo"><span class="k">P ต่ำ (bar g)</span><span class="v" id="rdPl">—</span></div>
+      <div class="rd hi"><span class="k">P สูง (bar g)</span><span class="v" id="rdPh">—</span></div>
+      <div class="rd"><span class="k">T ท่อ suction</span><span class="v" id="rdTs">—</span></div>
+      <div class="rd"><span class="k">T ท่อ liquid</span><span class="v" id="rdTl">—</span></div>
+      <div class="rd"><span class="k">ลมกลับ</span><span class="v" id="rdTr">—</span></div>
+      <div class="rd"><span class="k">ลมออก</span><span class="v" id="rdTsup">—</span></div>
+      <div class="rd"><span class="k">กระแสคอม</span><span class="v" id="rdI">—</span></div>
+      <div class="rd"><span class="k">แรงลมเย็น</span><span class="v" id="rdAir">—</span></div>
+    </div>
+    <div id="stepBody"></div>
+    <div id="chips"><span>⏱ <span id="chipTime">0</span> วิ</span><span>⚠ พลาด <span id="chipMist">0</span></span></div>
+  </div>
+</div>
+
+<!-- Start overlay -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.8rem">❄️🔧</div>
+    <h1>ช่างแอร์มือโปร</h1>
+    <div class="tag">สำหรับ: ช่าง ปวช./ปวส. (ช่างเครื่องทำความเย็น)</div>
+    <div class="sub">ต่อเกจ manifold → อ่านความดัน คำนวณ superheat/subcooling<br>วินิจฉัยอาการแอร์แยกส่วน แล้วซ่อมให้คุ้มงบ!</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มงาน</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- Help overlay -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2 id="helpTitle">วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt">—</div>
+    <div class="dots" id="helpDots"></div>
+    <div class="help-nav">
+      <button class="big-btn small alt" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- P-T table overlay -->
+<div class="overlay" id="ptOv">
+  <div class="card">
+    <h2 id="ptTitle">ตาราง P–T</h2>
+    <p style="font-size:.85rem;color:#5a6a80">ความดันอิ่มตัว (bar g) ↔ อุณหภูมิอิ่มตัว T<sub>sat</sub> · ค่าระหว่างแถวให้เทียบช่วง (interpolate)</p>
+    <div id="ptBody" style="margin:8px 0"></div>
+    <button class="big-btn small" id="ptClose">ปิด</button>
+  </div>
+</div>
+
+<!-- Formula overlay -->
+<div class="overlay" id="fxOv">
+  <div class="card">
+    <h2>📐 สูตร / ที่มา</h2>
+    <div class="fx" id="fxBody"></div>
+    <div style="margin-top:10px"><button class="big-btn small" id="fxClose">ปิด</button></div>
+  </div>
+</div>
+
+<!-- Result overlay -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <div id="resEmoji" style="font-size:2.2rem">🏁</div>
+    <h2 id="resTitle">จบงาน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="crit" id="resCrit"></div>
+    <div class="lesson" id="resLesson">—</div>
+    <div class="debrief" id="resDebrief"></div>
+    <div id="resBA"></div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- Final overlay -->
+<div class="overlay" id="finalOv">
+  <div class="card">
+    <div style="font-size:2.6rem">🏆❄️</div>
+    <h2>สรุปบทเรียน ช่างแอร์มือโปร</h2>
+    <div class="result-stars" style="font-size:1.6rem" id="finStars"></div>
+    <div class="debrief" id="finList" style="background:#eef7ff;border-color:#b3d4ff"></div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="finHome">🏠 หน้าแรก</button>
+      <button class="big-btn small" id="finReplay">↻ เล่นใหม่ตั้งแต่ด่าน 1</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ ช่างแอร์มือโปร v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var REDUCED=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ── ตาราง P–T อิ่มตัว (bar g) −20…65 °C ทุก 5 K — ประมาณค่าจาก CoolProp (สมการสถานะแบบ NIST REFPROP) ── */
+var PT_T=[-20,-15,-10,-5,0,5,10,15,20,25,30,35,40,45,50,55,60,65];
+var PT={
+  R32:   [3.044,3.867,4.813,5.893,7.118,8.501,10.056,11.795,13.732,15.883,18.262,20.885,23.770,26.935,30.399,34.186,38.319,42.829],
+  R410A_d:[2.980,3.787,4.714,5.770,6.968,8.319,9.835,11.530,13.416,15.508,17.821,20.370,23.173,26.248,29.617,33.303,37.335,41.750],
+  R410A_b:[2.994,3.804,4.733,5.792,6.994,8.349,9.870,11.569,13.461,15.559,17.878,20.434,23.243,26.324,29.697,33.385,37.413,41.813]
+};
+var PATM=1.01325;
+function ptArr(ref,liq){return ref==='R32'?PT.R32:(liq?PT.R410A_b:PT.R410A_d);}
+/* T → P (bar g): interpolate ln(P_abs) เชิงเส้นกับ T */
+function pFromT(ref,T,liq){
+  var a=ptArr(ref,liq),x=(T+20)/5,i=Math.max(0,Math.min(16,Math.floor(x))),f=x-i;
+  var l0=Math.log(a[i]+PATM),l1=Math.log(a[i+1]+PATM);
+  return Math.exp(l0+(l1-l0)*f)-PATM;
+}
+/* P (bar g) → T_sat */
+function tFromP(ref,P,liq){
+  var a=ptArr(ref,liq),lp=Math.log(P+PATM),i=0;
+  while(i<16&&P>a[i+1])i++;
+  var l0=Math.log(a[i]+PATM),l1=Math.log(a[i+1]+PATM);
+  return PT_T[i]+5*(lp-l0)/(l1-l0);
+}
+
+/* ── แบบจำลองระบบ ── */
+var I0={R32:4.6,R410A:5.0}, RLA={R32:5.2,R410A:5.6}, KG={R32:'0.55',R410A:'0.90'};
+var T_RET=27;
+function model(s,ref){
+  if(s.charge<0.05){
+    return {empty:true,Te:30,Tc:30,SH:0,SC:0,Pl:-0.95,Ph:-0.95,Tsuc:32,Tliq:32,Tsup:T_RET,dT:0,air:100,I:0,Irel:0,flow:0,fan:0,cop:0};
+  }
+  var u=Math.max(0,1-s.charge)/0.4, o=Math.max(0,s.charge-1)/0.3;
+  var b=Math.min(1.3,(1-s.kc)/0.6+(s.fanOK?0:1.15)), f=(1-s.ke)/0.55, w=(1-s.eta)/0.5, r=s.restr;
+  var Te=6.5-8*u+2*o+2*b-8*f+7*w-12*r;
+  var Tc=45-5*u+7*o+13*b-3*f-8*w-2*r;
+  var SH=Math.max(0.5,6+16*u-4.5*o-b-4.5*f+4*w+20*r);
+  var SC=Math.max(0,5.5-5*u+8*o+1.5*b+0.5*f-3*w+7*r);
+  var dT=Math.max(1,12-5*u-1.5*o-2.5*b+7*f-6*w-7*r);
+  var air=100-55*f;
+  var Irel=1-0.26*u+0.2*o+0.35*b-0.13*f-0.28*w-0.24*r;
+  return {empty:false,Te:Te,Tc:Tc,SH:SH,SC:SC,Pl:pFromT(ref,Te,false),Ph:pFromT(ref,Tc,true),
+    Tsuc:Te+SH,Tliq:Tc-SC,Tsup:T_RET-dT,dT:dT,air:air,I:I0[ref]*Irel,Irel:Irel,
+    flow:Math.max(0.15,1-0.5*u-0.45*w-0.65*r-0.2*f),fan:s.fanOK?1:0,cop:0.48*(1-0.5*w)*(Te+273.15)/(Tc-Te)};
+}
+var NORMAL_ST={charge:1,leak:false,kc:1,fanOK:true,ke:1,eta:1,restr:0};
+var FAULTS={
+  normal:{},
+  under:{charge:0.7,leak:true},
+  over:{charge:1.3},
+  cond:{kc:0.46},
+  fan:{fanOK:false},
+  filter:{ke:0.45},
+  weak:{eta:0.55},
+  restr:{restr:1}
+};
+var FAULT_DIAG={normal:'normal',under:'under',over:'over',cond:'cond',fan:'cond',filter:'filter',weak:'weak',restr:'restr'};
+var FIX={normal:[],under:['leak','charge'],over:['recover'],cond:['coil'],fan:['fan'],filter:['filter'],weak:['comp'],restr:['cap']};
+function mkState(fault){var s={},k;for(k in NORMAL_ST)s[k]=NORMAL_ST[k];var f=FAULTS[fault];for(k in f)s[k]=f[k];return s;}
+function valuesNormal(s){return s.charge>0.99&&s.charge<1.01&&s.kc===1&&s.fanOK&&s.ke===1&&s.eta===1&&s.restr===0;}
+
+/* ── สัญญาณอาการ (เทียบช่วงปกติ) ── */
+function sig(o){
+  return {Pl:o.Te<4?'low':(o.Te>9.5?'high':'ok'), Ph:o.Tc<42?'low':(o.Tc>49?'high':'ok'),
+    SH:o.SH<3?'low':(o.SH>10?'high':'ok'), SC:o.SC<3?'low':(o.SC>8?'high':'ok'),
+    I:o.Irel<0.88?'low':(o.Irel>1.1?'high':'ok'), dT:o.dT<9?'low':(o.dT>15?'high':'ok')};
+}
+var EXPECT={
+  normal:{Pl:'ok',Ph:'ok',SH:'ok',SC:'ok',I:'ok'},
+  under:{Pl:'low',SH:'high',SC:'low',I:'low'},
+  over:{Ph:'high',SC:'high',SH:'low'},
+  cond:{Ph:'high',SC:'ok',I:'high'},
+  filter:{Pl:'low',SH:'low',dT:'high'},
+  weak:{Pl:'high',Ph:'low',I:'low'},
+  restr:{Pl:'low',SH:'high',SC:'high'}
+};
+var DIAG_NAME={normal:'✅ ระบบปกติ',under:'📉 น้ำยาขาด (รั่ว)',over:'📈 น้ำยาเกิน',cond:'🔥 คอยล์ร้อนตัน/พัดลมนอกเสีย',
+  filter:'🧽 ฟิลเตอร์/คอยล์เย็นสกปรก',weak:'⚙️ คอมเพรสเซอร์อ่อน',restr:'🚫 ท่อตัน/คาปิลลารีอุด'};
+var FIELD_NAME={Pl:'ความดันด้านต่ำ',Ph:'ความดันด้านสูง',SH:'Superheat',SC:'Subcooling',I:'กระแสคอมเพรสเซอร์',dT:'ΔT ลม'};
+var LVL_TXT={low:'ต่ำ',high:'สูง',ok:'ปกติ'};
+var FIELD_BAND={Pl:'T_sat 4–9.5°C',Ph:'T_sat 42–49°C',SH:'3–10 K',SC:'3–8 K',I:'88–110% ของปกติ',dT:'9–15 K'};
+
+/* ── ด่าน ── */
+var LV=[
+ {name:'ด่าน 1 · งานแรก เช็กเครื่อง',icon:'🎓',ref:'R32',faults:['normal'],budget:1000,
+  brief:'ลูกค้าให้ล้างแอร์ประจำปี — ก่อนล้าง ช่างมือโปรต้องวัดค่าเก็บไว้เป็น "ค่าฐาน" ก่อน',
+  lesson:'SH = T ท่อ suction − Tsat(P ต่ำ) · SC = Tsat(P สูง) − T ท่อ liquid — สองค่านี้บอกปริมาณน้ำยาได้แม่นกว่าดูเข็มอย่างเดียว'},
+ {name:'ด่าน 2 · เย็นน้อย เคยเติมน้ำยา',icon:'💧',ref:'R410A',faults:['under'],budget:2500,
+  brief:'ลูกค้า: "แอร์ไม่ค่อยเย็น ปีที่แล้วช่างอีกเจ้าเติมน้ำยาให้ ตอนนี้เป็นอีกแล้ว"',
+  lesson:'น้ำยาขาด = P ต่ำทั้งสองด้าน SH สูง SC ต่ำ กระแสต่ำ — น้ำยาไม่ได้ "หมดเอง" ต้องหาจุดรั่วก่อนเติมเสมอ'},
+ {name:'ด่าน 3 · ความดันสูง ตัดบ่อย',icon:'🔥',ref:'R32',faults:['over','cond','fan'],budget:2500,
+  brief:'ลูกค้า: "เปิดไปสักพักคอมตัด ลมเย็นไม่ฉ่ำ เพิ่งให้ร้านแถวบ้านมาเติมน้ำยา/ดูแลเมื่อเดือนก่อน"',
+  lesson:'P สูงเหมือนกัน แต่ SC แยกโรคได้: SC สูงมาก = น้ำยาเกิน · SC ปกติ + คอยล์สกปรก/พัดลมไม่หมุน = ระบายความร้อนไม่ได้'},
+ {name:'ด่าน 4 · ลมเบา น้ำแข็งเกาะ',icon:'🧊',ref:'R410A',faults:['filter'],budget:1500,
+  brief:'ลูกค้า: "ลมออกเบามาก มีน้ำแข็งเกาะท่อ น้ำหยดในห้อง ไม่ได้ล้างแอร์มา 2 ปี"',
+  lesson:'ลมผ่านคอยล์เย็นน้อย → P ต่ำ SH ต่ำ ท่อ suction เย็นจนน้ำแข็งเกาะ — อย่าเติมน้ำยา! ล้างฟิลเตอร์ก่อน'},
+ {name:'ด่าน 5 · แอร์เก่า 12 ปี ไม่เย็น',icon:'⚙️',ref:'R32',faults:['weak','restr'],budget:8000,
+  brief:'ลูกค้า: "แอร์ใช้มา 12 ปี เปิดทั้งวันไม่เย็น อยากให้ดูว่าควรซ่อมอะไร" — งบสูงแต่พลาดไม่ได้',
+  lesson:'P ต่ำ-สูงเข้าหากัน + กระแสต่ำ = คอมอ่อน · P ต่ำ + SH สูงมาก + SC สูง = ท่อตัน — วินิจฉัยผิดเสียหลายพันบาท'}
+];
+var REPAIRS=[
+ {id:'leak',cost:1200,txt:'🔍 หาจุดรั่ว+เชื่อม+ทำสุญญากาศ'},
+ {id:'charge',cost:600,txt:'🧪 ชาร์จน้ำยา (ตามน้ำหนักป้าย)'},
+ {id:'recover',cost:400,txt:'♻️ ดูดน้ำยาออกบางส่วน'},
+ {id:'coil',cost:500,txt:'🚿 ล้างคอยล์ร้อน'},
+ {id:'fan',cost:1800,txt:'🌀 เปลี่ยนมอเตอร์พัดลมนอก'},
+ {id:'filter',cost:400,txt:'🧽 ล้างฟิลเตอร์+คอยล์เย็น'},
+ {id:'cap',cost:2500,txt:'🔧 เปลี่ยนคาปิลลารี/ไดรเออร์ (+สุญญากาศ+ชาร์จ)'},
+ {id:'comp',cost:6500,txt:'⚙️ เปลี่ยนคอมเพรสเซอร์ (+สุญญากาศ+ชาร์จ)'}
+];
+function repById(id){for(var i=0;i<REPAIRS.length;i++)if(REPAIRS[i].id===id)return REPAIRS[i];return null;}
+
+/* ── สถานะเกม ── */
+var G={lv:0,fault:'normal',st:null,running:false,t:0,step:1,ref:null,
+  tools:{blue:null,red:null,tsuc:false,tliq:false,clamp:false},
+  mist:{hose:[],ref:[],diag:[]},quiz:null,inspected:{},actions:[],spent:0,lock:0,out0:null,out:null,disp:null,repMsg:''};
+var stars=[0,0,0,0,0], lastTs=0, fanAng=0, flowOff=0;
+
+/* ── เสียง ── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.06,'square',0.07);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sSnap(){tone(1200,0,0.05,'square',0.1);tone(1600,0.05,0.07,'square',0.08);}
+function sHiss(){var a=audio();if(!a||!sndOn)return;
+  var len=a.sampleRate*0.6,buf=a.createBuffer(1,len,a.sampleRate),d=buf.getChannelData(0);
+  for(var i=0;i<len;i++)d[i]=(Math.random()*2-1)*(1-i/len);
+  var src=a.createBufferSource(),g=a.createGain();src.buffer=buf;
+  g.gain.setValueAtTime(0.16,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.6);
+  src.connect(g);g.connect(a.destination);src.start();}
+
+/* ── localStorage ── */
+var KEY='te_skill_hvac';
+function loadStars(){try{var v=JSON.parse(localStorage.getItem(KEY+'_stars')||'[]');for(var i=0;i<5;i++)stars[i]=Math.min(3,v[i]|0);}catch(e){}}
+function saveStars(){try{localStorage.setItem(KEY+'_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem(KEY+'_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem(KEY+'_seen','1');}catch(e){}}
+
+/* ── util ── */
+function f1(v){return (Math.round(v*10)/10).toFixed(1);}
+function r1(v){return Math.round(v*10)/10;}
+function fs(v){return v<0?'('+f1(v)+')':f1(v);}
+function baht(n){return '฿'+n.toLocaleString('en-US');}
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');
+  clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||3000);}
+function shake(){var sw=$('sceneWrap');sw.classList.remove('shake');requestAnimationFrame(function(){sw.classList.add('shake');});}
+function mistCount(){return G.mist.hose.length+G.mist.ref.length+G.mist.diag.length+(G.quiz&&G.quiz.checked?((G.quiz.sh.pick!==G.quiz.sh.c?1:0)+(G.quiz.sc.pick!==G.quiz.sc.c?1:0)):0);}
+
+/* ── เกจ: สร้างหน้าปัด ── */
+var GAUGE={blue:{cx:70,cy:312,min:-1,max:20,maj:[0,5,10,15,20],col:'#1e88e5',lab:'LOW'},
+           red:{cx:172,cy:312,min:-1,max:45,maj:[0,10,20,30,40],col:'#e53935',lab:'HIGH'}};
+function gAng(g,v){v=Math.max(g.min,Math.min(g.max,v));return -135+(v-g.min)/(g.max-g.min)*270;}
+function buildGauge(id,g){
+  var s='<circle cx="'+g.cx+'" cy="'+g.cy+'" r="44" fill="#fff" stroke="'+g.col+'" stroke-width="7"/>';
+  for(var v=0;v<=g.max;v+=(g.max>25?5:2.5)){
+    var a=gAng(g,v)*Math.PI/180,maj=g.maj.indexOf(v)>=0,r0=maj?30:33;
+    s+='<line x1="'+(g.cx+r0*Math.sin(a)).toFixed(1)+'" y1="'+(g.cy-r0*Math.cos(a)).toFixed(1)+'" x2="'+(g.cx+38*Math.sin(a)).toFixed(1)+'" y2="'+(g.cy-38*Math.cos(a)).toFixed(1)+'" stroke="#46536b" stroke-width="'+(maj?2.4:1.2)+'"/>';
+    if(maj)s+='<text x="'+(g.cx+22*Math.sin(a)).toFixed(1)+'" y="'+(g.cy-22*Math.cos(a)+4).toFixed(1)+'" font-size="9" font-weight="600" fill="#46536b" text-anchor="middle" font-family="Mitr,sans-serif">'+v+'</text>';
+  }
+  s+='<text x="'+g.cx+'" y="'+(g.cy+11)+'" font-size="7.5" font-weight="700" fill="'+g.col+'" text-anchor="middle" font-family="Mitr,sans-serif">'+g.lab+'</text>';
+  s+='<g id="'+id+'N"><line x1="'+g.cx+'" y1="'+(g.cy+6)+'" x2="'+g.cx+'" y2="'+(g.cy-36)+'" stroke="#213047" stroke-width="3" stroke-linecap="round"/></g>';
+  s+='<circle cx="'+g.cx+'" cy="'+g.cy+'" r="5" fill="#213047"/>';
+  s+='<rect x="'+(g.cx-24)+'" y="'+(g.cy+14)+'" width="48" height="17" rx="4" fill="#102030"/>';
+  s+='<text id="'+id+'T" x="'+g.cx+'" y="'+(g.cy+27)+'" font-size="12" font-weight="700" fill="'+(id==='gBlue'?'#7fd0ff':'#ff9a8a')+'" text-anchor="middle" font-family="Mitr,sans-serif">0.0</text>';
+  $(id).innerHTML=s;
+}
+var needle={blue:0,red:0};
+
+/* ── สายเกจ (drag / tap) ── */
+var HOSE={blue:{from:[70,384],park:[62,448]},red:{from:[180,384],park:[186,448]}};
+var PORTS={low:[404,348],high:[404,412]};
+var hoseEnd={blue:[62,448],red:[186,448]};
+var drag=null,tapSel=null;
+function drawHoses(){
+  ['blue','red'].forEach(function(h){
+    var fr=HOSE[h].from,e=hoseEnd[h];
+    var d='M'+fr[0]+' '+fr[1]+' C '+fr[0]+' '+(fr[1]+60)+' '+e[0]+' '+(e[1]+50)+' '+e[0]+' '+e[1];
+    $(h==='blue'?'hoseBlue':'hoseRed').setAttribute('d',d);
+    $(h==='blue'?'endBlue':'endRed').setAttribute('transform','translate('+e[0]+' '+e[1]+')');
+  });
+  $('selBlue').setAttribute('opacity',tapSel==='blue'?'1':'0');
+  $('selRed').setAttribute('opacity',tapSel==='red'?'1':'0');
+}
+function svgPt(ev){var svg=$('scene'),pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;
+  var m=svg.getScreenCTM();return m?pt.matrixTransform(m.inverse()):{x:0,y:0};}
+function canHose(){return G.running&&G.step===1;}
+function onEndDown(ev){
+  var h=this.getAttribute('data-h');
+  if(!canHose()||G.tools[h])return;
+  ev.preventDefault();audio();
+  var p=svgPt(ev);drag={h:h,x0:p.x,y0:p.y,moved:false};
+  try{this.setPointerCapture(ev.pointerId);}catch(e){}
+}
+function onMove(ev){
+  if(!drag)return;
+  var p=svgPt(ev);
+  if(!drag.moved&&Math.hypot(p.x-drag.x0,p.y-drag.y0)>6)drag.moved=true;
+  if(drag.moved){hoseEnd[drag.h]=[Math.max(10,Math.min(630,p.x)),Math.max(10,Math.min(462,p.y))];drawHoses();}
+}
+function onUp(ev){
+  if(!drag)return;
+  var h=drag.h,moved=drag.moved;drag=null;
+  if(!moved){tapSel=(tapSel===h)?null:h;sClick();drawHoses();
+    if(tapSel)say('เลือกสาย'+(h==='blue'?'ฟ้า':'แดง')+'แล้ว — แตะที่ service port ที่ต้องการต่อ',2400);return;}
+  var e=hoseEnd[h],best=null;
+  for(var k in PORTS){if(Math.hypot(e[0]-PORTS[k][0],e[1]-PORTS[k][1])<34)best=k;}
+  if(best)tryConnect(h,best);else{hoseEnd[h]=HOSE[h].park.slice();drawHoses();}
+}
+function onPortTap(port){
+  if(!canHose())return;
+  if(!tapSel){say('แตะ/ลากหัวสายเกจ (วงกลมสีฟ้าหรือแดง) ก่อน แล้วค่อยแตะพอร์ต',2400);return;}
+  tryConnect(tapSel,port);
+}
+function tryConnect(h,port){
+  var want=h==='blue'?'low':'high';
+  var other=h==='blue'?'red':'blue';
+  if(G.tools[other]===port){hoseEnd[h]=HOSE[h].park.slice();tapSel=null;drawHoses();say('พอร์ตนี้มีสายต่ออยู่แล้ว',1800);return;}
+  if(port!==want){
+    G.mist.hose.push({h:h,port:port});sBad();shake();
+    say(h==='blue'?'ผิด! สายฟ้า = ด้านต่ำ ต้องต่อท่อใหญ่ (suction)':'ผิด! สายแดง = ด้านสูง ต้องต่อท่อเล็ก (liquid)',3200);
+    hoseEnd[h]=HOSE[h].park.slice();tapSel=null;drawHoses();updateChips();return;
+  }
+  G.tools[h]=port;hoseEnd[h]=PORTS[port].slice();tapSel=null;sSnap();sHiss();drawHoses();
+  say(h==='blue'?'ต่อสายฟ้าเข้าด้านต่ำแล้ว — เข็มขึ้น!':'ต่อสายแดงเข้าด้านสูงแล้ว — เข็มขึ้น!',2000);
+  renderPanel();checkStep1();
+}
+function attachTool(t){
+  if(!canHose()||G.tools[t])return;
+  G.tools[t]=true;sSnap();
+  say(t==='tsuc'?'หนีบเทอร์โมที่ท่อ suction (ท่อใหญ่) ใกล้คอยล์ร้อน':t==='tliq'?'หนีบเทอร์โมที่ท่อ liquid (ท่อเล็ก)':'คล้องแคลมป์มิเตอร์ที่สายไฟคอมเพรสเซอร์ (เส้นเดียว)',2200);
+  renderPanel();checkStep1();
+}
+function checkStep1(){
+  var t=G.tools;
+  if(t.blue&&t.red&&t.tsuc&&t.tliq&&t.clamp){setTimeout(function(){if(G.step===1&&G.running){sGood();setStep(2);}},600);}
+}
+
+/* ── เริ่มด่าน ── */
+function startLevel(i,forceFault){
+  var L=LV[i];
+  G.lv=i;G.fault=forceFault||L.faults[Math.floor(Math.random()*L.faults.length)];
+  G.st=mkState(G.fault);G.running=true;G.t=0;G.step=1;G.ref=null;
+  G.tools={blue:null,red:null,tsuc:false,tliq:false,clamp:false};
+  G.mist={hose:[],ref:[],diag:[]};G.quiz=null;G.inspected={};G.actions=[];G.spent=0;G.lock=0;G.repMsg='';
+  G.out=model(G.st,L.ref);G.out0=G.out;G.disp=copyOut(G.out);
+  hoseEnd={blue:HOSE.blue.park.slice(),red:HOSE.red.park.slice()};tapSel=null;needle={blue:0,red:0};
+  $('npRef').textContent=L.ref;$('npRef').setAttribute('font-size',L.ref==='R32'?'15':'11.5');$('npKg').textContent=KG[L.ref]+'kg';$('npA').textContent=RLA[L.ref]+'A';
+  $('cylTxt').textContent='?';$('cylTxt').setAttribute('font-size',L.ref==='R32'?'10':'8');
+  $('portLabels').setAttribute('opacity',i===0?'1':'0');
+  $('dirtG').setAttribute('opacity','0');$('filterDirt').setAttribute('opacity','0');$('fanX').setAttribute('opacity','0');
+  $('lvlName').textContent=L.name;
+  drawHoses();setStep(1);
+  say(L.brief,4200);
+}
+function copyOut(o){var c={};for(var k in o)c[k]=o[k];return c;}
+
+/* ── ขั้นตอน ── */
+var GOALS={
+ 1:function(){return G.lv===0?'<b>① ต่อเกจ:</b> ลากหัวสาย 🔵 <b>ฟ้า</b> ไปพอร์ต <b>ด้านต่ำ (ท่อใหญ่ suction)</b> · 🔴 <b>แดง</b> ไปพอร์ต <b>ด้านสูง (ท่อเล็ก liquid)</b> แล้วแตะจุด 🌡 ⚡ ที่กะพริบ (หรือแตะหัวสายแล้วแตะพอร์ต)':
+   '<b>① ต่อเกจ</b> สายฟ้า/แดงให้ถูกพอร์ต แล้วติดเทอร์โมหนีบท่อ 2 จุด + แคลมป์มิเตอร์ (ดูขนาดท่อเอง — ไม่มีป้ายบอกแล้ว!)';},
+ 2:function(){return '<b>② เลือกน้ำยา</b> ให้ตรง <b>ป้ายชื่อเครื่อง (nameplate)</b> ที่คอยล์ร้อน — ใช้ตาราง P–T ผิดตัว ค่า T<sub>sat</sub> จะผิด';},
+ 3:function(){return '<b>③ อ่านค่า & คำนวณ</b> เปิด 📋 ตาราง P–T หา T<sub>sat</sub> แล้วคำนวณ <b>SH = T<sub>suction</sub> − T<sub>sat</sub>(P ต่ำ)</b> · <b>SC = T<sub>sat</sub>(P สูง) − T<sub>liquid</sub></b>';},
+ 4:function(){return '<b>④ วินิจฉัย</b> ดู P, SH, SC, ΔT ลม และกระแสเทียบค่าปกติ (ตรวจสภาพเครื่องได้ฟรี) แล้วเลือกโรค';},
+ 5:function(){return '<b>⑤ ซ่อม</b> เลือกงานซ่อมที่จำเป็น <b>ตามลำดับ</b> ในงบ '+baht(LV[G.lv].budget)+' — ค่ากลับปกติแล้วกด <b>ส่งมอบงาน</b>';}
+};
+function setStep(n){
+  G.step=n;
+  var sp=$('steps').children;
+  for(var i=0;i<5;i++){sp[i].className=(i+1===n)?'on':(i+1<n?'done':'');}
+  $('goalTxt').innerHTML=GOALS[n]();
+  if(n===3)buildQuiz();
+  renderPanel();
+}
+
+function renderPanel(){
+  var b=$('stepBody'),h='',L=LV[G.lv],t=G.tools;
+  $('readings').style.display=G.step>=2?'grid':'none';
+  if(G.step===1){
+    h='<div class="chk">'+
+      '<span class="'+(t.blue?'ok':'')+'">🔵 สายฟ้า '+(t.blue?'✔':'…')+'</span>'+
+      '<span class="'+(t.red?'ok':'')+'">🔴 สายแดง '+(t.red?'✔':'…')+'</span>'+
+      '<span class="'+(t.tsuc?'ok':'')+'">🌡 suction '+(t.tsuc?'✔':'…')+'</span>'+
+      '<span class="'+(t.tliq?'ok':'')+'">🌡 liquid '+(t.tliq?'✔':'…')+'</span>'+
+      '<span class="'+(t.clamp?'ok':'')+'">⚡ แคลมป์ '+(t.clamp?'✔':'…')+'</span></div>';
+  }else if(G.step===2){
+    h='<div class="plate">MODEL: TE-12'+(L.ref==='R32'?'R':'Q')+'C · 12,000 BTU/h<br>REFRIGERANT: <b>'+L.ref+'</b> · CHARGE '+KG[L.ref]+' kg<br>220 V 1~ 50 Hz · RLA '+RLA[L.ref]+' A</div>'+
+      '<div class="qlab" style="text-align:center">แผงเลือกน้ำยา — เครื่องนี้ใช้น้ำยาอะไร?</div>'+
+      '<div class="opt-grid"><button class="opt" data-ref="R32">R32<span class="pr">สารเดี่ยว · A2L</span></button>'+
+      '<button class="opt" data-ref="R410A">R410A<span class="pr">ส่วนผสม · A1</span></button></div>';
+  }else if(G.step===3){
+    var q=G.quiz;
+    h='<div class="row"><button class="big-btn small ghost" data-act="pt">📋 ตาราง P–T ('+G.ref+')</button></div>';
+    if(G.lv===0&&!q.checked){
+      h+='<div class="fb info">ตัวอย่าง: P ต่ำ '+f1(q.Pl)+' bar g → ตาราง ≈ <b>'+f1(q.tsatL)+'°C</b> · SH = '+f1(q.Tsuc)+' − '+fs(q.tsatL)+' = ?<br>P สูง '+f1(q.Ph)+' bar g → ≈ <b>'+f1(q.tsatH)+'°C</b> · SC = '+f1(q.tsatH)+' − '+f1(q.Tliq)+' = ?</div>';
+    }
+    h+='<div class="qlab">Superheat (SH) = ? <small>K</small></div><div class="opt-grid">';
+    q.sh.opts.forEach(function(v){h+='<button class="opt'+optCls(q,'sh',v)+'" data-q="sh" data-v="'+v+'"'+(q.checked?' disabled':'')+'>'+f1(v)+' K</button>';});
+    h+='</div><div class="qlab">Subcooling (SC) = ? <small>K</small></div><div class="opt-grid">';
+    q.sc.opts.forEach(function(v){h+='<button class="opt'+optCls(q,'sc',v)+'" data-q="sc" data-v="'+v+'"'+(q.checked?' disabled':'')+'>'+f1(v)+' K</button>';});
+    h+='</div>';
+    if(!q.checked){
+      h+='<div class="row"><button class="big-btn small" data-act="check"'+(q.sh.pick==null||q.sc.pick==null?' disabled':'')+'>✔ ตรวจคำตอบ</button></div>';
+    }else{
+      var okSH=q.sh.pick===q.sh.c,okSC=q.sc.pick===q.sc.c;
+      h+='<div class="fb '+(okSH?'good':'bad')+'">'+(okSH?'✔':'✘')+' SH = '+f1(q.Tsuc)+' − '+fs(q.tsatL)+' = <b>'+f1(q.sh.c)+' K</b></div>';
+      h+='<div class="fb '+(okSC?'good':'bad')+'">'+(okSC?'✔':'✘')+' SC = '+f1(q.tsatH)+' − '+f1(q.Tliq)+' = <b>'+f1(q.sc.c)+' K</b></div>';
+      h+='<div class="row"><button class="big-btn small" data-act="toDiag">ไปวินิจฉัย ➜</button></div>';
+    }
+  }else if(G.step===4){
+    var q2=G.quiz;
+    h='<div class="chk"><span>SH '+f1(q2.sh.c)+' K</span><span>SC '+f1(q2.sc.c)+' K</span><span>ΔT ลม '+f1(G.out.dT)+' K</span><span>I '+f1(G.out.I)+'/'+RLA[L.ref]+' A</span></div>';
+    if(G.lv===0)h+='<div class="fb info">ค่าปกติ: P ต่ำ T<sub>sat</sub> 5–8°C · P สูง 25–28 bar g · SH 5–8 K · SC 4–7 K · ΔT ลม 10–14 K · กระแส ≤ RLA</div>';
+    h+='<div class="qlab">🔦 ตรวจสภาพเครื่อง (ฟรี)</div><div class="opt-grid" style="grid-template-columns:1fr 1fr 1fr">'+
+      '<button class="opt" data-ins="coil">🔦 ส่องคอยล์ร้อน</button><button class="opt" data-ins="fan">👀 ดูพัดลมนอก</button><button class="opt" data-ins="filter">🔎 เปิดดูฟิลเตอร์</button></div>';
+    var insTxt=[];for(var k in G.inspected)insTxt.push(G.inspected[k]);
+    if(insTxt.length)h+='<div class="fb info">'+insTxt.join('<br>')+'</div>';
+    h+='<div class="qlab">🩺 วินิจฉัยว่าเป็น…</div><div class="opt-grid">';
+    for(var d in DIAG_NAME){var wr=G.mist.diag.some(function(x){return x.d===d;});
+      h+='<button class="opt'+(wr?' wrong':'')+'" data-diag="'+d+'"'+(wr?' disabled':'')+'>'+DIAG_NAME[d]+'</button>';}
+    h+='</div>';
+    if(G.mist.diag.length){var last=G.mist.diag[G.mist.diag.length-1];h+='<div class="fb bad">✘ '+last.why+'</div>';}
+  }else if(G.step===5){
+    var left=L.budget-G.spent;
+    h='<div class="budget">💰 <span>'+baht(G.spent)+' / '+baht(L.budget)+'</span><div class="tr"><div class="fl" style="width:'+Math.min(100,G.spent/L.budget*100)+'%"></div></div></div>';
+    if(G.lv===0)h+='<div class="fb info">เครื่องปกติดี ไม่ต้องซ่อม — ล้างตามงานที่ลูกค้าสั่ง แล้วกด <b>ส่งมอบงาน</b> ได้เลย</div>';
+    var insT=[];for(var k2 in G.inspected)insT.push(G.inspected[k2]);
+    if(insT.length)h+='<div class="fb info" style="font-size:.82rem">'+insT.join('<br>')+'</div>';
+    else h+='<div class="opt-grid" style="grid-template-columns:1fr 1fr 1fr"><button class="opt" data-ins="coil">🔦 คอยล์ร้อน</button><button class="opt" data-ins="fan">👀 พัดลมนอก</button><button class="opt" data-ins="filter">🔎 ฟิลเตอร์</button></div>';
+    h+='<div class="opt-grid">';
+    REPAIRS.forEach(function(r){var dis=G.lock>0||r.cost>left;
+      h+='<button class="opt" data-rep="'+r.id+'"'+(dis?' disabled':'')+'>'+r.txt+'<span class="pr">'+baht(r.cost)+'</span></button>';});
+    h+='</div>';
+    if(G.actions.length)h+='<div class="fb info">ทำไปแล้ว: '+G.actions.map(function(a,i){return (i+1)+') '+repById(a).txt;}).join(' → ')+(G.repMsg?'<br>'+G.repMsg:'')+'</div>';
+    h+='<div class="row"><button class="big-btn" data-act="handover"'+(G.lock>0?' disabled':'')+'>✅ ส่งมอบงาน</button></div>';
+  }
+  b.innerHTML=h;
+  updateChips();
+}
+function optCls(q,k,v){var o=q[k];if(!q.checked)return o.pick===v?' sel':'';if(v===o.c)return ' right';if(v===o.pick)return ' wrong';return '';}
+function updateChips(){$('chipMist').textContent=mistCount();}
+
+/* ── ขั้น 2: เลือกน้ำยา ── */
+function pickRef(r){
+  var L=LV[G.lv];
+  if(r!==L.ref){
+    G.mist.ref.push(r);sBad();shake();
+    say('ผิด! ป้ายเขียน '+L.ref+' — R32 กับ R410A ความดันใกล้กันมาก เลยหลงง่าย แต่ห้ามใช้สลับกัน',3600);
+    updateChips();return;
+  }
+  G.ref=r;sGood();$('cylTxt').textContent=r;
+  say('ถูกต้อง! ใช้ตาราง P–T ของ '+r,1800);
+  setStep(3);
+}
+
+/* ── ขั้น 3: คำถาม SH/SC ── */
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function mkOpts(c,cands){
+  var o=[c];
+  cands.forEach(function(w){w=r1(w);if(o.length<4&&w>=0&&o.every(function(x){return Math.abs(x-w)>=2.5;}))o.push(w);});
+  return shuffle(o);
+}
+function buildQuiz(){
+  var o=G.out,ref=G.ref;
+  var Pl=r1(o.Pl),Ph=r1(o.Ph),Tsuc=r1(o.Tsuc),Tliq=r1(o.Tliq);
+  var tsatL=r1(tFromP(ref,Pl,false)),tsatH=r1(tFromP(ref,Ph,true));
+  var sh=r1(Tsuc-tsatL),sc=r1(tsatH-Tliq);
+  G.quiz={Pl:Pl,Ph:Ph,Tsuc:Tsuc,Tliq:Tliq,tsatL:tsatL,tsatH:tsatH,checked:false,
+    sh:{c:sh,pick:null,opts:mkOpts(sh,[Tsuc,sh+5,Math.abs(T_RET-Tsuc),sh-4.5,sh+9,sh-3,sh+3.5])},
+    sc:{c:sc,pick:null,opts:mkOpts(sc,[Tliq,sc+5,Math.abs(Tliq-tsatL),sc-4,sc+9,sc-3,sc+3.5])}};
+}
+function checkQuiz(){
+  var q=G.quiz;q.checked=true;
+  var ok=(q.sh.pick===q.sh.c)&&(q.sc.pick===q.sc.c);
+  if(ok){sGood();say('คำนวณถูกทั้งคู่! 👍',1800);}else{sBad();say('ดูเฉลยด้านล่าง แล้วไปวินิจฉัยต่อ',2200);}
+  renderPanel();
+}
+
+/* ── ขั้น 4: ตรวจสภาพ + วินิจฉัย ── */
+function inspect(k){
+  var s=G.st;sClick();
+  if(k==='coil'){var dirty=s.kc<1;G.inspected.coil=dirty?'🔦 คอยล์ร้อน: ครีบมีฝุ่น/คราบอุดหนา ลมผ่านแทบไม่ได้':'🔦 คอยล์ร้อน: ครีบสะอาด ลมผ่านดี';
+    $('dirtG').setAttribute('opacity',dirty?'.85':'0');}
+  else if(k==='fan'){G.inspected.fan=s.fanOK?'👀 พัดลมนอก: หมุนปกติ ลมร้อนออกแรง':'👀 พัดลมนอก: ไม่หมุน! มอเตอร์ร้อนจัด วัดขดลวดขาด';
+    $('fanX').setAttribute('opacity',s.fanOK?'0':'1');}
+  else {var fd=s.ke<1;G.inspected.filter=fd?'🔎 ฟิลเตอร์: ฝุ่นอุดเต็มแผ่น คอยล์เย็นมีคราบ':'🔎 ฟิลเตอร์: ค่อนข้างสะอาด';
+    $('filterDirt').setAttribute('opacity',fd?'1':'0');}
+  renderPanel();
+}
+function diagWhy(d){
+  var o=G.out,sg=sig(o),ex=EXPECT[d],vals={Pl:f1(o.Pl)+' bar g (T_sat '+f1(o.Te)+'°C)',Ph:f1(o.Ph)+' bar g (T_sat '+f1(o.Tc)+'°C)',
+    SH:f1(o.SH)+' K',SC:f1(o.SC)+' K',I:f1(o.I)+' A',dT:f1(o.dT)+' K'};
+  for(var k in ex){if(ex[k]!==sg[k])return '«'+DIAG_NAME[d].replace(/^\S+\s/,'')+'» ต้องมี'+FIELD_NAME[k]+' '+LVL_TXT[ex[k]]+' — แต่วัดได้ '+vals[k]+' = '+LVL_TXT[sg[k]]+' (ปกติ '+FIELD_BAND[k]+')';}
+  if(d==='cond')return '«คอยล์ร้อนตัน» ค่าใกล้เคียง แต่ผลตรวจสภาพคอยล์และพัดลมไม่ตรง — กดตรวจสภาพดูก่อน';
+  return 'ค่าที่วัดได้ไม่ตรงกับ «'+DIAG_NAME[d]+'»';
+}
+function diagnose(d){
+  var right=FAULT_DIAG[G.fault];
+  if(d===right){
+    sGood();setStep(5);
+    if(d==='cond'&&!G.inspected.coil&&!G.inspected.fan)say('วินิจฉัยถูก! แต่ต้องรู้ว่าคอยล์ตันหรือพัดลมเสีย — ดูพัดลมในฉากก่อนเลือกงานซ่อม',3400);
+    else say('วินิจฉัยถูก! '+DIAG_NAME[d],2000);
+    return;
+  }
+  G.mist.diag.push({d:d,why:diagWhy(d)});sBad();shake();renderPanel();
+}
+
+/* ── ขั้น 5: ซ่อม ── */
+var FX_POS={leak:[404,380],charge:[404,380],recover:[404,380],coil:[505,300],fan:[505,332],filter:[160,70],cap:[300,104],comp:[600,382]};
+function doRepair(id){
+  var r=repById(id),L=LV[G.lv];
+  if(G.lock>0||!r||G.spent+r.cost>L.budget)return;
+  G.spent+=r.cost;G.actions.push(id);
+  var s=G.st,msg='';
+  if(id==='leak'){var had=s.leak;s.leak=false;s.charge=0;msg=had?'พบรอยรั่วที่หัวแฟลร์ด้านคอยล์เย็น → บานแฟลร์ใหม่/เชื่อม ทำสุญญากาศ ≤500 micron — ระบบว่าง ต้องชาร์จใหม่':'ไม่พบรอยรั่ว แต่ระบบถูกดูดจนว่าง (ต้องชาร์จใหม่)';}
+  else if(id==='charge'){if(s.charge<0.99){s.charge=1;msg=s.leak?'เติมจนค่ากลับปกติ — แต่ยังไม่ได้ซ่อมรอยรั่ว!':'ชาร์จตามน้ำหนักป้ายครบแล้ว';}else{s.charge=1.3;msg='เติมเกิน! น้ำยาเต็มอยู่แล้ว ความดันด้านสูงพุ่ง';}}
+  else if(id==='recover'){if(s.charge>1.01){s.charge=1;msg='ดูดน้ำยาส่วนเกินออก (recover ลงถัง) จน SC ปกติ';}else if(s.charge<0.05){msg='ระบบว่างอยู่แล้ว';}else{s.charge=Math.max(0.7,s.charge-0.3);msg='ดูดออกทั้งที่ไม่เกิน → น้ำยาขาด!';}}
+  else if(id==='coil'){msg=s.kc<1?'ล้างคอยล์ร้อนด้วยปั๊มน้ำแรงดัน — ครีบโล่ง':'คอยล์สะอาดอยู่แล้ว (เสียเงินเปล่า)';s.kc=1;$('dirtG').setAttribute('opacity','0');}
+  else if(id==='fan'){msg=s.fanOK?'มอเตอร์เดิมดีอยู่แล้ว (เสียเงินเปล่า)':'เปลี่ยนมอเตอร์พัดลม+คาปาซิเตอร์ — พัดลมหมุนแล้ว';s.fanOK=true;$('fanX').setAttribute('opacity','0');}
+  else if(id==='filter'){msg=s.ke<1?'ล้างฟิลเตอร์+คอยล์เย็น — ลมแรงขึ้น น้ำแข็งละลาย':'ฟิลเตอร์สะอาดอยู่แล้ว';s.ke=1;$('filterDirt').setAttribute('opacity','0');}
+  else if(id==='cap'){msg=s.restr>0?'เปลี่ยนคาปิลลารี+ไดรเออร์ ทำสุญญากาศ ชาร์จใหม่ — น้ำยาไหลสะดวก':'ท่อไม่ได้ตัน (เสียเงินเปล่า) — ชาร์จใหม่ตามป้าย';s.restr=0;s.charge=1;}
+  else if(id==='comp'){msg=s.eta<1?'เปลี่ยนคอมเพรสเซอร์ ทำสุญญากาศ ชาร์จใหม่ — อัดได้เต็มแรง':'คอมเดิมยังดี (เสียเงินเปล่าหลายพัน!)';s.eta=1;s.charge=1;}
+  G.repMsg=msg;
+  G.out=model(s,L.ref);
+  G.lock=1.5;sClick();tone(400,0.05,0.2,'triangle',0.12);
+  var fx=$('workFx'),p=FX_POS[id];$('workTxt').setAttribute('x',p[0]);$('workTxt').setAttribute('y',p[1]+14);
+  $('workTxt').textContent=(id==='coil'||id==='filter')?'💦':(id==='charge'||id==='recover')?'🧪':'🔧';
+  fx.setAttribute('opacity','1');$('workTxt').classList.remove('work');void $('workTxt').getBBox();$('workTxt').classList.add('work');
+  $('sprayG').setAttribute('opacity',(id==='coil'||id==='filter')?'1':'0');
+  say(msg,3000);
+  renderPanel();
+}
+function handover(){
+  if(G.lock>0)return;
+  finishLevel();
+}
+
+/* ── จบด่าน ── */
+function finishLevel(){
+  G.running=false;
+  var L=LV[G.lv],s=G.st,q=G.quiz;
+  var vn=valuesNormal(s), full=vn&&!s.leak;
+  var c1=G.mist.hose.length===0&&G.mist.ref.length===0;
+  var c2=q&&q.sh.pick===q.sh.c&&q.sc.pick===q.sc.c&&G.mist.diag.length===0;
+  var fix=FIX[G.fault];
+  var c3=full&&JSON.stringify(G.actions)===JSON.stringify(fix)&&G.spent<=L.budget;
+  var st=vn?Math.max(1,(c1?1:0)+(c2?1:0)+(c3?1:0)):0;
+  showResult({vn:vn,full:full,c1:c1,c2:c2,c3:c3,st:st});
+}
+function debriefItems(r){
+  var L=LV[G.lv],items=[],q=G.quiz,o0=G.out0;
+  G.mist.hose.forEach(function(m){
+    items.push('ต่อสาย'+(m.h==='blue'?'ฟ้า':'แดง')+'เข้าพอร์ตด้าน'+(m.port==='low'?'ต่ำ (ท่อใหญ่)':'สูง (ท่อเล็ก)')+' — จำ: <b>ฟ้า = ด้านต่ำ</b> ท่อใหญ่ suction ที่วาล์ว 3 ทาง · <b>แดง = ด้านสูง</b> ท่อเล็ก liquid · ต่อผิดเกจด้านต่ำโดนแรงดันสูงเกินสเกลอาจเสียหาย');});
+  G.mist.ref.forEach(function(x){
+    items.push('เลือก '+x+' แต่ป้ายเป็น '+L.ref+' — ที่ T<sub>sat</sub> เดียวกัน ความดัน R32/R410A ต่างกันแค่ ~0.1–0.6 bar จึงดูเกจแยกไม่ออก ต้องอ่านป้ายเสมอ · ห้ามเติมปน: R32 สารเดี่ยว ติดไฟได้เล็กน้อย (A2L) · R410A ส่วนผสม ต้องชาร์จสถานะของเหลว');});
+  if(q){
+    if(q.sh.pick!==q.sh.c){var t='ตอบ SH = '+f1(q.sh.pick)+' K แต่ที่ถูก = T<sub>suction</sub> '+f1(q.Tsuc)+' − T<sub>sat</sub>('+f1(q.Pl)+' bar g ≈ '+f1(q.tsatL)+'°C) = <b>'+f1(q.sh.c)+' K</b>';
+      if(Math.abs(q.sh.pick-q.Tsuc)<0.05)t+=' (คุณใช้อุณหภูมิท่อตรง ๆ ลืมลบ T<sub>sat</sub>)';items.push(t);}
+    if(q.sc.pick!==q.sc.c){var t2='ตอบ SC = '+f1(q.sc.pick)+' K แต่ที่ถูก = T<sub>sat</sub>('+f1(q.Ph)+' bar g ≈ '+f1(q.tsatH)+'°C) − T<sub>liquid</sub> '+f1(q.Tliq)+' = <b>'+f1(q.sc.c)+' K</b>';
+      if(Math.abs(q.sc.pick-q.Tliq)<0.05)t2+=' (คุณใช้อุณหภูมิท่อตรง ๆ)';else if(Math.abs(q.sc.pick-Math.abs(q.Tliq-q.tsatL))<0.05)t2+=' (คุณใช้ P ด้านต่ำแทนด้านสูง)';items.push(t2);}
+  }
+  G.mist.diag.forEach(function(m){items.push('วินิจฉัยครั้งแรกเป็น '+DIAG_NAME[m.d]+' — '+m.why);});
+  /* ซ่อม */
+  var fix=FIX[G.fault],acts=G.actions;
+  if(G.fault==='under'&&r.vn&&G.st.leak)items.push('เติมน้ำยาโดยไม่หาจุดรั่ว — ค่ากลับปกติแค่ชั่วคราว อีกไม่กี่สัปดาห์ก็ขาดอีก ลูกค้าเรียกซ้ำ เสียชื่อ+เสียน้ำยา → ต้อง <b>หาจุดรั่ว → ซ่อม → ทำสุญญากาศ → ชาร์จตามน้ำหนัก</b>');
+  if(G.fault==='under'){var iL=acts.indexOf('leak'),iC=acts.indexOf('charge');if(iL>iC&&iC>=0)items.push('ชาร์จก่อนแล้วค่อยหาจุดรั่ว — ตอนทำสุญญากาศน้ำยาที่เพิ่งเติมต้องดูดทิ้ง เสียเงินซ้ำ '+baht(600));}
+  var extra=[],cnt={};
+  acts.forEach(function(a){cnt[a]=(cnt[a]||0)+1;var need=fix.filter(function(x){return x===a;}).length;if(cnt[a]>need)extra.push(a);});
+  extra.forEach(function(a){var rr=repById(a);items.push(rr.txt+' ('+baht(rr.cost)+') ไม่จำเป็นสำหรับอาการนี้');});
+  if(acts.indexOf('charge')>=0&&(G.fault==='over'||G.fault==='cond'||G.fault==='fan'||G.fault==='filter'))items.push('เห็นแอร์ไม่เย็นแล้วเติมน้ำยา = ความผิดพลาดยอดฮิต — ต้องดู SH/SC ก่อนเสมอ');
+  if(!r.vn)items.push('ส่งมอบงานทั้งที่ค่ายังผิดปกติ (P ต่ำ '+f1(G.out.Pl)+' / P สูง '+f1(G.out.Ph)+' bar g, SH '+f1(G.out.SH)+' K, SC '+f1(G.out.SC)+' K) — งานที่ถูกคือ '+fix.map(function(a){return repById(a).txt;}).join(' → ')+(fix.length?'':'ไม่ต้องซ่อม'));
+  if(G.fault==='cond'||G.fault==='fan'){var cp0=o0.cop,cpN=model(NORMAL_ST,L.ref).cop;
+    items.push('ข้อคิด: T<sub>cond</sub> '+f1(o0.Tc)+'°C (ปกติ 45°C) → COP ลดจาก ~'+f1(cpN)+' เหลือ ~'+f1(cp0)+' (−'+Math.round((1-cp0/cpN)*100)+'%) ค่าไฟพุ่ง คอมร้อนจนตัด');}
+  if(G.fault==='filter')items.push('ข้อคิด: ท่อ suction '+f1(o0.Tsuc)+'°C ต่ำกว่าจุดเยือกแข็ง → น้ำแข็งเกาะ · ถ้าเติมน้ำยาตามความดันต่ำจะได้น้ำยาเกินทันทีที่ล้างฟิลเตอร์');
+  if(G.fault==='weak')items.push('ข้อคิด: คอมอ่อน (วาล์วรั่วภายใน) ดูดได้น้อย → P ต่ำสูงขึ้น P สูงลดลง เข้าหากัน · กระแส '+f1(o0.I)+' A ต่ำกว่าปกติ '+I0[L.ref]+' A');
+  if(G.fault==='restr')items.push('ข้อคิด: ท่อตันทำให้น้ำยาค้างในคอยล์ร้อน (SC '+f1(o0.SC)+' K) แต่คอยล์เย็นขาดน้ำยา (SH '+f1(o0.SH)+' K) — มักมีน้ำค้าง/น้ำแข็งเกาะจุดที่ตัน');
+  if(G.fault==='over')items.push('ข้อคิด: น้ำยาเกินทำให้ของเหลวท่วมคอยล์ร้อน (SC '+f1(o0.SC)+' K) พื้นที่ควบแน่นเหลือน้อย P สูงขึ้น และ SH ต่ำ เสี่ยงของเหลวกลับเข้าคอม (floodback)');
+  if(!items.length)items.push('ทำได้ครบ ไม่มีจุดพลาด — ต่อถูก คำนวณถูก วินิจฉัยถูก ซ่อมตรงจุดในงบ 👏');
+  return items;
+}
+function showResult(r){
+  var L=LV[G.lv];
+  if(r.st>stars[G.lv]){stars[G.lv]=r.st;saveStars();}
+  updateStarTotal();
+  $('resEmoji').textContent=r.vn?(r.st===3?'🏆':'🏁'):'⚠️';
+  $('resTitle').textContent=r.vn?L.name+' — ส่งงานแล้ว':'ส่งงานไม่ผ่าน! แอร์ยังผิดปกติ';
+  $('resCrit').innerHTML=
+    '<div>'+(r.c1?'✅':'❌')+' ต่อเกจ+เลือกน้ำยาถูก (ไม่พลาด)</div>'+
+    '<div>'+(r.c2?'✅':'❌')+' คำนวณ SH/SC + วินิจฉัยถูกครั้งแรก</div>'+
+    '<div>'+(r.c3?'✅':'❌')+' ซ่อมคุ้ม: ตรงจุด ถูกลำดับ ในงบ ('+baht(G.spent)+'/'+baht(L.budget)+')</div>';
+  $('resLesson').textContent='💡 '+L.lesson;
+  $('resDebrief').innerHTML='<h3>🔍 เฉลย/ข้อคิด — '+DIAG_NAME[FAULT_DIAG[G.fault]]+(G.fault==='fan'?' (มอเตอร์พัดลมเสีย)':G.fault==='cond'?' (คอยล์สกปรก)':'')+'</h3><ul>'+debriefItems(r).map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul>';
+  var o0=G.out0,o1=G.out,nb=sig(o1),ob=sig(o0);
+  function cell(v,band){return '<td class="'+(band==='ok'?'n':'x')+'">'+v+'</td>';}
+  $('resBA').innerHTML='<table class="ba"><tr><th>ค่า</th><th>ก่อนซ่อม</th><th>หลังซ่อม</th></tr>'+
+    '<tr><td>P ต่ำ bar g</td>'+cell(f1(o0.Pl),ob.Pl)+cell(f1(o1.Pl),o1.empty?'x':nb.Pl)+'</tr>'+
+    '<tr><td>P สูง bar g</td>'+cell(f1(o0.Ph),ob.Ph)+cell(f1(o1.Ph),o1.empty?'x':nb.Ph)+'</tr>'+
+    '<tr><td>SH K</td>'+cell(f1(o0.SH),ob.SH)+cell(f1(o1.SH),o1.empty?'x':nb.SH)+'</tr>'+
+    '<tr><td>SC K</td>'+cell(f1(o0.SC),ob.SC)+cell(f1(o1.SC),o1.empty?'x':nb.SC)+'</tr>'+
+    '<tr><td>ΔT ลม K</td>'+cell(f1(o0.dT),ob.dT)+cell(f1(o1.dT),o1.empty?'x':nb.dT)+'</tr>'+
+    '<tr><td>กระแส A</td>'+cell(f1(o0.I),ob.I)+cell(f1(o1.I),o1.empty?'x':nb.I)+'</tr></table>';
+  var ss=$('resStars').children;
+  for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  $('resultOv').querySelector('.card').scrollTop=0;
+  if(r.st>=2)sGood();else sBad();
+  for(let i=0;i<r.st;i++)setTimeout(function(){ss[i].classList.add('on');sStar(i);},350+i*380);
+  if(r.st===3)confetti(30);
+  $('nextBtn').textContent=G.lv<4?'ด่านต่อไป ➜':'🏆 สรุปบทเรียน';
+  $('retryBtn').textContent=r.vn?'↻ เล่นซ้ำ':'↻ ลองใหม่';
+}
+function updateStarTotal(){var t=0;for(var i=0;i<5;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+function showFinal(){
+  var t=updateStarTotal();
+  $('finStars').textContent='⭐ '+t+' / 15';
+  $('finList').innerHTML='<h3 style="color:#1d4e7a">บทเรียนรวม</h3><ul>'+LV.map(function(L,i){return '<li><b>'+L.icon+' ด่าน '+(i+1)+' ('+'⭐'.repeat(stars[i])+(stars[i]?'':'—')+'):</b> '+L.lesson+'</li>';}).join('')+
+    '<li><b>📐 จำให้ขึ้นใจ:</b> SH สูง = คอยล์เย็นขาดน้ำยา · SC สูง = น้ำยาค้างที่คอยล์ร้อน · T<sub>cond</sub> สูงขึ้น 1°C กินไฟเพิ่ม ~2–3%</li></ul>';
+  $('finalOv').classList.add('show');
+  if(t>=12)confetti(36);
+}
+
+function confetti(n){var cols=['#3f51b5','#00acc1','#ffd23f','#1fb45f','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ── loop ── */
+var LERPK=['Te','Tc','SH','SC','Pl','Ph','Tsuc','Tliq','Tsup','dT','air','I','Irel','flow','fan','cop'];
+function step(dt){
+  if(G.running)G.t+=dt;
+  if(G.lock>0){G.lock-=dt;if(G.lock<=0){G.lock=0;$('sprayG').setAttribute('opacity','0');$('workFx').setAttribute('opacity','0');
+      if(G.step===5&&valuesNormal(G.st)&&G.actions.length){say(G.st.leak?'ค่ากลับปกติ… (แต่รอยรั่วยังอยู่?) กดส่งมอบงานได้':'ค่ากลับปกติแล้ว ✔ กดส่งมอบงานได้เลย',2600);sGood();}
+      if(G.step===5)renderPanel();}}
+  if(!G.out)return;
+  var k=Math.min(1,dt*2.6);
+  LERPK.forEach(function(f){G.disp[f]+=(G.out[f]-G.disp[f])*k;});
+  G.disp.empty=G.out.empty;
+}
+function render(dt){
+  var d=G.disp;if(!d)return;
+  var t=G.tools;
+  /* เกจ */
+  var vB=t.blue?(t.blue==='low'?d.Pl:d.Ph):0, vR=t.red?(t.red==='low'?d.Pl:d.Ph):0;
+  needle.blue+=(vB-needle.blue)*Math.min(1,dt*4);needle.red+=(vR-needle.red)*Math.min(1,dt*4);
+  $('gBlueN').setAttribute('transform','rotate('+gAng(GAUGE.blue,needle.blue).toFixed(1)+' 70 312)');
+  $('gRedN').setAttribute('transform','rotate('+gAng(GAUGE.red,needle.red).toFixed(1)+' 172 312)');
+  $('gBlueT').textContent=f1(needle.blue);$('gRedT').textContent=f1(needle.red);
+  /* เทอร์โม/แคลมป์ */
+  $('clSuc').setAttribute('opacity',t.tsuc?'1':'0');$('spotSuc').style.display=(t.tsuc||G.step!==1)?'none':'inline';
+  $('clLiq').setAttribute('opacity',t.tliq?'1':'0');$('spotLiq').style.display=(t.tliq||G.step!==1)?'none':'inline';
+  $('clAmp').setAttribute('opacity',t.clamp?'1':'0');$('spotAmp').style.display=(t.clamp||G.step!==1)?'none':'inline';
+  $('tSucTxt').textContent='suc '+f1(d.Tsuc)+'°';$('tLiqTxt').textContent='liq '+f1(d.Tliq)+'°';
+  $('ampTxt').textContent=f1(d.I)+'A';
+  $('tRetTxt').textContent='ลมกลับ '+f1(T_RET)+'°';$('tSupTxt').textContent='ลมออก '+f1(d.Tsup)+'°';
+  var showPort=G.running&&G.step===1;
+  $('portLowRing').setAttribute('opacity',showPort&&!t.blue&&(tapSel||drag)?'1':'0');
+  $('portHighRing').setAttribute('opacity',showPort&&!t.red&&(tapSel||drag)?'1':'0');
+  /* ลมเย็น */
+  var ca=d.empty?0.08:Math.max(0.12,Math.min(1,d.air/100))*Math.min(1,d.dT/8+0.2);
+  $('coldAir').setAttribute('opacity',ca.toFixed(2));
+  $('coldAir').setAttribute('stroke',d.Tsup<17?'#29b6f6':(d.Tsup<21?'#81d4fa':'#b0bec5'));
+  $('coldAir').setAttribute('stroke-width',(2+3*d.air/100).toFixed(1));
+  /* พัดลม + ลมร้อน */
+  if(!REDUCED)fanAng=(fanAng+dt*620*d.fan)%360;
+  $('fanBlades').setAttribute('transform','rotate('+fanAng.toFixed(1)+' 505 332)');
+  $('hotAir').setAttribute('opacity',(d.empty?0:Math.max(0,Math.min(1,d.fan*(d.Tc-30)/22))).toFixed(2));
+  /* การไหลน้ำยา */
+  if(!REDUCED)flowOff-=dt*45*(d.empty?0:d.flow);
+  $('pSucFlow').setAttribute('stroke-dashoffset',flowOff.toFixed(1));
+  $('pLiqFlow').setAttribute('stroke-dashoffset',flowOff.toFixed(1));
+  $('pSucFlow').setAttribute('opacity',d.empty?'0':'0.9');$('pLiqFlow').setAttribute('opacity',d.empty?'0':'0.9');
+  /* น้ำแข็ง / ฟอง */
+  $('iceSuc').setAttribute('opacity',(d.empty?0:Math.max(0,Math.min(1,(2.5-d.Tsuc)/2.5))).toFixed(2));
+  $('frostIn').setAttribute('opacity',(d.empty?0:Math.max(0,Math.min(1,-d.Te/3+0.2))).toFixed(2));
+  $('sgBub').setAttribute('opacity',(d.empty?0:Math.max(0,Math.min(1,(2.8-d.SC)/1.8))).toFixed(2));
+  $('compG').setAttribute('class',(!d.empty&&d.I>0.5)?'vib':'');
+  /* แผงอ่านค่า */
+  if(G.step>=2){
+    $('rdPl').textContent=f1(d.Pl);$('rdPh').textContent=f1(d.Ph);
+    $('rdTs').textContent=f1(d.Tsuc)+'°';$('rdTl').textContent=f1(d.Tliq)+'°';
+    $('rdTr').textContent=f1(T_RET)+'°';$('rdTsup').textContent=f1(d.Tsup)+'°';
+    $('rdI').textContent=f1(d.I)+' A';$('rdAir').textContent=Math.round(d.air)+'%';
+  }
+  $('chipTime').textContent=Math.floor(G.t);
+}
+function loop(ts){
+  if(!lastTs)lastTs=ts;
+  var dt=Math.min(0.08,(ts-lastTs)/1000);lastTs=ts;
+  step(dt);render(dt);
+  requestAnimationFrame(loop);
+}
+
+/* ── ตาราง P–T / สูตร ── */
+function openPT(){
+  var ref=G.ref||LV[G.lv].ref,h;
+  $('ptTitle').textContent='ตาราง P–T · '+ref;
+  var rows=[];for(var i=2;i<17;i++)rows.push(i);
+  function tb(list){var s='<table><tr><th>T<sub>sat</sub> °C</th>'+(ref==='R32'?'<th>P bar g</th>':'<th>P ไอ (dew)</th><th>P เหลว (bub)</th>')+'</tr>';
+    list.forEach(function(i){s+='<tr><td><b>'+PT_T[i]+'</b></td>'+(ref==='R32'?'<td>'+PT.R32[i].toFixed(2)+'</td>':'<td>'+PT.R410A_d[i].toFixed(2)+'</td><td>'+PT.R410A_b[i].toFixed(2)+'</td>')+'</tr>';});
+    return s+'</table>';}
+  h='<div class="pt-grid">'+tb(rows.slice(0,8))+tb(rows.slice(8))+'</div>';
+  if(ref==='R410A')h+='<p style="font-size:.8rem;color:#5a6a80;margin-top:6px">R410A มี glide เล็กน้อย: ด้านต่ำ (SH) ใช้คอลัมน์ dew · ด้านสูง (SC) ใช้คอลัมน์ bubble</p>';
+  $('ptBody').innerHTML=h;$('ptOv').classList.add('show');
+}
+function openFx(){
+  var ref=(G.ref||LV[G.lv].ref),o=G.out||model(NORMAL_ST,ref),n=model(NORMAL_ST,ref);
+  $('fxBody').innerHTML=
+   '<h3>1) Superheat / Subcooling</h3>'+
+   '<code>SH = T<sub>ท่อ suction</sub> − T<sub>sat</sub>(P<sub>ต่ำ</sub>)</code><br><code>SC = T<sub>sat</sub>(P<sub>สูง</sub>) − T<sub>ท่อ liquid</sub></code><br>'+
+   'วัด T ท่อด้วยเทอร์โมหนีบท่อ ห่างคอยล์ ~15 ซม. หุ้มฉนวนทับหัววัด · SH บอกว่าคอยล์เย็น "อิ่มน้ำยา" แค่ไหน · SC บอกว่ามีของเหลวค้างในคอยล์ร้อนเท่าไร'+
+   '<h3>2) ตาราง P–T</h3>ประมาณค่าจาก <b>CoolProp</b> (สมการสถานะชุดเดียวกับ <b>NIST REFPROP</b>) −20…65°C ทุก 5 K, ความดันเกจ = P<sub>abs</sub> − 1.013 bar · ระหว่างจุด interpolate ln P · R410A ใช้ dew ด้านต่ำ / bubble ด้านสูง (glide ~0.1 K)'+
+   '<h3>3) ค่าปกติ (ห้อง 27°C · นอก 35°C)</h3><table><tr><th>ค่า</th><th>ปกติ</th><th>เครื่องนี้ตอนนี้</th></tr>'+
+   '<tr><td>P ต่ำ (T<sub>sat</sub>)</td><td>'+f1(n.Pl)+' bar g (5–8°C)</td><td>'+(o.empty?'ว่าง':f1(o.Pl)+' ('+f1(o.Te)+'°C)')+'</td></tr>'+
+   '<tr><td>P สูง (T<sub>sat</sub>)</td><td>25–28 bar g (~45°C)</td><td>'+(o.empty?'ว่าง':f1(o.Ph)+' ('+f1(o.Tc)+'°C)')+'</td></tr>'+
+   '<tr><td>SH</td><td>5–8 K</td><td>'+f1(o.SH)+'</td></tr><tr><td>SC</td><td>4–7 K</td><td>'+f1(o.SC)+'</td></tr>'+
+   '<tr><td>ΔT ลม</td><td>10–14 K</td><td>'+f1(o.dT)+'</td></tr><tr><td>กระแส</td><td>'+I0[ref]+' A (RLA '+RLA[ref]+')</td><td>'+f1(o.I)+'</td></tr>'+
+   '<tr><td>COP ≈</td><td>'+f1(n.cop)+'</td><td>'+(o.empty?'—':f1(o.cop))+'</td></tr></table>'+
+   '<h3>4) ตารางอาการ (ทิศทางตาม ACCA/Sporlan)</h3><table><tr><th>อาการ</th><th>P ต่ำ</th><th>P สูง</th><th>SH</th><th>SC</th><th>A</th></tr>'+
+   '<tr><td>น้ำยาขาด</td><td>↓</td><td>↓</td><td>↑</td><td>↓</td><td>↓</td></tr>'+
+   '<tr><td>น้ำยาเกิน</td><td>↑</td><td>↑</td><td>↓</td><td>↑↑</td><td>↑</td></tr>'+
+   '<tr><td>คอยล์ร้อนตัน/พัดลมเสีย</td><td>↑</td><td>↑↑</td><td>≈</td><td>≈/↑</td><td>↑↑</td></tr>'+
+   '<tr><td>ฟิลเตอร์/คอยล์เย็นตัน</td><td>↓</td><td>↓</td><td>↓</td><td>≈</td><td>↓</td></tr>'+
+   '<tr><td>คอมอ่อน</td><td>↑</td><td>↓</td><td>↑</td><td>↓</td><td>↓</td></tr>'+
+   '<tr><td>ท่อตัน/คาปิลลารีอุด</td><td>↓↓</td><td>≈/↓</td><td>↑↑</td><td>↑</td><td>↓</td></tr></table>'+
+   '<h3>5) COP กับ condensing</h3><code>COP ≈ 0.48 × T<sub>evap,K</sub> / (T<sub>cond</sub> − T<sub>evap</sub>)</code><br>T<sub>cond</sub> 45 → 58°C ทำให้ COP ลด ~25% · โดยทั่วไป T<sub>cond</sub> สูงขึ้น 1°C กินไฟเพิ่ม ~2–3% → ล้างคอยล์ร้อน = ประหยัดไฟจริง'+
+   '<h3>สมมติฐานของเกม</h3>แอร์ 12,000 BTU/h ระบบลดความดันอยู่ที่ชุดคอยล์เย็น ท่อเล็กเป็นของเหลวความดันสูง และมี service port ด้านสูง (แอร์บ้านหลายรุ่นมีพอร์ตแค่ท่อใหญ่ ต้องประเมินจาก SH+กระแส+ΔT) · ค่าในเกมเป็นแบบจำลองเชิงสัดส่วนเพื่อการสอน — หน้างานจริงให้ใช้ค่าจากผู้ผลิต';
+  $('fxOv').classList.add('show');
+}
+
+/* ── คู่มือวิธีเล่น (5 ขั้น + SVG เคลื่อนไหว) ── */
+var HELP=[
+ {txt:'① ลากหัวสาย 🔵 ฟ้า → พอร์ตท่อใหญ่ (ด้านต่ำ) · 🔴 แดง → พอร์ตท่อเล็ก (ด้านสูง) — ต่อผิดเสียคะแนน',
+  svg:'<svg viewBox="0 0 340 170"><rect width="340" height="170" rx="12" fill="#eef4fb"/>'+
+   '<rect x="230" y="20" width="96" height="130" rx="10" fill="#f8fafc" stroke="#8a97a8" stroke-width="3"/>'+
+   '<circle cx="290" cy="85" r="34" fill="#2f3a48"/><path d="M0 60 H222" stroke="#3c4654" stroke-width="12" transform="translate(0 0)"/>'+
+   '<path d="M0 120 H222" stroke="#c77b3b" stroke-width="6"/>'+
+   '<rect x="214" y="50" width="18" height="20" rx="4" fill="#c9a227"/><rect x="214" y="110" width="18" height="20" rx="4" fill="#c9a227"/>'+
+   '<circle cx="200" cy="76" r="7" fill="#5d6b80"/><circle cx="200" cy="136" r="7" fill="#5d6b80"/>'+
+   '<text x="150" y="50" font-size="12" font-weight="600" fill="#1e88e5" font-family="Mitr,sans-serif">ท่อใหญ่ = ต่ำ</text>'+
+   '<text x="150" y="112" font-size="12" font-weight="600" fill="#e53935" font-family="Mitr,sans-serif">ท่อเล็ก = สูง</text>'+
+   '<g class="tHB"><circle cx="62" cy="150" r="10" fill="#1e88e5" stroke="#fff" stroke-width="3"/><text x="70" y="166" font-size="16">👆</text></g>'+
+   '<g class="tHR"><circle cx="112" cy="148" r="10" fill="#e53935" stroke="#fff" stroke-width="3"/></g></svg>'},
+ {txt:'② แตะจุด 🌡 หนีบเทอร์โมท่อ suction/liquid และ ⚡ แคลมป์มิเตอร์ แล้วเลือกน้ำยาให้ตรงป้ายชื่อเครื่อง',
+  svg:'<svg viewBox="0 0 340 170"><rect width="340" height="170" rx="12" fill="#eef4fb"/>'+
+   '<rect x="24" y="24" width="120" height="96" rx="10" fill="#fff" stroke="#46536b" stroke-width="3"/>'+
+   '<text x="84" y="50" font-size="12" text-anchor="middle" fill="#46536b" font-family="Mitr,sans-serif">NAMEPLATE</text>'+
+   '<text class="tBlink" x="84" y="84" font-size="28" font-weight="700" text-anchor="middle" fill="#b3261e" font-family="Mitr,sans-serif">R32</text>'+
+   '<text x="84" y="108" font-size="11" text-anchor="middle" fill="#46536b" font-family="Mitr,sans-serif">0.55 kg · 5.2 A</text>'+
+   '<rect class="tBlink" x="176" y="34" width="130" height="40" rx="12" fill="#e8eaf6" stroke="#3f51b5" stroke-width="3"/>'+
+   '<text x="241" y="60" font-size="18" font-weight="700" text-anchor="middle" fill="#3f51b5" font-family="Mitr,sans-serif">R32 ✔</text>'+
+   '<rect x="176" y="86" width="130" height="40" rx="12" fill="#f8fafd" stroke="#e0e7f1" stroke-width="3"/>'+
+   '<text x="241" y="112" font-size="18" font-weight="700" text-anchor="middle" fill="#8795a8" font-family="Mitr,sans-serif">R410A</text>'+
+   '<path d="M20 150 H320" stroke="#3c4654" stroke-width="10"/><circle class="pulse" cx="170" cy="150" r="12" fill="rgba(255,210,63,.4)" stroke="#ffb300" stroke-width="3"/></svg>'},
+ {txt:'③ อ่านเข็มเกจ (bar g) แล้วเปิด 📋 ตาราง P–T หา "อุณหภูมิอิ่มตัว" T<sub>sat</sub>',
+  svg:'<svg viewBox="0 0 340 170"><rect width="340" height="170" rx="12" fill="#eef4fb"/>'+
+   '<circle cx="70" cy="90" r="56" fill="#fff" stroke="#1e88e5" stroke-width="7"/>'+
+   '<g class="tNeedle"><line x1="70" y1="96" x2="70" y2="44" stroke="#213047" stroke-width="4" stroke-linecap="round"/></g>'+
+   '<circle cx="70" cy="90" r="6" fill="#213047"/><text x="70" y="130" font-size="13" font-weight="700" text-anchor="middle" fill="#1e88e5" font-family="Mitr,sans-serif">9.0 bar g</text>'+
+   '<text x="150" y="96" font-size="26">➜</text>'+
+   '<rect x="190" y="30" width="130" height="112" rx="10" fill="#fff" stroke="#c5cfdb" stroke-width="2"/>'+
+   '<text x="255" y="52" font-size="12" text-anchor="middle" fill="#46536b" font-family="Mitr,sans-serif">0°C · 7.12</text>'+
+   '<rect class="tBlink" x="196" y="62" width="118" height="24" rx="6" fill="#fff3c4"/>'+
+   '<text x="255" y="79" font-size="13" font-weight="700" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">≈6.5°C · 9.0</text>'+
+   '<text x="255" y="106" font-size="12" text-anchor="middle" fill="#46536b" font-family="Mitr,sans-serif">10°C · 10.06</text>'+
+   '<text x="255" y="130" font-size="12" text-anchor="middle" fill="#46536b" font-family="Mitr,sans-serif">(R32)</text></svg>'},
+ {txt:'④ คำนวณ SH = T ท่อ suction − T<sub>sat</sub> ต่ำ · SC = T<sub>sat</sub> สูง − T ท่อ liquid แล้วเลือกคำตอบ',
+  svg:'<svg viewBox="0 0 340 170"><rect width="340" height="170" rx="12" fill="#eef4fb"/>'+
+   '<path d="M20 50 H320" stroke="#3c4654" stroke-width="14"/><rect x="150" y="40" width="22" height="20" rx="4" fill="#111"/>'+
+   '<rect x="180" y="18" width="90" height="26" rx="8" fill="#102030"/><text x="225" y="36" font-size="14" font-weight="600" text-anchor="middle" fill="#7fd0ff" font-family="Mitr,sans-serif">12.5°C</text>'+
+   '<text x="170" y="92" font-size="17" font-weight="700" text-anchor="middle" fill="#1e3a8a" font-family="Mitr,sans-serif">SH = 12.5 − 6.5 = <tspan class="tBlink" fill="#1fb45f">6.0 K</tspan></text>'+
+   '<path d="M20 120 H320" stroke="#c77b3b" stroke-width="8"/>'+
+   '<text x="170" y="154" font-size="17" font-weight="700" text-anchor="middle" fill="#8f1d1d" font-family="Mitr,sans-serif">SC = 45.0 − 39.5 = <tspan class="tBlink" fill="#1fb45f">5.5 K</tspan></text></svg>'},
+ {txt:'⑤ วินิจฉัยโรค → เลือกงานซ่อม "ตามลำดับ" ในงบ ค่ากลับปกติแล้วส่งมอบงาน · ต่อถูก+วินิจฉัยถูก+ซ่อมคุ้ม = ⭐⭐⭐',
+  svg:'<svg viewBox="0 0 340 170"><rect width="340" height="170" rx="12" fill="#eef4fb"/>'+
+   '<text x="40" y="70" font-size="40" class="tSpin">🔧</text>'+
+   '<text x="30" y="130" font-size="13" font-weight="600" fill="#46536b" font-family="Mitr,sans-serif">💰 งบ ฿2,500</text>'+
+   '<text x="130" y="44" font-size="12" font-weight="600" fill="#46536b" font-family="Mitr,sans-serif">P ต่ำ</text><rect class="tGrow tCol" x="180" y="32" width="130" height="14" rx="7"/>'+
+   '<text x="130" y="78" font-size="12" font-weight="600" fill="#46536b" font-family="Mitr,sans-serif">SH</text><rect class="tGrow tCol" style="animation-delay:.2s" x="180" y="66" width="110" height="14" rx="7"/>'+
+   '<text x="130" y="112" font-size="12" font-weight="600" fill="#46536b" font-family="Mitr,sans-serif">SC</text><rect class="tGrow tCol" style="animation-delay:.4s" x="180" y="100" width="120" height="14" rx="7"/>'+
+   '<text x="244" y="152" font-size="22" text-anchor="middle">⭐⭐⭐</text></svg>'}
+];
+var helpPg=0;
+function renderHelp(){
+  $('helpStage').innerHTML=HELP[helpPg].svg;
+  $('helpTxt').innerHTML=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';
+  for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';
+  $('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';
+}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){
+  $('helpOv').classList.remove('show');markSeen();
+  if(start&&!G.running){$('startOv').classList.remove('show');startLevel(pickNext());}
+}
+function pickNext(){for(var i=0;i<5;i++)if(!stars[i])return i;return 0;}
+
+/* ── อีเวนต์ ── */
+['endBlue','endRed'].forEach(function(id){$(id).addEventListener('pointerdown',onEndDown);});
+window.addEventListener('pointermove',onMove);
+window.addEventListener('pointerup',onUp);
+window.addEventListener('pointercancel',function(){if(drag){hoseEnd[drag.h]=HOSE[drag.h].park.slice();drag=null;drawHoses();}});
+$('portLow').addEventListener('click',function(){onPortTap('low');});
+$('portHigh').addEventListener('click',function(){onPortTap('high');});
+['spotSuc','spotLiq','spotAmp'].forEach(function(id){$(id).addEventListener('click',function(){audio();attachTool(this.getAttribute('data-tool'));});});
+$('stepBody').addEventListener('click',function(ev){
+  var b=ev.target.closest('button');if(!b||b.disabled)return;audio();
+  if(b.dataset.ref){pickRef(b.dataset.ref);return;}
+  if(b.dataset.q){sClick();G.quiz[b.dataset.q].pick=+b.dataset.v;renderPanel();return;}
+  if(b.dataset.ins){inspect(b.dataset.ins);return;}
+  if(b.dataset.diag){diagnose(b.dataset.diag);return;}
+  if(b.dataset.rep){doRepair(b.dataset.rep);return;}
+  var a=b.dataset.act;
+  if(a==='pt'){sClick();openPT();}
+  else if(a==='check')checkQuiz();
+  else if(a==='toDiag'){sClick();setStep(4);}
+  else if(a==='handover')handover();
+});
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn2').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('ptClose').addEventListener('click',function(){sClick();$('ptOv').classList.remove('show');});
+$('fxBtn').addEventListener('click',function(){audio();sClick();openFx();});
+$('fxClose').addEventListener('click',function(){sClick();$('fxOv').classList.remove('show');});
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(G.lv);});
+$('nextBtn').addEventListener('click',function(){
+  $('resultOv').classList.remove('show');
+  if(G.lv<4)startLevel(G.lv+1);else showFinal();
+});
+$('finHome').addEventListener('click',function(){$('finalOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('finReplay').addEventListener('click',function(){$('finalOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+['ptOv','fxOv'].forEach(function(id){$(id).addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');});});
+
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<5;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.2rem">'+LV[i].icon+'</span><span class="nm">ด่าน '+(i+1)+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── debug hook สำหรับ QA ── */
+window.TEH={G:G,LV:LV,model:model,mkState:mkState,pFromT:pFromT,tFromP:tFromP,sig:sig,EXPECT:EXPECT,FAULTS:FAULTS,
+  startLevel:startLevel,tryConnect:tryConnect,attachTool:attachTool,pickRef:pickRef,diagnose:diagnose,doRepair:doRepair,
+  handover:handover,checkQuiz:checkQuiz,setStep:setStep,stars:stars,inspect:inspect};
+
+/* ── init ── */
+buildGauge('gBlue',GAUGE.blue);buildGauge('gRed',GAUGE.red);
+loadStars();updateStarTotal();buildLvlPick();
+G.out=model(NORMAL_ST,'R32');G.disp=copyOut(G.out);G.st=mkState('normal');
+drawHoses();setStep(1);
+requestAnimationFrame(loop);
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

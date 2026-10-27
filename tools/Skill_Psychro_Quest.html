@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ภารกิจลมเย็น (Psychro Quest) — Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "ภารกิจลมเย็น" (Psychro Quest) v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: เด็กโต/อาชีวะ (ช่างเครื่องปรับอากาศ ปวช./ปวส. · วิศวกรรมเครื่องกล)
+     หลักที่สอน: กระบวนการปรับอากาศบนแผนภูมิไซโครเมตริก — sensible cooling, cooling & dehumidifying,
+       การผสมลมใหม่กับลมกลับ (mixing), การอุ่นซ้ำ (reheat), การลดความชื้น และพลังงานที่ใช้ Q = ṁ·Δh
+     ฟิสิกส์เบื้องหลัง:
+       • สมบัติอากาศชื้น: engine กลาง TE_PSY (ASHRAE Handbook—Fundamentals ch.1, Hyland–Wexler 1983) ที่ p = 101.325 kPa
+         Pws(T) Hyland–Wexler · W = 0.621945·pw/(p−pw) · h = 1.006·T + W·(2501 + 1.86·T) kJ/kg_da
+       • ผสมอากาศ (สมดุลมวลอากาศแห้ง + ไอน้ำ + พลังงาน, adiabatic):
+         W_MA = x·W_OA + (1−x)·W_RA ,  h_MA = x·h_OA + (1−x)·h_RA ,  T_MA = (h − 2501W)/(1.006 + 1.86W)
+         x = สัดส่วนลมใหม่โดยมวลอากาศแห้ง → จุดผสมอยู่บนเส้นตรง OA–RA ที่ระยะ x จาก RA
+       • คอยล์เย็น (bypass factor BF / apparatus dew point ADP):
+         คอยล์เปียก (W_MA > Ws(ADP)):  h_CL = h_ADP + BF·(h_MA − h_ADP) ,  W_CL = W_ADP + BF·(W_MA − W_ADP)
+         คอยล์แห้ง (ADP ≥ Tdp ของลมเข้า): T_CL = ADP + BF·(T_MA − ADP) , W_CL = W_MA  (sensible cooling)
+         ถ้าจุดเลยเส้นอิ่มตัว → หมอก (fog) ตรึงจุดไว้บนเส้นอิ่มตัวที่ h เดิม
+       • Reheat: T_SA = T_CL + ΔT , W คงที่ (เส้นแนวนอน)
+       • พลังงาน: Q_coil = ṁ_da·(h_MA − h_CL) [ละเทอม ṁw·hw ของน้ำกลั่น < 1%] · Q_reheat = ṁ_da·(h_SA − h_CL)
+         น้ำกลั่น = ṁ_da·(W_MA − W_CL)·3600 kg/h · 1 TR = 3.517 kW
+       • สภาวะห้อง (steady state, ลมกลับคงที่ตามค่าด่าน): h_R = h_SA + (Qs+Ql)/ṁ_da , W_R = W_SA + Ql/(ṁ_da·2501)
+       • ลมใหม่ขั้นต่ำ ASHRAE 62.1 (ห้องเรียน อายุ 9+): Vbz = Rp·Pz + Ra·Az = 5 L/s·คน × 41 + 0.6 L/s·m² × 70 ; Ez = 1.0 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>/* TE_PSY */
+/* ══ TE_PSY — Psychrometric engine กลางของ Triple E (ระยะ 4, 10 ก.ย. 2569) — ASHRAE Fundamentals, Hyland–Wexler; คัดจาก Tool_Psychrometric_Chart
+   หน่วย public: °C, kPa, kg/kg_da, kJ/kg_da, m³/kg_da ══ */
+var TE_PSY=(function(){
+  function pwsPa(TK){ if(TK<173.15)TK=173.15; var l;
+    if(TK<273.15){ l=-5.6745359e3/TK+6.3925247-9.677843e-3*TK+6.2215701e-7*TK*TK+2.0747825e-9*Math.pow(TK,3)-9.484024e-13*Math.pow(TK,4)+4.1635019*Math.log(TK); }
+    else { l=-5.8002206e3/TK+1.3914993-4.8640239e-2*TK+4.1764768e-5*TK*TK-1.4452093e-8*Math.pow(TK,3)+6.5459673*Math.log(TK); }
+    return Math.exp(l); }
+  function Pws(t){return pwsPa(t+273.15)/1000;}                                   // kPa
+  function Ws(t,p){var s=Pws(t);return s>=p?1e6:0.621945*s/(p-s);}
+  function W_rh(t,rh,p){var pw=Math.min(rh*Pws(t),p*0.9999);return 0.621945*pw/(p-pw);}   // rh เป็นสัดส่วน 0–1
+  function Pw_W(W,p){return p*W/(0.621945+W);}
+  function RH_W(t,W,p){return Pw_W(W,p)/Pws(t);}                                  // สัดส่วน 0–1
+  function Hda(t,W){return 1.006*t+W*(2501+1.86*t);}                              // kJ/kg_da
+  function Vda(t,W,p){return 0.287042*(t+273.15)*(1+1.607858*W)/p;}               // m³/kg_da
+  function Tdp(W,p){var pw=Pw_W(W,p);if(pw<=0)return NaN;var lo=-90,hi=200;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(Pws(m)<pw)lo=m;else hi=m;}return (lo+hi)/2;}
+  function W_wb(t,twb,p){var ws=Ws(twb,p);return twb>=0?((2501-2.326*twb)*ws-1.006*(t-twb))/(2501+1.86*t-4.186*twb):((2830-0.24*twb)*ws-1.006*(t-twb))/(2830+1.86*t-2.1*twb);}
+  function Twb(t,W,p){var lo=-90,hi=t;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(W_wb(t,m,p)<W)lo=m;else hi=m;}return (lo+hi)/2;}
+  function Palt(z){return 101.325*Math.pow(1-2.25577e-5*z,5.2559);}
+  function state(t,W,p){W=Math.max(0,Math.min(W,Ws(t,p)));var h=Hda(t,W),v=Vda(t,W,p),pw=Pw_W(W,p),ws=Ws(t,p);
+    return{t:t,W:W,p:p,h:h,v:v,rh:100*pw/Pws(t),pw:pw,tdp:Tdp(W,p),twb:Twb(t,W,p),rho:(1+W)/v,mu:100*W/ws,ws:ws};}
+  function fromRH(t,rhPct,p){return state(t,W_rh(t,rhPct/100,p||101.325),p||101.325);}
+  function fromWB(t,twb,p){return state(t,W_wb(t,twb,p||101.325),p||101.325);}
+  return{Pws:Pws,Ws:Ws,W_rh:W_rh,Pw_W:Pw_W,RH_W:RH_W,Hda:Hda,Vda:Vda,Tdp:Tdp,W_wb:W_wb,Twb:Twb,Palt:Palt,state:state,fromRH:fromRH,fromWB:fromWB,_ver:'TE_PSY HW r4-2569'};
+})();
+
+</script>
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --warn:#f5a623; --mid:#f5a623; --bad:#ef4b4b;
+  --indigo:#3f51b5; --cyan:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#1d2a52,#1a3a5c 55%,#14304a);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:1060px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.93);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hud .lvl-name{font-weight:600;font-size:1.02rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 8px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:44px}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4);background:#cfe3f5;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto}
+#bubble{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);width:max-content;max-width:min(92vw,520px);background:#fff;border-radius:16px;border:3px solid var(--cyan);
+  padding:8px 14px;font-size:.9rem;font-weight:500;box-shadow:0 6px 18px rgba(0,0,0,.35);transition:opacity .25s;opacity:0;pointer-events:none;z-index:40;text-align:center}
+#bubble.show{opacity:1}
+
+/* ───── Main grid ───── */
+#mainGrid{display:flex;flex-direction:column;gap:10px}
+.box{background:#fff;border-radius:20px;padding:10px 12px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+#chartBox{padding:8px 6px 6px}
+#chartHead{display:flex;justify-content:space-between;align-items:center;padding:0 8px 4px;font-weight:600;font-size:.92rem;gap:6px;flex-wrap:wrap}
+#chartHead .lg{display:flex;gap:8px;flex-wrap:wrap;font-size:.74rem;font-weight:500;color:#4b5a70}
+#chartHead .lg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:3px;vertical-align:-1px}
+#chart{display:block;width:100%;height:auto;touch-action:none}
+#chart .hdl{cursor:grab}
+#chart .hdl.lock{cursor:not-allowed}
+#chartHint{font-size:.78rem;color:#5d6b80;text-align:center;padding-top:2px}
+#panel{display:flex;flex-direction:column;gap:9px}
+.goal{font-size:.92rem;font-weight:500;background:#eaf1ff;border:2px dashed #7986cb;border-radius:14px;padding:7px 12px;line-height:1.5}
+.goal b{color:#3f51b5}
+#tbl{width:100%;border-collapse:collapse;font-size:.78rem;text-align:right;font-variant-numeric:tabular-nums}
+#tbl th{font-weight:600;color:#5d6b80;padding:3px 3px;border-bottom:2px solid #e3e9f2;font-size:.72rem}
+#tbl td{padding:3px 3px;border-bottom:1px solid #eef2f7}
+#tbl td:first-child,#tbl th:first-child{text-align:left;white-space:nowrap}
+#tbl tr.room td{background:#f0fbf4;font-weight:600}
+#tbl tr.room.bad td{background:#fff0f0}
+#tbl .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}
+#energy{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+#energy div{background:#f2f6fc;border-radius:12px;padding:5px 6px;text-align:center;line-height:1.25}
+#energy small{display:block;font-size:.7rem;color:#5d6b80}
+#energy b{font-size:1.05rem}
+#energy .tot{background:#e8eaf6}
+#energy .tot b{color:#3f51b5}
+#starGoal{font-size:.8rem;text-align:center;color:#4b5a70}
+#starGoal b{color:#b8860b}
+.sld{display:flex;flex-direction:column;gap:0}
+.sld .lab{display:flex;justify-content:space-between;align-items:baseline;font-weight:600;font-size:.92rem;padding:0 4px}
+.sld .lab .v{font-size:1.15rem;font-weight:700;min-width:60px;text-align:right}
+.sld.locked{opacity:.45}
+.sld.locked .lab span:first-child::after{content:' 🔒';}
+input[type=range]{width:100%;height:44px;appearance:none;background:transparent;cursor:pointer}
+input[type=range]:disabled{cursor:not-allowed}
+input[type=range]::-webkit-slider-runnable-track{height:16px;border-radius:10px;background:var(--trk,#ccc)}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:38px;height:38px;border-radius:50%;margin-top:-11px;
+  background:#fff;border:6px solid var(--thm,#555);box-shadow:0 3px 8px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:16px;border-radius:10px;background:var(--trk,#ccc)}
+input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;background:#fff;border:6px solid var(--thm,#555)}
+#oaSld{--trk:linear-gradient(90deg,#c5b8ff,#ffc078);--thm:#ff8f1c}
+#adpSld{--trk:linear-gradient(90deg,#1e5bff,#7fd0ff 60%,#d9eefc);--thm:#1e88e5}
+#rhSld{--trk:linear-gradient(90deg,#ffe0d6,#ff7a59 70%,#ef4b4b);--thm:#ef4b4b}
+#chips{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;font-weight:600;font-size:.85rem}
+#chips span{background:#f1f5fb;border-radius:999px;padding:4px 10px}
+
+.big-btn{border:none;border-radius:999px;padding:14px 30px;font-family:inherit;font-size:1.15rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #2c3a8c,0 10px 18px rgba(0,0,0,.2);transition:transform .1s;min-height:48px}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #2c3a8c}
+.big-btn.alt{background:linear-gradient(135deg,#00acc1,#26c6da);box-shadow:0 6px 0 #00838f,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #00838f}
+.big-btn.small{font-size:1rem;padding:10px 20px}
+#checkBtn{width:100%}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(10,18,40,.68);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:26px;max-width:500px;width:100%;padding:20px 16px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.4);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.35rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:2.8rem;letter-spacing:6px;margin:6px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e8f6f8;border-radius:14px;padding:9px 12px;font-weight:600;margin:8px 0;font-size:.93rem;color:#006b78}
+.stat-tbl{display:flex;flex-direction:column;gap:4px;margin:8px 0;text-align:left;font-size:.9rem}
+.stat-tbl div{display:flex;justify-content:space-between;gap:8px;background:#f4f7fb;border-radius:10px;padding:5px 12px}
+.stat-tbl b{color:#3f51b5;text-align:right}
+.debrief{text-align:left;font-size:.88rem;line-height:1.5;margin:6px 0}
+.debrief h3{font-size:.95rem;margin:6px 0 4px;color:#3f51b5}
+.debrief li{margin:0 0 5px 18px}
+.debrief li.bad{color:#b3261e}
+.debrief li.ok{color:#14753d}
+.debrief .ans{background:#fff8e1;border:2px solid #ffd54f;border-radius:12px;padding:7px 10px;margin-top:6px}
+.lvl-pick{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:7px 8px;font-family:inherit;cursor:pointer;min-width:76px;min-height:44px}
+.lvl-pick .nm{font-size:.78rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.8rem;letter-spacing:1px}
+#startCard h1{font-size:1.85rem;line-height:1.25;background:linear-gradient(135deg,#3f51b5,#00acc1);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#5d6b80;margin:4px 0 6px;font-size:.93rem;line-height:1.5}
+.tag{display:inline-block;background:#e8eaf6;color:#3f51b5;border-radius:999px;padding:3px 12px;font-size:.8rem;font-weight:600;margin:4px 0}
+.brand{font-size:.8rem;color:#8795a8;margin-top:12px}
+#fmCard{text-align:left}
+#fmCard h2{text-align:center}
+#fmCard h3{font-size:.95rem;color:#3f51b5;margin:10px 0 3px}
+#fmCard p,#fmCard li{font-size:.86rem;line-height:1.55}
+#fmCard li{margin-left:18px}
+#fmCard code{background:#f1f4fa;border-radius:6px;padding:1px 5px;font-family:inherit;font-size:.85rem;color:#213047}
+#sumList{text-align:left;font-size:.9rem;line-height:1.5;margin:8px 0}
+#sumList div{background:#f4f7fb;border-radius:12px;padding:6px 10px;margin-bottom:5px}
+
+/* help overlay */
+#helpStage{background:#eef4fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:340px;height:auto}
+#helpTxt{font-size:.98rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd9e6}
+.dots i.on{background:var(--cyan)}
+.help-nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── SVG animations ───── */
+@keyframes drip{0%{transform:translateY(0);opacity:0}15%{opacity:1}100%{transform:translateY(26px);opacity:0}}
+.drop{animation:drip .9s ease-in infinite}
+@keyframes fogA{0%,100%{transform:translateX(0);opacity:.55}50%{transform:translateX(-10px);opacity:.9}}
+.fogc{animation:fogA 2.2s ease-in-out infinite}
+@keyframes blinkA{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+.eye{transform-box:fill-box;transform-origin:center;animation:blinkA 4.2s infinite}
+@keyframes sweatA{0%{transform:translateY(0);opacity:0}25%{opacity:1}100%{transform:translateY(14px);opacity:0}}
+.sweatd{animation:sweatA 1.1s ease-in infinite;opacity:0}
+@keyframes shiverA{0%,100%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
+.shiver{animation:shiverA .18s linear infinite}
+@keyframes glowA{0%,100%{opacity:.55}50%{opacity:1}}
+.glow{animation:glowA 1s ease-in-out infinite}
+@keyframes ledA{0%,100%{opacity:1}50%{opacity:.25}}
+.led{animation:ledA 1.3s steps(2) infinite}
+@keyframes sunSp{to{transform:rotate(360deg)}}
+#sunRays{transform-box:fill-box;transform-origin:center;animation:sunSp 14s linear infinite}
+@keyframes pulseZ{0%,100%{opacity:.25}50%{opacity:.45}}
+.zonePulse{animation:pulseZ 2s ease-in-out infinite}
+/* tutorial anims */
+@keyframes tMove1{0%{transform:translate(0,0)}35%{transform:translate(-70px,0)}70%,100%{transform:translate(-70px,38px)}}
+.tM1{animation:tMove1 3.2s ease-in-out infinite}
+@keyframes tMix{0%,100%{transform:translate(0,0)}50%{transform:translate(96px,-44px)}}
+.tMix{animation:tMix 3s ease-in-out infinite}
+@keyframes tCoil{0%{transform:translate(0,0)}60%,100%{transform:translate(-92px,34px)}}
+.tCoil{animation:tCoil 2.6s ease-in-out infinite}
+@keyframes tGrow{0%{transform:scaleX(0)}60%,100%{transform:scaleX(1)}}
+.tGrow{transform-box:fill-box;transform-origin:left center;animation:tGrow 2.6s ease-out infinite}
+@keyframes tBar{0%{transform:scaleY(.25)}60%,100%{transform:scaleY(1)}}
+.tBar{transform-box:fill-box;transform-origin:center bottom;animation:tBar 2.6s ease-out infinite}
+@keyframes tShrink{0%,10%{transform:scaleY(1)}70%,100%{transform:scaleY(.4)}}
+.tShrink{transform-box:fill-box;transform-origin:center bottom;animation:tShrink 3s ease-in-out infinite}
+@keyframes tPop{0%,55%{transform:scale(0)}75%{transform:scale(1.3)}90%,100%{transform:scale(1)}}
+.tPop{transform-box:fill-box;transform-origin:center;animation:tPop 3s ease-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .drop,.fogc,.eye,.sweatd,.shiver,.glow,.led,#sunRays,.zonePulse,.tM1,.tMix,.tCoil,.tGrow,.tBar,.tShrink,.tPop{animation:none}
+}
+@media (min-width:900px){
+  #mainGrid{display:grid;grid-template-columns:1.25fr 1fr;align-items:start}
+}
+@media (max-width:480px){
+  #bubble{font-size:.84rem}
+  .card h2{font-size:1.2rem}
+  #hud .lvl-name{font-size:.9rem}
+  #hud button{padding:6px 6px;min-width:40px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">ภารกิจลมเย็น</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="fmBtn" title="สูตร/ที่มา">📐</button>
+  </div>
+
+  <!-- SCENE: ห้อง + AHU ตัดขวาง -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 860 330" xmlns="http://www.w3.org/2000/svg" aria-label="ห้องและเครื่องส่งลมเย็นตัดขวาง">
+      <defs>
+        <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fd4ff"/><stop offset="1" stop-color="#e3f3ff"/></linearGradient>
+        <linearGradient id="roomG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdf7ec"/><stop offset="1" stop-color="#f3e6cf"/></linearGradient>
+        <linearGradient id="ahuG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9d4e3"/><stop offset="1" stop-color="#9eacc2"/></linearGradient>
+        <linearGradient id="ductG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe6ef"/><stop offset="1" stop-color="#b6c2d3"/></linearGradient>
+        <clipPath id="ahuClip"><rect x="364" y="168" width="430" height="122" rx="8"/></clipPath>
+      </defs>
+      <!-- plant room background -->
+      <rect x="0" y="0" width="860" height="330" fill="#d7e2ee"/>
+      <rect x="0" y="300" width="860" height="30" fill="#8796ab"/>
+      <!-- outdoor (right) -->
+      <rect x="806" y="0" width="54" height="300" fill="url(#skyG)"/>
+      <g id="sunG" transform="translate(833 40)">
+        <g id="sunRays" stroke="#ffb300" stroke-width="4" stroke-linecap="round">
+          <line x1="0" y1="-24" x2="0" y2="-17"/><line x1="0" y1="24" x2="0" y2="17"/><line x1="-24" y1="0" x2="-17" y2="0"/><line x1="24" y1="0" x2="17" y2="0"/>
+          <line x1="-17" y1="-17" x2="-12" y2="-12"/><line x1="17" y1="17" x2="12" y2="12"/><line x1="17" y1="-17" x2="12" y2="-12"/><line x1="-17" y1="17" x2="-12" y2="12"/>
+        </g>
+        <circle r="12" fill="#ffd23f"/>
+      </g>
+      <text x="833" y="92" font-size="12" font-weight="600" text-anchor="middle" fill="#1d3557" font-family="Mitr,sans-serif">นอก</text>
+      <text id="oaTxt" x="833" y="108" font-size="11" text-anchor="middle" fill="#1d3557" font-family="Mitr,sans-serif">34°C</text>
+      <text id="oaTxt2" x="833" y="122" font-size="11" text-anchor="middle" fill="#1d3557" font-family="Mitr,sans-serif">60%</text>
+      <rect x="798" y="0" width="10" height="300" fill="#7b8aa0"/>
+
+      <!-- ROOM -->
+      <rect x="10" y="66" width="326" height="234" fill="url(#roomG)" stroke="#7b8aa0" stroke-width="6"/>
+      <rect x="10" y="286" width="326" height="14" fill="#c9b28f"/>
+      <g id="decoG"></g>
+      <!-- room display -->
+      <g>
+        <rect x="22" y="78" width="112" height="40" rx="8" fill="#213047"/>
+        <text id="roomT" x="78" y="96" font-size="15" font-weight="700" text-anchor="middle" fill="#7fffd4" font-family="Mitr,sans-serif">—°C</text>
+        <text id="roomRH" x="78" y="112" font-size="11" text-anchor="middle" fill="#cfe0f5" font-family="Mitr,sans-serif">— %RH</text>
+      </g>
+      <text id="roomName" x="250" y="96" font-size="15" font-weight="700" text-anchor="middle" fill="#3f51b5" font-family="Mitr,sans-serif">ห้อง</text>
+      <!-- person -->
+      <g id="personG" transform="translate(150 196)">
+        <ellipse cx="0" cy="88" rx="34" ry="6" fill="#000" opacity=".15"/>
+        <g id="personBody">
+          <rect x="-22" y="20" width="44" height="50" rx="14" id="pShirt" fill="#3f51b5"/>
+          <rect x="-20" y="64" width="17" height="24" rx="7" fill="#2a3470"/>
+          <rect x="3" y="64" width="17" height="24" rx="7" fill="#2a3470"/>
+          <rect x="-30" y="26" width="11" height="30" rx="5" id="pArmL" fill="#3f51b5"/>
+          <rect x="19" y="26" width="11" height="30" rx="5" id="pArmR" fill="#3f51b5"/>
+          <circle cx="0" cy="-6" r="28" id="pFace" fill="#ffd9b3" stroke="#e8b27f" stroke-width="3"/>
+          <path id="pHat" d="M-28 -14 a28 26 0 0 1 56 0 Z" fill="#26a69a"/>
+          <g class="eye"><circle cx="-10" cy="-6" r="3.8" fill="#213047"/></g>
+          <g class="eye"><circle cx="10" cy="-6" r="3.8" fill="#213047"/></g>
+          <path id="pMouth" d="M-9 7 Q0 15 9 7" stroke="#b34a4a" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+          <g id="pSweat" opacity="0">
+            <path class="sweatd" d="M-30 -18 q-5 9 0 12 q6 -3 0 -12" fill="#4aa8ff"/>
+            <path class="sweatd" style="animation-delay:.5s" d="M31 -22 q-5 9 0 12 q6 -3 0 -12" fill="#4aa8ff"/>
+          </g>
+          <g id="pScarf" opacity="0"><rect x="-22" y="16" width="44" height="10" rx="5" fill="#e53935"/><rect x="8" y="20" width="9" height="22" rx="4" fill="#e53935"/></g>
+          <g id="pSticky" opacity="0" fill="#7fb3d5"><circle cx="-14" cy="34" r="3"/><circle cx="12" cy="44" r="3"/><circle cx="-4" cy="54" r="2.5"/></g>
+        </g>
+        <g id="pIcon"><text x="34" y="-30" font-size="22" id="pIconTxt">🙂</text></g>
+      </g>
+      <!-- supply diffuser (wall high) & return grille (ceiling) -->
+      <rect x="326" y="94" width="12" height="24" rx="2" fill="#5d6b80"/>
+      <g stroke="#5d6b80" stroke-width="2"><line x1="282" y1="66" x2="282" y2="58"/><line x1="292" y1="66" x2="292" y2="58"/><line x1="302" y1="66" x2="302" y2="58"/></g>
+
+      <!-- ducts -->
+      <path d="M276 40 H750 V170 H730 V58 H296 V66 H276 Z" fill="url(#ductG)" stroke="#7b8aa0" stroke-width="3"/>
+      <text x="520" y="53" font-size="11" font-weight="600" text-anchor="middle" fill="#5b4bb7" font-family="Mitr,sans-serif">← ลมกลับ (RA) จากห้อง</text>
+      <path d="M336 92 H420 V170 H398 V114 H336 Z" fill="url(#ductG)" stroke="#7b8aa0" stroke-width="3"/>
+      <text x="372" y="86" font-size="11" font-weight="600" text-anchor="middle" fill="#2e7d32" font-family="Mitr,sans-serif">ลมจ่าย (SA)</text>
+      <!-- OA intake -->
+      <rect x="790" y="196" width="18" height="50" fill="#9eacc2" stroke="#7b8aa0" stroke-width="3"/>
+      <g stroke="#5d6b80" stroke-width="3"><line x1="792" y1="204" x2="806" y2="210"/><line x1="792" y1="216" x2="806" y2="222"/><line x1="792" y1="228" x2="806" y2="234"/><line x1="792" y1="240" x2="806" y2="246"/></g>
+
+      <!-- AHU housing -->
+      <rect x="362" y="166" width="434" height="126" rx="10" fill="url(#ahuG)" stroke="#5d6b80" stroke-width="4"/>
+      <rect x="364" y="168" width="430" height="122" rx="8" fill="#eef3f9" opacity=".55"/>
+      <!-- section dividers -->
+      <g stroke="#7b8aa0" stroke-width="2" stroke-dasharray="5 4">
+        <line x1="690" y1="170" x2="690" y2="288"/><line x1="550" y1="170" x2="550" y2="288"/><line x1="470" y1="170" x2="470" y2="288"/>
+      </g>
+      <!-- mixing dampers -->
+      <g id="oaDamp" stroke="#455a64" stroke-width="4" stroke-linecap="round">
+        <line x1="782" y1="206" x2="782" y2="218"/><line x1="782" y1="224" x2="782" y2="236"/>
+      </g>
+      <g id="raDamp" stroke="#455a64" stroke-width="4" stroke-linecap="round">
+        <line x1="734" y1="178" x2="746" y2="178"/>
+      </g>
+      <!-- filter -->
+      <path d="M672 176 l10 10 l-10 10 l10 10 l-10 10 l10 10 l-10 10 l10 10 l-10 10 l10 10 l-10 10 l10 10" stroke="#a1887f" stroke-width="3" fill="none"/>
+      <!-- cooling coil -->
+      <g id="coilG">
+        <rect x="582" y="176" width="70" height="92" rx="4" fill="#bbdefb" stroke="#1e88e5" stroke-width="3"/>
+        <g stroke="#1e88e5" stroke-width="2">
+          <line x1="592" y1="178" x2="592" y2="266"/><line x1="602" y1="178" x2="602" y2="266"/><line x1="612" y1="178" x2="612" y2="266"/>
+          <line x1="622" y1="178" x2="622" y2="266"/><line x1="632" y1="178" x2="632" y2="266"/><line x1="642" y1="178" x2="642" y2="266"/>
+        </g>
+        <rect id="coilFrost" x="582" y="176" width="70" height="92" rx="4" fill="#1e5bff" opacity="0"/>
+        <rect x="576" y="270" width="82" height="10" rx="3" fill="#78909c"/>
+        <g id="dropsG" opacity="0" fill="#29b6f6">
+          <path class="drop" d="M592 262 q-4 7 0 9 q4 -2 0 -9"/>
+          <path class="drop" style="animation-delay:.3s" d="M612 262 q-4 7 0 9 q4 -2 0 -9"/>
+          <path class="drop" style="animation-delay:.6s" d="M632 262 q-4 7 0 9 q4 -2 0 -9"/>
+          <path class="drop" style="animation-delay:.45s" d="M648 262 q-4 7 0 9 q4 -2 0 -9"/>
+        </g>
+        <rect x="610" y="280" width="8" height="18" fill="#78909c"/>
+        <text id="condTxt" x="616" y="318" font-size="11" font-weight="600" text-anchor="middle" fill="#0d47a1" font-family="Mitr,sans-serif"></text>
+      </g>
+      <g id="fogG" opacity="0" fill="#ffffff">
+        <circle class="fogc" cx="566" cy="200" r="13"/><circle class="fogc" style="animation-delay:.6s" cx="560" cy="226" r="15"/><circle class="fogc" style="animation-delay:1.2s" cx="568" cy="252" r="12"/>
+      </g>
+      <!-- reheat -->
+      <g id="heatG">
+        <path d="M494 180 h40 v12 h-40 v12 h40 v12 h-40 v12 h40 v12 h-40 v12 h40 v12" stroke="#8d6e63" stroke-width="5" fill="none" stroke-linejoin="round"/>
+        <path id="heatGlow" class="glow" d="M494 180 h40 v12 h-40 v12 h40 v12 h-40 v12 h40 v12 h-40 v12 h40 v12" stroke="#ff5722" stroke-width="5" fill="none" stroke-linejoin="round" opacity="0"/>
+      </g>
+      <!-- fan -->
+      <g id="fanG">
+        <circle cx="420" cy="230" r="38" fill="#cfd8dc" stroke="#546e7a" stroke-width="4"/>
+        <g id="fanBlades" fill="#546e7a">
+          <path d="M420 230 q-6 -24 0 -32 q10 6 0 32"/><path d="M420 230 q24 -6 32 0 q-6 10 -32 0"/>
+          <path d="M420 230 q6 24 0 32 q-10 -6 0 -32"/><path d="M420 230 q-24 6 -32 0 q6 -10 32 0"/>
+        </g>
+        <circle cx="420" cy="230" r="6" fill="#263238"/>
+      </g>
+      <!-- section labels -->
+      <g font-size="11" font-weight="600" text-anchor="middle" font-family="Mitr,sans-serif" fill="#263238">
+        <text x="740" y="284">ห้องผสม</text><text x="617" y="190" fill="#0d47a1">คอยล์เย็น</text>
+        <text x="514" y="284" fill="#bf360c">Reheat</text><text x="420" y="284">พัดลม</text>
+      </g>
+      <!-- particles -->
+      <g id="partG"></g>
+      <!-- temperature tags on AHU -->
+      <g font-size="11" font-weight="700" text-anchor="middle" font-family="Mitr,sans-serif">
+        <rect x="712" y="252" width="54" height="18" rx="8" fill="#fff" opacity=".9"/><text id="tagMA" x="739" y="265">—</text>
+        <rect x="562" y="294" width="0" height="0"/>
+        <rect x="484" y="252" width="62" height="18" rx="8" fill="#fff" opacity=".9" id="tagCLbg"/><text id="tagCL" x="515" y="265">—</text>
+        <rect x="356" y="128" width="58" height="18" rx="8" fill="#fff" opacity=".9"/><text id="tagSA" x="385" y="141">—</text>
+      </g>
+    </svg>
+    <div id="bubble"></div>
+  </div>
+
+  <div id="mainGrid">
+    <!-- CHART -->
+    <div class="box" id="chartBox">
+      <div id="chartHead">
+        <span>📈 แผนภูมิไซโครเมตริก (p = 101.325 kPa)</span>
+        <span class="lg"><span><i style="background:#ff8f1c"></i>OA</span><span><i style="background:#7b5bff"></i>RA</span><span><i style="background:#00897b"></i>MA</span><span><i style="background:#1e88e5"></i>คอยล์</span><span><i style="background:#ef4b4b"></i>SA</span><span><i style="background:#1fb45f"></i>ห้อง</span><span><i style="background:#a5e3bd;border:2px solid #14753d;border-radius:3px"></i>โซนเป้าหมาย</span></span>
+      </div>
+      <svg id="chart" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-label="แผนภูมิไซโครเมตริก">
+        <g id="chBg"></g>
+        <g id="chZone"></g>
+        <g id="chProc"></g>
+        <g id="chPts"></g>
+        <g id="chHdl"></g>
+      </svg>
+      <div id="chartHint">👆 ลากจุด ◆ บนแผนภูมิได้: MA (ลมใหม่) · ADP (บนเส้นอิ่มตัว) · SA (reheat)</div>
+    </div>
+
+    <!-- PANEL -->
+    <div class="box" id="panel">
+      <div class="goal" id="goalTxt">—</div>
+      <table id="tbl">
+        <thead><tr><th>จุด</th><th>T °C</th><th>RH %</th><th>W g/kg</th><th>h kJ/kg</th><th>Tdp °C</th></tr></thead>
+        <tbody id="tblBody"></tbody>
+      </table>
+      <div id="energy">
+        <div><small>คอยล์เย็น</small><b id="eCoil">—</b><small id="eCoilTR">—</small></div>
+        <div><small>Reheat</small><b id="eRh">—</b><small id="eRhPct">—</small></div>
+        <div class="tot"><small>รวม</small><b id="eTot">—</b><small id="eCond">—</small></div>
+      </div>
+      <div id="starGoal">—</div>
+      <div class="sld" id="oaBox">
+        <div class="lab"><span>🌤 ลมใหม่ (Outdoor air)</span><span class="v" id="oaVal">0%</span></div>
+        <input type="range" id="oaSld" min="0" max="100" step="1" value="0" aria-label="สัดส่วนลมใหม่">
+      </div>
+      <div class="sld" id="adpBox">
+        <div class="lab"><span>❄ ผิวคอยล์ ADP</span><span class="v" id="adpVal">18.0°C</span></div>
+        <input type="range" id="adpSld" min="4" max="22" step="0.5" value="18" aria-label="อุณหภูมิผิวคอยล์ ADP">
+      </div>
+      <div class="sld" id="rhBox">
+        <div class="lab"><span>🔥 Reheat (อุ่นซ้ำ) ΔT</span><span class="v" id="rhVal">0.0 K</span></div>
+        <input type="range" id="rhSld" min="0" max="15" step="0.5" value="0" aria-label="อุ่นซ้ำ">
+      </div>
+      <div id="chips"><span>⏱ <span id="chipTime">0</span> วิ</span><span id="chipZone">ห้อง: —</span><span id="chipCoil">คอยล์: —</span></div>
+      <button class="big-btn" id="checkBtn">✔ ส่งลมเข้าห้อง (ตรวจผล)</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Start overlay ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.8rem">❄️📈</div>
+    <h1>ภารกิจลมเย็น</h1>
+    <div class="tag">Psychro Quest · เด็กโต/อาชีวะ — ช่างแอร์ · วิศวกรรมเครื่องกล</div>
+    <div class="sub">คุม AHU ให้ห้องอยู่ใน "โซนเขียว" บนแผนภูมิไซโครเมตริก<br>ด้วยพลังงาน <b>kW = ṁ·Δh</b> ให้น้อยที่สุด</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── Help overlay ───── -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2 id="helpTitle">วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt">—</div>
+    <div class="dots" id="helpDots"></div>
+    <div class="help-nav">
+      <button class="big-btn small alt" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Formula overlay ───── -->
+<div class="overlay" id="fmOv">
+  <div class="card" id="fmCard">
+    <h2>📐 สูตร / ที่มา</h2>
+    <h3>1) สมบัติอากาศชื้น</h3>
+    <p>คำนวณด้วย engine กลาง <b>TE_PSY</b> ตาม ASHRAE Handbook—Fundamentals บทที่ 1 (Hyland–Wexler) ที่ความดันบรรยากาศ 101.325 kPa</p>
+    <ul><li><code>W = 0.621945·pw/(p − pw)</code> kg/kg อากาศแห้ง</li>
+      <li><code>h = 1.006·T + W·(2501 + 1.86·T)</code> kJ/kg อากาศแห้ง</li>
+      <li>Tdp = อุณหภูมิที่ Pws(Tdp) = pw (จุดน้ำค้าง)</li></ul>
+    <h3>2) ผสมอากาศ (Mixing)</h3>
+    <ul><li>สมดุลมวล+พลังงาน: <code>W_MA = x·W_OA + (1−x)·W_RA</code>, <code>h_MA = x·h_OA + (1−x)·h_RA</code></li>
+      <li>x = สัดส่วนลมใหม่ (โดยมวลอากาศแห้ง) → จุด MA อยู่บน <b>เส้นตรง RA–OA</b> ห่างจาก RA เป็นสัดส่วน x</li></ul>
+    <h3>3) คอยล์เย็น — ADP และ Bypass factor (BF)</h3>
+    <ul><li>ADP (Apparatus Dew Point) = อุณหภูมิผิวคอยล์เฉลี่ย อยู่บนเส้นอิ่มตัว</li>
+      <li>คอยล์เปียก: จุดหลังคอยล์อยู่บนเส้น MA→ADP <code>h_CL = h_ADP + BF·(h_MA − h_ADP)</code> (W เช่นกัน)</li>
+      <li>ADP ≥ Tdp ของลมเข้า → <b>คอยล์แห้ง</b> W คงที่ = sensible cooling (เส้นแนวนอน)</li>
+      <li>จุดเลยเส้นอิ่มตัว = หมอก/น้ำกลั่นในลม (fog) — ตรึงไว้บนเส้นอิ่มตัว</li></ul>
+    <h3>4) Reheat และพลังงาน</h3>
+    <ul><li>Reheat: W คงที่ T เพิ่ม (เส้นแนวนอนไปทางขวา)</li>
+      <li><code>Q_coil = ṁ_da·(h_MA − h_CL)</code> · <code>Q_reheat = ṁ_da·(h_SA − h_CL)</code> (kW, ṁ เป็น kg/s)</li>
+      <li>น้ำกลั่น <code>= ṁ_da·(W_MA − W_CL)</code> · 1 TR = 3.517 kW · ละเทอม ṁw·hw ของน้ำทิ้ง (&lt;1%)</li></ul>
+    <h3>5) สภาวะห้อง</h3>
+    <ul><li><code>h_R = h_SA + (Qs + Ql)/ṁ</code> · <code>W_R = W_SA + Ql/(ṁ·2501)</code></li>
+      <li>สมมติฐาน: steady state, ลมกลับ (RA) คงที่ตามค่าของด่าน, ไม่คิดความร้อนพัดลม/รั่วท่อ, BF คงที่</li></ul>
+    <h3>6) ลมใหม่ขั้นต่ำ ASHRAE 62.1 (ด่าน 5)</h3>
+    <ul><li><code>Vbz = Rp·Pz + Ra·Az</code> ห้องเรียน (อายุ 9+): Rp = 5 L/s·คน, Ra = 0.6 L/s·m²</li>
+      <li>41 คน, 70 m², Ez = 1.0 (จ่ายลมเย็นจากเพดาน) → Voz = 247 L/s → แปลงเป็นมวลด้วย v ของอากาศนอก</li></ul>
+    <div style="text-align:center;margin-top:12px"><button class="big-btn small" id="fmClose">ปิด</button></div>
+  </div>
+</div>
+
+<!-- ───── Result overlay ───── -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <div id="resEmoji" style="font-size:2.2rem">🏁</div>
+    <h2 id="resTitle">จบด่าน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <div class="stat-tbl" id="resStats"></div>
+    <div class="debrief" id="resDebrief"></div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── Summary overlay ───── -->
+<div class="overlay" id="sumOv">
+  <div class="card">
+    <div style="font-size:2.4rem">🎓❄️</div>
+    <h2>สรุปบทเรียน ภารกิจลมเย็น</h2>
+    <div class="result-stars" style="font-size:1.6rem" id="sumStars">⭐ 0/15</div>
+    <div id="sumList"></div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="sumHome">🏠 หน้าแรก</button>
+      <button class="big-btn small" id="sumReplay">↻ เล่นใหม่ตั้งแต่ด่าน 1</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ ภารกิจลมเย็น (Psychro Quest) v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var NS='http://www.w3.org/2000/svg';
+var P_ATM=101.325;
+var REDUCED=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ── ฟิสิกส์ (ใช้ TE_PSY เท่านั้น — ไม่เขียนสูตร psychro ใหม่) ── */
+function TfromHW(h,W){return (h-2501*W)/(1.006+1.86*W);}   /* กลับสูตร h ของ TE_PSY.Hda */
+function stOf(t,W){return TE_PSY.state(t,W,P_ATM);}
+/* แกนคำนวณ (เร็ว) คืน T,W,h ของทุกจุด */
+function core(L,x,adp,dT){
+  var OA=L._OA, RA=L._RA, f=x/100;
+  var Wm=f*OA.W+(1-f)*RA.W, hm=f*OA.h+(1-f)*RA.h, Tm=TfromHW(hm,Wm);
+  var BF=L.bf, Tc, Wc, wet=false, fog=false, off=false;
+  if(adp>=Tm-0.05){Tc=Tm;Wc=Wm;off=true;}
+  else{
+    var Wa=TE_PSY.Ws(adp,P_ATM);
+    if(Wm<=Wa){Tc=adp+BF*(Tm-adp);Wc=Wm;}
+    else{
+      wet=true;
+      var ha=TE_PSY.Hda(adp,Wa), hc=ha+BF*(hm-ha); Wc=Wa+BF*(Wm-Wa); Tc=TfromHW(hc,Wc);
+      if(Wc>TE_PSY.Ws(Tc,P_ATM)){ /* เลยเส้นอิ่มตัว → หมอก: ตรึงบนเส้นอิ่มตัวที่ h เดิม */
+        fog=true;var lo=adp,hi=Tm;
+        for(var i=0;i<50;i++){var mm=(lo+hi)/2;if(TE_PSY.Hda(mm,TE_PSY.Ws(mm,P_ATM))<hc)lo=mm;else hi=mm;}
+        Tc=(lo+hi)/2;Wc=TE_PSY.Ws(Tc,P_ATM);
+      }
+    }
+  }
+  var hc2=TE_PSY.Hda(Tc,Wc), Ts=Tc+dT, hs=TE_PSY.Hda(Ts,Wc);
+  var m=L.m, hR=hs+(L.qs+L.ql)/m, WR=Wc+L.ql/(m*2501), TR=TfromHW(hR,WR);
+  var rhR=100*TE_PSY.RH_W(TR,WR,P_ATM);
+  var qc=m*(hm-hc2), qr=m*(hs-hc2);
+  return {Tm:Tm,Wm:Wm,hm:hm,Tc:Tc,Wc:Wc,hc:hc2,Ts:Ts,hs:hs,TR:TR,WR:WR,rhR:rhR,
+          qc:qc,qr:qr,qt:qc+qr,cond:m*(Wm-Wc)*3600,wet:wet,fog:fog,off:off,adp:adp};
+}
+function sim(L,x,adp,dT){
+  var c=core(L,x,adp,dT);
+  c.OA=L._OA;c.RA=L._RA;c.MA=stOf(c.Tm,c.Wm);c.CL=stOf(c.Tc,c.Wc);c.SA=stOf(c.Ts,c.Wc);c.R=stOf(c.TR,c.WR);
+  c.ADP=stOf(adp,TE_PSY.Ws(adp,P_ATM));
+  return c;
+}
+function inZone(L,c){return c.TR>=L.zone[0]&&c.TR<=L.zone[1]&&c.rhR>=L.zone[2]&&c.rhR<=L.zone[3];}
+function passAll(L,c,x){return inZone(L,c)&&x>=L.xmin;}
+/* หาเฉลย: ค่าควบคุมที่ได้ kW รวมต่ำสุด (brute force บนกริดเดียวกับสไลเดอร์) */
+function optimum(L){
+  var best=null,xs=[],rs=[];
+  if(L.xLock!=null)xs=[L.xLock];else for(var x=Math.ceil(L.xmin);x<=100;x++)xs.push(x);
+  if(L.rhLock)rs=[0];else for(var r=0;r<=15;r+=0.5)rs.push(r);
+  for(var i=0;i<xs.length;i++)for(var a=4;a<=22.001;a+=0.5)for(var j=0;j<rs.length;j++){
+    var c=core(L,xs[i],a,rs[j]);
+    if(passAll(L,c,xs[i])&&(!best||c.qt<best.qt-1e-9))best={x:xs[i],adp:a,dT:rs[j],qt:c.qt,qc:c.qc,qr:c.qr};
+  }
+  return best;
+}
+
+/* ── ด่าน ── */
+var LV=[
+ {name:'① Sensible cooling',icon:'🖥',room:'ห้องคอมฯ',deco:'comp',hat:'#546e7a',
+  oa:[34,60],ra:[24,40],m:1.2,bf:0.15,qs:12,ql:0,zone:[21,24,35,60],xLock:0,rhLock:true,xmin:0,
+  init:{x:0,adp:18,dT:0},
+  goal:'<b>ห้องคอมฯ</b> มีแต่ความร้อนสัมผัส (Qs 12 kW, Ql = 0) · ลมกลับ 100% · ทำให้ห้อง <b>21–24°C</b> RH 35–60% <b>โดยไม่ดึงน้ำออก</b> — ตั้ง ADP ให้สูงกว่าจุดน้ำค้าง',
+  lesson:'Sensible cooling = เส้นแนวนอน · ADP ต่ำกว่า Tdp เมื่อไหร่ คอยล์เริ่มกลั่นน้ำและเสียพลังงานแฝงฟรี ๆ'},
+ {name:'② ทำเย็น+ลดความชื้น',icon:'🏫',room:'ห้องเรียน',deco:'class',hat:'#ff8f1c',
+  oa:[34,60],ra:[26,60],m:1.3,bf:0.15,qs:14,ql:4,zone:[23,26,50,60],xLock:0,rhLock:true,xmin:0,
+  init:{x:0,adp:18,dT:0},
+  goal:'<b>ห้องเรียน</b> 41 คน มีความชื้นจากคน (Qs 14 kW, Ql 4 kW) · ทำให้ห้อง <b>23–26°C</b> และ <b>RH 50–60%</b> — ต้องลด ADP ให้ต่ำกว่าจุดน้ำค้างเพื่อดึงความชื้น',
+  lesson:'ลดความชื้นได้ต้องให้ผิวคอยล์ (ADP) ต่ำกว่าจุดน้ำค้าง — เส้นกระบวนการจึงเอียงลงไปหา ADP บนเส้นอิ่มตัว'},
+ {name:'③ ผสมลมใหม่ 30%',icon:'🏥',room:'ห้องผ่าตัด',deco:'or',hat:'#26a69a',
+  oa:[34,60],ra:[24,55],m:1.4,bf:0.12,qs:13,ql:3,zone:[21,24,45,60],xLock:null,rhLock:true,xmin:30,
+  init:{x:0,adp:14,dT:0},
+  goal:'<b>ห้องผ่าตัด</b> ต้องมี <b>ลมใหม่ ≥ 30%</b> · อากาศนอกเขตร้อน 34°C/60%RH · ผสมก่อนเข้าคอยล์ แล้วคุมห้อง <b>21–24°C</b> RH 45–60%',
+  lesson:'จุดผสมเลื่อนบนเส้นตรง RA–OA ตามสัดส่วนมวล · ลมใหม่ร้อนชื้นทำให้ h ก่อนคอยล์สูงขึ้น = kW คอยล์เพิ่ม'},
+ {name:'④ ห้องเก็บยา RH ≤ 45%',icon:'💊',room:'ห้องเก็บยา',deco:'drug',hat:'#7b5bff',
+  oa:[34,60],ra:[24,45],m:1.0,bf:0.10,qs:5,ql:1.5,zone:[20,25,30,45],xLock:10,rhLock:false,xmin:10,
+  init:{x:10,adp:14,dT:0},
+  goal:'<b>ห้องเก็บยา</b> ต้อง <b>RH ≤ 45%</b> และ <b>20–25°C</b> (โหลดร้อนน้อย Qs 5 kW) · ลมใหม่ 10% · ต้องทำเย็นจัดเพื่อรีดน้ำ แล้ว <b>reheat</b> กลับ — ดูว่าเปลืองแค่ไหน',
+  lesson:'งานคุมความชื้นต่ำ ต้องเย็นจัด+อุ่นซ้ำ = จ่ายพลังงานสองต่อ · ใช้ reheat เท่าที่จำเป็น (หรือใช้ความร้อนทิ้งจากคอนเดนเซอร์)'},
+ {name:'⑤ ภารกิจประหยัด',icon:'🌱',room:'ห้องเรียน',deco:'class',hat:'#1fb45f',
+  oa:[34,60],ra:[25,55],m:1.3,bf:0.15,qs:14,ql:4,zone:[23,26,45,60],xLock:null,rhLock:false,xmin:0,
+  init:{x:50,adp:10,dT:3},
+  goal:'ระบบเดิมตั้งไว้ <b>ลมใหม่ 50% + ADP 10°C + reheat 3 K</b> · ทำให้ห้อง <b>23–26°C</b> RH 45–60% ด้วย <b>kW รวมต่ำสุด</b> — ลมใหม่ต้อง ≥ ขั้นต่ำ ASHRAE 62.1',
+  lesson:'ลมใหม่ให้พอดีขั้นต่ำ ASHRAE 62.1 · ADP สูงเท่าที่ยังคุมความชื้นได้ · ไม่ reheat ถ้าไม่จำเป็น = kW ต่ำสุด'}
+];
+var NLV=LV.length;
+/* ASHRAE 62.1 ด่าน 5: ห้องเรียน 41 คน 70 m² */
+var V62={Rp:5,Pz:41,Ra:0.6,Az:70,Ez:1.0};
+V62.Voz=(V62.Rp*V62.Pz+V62.Ra*V62.Az)/V62.Ez;   /* L/s */
+function prepLevels(){
+  for(var i=0;i<NLV;i++){var L=LV[i];
+    L._OA=TE_PSY.fromRH(L.oa[0],L.oa[1],P_ATM);L._RA=TE_PSY.fromRH(L.ra[0],L.ra[1],P_ATM);
+    if(i===4){var mOA=V62.Voz/1000/L._OA.v; L.xminExact=100*mOA/L.m; L.xmin=Math.ceil(L.xminExact);}
+    L._opt=optimum(L);
+    L.t3=L._opt.qt*1.06+0.2; L.t2=L._opt.qt*1.25;
+  }
+}
+
+/* ── สถานะเกม ── */
+var G={lv:0,running:false,t:0,x:0,adp:18,dT:0,last:null,wasWet:false,wasFog:false,wasZone:false};
+var stars=[0,0,0,0,0], lastTs=0;
+
+/* ── เสียง Web Audio ── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+var clickT=0;
+function sClick(){var n=Date.now();if(n-clickT<60)return;clickT=n;tone(620,0,0.05,'square',0.06);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sDrip(){tone(1200,0,0.06,'sine',0.12);tone(900,0.07,0.08,'sine',0.1);}
+function sZone(){tone(660,0,0.08,'triangle',0.14);tone(990,0.09,0.12,'triangle',0.14);}
+
+/* ── localStorage ── */
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_skill_psychro_stars')||'[]');for(var i=0;i<NLV;i++)stars[i]=Math.min(3,v[i]|0);}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_skill_psychro_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_skill_psychro_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_skill_psychro_seen','1');}catch(e){}}
+
+/* ── speech bubble ── */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');
+  clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2800);}
+
+/* ═════════ แผนภูมิไซโครเมตริก ═════════ */
+var CX0=40,CX1=548,CY0=372,CY1=12,TMIN=0,TMAX=42,WMAX=30; /* W เป็น g/kg */
+function X(T){return CX0+(T-TMIN)/(TMAX-TMIN)*(CX1-CX0);}
+function Y(W){return CY0-(W*1000)/WMAX*(CY0-CY1);}          /* W kg/kg */
+function invX(px){return TMIN+(px-CX0)/(CX1-CX0)*(TMAX-TMIN);}
+function el(tag,attrs,parent,txt){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(txt!=null)e.textContent=txt;if(parent)parent.appendChild(e);return e;}
+/* เส้นโค้ง W = f(T) ตัดที่ขอบบน */
+function curvePts(fn){var pts=[],prev=null;
+  for(var T=TMIN;T<=TMAX+1e-9;T+=0.25){var W=fn(T);
+    if(W*1000>WMAX){ if(prev!=null){var lo=T-0.25,hi=T;for(var i=0;i<30;i++){var m=(lo+hi)/2;if(fn(m)*1000>WMAX)hi=m;else lo=m;}pts.push([X(lo),Y(WMAX/1000)]);} break;}
+    pts.push([X(T),Y(W)]);prev=W;}
+  return pts;}
+function ptsStr(p){return p.map(function(q){return q[0].toFixed(1)+','+q[1].toFixed(1);}).join(' ');}
+function drawChartBg(){
+  var g=$('chBg');g.innerHTML='';
+  el('rect',{x:CX0,y:CY1,width:CX1-CX0,height:CY0-CY1,fill:'#fbfdff',stroke:'#c9d4e3','stroke-width':1.5},g);
+  /* เส้น W แนวนอน */
+  for(var w=0;w<=WMAX;w+=2){var y=Y(w/1000);
+    el('line',{x1:CX0,y1:y,x2:CX1,y2:y,stroke:w%10===0?'#c3cfdf':'#e4eaf2','stroke-width':w%10===0?1.2:0.8},g);
+    if(w%4===0)el('text',{x:CX1+5,y:y+4,'font-size':11,fill:'#5d6b80','font-family':'Mitr,sans-serif'},g,String(w));}
+  el('text',{x:CX1+5,y:CY1-2+8,'font-size':10,fill:'#5d6b80','font-family':'Mitr,sans-serif'},g,'');
+  /* เส้นอุณหภูมิแนวตั้ง (ถึงเส้นอิ่มตัว) */
+  for(var T=0;T<=TMAX;T+=2){var x=X(T),ws=Math.min(TE_PSY.Ws(T,P_ATM),WMAX/1000);
+    el('line',{x1:x,y1:CY0,x2:x,y2:Y(ws),stroke:T%10===0?'#c3cfdf':'#e4eaf2','stroke-width':T%10===0?1.2:0.8},g);
+    if(T%4===0)el('text',{x:x,y:CY0+15,'font-size':11,fill:'#5d6b80','text-anchor':'middle','font-family':'Mitr,sans-serif'},g,String(T));}
+  /* เส้นเอนทัลปีคงที่ */
+  for(var h=10;h<=110;h+=10){
+    var lo=-10,hi=45;for(var i=0;i<50;i++){var m=(lo+hi)/2;if(TE_PSY.Hda(m,TE_PSY.Ws(m,P_ATM))<h)lo=m;else hi=m;}
+    var Ts=(lo+hi)/2,Ws=TE_PSY.Ws(Ts,P_ATM),T0=h/1.006;
+    var p1=[Ts,Ws],p2=[T0,0];
+    if(Ws*1000>WMAX){var Wt=WMAX/1000;p1=[TfromHW(h,Wt),Wt];}
+    if(p1[0]<TMIN||p2[0]>TMAX+12)continue;
+    if(T0>TMAX){p2=[TMAX,(h-1.006*TMAX)/(2501+1.86*TMAX)];}
+    el('line',{x1:X(p1[0]),y1:Y(p1[1]),x2:X(p2[0]),y2:Y(p2[1]),stroke:'#ffb74d','stroke-width':0.9,'stroke-dasharray':'4 4',opacity:.75},g);
+    if(Ws*1000<=WMAX&&Ts>=TMIN)el('text',{x:X(Ts)-4,y:Y(Ws)-4,'font-size':9.5,fill:'#e08a00','text-anchor':'end','font-family':'Mitr,sans-serif'},g,String(h));
+  }
+  /* เส้น RH 10–90% */
+  for(var rh=10;rh<=90;rh+=10){
+    var pts=curvePts(function(t){return TE_PSY.W_rh(t,rh/100,P_ATM);});
+    el('polyline',{points:ptsStr(pts),fill:'none',stroke:rh===50?'#7fa7d9':'#a9c1e0','stroke-width':rh===50?1.3:0.9},g);
+    var lp=pts[pts.length-1];
+    var lx=Math.min(lp[0],CX1-4),ly=lp[1];
+    if(lp[1]<=CY1+1){lx=lp[0]-3;ly=CY1+11;}
+    el('text',{x:lx,y:ly-3,'font-size':9.5,fill:'#5b7fb5','text-anchor':'end','font-family':'Mitr,sans-serif'},g,rh+'%');
+  }
+  /* เส้นอิ่มตัว 100% */
+  var sp=curvePts(function(t){return TE_PSY.Ws(t,P_ATM);});
+  el('polyline',{points:ptsStr(sp),fill:'none',stroke:'#1e3a8a','stroke-width':2.6},g);
+  var s20=[X(20),Y(TE_PSY.Ws(20,P_ATM))];
+  el('text',{x:s20[0]-8,y:s20[1]-6,'font-size':10,fill:'#1e3a8a','text-anchor':'end','font-weight':600,'font-family':'Mitr,sans-serif'},g,'อิ่มตัว 100%');
+  el('text',{x:(CX0+CX1)/2,y:CY0+28,'font-size':11,fill:'#334','text-anchor':'middle','font-family':'Mitr,sans-serif'},g,'อุณหภูมิกระเปาะแห้ง T (°C)');
+  el('text',{x:CX1+6,y:CY1+2,'font-size':9.5,fill:'#334','font-family':'Mitr,sans-serif',transform:'rotate(90 '+(CX1+40)+' '+(CY1+150)+')'},g,'');
+  el('text',{x:0,y:0,'font-size':10,fill:'#334','text-anchor':'middle','font-family':'Mitr,sans-serif',transform:'translate(594 '+((CY0+CY1)/2)+') rotate(90)'},g,'W (g/kg อากาศแห้ง)');
+  el('text',{x:CX0+6,y:CY1+14,'font-size':9.5,fill:'#e08a00','font-family':'Mitr,sans-serif'},g,'- - h kJ/kg');
+}
+function drawZone(L){
+  var g=$('chZone');g.innerHTML='';
+  var lo=L.zone[0],hi=L.zone[1],r1=L.zone[2]/100,r2=L.zone[3]/100,pts=[];
+  for(var T=lo;T<=hi+1e-9;T+=0.25)pts.push([X(T),Y(TE_PSY.W_rh(T,r1,P_ATM))]);
+  for(var T2=hi;T2>=lo-1e-9;T2-=0.25)pts.push([X(T2),Y(TE_PSY.W_rh(T2,r2,P_ATM))]);
+  el('polygon',{points:ptsStr(pts),fill:'#1fb45f',class:'zonePulse',opacity:.3},g);
+  el('polygon',{points:ptsStr(pts),fill:'none',stroke:'#14753d','stroke-width':2},g);
+}
+var COL={OA:'#ff8f1c',RA:'#7b5bff',MA:'#00897b',ADP:'#1e3a8a',CL:'#1e88e5',SA:'#ef4b4b',R:'#1fb45f'};
+function drawProcess(c){
+  var L=LV[G.lv],gp=$('chProc'),gt=$('chPts'),gh=$('chHdl');gp.innerHTML='';gt.innerHTML='';gh.innerHTML='';
+  var p=function(s){return [X(s.t),Y(s.W)];};
+  var oa=p(c.OA),ra=p(c.RA),ma=p(c.MA),cl=p(c.CL),sa=p(c.SA),rr=p(c.R),ad=p(c.ADP);
+  var xLocked=L.xLock!=null;
+  /* เส้นผสม RA–OA */
+  el('line',{x1:ra[0],y1:ra[1],x2:oa[0],y2:oa[1],stroke:'#9e8cff','stroke-width':2.2,'stroke-dasharray':'6 4',opacity:xLocked&&L.xLock===0?.35:1},gp);
+  /* เส้นคอยล์ MA → ADP (ประ) และ MA → CL (ทึบ) */
+  if(!c.off){
+    if(c.wet)el('line',{x1:cl[0],y1:cl[1],x2:ad[0],y2:ad[1],stroke:'#1e88e5','stroke-width':1.5,'stroke-dasharray':'3 4'},gp);
+    else el('line',{x1:cl[0],y1:cl[1],x2:ad[0],y2:cl[1],stroke:'#1e88e5','stroke-width':1.2,'stroke-dasharray':'3 4',opacity:.6},gp);
+    el('line',{x1:ma[0],y1:ma[1],x2:cl[0],y2:cl[1],stroke:'#1e88e5','stroke-width':4,'stroke-linecap':'round'},gp);
+  }
+  /* reheat CL → SA */
+  if(c.SA.t-c.CL.t>0.05)el('line',{x1:cl[0],y1:cl[1],x2:sa[0],y2:sa[1],stroke:'#ef4b4b','stroke-width':4,'stroke-linecap':'round'},gp);
+  /* ภาระห้อง SA → R */
+  el('line',{x1:sa[0],y1:sa[1],x2:rr[0],y2:rr[1],stroke:'#1fb45f','stroke-width':2.5,'stroke-dasharray':'5 4'},gp);
+  /* Tdp ของ MA: ประแนวนอนไปเส้นอิ่มตัว */
+  var tdx=X(c.MA.tdp);
+  el('line',{x1:tdx,y1:ma[1],x2:ma[0],y2:ma[1],stroke:'#00897b','stroke-width':1,'stroke-dasharray':'2 3',opacity:.8},gp);
+  el('circle',{cx:tdx,cy:ma[1],r:3,fill:'#00897b'},gp);
+  /* จุด */
+  function pt(q,col,lab,dx,dy,r){el('circle',{cx:q[0],cy:q[1],r:r||6,fill:col,stroke:'#fff','stroke-width':2},gt);
+    el('text',{x:q[0]+(dx||8),y:q[1]+(dy||-8),'font-size':11.5,'font-weight':700,fill:col,'font-family':'Mitr,sans-serif',stroke:'#fff','stroke-width':3,'paint-order':'stroke'},gt,lab);}
+  pt(oa,COL.OA,'OA',8,-8);pt(ra,COL.RA,'RA',-24,-8);
+  if(c.fog)el('circle',{cx:cl[0],cy:cl[1],r:12,fill:'#90caf9',opacity:.6},gt);
+  var noRh=c.SA.t-c.CL.t<0.05;
+  pt(cl,COL.CL,noRh?'':'CL',4,17,5);
+  pt(rr,COL.R,'ห้อง',8,4,7);
+  /* handles (ลากได้) */
+  function hdl(q,col,lab,key,locked,dx,dy){
+    var g=el('g',{class:'hdl'+(locked?' lock':''),'data-k':key},gh);
+    if(!locked)el('circle',{cx:q[0],cy:q[1],r:20,fill:'transparent'},g);
+    el('rect',{x:q[0]-7,y:q[1]-7,width:14,height:14,fill:locked?'#b0bec5':col,stroke:'#fff','stroke-width':2.5,transform:'rotate(45 '+q[0]+' '+q[1]+')'},g);
+    el('text',{x:q[0]+(dx||10),y:q[1]+(dy||-10),'font-size':11.5,'font-weight':700,fill:locked?'#90a4ae':col,'font-family':'Mitr,sans-serif',stroke:'#fff','stroke-width':3,'paint-order':'stroke'},g,lab);
+  }
+  /* วาดตัวที่ล็อกก่อน (อยู่ล่าง) · เก็บตำแหน่งไว้เลือกจุดที่ใกล้ที่สุดตอนลาก */
+  HPOS={ma:[ma[0],ma[1],xLocked],adp:[ad[0],ad[1],false],sa:[sa[0],sa[1],!!L.rhLock]};
+  var order=[['ma',ma,COL.MA,'MA',xLocked,8,18],['adp',ad,COL.ADP,'ADP',false,-34,4],['sa',sa,COL.SA,noRh?'SA=CL':'SA',!!L.rhLock,8,-10]];
+  order.sort(function(a,b){return (b[4]?1:0)-(a[4]?1:0);});
+  order.forEach(function(o){hdl(o[1],o[2],o[3],o[0],o[4],o[5],o[6]);});
+}
+
+/* ── ลากจุดบนแผนภูมิ ── */
+var drag=null;
+function svgPt(evt){var svg=$('chart'),pt=svg.createSVGPoint();pt.x=evt.clientX;pt.y=evt.clientY;
+  var m=svg.getScreenCTM();return m?pt.matrixTransform(m.inverse()):{x:0,y:0};}
+function dragTo(k,q){
+  var L=LV[G.lv],c=G.last;
+  if(k==='ma'){
+    if(L.xLock!=null)return;
+    var a=[X(c.RA.t),Y(c.RA.W)],b=[X(c.OA.t),Y(c.OA.W)],vx=b[0]-a[0],vy=b[1]-a[1];
+    var t=((q.x-a[0])*vx+(q.y-a[1])*vy)/(vx*vx+vy*vy);t=Math.max(0,Math.min(1,t));
+    setCtl('x',Math.round(t*100));
+  }else if(k==='adp'){
+    var best=G.adp,bd=1e9;
+    for(var a2=4;a2<=22.001;a2+=0.5){var px=X(a2),py=Y(TE_PSY.Ws(a2,P_ATM)),d=(px-q.x)*(px-q.x)+(py-q.y)*(py-q.y);if(d<bd){bd=d;best=a2;}}
+    setCtl('adp',best);
+  }else if(k==='sa'){
+    if(L.rhLock)return;
+    var dT=Math.round((invX(q.x)-c.CL.t)*2)/2;setCtl('dT',Math.max(0,Math.min(15,dT)));
+  }
+}
+var HPOS={};
+function nearestHandle(q){var best=null,bd=30*30,lockHit=null;
+  for(var k in HPOS){var h=HPOS[k],d=(h[0]-q.x)*(h[0]-q.x)+(h[1]-q.y)*(h[1]-q.y);
+    if(d>30*30)continue; if(h[2]){if(!lockHit)lockHit=k;continue;} if(d<bd){bd=d;best=k;}}
+  return {k:best,lock:lockHit};}
+$('chart').addEventListener('pointerdown',function(e){
+  var nh=nearestHandle(svgPt(e)),k=nh.k;audio();
+  if(!k){if(nh.lock)say(nh.lock==='ma'?'ด่านนี้ล็อกสัดส่วนลมใหม่ไว้ 🔒':'ด่านนี้ยังไม่เปิด reheat 🔒',1800);return;}
+  drag=k;try{this.setPointerCapture(e.pointerId);}catch(er){}e.preventDefault();
+});
+$('chart').addEventListener('pointermove',function(e){if(!drag)return;e.preventDefault();dragTo(drag,svgPt(e));});
+function endDrag(){drag=null;}
+$('chart').addEventListener('pointerup',endDrag);$('chart').addEventListener('pointercancel',endDrag);
+
+/* ═════════ ฉาก: อนุภาคลม + ตกแต่งห้อง ═════════ */
+var PATHS={
+  oa:[[846,221],[790,221],[748,232]],
+  ra:[[200,150],[286,72],[286,49],[740,49],[740,190],[742,228]],
+  sup:[[742,232],[660,232],[600,228],[560,228],[515,228],[460,228],[420,228],[409,200],[409,103],[340,103],[270,130],[210,170]]
+};
+function prepPath(p){var cum=[0];for(var i=1;i<p.length;i++){var dx=p[i][0]-p[i-1][0],dy=p[i][1]-p[i-1][1];cum.push(cum[i-1]+Math.sqrt(dx*dx+dy*dy));}return {p:p,cum:cum,len:cum[cum.length-1]};}
+var PP={oa:prepPath(PATHS.oa),ra:prepPath(PATHS.ra),sup:prepPath(PATHS.sup)};
+function posAt(pp,s){var d=s*pp.len;for(var i=1;i<pp.p.length;i++){if(d<=pp.cum[i]){var f=(d-pp.cum[i-1])/(pp.cum[i]-pp.cum[i-1]||1);
+  return [pp.p[i-1][0]+f*(pp.p[i][0]-pp.p[i-1][0]),pp.p[i-1][1]+f*(pp.p[i][1]-pp.p[i-1][1])];}}return pp.p[pp.p.length-1];}
+var parts=[];
+function buildParticles(){
+  var g=$('partG');g.innerHTML='';parts=[];
+  function add(path,n,spd){for(var i=0;i<n;i++){var c=el('circle',{r:path==='sup'?5:4.5,fill:'#fff',stroke:'rgba(0,0,0,.25)','stroke-width':1},g);
+    parts.push({el:c,path:path,s:i/n,spd:spd,idx:i,n:n});}}
+  add('oa',10,0.30);add('ra',22,0.085);add('sup',30,0.11);
+}
+function lerpCol(a,b,f){var pa=[parseInt(a.substr(1,2),16),parseInt(a.substr(3,2),16),parseInt(a.substr(5,2),16)],
+  pb=[parseInt(b.substr(1,2),16),parseInt(b.substr(3,2),16),parseInt(b.substr(5,2),16)];
+  return 'rgb('+Math.round(pa[0]+(pb[0]-pa[0])*f)+','+Math.round(pa[1]+(pb[1]-pa[1])*f)+','+Math.round(pa[2]+(pb[2]-pa[2])*f)+')';}
+var TSTOP=[[6,'#1e40ff'],[12,'#1e88e5'],[17,'#26c6da'],[22,'#66bb6a'],[26,'#ffd23f'],[30,'#ff8f1c'],[36,'#ef4b4b']];
+function tCol(T){if(T<=TSTOP[0][0])return TSTOP[0][1];for(var i=1;i<TSTOP.length;i++)if(T<=TSTOP[i][0]){var f=(T-TSTOP[i-1][0])/(TSTOP[i][0]-TSTOP[i-1][0]);return lerpCol(TSTOP[i-1][1],TSTOP[i][1],f);}return TSTOP[TSTOP.length-1][1];}
+function updParticles(dt){
+  var c=G.last;if(!c)return;var f=G.x/100;
+  var nOA=Math.round(10*f), nRA=Math.round(22*(1-f));
+  for(var i=0;i<parts.length;i++){var q=parts[i];
+    if(!REDUCED)q.s=(q.s+q.spd*dt)%1;
+    var pos=posAt(PP[q.path],q.s),T;
+    var vis=true;
+    if(q.path==='oa'){T=c.OA.t;vis=q.idx<nOA;}
+    else if(q.path==='ra'){T=c.RA.t;vis=q.idx<nRA;}
+    else{var x=pos[0],y=pos[1];
+      if(x>655&&y>200)T=c.MA.t;
+      else if(x>582&&y>200)T=c.MA.t+(c.CL.t-c.MA.t)*((655-x)/73);
+      else if(x>534&&y>200)T=c.CL.t;
+      else if(x>494&&y>200)T=c.CL.t+(c.SA.t-c.CL.t)*((534-x)/40);
+      else T=c.SA.t;}
+    q.el.setAttribute('cx',pos[0].toFixed(1));q.el.setAttribute('cy',pos[1].toFixed(1));
+    q.el.setAttribute('fill',tCol(T));q.el.setAttribute('opacity',vis?'0.95':'0');
+  }
+}
+function decoSVG(kind){
+  if(kind==='comp')return '<g><rect x="214" y="150" width="46" height="136" rx="4" fill="#37474f"/><rect x="266" y="150" width="46" height="136" rx="4" fill="#37474f"/>'+
+    [0,1,2,3,4,5].map(function(i){return '<rect x="220" y="'+(160+i*20)+'" width="34" height="12" rx="2" fill="#546e7a"/><circle class="led" style="animation-delay:'+(i*0.2)+'s" cx="248" cy="'+(166+i*20)+'" r="2.4" fill="#76ff03"/>'+
+      '<rect x="272" y="'+(160+i*20)+'" width="34" height="12" rx="2" fill="#546e7a"/><circle class="led" style="animation-delay:'+(i*0.3+0.1)+'s" cx="300" cy="'+(166+i*20)+'" r="2.4" fill="#40c4ff"/>';}).join('')+
+    '<rect x="30" y="232" width="70" height="40" rx="4" fill="#90a4ae"/><rect x="36" y="238" width="58" height="26" rx="2" fill="#263238"/><rect x="58" y="272" width="14" height="14" fill="#78909c"/></g>';
+  if(kind==='class')return '<g><rect x="190" y="112" width="128" height="62" rx="4" fill="#2e7d32" stroke="#795548" stroke-width="5"/>'+
+    '<text x="254" y="140" font-size="12" text-anchor="middle" fill="#e8f5e9" font-family="Mitr,sans-serif">h = 1.006T + W(2501+1.86T)</text>'+
+    '<text x="254" y="160" font-size="11" text-anchor="middle" fill="#e8f5e9" font-family="Mitr,sans-serif">Q = ṁ·Δh</text>'+
+    '<rect x="206" y="240" width="46" height="10" rx="3" fill="#a1887f"/><rect x="262" y="240" width="46" height="10" rx="3" fill="#a1887f"/>'+
+    '<circle cx="229" cy="228" r="10" fill="#ffd9b3"/><circle cx="285" cy="228" r="10" fill="#ffd9b3"/>'+
+    '<rect x="221" y="238" width="16" height="4" fill="#5c6bc0"/><rect x="277" y="238" width="16" height="4" fill="#ef6c00"/>'+
+    '<rect x="210" y="250" width="4" height="36" fill="#8d6e63"/><rect x="244" y="250" width="4" height="36" fill="#8d6e63"/><rect x="266" y="250" width="4" height="36" fill="#8d6e63"/><rect x="300" y="250" width="4" height="36" fill="#8d6e63"/>'+
+    '<text x="40" y="270" font-size="22">🎒</text></g>';
+  if(kind==='or')return '<g><path d="M262 110 h40 l-10 18 h-20 z" fill="#b0bec5"/><rect x="280" y="66" width="4" height="44" fill="#90a4ae"/>'+
+    '<ellipse cx="282" cy="132" rx="30" ry="6" fill="#fff59d" opacity=".7" class="glow"/>'+
+    '<rect x="200" y="214" width="116" height="16" rx="6" fill="#4db6ac"/><rect x="214" y="230" width="8" height="56" fill="#78909c"/><rect x="294" y="230" width="8" height="56" fill="#78909c"/>'+
+    '<rect x="40" y="200" width="16" height="86" fill="#90a4ae"/><rect x="28" y="196" width="40" height="30" rx="4" fill="#263238"/>'+
+    '<polyline points="32,214 40,214 44,204 48,222 52,212 64,212" stroke="#76ff03" stroke-width="2" fill="none"/></g>';
+  if(kind==='drug')return '<g><rect x="196" y="120" width="122" height="166" rx="4" fill="#d7ccc8" stroke="#8d6e63" stroke-width="4"/>'+
+    [0,1,2].map(function(r){var y=158+r*44;return '<rect x="200" y="'+y+'" width="114" height="5" fill="#8d6e63"/>'+
+      [0,1,2,3,4].map(function(k){var cols=['#ef5350','#42a5f5','#66bb6a','#ffca28','#ab47bc'];return '<rect x="'+(206+k*22)+'" y="'+(y-26)+'" width="14" height="26" rx="3" fill="'+cols[(k+r)%5]+'"/><rect x="'+(208+k*22)+'" y="'+(y-30)+'" width="10" height="5" rx="1" fill="#eceff1"/>';}).join('');}).join('')+
+    '<g id="moldG" opacity="0"><circle cx="230" cy="140" r="7" fill="#7cb342" opacity=".8"/><circle cx="290" cy="190" r="6" fill="#7cb342" opacity=".8"/><circle cx="250" cy="232" r="8" fill="#7cb342" opacity=".8"/></g>'+
+    '<text x="34" y="270" font-size="22">💊</text></g>';
+  return '';
+}
+
+/* ═════════ อัปเดตทั้งหมด ═════════ */
+function f1(v){return (Math.round(v*10)/10).toFixed(1);}
+function setCtl(k,v){
+  var L=LV[G.lv];
+  if(k==='x'){if(L.xLock!=null)return;if(v===G.x)return;G.x=v;$('oaSld').value=v;}
+  else if(k==='adp'){if(v===G.adp)return;G.adp=v;$('adpSld').value=v;}
+  else if(k==='dT'){if(L.rhLock)return;if(v===G.dT)return;G.dT=v;$('rhSld').value=v;}
+  sClick();update();
+}
+function update(){
+  var L=LV[G.lv];
+  var c=sim(L,G.x,G.adp,G.dT);G.last=c;
+  drawProcess(c);
+  /* ป้ายสไลเดอร์ */
+  $('oaVal').textContent=G.x+'%';
+  $('adpVal').textContent=c.off?'ปิดคอยล์':f1(G.adp)+'°C';
+  $('rhVal').textContent=f1(G.dT)+' K';
+  /* ตาราง */
+  var rows=[['OA นอก',c.OA,COL.OA],['RA ลมกลับ',c.RA,COL.RA],['MA ผสม',c.MA,COL.MA],['CL หลังคอยล์',c.CL,COL.CL],['SA ลมจ่าย',c.SA,COL.SA],['ห้อง',c.R,COL.R]];
+  var zone=inZone(L,c),html='';
+  for(var i=0;i<rows.length;i++){var s=rows[i][1];
+    html+='<tr'+(i===5?' class="room'+(zone?'':' bad')+'"':'')+'><td><span class="dot" style="background:'+rows[i][2]+'"></span>'+rows[i][0]+'</td><td>'+f1(s.t)+'</td><td>'+Math.round(s.rh)+'</td><td>'+(s.W*1000).toFixed(2)+'</td><td>'+f1(s.h)+'</td><td>'+f1(s.tdp)+'</td></tr>';}
+  $('tblBody').innerHTML=html;
+  /* พลังงาน */
+  $('eCoil').textContent=f1(c.qc)+' kW';$('eCoilTR').textContent=(c.qc/3.517).toFixed(2)+' TR';
+  $('eRh').textContent=f1(c.qr)+' kW';$('eRhPct').textContent=c.qt>0.05?Math.round(100*c.qr/c.qt)+'% ของรวม':'—';
+  $('eTot').textContent=f1(c.qt)+' kW';$('eCond').textContent='น้ำกลั่น '+f1(c.cond)+' kg/h';
+  var vs=L.m*c.SA.v;
+  $('starGoal').innerHTML='ลมจ่าย ṁ = '+L.m.toFixed(2)+' kg/s (≈ '+Math.round(vs*3600).toLocaleString('en-US')+' m³/h) · BF = '+L.bf.toFixed(2)+
+    (L.xmin>0?' · ลมใหม่ขั้นต่ำ <b>'+L.xmin+'%</b>':'')+'<br>เกณฑ์ดาว: เข้าโซน = ⭐ · ≤ <b>'+f1(L.t2)+' kW</b> = ⭐⭐ · ≤ <b>'+f1(L.t3)+' kW</b> = ⭐⭐⭐';
+  /* chips */
+  $('chipZone').textContent=zone?(G.x>=L.xmin?'ห้อง: ✅ ในโซน':'ห้อง: ⚠ ลมใหม่ไม่พอ'):'ห้อง: ❌ นอกโซน';
+  $('chipCoil').textContent=c.off?'คอยล์: ปิด':(c.fog?'คอยล์: 🌫 หมอก':(c.wet?'คอยล์: 💧 เปียก':'คอยล์: แห้ง'));
+  /* ฉาก */
+  $('oaTxt').textContent=f1(c.OA.t)+'°C';$('oaTxt2').textContent=Math.round(c.OA.rh)+'%RH';
+  $('roomT').textContent=f1(c.R.t)+'°C';$('roomRH').textContent=Math.round(c.R.rh)+' %RH';
+  $('tagMA').textContent=f1(c.MA.t)+'°';$('tagMA').setAttribute('fill',tCol(c.MA.t));
+  $('tagCL').textContent=f1(c.CL.t)+'°';$('tagCL').setAttribute('fill',tCol(c.CL.t));
+  $('tagSA').textContent=f1(c.SA.t)+'°';$('tagSA').setAttribute('fill',tCol(c.SA.t));
+  $('dropsG').setAttribute('opacity',c.cond>0.05?String(Math.min(1,0.35+c.cond/25)):'0');
+  $('condTxt').textContent=c.cond>0.05?'💧 '+f1(c.cond)+' kg/h':'';
+  $('coilFrost').setAttribute('opacity',c.off?'0':String(Math.max(0,Math.min(.45,(22-G.adp)/40))));
+  $('fogG').setAttribute('opacity',c.fog?'0.9':'0');
+  $('heatGlow').setAttribute('opacity',G.dT>0?String(Math.min(1,0.25+G.dT/10)):'0');
+  /* ดัมเปอร์ */
+  var aOA=90*(1-G.x/100),aRA=90*(G.x/100);
+  $('oaDamp').setAttribute('transform','rotate('+(-aOA*0.0)+')');
+  var od=$('oaDamp').children;
+  od[0].setAttribute('transform','rotate('+(90-aOA)+' 782 212)');od[1].setAttribute('transform','rotate('+(90-aOA)+' 782 230)');
+  $('raDamp').children[0].setAttribute('transform','rotate('+(aRA)+' 740 178)');
+  /* คน */
+  var t=c.R.t,rh=c.R.rh,Z=L.zone,face='ok';
+  if(t>Z[1]+0.01)face='hot';else if(t<Z[0]-0.01)face='cold';else if(rh>Z[3]+0.01)face='humid';else if(rh<Z[2]-0.01)face='dry';
+  var mouth={ok:'M-9 7 Q0 16 9 7',hot:'M-8 11 Q0 3 8 11',cold:'M-8 9 L-4 6 L0 9 L4 6 L8 9',humid:'M-8 10 Q0 5 8 10',dry:'M-8 9 L8 9'};
+  $('pMouth').setAttribute('d',mouth[face]);
+  $('pFace').setAttribute('fill',face==='hot'?'#ffb199':(face==='cold'?'#d6e8ff':'#ffd9b3'));
+  $('pSweat').setAttribute('opacity',face==='hot'?'1':'0');
+  $('pScarf').setAttribute('opacity',face==='cold'?'1':'0');
+  $('pSticky').setAttribute('opacity',face==='humid'?'1':'0');
+  $('personBody').setAttribute('class',face==='cold'?'shiver':'');
+  $('pIconTxt').textContent={ok:'😊',hot:'🥵',cold:'🥶',humid:'😖',dry:'😐'}[face];
+  var mold=$('moldG');if(mold)mold.setAttribute('opacity',rh>Z[3]?String(Math.min(1,(rh-Z[3])/10+0.3)):'0');
+  /* เหตุการณ์ */
+  if(G.running){
+    if(c.wet&&!G.wasWet){sDrip();say('💧 คอยล์เริ่มกลั่นน้ำ — ADP '+f1(G.adp)+'°C ต่ำกว่าจุดน้ำค้างลมผสม '+f1(c.MA.tdp)+'°C',2600);}
+    if(c.fog&&!G.wasFog){say('🌫 จุดหลังคอยล์เลยเส้นอิ่มตัว = เกิดหมอกในท่อ!',2600);}
+    var okNow=zone&&G.x>=L.xmin;
+    if(okNow&&!G.wasZone){sZone();say('✅ ห้องเข้าโซนแล้ว! ลองลด kW ต่อ แล้วกดตรวจผล',2400);}
+    G.wasZone=okNow;
+  }
+  G.wasWet=c.wet;G.wasFog=c.fog;
+}
+
+/* ── เริ่มด่าน ── */
+function startLevel(i){
+  var L=LV[i];
+  G.lv=i;G.running=true;G.t=0;G.x=L.init.x;G.adp=L.init.adp;G.dT=L.init.dT;G.wasWet=false;G.wasFog=false;G.wasZone=false;
+  $('oaSld').value=G.x;$('adpSld').value=G.adp;$('rhSld').value=G.dT;
+  $('oaSld').disabled=L.xLock!=null;$('rhSld').disabled=!!L.rhLock;
+  $('oaBox').classList.toggle('locked',L.xLock!=null);$('rhBox').classList.toggle('locked',!!L.rhLock);
+  $('lvlName').textContent=L.icon+' '+L.name;
+  $('goalTxt').innerHTML=L.goal;
+  $('roomName').textContent=L.room;
+  $('decoG').innerHTML=decoSVG(L.deco);
+  $('pHat').setAttribute('fill',L.hat);
+  drawZone(L);
+  G.last=null;update();
+  G.wasWet=G.last.wet;G.wasZone=inZone(L,G.last)&&G.x>=L.xmin;
+  try{window.scrollTo(0,0);}catch(e){}
+  say('ด่าน '+(i+1)+': ดูโซนเขียวบนแผนภูมิ แล้วลากจุด ◆ ให้ "ห้อง" เข้าโซน',3000);
+}
+
+/* ── loop ── */
+function loop(ts){
+  if(!lastTs)lastTs=ts;var dt=Math.min(0.08,(ts-lastTs)/1000);lastTs=ts;
+  if(G.running){G.t+=dt;$('chipTime').textContent=Math.floor(G.t);}
+  updParticles(dt);
+  if(!REDUCED){G.fanA=((G.fanA||0)+dt*540)%360;$('fanBlades').setAttribute('transform','rotate('+G.fanA.toFixed(0)+' 420 230)');}
+  requestAnimationFrame(loop);
+}
+
+/* ── ตรวจผล + เฉลย/ข้อคิด ── */
+function evaluate(){
+  var L=LV[G.lv],c=G.last,o=L._opt,i=G.lv;
+  var zone=inZone(L,c),okX=G.x>=L.xmin,pass=zone&&okX;
+  var st=0;
+  if(pass){st=1;if(c.qt<=L.t2+1e-9)st=2;if(c.qt<=L.t3+1e-9)st=3;}
+  var overTime=G.t>120;if(overTime&&st>2)st=2;
+  var tips=[];   /* [class, text] */
+  var Z=L.zone;
+  /* ① ผลลัพธ์ห้อง */
+  if(c.R.t>Z[1])tips.push(['bad','ห้อง '+f1(c.R.t)+'°C ร้อนเกิน '+Z[1]+'°C → ลมจ่าย '+f1(c.SA.t)+'°C ยังอุ่นไป: ลด ADP'+(G.dT>0?' หรือลด reheat':'')]);
+  if(c.R.t<Z[0])tips.push(['bad','ห้อง '+f1(c.R.t)+'°C เย็นเกิน '+Z[0]+'°C → '+(L.rhLock?'เพิ่ม ADP (ลมจ่ายเย็นเกินภาระ Qs '+L.qs+' kW)':'เพิ่ม reheat หรือเพิ่ม ADP')]);
+  if(c.R.rh>Z[3])tips.push(['bad','RH ห้อง '+Math.round(c.R.rh)+'% เกิน '+Z[3]+'% → ความชื้นต้องถูกดึงออกที่คอยล์: ADP ต้องต่ำกว่าจุดน้ำค้างลมผสม ('+f1(c.MA.tdp)+'°C) มากพอ'+(c.wet?'':' — ตอนนี้คอยล์ยังแห้ง ไม่ดึงน้ำเลย')]);
+  if(c.R.rh<Z[2])tips.push(['bad','RH ห้อง '+Math.round(c.R.rh)+'% ต่ำกว่า '+Z[2]+'% → ADP ต่ำเกิน ดึงน้ำออกมากไป']);
+  if(!okX)tips.push(['bad','ลมใหม่ '+G.x+'% ต่ำกว่าขั้นต่ำ '+L.xmin+'%'+(i===4?' (ASHRAE 62.1 ต้องการ '+Math.round(V62.Voz)+' L/s = '+f1(L.xminExact)+'% ของ ṁ) → CO₂ ในห้องสูง เด็กง่วง':' (ห้องผ่าตัดต้องการลมสะอาดเจือจางเชื้อ)')]);
+  if(c.fog)tips.push(['bad','จุดหลังคอยล์เลยเส้นอิ่มตัว = หมอก/ละอองน้ำในท่อลม เสี่ยงน้ำหยดและเชื้อรา']);
+  /* ② พลังงาน */
+  if(i===0&&c.wet)tips.push(['bad','ADP '+f1(G.adp)+'°C ต่ำกว่า Tdp ลมกลับ '+f1(c.MA.tdp)+'°C → กลั่นน้ำ '+f1(c.cond)+' kg/h ทั้งที่ห้องไม่มีภาระความชื้น = เสียพลังงานแฝง ≈ '+f1(c.cond/3600*2454)+' kW']);
+  if(i===0&&!c.wet&&!c.off&&pass)tips.push(['ok','คอยล์แห้ง เส้นกระบวนการแนวนอน W คงที่ '+(c.MA.W*1000).toFixed(2)+' g/kg — นี่คือ sensible cooling แท้']);
+  if(c.qr>0.05){var pct=Math.round(100*c.qr/c.qt);
+    if(o.dT===0)tips.push(['bad','Reheat '+f1(c.qr)+' kW ('+pct+'% ของรวม) ไม่จำเป็นเลยในด่านนี้ — ทำเย็นแล้วอุ่นซ้ำ = จ่ายเงินสองรอบ']);
+    else if(G.dT>o.dT+0.01)tips.push(['bad','Reheat '+f1(G.dT)+' K มากกว่าที่จำเป็น ('+f1(o.dT)+' K) → เปลือง '+f1(c.qr-o.qr)+' kW']);
+    else tips.push(['ok','Reheat '+f1(c.qr)+' kW = '+pct+'% ของพลังงานรวม — ราคาของการคุม RH ต่ำ']);}
+  if(L.xLock==null&&G.x>o.x){var dq=core(L,o.x,G.adp,G.dT).qt;
+    tips.push(['bad','ลมใหม่ '+G.x+'% เกินที่ต้องการ '+o.x+'% → จุดผสมเลื่อนไปทาง OA, h_MA เพิ่ม '+f1(c.MA.h-L._RA.h-(o.x/100)*(L._OA.h-L._RA.h))+' kJ/kg ≈ เปลือง '+f1(c.qt-dq)+' kW']);}
+  if(pass){var hiA=null;for(var a3=22;a3>G.adp+0.01;a3-=0.5){var cc=core(L,G.x,a3,G.dT);if(passAll(L,cc,G.x)){hiA={a:a3,q:cc.qt};break;}}
+    if(hiA&&c.qt-hiA.q>0.1)tips.push(['bad','ที่ลมใหม่ '+G.x+'% และ reheat '+f1(G.dT)+' K ตั้ง ADP ได้สูงถึง '+f1(hiA.a)+'°C ห้องยังอยู่ในโซน — ADP '+f1(G.adp)+'°C ต่ำเกิน เปลือง '+f1(c.qt-hiA.q)+' kW']);}
+  if(pass&&c.qt<=L.t3+1e-9)tips.push(['ok','kW รวม '+f1(c.qt)+' ใกล้ค่าต่ำสุดที่เป็นไปได้ '+f1(o.qt)+' kW — ยอดเยี่ยม!']);
+  if(overTime)tips.push(['bad','ใช้เวลา '+Math.floor(G.t)+' วิ เกิน 2 นาที → ได้สูงสุด 2 ดาว']);
+  if(!tips.length)tips.push(['ok','ห้องอยู่ในโซน — ลองลด kW ให้ต่ำลงอีก']);
+  var dh='<h3>🔎 เฉลย/ข้อคิด — สิ่งที่คุณทำ</h3><ul>'+tips.map(function(t){return '<li class="'+t[0]+'">'+t[1]+'</li>';}).join('')+'</ul>'+
+    '<div class="ans">✅ <b>เฉลย (kW ต่ำสุด):</b> ลมใหม่ '+o.x+'% · ADP '+f1(o.adp)+'°C · reheat '+f1(o.dT)+' K → คอยล์ '+f1(o.qc)+' + reheat '+f1(o.qr)+' = <b>'+f1(o.qt)+' kW</b></div>';
+  showResult({pass:pass,st:st,dh:dh,c:c});
+}
+function showResult(r){
+  var L=LV[G.lv],c=r.c;
+  G.running=false;
+  if(r.st>stars[G.lv]){stars[G.lv]=r.st;saveStars();}
+  updateStarTotal();
+  $('resEmoji').textContent=r.pass?(r.st===3?'🏆':'🏁'):'🔧';
+  $('resTitle').textContent=r.pass?L.name+' — ผ่าน!':'ยังไม่ผ่าน — ห้องยังไม่เข้าโซน';
+  $('resLesson').textContent='💡 '+L.lesson;
+  $('resStats').innerHTML='<div><span>🏠 ห้อง</span><b>'+f1(c.R.t)+'°C · '+Math.round(c.R.rh)+'%RH</b></div>'+
+    '<div><span>⚡ คอยล์ + reheat</span><b>'+f1(c.qc)+' + '+f1(c.qr)+' = '+f1(c.qt)+' kW</b></div>'+
+    '<div><span>💧 น้ำกลั่น</span><b>'+f1(c.cond)+' kg/h</b></div>'+
+    '<div><span>⏱ เวลา</span><b>'+Math.floor(G.t)+' วิ</b></div>';
+  $('resDebrief').innerHTML=r.dh;
+  var ss=$('resStars').children;for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(r.st>=1)sGood();else sBad();
+  for(let k=0;k<r.st;k++)setTimeout(function(){ss[k].classList.add('on');sStar(k);},350+k*380);
+  if(r.st===3)confetti(30);
+  $('nextBtn').textContent=G.lv<NLV-1?'ด่านต่อไป ➜':'📋 สรุปบทเรียน';
+  $('retryBtn').textContent=r.pass?'↻ เล่นซ้ำ':'↻ ลองใหม่';
+}
+function updateStarTotal(){var t=0;for(var i=0;i<NLV;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+function showSummary(){
+  var h='';for(var i=0;i<NLV;i++)h+='<div><b>'+LV[i].icon+' '+LV[i].name+'</b> '+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span><br>'+LV[i].lesson+'</div>';
+  h+='<div><b>📌 จำไว้:</b> พลังงาน = ṁ·Δh — ทุกจุดที่คุณเลื่อนบนแผนภูมิคือ "ระยะ h" ที่ต้องจ่ายเป็น kW</div>';
+  $('sumList').innerHTML=h;$('sumStars').textContent='⭐ '+updateStarTotal()+'/15';
+  $('sumOv').classList.add('show');if(updateStarTotal()>=12)confetti(36);
+}
+function confetti(n){var cols=['#3f51b5','#00acc1','#ffd23f','#1fb45f','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ═════════ คู่มือวิธีเล่น (5 ขั้น + SVG เคลื่อนไหว) ═════════ */
+var MINI_SAT='<path d="M30 140 C 120 136 200 118 250 70 C 270 50 284 30 292 16" stroke="#1e3a8a" stroke-width="3" fill="none"/>'+
+  '<path d="M30 140 C 130 138 220 128 300 104" stroke="#a9c1e0" stroke-width="1.5" fill="none"/><path d="M30 140 C 140 139 230 134 310 124" stroke="#a9c1e0" stroke-width="1.5" fill="none"/>';
+var HELP=[
+ {txt:'① ภารกิจ: คุม AHU ให้จุด "ห้อง" (เขียว) เข้าไปอยู่ใน โซนเขียว บนแผนภูมิไซโครเมตริก',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fbfdff"/>'+MINI_SAT+
+   '<path d="M150 108 L196 104 L196 82 L150 90 Z" fill="#1fb45f" opacity=".35" stroke="#14753d" stroke-width="2"/>'+
+   '<text x="173" y="78" font-size="11" text-anchor="middle" fill="#14753d" font-family="Mitr,sans-serif">โซนห้อง</text>'+
+   '<g class="tM1"><circle cx="244" cy="58" r="8" fill="#1fb45f" stroke="#fff" stroke-width="2"/></g>'+
+   '<text x="20" y="22" font-size="13" font-family="Mitr,sans-serif" fill="#213047">T → แกนนอน · W ↑ แกนตั้ง</text></svg>'},
+ {txt:'② ลากจุด MA ◆ (หรือสไลเดอร์ 🌤) — จุดผสมเลื่อนบนเส้นตรง RA–OA ตามสัดส่วนลมใหม่',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fbfdff"/>'+MINI_SAT+
+   '<line x1="140" y1="110" x2="250" y2="60" stroke="#9e8cff" stroke-width="3" stroke-dasharray="6 4"/>'+
+   '<circle cx="140" cy="110" r="8" fill="#7b5bff"/><text x="112" y="128" font-size="13" font-weight="700" fill="#7b5bff" font-family="Mitr,sans-serif">RA</text>'+
+   '<circle cx="250" cy="60" r="8" fill="#ff8f1c"/><text x="262" y="58" font-size="13" font-weight="700" fill="#ff8f1c" font-family="Mitr,sans-serif">OA</text>'+
+   '<g class="tMix"><rect x="146" y="98" width="14" height="14" fill="#00897b" stroke="#fff" stroke-width="2" transform="rotate(45 153 105)"/><text x="150" y="132" font-size="20">👆</text></g></svg>'},
+ {txt:'③ ลด ADP ❄ (จุดบนเส้นอิ่มตัว) — ต่ำกว่าจุดน้ำค้างเมื่อไหร่ คอยล์กลั่นน้ำ 💧 เส้นเอียงลงหา ADP',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fbfdff"/>'+MINI_SAT+
+   '<circle cx="128" cy="129" r="6" fill="#1e3a8a"/><text x="96" y="122" font-size="12" font-weight="700" fill="#1e3a8a" font-family="Mitr,sans-serif">ADP</text>'+
+   '<line x1="250" y1="92" x2="128" y2="129" stroke="#1e88e5" stroke-width="2" stroke-dasharray="3 4"/>'+
+   '<circle cx="250" cy="92" r="7" fill="#00897b"/><g class="tCoil"><circle cx="250" cy="92" r="6" fill="#1e88e5" stroke="#fff" stroke-width="2"/></g>'+
+   '<rect x="270" y="20" width="44" height="54" rx="4" fill="#bbdefb" stroke="#1e88e5" stroke-width="2"/>'+
+   '<path class="drop" d="M282 76 q-4 7 0 9 q4 -2 0 -9" fill="#29b6f6"/><path class="drop" style="animation-delay:.4s" d="M300 76 q-4 7 0 9 q4 -2 0 -9" fill="#29b6f6"/></svg>'},
+ {txt:'④ Reheat 🔥 = เส้นแนวนอนไปขวา ลด RH ห้องได้ แต่ kW เพิ่มสองต่อ (ทำเย็นแล้วอุ่นซ้ำ)',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fbfdff"/>'+MINI_SAT+
+   '<circle cx="130" cy="112" r="6" fill="#1e88e5"/><rect class="tGrow" x="130" y="109" width="90" height="6" rx="3" fill="#ef4b4b"/>'+
+   '<text x="150" y="102" font-size="12" font-weight="700" fill="#ef4b4b" font-family="Mitr,sans-serif">reheat →</text>'+
+   '<rect x="276" y="40" width="30" height="96" rx="6" fill="#eceff1" stroke="#90a4ae" stroke-width="2"/>'+
+   '<rect class="tBar" x="280" y="56" width="22" height="76" rx="4" fill="#ef4b4b"/><text x="291" y="32" font-size="12" text-anchor="middle" font-family="Mitr,sans-serif">kW ↑</text></svg>'},
+ {txt:'⑤ เข้าโซน = ⭐ · kW รวม (ṁ·Δh) ต่ำตามเกณฑ์ = ⭐⭐⭐ · กด "ตรวจผล" ดูเฉลย/ข้อคิด',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fbfdff"/>'+
+   '<rect x="40" y="30" width="40" height="110" rx="6" fill="#eceff1" stroke="#90a4ae" stroke-width="2"/>'+
+   '<rect class="tShrink" x="45" y="36" width="30" height="100" rx="4" fill="#3f51b5"/><text x="60" y="22" font-size="12" text-anchor="middle" font-family="Mitr,sans-serif">kW ↓</text>'+
+   '<line x1="36" y1="92" x2="88" y2="92" stroke="#1fb45f" stroke-width="3" stroke-dasharray="5 3"/><text x="94" y="96" font-size="11" fill="#14753d" font-family="Mitr,sans-serif">เกณฑ์</text>'+
+   '<g font-size="34"><text class="tPop" x="150" y="96">⭐</text><text class="tPop" style="animation-delay:.25s" x="200" y="96">⭐</text><text class="tPop" style="animation-delay:.5s" x="250" y="96">⭐</text></g>'+
+   '<text x="210" y="134" font-size="13" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">Q = ṁ · Δh</text></svg>'}
+];
+var helpPg=0;
+function renderHelp(){
+  $('helpStage').innerHTML=HELP[helpPg].svg;$('helpTxt').textContent=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';
+  for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';
+  $('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';
+}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){$('helpOv').classList.remove('show');markSeen();
+  if(start&&!G.running){$('startOv').classList.remove('show');startLevel(pickNext());}}
+function pickNext(){for(var i=0;i<NLV;i++)if(!stars[i])return i;return 0;}
+
+/* ── ปุ่ม / อีเวนต์ ── */
+$('oaSld').addEventListener('input',function(){setCtl('x',+this.value);});
+$('adpSld').addEventListener('input',function(){setCtl('adp',+this.value);});
+$('rhSld').addEventListener('input',function(){setCtl('dT',+this.value);});
+$('checkBtn').addEventListener('click',function(){audio();if(G.running)evaluate();});
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn2').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(G.lv);});
+$('nextBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');
+  if(G.lv<NLV-1)startLevel(G.lv+1);else showSummary();});
+$('sumHome').addEventListener('click',function(){$('sumOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('sumReplay').addEventListener('click',function(){$('sumOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('fmBtn').addEventListener('click',function(){audio();sClick();$('fmOv').classList.add('show');});
+$('fmClose').addEventListener('click',function(){sClick();$('fmOv').classList.remove('show');});
+$('fmOv').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');});
+
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<NLV;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.25rem">'+LV[i].icon+'</span><span class="nm">ด่าน '+(i+1)+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── debug hook สำหรับ QA ── */
+window.TEG={G:G,LV:LV,sim:sim,core:core,optimum:optimum,startLevel:startLevel,evaluate:evaluate,stars:stars,V62:V62,
+  set:function(x,adp,dT){var L=LV[G.lv];if(L.xLock==null){G.x=x;$('oaSld').value=x;}G.adp=adp;$('adpSld').value=adp;if(!L.rhLock){G.dT=dT;$('rhSld').value=dT;}update();},
+  chartXY:function(T,W){return [X(T),Y(W)];}};
+
+/* ── init ── */
+prepLevels();drawChartBg();buildParticles();loadStars();updateStarTotal();buildLvlPick();
+startLevel(0);G.running=false;
+requestAnimationFrame(loop);
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

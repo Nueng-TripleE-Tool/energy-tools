@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>CCGT Dispatcher — Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "CCGT Dispatcher — ผู้คุมโรงไฟฟ้าพลังความร้อนร่วม" v0.1
+     Energy Skills Lab · Triple E Technology · กลุ่มเป้าหมาย: มหาวิทยาลัย/วิศวกรใหม่
+     หลักที่สอน: สมรรถนะโรงไฟฟ้า combined cycle (CCGT) — heat rate ขึ้นกับโหลดและอุณหภูมิแวดล้อม,
+       การเลือกเดิน 1-on-1 vs 2-on-1, ลำดับ start-up (purge→ignition→FSNL→sync→load→ST admission),
+       ramp rate, และต้นทุนเชื้อเพลิงตามคำสั่ง dispatch
+     ฟิสิกส์เบื้องหลัง (ค่าตัวอย่างระดับ F-class, 2 GT + 2 HRSG + 1 ST):
+       P_GT,avail = 250·[1 − 0.0065·(T_in − 15)] MW            (ISO rating 15°C, 60%RH, 1.013 bar)
+       η_GT = 0.385·[1 − 0.0015·(T_in − 15)]·[1 − 0.55·(1 − L)^1.35]   L = P/P_avail (part-load curve)
+       Q_fuel = P_GT/η_GT (LHV) · Q_exh = Q_fuel·(1 − 0.015) − P_GT
+       Q_steam = ε(L)·Q_exh·w   ε = 0.85 (L ≥ 0.75) → 0.825 (L = 0.5) · w = HRSG warm-up 0..1 (40 นาที, hot)
+       P_ST = Q_steam·η_ST(s)·[1 − 0.0015·(T_amb − 15)]  η_ST = 0.3926·[1 − 0.30·(1 − s)²], s = Q_steam/Q_steam,rated(2-on-1)
+       ST ตามแบบหน่วงอันดับหนึ่ง τ = 8 นาที · P_aux = 1.2%·P_gross + 3 MW/เครื่องที่เดิน (≈2% ที่ base)
+       η_net = P_net/ΣQ_fuel · Heat rate HR = 3600/η_net kJ/kWh (LHV, net)
+       Fogging: T_in = T_db − 0.9·(T_db − T_wb), T_wb ตาม Stull (2011)
+       ต้นทุน บาท/h = ΣQ_fuel[MW]·3.412 MMBtu/MWh·1.108 (HHV/LHV)·350 บาท/MMBtu
+       Ramp 10 MW/นาที/GT · min load 50% (emission compliance) · dispatch band ±max(10 MW, 2%)
+       ค่าปรับเบี่ยงเบน (ตัวอย่าง) 2,500 บาท/MWh นอกแบนด์
+     ผลตรวจ: ISO base 2-on-1 ≈ 745 MW net, HR ≈ 6,276 kJ/kWh (η 57.4%) · 35°C GT −13%, plant −12.6%
+       · 25°C 2-on-1@50% HR ≈ 7,260 vs 1-on-1@100% HR ≈ 6,540 kJ/kWh
+     อ้างอิง: ISO 2314, ISO 3977-2, ASME PTC 22 / PTC 46, ASHRAE Handbook—Fundamentals (psychrometrics),
+       Kehlhofer et al. "Combined-Cycle Gas & Steam Turbine Power Plants" (3rd ed.) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --warn:#f5a623; --bad:#ef4b4b;
+  --indigo:#3f51b5; --cyan:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+  --steel:#5f6f86; --steam:#9fd8ff;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#dfe6f5,#eaf4f8 60%,#e3ebf3);
+  color:var(--ink);min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow-x:hidden;user-select:none}
+#app{width:100%;max-width:880px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* HUD */
+#hud{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.9);border:3px solid #fff;border-radius:18px;
+  padding:8px 10px;box-shadow:0 4px 14px rgba(33,48,71,.15)}
+#hud .lvl-name{font-weight:600;font-size:.98rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#283593}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap;font-size:.95rem}
+#hud button{border:none;background:#eef1fa;border-radius:12px;padding:6px 8px;font-family:inherit;font-size:.92rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:40px}
+#hud button.on{background:#283593;color:#fff}
+
+/* scene */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(33,48,71,.2);background:#1b2a4a;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto}
+#bubble{position:absolute;right:8px;top:8px;max-width:62%;background:#fff;border-radius:14px;border:3px solid var(--cyan);
+  padding:6px 10px;font-size:.84rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.15);transition:opacity .25s;opacity:0;pointer-events:none;z-index:3;line-height:1.35}
+#bubble.show{opacity:1}
+#bubble.bad{border-color:var(--bad)}
+#clockTag{position:absolute;left:8px;top:8px;background:rgba(20,30,58,.82);color:#fff;border-radius:12px;padding:4px 10px;font-weight:600;font-size:.95rem;z-index:3}
+#clockTag small{font-weight:500;color:#9fe3ff;font-size:.75rem}
+#sceneWrap.flash::after{content:'';position:absolute;inset:0;background:rgba(239,75,75,.32);animation:flashA .5s ease-out forwards;pointer-events:none}
+@keyframes flashA{0%{opacity:1}100%{opacity:0}}
+
+/* control room */
+.room{background:#18233d;border-radius:20px;padding:6px;box-shadow:0 6px 18px rgba(33,48,71,.25);border:3px solid #2c3b62}
+.room svg{display:block;width:100%;height:auto}
+
+/* panel */
+#panel{background:#fff;border-radius:20px;padding:10px;box-shadow:0 6px 18px rgba(33,48,71,.14);display:flex;flex-direction:column;gap:8px}
+.goal{font-size:.9rem;font-weight:600;text-align:center;background:#e8f6fb;border:2px dashed var(--cyan);border-radius:14px;padding:7px 10px;line-height:1.45}
+.ucard{background:#f4f6fc;border-radius:16px;padding:8px 10px;border:2px solid #e3e8f5;display:flex;flex-direction:column;gap:6px}
+.ucard.hide,.hide{display:none!important}
+.urow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.uname{font-weight:700;font-size:1rem;color:#283593}
+.pill{font-size:.74rem;font-weight:600;border-radius:999px;padding:2px 9px;background:#dfe4ef;color:#51627a}
+.pill.on{background:#d6f5e3;color:#13804a}.pill.mid{background:#fff1d6;color:#b06d00}.pill.off{background:#e6e9f0;color:#6a7a90}
+.uread{margin-left:auto;font-size:.82rem;font-weight:600;color:#3d4c66;text-align:right;line-height:1.25}
+.ubtn{border:none;border-radius:12px;min-height:44px;padding:8px 12px;font-family:inherit;font-weight:600;font-size:.9rem;cursor:pointer;background:#e3e8f5;color:var(--ink);box-shadow:0 3px 0 #c3cbe0}
+.ubtn:active{transform:translateY(2px);box-shadow:0 1px 0 #c3cbe0}
+.ubtn.go{background:var(--btn-grad);color:#fff;box-shadow:0 3px 0 #283593}
+.ubtn.stop{background:#ffe3e3;color:#b42323;box-shadow:0 3px 0 #f1b4b4}
+.ubtn.fog-on{background:linear-gradient(135deg,#00acc1,#4fc3f7);color:#fff;box-shadow:0 3px 0 #00838f}
+.ubtn:disabled{opacity:.42;cursor:not-allowed}
+.ubtn.pulse{animation:pulseA 1s ease-in-out infinite}
+@keyframes pulseA{0%,100%{box-shadow:0 3px 0 #283593,0 0 0 0 rgba(0,172,193,.6)}50%{box-shadow:0 3px 0 #283593,0 0 0 8px rgba(0,172,193,0)}}
+.slwrap{display:flex;align-items:center;gap:8px}
+.slwrap label{font-size:.78rem;font-weight:600;color:#51627a;width:64px;flex:none;line-height:1.15}
+input[type=range]{flex:1;width:100%;height:36px;appearance:none;-webkit-appearance:none;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:8px;background:linear-gradient(90deg,#c5cae9,#b2ebf2)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:30px;height:30px;border-radius:50%;margin-top:-9px;background:#fff;border:6px solid var(--indigo);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+input[type=range]::-moz-range-track{height:12px;border-radius:8px;background:#c5cae9}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:#fff;border:6px solid var(--indigo)}
+input[type=range]:disabled{opacity:.4}
+.bar{height:9px;border-radius:6px;background:#e1e6f2;overflow:hidden;flex:1}
+.bar i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#ff8f1c,#ffd23f)}
+.mini{font-size:.76rem;color:#51627a;font-weight:500}
+
+/* sequence (ด่าน 1) */
+#seqCard .chips{display:flex;gap:4px;flex-wrap:wrap}
+#seqCard .chip{font-size:.72rem;font-weight:600;border-radius:9px;padding:3px 7px;background:#e6e9f0;color:#6a7a90}
+#seqCard .chip.cur{background:#283593;color:#fff}
+#seqCard .chip.done{background:#d6f5e3;color:#13804a}
+#syncBox{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+#syncBox svg{width:150px;height:150px;flex:none}
+.syncctl{display:grid;grid-template-columns:auto auto auto;gap:6px;align-items:center;font-size:.8rem;font-weight:600}
+.syncctl .ubtn{min-width:46px;padding:6px 8px}
+.syncread{font-size:.78rem;line-height:1.45;font-weight:500;color:#3d4c66;min-width:150px}
+.syncread b{font-weight:700}
+
+/* buttons */
+.big-btn{border:none;border-radius:999px;padding:13px 30px;font-family:inherit;font-size:1.12rem;font-weight:700;color:#fff;background:var(--btn-grad);cursor:pointer;
+  box-shadow:0 6px 0 #283593,0 10px 18px rgba(0,0,0,.2);transition:transform .1s;min-height:48px}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #283593}
+.big-btn.alt{background:linear-gradient(135deg,#5c6bc0,#7986cb);box-shadow:0 6px 0 #3949ab,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.small{font-size:.98rem;padding:10px 20px}
+.ghost-btn{border:3px solid #cfd6e8;background:#fff;border-radius:999px;padding:10px 18px;font-family:inherit;font-size:.98rem;font-weight:600;cursor:pointer;color:var(--ink);min-height:46px}
+
+/* overlays */
+.overlay{position:fixed;inset:0;background:rgba(14,22,44,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:24px;max-width:500px;width:100%;padding:20px 16px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.3rem;margin-bottom:6px;color:#283593}
+.card p{font-size:.95rem;line-height:1.55}
+.result-stars{font-size:2.8rem;letter-spacing:6px;margin:6px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e8f6fb;border:2px solid #b2ebf2;border-radius:14px;padding:9px 12px;font-weight:600;margin:8px 0;font-size:.92rem;line-height:1.5}
+.statrow{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:6px 0;font-size:.85rem;font-weight:600}
+.statrow span{background:#f1f4fb;border-radius:12px;padding:5px 10px}
+.debrief{text-align:left;background:#fffaf0;border:2px solid #ffe2a8;border-radius:14px;padding:8px 12px;margin:8px 0}
+.debrief h3{font-size:.95rem;color:#a35d00;margin-bottom:4px}
+.debrief ul{padding-left:18px}
+.debrief li{font-size:.86rem;line-height:1.5;margin:3px 0}
+.cmp{display:flex;gap:8px;margin:8px 0}
+.cmp div{flex:1;border-radius:14px;padding:8px;font-size:.82rem;font-weight:600;line-height:1.4}
+.cmp .a{background:#fde8e8;border:2px solid #f5b5b5}.cmp .b{background:#ddf6e7;border:2px solid #9fe0b9}
+.cmp b{font-size:1.1rem;display:block}
+.lvl-pick{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e6f2;background:#f7f8fd;border-radius:14px;padding:6px 6px;font-family:inherit;cursor:pointer;min-width:74px;min-height:62px}
+.lvl-pick .nm{font-size:.74rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.74rem;letter-spacing:1px}
+#startCard h1{font-size:1.55rem;line-height:1.25;background:linear-gradient(135deg,#3f51b5,#00acc1);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#5a6a82;margin:4px 0 8px;font-size:.92rem;line-height:1.5}
+.tag-aud{display:inline-block;background:#e8eaf6;color:#283593;border-radius:999px;padding:3px 12px;font-size:.8rem;font-weight:600;margin:4px 0}
+.brand{font-size:.78rem;color:#8795a8;margin-top:12px}
+.pred{display:flex;gap:8px;margin:10px 0}
+.pred button{flex:1;border:3px solid #dfe4ef;background:#f7f8fd;border-radius:16px;padding:10px 6px;font-family:inherit;font-weight:600;font-size:.88rem;cursor:pointer;min-height:64px;line-height:1.35;color:var(--ink)}
+.pred button.sel{border-color:var(--indigo);background:#e8eaf6}
+.facts{text-align:left;font-size:.86rem;line-height:1.55;background:#f4f6fc;border-radius:14px;padding:8px 12px;margin:8px 0}
+.facts li{margin-left:16px}
+
+/* formula panel */
+#fxOv .card{text-align:left;max-width:560px}
+#fxOv h2{text-align:center}
+.fx{background:#f4f6fc;border-left:5px solid var(--indigo);border-radius:10px;padding:7px 10px;margin:7px 0;font-size:.84rem;line-height:1.55}
+.fx code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;background:#e8eaf6;border-radius:6px;padding:1px 5px;color:#1a237e;display:inline-block;margin:2px 0}
+.fx h4{font-size:.9rem;color:#283593}
+table.qa{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:4px}
+table.qa td,table.qa th{border-bottom:1px solid #dfe4ef;padding:3px 4px;text-align:right}
+table.qa td:first-child,table.qa th:first-child{text-align:left}
+
+/* guide */
+#guideOv{z-index:60}
+.gpage{display:none}
+.gpage.cur{display:block}
+.gfig{background:#eef2fb;border-radius:18px;padding:6px;margin-bottom:10px}
+.gfig svg{display:block;width:100%;height:auto}
+.gtxt{font-size:.96rem;font-weight:600;line-height:1.5;min-height:3.1em}
+.gdots{display:flex;gap:7px;justify-content:center;margin:10px 0}
+.gdots i{width:10px;height:10px;border-radius:50%;background:#d4dbeb}
+.gdots i.cur{background:var(--indigo);transform:scale(1.25)}
+.gnav{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:70;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* guide animations */
+.gspin{transform-box:fill-box;transform-origin:center;animation:gspinA 1.2s linear infinite}
+@keyframes gspinA{to{transform:rotate(360deg)}}
+.gflowO{stroke-dasharray:8 8;animation:gflowA .7s linear infinite}
+.gflowB{stroke-dasharray:6 7;animation:gflowA .9s linear infinite}
+@keyframes gflowA{to{stroke-dashoffset:-32}}
+.gneedle{transform-box:view-box;transform-origin:250px 75px;animation:gspinA 3s linear infinite}
+@keyframes gtapA{0%,78%{transform:translateY(10px);opacity:.0}84%{opacity:1;transform:translateY(0)}92%{transform:translateY(4px)}100%{opacity:0;transform:translateY(10px)}}
+.gtap{animation:gtapA 3s linear infinite}
+@keyframes gchipA{0%,100%{fill:#c5cae9}10%,30%{fill:#3f51b5}}
+.gchip{fill:#c5cae9;animation:gchipA 5s steps(1) infinite both}
+.gchip.c2{animation-delay:1s}.gchip.c3{animation-delay:2s}.gchip.c4{animation-delay:3s}.gchip.c5{animation-delay:4s}
+@keyframes gdragA{0%,10%{transform:translateX(0)}50%,60%{transform:translateX(120px)}100%{transform:translateX(0)}}
+.gdrag{animation:gdragA 4s ease-in-out infinite}
+@keyframes gdrawA{0%{stroke-dashoffset:300}70%,100%{stroke-dashoffset:0}}
+.gdraw{stroke-dasharray:300;animation:gdrawA 4s ease-out infinite}
+@keyframes gdotA{0%{offset-distance:0%}100%{offset-distance:100%}}
+.gcurdot{animation:gmoveA 4s ease-in-out infinite alternate}
+@keyframes gmoveA{0%{transform:translate(0,0)}100%{transform:translate(150px,62px)}}
+@keyframes gthermA{0%,15%{transform:scaleY(.45)}45%,100%{transform:scaleY(1)}}
+.gtherm{transform-box:fill-box;transform-origin:bottom;animation:gthermA 5s ease-in-out infinite}
+@keyframes gmwA{0%,15%{transform:scaleY(1)}45%,60%{transform:scaleY(.82)}80%,100%{transform:scaleY(.95)}}
+.gmw{transform-box:fill-box;transform-origin:bottom;animation:gmwA 5s ease-in-out infinite}
+@keyframes gfogA{0%,58%{opacity:0}70%,100%{opacity:.9}}
+.gfog{animation:gfogA 5s ease-in-out infinite}
+@keyframes gstarA{0%,10%{transform:scale(0)}22%,78%{transform:scale(1)}90%,100%{transform:scale(0)}}
+.gstar{transform-box:fill-box;transform-origin:center;animation:gstarA 3.8s cubic-bezier(.34,1.56,.64,1) infinite}
+.gstar.d2{animation-delay:.25s}.gstar.d3{animation-delay:.5s}
+@keyframes flickA{0%,100%{transform:scale(1)}50%{transform:scale(1.15,.9)}}
+.gflame{transform-box:fill-box;transform-origin:left center;animation:flickA .25s ease-in-out infinite}
+
+@media (prefers-reduced-motion:reduce){
+  .gspin,.gflowO,.gflowB,.gneedle,.gtap,.gchip,.gdrag,.gdraw,.gcurdot,.gtherm,.gmw,.gfog,.gstar,.gflame,.ubtn.pulse{animation:none}
+}
+@media (max-width:480px){
+  .card h2{font-size:1.15rem}
+  #bubble{font-size:.76rem}
+  .uread{font-size:.76rem}
+  #syncBox svg{width:130px;height:130px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">CCGT Dispatcher</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="fxBtn" title="สูตร/ที่มา">📐 สูตร</button>
+  </div>
+
+  <!-- SCENE: แผนผังโรงไฟฟ้า 2 GT + 2 HRSG + 1 ST -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 860 400" xmlns="http://www.w3.org/2000/svg" aria-label="แผนผังโรงไฟฟ้าพลังความร้อนร่วม">
+      <defs>
+        <linearGradient id="gExh" x1="0" x2="1"><stop offset="0" stop-color="#ff5a1f"/><stop offset="1" stop-color="#ffb347"/></linearGradient>
+        <linearGradient id="gHrsg" x1="0" x2="1"><stop offset="0" stop-color="#ff7a2a"/><stop offset=".55" stop-color="#ffb35c"/><stop offset="1" stop-color="#9fb4cc"/></linearGradient>
+        <linearGradient id="gCasing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b8c4d6"/><stop offset="1" stop-color="#7c8ca5"/></linearGradient>
+        <linearGradient id="gGround" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fa3a0"/><stop offset="1" stop-color="#6d817e"/></linearGradient>
+        <radialGradient id="gFlame"><stop offset="0" stop-color="#fff6c2"/><stop offset=".5" stop-color="#ffb02e"/><stop offset="1" stop-color="#ff4d1f" stop-opacity="0"/></radialGradient>
+      </defs>
+      <rect id="skyR" x="0" y="0" width="860" height="400" fill="#7ec8ff"/>
+      <g id="sunG" transform="translate(-100,-100)"><circle r="22" fill="#ffd23f" stroke="#ff9f1c" stroke-width="4"/></g>
+      <g id="moonG" transform="translate(-100,-100)"><circle r="17" fill="#f3efd8"/><circle cx="6" cy="-4" r="15" fill="#2a3a66" id="moonCut"/></g>
+      <!-- ground -->
+      <rect x="0" y="342" width="860" height="58" fill="url(#gGround)"/>
+      <rect x="0" y="340" width="860" height="5" fill="#5f726f"/>
+
+      <!-- busbar ใต้ดิน → switchyard -->
+      <path d="M22 120 L10 120 L10 378 L800 378" stroke="#3a4560" stroke-width="5" fill="none"/>
+      <path d="M22 245 L10 245" stroke="#3a4560" stroke-width="5" fill="none"/>
+      <path d="M730 312 L730 378" stroke="#3a4560" stroke-width="5" fill="none"/>
+      <path id="busFlow" d="M10 120 L10 378 L800 378" stroke="#ffd23f" stroke-width="3" fill="none" stroke-dasharray="10 12" opacity="0"/>
+      <path id="stFlow" d="M730 312 L730 378" stroke="#ffd23f" stroke-width="3" fill="none" stroke-dasharray="8 10" opacity="0"/>
+
+      <!-- switchyard + tower -->
+      <g>
+        <rect x="770" y="350" width="44" height="26" rx="4" fill="#5c6bc0" stroke="#283593" stroke-width="3"/>
+        <text x="792" y="368" font-size="13" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">TR</text>
+        <path d="M818 378 L834 238 L850 378 M822 340 L846 340 M826 300 L842 300 M829 268 L839 268 M812 250 L856 250 M818 278 L850 278" stroke="#44506a" stroke-width="3" fill="none"/>
+        <path d="M812 250 Q790 262 760 255 M856 250 L860 252" stroke="#44506a" stroke-width="2" fill="none"/>
+        <path id="lineFlow" d="M856 250 L860 252 M812 250 Q790 262 760 255" stroke="#ffd23f" stroke-width="2" fill="none" stroke-dasharray="6 8" opacity="0"/>
+        <text x="834" y="232" font-size="12" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif" opacity=".85">สายส่ง</text>
+      </g>
+
+      <!-- cooling tower -->
+      <g>
+        <path d="M466 342 Q478 310 470 290 L522 290 Q514 310 526 342 Z" fill="#c8d2e0" stroke="#8796ad" stroke-width="3"/>
+        <g id="ctVapor" opacity=".7" fill="#f2f6fa">
+          <circle class="vp" cx="496" cy="284" r="9"/><circle class="vp" cx="504" cy="280" r="7"/><circle class="vp" cx="488" cy="282" r="6"/>
+        </g>
+      </g>
+
+      <!-- GT units (สร้างด้วย JS template ข้างล่างเพื่อให้ 2 ชุดเหมือนกัน) -->
+      <g id="unitsG"></g>
+
+      <!-- steam header → ST -->
+      <path d="M440 125 L540 125 L540 300 L566 300" stroke="#7d8da6" stroke-width="10" fill="none" stroke-linejoin="round"/>
+      <path d="M440 250 L540 250" stroke="#7d8da6" stroke-width="10" fill="none"/>
+      <path id="stm1" d="M440 125 L540 125 L540 300 L566 300" stroke="#bfe8ff" stroke-width="4" fill="none" stroke-dasharray="7 9" opacity="0"/>
+      <path id="stm2" d="M440 250 L540 250 L540 300 L566 300" stroke="#bfe8ff" stroke-width="4" fill="none" stroke-dasharray="7 9" opacity="0"/>
+      <!-- bypass puff -->
+      <g id="bypassG" opacity="0" fill="#eef6ff"><circle cx="552" cy="112" r="8"/><circle cx="560" cy="104" r="6"/><circle cx="546" cy="102" r="5"/></g>
+      <text x="548" y="146" font-size="12" fill="#e8eefc" font-family="Mitr,sans-serif" transform="rotate(90 548 146)">ไอน้ำ HP</text>
+
+      <!-- steam turbine -->
+      <g>
+        <path d="M566 282 L606 270 L676 262 L676 338 L606 330 L566 318 Z" fill="url(#gCasing)" stroke="#4c5a6d" stroke-width="3"/>
+        <g id="stRotor" transform="rotate(0 622 300)">
+          <circle cx="622" cy="300" r="22" fill="#e3e9f2" stroke="#4c5a6d" stroke-width="3"/>
+          <g stroke="#4c5a6d" stroke-width="4" stroke-linecap="round"><line x1="622" y1="281" x2="622" y2="319"/><line x1="603" y1="300" x2="641" y2="300"/><line x1="609" y1="287" x2="635" y2="313"/><line x1="635" y1="287" x2="609" y2="313"/></g>
+          <circle cx="622" cy="300" r="6" fill="#3f51b5"/>
+        </g>
+        <line x1="676" y1="300" x2="694" y2="300" stroke="#4c5a6d" stroke-width="6"/>
+        <rect x="694" y="276" width="72" height="48" rx="10" fill="#5c6bc0" stroke="#283593" stroke-width="3"/>
+        <text x="730" y="306" font-size="16" text-anchor="middle" fill="#fff" font-weight="600" font-family="Mitr,sans-serif">G-ST</text>
+        <text x="620" y="258" font-size="15" text-anchor="middle" fill="#fff" font-weight="600" font-family="Mitr,sans-serif">ST</text>
+        <!-- condenser -->
+        <rect x="578" y="336" width="88" height="30" rx="6" fill="#4a90d9" stroke="#2e6bb0" stroke-width="3"/>
+        <path id="condWave" d="M584 352 q8 -6 16 0 t16 0 t16 0 t16 0 t16 0" stroke="#bfe3ff" stroke-width="2.5" fill="none"/>
+        <text x="622" y="392" font-size="12" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">คอนเดนเซอร์</text>
+      </g>
+    </svg>
+    <div id="clockTag">05:00 <small id="tambTag">28°C</small></div>
+    <div id="bubble"></div>
+  </div>
+
+  <!-- CONTROL ROOM: dispatch screen -->
+  <div class="room">
+    <svg id="dsp" viewBox="0 0 860 300" xmlns="http://www.w3.org/2000/svg" aria-label="จอคำสั่ง dispatch">
+      <rect x="6" y="6" width="600" height="288" rx="14" fill="#0e1830" stroke="#33508a" stroke-width="3"/>
+      <text x="22" y="34" font-size="22" font-weight="600" fill="#9fe3ff" font-family="Mitr,sans-serif">ศูนย์ควบคุมระบบไฟฟ้า · คำสั่ง Dispatch (MW net)</text>
+      <g id="gridLines" stroke="#22345c" stroke-width="1.5"></g>
+      <g id="gridLbl" font-size="18" fill="#8aa0cc" font-family="Mitr,sans-serif"></g>
+      <path id="bandP" d="" fill="#ffd23f" opacity=".14"/>
+      <path id="orderP" d="" stroke="#ffd23f" stroke-width="3" fill="none" stroke-dasharray="9 6"/>
+      <path id="actP" d="" stroke="#3ee6c8" stroke-width="3.5" fill="none" stroke-linejoin="round"/>
+      <line id="nowL" x1="0" y1="66" x2="0" y2="254" stroke="#fff" stroke-width="2" opacity=".55"/>
+      <circle id="actDot" cx="-20" cy="0" r="6" fill="#3ee6c8" stroke="#fff" stroke-width="2"/>
+      <text id="dspOrd" x="22" y="285" font-size="21" font-weight="600" fill="#ffd23f" font-family="Mitr,sans-serif">คำสั่ง — MW</text>
+      <text id="dspAct" x="235" y="285" font-size="21" font-weight="600" fill="#3ee6c8" font-family="Mitr,sans-serif">จริง — MW</text>
+      <text id="dspDev" x="592" y="285" font-size="21" font-weight="700" fill="#9fb4cc" text-anchor="end" font-family="Mitr,sans-serif">เบี่ยง —</text>
+      <!-- thermometer -->
+      <rect x="618" y="6" width="236" height="288" rx="14" fill="#0e1830" stroke="#33508a" stroke-width="3"/>
+      <text x="736" y="34" font-size="19" font-weight="600" fill="#9fe3ff" text-anchor="middle" font-family="Mitr,sans-serif">อากาศ / ไอดี GT</text>
+      <rect x="642" y="50" width="26" height="190" rx="13" fill="#1d2a4a" stroke="#5d7aa8" stroke-width="3"/>
+      <circle cx="655" cy="252" r="20" fill="#ef4b4b" stroke="#5d7aa8" stroke-width="3"/>
+      <rect id="thFill" x="648" y="140" width="14" height="110" rx="7" fill="#ef4b4b"/>
+      <line id="thIso" x1="636" x2="674" y1="0" y2="0" stroke="#9fe3ff" stroke-width="2" stroke-dasharray="4 3"/>
+      <text id="thT" x="684" y="84" font-size="34" font-weight="700" fill="#fff" font-family="Mitr,sans-serif">30.0°C</text>
+      <text id="thRH" x="686" y="114" font-size="19" fill="#9fb4cc" font-family="Mitr,sans-serif">RH 60%</text>
+      <text id="thWB" x="686" y="140" font-size="19" fill="#9fb4cc" font-family="Mitr,sans-serif">Twb —</text>
+      <text id="thIn" x="686" y="170" font-size="20" font-weight="600" fill="#7fe0ff" font-family="Mitr,sans-serif">Tin 30.0°C</text>
+      <text id="thCap" x="686" y="200" font-size="20" font-weight="600" fill="#ffd23f" font-family="Mitr,sans-serif">GT 228 MW</text>
+      <text id="thCap2" x="686" y="224" font-size="17" fill="#ffd23f" font-family="Mitr,sans-serif">= 91% ISO</text>
+      <text id="thFog" x="686" y="256" font-size="19" font-weight="600" fill="#4fc3f7" font-family="Mitr,sans-serif" opacity="0">💧 fog ON</text>
+    </svg>
+  </div>
+
+  <!-- CONTROL ROOM: gauges + KPIs -->
+  <div class="room">
+    <svg id="gau" viewBox="0 0 860 210" xmlns="http://www.w3.org/2000/svg" aria-label="เกจ MW และ heat rate">
+      <g id="gauges"></g>
+      <rect x="520" y="8" width="334" height="194" rx="14" fill="#0e1830" stroke="#33508a" stroke-width="3"/>
+      <text x="536" y="38" font-size="19" fill="#9fb4cc" font-family="Mitr,sans-serif">Heat rate (net, LHV)</text>
+      <text id="kHR" x="536" y="80" font-size="36" font-weight="700" fill="#3ee6c8" font-family="Mitr,sans-serif">— kJ/kWh</text>
+      <text id="kEta" x="536" y="112" font-size="22" font-weight="600" fill="#fff" font-family="Mitr,sans-serif">η net —</text>
+      <text id="kBk" x="838" y="112" text-anchor="end" font-size="20" fill="#ffd23f" font-family="Mitr,sans-serif">— ฿/kWh</text>
+      <line x1="536" y1="126" x2="838" y2="126" stroke="#2c3e66" stroke-width="2"/>
+      <text x="536" y="153" font-size="18" fill="#9fb4cc" font-family="Mitr,sans-serif">เชื้อเพลิงสะสม</text>
+      <text id="kCost" x="838" y="153" font-size="22" font-weight="700" fill="#fff" text-anchor="end" font-family="Mitr,sans-serif">0 ฿</text>
+      <text x="536" y="185" font-size="18" fill="#9fb4cc" font-family="Mitr,sans-serif">ค่าปรับเบี่ยง</text>
+      <text id="kPen" x="838" y="185" font-size="22" font-weight="700" fill="#ff8a8a" text-anchor="end" font-family="Mitr,sans-serif">0 ฿</text>
+    </svg>
+  </div>
+
+  <!-- PANEL -->
+  <div id="panel">
+    <div class="goal" id="goalTxt">—</div>
+
+    <div class="ucard hide" id="seqCard">
+      <div class="urow"><span class="uname">ลำดับสตาร์ท GT1</span><span class="pill" id="seqPill">พร้อม</span></div>
+      <div class="chips" id="chips">
+        <span class="chip">1 Purge</span><span class="chip">2 Ignition</span><span class="chip">3 FSNL</span><span class="chip">4 Sync</span><span class="chip">5 รับโหลด</span><span class="chip">6 ไอเข้า ST</span>
+      </div>
+      <div class="urow">
+        <button class="ubtn go" id="bPurge">🌬 Purge</button>
+        <button class="ubtn" id="bIgnite">🔥 Ignition</button>
+        <div class="bar" style="min-width:90px"><i id="seqBar"></i></div>
+      </div>
+      <div id="syncBox" class="hide">
+        <svg viewBox="0 0 150 150" aria-label="ซิงโครสโคป">
+          <circle cx="75" cy="75" r="68" fill="#0e1830" stroke="#5c6bc0" stroke-width="5"/>
+          <path d="M75 75 L63.2 8 A68 68 0 0 1 86.8 8 Z" fill="#1fb45f" opacity=".55"/>
+          <text x="22" y="80" font-size="12" fill="#9fb4cc" font-family="Mitr,sans-serif">SLOW</text>
+          <text x="98" y="80" font-size="12" fill="#9fb4cc" font-family="Mitr,sans-serif">FAST</text>
+          <path d="M108 104 a40 40 0 0 1 -14 12" stroke="#9fb4cc" stroke-width="2" fill="none" marker-end=""/>
+          <g id="syNeedle" transform="rotate(0 75 75)"><line x1="75" y1="75" x2="75" y2="14" stroke="#ffd23f" stroke-width="5" stroke-linecap="round"/></g>
+          <circle cx="75" cy="75" r="8" fill="#ffd23f"/>
+          <circle id="syLamp" cx="75" cy="122" r="7" fill="#33405e"/>
+        </svg>
+        <div>
+          <div class="syncctl">
+            <span>ความเร็ว</span><button class="ubtn" id="bSpdDn">−</button><button class="ubtn" id="bSpdUp">+</button>
+            <span>แรงดัน</span><button class="ubtn" id="bVDn">−</button><button class="ubtn" id="bVUp">+</button>
+          </div>
+          <div class="syncread" id="syncRead">—</div>
+          <button class="ubtn go" id="bSync" style="width:100%;margin-top:4px">⚡ ปิดเบรกเกอร์ (Sync)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ucard" id="uc0">
+      <div class="urow"><span class="uname">GT1</span><span class="pill" id="pl0">OFF</span>
+        <span class="uread" id="rd0">—</span></div>
+      <div class="slwrap"><label id="lb0">Setpoint<br>—</label><input type="range" id="sl0" min="50" max="100" value="50" step="1" aria-label="setpoint GT1"></div>
+      <div class="urow"><button class="ubtn go" id="bs0">▶ สตาร์ท</button><button class="ubtn stop" id="bt0">⏹ หยุด</button>
+        <span class="mini">HRSG1</span><div class="bar"><i id="hw0"></i></div><span class="mini" id="hwt0">0%</span></div>
+    </div>
+    <div class="ucard" id="uc1">
+      <div class="urow"><span class="uname">GT2</span><span class="pill" id="pl1">OFF</span>
+        <span class="uread" id="rd1">—</span></div>
+      <div class="slwrap"><label id="lb1">Setpoint<br>—</label><input type="range" id="sl1" min="50" max="100" value="50" step="1" aria-label="setpoint GT2"></div>
+      <div class="urow"><button class="ubtn go" id="bs1">▶ สตาร์ท</button><button class="ubtn stop" id="bt1">⏹ หยุด</button>
+        <span class="mini">HRSG2</span><div class="bar"><i id="hw1"></i></div><span class="mini" id="hwt1">0%</span></div>
+    </div>
+    <div class="ucard" id="stCard">
+      <div class="urow"><span class="uname">ST + ระบบ</span><span class="pill" id="plST">—</span><span class="uread" id="rdST">—</span></div>
+      <div class="urow">
+        <button class="ubtn hide" id="bAdmit">♨ เปิดไอเข้า ST</button>
+        <button class="ubtn hide" id="bFog">💧 Inlet fogging: ปิด</button>
+        <span class="mini" id="fogInfo"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- start overlay -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.6rem">🏭⚡</div>
+    <h1>CCGT Dispatcher<br><span style="font-size:1.1rem">ผู้คุมโรงไฟฟ้าพลังความร้อนร่วม</span></h1>
+    <span class="tag-aud">กลุ่มเป้าหมาย: มหาวิทยาลัย / วิศวกรใหม่</span>
+    <div class="sub">คุณคุมโรง combined cycle 2 GT + 2 HRSG + 1 ST (~745 MW)<br>ตามคำสั่ง dispatch ให้แม่น และ heat rate ต่ำที่สุด</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="ghost-btn" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- brief overlay -->
+<div class="overlay" id="briefOv">
+  <div class="card">
+    <div style="font-size:2.2rem" id="brIcon">⚡</div>
+    <h2 id="brTitle">ด่าน</h2>
+    <p id="brGoal"></p>
+    <ul class="facts" id="brFacts"></ul>
+    <div id="brPred" class="hide">
+      <p style="font-weight:600">ทายก่อนเล่น: คืนนี้แบบไหน heat rate ต่ำกว่า?</p>
+      <div class="pred"><button id="pdA">A) 2-on-1<br>GT ละ 50%</button><button id="pdB">B) 1-on-1<br>GT 100%</button></div>
+    </div>
+    <button class="big-btn" id="brGo">เริ่มด่าน ▶</button>
+  </div>
+</div>
+
+<!-- result overlay -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <h2 id="resTitle">จบด่าน</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="statrow" id="resStats"></div>
+    <div id="resCmp"></div>
+    <div class="lesson" id="resLesson">—</div>
+    <div class="debrief"><h3>🔎 เฉลย / ข้อคิดจากการเล่นของคุณ</h3><ul id="resDebrief"></ul></div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+  </div>
+</div>
+
+<!-- end overlay -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.4rem">🏆⚡</div>
+    <h2>จบหลักสูตร CCGT Dispatcher</h2>
+    <p>ได้ดาวทั้งหมด <b id="endStars">0</b> / 15 ดวง</p>
+    <div class="lesson">สรุป: ต้นทุนไฟฟ้า = heat rate × ราคาก๊าซ — ทุก 1% ของ HR คือเงินหลายแสนบาทต่อวัน</div>
+    <ul class="facts">
+      <li><b>สตาร์ทถูกลำดับ</b>: purge → ignition → FSNL → sync (เข็ม 12 นาฬิกา, slip บวกเล็กน้อย) → รับโหลด → HRSG อุ่นแล้วค่อยเปิดไอเข้า ST</li>
+      <li><b>Part load แพง</b>: GT ที่ 50% HR สูงกว่า base ~25% · CC ทั้งโรงแย่ลง ~12–15%</li>
+      <li><b>โหลดต่ำ</b>: 1-on-1 ใกล้เต็ม ดีกว่า 2-on-1 ครึ่งโหลด (~10% HR) — และ 2-on-1 ลดต่ำกว่า min load ไม่ได้</li>
+      <li><b>อากาศร้อน</b>: GT max ลด ~0.65%/°C (35°C ≈ −13%) · fogging ลด T inlet เข้าหา wet-bulb ได้ MW คืน</li>
+      <li><b>Ramp + ST lag</b>: ดัน setpoint ล่วงหน้า และแบ่งโหลด GT ให้เท่ากัน (เส้น η โค้งนูน)</li>
+    </ul>
+    <div style="margin-top:10px"><button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button></div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- formula overlay -->
+<div class="overlay" id="fxOv">
+  <div class="card">
+    <h2>📐 สูตร / ที่มา</h2>
+    <p style="font-size:.8rem;color:#6a7a90;text-align:center">ค่าตัวอย่างระดับ F-class (250 MW/GT) สำหรับสอน — ไม่ใช่ข้อมูลโรงไฟฟ้าจริงใด ๆ</p>
+    <div class="fx"><h4>1) Heat rate และประสิทธิภาพ</h4>
+      <code>HR = 3600 / η_net  [kJ/kWh]</code> · <code>η_net = P_net / Σ(ṁ_f·LHV)</code><br>
+      HR คือพลังงานเชื้อเพลิงต่อไฟ 1 kWh — ยิ่งต่ำยิ่งดี (ASME PTC 46 นิยาม net plant HR)</div>
+    <div class="fx"><h4>2) แก้ค่าอุณหภูมิแวดล้อม (ambient correction)</h4>
+      <code>P_GT,max = 250·[1 − 0.0065·(T_in − 15)]  MW</code><br>
+      อากาศร้อน → ความหนาแน่นต่ำ → mass flow ลด · อ้างอิงสภาวะ ISO 15°C/60%RH/1.013 bar (ISO 3977-2, ISO 2314) · ที่ 35°C เหลือ ~87%<br>
+      ST: <code>× [1 − 0.0015·(T_amb − 15)]</code> (สุญญากาศคอนเดนเซอร์แย่ลงเมื่อร้อน)</div>
+    <div class="fx"><h4>3) Part-load curve</h4>
+      <code>η_GT = 0.385·[1 − 0.0015(T_in−15)]·[1 − 0.55(1−L)^1.35]</code><br>
+      <code>Q_exh = Q_f(1−0.015) − P_GT</code> · <code>Q_steam = ε(L)·Q_exh·w</code> (ε 0.85 → 0.825 ที่ L 50% เพราะ IGV ปิดสุดแล้วอุณหภูมิไอเสียเริ่มตก)<br>
+      <code>P_ST = Q_steam·0.3926·[1 − 0.30(1 − s)²]</code> s = ไอน้ำ/ไอน้ำพิกัด 2-on-1 → 1-on-1 ทำให้ ST เดินครึ่งพิกัด<br>
+      ใต้ 50% โหลด GT ไม่อนุญาต (CO/NOx เกิน — emission compliance minimum)</div>
+    <div class="fx"><h4>4) ระบบช่วยและพลวัต</h4>
+      Station load <code>P_aux = 1.2%·P_gross + 3 MW/เครื่อง</code> (≈2% ที่ base) · Ramp 10 MW/นาที/GT · ST หน่วง τ = 8 นาที · HRSG hot start อุ่น 40 นาที · GT start→sync ~20 นาที (เกมย่อเวลา)</div>
+    <div class="fx"><h4>5) Inlet fogging</h4>
+      <code>T_in = T_db − 0.9·(T_db − T_wb)</code> — ระเหยน้ำ demin ลด T ได้ใกล้ wet-bulb (psychrometrics: ASHRAE Handbook—Fundamentals; T_wb สูตร Stull 2011) · อากาศชื้นมาก ได้ผลน้อย</div>
+    <div class="fx"><h4>6) ต้นทุนเชื้อเพลิงและค่าปรับ</h4>
+      <code>฿/h = ΣQ_f[MW] × 3.412 MMBtu/MWh × 1.108 (HHV/LHV) × 350 ฿/MMBtu</code><br>
+      ราคาก๊าซ 350 ฿/MMBtu (ตัวอย่าง, คิดบน HHV) · Dispatch band ±max(10 MW, 2%) · ค่าปรับตัวอย่าง 2,500 ฿/MWh นอกแบนด์</div>
+    <div class="fx"><h4>7) Synchronizing (เทียบขนาน)</h4>
+      เงื่อนไขปิดเบรกเกอร์: |Δφ| ≤ 10°, slip 0 &lt; Δf ≤ 0.2 Hz (เครื่องเร็วกว่าเล็กน้อย กันกำลังไหลย้อน), |ΔV| ≤ 2% — แบบ sync-check relay (ANSI 25) · ก่อนจุดระเบิดต้อง purge ≥ 5 เท่าปริมาตรท่อไอเสีย/HRSG (NFPA 85)</div>
+    <div class="fx"><h4>ค่าที่โมเดลคำนวณได้ (สด)</h4><table class="qa" id="fxTable"></table></div>
+    <div class="fx"><h4>อ้างอิง</h4>ISO 2314 Gas turbines — Acceptance tests · ISO 3977-2 · ASME PTC 22 (GT performance) · ASME PTC 46 (overall plant) · ASHRAE Handbook—Fundamentals · Kehlhofer, Hannemann, Stirnimann, Rukes — <i>Combined-Cycle Gas &amp; Steam Turbine Power Plants</i>, 3rd ed.</div>
+    <div style="text-align:center;margin-top:10px"><button class="big-btn small" id="fxClose">ปิด</button></div>
+  </div>
+</div>
+
+<!-- guide overlay -->
+<div class="overlay" id="guideOv">
+  <div class="card">
+    <h2>📖 วิธีเล่น</h2>
+    <div class="gpage" data-pg="0">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#1b2a4a"/>
+        <path d="M14 60 L74 50 L74 100 L14 90 Z" fill="#9fb0c8" stroke="#5f6f86" stroke-width="3"/>
+        <g class="gspin"><circle cx="40" cy="75" r="14" fill="#e3e9f2" stroke="#5f6f86" stroke-width="2"/><line x1="40" y1="62" x2="40" y2="88" stroke="#5f6f86" stroke-width="3"/><line x1="27" y1="75" x2="53" y2="75" stroke="#5f6f86" stroke-width="3"/></g>
+        <ellipse class="gflame" cx="80" cy="75" rx="14" ry="8" fill="url(#gFlameG)"/>
+        <defs><radialGradient id="gFlameG"><stop offset="0" stop-color="#fff6c2"/><stop offset="1" stop-color="#ff5a1f"/></radialGradient></defs>
+        <path class="gflowO" d="M92 75 L140 75" stroke="#ff8f1c" stroke-width="8"/>
+        <rect x="140" y="38" width="50" height="80" rx="6" fill="#ffb35c" stroke="#b06d00" stroke-width="3"/>
+        <text x="165" y="134" font-size="13" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">HRSG</text>
+        <path class="gflowB" d="M190 60 L240 60 L240 90" stroke="#bfe8ff" stroke-width="5" fill="none"/>
+        <g class="gspin" style="animation-duration:1.8s"><circle cx="262" cy="98" r="18" fill="#e3e9f2" stroke="#5f6f86" stroke-width="2"/><line x1="262" y1="82" x2="262" y2="114" stroke="#5f6f86" stroke-width="3"/><line x1="246" y1="98" x2="278" y2="98" stroke="#5f6f86" stroke-width="3"/></g>
+        <text x="262" y="134" font-size="13" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">ST</text>
+        <text x="44" y="122" font-size="13" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">GT</text>
+        <text x="296" y="60" font-size="22" text-anchor="middle">⚡</text>
+        <text x="116" y="64" font-size="11" text-anchor="middle" fill="#ffd9a8" font-family="Mitr,sans-serif">~600°C</text>
+      </svg></div>
+      <div class="gtxt">GT เผาก๊าซหมุนเครื่อง → ไอเสีย ~600°C เข้า HRSG ทำไอน้ำ<br>→ ST ได้ไฟเพิ่ม ≈ 50% ของ GT โดยไม่เผาเพิ่ม</div>
+    </div>
+    <div class="gpage" data-pg="1">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#eef2fb"/>
+        <rect class="gchip" x="12" y="18" width="34" height="22" rx="6"/><rect class="gchip c2" x="12" y="46" width="34" height="22" rx="6"/>
+        <rect class="gchip c3" x="12" y="74" width="34" height="22" rx="6"/><rect class="gchip c4" x="12" y="102" width="34" height="22" rx="6"/>
+        <text x="54" y="34" font-size="13" fill="#213047" font-family="Mitr,sans-serif">Purge ไล่ก๊าซค้าง</text>
+        <text x="54" y="62" font-size="13" fill="#213047" font-family="Mitr,sans-serif">Ignition จุดไฟ</text>
+        <text x="54" y="90" font-size="13" fill="#213047" font-family="Mitr,sans-serif">FSNL 3000 rpm</text>
+        <text x="54" y="118" font-size="13" fill="#213047" font-family="Mitr,sans-serif">Sync ขนานกริด</text>
+        <circle cx="250" cy="75" r="56" fill="#0e1830" stroke="#5c6bc0" stroke-width="4"/>
+        <path d="M250 75 L240 20 A56 56 0 0 1 260 20 Z" fill="#1fb45f" opacity=".6"/>
+        <g class="gneedle"><line x1="250" y1="75" x2="250" y2="25" stroke="#ffd23f" stroke-width="5" stroke-linecap="round"/></g>
+        <circle cx="250" cy="75" r="7" fill="#ffd23f"/>
+        <g class="gtap"><text x="276" y="30" font-size="24">👆</text></g>
+        <text x="250" y="146" font-size="12" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">กดตอนเข็มชี้ 12 นาฬิกา</text>
+      </svg></div>
+      <div class="gtxt">ด่าน 1 สตาร์ทตามลำดับ · Sync: ปรับความเร็ว/แรงดัน<br>แล้วกดปิดเบรกเกอร์ตอนเข็มชี้ 12 นาฬิกา</div>
+    </div>
+    <div class="gpage" data-pg="2">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#0e1830"/>
+        <path d="M16 96 L80 96 L110 56 L200 56 L230 76 L304 76" stroke="#ffd23f" stroke-width="3" stroke-dasharray="7 5" fill="none"/>
+        <path class="gdraw" d="M16 98 L88 96 L122 60 L204 58 L238 78 L304 78" stroke="#3ee6c8" stroke-width="3.5" fill="none"/>
+        <rect x="30" y="118" width="200" height="10" rx="5" fill="#c5cae9"/>
+        <g class="gdrag"><circle cx="50" cy="123" r="11" fill="#fff" stroke="#3f51b5" stroke-width="5"/><text x="44" y="146" font-size="18">👆</text></g>
+        <text x="300" y="30" font-size="12" text-anchor="end" fill="#ffd23f" font-family="Mitr,sans-serif">- - คำสั่ง</text>
+        <text x="300" y="46" font-size="12" text-anchor="end" fill="#3ee6c8" font-family="Mitr,sans-serif">— จริง</text>
+      </svg></div>
+      <div class="gtxt">ลาก setpoint ให้ MW net ตามเส้นคำสั่ง ±2%<br>ดันล่วงหน้า — ramp 10 MW/นาที และ ST ตามช้า</div>
+    </div>
+    <div class="gpage" data-pg="3">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#eef2fb"/>
+        <line x1="40" y1="20" x2="40" y2="124" stroke="#51627a" stroke-width="2"/><line x1="40" y1="124" x2="300" y2="124" stroke="#51627a" stroke-width="2"/>
+        <path d="M60 30 Q120 90 210 102 T300 108" stroke="#3f51b5" stroke-width="4" fill="none"/>
+        <g class="gcurdot"><circle cx="70" cy="38" r="8" fill="#ff8f1c" stroke="#fff" stroke-width="2"/></g>
+        <circle cx="96" cy="64" r="7" fill="#ef4b4b"/><text x="104" y="58" font-size="12" fill="#ef4b4b" font-family="Mitr,sans-serif">2 เครื่อง@50%</text>
+        <circle cx="290" cy="107" r="7" fill="#1fb45f"/><text x="286" y="96" font-size="12" text-anchor="end" fill="#13804a" font-family="Mitr,sans-serif">1 เครื่อง@100%</text>
+        <text x="16" y="74" font-size="12" fill="#51627a" font-family="Mitr,sans-serif" transform="rotate(-90 16 74)">HR</text>
+        <text x="170" y="142" font-size="12" text-anchor="middle" fill="#51627a" font-family="Mitr,sans-serif">โหลดต่อเครื่อง %</text>
+      </svg></div>
+      <div class="gtxt">HR ต่ำ = ประหยัด · โหลดต่ำ HR พุ่ง<br>เลือกจำนวนเครื่องให้แต่ละตัวเดินใกล้เต็ม</div>
+    </div>
+    <div class="gpage" data-pg="4">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#fff6ea"/>
+        <rect x="30" y="20" width="18" height="96" rx="9" fill="#fff" stroke="#9fb4cc" stroke-width="3"/>
+        <rect class="gtherm" x="34" y="30" width="10" height="86" rx="5" fill="#ef4b4b"/>
+        <circle cx="39" cy="122" r="12" fill="#ef4b4b"/>
+        <rect x="90" y="30" width="34" height="94" rx="6" fill="#e3e8f5"/>
+        <rect class="gmw" x="94" y="34" width="26" height="90" rx="4" fill="#3f51b5"/>
+        <text x="107" y="142" font-size="12" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">MW</text>
+        <g class="gfog" fill="#9fd8ff"><circle cx="70" cy="40" r="6"/><circle cx="62" cy="50" r="5"/><circle cx="76" cy="54" r="5"/><text x="58" y="76" font-size="12" fill="#00838f" font-family="Mitr,sans-serif">fog</text></g>
+        <text class="gstar" x="190" y="70" font-size="30" text-anchor="middle">⭐</text>
+        <text class="gstar d2" x="234" y="62" font-size="36" text-anchor="middle">⭐</text>
+        <text class="gstar d3" x="278" y="70" font-size="30" text-anchor="middle">⭐</text>
+        <text x="234" y="104" font-size="13" text-anchor="middle" fill="#213047" font-weight="600" font-family="Mitr,sans-serif">ตามคำสั่งแม่น + HR เฉลี่ยต่ำ</text>
+      </svg></div>
+      <div class="gtxt">ร้อน → MW ตก ~0.65%/°C · เปิด fogging ช่วย<br>ดาว = ตามคำสั่งแม่น + heat rate เฉลี่ยต่ำ</div>
+    </div>
+    <div class="gdots" id="gDots"><i class="cur"></i><i></i><i></i><i></i><i></i></div>
+    <div class="gnav">
+      <button class="ghost-btn" id="gPrev">◀ ก่อนหน้า</button>
+      <button class="ghost-btn" id="gNext">ถัดไป ▶</button>
+      <button class="big-btn small" id="gPlay" style="display:none">เริ่มเล่นเลย! 🚀</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═════════ CCGT Dispatcher v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+function qsa(s){return document.querySelectorAll(s);}
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+var RM=false;try{RM=window.matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){}
+
+/* ── ค่าคงที่ฟิสิกส์ (ค่าตัวอย่าง F-class) ── */
+var K={ISO:250,T0:15,KCAP:0.0065,ETA0:0.385,KETA:0.0015,LOSS:0.015,EPS0:0.85,ETAST0:0.3926,KCOND:0.0015,
+  AUXK:0.012,AUXF:3,MINL:0.5,HHV:1.108,GAS:350,MJMM:1055.06,FOG:0.9,RAMP:10,TAUST:8,WARM:40,COOL:600,
+  FSNLF:0.18,PEN:2500,START_PURGE:8,START_ACCEL:10,START_SYNC:2};
+function capF(T){return 1-K.KCAP*(T-K.T0);}
+function pAv(T){return K.ISO*capF(T);}
+function etaB(T){return K.ETA0*(1-K.KETA*(T-K.T0));}
+function gPL(L){return 1-0.55*Math.pow(Math.max(0,1-L),1.35);}
+function epsL(L){return L>=0.75?K.EPS0:Math.max(0.6,K.EPS0-0.10*(0.75-L));}
+var STEAMR=(function(){var Q=K.ISO/K.ETA0;return 2*K.EPS0*(Q*(1-K.LOSS)-K.ISO);})();
+function etaST(s){return K.ETAST0*(1-0.30*Math.pow(1-Math.min(1,Math.max(0,s)),2));}
+function wetBulb(T,RH){return T*Math.atan(0.151977*Math.sqrt(RH+8.313659))+Math.atan(T+RH)-Math.atan(RH-1.676331)+0.00391838*Math.pow(RH,1.5)*Math.atan(0.023101*RH)-4.686035;}
+function gtFuel(P,Tin){var pa=pAv(Tin),L=P/pa;return P/(etaB(Tin)*gPL(clamp(L,0.05,1.05)));}
+/* steady-state ทั้งโรง: loads = [L1,L2..] สัดส่วนโหลด GT, Tamb, Tin */
+function plantSS(loads,Tamb,Tin){if(Tin==null)Tin=Tamb;var Q=0,PG=0,st=0;
+  for(var i=0;i<loads.length;i++){var L=loads[i],P=pAv(Tin)*L,q=gtFuel(P,Tin);Q+=q;PG+=P;st+=epsL(L)*(q*(1-K.LOSS)-P);}
+  var ST=st*etaST(st/STEAMR)*(1-K.KCOND*(Tamb-K.T0));var gross=PG+ST,aux=K.AUXK*gross+K.AUXF*loads.length,net=gross-aux,eta=net/Q;
+  return {PG:PG,ST:ST,gross:gross,aux:aux,net:net,eta:eta,HR:3600/eta,Q:Q,bk:bahtPerKWh(3600/eta)};}
+function bahtPerKWh(HR){return HR/1000/K.MJMM*K.HHV*K.GAS;}
+function bahtPerHour(QMW){return QMW*3600/K.MJMM*K.HHV*K.GAS;}
+/* หา load ที่ทำให้ net = target (เท่ากันทุกเครื่อง) */
+function solveLoad(n,target,Tamb,Tin){var lo=K.MINL,hi=1;
+  if(plantSS(rep(lo,n),Tamb,Tin).net>=target)return lo;if(plantSS(rep(hi,n),Tamb,Tin).net<=target)return hi;
+  for(var k=0;k<30;k++){var m=(lo+hi)/2;if(plantSS(rep(m,n),Tamb,Tin).net<target)lo=m;else hi=m;}return (lo+hi)/2;}
+function rep(v,n){var a=[];for(var i=0;i<n;i++)a.push(v);return a;}
+function interp(pts,h){if(h<=pts[0][0])return pts[0][1];
+  for(var i=0;i<pts.length-1;i++){var a=pts[i],b=pts[i+1];if(h>=a[0]&&h<=b[0]){var f=(h-a[0])/((b[0]-a[0])||1);return a[1]+(b[1]-a[1])*f;}}
+  return pts[pts.length-1][1];}
+function hhmm(min){var m=((Math.round(min)%1440)+1440)%1440;return ('0'+Math.floor(m/60)).slice(-2)+':'+('0'+(m%60)).slice(-2);}
+function fmt(n){return Math.round(n).toLocaleString('en-US');}
+function bandOf(o){return Math.max(10,0.02*o);}
+
+/* ── ด่าน ──  เวลาเป็น "ชั่วโมงของวัน" (เกิน 24 ได้สำหรับข้ามคืน) · TS = นาทีโรงไฟฟ้า ต่อ วินาทีจริง */
+var LEVELS=[
+ {name:'ด่าน 1 · สตาร์ทเครื่อง + Sync',icon:'🔑',h0:6,h1:9,TS:3,
+  temp:[[0,30]],rh:[[0,65]],order:[[0,300]],l1:true,
+  units:[{st:'off',sp:0.5,w:0},{st:'off',sp:0.5,w:0,hidden:true}],admit:false,fog:false,start:[false,false],stop:[false,false],
+  goal:'สตาร์ท GT1 ตามลำดับ → Sync ขนานกริด → รับโหลด → เปิดไอเข้า ST ให้ได้ 300 MW net (1-on-1)',
+  facts:['ห้ามจุดไฟก่อน purge ครบ (ไล่ก๊าซค้างในท่อไอเสีย/HRSG)','Sync: slip บวกเล็กน้อย (≤0.2 Hz) · ΔV ≤ 2% · กดตอนเข็ม 12 นาฬิกา ±10°','HRSG ต้องอุ่นครบก่อนเปิดไอเข้า ST (thermal stress / water hammer)','30°C · GT ทำได้สูงสุด ~226 MW — ต้องมี ST ถึงจะได้ 300 MW'],
+  lesson3:'ลำดับถูก + sync นุ่ม = เครื่องอายุยืน · ST ให้ไฟเพิ่ม ~110 MW จากไอเสียที่ทิ้งอยู่แล้ว',
+  lessonX:'ลำดับสตาร์ทมีไว้เพื่อความปลอดภัย: purge ครบ → จุดไฟ → FSNL → sync ตอนเข็ม 12 นาฬิกา → HRSG อุ่นก่อน ST'},
+ {name:'ด่าน 2 · พีคเช้า ramp ตามคำสั่ง',icon:'🌅',h0:5,h1:10,TS:300/90,
+  temp:[[5,26],[7,27.5],[8,29],[10,32]],rh:[[5,85],[10,65]],
+  order:[[5,400],[5.6,400],[5.8,460],[6.4,470],[6.6,560],[7.3,575],[7.5,630],[8.5,645],[8.8,610],[10,610]],
+  units:[{st:'online',sp:0.52,w:1},{st:'online',sp:0.52,w:1}],admit:true,fog:false,start:[false,false],stop:[false,false],
+  goal:'โหลดเช้าพุ่ง 400 → 645 MW · ดัน setpoint ล่วงหน้าตามจอ dispatch ให้อยู่ในแบนด์ ±2% · แบ่งโหลด 2 GT ให้ดี',
+  facts:['Ramp 10 MW/นาที/GT · ST ตามไอเสียช้า (τ ≈ 8 นาที)','จอ dispatch แสดงคำสั่งล่วงหน้า — ดันก่อนเส้นขึ้น','แบ่งโหลด GT เท่ากัน = เชื้อเพลิงน้อยสุด (เส้นประสิทธิภาพโค้งนูน)','ดาว: % เวลาในแบนด์ + HR เฉลี่ยเทียบผู้คุมมือโปร'],
+  lesson3:'ตามคำสั่งแม่นเพราะดันล่วงหน้า และแบ่งโหลดเท่ากัน — HR ต่ำสุดที่ทำได้',
+  lessonX:'คำสั่งขึ้นเร็วกว่า ramp ของเครื่อง — ต้องดู "คำสั่งล่วงหน้า" แล้วดันก่อน 5–10 นาที'},
+ {name:'ด่าน 3 · คืนโหลดต่ำ 2-on-1 vs 1-on-1',icon:'🌙',h0:22,h1:28,TS:360/100,
+  temp:[[22,26],[25,25],[28,24.5]],rh:[[22,85],[28,90]],
+  order:[[22,400],[22.5,395],[25,395],[25.33,330],[28,330]],l3:true,
+  units:[{st:'online',sp:0.52,w:1},{st:'online',sp:0.52,w:1}],admit:true,fog:false,start:[false,false],stop:[false,true],
+  goal:'ช่วง A (22:00–01:00) เดิน 2-on-1 ครึ่งโหลด · 01:00 ปลด GT2 แล้วดัน GT1 เต็ม (ช่วง B) — ดูว่าแบบไหน HR ดีกว่า',
+  facts:['ช่วง A: GT ทั้งสองต้องอยู่ ≥ 50% (min load) — 2-on-1 ลดต่ำกว่า ~390 MW ไม่ได้','01:00 กด ⏹ หยุด GT2 แล้วดัน GT1 ขึ้นใกล้ 100%','ดู HR สดบนแผงขวาล่าง เทียบสองช่วง'],
+  lesson3:'1-on-1 ใกล้เต็มโหลด HR ดีกว่า 2-on-1 ครึ่งโหลด ~10% — โหลดต่ำให้ "ปลดเครื่อง" ไม่ใช่ "หรี่ทุกเครื่อง"',
+  lessonX:'โหลดต่ำ: เดินเครื่องน้อยลงแต่ใกล้เต็ม ดีกว่าเดินหลายเครื่องครึ่งโหลด'},
+ {name:'ด่าน 4 · บ่ายร้อน 38°C',icon:'🔥',h0:11,h1:16.5,TS:330/100,
+  temp:[[11,33],[12,35],[13,36.5],[14,38],[15,38],[16.5,37]],rh:[[11,55],[14,45],[16.5,47]],
+  order:[[11,305],[12,305],[12.3,450],[12.8,520],[13.3,600],[13.8,650],[15.5,660],[16.5,640]],
+  units:[{st:'online',sp:1,w:1},{st:'off',sp:0.5,w:0.35}],admit:true,fog:true,start:[false,true],stop:[false,true],
+  goal:'เริ่ม 1-on-1 · คำสั่งจะพุ่งถึง 660 MW ตอนอากาศ 38°C — สตาร์ท GT2 ให้ทัน และใช้ inlet fogging',
+  facts:['GT2 สตาร์ท→sync ~20 นาที + HRSG อุ่น ~40 นาที — สตาร์ทก่อนคำสั่งขึ้น','38°C: 2-on-1 ได้แค่ ~637 MW net (ISO 745)','Fogging ลด T inlet เข้าหา wet-bulb (~28°C) ได้ MW คืน ~6%'],
+  lesson3:'คนคุมเก่งดู "อากาศ + คำสั่งล่วงหน้า" — สตาร์ทก่อน และ fogging ตอนร้อนจัด',
+  lessonX:'อากาศร้อนกิน MW ~0.65%/°C — ต้องเตรียมเครื่องสำรองก่อนพีคบ่าย และใช้ fogging'},
+ {name:'ด่าน 5 · วันเต็ม 24 ชม.',icon:'📅',h0:0,h1:24,TS:12,
+  temp:[[0,27],[5,25.5],[9,30],[12,35.5],[14,38],[16,36.5],[18,32],[21,29],[24,27]],
+  rh:[[0,85],[6,90],[10,62],[14,45],[17,52],[21,75],[24,85]],
+  order:[[0,405],[0.8,400],[1.3,330],[5.2,325],[5.45,410],[5.7,425],[7,500],[8,580],[9,610],[11,630],[13,650],[14,665],[15.5,660],[16.5,630],[18,610],[19,645],[19.5,655],[20.5,625],[21.5,560],[22.5,470],[23.5,410],[24,405]],
+  units:[{st:'online',sp:0.53,w:1},{st:'online',sp:0.53,w:1}],admit:true,fog:true,start:[true,true],stop:[true,true],
+  goal:'คุมเองทั้งวัน: เลือกเดิน 1/2 เครื่อง ตั้ง MW, fogging — ต้นทุนต่ำสุด และห้ามพลาดคำสั่ง',
+  facts:['ช่องว่าง: 1-on-1 สูงสุด ~335 MW · 2-on-1 ต่ำสุด ~390 MW','คืน 01:00–05:30 คำสั่ง ~330 MW → ปลด GT2 · เช้า 05:30 ต้องกลับมา 2 เครื่อง','บ่าย 14:00 38°C ต้อง fogging · พีคค่ำ 19:30','"พลาดคำสั่ง" = นอกแบนด์ต่อเนื่อง > 20 นาที'],
+  lesson3:'Unit commitment ถูกจังหวะ + แบ่งโหลดดี + fogging ตอนร้อน = ต้นทุนต่ำสุดของวัน',
+  lessonX:'วางแผนทั้งวัน: ปลดเครื่องตอนโหลดต่ำ สตาร์ทล่วงหน้าก่อนโหลดขึ้น เปิด fogging ตอนบ่าย'}
+];
+
+/* ── state ── */
+var G=null,level=0,stars=[0,0,0,0,0],lastTs=0;
+var GAME={K:K,LEVELS:LEVELS,plantSS:plantSS,pAv:pAv,wetBulb:wetBulb,solveLoad:solveLoad,bahtPerKWh:bahtPerKWh,speed:1};
+window.GAME=GAME;
+
+function newState(i,sim){var LV=LEVELS[i];
+  var S={lv:i,LV:LV,sim:!!sim,auto:!!sim,t:LV.h0*60,t0:LV.h0*60,t1:LV.h1*60,real:0,done:false,running:true,
+    u:[],stMW:0,admit:LV.admit,fog:false,tamb:0,rh:0,tin:0,twb:0,order:0,net:0,gross:0,aux:0,Q:0,
+    fuelMJ:0,netMWh:0,cost:0,pen:0,inT:0,totT:0,hist:[],histT:0,mist:[],eps:[],ep:null,
+    unevenMJ:0,fogShort:0,fogNeedT:0,starts:0,startCost:0,twoLowT:0,
+    seq:'off',seqProg:0,sync:{th:0,slip:0.35,dv:-4},syncErr:null,syncSlip:null,loadHold:0,doneReal:null,
+    phA:{f:0,e:0},phB:{f:0,e:0},pred:null,l3Prompt:false,l3Late:false,gt2StartT:null,fogOnT:null,
+    warnT:0,lastBand:true};
+  for(var k=0;k<2;k++){var c=LV.units[k];
+    S.u.push({id:k,st:c.st,sp:c.sp,P:0,L:0,fuel:0,w:c.w,rpm:c.st==='online'?1:0,prog:0,hidden:!!c.hidden,ang:0});}
+  envUpdate(S);
+  /* เริ่มแบบสมดุล: GT ออนไลน์ที่ setpoint, ST ที่ steady state */
+  S.u.forEach(function(u){if(u.st==='online'){u.P=u.sp*pAv(S.tin);u.L=u.sp;}});
+  if(LV.l1)S.u[0].P=0;
+  var ss=computeSteam(S);S.stMW=ss;
+  return S;}
+
+function envUpdate(S){var h=S.t/60,LV=S.LV;
+  S.tamb=interp(LV.temp,h);S.rh=interp(LV.rh,h);S.twb=wetBulb(S.tamb,S.rh);
+  var anyOn=S.u.some(function(u){return u.st==='online';});
+  S.tin=(S.fog&&anyOn)?S.tamb-K.FOG*(S.tamb-S.twb):S.tamb;
+  S.order=interp(LV.order,h);}
+
+function computeSteam(S){var st=0;
+  S.u.forEach(function(u){if(u.st==='online'&&u.P>0){var q=gtFuel(u.P,S.tin);st+=epsL(u.L)*(q*(1-K.LOSS)-u.P)*u.w;}});
+  if(!S.admit)return 0;
+  return st*etaST(st/STEAMR)*(1-K.KCOND*(S.tamb-K.T0));}
+
+/* ── เสียง ── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function noise(dur,vol){var a=audio();if(!a||!sndOn)return;var n=Math.floor(a.sampleRate*dur),b=a.createBuffer(1,n,a.sampleRate),d=b.getChannelData(0);
+  for(var i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);var s=a.createBufferSource(),g=a.createGain();g.gain.value=vol||0.15;
+  var f=a.createBiquadFilter();f.type='lowpass';f.frequency.value=900;s.buffer=b;s.connect(f);f.connect(g);g.connect(a.destination);s.start();}
+function sClick(){tone(620,0,0.06,'square',0.07);}
+function sGood(){tone(523,0,0.12);tone(659,0.1,0.12);tone(784,0.2,0.2);}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.11);tone(170,0.18,0.3,'sawtooth',0.11);}
+function sWarn(){tone(760,0,0.1,'square',0.1);tone(560,0.13,0.1,'square',0.1);}
+function sIgn(){noise(0.7,0.22);tone(90,0,0.5,'sawtooth',0.08);}
+function sBreaker(){noise(0.12,0.3);tone(140,0,0.15,'square',0.15);}
+
+/* ── storage ── */
+var SK='te_skill_ccgt';
+function loadStars(){try{var v=JSON.parse(localStorage.getItem(SK+'_stars')||'[]');for(var i=0;i<5;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem(SK+'_stars',JSON.stringify(stars));}catch(e){}}
+function seenGuide(){try{return localStorage.getItem(SK+'_seen')==='1';}catch(e){return true;}}
+function setSeen(){try{localStorage.setItem(SK+'_seen','1');}catch(e){}}
+
+var bubT=null;
+function say(txt,ms,bad){if(G&&G.sim)return;var b=$('bubble');b.textContent=txt;b.classList.add('show');b.classList.toggle('bad',!!bad);
+  clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2800);}
+function mistake(S,code,txt){if(S.sim)return;S.mist.push({code:code,txt:txt,t:S.t});sBad();say('✖ '+txt,3200,true);
+  var w=$('sceneWrap');w.classList.remove('flash');void w.offsetWidth;w.classList.add('flash');}
+
+/* ═════════ SIMULATION STEP ═════════  dt = วินาทีจริง */
+function step(S,dt){
+  var LV=S.LV;S.real+=dt;
+  var dtm=dt*LV.TS; /* นาทีโรงไฟฟ้า */
+  if(S.auto)bot(S,dt);
+  if(!LV.l1||S.seq==='online')S.t+=dtm;
+  envUpdate(S);
+  var Qtot=0,nRun=0,QbaseRef=pAv(S.tin)/etaB(S.tin);
+  for(var k=0;k<2;k++){var u=S.u[k];if(u.hidden)continue;
+    u.fuel=0;
+    if(u.st==='purge'){u.prog+=LV.l1?dt/5:dtm/K.START_PURGE;u.rpm+=(0.22-u.rpm)*Math.min(1,dt*2);
+      if(u.prog>=1){u.prog=1;if(LV.l1){u.st='purged';S.seq='purged';if(!S.sim){sGood();say('Purge ครบ ✓ พร้อมจุดระเบิด (Ignition)',2400);}}else{u.st='accel';u.prog=0;}}}
+    else if(u.st==='purged'){u.rpm+=(0.22-u.rpm)*Math.min(1,dt*2);}
+    else if(u.st==='accel'){u.prog+=LV.l1?dt/5:dtm/K.START_ACCEL;u.rpm=0.22+0.78*clamp(u.prog,0,1);u.fuel=K.FSNLF*QbaseRef*u.rpm;
+      if(u.prog>=1){u.st='fsnl';u.rpm=1;u.prog=0;if(LV.l1){S.seq='fsnl';if(!S.sim){sGood();say('ถึง FSNL 3000 rpm ✓ ปรับให้ตรงกริด แล้ว Sync',2600);}}}}
+    else if(u.st==='fsnl'){u.fuel=K.FSNLF*QbaseRef;u.rpm=1;
+      if(!LV.l1){u.prog+=dtm/K.START_SYNC;if(u.prog>=1){u.st='online';u.P=0.1*pAv(S.tin);u.sp=Math.max(u.sp,K.MINL);sBreaker();say('GT'+(k+1)+' Sync เข้ากริดแล้ว ✓ HRSG กำลังอุ่น',2400);}}}
+    if(u.st==='online'||u.st==='stopping'){
+      var pa=pAv(S.tin),tgt=u.st==='stopping'?0:u.sp*pa,mx=K.RAMP*dtm;
+      u.P+=clamp(tgt-u.P,-mx,mx);
+      if(u.st==='stopping'&&u.P<=0.1*pa+0.01){u.st='off';u.P=0;u.rpm=0.999;if(!S.sim)sBreaker();}
+      u.L=u.P/pa;u.fuel=u.st==='off'?0:gtFuel(Math.max(u.P,0.02*pa),S.tin);
+    }
+    if(u.st==='off'){u.rpm*=Math.pow(0.5,dt/1.2);if(u.rpm<0.01)u.rpm=0;u.P=0;u.L=0;}
+    /* HRSG warm-up: ไอเสียร้อนผ่าน = อุ่นขึ้น · ไม่มีไอเสีย = เย็นลงช้า */
+    var hot=(u.st==='online'||u.st==='fsnl'||u.st==='accel'||u.st==='stopping');
+    if(hot)u.w=Math.min(1,u.w+dtm/K.WARM*(u.st==='accel'?0.5:1));else u.w=Math.max(0,u.w-dtm/K.COOL);
+    if(u.st!=='off'&&u.st!=='purge'&&u.st!=='purged')nRun++;
+    Qtot+=u.fuel;
+    u.ang+=u.rpm*dt*(RM?0:540);
+  }
+  /* ST หน่วงอันดับหนึ่ง */
+  var stT=computeSteam(S);S.stTarget=stT;
+  S.stMW+=(stT-S.stMW)*(1-Math.exp(-dtm/K.TAUST));
+  var PG=S.u[0].P+S.u[1].P;
+  S.gross=PG+S.stMW;S.aux=nRun>0?K.AUXK*S.gross+K.AUXF*nRun:0.8;S.net=S.gross-S.aux;S.Q=Qtot;
+  S.eta=Qtot>1&&S.net>1?S.net/Qtot:0;S.HR=S.eta>0?3600/S.eta:0;
+  /* บัญชีพลังงาน/เงิน */
+  var dth=dtm/60;
+  S.fuelMJ+=Qtot*dtm*60;S.netMWh+=Math.max(0,S.net)*dth;S.cost+=bahtPerHour(Qtot)*dth;
+  var nOn=S.u.filter(function(u){return u.st==='online';}).length;
+  /* แบ่งโหลดไม่เท่ากัน → เชื้อเพลิงเกิน */
+  if(nOn===2&&S.u[0].L>=0.49&&S.u[1].L>=0.49){var pm=(S.u[0].P+S.u[1].P)/2;
+    var extra=S.u[0].fuel+S.u[1].fuel-2*gtFuel(pm,S.tin);if(extra>0)S.unevenMJ+=extra*dtm*60;}
+  /* L3 phases */
+  if(LV.l3){var hh=S.t/60;
+    if(hh>=22.5&&hh<25&&nOn===2){S.phA.f+=Qtot*dtm*60;S.phA.e+=Math.max(0,S.net)*dth;}
+    if(hh>=26&&hh<28&&nOn===1){S.phB.f+=Qtot*dtm*60;S.phB.e+=Math.max(0,S.net)*dth;}
+    if(hh>=25&&!S.l3Prompt){S.l3Prompt=true;if(!S.sim){sWarn();say('01:00 ทดลองแบบ B: กด ⏹ หยุด GT2 แล้วดัน GT1 ใกล้ 100%',4200);}}
+    if(hh>=25.67&&!S.l3Late&&S.u[1].st==='online'){S.l3Late=true;mistake(S,'l3late','ยังไม่ปลด GT2 — 2-on-1 ลดต่ำกว่า min load ไม่ได้ จึงผลิตเกินคำสั่ง');}
+  }
+  /* L4/L5 fogging need: ร้อน + 2 เครื่องเต็ม + คำสั่งเกินกำลังที่ไม่มี fog */
+  if(LV.fog&&nOn===2){var capNF=plantSS([1,1],S.tamb,S.tamb).net;
+    if(S.order>capNF-bandOf(S.order)*0.5){S.fogNeedT+=dtm;if(!S.fog)S.fogShort+=Math.max(0,S.order-capNF)*dth;}}
+  /* L5: เดิน 2 เครื่องตอนคำสั่งต่ำพอให้ 1-on-1 */
+  if(nOn===2){var cap1=plantSS([1],S.tamb,S.tin).net;if(S.order<=cap1-5)S.twoLowT+=dtm;}
+  /* dispatch tracking */
+  var active=!LV.l1||(S.seq==='online');
+  if(active){var o=S.order,dev=S.net-o,band=bandOf(o),grace=(S.t-S.t0)<(S.t1-S.t0)*0.03;
+    if(LV.l1){/* ด่าน 1: นับครบเมื่ออยู่ในแบนด์ต่อเนื่อง 3 วินาที (หลังเปิดไอเข้า ST) */
+      if(Math.abs(dev)<=band&&S.admit){S.loadHold+=dt;if(S.loadHold>=3&&!S.done){S.done=true;S.doneReal=S.real;}}else S.loadHold=0;
+      if(S.real>150&&!S.done){S.done=true;S.timeout=true;}
+    }else if(!grace){
+      S.totT+=dtm;var inb=Math.abs(dev)<=band;
+      if(inb)S.inT+=dtm;else S.pen+=(Math.abs(dev)-band)*dth*K.PEN;
+      /* episodes */
+      if(!inb){var sg=dev>0?1:-1;
+        if(!S.ep||S.ep.sg!==sg){if(S.ep)closeEp(S);S.ep={sg:sg,t0:S.t,t1:S.t,max:0,mwh:0,maxed:0,floor:0,ramp:0,n:0,tamb:S.tamb,nOn:nOn,fog:S.fog};}
+        var E=S.ep;E.t1=S.t;E.mwh+=(Math.abs(dev)-band)*dth;if(Math.abs(dev)>E.max){E.max=Math.abs(dev);E.tamb=S.tamb;E.nOn=nOn;E.fog=S.fog;}
+        E.n++;var on=S.u.filter(function(u){return u.st==='online';});
+        if(on.length&&on.every(function(u){return u.sp>=0.99;}))E.maxed++;
+        if(on.length&&on.every(function(u){return u.sp<=0.51;}))E.floor++;
+        var pa0=pAv(S.tin);if(on.some(function(u){return Math.abs(u.sp*pa0-u.P)>5;})||Math.abs(S.stTarget-S.stMW)>8||S.u.some(function(u){return u.st==='stopping'||u.st==='fsnl'||u.st==='accel'||u.st==='purge';}))E.ramp++;
+        if(!S.sim&&S.real-S.warnT>4){S.warnT=S.real;sWarn();say(sg<0?'⚠ ผลิตต่ำกว่าคำสั่ง '+fmt(-dev)+' MW — ดัน setpoint!':'⚠ ผลิตเกินคำสั่ง '+fmt(dev)+' MW — ลด setpoint/ปลดเครื่อง',2600,true);}
+      }else if(S.ep)closeEp(S);
+    }
+    if(S.t>=S.t1&&!S.done){S.done=true;}
+  }
+  if(S.done&&S.ep)closeEp(S);
+  /* history */
+  S.histT+=dt;if(S.histT>=0.2||S.done){S.histT=0;if(active)S.hist.push([S.t,S.net,S.real]);}
+}
+function closeEp(S){var E=S.ep;S.ep=null;if(!E)return;E.dur=E.t1-E.t0;if(E.mwh>0.05)S.eps.push(E);}
+
+/* ═════════ BOT (benchmark + autoplay QA) ═════════ */
+function bot(S,dt){var LV=S.LV;
+  if(LV.l1){botL1(S,dt);return;}
+  var h=S.t/60,lead=(LV.TS>6?14:9);
+  var oNow=interp(LV.order,h+lead/60),fogOK=LV.fog;
+  var tinF=fogOK&&S.tamb>30?S.tamb-K.FOG*(S.tamb-S.twb):S.tamb;
+  /* fogging เมื่อร้อน ≥ 31°C และเดิน 2 เครื่อง */
+  if(fogOK){var want=S.tamb>=31&&S.u[0].st==='online'&&S.u[1].st==='online';if(want!==S.fog){S.fog=want;if(want&&S.fogOnT==null)S.fogOnT=S.t;}}
+  var cap1=plantSS([1],S.tamb,tinF).net,floor2=plantSS([0.5,0.5],S.tamb,tinF).net;
+  /* commitment: มองล่วงหน้า 28 นาที (start→sync ~20 นาที + ramp) */
+  var need2=false,maxA=0;for(var m=0;m<=28;m+=4){var oo=interp(LV.order,h+m/60);if(oo>maxA)maxA=oo;}
+  need2=maxA>cap1-4;
+  var u2=S.u[1];
+  if(need2&&u2.st==='off'&&LV.start[1])botStart(S,1);
+  if(LV.l3){if(h>=25&&u2.st==='online')botStop(S,1);}
+  else if(!need2&&u2.st==='online'&&LV.stop[1]){var maxB=0;for(m=0;m<=40;m+=5)maxB=Math.max(maxB,interp(LV.order,h+m/60));if(maxB<floor2-5)botStop(S,1);}
+  var on=S.u.filter(function(u){return u.st==='online';});
+  if(on.length===0&&S.u[0].st==='off'&&LV.start[0])botStart(S,0);
+  if(on.length){
+    /* ชดเชย HRSG ที่ยังอุ่นไม่ครบ: ใช้ net จริงเป็น feedback เล็กน้อย */
+    var Ls=solveLoad(on.length,oNow,S.tamb,S.tin);
+    if(S.botN!==on.length){S.botN=on.length;S.botI=0;}
+    var err=interp(LV.order,h)-S.net;if(Math.abs(err)<40&&Ls>K.MINL+0.01&&Ls<0.999){S.botI=(S.botI||0)+err*0.002*dt;S.botI=clamp(S.botI,-0.1,0.1);}
+    on.forEach(function(u){u.sp=clamp(Ls+S.botI,K.MINL,1);});
+  }}
+function botStart(S,k){var u=S.u[k];if(u.st!=='off')return;u.st='purge';u.prog=0;S.starts++;if(k===1&&S.gt2StartT==null)S.gt2StartT=S.t;}
+function botStop(S,k){var u=S.u[k];if(u.st==='online')u.st='stopping';}
+function botL1(S,dt){var u=S.u[0];S.botT=(S.botT||0)+dt;
+  if(S.botT<0.6)return;S.botT=0;
+  if(u.st==='off')doPurge(S);
+  else if(u.st==='purged')doIgnite(S);
+  else if(u.st==='fsnl'){var sy=S.sync;
+    if(sy.slip>0.15)sy.slip=Math.round((sy.slip-0.05)*100)/100;else if(sy.slip<0.05)sy.slip=Math.round((sy.slip+0.05)*100)/100;
+    else if(sy.dv<-1.5)sy.dv+=0.5;else if(sy.dv>1.5)sy.dv-=0.5;}
+  else if(u.st==='online'){u.sp=1;if(u.w>=1&&!S.admit)doAdmit(S);
+    if(S.admit)u.sp=clamp(solveLoad(1,S.order,S.tamb,S.tin),K.MINL,1);}
+}
+/* บอทกด sync ตอนเข็มเข้าหน้าต่าง (เรียกทุก step) */
+function botSync(S){var sy=S.sync;if(S.u[0].st==='fsnl'&&sy.slip>0&&sy.slip<=0.2&&Math.abs(sy.dv)<=2){var a=((sy.th%360)+360)%360;if(a<4||a>356)doSync(S);}}
+
+/* ═════════ ACTIONS ═════════ */
+function doPurge(S){var u=S.u[0];if(u.st!=='off')return;u.st='purge';u.prog=0;S.seq='purge';if(!S.sim){sClick();say('Purge: SFC หมุนเพลา ~600 rpm ไล่ก๊าซค้าง ≥ 5 เท่าปริมาตร…',2600);}}
+function doIgnite(S){var u=S.u[0];
+  if(u.st==='off'){mistake(S,'ign0','ยังไม่ได้ purge — ห้ามจุดไฟ! ก๊าซค้างอาจระเบิดใน HRSG');return;}
+  if(u.st==='purge'){mistake(S,'ign1','Purge ยังไม่ครบ ('+Math.round(u.prog*100)+'%) — ห้ามจุดไฟก่อน purge ครบ');return;}
+  if(u.st!=='purged')return;u.st='accel';u.prog=0;S.seq='accel';if(!S.sim){sIgn();say('🔥 จุดติด! เร่งเครื่องขึ้น FSNL…',2200);}}
+function doSync(S){var u=S.u[0],sy=S.sync;if(u.st!=='fsnl')return;
+  var a=((sy.th%360)+360)%360,err=a>180?360-a:a;
+  if(sy.slip<=0){mistake(S,'syslip0','ความถี่เครื่องต่ำกว่ากริด — ปิดเบรกเกอร์แล้วกำลังไหลย้อน (reverse power) · ให้เร็วกว่ากริดเล็กน้อย');return;}
+  if(sy.slip>0.2){mistake(S,'syslip','slip '+sy.slip.toFixed(2)+' Hz เร็วเกิน (> 0.2 Hz) — sync-check บล็อก · ลดความเร็วก่อน');return;}
+  if(Math.abs(sy.dv)>2){mistake(S,'sydv','แรงดันต่างกริด '+sy.dv.toFixed(1)+'% (> 2%) — ปรับ AVR ก่อน');return;}
+  if(err>10){mistake(S,'syang','มุมเฟสต่าง '+err.toFixed(0)+'° (> 10°) — ไฟกระชาก/แรงบิดกระแทกเพลา · รอเข็มถึง 12 นาฬิกา');return;}
+  S.syncErr=err;S.syncSlip=sy.slip;u.st='online';u.P=0.08*pAv(S.tin);u.sp=K.MINL;S.seq='online';
+  if(!S.sim){sBreaker();sGood();say('⚡ Sync สำเร็จ! มุมต่าง '+err.toFixed(1)+'° · ลากรับโหลด แล้วรอ HRSG อุ่น',3000);}}
+function doAdmit(S){if(S.admit)return;var u=S.u[0];
+  if(u.st!=='online'){mistake(S,'adm0','GT ยังไม่เข้ากริด — ยังไม่มีไอเสียทำไอน้ำ');return;}
+  if(u.w<0.999){mistake(S,'adm1','HRSG อุ่นแค่ '+Math.round(u.w*100)+'% — เปิดไอเข้า ST ตอนนี้เสี่ยง thermal stress/น้ำกระแทก');return;}
+  S.admit=true;if(!S.sim){sGood();say('♨ เปิดไอเข้า ST แล้ว — ST รับไอเพิ่มกำลังอีก ~50%',2600);}}
+
+/* ═════════ RENDER ═════════ */
+var UNIT_Y=[120,245];
+function buildUnits(){var g=$('unitsG'),h='';
+  for(var k=0;k<2;k++){var c=UNIT_Y[k];
+    h+='<g id="unit'+k+'">'+
+    /* generator */
+    '<line x1="90" y1="'+c+'" x2="104" y2="'+c+'" stroke="#4c5a6d" stroke-width="6"/>'+
+    '<rect x="22" y="'+(c-24)+'" width="68" height="48" rx="10" fill="#5c6bc0" stroke="#283593" stroke-width="3"/>'+
+    '<text x="56" y="'+(c+6)+'" font-size="16" text-anchor="middle" fill="#fff" font-weight="600" font-family="Mitr,sans-serif">G'+(k+1)+'</text>'+
+    /* inlet filter house */
+    '<rect x="104" y="'+(c-78)+'" width="72" height="40" rx="5" fill="#d7dee9" stroke="#7c8ca5" stroke-width="3"/>'+
+    '<g stroke="#9aa8bd" stroke-width="2"><line x1="112" y1="'+(c-70)+'" x2="168" y2="'+(c-70)+'"/><line x1="112" y1="'+(c-62)+'" x2="168" y2="'+(c-62)+'"/><line x1="112" y1="'+(c-54)+'" x2="168" y2="'+(c-54)+'"/><line x1="112" y1="'+(c-46)+'" x2="168" y2="'+(c-46)+'"/></g>'+
+    '<rect x="128" y="'+(c-38)+'" width="24" height="12" fill="#b8c4d6" stroke="#7c8ca5" stroke-width="2"/>'+
+    '<g id="fog'+k+'" opacity="0" fill="#dff4ff"><circle cx="118" cy="'+(c-84)+'" r="7"/><circle cx="134" cy="'+(c-88)+'" r="8"/><circle cx="152" cy="'+(c-85)+'" r="7"/><circle cx="166" cy="'+(c-89)+'" r="6"/></g>'+
+    /* compressor (ลู่เข้า) */
+    '<path d="M104 '+(c-28)+' L196 '+(c-18)+' L196 '+(c+18)+' L104 '+(c+28)+' Z" fill="url(#gCasing)" stroke="#4c5a6d" stroke-width="3"/>'+
+    '<g id="cRot'+k+'"><circle cx="146" cy="'+c+'" r="17" fill="#e3e9f2" stroke="#4c5a6d" stroke-width="2.5"/>'+
+      '<g stroke="#4c5a6d" stroke-width="3.5" stroke-linecap="round"><line x1="146" y1="'+(c-15)+'" x2="146" y2="'+(c+15)+'"/><line x1="131" y1="'+c+'" x2="161" y2="'+c+'"/><line x1="135" y1="'+(c-11)+'" x2="157" y2="'+(c+11)+'"/><line x1="157" y1="'+(c-11)+'" x2="135" y2="'+(c+11)+'"/></g></g>'+
+    /* combustor */
+    '<rect x="196" y="'+(c-24)+'" width="46" height="48" rx="12" fill="#8d9bb2" stroke="#4c5a6d" stroke-width="3"/>'+
+    '<ellipse id="flm'+k+'" cx="219" cy="'+c+'" rx="18" ry="12" fill="url(#gFlame)" opacity="0"/>'+
+    /* turbine (บานออก) */
+    '<path d="M242 '+(c-20)+' L300 '+(c-32)+' L300 '+(c+32)+' L242 '+(c+20)+' Z" fill="url(#gCasing)" stroke="#4c5a6d" stroke-width="3"/>'+
+    '<g id="tRot'+k+'"><circle cx="271" cy="'+c+'" r="20" fill="#f0d9c4" stroke="#4c5a6d" stroke-width="2.5"/>'+
+      '<g stroke="#8a5a3a" stroke-width="3.5" stroke-linecap="round"><line x1="271" y1="'+(c-18)+'" x2="271" y2="'+(c+18)+'"/><line x1="253" y1="'+c+'" x2="289" y2="'+c+'"/><line x1="258" y1="'+(c-13)+'" x2="284" y2="'+(c+13)+'"/><line x1="284" y1="'+(c-13)+'" x2="258" y2="'+(c+13)+'"/></g></g>'+
+    /* exhaust duct */
+    '<path d="M300 '+(c-32)+' L360 '+(c-46)+' L360 '+(c+40)+' L300 '+(c+32)+' Z" fill="#6f7f98" stroke="#4c5a6d" stroke-width="3"/>'+
+    '<path id="exh'+k+'" d="M300 '+(c-32)+' L360 '+(c-46)+' L360 '+(c+40)+' L300 '+(c+32)+' Z" fill="url(#gExh)" opacity="0"/>'+
+    '<path id="exhF'+k+'" d="M304 '+c+' L356 '+c+'" stroke="#fff3c4" stroke-width="4" stroke-dasharray="8 10" opacity="0"/>'+
+    /* HRSG */
+    '<rect x="360" y="'+(c-58)+'" width="80" height="102" rx="6" fill="#8796ad" stroke="#4c5a6d" stroke-width="3"/>'+
+    '<rect id="hrG'+k+'" x="362" y="'+(c-56)+'" width="76" height="98" rx="5" fill="url(#gHrsg)" opacity="0"/>'+
+    '<g stroke="#4c5a6d" stroke-width="2.5" opacity=".75"><line x1="376" y1="'+(c-50)+'" x2="376" y2="'+(c+38)+'"/><line x1="390" y1="'+(c-50)+'" x2="390" y2="'+(c+38)+'"/><line x1="404" y1="'+(c-50)+'" x2="404" y2="'+(c+38)+'"/><line x1="418" y1="'+(c-50)+'" x2="418" y2="'+(c+38)+'"/><line x1="430" y1="'+(c-50)+'" x2="430" y2="'+(c+38)+'"/></g>'+
+    '<rect x="368" y="'+(c-74)+'" width="44" height="16" rx="8" fill="#b8c4d6" stroke="#4c5a6d" stroke-width="2.5"/>'+
+    '<rect x="368" y="'+(c+18)+'" width="64" height="21" rx="10" fill="rgba(14,24,48,.78)"/><text x="400" y="'+(c+34)+'" font-size="14" text-anchor="middle" fill="#fff" font-weight="600" font-family="Mitr,sans-serif">HRSG'+(k+1)+'</text>'+
+    /* stack */
+    '<rect x="446" y="'+(c-80)+'" width="20" height="46" fill="#9aa8bd" stroke="#4c5a6d" stroke-width="3"/>'+
+    '<path d="M440 '+(c-34)+' L446 '+(c-34)+'" stroke="#4c5a6d" stroke-width="3"/>'+
+    '<g id="plm'+k+'" opacity="0" fill="#eef3f8"><circle class="pl" cx="456" cy="'+(c-86)+'" r="7"/><circle class="pl" cx="462" cy="'+(c-92)+'" r="6"/><circle class="pl" cx="451" cy="'+(c-97)+'" r="5"/></g>'+
+    /* labels */
+    '<text x="200" y="'+(c+46)+'" font-size="14" text-anchor="middle" fill="#fff" font-weight="600" font-family="Mitr,sans-serif">GT'+(k+1)+'</text>'+
+    '<g transform="translate(244 '+(c-48)+')"><rect x="-46" y="-14" width="92" height="25" rx="12" fill="rgba(14,24,48,.86)"/><text id="ust'+k+'" x="0" y="4" font-size="16" text-anchor="middle" fill="#9fe3ff" font-weight="600" font-family="Mitr,sans-serif">OFF</text></g>'+
+    '<g id="dim'+k+'" opacity="0"><rect x="18" y="'+(c-96)+'" width="452" height="164" rx="12" fill="#0e1830" opacity=".55"/><text x="240" y="'+(c+6)+'" font-size="18" text-anchor="middle" fill="#cfd8ea" font-family="Mitr,sans-serif">สำรอง (ไม่ใช้ในด่านนี้)</text></g>'+
+    '</g>';}
+  g.innerHTML=h;
+  /* plume puffs ลอยขึ้น (CSS) */
+}
+var dashOff={bus:0,st:0,ex0:0,ex1:0,s1:0,s2:0,line:0},plumeT=0,stAng=0;
+var SKY=[[0,14,24,52],[5,14,24,52],[6.2,240,150,110],[7.5,126,190,240],[16.8,120,186,240],[18.3,240,140,100],[19.5,40,52,96],[20.5,14,24,52],[24,14,24,52]];
+function skyAt(h){h=((h%24)+24)%24;for(var i=0;i<SKY.length-1;i++){var a=SKY[i],b=SKY[i+1];
+  if(h>=a[0]&&h<=b[0]){var f=(h-a[0])/((b[0]-a[0])||1);return 'rgb('+Math.round(a[1]+(b[1]-a[1])*f)+','+Math.round(a[2]+(b[2]-a[2])*f)+','+Math.round(a[3]+(b[3]-a[3])*f)+')';}}return 'rgb(14,24,52)';}
+function renderScene(dt){var S=G;if(!S)return;
+  var h=((S.t/60)%24+24)%24;
+  $('skyR').setAttribute('fill',skyAt(h));
+  if(h>5.6&&h<18.6){var sf=(h-6)/12;$('sunG').setAttribute('transform','translate('+(560+260*clamp(sf,0,1)).toFixed(0)+','+(70-45*Math.sin(Math.PI*clamp(sf,0,1))).toFixed(0)+')');}
+  else $('sunG').setAttribute('transform','translate(-100,-100)');
+  if(h>=18.4||h<5.8){var mh=((h>=18.4?h:h+24)-18.4)/11.4;$('moonG').setAttribute('transform','translate('+(560+260*mh).toFixed(0)+','+(110-70*Math.sin(Math.PI*clamp(mh,0,1))).toFixed(0)+')');
+    $('moonCut').setAttribute('fill',skyAt(h));}
+  else $('moonG').setAttribute('transform','translate(-100,-100)');
+  var mv=RM?0:dt;
+  for(var k=0;k<2;k++){var u=S.u[k],c=UNIT_Y[k];
+    $('cRot'+k).setAttribute('transform','rotate('+(u.ang%360).toFixed(1)+' 146 '+c+')');
+    $('tRot'+k).setAttribute('transform','rotate('+(u.ang%360).toFixed(1)+' 271 '+c+')');
+    var fr=u.fuel>0?clamp(u.fuel/650,0.15,1):0;
+    $('flm'+k).setAttribute('opacity',fr>0?(0.55+0.45*fr).toFixed(2):'0');
+    $('flm'+k).setAttribute('rx',(8+12*fr+(RM?0:Math.random()*2)).toFixed(1));
+    var ex=u.st==='online'||u.st==='stopping'?clamp(0.35+0.65*u.L,0,1):(u.st==='fsnl'||u.st==='accel'?0.25:0);
+    $('exh'+k).setAttribute('opacity',ex.toFixed(2));
+    $('exhF'+k).setAttribute('opacity',ex>0?'0.9':'0');
+    dashOff['ex'+k]-=mv*(30+90*ex);$('exhF'+k).setAttribute('stroke-dashoffset',dashOff['ex'+k].toFixed(1));
+    $('hrG'+k).setAttribute('opacity',(ex*(0.35+0.65*u.w)).toFixed(2));
+    $('plm'+k).setAttribute('opacity',ex>0?(0.4+0.5*ex).toFixed(2):'0');
+    $('fog'+k).setAttribute('opacity',(S.fog&&u.st==='online')?'0.95':'0');
+    $('dim'+k).setAttribute('opacity',u.hidden?'1':'0');
+    var lab={off:'OFF',purge:'PURGE',purged:'PURGED',accel:'IGNITION',fsnl:'FSNL',online:'ON '+Math.round(u.L*100)+'%',stopping:'STOP…'}[u.st];
+    $('ust'+k).textContent=lab;$('ust'+k).setAttribute('fill',u.st==='online'?'#7dffb5':(u.st==='off'?'#9fb4cc':'#ffd23f'));
+  }
+  /* plume puff drift */
+  plumeT+=mv;var py=-(plumeT*14%22);
+  qsa('.pl').forEach(function(p,i){p.setAttribute('transform','translate(0,'+((py*0.7-(i%3)*5)%15).toFixed(1)+')');});
+  qsa('.vp').forEach(function(p,i){p.setAttribute('transform','translate(0,'+((py*0.7-(i%3)*5)%16).toFixed(1)+')');});
+  /* steam */
+  var s1=S.admit&&S.u[0].st==='online'?S.u[0].w*S.u[0].L:0,s2=S.admit&&S.u[1].st==='online'?S.u[1].w*S.u[1].L:0;
+  $('stm1').setAttribute('opacity',s1>0.02?'0.95':'0');$('stm2').setAttribute('opacity',s2>0.02?'0.95':'0');
+  dashOff.s1-=mv*(25+80*s1);dashOff.s2-=mv*(25+80*s2);
+  $('stm1').setAttribute('stroke-dashoffset',dashOff.s1.toFixed(1));$('stm2').setAttribute('stroke-dashoffset',dashOff.s2.toFixed(1));
+  var byp=!S.admit&&S.u[0].st==='online';$('bypassG').setAttribute('opacity',byp?'0.9':'0');
+  if(byp)$('bypassG').setAttribute('transform','translate(0,'+py.toFixed(1)+')');
+  stAng+=mv*(S.stMW/260)*620;$('stRotor').setAttribute('transform','rotate('+(stAng%360).toFixed(1)+' 622 300)');
+  var nf=clamp(S.net/745,0,1);
+  ['busFlow','lineFlow'].forEach(function(id){$(id).setAttribute('opacity',S.net>5?'0.95':'0');});
+  dashOff.bus-=mv*(20+110*nf);$('busFlow').setAttribute('stroke-dashoffset',dashOff.bus.toFixed(1));$('lineFlow').setAttribute('stroke-dashoffset',dashOff.bus.toFixed(1));
+  $('stFlow').setAttribute('opacity',S.stMW>3?'0.95':'0');dashOff.st-=mv*(20+90*S.stMW/260);$('stFlow').setAttribute('stroke-dashoffset',dashOff.st.toFixed(1));
+  $('ctVapor').setAttribute('opacity',(0.25+0.7*clamp(S.stMW/260,0,1)).toFixed(2));
+  $('condWave').setAttribute('transform','translate('+(RM?0:(Math.sin(plumeT*3)*3)).toFixed(1)+',0)');
+  $('clockTag').firstChild.nodeValue=hhmm(S.t)+' ';
+  $('tambTag').textContent=S.tamb.toFixed(1)+'°C';
+}
+
+/* dispatch chart */
+var CH={x0:66,x1:590,y0:68,y1:252,lo:0,hi:800};
+function chX(t){var S=G;return CH.x0+(t-S.t0)/(S.t1-S.t0)*(CH.x1-CH.x0);}
+function chY(mw){return CH.y1-(clamp(mw,CH.lo,CH.hi)-CH.lo)/(CH.hi-CH.lo)*(CH.y1-CH.y0);}
+function buildChart(){var S=G,LV=S.LV;
+  var mx=0,mn=1e9;for(var t=S.t0;t<=S.t1;t+=5){var o=interp(LV.order,t/60);mx=Math.max(mx,o);mn=Math.min(mn,o);}
+  CH.lo=Math.max(0,Math.floor((mn-120)/100)*100);CH.hi=Math.ceil((mx+60)/100)*100;if(LV.l1){CH.lo=0;CH.hi=400;}
+  var gl='',lb='';for(var v=CH.lo;v<=CH.hi;v+=100){var y=chY(v).toFixed(1);gl+='<line x1="'+CH.x0+'" x2="'+CH.x1+'" y1="'+y+'" y2="'+y+'"/>';lb+='<text x="'+(CH.x0-8)+'" y="'+(+y+5)+'" text-anchor="end">'+v+'</text>';}
+  var span=(S.t1-S.t0)/60,stepH=span>12?4:(span>4?1:0.5);
+  if(!LV.l1)for(var hh=Math.ceil(S.t0/60/stepH)*stepH;hh<=S.t1/60+1e-6;hh+=stepH){var x=chX(hh*60).toFixed(1);gl+='<line x1="'+x+'" x2="'+x+'" y1="'+CH.y0+'" y2="'+CH.y1+'" opacity=".6"/>';lb+='<text x="'+x+'" y="'+(CH.y1+3)+'" text-anchor="middle" dy="0" style="display:none"></text>';
+    lb+='<text x="'+x+'" y="'+(CH.y0-6)+'" text-anchor="middle">'+hhmm(hh*60)+'</text>';}
+  $('gridLines').innerHTML=gl;$('gridLbl').innerHTML=lb;
+  if(LV.l1){$('orderP').setAttribute('d','M'+CH.x0+' '+chY(300)+' L'+CH.x1+' '+chY(300));
+    $('bandP').setAttribute('d','M'+CH.x0+' '+chY(310)+' L'+CH.x1+' '+chY(310)+' L'+CH.x1+' '+chY(290)+' L'+CH.x0+' '+chY(290)+' Z');return;}
+  var d='',up='',dn=[];for(t=S.t0;t<=S.t1+0.01;t+=Math.max(2,(S.t1-S.t0)/160)){var o2=interp(LV.order,t/60),b=bandOf(o2),x2=chX(t).toFixed(1);
+    d+=(d?' L':'M')+x2+' '+chY(o2).toFixed(1);up+=(up?' L':'M')+x2+' '+chY(o2+b).toFixed(1);dn.unshift(x2+' '+chY(o2-b).toFixed(1));}
+  $('orderP').setAttribute('d',d);$('bandP').setAttribute('d',up+' L'+dn.join(' L')+' Z');}
+function chartXL1(real){return CH.x0+clamp(real/150,0,1)*(CH.x1-CH.x0);}
+var actStr='',actN=0;
+function renderChart(){var S=G,LV=S.LV;
+  if(S.hist.length!==actN){
+    if(S.hist.length<actN){actStr='';actN=0;}
+    for(var i=actN;i<S.hist.length;i++){var p=S.hist[i];var x=LV.l1?chartXL1(p[2]||0):chX(p[0]);actStr+=(i?' L':'M')+x.toFixed(1)+' '+chY(p[1]).toFixed(1);}
+    actN=S.hist.length;$('actP').setAttribute('d',actStr);}
+  var nx=LV.l1?chartXL1(S.real):chX(S.t);
+  $('nowL').setAttribute('x1',nx.toFixed(1));$('nowL').setAttribute('x2',nx.toFixed(1));
+  $('actDot').setAttribute('cx',nx.toFixed(1));$('actDot').setAttribute('cy',chY(S.net).toFixed(1));
+  var active=!LV.l1||S.seq==='online';
+  if(LV.l1&&!active){$('dspOrd').textContent='คำสั่ง: รอ GT1 sync';}
+  else{var nxt=interp(LV.order,S.t/60+0.5);$('dspOrd').textContent='คำสั่ง '+fmt(S.order)+(LV.l1?'':' → '+fmt(nxt)+' (+30น.)');}
+  $('dspAct').setAttribute('x',LV.l1&&!active?'300':'340');
+  $('dspAct').textContent='จริง '+fmt(S.net)+' MW';
+  var dev=S.net-S.order,band=bandOf(S.order);
+  if(active){$('dspDev').textContent=(dev>=0?'+':'')+fmt(dev)+' (±'+fmt(band)+')';$('dspDev').setAttribute('fill',Math.abs(dev)<=band?'#3ee6c8':(dev<0?'#ff8a8a':'#ffb35c'));}
+  else{$('dspDev').textContent='';}
+  /* thermometer */
+  var tf=clamp((S.tamb-10)/35,0,1),hgt=190*tf;$('thFill').setAttribute('y',(240-hgt).toFixed(1));$('thFill').setAttribute('height',(hgt+12).toFixed(1));
+  var yi=240-190*clamp((15-10)/35,0,1);$('thIso').setAttribute('y1',yi);$('thIso').setAttribute('y2',yi);
+  $('thT').textContent=S.tamb.toFixed(1)+'°C';$('thRH').textContent='RH '+Math.round(S.rh)+'%';$('thWB').textContent='Twb '+S.twb.toFixed(1)+'°C';
+  $('thIn').textContent='Tin '+S.tin.toFixed(1)+'°C';
+  $('thCap').textContent='GT '+fmt(pAv(S.tin))+' MW';$('thCap2').textContent='= '+Math.round(capF(S.tin)*100)+'% ของ ISO';
+  $('thFog').setAttribute('opacity',S.fog?'1':'0');}
+
+/* gauges */
+function buildGauges(){var g=$('gauges'),h='',names=['GT1','GT2','ST'];
+  for(var i=0;i<3;i++){var cx=88+i*162,cy=128;
+    h+='<rect x="'+(cx-80)+'" y="8" width="160" height="194" rx="14" fill="#0e1830" stroke="#33508a" stroke-width="3"/>'+
+    '<path d="M'+(cx-58)+' '+cy+' A58 58 0 0 1 '+(cx+58)+' '+cy+'" stroke="#24365e" stroke-width="14" fill="none"/>'+
+    '<path id="ga'+i+'" d="" stroke="#3ee6c8" stroke-width="14" fill="none"/>'+
+    (i<2?'<path id="gm'+i+'" d="" stroke="#ef4b4b" stroke-width="5" fill="none"/>':'')+
+    '<g id="gn'+i+'" transform="rotate(-90 '+cx+' '+cy+')"><line x1="'+cx+'" y1="'+cy+'" x2="'+cx+'" y2="'+(cy-50)+'" stroke="#fff" stroke-width="4" stroke-linecap="round"/></g>'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="7" fill="#fff"/>'+
+    '<text x="'+cx+'" y="38" font-size="19" font-weight="700" fill="#9fe3ff" text-anchor="middle" font-family="Mitr,sans-serif">'+names[i]+'</text>'+
+    '<text id="gv'+i+'" x="'+cx+'" y="166" font-size="27" font-weight="700" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">0</text>'+
+    '<text id="gs'+i+'" x="'+cx+'" y="191" font-size="15" fill="#9fb4cc" text-anchor="middle" font-family="Mitr,sans-serif">MW</text>';}
+  g.innerHTML=h;}
+function arcPath(cx,cy,r,f0,f1){var a0=Math.PI*(1-f0),a1=Math.PI*(1-f1);
+  return 'M'+(cx+r*Math.cos(a0)).toFixed(1)+' '+(cy-r*Math.sin(a0)).toFixed(1)+' A'+r+' '+r+' 0 0 1 '+(cx+r*Math.cos(a1)).toFixed(1)+' '+(cy-r*Math.sin(a1)).toFixed(1);}
+function renderGauges(){var S=G;var vals=[S.u[0].P,S.u[1].P,S.stMW],maxs=[260,260,280];
+  for(var i=0;i<3;i++){var cx=88+i*162,cy=128,f=clamp(vals[i]/maxs[i],0,1);
+    $('gn'+i).setAttribute('transform','rotate('+(-90+180*f).toFixed(1)+' '+cx+' '+cy+')');
+    $('ga'+i).setAttribute('d',f>0.005?arcPath(cx,cy,58,0,f):'');
+    $('gv'+i).textContent=vals[i].toFixed(0);
+    if(i<2){var u=S.u[i],pa=pAv(S.tin);
+      $('gm'+i).setAttribute('d',arcPath(cx,cy,70,clamp(0.5*pa/260,0,1),clamp(pa/260,0,1)));
+      $('gm'+i).setAttribute('stroke',u.st==='online'?'#ffd23f':'#3a4a6e');
+      $('gs'+i).textContent=u.st==='online'?('โหลด '+Math.round(u.L*100)+'% · ช่วง 50–100%'):u.st.toUpperCase();}
+    else $('gs'+i).textContent=S.admit?('ไอ '+Math.round((S.stTarget||0)/2.6)+'% พิกัด'):'ไอ → bypass';}
+  if(S.HR>0&&S.net>20){$('kHR').textContent=fmt(S.HR)+' kJ/kWh';$('kEta').textContent='η net '+(S.eta*100).toFixed(1)+'%';$('kBk').textContent=bahtPerKWh(S.HR).toFixed(2)+' ฿/kWh';
+    $('kHR').setAttribute('fill',S.HR<6500?'#3ee6c8':(S.HR<7000?'#ffd23f':'#ff8a8a'));}
+  else{$('kHR').textContent=S.Q>1?'— (ยังไม่จ่ายไฟ)':'— kJ/kWh';$('kHR').setAttribute('fill','#9fb4cc');$('kEta').textContent='η net —';$('kBk').textContent='';}
+  $('kCost').textContent=S.cost>=1e6?(S.cost/1e6).toFixed(2)+' ล้าน฿':fmt(S.cost)+' ฿';
+  $('kPen').textContent=fmt(S.pen)+' ฿';}
+
+/* panel */
+function renderPanel(){var S=G,LV=S.LV;
+  for(var k=0;k<2;k++){var u=S.u[k];
+    $('uc'+k).classList.toggle('hide',u.hidden);
+    var pl=$('pl'+k),stt={off:'OFF',purge:'PURGE',purged:'PURGED',accel:'กำลังเร่ง',fsnl:'FSNL',online:'ONLINE',stopping:'กำลังหยุด'}[u.st];
+    pl.textContent=stt;pl.className='pill '+(u.st==='online'?'on':(u.st==='off'?'off':'mid'));
+    var pa=pAv(S.tin),sl=$('sl'+k);
+    sl.disabled=u.st!=='online';
+    if(document.activeElement!==sl&&!sl._drag)sl.value=Math.round(u.sp*100);
+    $('lb'+k).innerHTML='Setpoint<br>'+Math.round(u.sp*100)+'% = '+fmt(u.sp*pa)+' MW';
+    $('rd'+k).innerHTML=u.st==='online'||u.st==='stopping'?('จริง <b>'+u.P.toFixed(0)+'</b> MW · '+Math.round(u.L*100)+'%<br>HR GT '+fmt(3600/(etaB(S.tin)*gPL(Math.max(u.L,0.05))))+' kJ/kWh'):
+      (u.st==='off'?'max '+fmt(pa)+' MW @ '+S.tin.toFixed(1)+'°C':(u.prog?'ความคืบหน้า '+Math.round(u.prog*100)+'%':''));
+    var canStart=LV.start[k]&&u.st==='off',canStop=LV.stop[k]&&u.st==='online';
+    if(LV.l3&&k===1&&S.t/60<25)canStop=false;
+    $('bs'+k).classList.toggle('hide',!LV.start[k]);$('bt'+k).classList.toggle('hide',!LV.stop[k]);
+    $('bs'+k).disabled=!canStart;$('bt'+k).disabled=!canStop;
+    $('bt'+k).classList.toggle('pulse',LV.l3&&k===1&&canStop);
+    $('hw'+k).style.width=Math.round(u.w*100)+'%';$('hwt'+k).textContent=Math.round(u.w*100)+'%';
+  }
+  $('plST').textContent=S.admit?(S.stMW>3?'รับไอ':'รอไอ'):'bypass';$('plST').className='pill '+(S.admit&&S.stMW>3?'on':'mid');
+  var nOn=S.u.filter(function(u){return u.st==='online';}).length;
+  $('rdST').innerHTML='ST <b>'+S.stMW.toFixed(0)+'</b> MW · '+(nOn===2?'2-on-1':(nOn===1?'1-on-1':'—'))+'<br>aux '+S.aux.toFixed(1)+' MW · net <b>'+fmt(S.net)+'</b>';
+  var ba=$('bAdmit');ba.classList.toggle('hide',!LV.l1||S.admit);ba.disabled=S.u[0].st!=='online';
+  ba.classList.toggle('go',S.u[0].w>=0.999&&!S.admit);ba.classList.toggle('pulse',S.u[0].w>=0.999&&!S.admit);
+  var bf=$('bFog');bf.classList.toggle('hide',!LV.fog);bf.textContent='💧 Inlet fogging: '+(S.fog?'เปิด':'ปิด');bf.classList.toggle('fog-on',S.fog);
+  $('fogInfo').textContent=LV.fog?('Tdb '+S.tamb.toFixed(1)+' → Tin '+(S.tamb-K.FOG*(S.tamb-S.twb)).toFixed(1)+'°C (Twb '+S.twb.toFixed(1)+')'):(LV.l1?'HRSG1 ต้องอุ่น 100% ก่อน':'');
+  /* L1 sequence */
+  $('seqCard').classList.toggle('hide',!LV.l1);
+  if(LV.l1){var u0=S.u[0],idx={off:0,purge:0,purged:1,accel:2,fsnl:3,online:S.admit?6:(u0.L>=0.49?5:4)}[u0.st];
+    qsa('#chips .chip').forEach(function(c,i){c.className='chip'+(i<idx?' done':(i===idx?' cur':''));});
+    $('seqPill').textContent=['พร้อม','Purge ครบ','กำลังเร่ง','FSNL','รับโหลด','รอ HRSG/ST','สำเร็จ'][idx]||'';
+    $('seqBar').style.width=Math.round((u0.st==='purge'||u0.st==='accel'?u0.prog:(idx>=3?1:(idx>=1?1:0)))*100)+'%';
+    $('bPurge').disabled=u0.st!=='off';$('bPurge').classList.toggle('go',u0.st==='off');$('bIgnite').disabled=!(u0.st==='off'||u0.st==='purge'||u0.st==='purged');
+    $('bIgnite').classList.toggle('go',u0.st==='purged');
+    $('syncBox').classList.toggle('hide',u0.st!=='fsnl');
+    if(u0.st==='fsnl'){var sy=S.sync,a=((sy.th%360)+360)%360,err=a>180?360-a:a;
+      $('syNeedle').setAttribute('transform','rotate('+a.toFixed(1)+' 75 75)');
+      var ok=sy.slip>0&&sy.slip<=0.2&&Math.abs(sy.dv)<=2;
+      $('syLamp').setAttribute('fill',ok&&err<=10?'#1fb45f':(ok?'#f5a623':'#33405e'));
+      $('syncRead').innerHTML='Gen <b>'+(50+sy.slip).toFixed(2)+'</b> Hz · Grid 50.00 Hz<br>slip <b style="color:'+(sy.slip>0&&sy.slip<=0.2?'#13804a':'#c62828')+'">'+(sy.slip>=0?'+':'')+sy.slip.toFixed(2)+'</b> Hz · ΔV <b style="color:'+(Math.abs(sy.dv)<=2?'#13804a':'#c62828')+'">'+(sy.dv>=0?'+':'')+sy.dv.toFixed(1)+'%</b><br>มุมเฟส <b>'+err.toFixed(0)+'°</b>';}
+  }}
+function renderAll(dt){renderScene(dt||0);renderChart();renderGauges();renderPanel();}
+
+/* ═════════ LOOP ═════════ */
+function tick(ts){requestAnimationFrame(tick);
+  if(!lastTs)lastTs=ts;var dtRaw=Math.min(0.1,(ts-lastTs)/1000);lastTs=ts;
+  if(!G)return;
+  if(G.running&&!G.done){var d=dtRaw*GAME.speed,guard=0;
+    while(d>1e-6&&!G.done&&guard<2000){var st=Math.min(d,0.05);
+      if(G.LV.l1&&G.u[0].st==='fsnl'){G.sync.th+=360*G.sync.slip*st;if(G.auto)botSync(G);}
+      step(G,st);
+      d-=st;guard++;}
+    if(G.done){G.running=false;setTimeout(endLevel,450);}
+  }
+  renderAll(dtRaw);}
+
+/* ═════════ LEVEL FLOW ═════════ */
+function startLevel(i){level=i;var LV=LEVELS[i];
+  G=newState(i,false);G.running=false;actStr='';actN=0;
+  /* benchmark ผู้คุมมือโปร (บอท) */
+  if(!LV.l1){var B=newState(i,true),g=0;while(!B.done&&g<20000){step(B,0.1);g++;}
+    G.bench={HR:B.fuelMJ/B.netMWh,cost:B.cost,acc:B.totT?B.inT/B.totT:1,gt2:B.gt2StartT,missed:missedCount(B)};}
+  $('lvlName').textContent=LV.name;$('goalTxt').textContent=LV.goal;
+  buildChart();renderAll(0);
+  $('brIcon').textContent=LV.icon;$('brTitle').textContent=LV.name;$('brGoal').textContent=LV.goal;
+  $('brFacts').innerHTML=LV.facts.map(function(f){return '<li>'+f+'</li>';}).join('');
+  $('brPred').classList.toggle('hide',!LV.l3);$('pdA').classList.remove('sel');$('pdB').classList.remove('sel');
+  $('briefOv').classList.add('show');}
+function goLevel(){$('briefOv').classList.remove('show');G.running=true;sGood();
+  say(['เริ่มจาก Purge ก่อนเสมอ 🌬','ดูเส้นคำสั่งล่วงหน้า แล้วดันก่อน ⏫','ช่วง A: 2-on-1 ครึ่งโหลด — จดค่า HR ไว้','GT2 สตาร์ทนาน ~20 นาที — อย่ารอจนคำสั่งขึ้น','24 ชม. เต็ม — คุมให้คุ้มทั้งวัน'][level],3000);}
+
+function evalStars(S){var LV=S.LV;
+  if(LV.l1){if(S.timeout)return 1;var e=S.mist.length,t=S.doneReal||999;
+    if(e===0&&S.syncErr<=8&&t<=80)return 3;if(e<=1)return 2;return 1;}
+  var acc=S.totT?S.inT/S.totT:0,hr=S.fuelMJ/Math.max(1e-6,S.netMWh),gap=S.bench?hr/S.bench.HR-1:0;S.acc=acc;S.hrAvg=hr;S.gap=gap;
+  /* เกณฑ์อิงผู้คุมมือโปร (บอท) : 3 ดาว = แม่นใกล้มือโปร (−3%) + HR ไม่แย่กว่า 1–1.5% */
+  var bA=S.bench?S.bench.acc:0.9,a3=Math.min(0.9,bA-0.03),a2=Math.min(0.75,bA-0.15);S.a3=a3;
+  if(LV.l3){var ok=S.pred==='B'&&!S.l3Late;if(acc>=a3&&ok)return 3;if(acc>=a2)return 2;return 1;}
+  if(level===1){if(acc>=a3&&gap<=0.01)return 3;if(acc>=a2&&gap<=0.03)return 2;return 1;}
+  if(level===3){if(acc>=a3&&gap<=0.015)return 3;if(acc>=a2)return 2;return 1;}
+  if(acc>=a3&&gap<=0.015&&missedCount(S)<=(S.bench?S.bench.missed:0))return 3;if(acc>=a2&&gap<=0.04)return 2;return 1;}
+function missedCount(S){return S.eps.filter(function(e){return e.dur>20;}).length;}
+
+function debrief(S){var LV=S.LV,out=[];
+  if(LV.l1){
+    if(S.mist.length===0)out.push('ลำดับถูกต้องทุกขั้น ไม่มีการกดผิดลำดับ ✓');
+    S.mist.forEach(function(m){out.push('✖ '+m.txt);});
+    if(S.syncErr!=null)out.push('Sync ที่มุมต่าง '+S.syncErr.toFixed(1)+'° · slip +'+S.syncSlip.toFixed(2)+' Hz — '+(S.syncErr<=5?'นุ่มมาก แรงบิดกระแทกเพลาต่ำ':(S.syncErr<=8?'ดี (เกณฑ์ ≤10°) ลองกดก่อนถึง 12 นาฬิกาเล็กน้อยเพื่อชดเชยเวลาปิดเบรกเกอร์':'ผ่านเกณฑ์แต่เฉียด — มุมใหญ่ = กระแสกระชาก/แรงบิดกระแทก')));
+    if(S.timeout)out.push('ยังไม่ถึง 300 MW net ในเวลา — ต้องเปิดไอเข้า ST ก่อน เพราะ GT อย่างเดียวที่ 30°C ได้แค่ ~'+fmt(pAv(30)-K.AUXF-K.AUXK*pAv(30))+' MW net');
+    else out.push('ใช้เวลา '+Math.round(S.doneReal)+' วินาที (เป้า 3 ดาว ≤ 80 วิ) · ตอน ST ยัง bypass HR สูงเหมือน simple cycle (≥'+fmt(3600/etaB(30))+' kJ/kWh) — ST ช่วยลด HR ลง ~30%');
+    return out;}
+  var acc=S.acc,hr=S.hrAvg,b=S.bench;
+  out.push('อยู่ในแบนด์ '+Math.round(acc*100)+'% ของเวลา (มือโปร '+Math.round(b.acc*100)+'%, เกณฑ์ 3 ดาว ≥ '+Math.round(S.a3*100)+'%) · HR เฉลี่ย '+fmt(hr)+' vs มือโปร '+fmt(b.HR)+' kJ/kWh ('+(S.gap>=0?'+':'')+(S.gap*100).toFixed(1)+'%)');
+  var worst=S.eps.slice().sort(function(a,c){return c.mwh-a.mwh;}).slice(0,2);
+  worst.forEach(function(E){var span=hhmm(E.t0)+'–'+hhmm(E.t1+1);
+    var rampy=E.ramp>E.n*0.5,swap=LV.l3&&E.t0>=24.9*60&&E.t0<=26*60;
+    if(E.sg<0){var why=swap?'ช่วงสลับ 2→1 เครื่อง: GT1 ramp ได้แค่ 10 MW/นาที และ ST หน่วง — ดัน GT1 ขึ้นเต็มทันทีที่สั่งหยุด GT2 (หรือก่อนเล็กน้อย)':
+      (rampy&&E.maxed>E.n*0.3)?'สั่งเต็มแล้วแต่เครื่องยัง ramp ไม่ทัน (10 MW/นาที, ST τ≈8 นาที) — ต้องสั่งล่วงหน้าตามจอ dispatch':E.maxed>E.n*0.5?(E.nOn<2&&LV.start[1]?'เครื่องเดียวเต็มแล้ว — ต้องสตาร์ท GT2 ล่วงหน้า (~20 นาที + HRSG อุ่น)':(LV.fog&&!E.fog&&E.tamb>=34?'2 เครื่องเต็มแล้วแต่ร้อน '+E.tamb.toFixed(0)+'°C — ควรเปิด fogging':'กำลังผลิตเต็มแล้ว')):'setpoint ยังไม่สุด/ดันช้า — ดันล่วงหน้า 5–10 นาที เพราะ ramp 10 MW/นาที และ ST หน่วง τ≈8 นาที';
+      out.push('ช่วง '+span+' ผลิต<b>ขาด</b>สูงสุด '+fmt(E.max)+' MW ('+E.mwh.toFixed(1)+' MWh นอกแบนด์) — '+why);}
+    else{var why2=swap?'ช่วงสลับ: GT2 ลดโหลดลงช้า (ramp) ขณะ 2-on-1 ลดต่ำกว่า min ไม่ได้ — กดหยุด GT2 ตรงเวลา 01:00':(rampy&&E.nOn===2&&E.floor>E.n*0.3)?'ช่วงเปลี่ยนจำนวนเครื่อง (start/stop) ผลิตเกินชั่วคราว — ช่องว่างระหว่าง 1-on-1 สูงสุดกับ 2-on-1 ต่ำสุด เลี่ยงไม่ได้ แต่ทำให้สั้นได้ด้วยการกดตรงจังหวะ':E.floor>E.n*0.5&&E.nOn===2?'2-on-1 อยู่ที่ min load 50% แล้ว ลดต่อไม่ได้ — ต้องปลด GT2 เหลือ 1-on-1':'ลด setpoint ช้า — ลดล่วงหน้าตามเส้นคำสั่ง';
+      out.push('ช่วง '+span+' ผลิต<b>เกิน</b>สูงสุด '+fmt(E.max)+' MW — '+why2);}});
+  if(!worst.length)out.push('ไม่มีช่วงหลุดแบนด์ที่มีนัยสำคัญ — ตามคำสั่งแม่นมาก ✓');
+  var ub=S.unevenMJ/K.MJMM*K.HHV*K.GAS;
+  if(ub>3000)out.push('แบ่งโหลด GT ไม่เท่ากัน เสียเชื้อเพลิงเพิ่ม ~'+fmt(ub)+' ฿ — η ของ GT โค้งนูน ให้ทั้งสองเครื่อง % เท่ากัน');
+  else if(S.u[1].st!=='off'||level===1)out.push('แบ่งโหลด GT สมดุลดี (เสียเพิ่มจากแบ่งไม่เท่า < 3,000 ฿) ✓');
+  if(LV.fog){if(S.fogShort>0.5)out.push('ไม่ได้เปิด fogging ตอนคำสั่งเกินกำลังเครื่องร้อน — ขาดไป ~'+S.fogShort.toFixed(1)+' MWh (fogging ลด T inlet '+S.tamb.toFixed(0)+'→~'+(S.tamb-K.FOG*(S.tamb-S.twb)).toFixed(0)+'°C)');
+    else if(S.fogNeedT>0)out.push('ใช้ fogging ทันช่วงร้อนจัด ✓');}
+  if(level===3){if(S.gt2StartT!=null)out.push('สตาร์ท GT2 เวลา '+hhmm(S.gt2StartT)+(b.gt2!=null?' (มือโปรสตาร์ท '+hhmm(b.gt2)+')':'')+(b.gt2!=null&&S.gt2StartT>b.gt2+20?' — ช้าไป ทำให้ขาดช่วงคำสั่งขึ้น':' ✓'));
+    else out.push('ไม่ได้สตาร์ท GT2 — 1-on-1 ที่ 35°C+ ได้ไม่เกิน ~315 MW ตามคำสั่ง 660 MW ไม่ได้แน่นอน');}
+  if(level===4){out.push('สตาร์ทเครื่อง '+S.starts+' ครั้ง'+(S.twoLowT>60?' · เดิน 2 เครื่องขณะคำสั่งต่ำพอให้ 1-on-1 รวม '+(S.twoLowT/60).toFixed(1)+' ชม. — HR แย่ลง ~10% ช่วงนั้น':' · commitment เหมาะสม ✓'));
+    out.push('พลาดคำสั่ง (นอกแบนด์ > 20 นาทีต่อเนื่อง): '+missedCount(S)+' ครั้ง');}
+  out.push('ต้นทุนเชื้อเพลิง '+fmt(S.cost)+' ฿ ('+bahtPerKWh(hr).toFixed(3)+' ฿/kWh) + ค่าปรับ '+fmt(S.pen)+' ฿ · มือโปร '+fmt(b.cost)+' ฿');
+  return out;}
+
+function endLevel(){var S=G,LV=S.LV,st=evalStars(S);
+  if(st>stars[level]){stars[level]=st;saveStars();}updateStarTotal();
+  $('resTitle').textContent=LV.name+' — จบด่าน';
+  var stats;
+  if(LV.l1)stats='<span>ผิดลำดับ '+S.mist.length+' ครั้ง</span><span>มุม sync '+(S.syncErr!=null?S.syncErr.toFixed(1)+'°':'—')+'</span><span>เวลา '+(S.doneReal?Math.round(S.doneReal)+' วิ':'หมดเวลา')+'</span>';
+  else stats='<span>ในแบนด์ '+Math.round(S.acc*100)+'%</span><span>HR '+fmt(S.hrAvg)+'</span><span>เชื้อเพลิง '+(S.cost/1e6).toFixed(2)+' ล้าน฿</span><span>ปรับ '+fmt(S.pen)+' ฿</span>';
+  $('resStats').innerHTML=stats;
+  var cmp='';
+  if(LV.l3){var hA=S.phA.e>0?S.phA.f/S.phA.e:0,hB=S.phB.e>0?S.phB.f/S.phB.e:0;
+    var refA=plantSS([0.5,0.5],25),refB=plantSS([1],25);
+    cmp='<div class="cmp"><div class="a">A) 2-on-1 @~50%<b>'+(hA?fmt(hA):'—')+'</b>kJ/kWh · '+(hA?bahtPerKWh(hA).toFixed(2):'—')+' ฿/kWh</div>'+
+      '<div class="b">B) 1-on-1 @~100%<b>'+(hB?fmt(hB):'—')+'</b>kJ/kWh · '+(hB?bahtPerKWh(hB).toFixed(2):'—')+' ฿/kWh</div></div>'+
+      '<p style="font-size:.84rem">คุณทาย: <b>'+(S.pred||'—')+'</b> · เฉลย: <b>B ดีกว่า</b> '+((hA&&hB)?'~'+((hA/hB-1)*100).toFixed(0)+'%':'(~'+((refA.HR/refB.HR-1)*100).toFixed(0)+'% จากโมเดล)')+
+      ' — ที่ 330 MW คืนละ 4 ชม. ประหยัด ~'+fmt((bahtPerKWh(refA.HR)-bahtPerKWh(refB.HR))*330*1000*4)+' ฿</p>';}
+  $('resCmp').innerHTML=cmp;
+  $('resLesson').textContent=st===3?LV.lesson3:LV.lessonX;
+  var db=debrief(S);
+  if(LV.l3){db.unshift('GT ที่ 50% มี η ต่ำกว่า base ~22% และ ST ได้ไอเสียอุณหภูมิต่ำลง — ทั้ง 2 เครื่องเสีย · 1-on-1 ทำ GT เดียวใกล้ base ได้ η GT สูงสุด แม้ ST จะเดินครึ่งพิกัด');
+    if(S.pred==='A')db.unshift('คุณทาย A — สัญชาตญาณว่า "2 เครื่องช่วยกันเบา ๆ" ดูดี แต่ part-load ทำ η ตกแรงกว่าที่ ST ครึ่งพิกัดเสีย');}
+  $('resDebrief').innerHTML=db.map(function(x){return '<li>'+x+'</li>';}).join('');
+  var ss=$('resStars').children;for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');if(st>=2)sGood();else sBad();
+  for(let k=0;k<st;k++)setTimeout(function(){ss[k].classList.add('on');sStar(k);},350+k*380);
+  if(st===3)confetti(28);
+  $('nextBtn').textContent=level<4?'ด่านต่อไป ➜':'ดูสรุป 🏆';
+  GAME.lastResult={stars:st,acc:S.acc,hr:S.hrAvg,bench:S.bench,gap:S.gap,cost:S.cost,pen:S.pen,mist:S.mist.length,syncErr:S.syncErr,doneReal:S.doneReal,phA:S.phA,phB:S.phB};}
+function updateStarTotal(){var t=0;for(var i=0;i<5;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+function confetti(n){var cols=['#3f51b5','#00acc1','#ffd23f','#1fb45f','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';document.body.appendChild(e);
+    setTimeout(function(ee){return function(){ee.remove();};}(e),3600);}}
+
+/* ═════════ INPUTS ═════════ */
+[0,1].forEach(function(k){var sl=$('sl'+k);
+  sl.addEventListener('input',function(){if(!G)return;var u=G.u[k];if(u.st!=='online')return;u.sp=clamp(+this.value/100,K.MINL,1);
+    var n=performance.now();if(n-(sl._snd||0)>140){sl._snd=n;sClick();}renderPanel();});
+  sl.addEventListener('pointerdown',function(){sl._drag=true;});
+  sl.addEventListener('pointerup',function(){sl._drag=false;});sl.addEventListener('change',function(){sl._drag=false;});
+  $('bs'+k).addEventListener('click',function(){if(!G||!G.running)return;var u=G.u[k];if(u.st!=='off')return;
+    u.st='purge';u.prog=0;G.starts++;if(k===1&&G.gt2StartT==null)G.gt2StartT=G.t;sClick();say('GT'+(k+1)+' เริ่มสตาร์ท: purge → ignition → FSNL → auto-sync (~20 นาที)',3000);});
+  $('bt'+k).addEventListener('click',function(){if(!G||!G.running)return;var u=G.u[k];if(u.st!=='online')return;
+    var others=G.u.filter(function(x,i){return i!==k&&x.st==='online';}).length;
+    u.st='stopping';sClick();say('GT'+(k+1)+' ลดโหลดแล้วปลดเบรกเกอร์ — HRSG จะเย็นลงช้า ๆ (hot restart ได้)',2800);
+    if(!others&&!G.LV.l1)say('⚠ ไม่มีเครื่องเหลือ! โรงไฟฟ้าจะหยุดจ่ายไฟ',2600,true);});
+});
+$('bPurge').addEventListener('click',function(){if(G&&G.running)doPurge(G);});
+$('bIgnite').addEventListener('click',function(){if(G&&G.running)doIgnite(G);});
+$('bSync').addEventListener('click',function(){if(G&&G.running)doSync(G);});
+$('bSpdUp').addEventListener('click',function(){if(!G)return;G.sync.slip=Math.round((G.sync.slip+0.05)*100)/100;sClick();});
+$('bSpdDn').addEventListener('click',function(){if(!G)return;G.sync.slip=Math.round((G.sync.slip-0.05)*100)/100;sClick();});
+$('bVUp').addEventListener('click',function(){if(!G)return;G.sync.dv=Math.round((G.sync.dv+0.5)*10)/10;sClick();});
+$('bVDn').addEventListener('click',function(){if(!G)return;G.sync.dv=Math.round((G.sync.dv-0.5)*10)/10;sClick();});
+$('bAdmit').addEventListener('click',function(){if(G&&G.running)doAdmit(G);});
+$('bFog').addEventListener('click',function(){if(!G||!G.running)return;G.fog=!G.fog;if(G.fog&&G.fogOnT==null)G.fogOnT=G.t;sClick();
+  if(G.fog)say('💧 Fogging เปิด: T inlet '+G.tamb.toFixed(1)+' → '+(G.tamb-K.FOG*(G.tamb-G.twb)).toFixed(1)+'°C · GT max +'+((capF(G.tamb-K.FOG*(G.tamb-G.twb))/capF(G.tamb)-1)*100).toFixed(1)+'%',3200);});
+$('pdA').addEventListener('click',function(){G.pred='A';this.classList.add('sel');$('pdB').classList.remove('sel');sClick();});
+$('pdB').addEventListener('click',function(){G.pred='B';this.classList.add('sel');$('pdA').classList.remove('sel');sClick();});
+$('brGo').addEventListener('click',function(){audio();if(G.LV.l3&&!G.pred){say('เลือกคำทาย A หรือ B ก่อนนะ',2000,true);$('bubble').classList.add('show');return;}goLevel();});
+
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(level);});
+$('nextBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');
+  if(level<4)startLevel(level+1);else{$('endStars').textContent=updateStarTotal();$('endOv').classList.add('show');confetti(40);sGood();}});
+$('againBtn').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('playBtn').addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('fxBtn').addEventListener('click',function(){sClick();buildFxTable();$('fxOv').classList.add('show');});
+$('fxClose').addEventListener('click',function(){$('fxOv').classList.remove('show');});
+
+function buildFxTable(){var rows=[['ISO 15°C · 2-on-1 base',plantSS([1,1],15)],['35°C · 2-on-1 base',plantSS([1,1],35)],['38°C · 2-on-1 base',plantSS([1,1],38)],
+  ['38°C + fogging (RH45%)',plantSS([1,1],38,38-K.FOG*(38-wetBulb(38,45)))],['25°C · 2-on-1 @50%',plantSS([0.5,0.5],25)],['25°C · 1-on-1 @100%',plantSS([1],25)]];
+  var h='<tr><th>กรณี</th><th>net MW</th><th>HR</th><th>η</th><th>฿/kWh</th></tr>';
+  rows.forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1].net.toFixed(0)+'</td><td>'+fmt(r[1].HR)+'</td><td>'+(r[1].eta*100).toFixed(1)+'%</td><td>'+r[1].bk.toFixed(2)+'</td></tr>';});
+  $('fxTable').innerHTML=h;}
+
+/* guide */
+var gPg=0,gFrom='start',GN=5;
+function showGuide(from){gFrom=from||'start';gPg=0;gRender();$('guideOv').classList.add('show');}
+function gRender(){qsa('.gpage').forEach(function(p,i){p.classList.toggle('cur',i===gPg);});
+  qsa('#gDots i').forEach(function(d,i){d.classList.toggle('cur',i===gPg);});
+  $('gPrev').style.visibility=gPg===0?'hidden':'visible';$('gNext').style.display=gPg===GN-1?'none':'inline-block';$('gPlay').style.display=gPg===GN-1?'inline-block':'none';}
+$('gPrev').addEventListener('click',function(){if(gPg>0){gPg--;sClick();gRender();}});
+$('gNext').addEventListener('click',function(){if(gPg<GN-1){gPg++;sClick();gRender();}});
+$('gPlay').addEventListener('click',function(){audio();setSeen();$('guideOv').classList.remove('show');
+  if(gFrom!=='hud'){sGood();$('startOv').classList.remove('show');startLevel(0);}});
+$('helpBtn').addEventListener('click',function(){sClick();showGuide('hud');});
+$('helpBtn2').addEventListener('click',function(){sClick();showGuide('start');});
+
+function buildLvlPick(){var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<5;i++){var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.2rem">'+LEVELS[i].icon+'</span><span class="nm">ด่าน '+(i+1)+'</span><span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});box.appendChild(b);}}
+
+/* debug hooks (QA) */
+GAME.start=startLevel;GAME.go=goLevel;GAME.state=function(){return G;};GAME.step=step;GAME.newState=newState;GAME.evalStars=evalStars;
+GAME.autoplay=function(on){if(G)G.auto=on!==false;};GAME.endLevel=endLevel;
+
+/* init */
+loadStars();updateStarTotal();buildLvlPick();buildUnits();buildGauges();
+G=newState(1,false);G.running=false;G.t=8*60;envUpdate(G);buildChart();renderAll(0);
+requestAnimationFrame(tick);
+if(!seenGuide())showGuide('auto');
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ปั๊มพาเหรด — Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "ปั๊มพาเหรด" (Pump Parade) v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: เด็กโต/อาชีวะ (ปวช./ปวส./ม.ปลาย สายช่าง)
+     หลักที่สอน: จุดทำงานปั๊ม = จุดตัดของ pump curve กับ system curve · ปั๊มขนาน/อนุกรม · กฎ affinity
+                 · BEP (Best Efficiency Point) · NPSH/cavitation
+     ฟิสิกส์เบื้องหลัง (หน่วย Q = m³/h, H = m):
+       ปั๊มเดี่ยว   H(Q) = n²·d²·H0 − a·Q²     H0 = 40 m, a = 10/3600 m/(m³/h)²  (H = 30 m ที่ Q_BEP = 60 m³/h, H=0 ที่ 120)
+                    n = N/N0 (VFD), d = D/D0 (ตัดใบพัด D0 = 200 mm) → affinity Q∝N·D, H∝N²·D², P∝N³·D³
+       ประสิทธิภาพ η(x) = 0.78·(2x − x²)·(1 − 0.25·(1−d)),  x = Q_p / (60·n·d)   (สูงสุด 78 % ที่ BEP; ปรับรอบ η คงที่ที่จุด homologous)
+       ขนาน p ตัว: Q รวม = p·Q_p ที่ H เดียวกัน · อนุกรม m ตัว: H รวม = m·H_p ที่ Q เดียวกัน
+       ระบบ        H_sys = H_static + k_d·Q² + k_s·Q_p²,  H_static = z_ถัง − h_s,  k_d = k_ท่อ + k_v0/v² (v = % เปิดวาล์ว)
+       จุดทำงาน    Q* = √[(m·n²d²H0 − H_static) / (k_d + (k_s + m·a)/p²)]   (แก้สมการจุดตัดแบบปิด)
+       กำลังเพลา   P = ρ·g·Q·H/η  (ρ = 998 kg/m³, g = 9.81) · kW ไฟฟ้า = P/η_มอเตอร์ (0.90 คงที่)
+       NPSHa = P_atm/ρg + h_s − h_f − P_v/ρg = 10.35 + h_s − h_f − 0.43 m (น้ำ 30 °C)
+               h_f ท่อดูด = (f·L/D + ΣK)·V²/2g, f = 0.02, ΣK = 2.5 (foot valve + ข้องอ)
+       NPSHr = n² + 2·(Q_p/60)²  ( = n²·[1 + 2x²] ที่ d = 1, 3.0 m ที่ BEP) · เกณฑ์ปลอดภัย NPSHa ≥ NPSHr + 1.0 m
+       โซน BEP (Preferred Operating Region, ANSI/HI 9.6.3) = 70–120 % ของ Q_BEP
+       ค่าไฟเทียบรายปี: 6,000 ชม./ปี × 4.0 บาท/kWh -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --warn:#f5a623; --mid:#f5a623; --bad:#ef4b4b;
+  --indigo:#3f51b5; --cyan:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#dfe8f5,#c9d6e8 55%,#b7c6db);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:1040px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.92);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(33,48,71,.18)}
+#hud .lvl-name{font-weight:600;font-size:1.02rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 10px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:40px}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(33,48,71,.25);background:#dfe8f2;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto;max-height:58vh}
+@media (max-width:899px){#scene{max-height:none}}
+#bubble{background:#18222f;color:#e8f4fb;padding:6px 12px;font-size:.88rem;font-weight:500;line-height:1.4;min-height:2.1em;
+  border-top:3px solid #00acc1;transition:background .3s}
+#bubble.show{background:#283593;color:#fff}
+#cavBanner{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);background:#ef4b4b;color:#fff;border-radius:12px;
+  padding:4px 12px;font-weight:700;font-size:.9rem;display:none;box-shadow:0 4px 10px rgba(0,0,0,.25);white-space:nowrap}
+#cavBanner.show{display:block;animation:popWarn .45s ease infinite alternate}
+@keyframes popWarn{from{transform:translateX(-50%) scale(1)}to{transform:translateX(-50%) scale(1.06)}}
+
+/* ───── lower grid ───── */
+#lower{display:grid;grid-template-columns:1fr;gap:10px}
+@media (min-width:900px){ #lower{grid-template-columns:1.1fr 1fr;align-items:start} }
+.cardBox{background:#fff;border-radius:20px;padding:10px 12px 12px;box-shadow:0 6px 18px rgba(33,48,71,.18)}
+.boxTitle{font-weight:600;font-size:.95rem;display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px}
+.boxTitle small{font-weight:500;color:#6a7a90;font-size:.78rem}
+#graph,#npshGraph{display:block;width:100%;height:auto}
+#npshWrap{display:none;margin-top:6px;border-top:2px dashed #e2e9f2;padding-top:6px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:.75rem;color:#4a5a70;margin-top:4px}
+.legend i{display:inline-block;width:16px;height:4px;border-radius:2px;vertical-align:middle;margin-right:3px}
+
+/* ───── Control panel ───── */
+#panel{display:flex;flex-direction:column;gap:8px}
+.goal{font-size:.93rem;font-weight:600;text-align:center;background:#e8f4fb;border:2px dashed #00acc1;border-radius:14px;padding:7px 10px;line-height:1.45}
+#chips{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;font-weight:600;font-size:.84rem}
+#chips span{background:#f1f5fb;border-radius:999px;padding:3px 10px;white-space:nowrap}
+#chips span.ok{background:#dff6e8;color:#13723b}
+#chips span.no{background:#ffe3e3;color:#b3261e}
+.chk{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;font-size:.8rem;font-weight:600}
+.chk span{border:2px solid #e2e9f2;border-radius:10px;padding:2px 8px;background:#fafcff}
+.chk span.ok{border-color:#1fb45f;color:#13723b;background:#effbf3}
+.ctl{display:flex;flex-direction:column;gap:0}
+.ctl .lab{display:flex;justify-content:space-between;align-items:baseline;font-weight:600;font-size:.95rem;padding:0 4px}
+.ctl .lab .v{font-size:1.05rem;font-weight:700;text-align:right;color:#3f51b5}
+input[type=range]{width:100%;height:44px;appearance:none;-webkit-appearance:none;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:10px;background:var(--trk,#ccc)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:36px;height:36px;border-radius:50%;margin-top:-11px;
+  background:#fff;border:6px solid var(--thm,#555);box-shadow:0 3px 8px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:14px;border-radius:10px;background:var(--trk,#ccc)}
+input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;background:#fff;border:6px solid var(--thm,#555)}
+#sSpeed{--trk:linear-gradient(90deg,#c5cae9,#3f51b5);--thm:#3f51b5}
+#sValve{--trk:linear-gradient(90deg,#ffcdd2,#e53935);--thm:#e53935}
+#sImp{--trk:linear-gradient(90deg,#d1c4e9,#7b5bff);--thm:#7b5bff}
+#sSump{--trk:linear-gradient(90deg,#b3e5fc,#0288d1);--thm:#0288d1}
+.seg{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.seg .sl{font-weight:600;font-size:.92rem;min-width:96px}
+.seg button{flex:1;min-width:56px;min-height:44px;border:3px solid #e2e9f2;background:#f7fafd;border-radius:14px;font-family:inherit;font-size:.95rem;font-weight:600;cursor:pointer;color:var(--ink)}
+.seg button.sel{border-color:#3f51b5;background:#e8eaf6;color:#283593}
+.hide{display:none!important}
+
+.big-btn{border:none;border-radius:999px;padding:14px 30px;font-family:inherit;font-size:1.15rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #283593,0 10px 18px rgba(0,0,0,.2);transition:transform .1s;min-height:48px}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #283593}
+.big-btn.alt{background:linear-gradient(135deg,#00acc1,#26c6a8);box-shadow:0 6px 0 #00838f,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #00838f}
+.big-btn.small{font-size:1rem;padding:10px 20px}
+#submitBtn{width:100%}
+.timerBar{height:8px;background:#e8eef6;border-radius:6px;overflow:hidden}
+.timerBar div{height:100%;width:100%;background:linear-gradient(90deg,#00acc1,#3f51b5);transition:width .25s linear}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(10,18,32,.65);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:26px;max-width:500px;width:100%;padding:20px 16px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.4);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.35rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:2.8rem;letter-spacing:6px;margin:6px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e8f4fb;border-radius:14px;padding:9px 12px;font-weight:600;margin:6px 0;font-size:.93rem;line-height:1.45}
+.fb{text-align:left;background:#fffaf0;border:2px solid #ffe2a8;border-radius:14px;padding:8px 10px;margin:6px 0}
+.fb h3{font-size:.95rem;margin-bottom:4px}
+.fb ul{padding-left:18px;font-size:.88rem;line-height:1.5}
+.fb li{margin:3px 0}
+.fb li.g{color:#13723b}.fb li.b{color:#b3261e}
+.stat-tbl{display:flex;flex-direction:column;gap:4px;margin:6px 0;text-align:left;font-size:.88rem}
+.stat-tbl div{display:flex;justify-content:space-between;gap:8px;background:#f4f7fb;border-radius:10px;padding:5px 10px}
+.stat-tbl b{color:#3f51b5;text-align:right}
+.cmpBars{margin:6px 0;text-align:left;font-size:.85rem}
+.cmpBars .row{display:flex;align-items:center;gap:6px;margin:3px 0}
+.cmpBars .row span:first-child{min-width:92px}
+.cmpBars .bar{height:16px;border-radius:8px}
+.lvl-pick{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:6px 6px;font-family:inherit;cursor:pointer;min-width:76px;min-height:64px}
+.lvl-pick .nm{font-size:.76rem;font-weight:600;display:block;line-height:1.25}
+.lvl-pick .st{font-size:.78rem;letter-spacing:1px}
+#startCard h1{font-size:1.9rem;line-height:1.25;background:linear-gradient(135deg,#3f51b5,#00acc1);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#5a6a80;margin:4px 0 6px;font-size:.93rem;line-height:1.5}
+.tag{display:inline-block;background:#e8eaf6;color:#283593;border-radius:999px;padding:3px 12px;font-size:.8rem;font-weight:600;margin:4px 0}
+.brand{font-size:.78rem;color:#8795a8;margin-top:12px}
+#formCard{text-align:left;max-width:620px}
+#formCard h2{text-align:center}
+#formCard .fsec{background:#f4f7fb;border-radius:12px;padding:8px 10px;margin:6px 0;font-size:.86rem;line-height:1.55}
+#formCard .fsec b{color:#283593}
+#formCard code{font-family:inherit;background:#e8eaf6;border-radius:6px;padding:0 4px;font-weight:600}
+
+/* help overlay */
+#helpStage{background:#eef4fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:340px;height:auto}
+#helpTxt{font-size:.98rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd9e6}
+.dots i.on{background:#3f51b5}
+.help-nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── SVG animations ───── */
+@keyframes blinkOp{0%,100%{opacity:1;r:7}50%{opacity:.35;r:11}}
+.opBlink{animation:blinkOp .9s ease-in-out infinite}
+@keyframes popB{0%{transform:scale(.2);opacity:0}40%{opacity:1}80%{transform:scale(1.2);opacity:.9}100%{transform:scale(1.8);opacity:0}}
+.cb{transform-box:fill-box;transform-origin:center;animation:popB .55s ease-out infinite}
+@keyframes waveS{0%,100%{transform:translateX(0)}50%{transform:translateX(-10px)}}
+.wave{animation:waveS 2.4s ease-in-out infinite}
+@keyframes flowT{to{stroke-dashoffset:-40}}
+.tFlow{stroke-dasharray:8 12;animation:flowT .8s linear infinite}
+@keyframes spinT{to{transform:rotate(360deg)}}
+.tSpin{transform-box:fill-box;transform-origin:center;animation:spinT 1s linear infinite}
+@keyframes tThumbA{0%,100%{transform:translateX(0)}50%{transform:translateX(-120px)}}
+.tThumb{animation:tThumbA 3s ease-in-out infinite}
+@keyframes tSysA{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-14deg)}}
+.tSys{transform-box:view-box;transform-origin:40px 140px;animation:tSysA 3s ease-in-out infinite}
+@keyframes tPumpA{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(34px) scale(.82)}}
+.tPump{transform-box:view-box;transform-origin:40px 140px;animation:tPumpA 3s ease-in-out infinite}
+@keyframes tBlinkA{0%,100%{opacity:1}50%{opacity:.2}}
+.tBlink{animation:tBlinkA .8s ease-in-out infinite}
+@keyframes tShake{0%,100%{transform:translate(0,0)}25%{transform:translate(-2px,1px)}75%{transform:translate(2px,-1px)}}
+.tShake{animation:tShake .12s linear infinite}
+@keyframes tBarA{0%,100%{transform:scaleY(.45)}50%{transform:scaleY(1)}}
+.tBar{transform-box:fill-box;transform-origin:center bottom;animation:tBarA 3s ease-in-out infinite}
+@keyframes tWideA{0%,100%{transform:scaleX(1)}50%{transform:scaleX(1.6)}}
+.tWide{transform-box:view-box;transform-origin:30px 130px;animation:tWideA 3.2s ease-in-out infinite}
+@keyframes tTallA{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.7)}}
+.tTall{transform-box:view-box;transform-origin:200px 130px;animation:tTallA 3.2s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .opBlink,.cb,.wave,.tFlow,.tSpin,.tThumb,.tSys,.tPump,.tBlink,.tShake,.tBar,.tWide,.tTall,#cavBanner.show{animation:none}
+}
+@media (max-width:480px){
+  .card h2{font-size:1.2rem}
+  #bubble{font-size:.8rem}
+  .seg .sl{min-width:80px;font-size:.86rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">ปั๊มพาเหรด</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="formBtn" title="สูตร/ที่มา">📐</button>
+  </div>
+
+  <!-- SCENE -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 640 380" xmlns="http://www.w3.org/2000/svg" aria-label="ระบบสูบน้ำการ์ตูน">
+      <defs>
+        <linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#eef3f9"/><stop offset="1" stop-color="#cfdae7"/>
+        </linearGradient>
+        <linearGradient id="waterG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#4fb3ff"/><stop offset="1" stop-color="#1565c0"/>
+        </linearGradient>
+        <linearGradient id="motorG" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#00838f"/><stop offset=".5" stop-color="#26c6da"/><stop offset="1" stop-color="#00838f"/>
+        </linearGradient>
+        <linearGradient id="motorOff" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#78849a"/><stop offset=".5" stop-color="#aab4c4"/><stop offset="1" stop-color="#78849a"/>
+        </linearGradient>
+        <linearGradient id="tankG" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#b0bccb"/><stop offset=".5" stop-color="#e3e9f1"/><stop offset="1" stop-color="#9aa8ba"/>
+        </linearGradient>
+      </defs>
+      <!-- wall / floor -->
+      <rect x="0" y="0" width="640" height="330" fill="url(#wallG)"/>
+      <g stroke="#c3cfdd" stroke-width="2"><line x1="0" y1="100" x2="640" y2="100"/><line x1="0" y1="200" x2="640" y2="200"/></g>
+      <rect x="0" y="330" width="640" height="50" fill="#8e9bac"/>
+      <rect x="0" y="328" width="640" height="5" fill="#6f7c8e"/>
+      <!-- pump centerline -->
+      <line x1="150" y1="295" x2="640" y2="295" stroke="#3f51b5" stroke-width="1.5" stroke-dasharray="5 6" opacity=".35"/>
+      <text x="558" y="310" font-size="11" text-anchor="end" fill="#3f51b5" opacity=".75" font-family="Mitr,sans-serif">CL ปั๊ม (±0 m)</text>
+
+      <!-- sump -->
+      <g id="sumpG">
+        <rect x="10" y="232" width="142" height="148" rx="6" fill="#9aa5b3" stroke="#6f7c8e" stroke-width="3"/>
+        <rect x="20" y="236" width="122" height="138" fill="#33414f"/>
+        <rect id="sumpWater" x="20" y="319" width="122" height="55" fill="url(#waterG)" opacity=".9"/>
+        <path id="sumpWave" class="wave" d="M10 319 q10 -5 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" stroke="#bfe3ff" stroke-width="3" fill="none"/>
+        <text x="81" y="252" font-size="14" font-weight="600" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">บ่อดูด</text>
+        <text id="sumpTxt" x="81" y="270" font-size="12" text-anchor="middle" fill="#cfe8ff" font-family="Mitr,sans-serif">h_s −2.0 m</text>
+      </g>
+
+      <!-- tank -->
+      <g id="tankG2">
+        <line id="legL" x1="574" y1="120" x2="574" y2="330" stroke="#6f7c8e" stroke-width="5"/>
+        <line id="legR" x1="626" y1="120" x2="626" y2="330" stroke="#6f7c8e" stroke-width="5"/>
+        <rect id="tankBody" x="566" y="80" width="68" height="42" rx="7" fill="url(#tankG)" stroke="#5d6b7d" stroke-width="3"/>
+        <rect id="tankWater" x="570" y="96" width="60" height="22" rx="4" fill="url(#waterG)" opacity=".85"/>
+      </g>
+
+      <!-- pipes built by JS -->
+      <g id="pipeShell"></g>
+      <g id="pipeWater"></g>
+      <g id="particles"></g>
+      <text id="tankTxt" x="600" y="76" font-size="13" font-weight="700" text-anchor="middle" fill="#283593" font-family="Mitr,sans-serif" stroke="#eef3f9" stroke-width="3" paint-order="stroke">ถัง +13 m</text>
+
+      <!-- suction gauge -->
+      <g id="gSuc">
+        <line x1="178" y1="345" x2="178" y2="320" stroke="#5d6b7d" stroke-width="4"/>
+        <circle cx="178" cy="306" r="15" fill="#fff" stroke="#283593" stroke-width="3"/>
+        <path d="M167 315 A14 14 0 1 1 189 315" stroke="#ef4b4b" stroke-width="3" fill="none" opacity=".5"/>
+        <line id="needleSuc" x1="178" y1="306" x2="178" y2="294" stroke="#213047" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="178" cy="306" r="2.5" fill="#213047"/>
+        <text x="178" y="286" font-size="11" text-anchor="middle" fill="#283593" font-family="Mitr,sans-serif">ดูด</text>
+      </g>
+      <!-- discharge gauge -->
+      <g id="gDis">
+        <line x1="318" y1="150" x2="318" y2="126" stroke="#5d6b7d" stroke-width="4"/>
+        <circle cx="318" cy="112" r="15" fill="#fff" stroke="#283593" stroke-width="3"/>
+        <line id="needleDis" x1="318" y1="112" x2="318" y2="100" stroke="#213047" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="318" cy="112" r="2.5" fill="#213047"/>
+        <text x="318" y="92" font-size="11" text-anchor="middle" fill="#283593" font-family="Mitr,sans-serif">ส่ง</text>
+      </g>
+
+      <!-- valve -->
+      <g id="valveG">
+        <path d="M506 140 L520 150 L506 160 Z M534 140 L520 150 L534 160 Z" fill="#e53935" stroke="#8e1b1b" stroke-width="2.5" stroke-linejoin="round"/>
+        <line id="valveStem" x1="520" y1="150" x2="520" y2="122" stroke="#5d6b7d" stroke-width="4"/>
+        <g id="valveWheel">
+          <ellipse cx="520" cy="122" rx="14" ry="5" fill="none" stroke="#c62828" stroke-width="4"/>
+          <line x1="506" y1="122" x2="534" y2="122" stroke="#c62828" stroke-width="2"/>
+        </g>
+        <text id="valveTxt" x="520" y="174" font-size="12" font-weight="600" text-anchor="middle" fill="#8e1b1b" font-family="Mitr,sans-serif">วาล์ว 100%</text>
+      </g>
+
+      <!-- pumps built by JS -->
+      <g id="pumpsG"></g>
+
+      <!-- kW meter LCD -->
+      <g id="lcdG">
+        <rect x="8" y="8" width="214" height="78" rx="12" fill="#18222f" stroke="#3f51b5" stroke-width="3"/>
+        <text id="lcdKW" x="20" y="40" font-size="26" font-weight="700" fill="#7cffb2" font-family="Mitr,sans-serif">⚡ 0.00 kW</text>
+        <text id="lcdQ" x="20" y="60" font-size="14" fill="#cfe8ff" font-family="Mitr,sans-serif">Q 0.0 m³/h · H 0.0 m</text>
+        <text id="lcdE" x="20" y="78" font-size="13" fill="#ffd23f" font-family="Mitr,sans-serif">η 0 % · 0 % BEP</text>
+      </g>
+    </svg>
+    <div id="bubble"></div>
+    <div id="cavBanner">🫧 CAVITATION! ฟองไอแตก — ใบพัดสึก</div>
+  </div>
+
+  <div id="lower">
+    <!-- GRAPH -->
+    <div class="cardBox">
+      <div class="boxTitle">📈 กราฟ H–Q (สด) <small id="graphNote">จุดตัด = จุดทำงาน</small></div>
+      <svg id="graph" viewBox="0 0 600 330" xmlns="http://www.w3.org/2000/svg" aria-label="กราฟ H-Q"></svg>
+      <div class="legend">
+        <span><i style="background:#3f51b5"></i>เส้นปั๊ม</span>
+        <span><i style="background:#e53935"></i>เส้นระบบ</span>
+        <span><i style="background:#7b5bff"></i>η (แกนขวา)</span>
+        <span><i style="background:#1fb45f;opacity:.5;height:10px"></i>โซน BEP 70–120%</span>
+        <span><i style="background:#ff8f1c;height:8px"></i>Q เป้า</span>
+      </div>
+      <div id="npshWrap">
+        <div class="boxTitle">🫧 NPSH: มีให้ (a) vs ปั๊มต้องการ (r) <small>ต้อง NPSHa ≥ NPSHr + 1.0 m</small></div>
+        <svg id="npshGraph" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg" aria-label="กราฟ NPSH"></svg>
+      </div>
+    </div>
+
+    <!-- CONTROL PANEL -->
+    <div class="cardBox" id="panel">
+      <div class="goal" id="goalTxt">—</div>
+      <div class="timerBar"><div id="timerFill"></div></div>
+      <div id="chips">
+        <span id="chQ">Q —</span><span id="chH">H —</span><span id="chKW">⚡ —</span><span id="chEta">η —</span><span id="chT">⏱ —</span>
+      </div>
+      <div class="chk" id="chk">
+        <span id="ckT">🎯 Q เป้า</span><span id="ckB">🟢 โซน BEP</span><span id="ckN" class="hide">🫧 NPSH</span>
+      </div>
+      <div class="ctl" id="cValve">
+        <div class="lab"><span>🚰 วาล์วส่ง (เปิด)</span><span class="v" id="vValve">100%</span></div>
+        <input type="range" id="sValve" min="5" max="100" step="1" value="100" aria-label="วาล์วส่ง">
+      </div>
+      <div class="ctl" id="cSpeed">
+        <div class="lab"><span>⚙️ รอบมอเตอร์ (VFD)</span><span class="v" id="vSpeed">100% · 50.0 Hz</span></div>
+        <input type="range" id="sSpeed" min="40" max="100" step="1" value="100" aria-label="รอบมอเตอร์">
+      </div>
+      <div class="ctl" id="cImp">
+        <div class="lab"><span>🌀 ใบพัด (impeller trim)</span><span class="v" id="vImp">Ø200 mm</span></div>
+        <input type="range" id="sImp" min="80" max="100" step="1" value="100" aria-label="ขนาดใบพัด">
+      </div>
+      <div class="ctl" id="cSump">
+        <div class="lab"><span>🌊 ระดับน้ำบ่อดูด (h_s)</span><span class="v" id="vSump">−2.0 m</span></div>
+        <input type="range" id="sSump" min="-12" max="2" step="1" value="-4" aria-label="ระดับน้ำบ่อดูด">
+      </div>
+      <div class="seg" id="cCnt"><span class="sl">🔢 ปั๊มที่เปิด</span>
+        <button data-v="1" class="sel">1</button><button data-v="2">2</button><button data-v="3">3</button></div>
+      <div class="seg" id="cMode"><span class="sl">🔗 การต่อ</span>
+        <button data-v="p" class="sel">ขนาน</button><button data-v="s">อนุกรม</button></div>
+      <div class="seg" id="cDn"><span class="sl">🧪 ท่อดูด</span>
+        <button data-v="80">DN80</button><button data-v="100">DN100</button><button data-v="150" class="sel">DN150</button></div>
+      <button class="big-btn" id="submitBtn">✔ ส่งงาน</button>
+    </div>
+  </div>
+  <div class="brand" style="text-align:center;color:#4a5a70">Energy Skills Lab · Triple E Technology</div>
+</div>
+
+<!-- ───── Start overlay ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.6rem">💧⚙️🏗️</div>
+    <h1>ปั๊มพาเหรด</h1>
+    <div class="tag">Energy Skills Lab · เด็กโต/อาชีวะ</div>
+    <div class="sub">คุมปั๊มหอยโข่ง (centrifugal pump) ส่งน้ำขึ้นถังสูง<br>ให้ได้ <b>Q เป้า</b> · อยู่ใน <b>โซน BEP</b> · ใช้ <b>kW ต่ำสุด</b></div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── Help overlay ───── -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2 id="helpTitle">วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt">—</div>
+    <div class="dots" id="helpDots"></div>
+    <div class="help-nav">
+      <button class="big-btn small alt" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Formula overlay ───── -->
+<div class="overlay" id="formOv">
+  <div class="card" id="formCard">
+    <h2>📐 สูตร/ที่มา</h2>
+    <div class="fsec"><b>① เส้นปั๊ม (pump curve)</b><br><code>H = n²·d²·H0 − a·Q²</code> · H0 = 40 m (shutoff), a = 2.78×10⁻³ m/(m³/h)²<br>
+      Q_BEP = 60·n·d m³/h (H = 30 m) · n = N/N0 (VFD) · d = D/D0 (D0 = Ø200 mm)</div>
+    <div class="fsec"><b>② เส้นระบบ (system curve)</b><br><code>H = H_static + k·Q²</code> · H_static = z_ถัง − h_s<br>
+      k = k_ท่อ + k_วาล์ว/v² + k_ท่อดูด/p² — หรี่วาล์ว = เส้นระบบ "ชัน" ขึ้น</div>
+    <div class="fsec"><b>③ จุดทำงาน = จุดตัด</b> (แก้สมการปิด)<br>
+      <code>Q* = √[(m·n²d²H0 − H_static) / (k_d + (k_s + m·a)/p²)]</code><br>p = จำนวนขนาน · m = จำนวนอนุกรม</div>
+    <div class="fsec"><b>④ กฎความคล้าย (affinity laws)</b><br>
+      รอบ: <code>Q∝N</code> <code>H∝N²</code> <code>P∝N³</code> · ตัดใบพัด: <code>Q∝D</code> <code>H∝D²</code> (P∝D³)<br>
+      ใช้ได้ตรงเมื่อเส้นระบบเป็น friction ล้วน (H_static = 0) — ถ้ามี static head สูง การลดรอบได้ผลน้อยลง<br>
+      สมมติ η คงที่ที่จุด homologous เมื่อปรับรอบ (ตัดใบพัด η ลดเล็กน้อย ดู ⑤)</div>
+    <div class="fsec"><b>⑤ ประสิทธิภาพ & กำลัง</b><br><code>η = 0.78·(2x − x²)</code>, x = Q_ต่อตัว/Q_BEP<br>
+      <code>P_เพลา = ρ·g·Q·H / η</code> (ρ = 998 kg/m³, g = 9.81 m/s²) · <code>kW ไฟฟ้า = P_เพลา / 0.90</code><br>
+      ตัดใบพัด: η × (1 − 0.25·(1−d)) ≈ ลด 2.5% ต่อการตัด 10% (ค่าประมาณ) · ค่าไฟรายปี: × 6,000 ชม./ปี × 4.0 บาท/kWh</div>
+    <div class="fsec"><b>⑥ ขนาน / อนุกรม</b><br>ขนาน: บวก Q ที่ H เดียวกัน (เส้นปั๊ม "กว้าง" ขึ้น) — ถ้าเส้นระบบชัน Q รวมเพิ่มน้อยกว่า 2 เท่า<br>
+      อนุกรม: บวก H ที่ Q เดียวกัน (เส้นปั๊ม "สูง" ขึ้น) — ใช้เมื่อ H_static สูงกว่า shutoff ของปั๊มเดี่ยว</div>
+    <div class="fsec"><b>⑦ NPSH & cavitation</b><br><code>NPSHa = P_atm/ρg + h_s − h_f − P_v/ρg</code> = 10.35 + h_s − h_f − 0.43 m (น้ำ 30 °C)<br>
+      h_f = (f·L/D + ΣK)·V²/2g, f = 0.02, ΣK = 2.5 · <code>NPSHr = n² + 2(Q_p/60)²</code> (3.0 m ที่ BEP)<br>
+      เกณฑ์: NPSHa ≥ NPSHr + 1.0 m (แนวทาง margin ตาม ANSI/HI 9.6.1)</div>
+    <div class="fsec"><b>⑧ โซน BEP</b> — Preferred Operating Region 70–120% ของ Q_BEP (ANSI/HI 9.6.3)<br>
+      ซ้ายโซน: ไหลวนย้อน (recirculation) สั่น ร้อน · ขวาโซน: run-out, NPSHr สูง, มอเตอร์ overload</div>
+    <div style="text-align:center;margin-top:8px"><button class="big-btn small" id="formClose">ปิด</button></div>
+  </div>
+</div>
+
+<!-- ───── Result overlay ───── -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <div id="resEmoji" style="font-size:2.2rem">🏁</div>
+    <h2 id="resTitle">จบด่าน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <div class="fb"><h3>🔍 เฉลย/ข้อคิด</h3><ul id="resFb"></ul></div>
+    <div class="cmpBars" id="resCmp"></div>
+    <div class="stat-tbl" id="resStats"></div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── End overlay ───── -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.4rem">🏆💧</div>
+    <h2>จบพาเหรดปั๊มแล้ว!</h2>
+    <div class="result-stars" style="font-size:1.6rem">⭐ <span id="endStars">0</span> / 15</div>
+    <div class="fb"><h3>📚 สรุปบทเรียน</h3><ul id="endList"></ul></div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="endHome">🏠 หน้าแรก</button>
+      <button class="big-btn small" id="endReplay">↻ เล่นใหม่ตั้งแต่ด่าน 1</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ ปั๊มพาเหรด v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var SVGNS='http://www.w3.org/2000/svg';
+var REDUCED=false;try{REDUCED=window.matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){}
+
+/* ── ค่าคงที่ฟิสิกส์ ── */
+var RHO=998, GRAV=9.81, H0=40, QBEP=60, A=10/3600, EMAX=0.78, ETA_M=0.90;
+var NPSH_ATM=101325/(RHO*GRAV), NPSH_V=4246/(RHO*GRAV);   /* 10.35 m, 0.43 m (น้ำ 30 °C) */
+var KV0=0.0002, MARGIN=1.0, HOURS=6000, TARIFF=4.0;
+var DN_ID={80:0.0807,100:0.1023,150:0.1541};
+function etr(d){return 1-0.25*(1-d);}   /* ตัดใบพัด: η ลด ≈ 2.5% ต่อการตัด 10% (rule of thumb) */
+function kSuc(dn,L){var D=DN_ID[dn],Ar=Math.PI*D*D/4;return (0.02*L/D+2.5)/(2*GRAV*Ar*Ar)/(3600*3600);}
+
+/* ── สถานะปุ่มปรับ ── */
+var S={n:1,d:1,v:1,cnt:1,mode:'p',hs:-2,dn:150};
+
+/* ── ด่าน ── */
+var LV=[
+ {name:'ด่าน 1 · หาจุดตัด 🎯',short:'หาจุดตัด',icon:'🎯',zt:13,kp:0.000828,Ls:5,qT:55,qTol:2.5,hMax:50,qMax:140,
+  allow:['valve'],start:{v:1},
+  goal:'หรี่ 🚰 วาล์วส่ง ให้จุดทำงาน (จุดตัดเส้นปั๊ม × เส้นระบบ) อยู่ที่ Q = 52.5–57.5 m³/h',
+  lesson:'จุดทำงานจริงของปั๊ม = จุดตัด pump curve กับ system curve — หรี่วาล์ว = ทำเส้นระบบให้ชันขึ้น'},
+ {name:'ด่าน 2 · VFD vs วาล์ว ⚡',short:'VFD vs วาล์ว',icon:'⚡',zt:6,kp:0.002611,Ls:5,qT:45,qTol:2,hMax:50,qMax:140,
+  allow:['valve'],allowB:['speed','valve'],start:{v:1,n:1},
+  goal:'ขั้น A: รอบล็อก 100% — หรี่ 🚰 วาล์วให้ได้ Q = 43–47 m³/h แล้วกด "📌 บันทึก"',
+  goalB:'ขั้น B: เปิดวาล์ว 100% แล้วใช้ ⚙️ VFD ลดรอบให้ได้ Q = 43–47 m³/h เท่าเดิม — ดู kW ต่างกันเท่าไร!',
+  lesson:'Q เท่ากัน แต่ลดรอบด้วย VFD ใช้ไฟน้อยกว่าหรี่วาล์วมาก — วาล์วเผา head ทิ้ง ส่วน P ∝ N³'},
+ {name:'ด่าน 3 · ปั๊มขนาน 2 ตัว 👯',short:'ขนาน',icon:'👯',zt:8,kp:0.002709,Ls:5,qT:88,qTol:3,hMax:50,qMax:140,
+  allow:['cnt','speed','valve','imp'],start:{v:1,n:1,cnt:1,mode:'p',d:1},
+  goal:'ต้องการ Q = 85–91 m³/h — ปั๊มตัวเดียวไม่พอ! เปิดตัวที่ 2 (ขนาน) แล้วสังเกตว่า Q เพิ่มกี่เท่า',
+  lesson:'ปั๊มขนาน 2 ตัว Q ไม่ได้ 2 เท่า — เส้นระบบชัน (k สูง) head ต้องเพิ่มตาม Q² ปั๊มแต่ละตัวถอยซ้าย'},
+ {name:'ด่าน 4 · อนุกรม ขึ้นตึกสูง 🏢',short:'อนุกรม',icon:'🏢',zt:50,kp:0.001922,Ls:5,qT:50,qTol:2.5,hMax:130,qMax:140,
+  allow:['cnt','mode','speed','valve','imp'],start:{v:1,n:1,cnt:1,mode:'p',d:1},
+  goal:'ถังอยู่สูง +50 m (H_static 52 m) แต่ปั๊มเดี่ยวดันได้สูงสุด 40 m! หาวิธีส่ง Q = 47.5–52.5 m³/h',
+  lesson:'H_static สูงกว่า shutoff → ต้องต่ออนุกรม (บวก head ที่ Q เดียวกัน) ขนานกี่ตัวก็ไม่ขึ้น'},
+ {name:'ด่าน 5 · ปราบ cavitation 🫧',short:'Cavitation',icon:'🫧',zt:18,kp:0.0013,Ls:30,qT:50,qTol:5,hMax:50,qMax:120,
+  allow:['speed','valve','sump','dn'],start:{v:1,n:1,cnt:1,mode:'p',d:1,hs:-6,dn:80},
+  goal:'บ่อดูดต่ำ (−6 m) + ท่อดูดยาว 30 m DN80 → ปั๊มเดือดเป็นฟอง! ทำให้ NPSHa ≥ NPSHr + 1.0 m และได้ Q = 45–55 m³/h',
+  lesson:'NPSHa ต้องเหลือเผื่อเหนือ NPSHr — ยกระดับบ่อ / ท่อดูดใหญ่ขึ้น (h_f ลด) / ลดรอบ ช่วยได้'}
+];
+var NLV=LV.length;
+
+/* ── ฟิสิกส์หลัก: จุดทำงาน ── */
+function calc(st,lv){
+  lv=lv||LV[G.lv];
+  var par=st.mode==='s'?1:st.cnt, ser=st.mode==='s'?st.cnt:1;
+  var ks=kSuc(st.dn,lv.Ls), kd=lv.kp+KV0/(st.v*st.v);
+  var Hs=lv.zt-st.hs;
+  var sh=st.n*st.n*st.d*st.d*H0;                /* shutoff head ต่อตัว */
+  var num=ser*sh-Hs, den=kd+(ks+ser*A)/(par*par);
+  var Q=num>0?Math.sqrt(num/den):0;
+  var Qp=Q/par, Hp=sh-A*Qp*Qp, H=ser*Hp;
+  if(Q===0){Hp=sh;H=ser*sh;}
+  var Qb=QBEP*st.n*st.d, x=Qp/Qb;
+  var eta=EMAX*(2*x-x*x)*etr(st.d);
+  /* P = ρg·Hp·Q/η = ρg·Hp·Qb/(ηmax(2−x)) — ไม่หาร 0 ที่ Q=0 (shutoff) */
+  var P1=RHO*GRAV*Hp*(Qb/3600)/(EMAX*etr(st.d)*Math.max(0.05,2-x))/1000;
+  var Psh=P1*par*ser, Pel=Psh/ETA_M;
+  var hf=ks*Qp*Qp;
+  var npsha=NPSH_ATM+st.hs-hf-NPSH_V;
+  var npshr=st.n*st.n+2*(Qp/QBEP)*(Qp/QBEP);
+  var dropV=Math.max(0,(KV0/(st.v*st.v)-KV0)*Q*Q);  /* head ที่วาล์วเผาทิ้ง (เทียบเปิดสุด) */
+  return {Q:Q,Qp:Qp,H:H,Hp:Hp,Hs:Hs,x:x,eta:eta,Psh:Psh,P:Pel,hf:hf,npsha:npsha,npshr:npshr,par:par,ser:ser,ks:ks,kd:kd,Qb:Qb,dropV:dropV};
+}
+function sysH(Q,st,lv){var par=st.mode==='s'?1:st.cnt;var ks=kSuc(st.dn,lv.Ls),kd=lv.kp+KV0/(st.v*st.v);return lv.zt-st.hs+kd*Q*Q+ks*(Q/par)*(Q/par);}
+function pumpH(Q,st,cnt,mode){var par=mode==='s'?1:cnt,ser=mode==='s'?cnt:1;var h=st.n*st.n*st.d*st.d*H0-A*(Q/par)*(Q/par);return h<0?null:ser*h;}
+
+/* ── หา kW ต่ำสุดที่ Q เท่ากัน (ภายใต้ปุ่มที่ปลดล็อก) ── */
+function kwBest(Q,lvIdx,allow,base){
+  var lv=LV[lvIdx]; base=base||S;
+  var has=function(k){return allow.indexOf(k)>=0;};
+  var cnts=has('cnt')?[1,2,3]:[base.cnt], modes=has('mode')?['p','s']:[base.mode];
+  var ds=[];if(has('imp')){for(var i=80;i<=100;i++)ds.push(i/100);}else ds=[base.d];
+  var hss=[];if(has('sump')){for(var j=-12;j<=2;j++)hss.push(j/2);}else hss=[base.hs];
+  var dns=has('dn')?[80,100,150]:[base.dn];
+  var speedFree=has('speed'), nFix=speedFree?1:base.n;
+  var best=null,minP=null;
+  for(var a=0;a<cnts.length;a++)for(var b=0;b<modes.length;b++){
+    var cnt=cnts[a],mode=modes[b]; if(cnt===1&&mode==='s')continue;
+    var par=mode==='s'?1:cnt, ser=mode==='s'?cnt:1, Qp=Q/par;
+    for(var c=0;c<ds.length;c++)for(var e=0;e<hss.length;e++)for(var f=0;f<dns.length;f++){
+      var d=ds[c],hs=hss[e],dn=dns[f];
+      var ks=kSuc(dn,lv.Ls), kdF=lv.kp+KV0, Hs=lv.zt-hs;
+      var Hreq=(Hs+kdF*Q*Q+ks*Qp*Qp)/ser;
+      var n2=(Hreq+A*Qp*Qp)/(d*d*H0), nReq=n2>0?Math.sqrt(n2):0, n, Hp;
+      if(!speedFree){ if(nReq>nFix+1e-9)continue; n=nFix; Hp=n*n*d*d*H0-A*Qp*Qp; }
+      else{ if(nReq>1+1e-9)continue; if(nReq<0.4){n=0.4;Hp=n*n*d*d*H0-A*Qp*Qp;}else{n=nReq;Hp=Hreq;} }
+      var Qb=QBEP*n*d, x=Qp/Qb; if(x>=2)continue;
+      if(lvIdx===4){ var na=NPSH_ATM+hs-ks*Qp*Qp-NPSH_V, nr=n*n+2*(Qp/QBEP)*(Qp/QBEP); if(na<nr+MARGIN)continue; }
+      var P=par*ser*RHO*GRAV*Hp*(Qb/3600)/(EMAX*etr(d)*(2-x))/1000/ETA_M;
+      /* วาล์วที่ต้องหรี่ (ถ้าต้อง throttle) */
+      var kdNeed=(ser*Hp-Hs-ks*Qp*Qp)/(Q*Q), kv=kdNeed-lv.kp, v=kv>KV0*1.0001?Math.sqrt(KV0/kv):1;
+      /* คะแนนเลือก "เฉลย": ปั๊มน้อยตัว/ไม่ตัดใบพัด ถ้า kW ต่างกันไม่ถึง ~3% ถือว่าดีกว่า (ซ่อมบำรุงน้อยกว่า) */
+      var score=P*(1+0.03*(cnt-1))*(1+0.002*Math.round((1-d)*100));
+      if(!best||score<best.score)best={P:P,score:score,n:n,d:d,hs:hs,dn:dn,cnt:cnt,mode:mode,v:v,x:x};
+      if(minP===null||P<minP)minP=P;
+    }
+  }
+  if(best)best.minP=minP;
+  return best;
+}
+function descCfg(b,allow){
+  var p=[];
+  p.push(b.cnt>1?('ปั๊ม '+b.cnt+' ตัว'+(b.mode==='s'?'อนุกรม':'ขนาน')):'ปั๊ม 1 ตัว');
+  p.push('รอบ '+Math.round(b.n*100)+'% ('+(50*b.n).toFixed(1)+' Hz)');
+  p.push('วาล์ว '+Math.round(b.v*100)+'%');
+  if(allow.indexOf('imp')>=0)p.push('ใบพัด Ø'+Math.round(200*b.d)+' mm');
+  if(allow.indexOf('sump')>=0)p.push('ระดับน้ำ '+fmtS(b.hs)+' m');
+  if(allow.indexOf('dn')>=0)p.push('ท่อดูด DN'+b.dn);
+  return p.join(' · ');
+}
+function fmtS(x){return (x>0?'+':(x<0?'−':''))+Math.abs(x).toFixed(1);}
+function f1(x){return x.toFixed(1);} function f2(x){return x.toFixed(2);}
+function baht(dkw){return Math.round(dkw*HOURS*TARIFF).toLocaleString('en-US');}
+
+/* ── สถานะเกม ── */
+var G={lv:0,phase:0,running:false,t:0,T:120,recA:null,cav:0,crackT:0,usedPar:false,maxCnt:1,q1:null};
+var stars=[0,0,0,0,0], lastTs=0;
+
+/* ── เสียง Web Audio ── */
+var AC=null,sndOn=true,noiseBuf=null;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.05,'square',0.06);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sRec(){tone(700,0,0.08,'square',0.1);tone(1050,0.09,0.12,'square',0.1);}
+/* เสียงกรวด (cavitation) = noise burst สั้น ๆ ผ่าน bandpass สุ่มความถี่ */
+function sCrackle(sev){var a=audio();if(!a||!sndOn)return;
+  if(!noiseBuf){var len=Math.floor(a.sampleRate*0.06);noiseBuf=a.createBuffer(1,len,a.sampleRate);var d=noiseBuf.getChannelData(0);
+    for(var i=0;i<len;i++){d[i]=(Math.random()<0.18?(Math.random()*2-1):(Math.random()*2-1)*0.15)*(1-i/len);}}
+  var src=a.createBufferSource(),bp=a.createBiquadFilter(),g=a.createGain();
+  src.buffer=noiseBuf;bp.type='bandpass';bp.frequency.value=1800+Math.random()*3500;bp.Q.value=1.2;
+  g.gain.value=0.08+0.22*sev;src.playbackRate.value=0.7+Math.random()*0.8;
+  src.connect(bp);bp.connect(g);g.connect(a.destination);src.start();}
+
+/* ── localStorage ── */
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_skill_pump_stars')||'[]');for(var i=0;i<NLV;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_skill_pump_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_skill_pump_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_skill_pump_seen','1');}catch(e){}}
+
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent='💬 '+txt;b.classList.add('show');clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||3000);}
+
+/* ═════════ ฉาก SVG ═════════ */
+var PX=[240,340,440], PCY=295;
+var pumpEls=[], flowPaths=[];
+function mk(tag,attrs,parent){var e=document.createElementNS(SVGNS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function buildPumps(){
+  var g=$('pumpsG');g.innerHTML='';pumpEls=[];
+  for(var i=0;i<3;i++){
+    var x=PX[i];
+    var outer=mk('g',{},g), inner=mk('g',{},outer);
+    mk('rect',{x:x-28,y:316,width:56,height:14,rx:3,fill:'#55606f'},inner);
+    mk('text',{x:x,y:327,'font-size':10,'text-anchor':'middle',fill:'#fff','font-family':'Mitr,sans-serif'},inner).textContent='P'+(i+1);
+    mk('rect',{x:x-6,y:268,width:12,height:9,fill:'#5d6b7d'},inner);
+    var motor=mk('rect',{x:x-18,y:222,width:36,height:48,rx:7,fill:'url(#motorG)',stroke:'#24306e','stroke-width':2.5},inner);
+    for(var f=0;f<4;f++)mk('line',{x1:x-13,y1:230+f*10,x2:x+13,y2:230+f*10,stroke:'#004f57','stroke-width':1.5,opacity:.5},inner);
+    mk('rect',{x:x-12,y:214,width:24,height:9,rx:3,fill:'#37474f'},inner);
+    var vol=mk('circle',{cx:x,cy:PCY,r:22,fill:'#3f51b5',stroke:'#1a237e','stroke-width':3},inner);
+    var imp=mk('g',{},inner);
+    for(var k=0;k<5;k++){var an=k*72*Math.PI/180;
+      mk('path',{d:'M'+x+' '+PCY+' q'+(9*Math.cos(an+0.6)).toFixed(1)+' '+(9*Math.sin(an+0.6)).toFixed(1)+' '+(16*Math.cos(an)).toFixed(1)+' '+(16*Math.sin(an)).toFixed(1),
+        stroke:'#c5cae9','stroke-width':3,fill:'none','stroke-linecap':'round'},imp);}
+    mk('circle',{cx:x,cy:PCY,r:5,fill:'#e8eaf6'},imp);
+    var bub=mk('g',{opacity:0},inner);
+    var bp=[[-8,-6,3.5],[6,-9,2.8],[9,5,3.2],[-5,9,2.6],[0,-2,2.2],[-11,3,2.4]];
+    for(var m=0;m<bp.length;m++){var cc=mk('circle',{cx:x+bp[m][0],cy:PCY+bp[m][1],r:bp[m][2],fill:'#fff',stroke:'#b3e5fc','stroke-width':1,'class':'cb'},bub);
+      cc.style.animationDelay=(m*0.09)+'s';}
+    var hz=mk('text',{x:x,y:208,'font-size':12,'font-weight':600,'text-anchor':'middle',fill:'#283593','font-family':'Mitr,sans-serif'},inner);
+    hz.textContent='50 Hz';
+    pumpEls.push({outer:outer,inner:inner,motor:motor,vol:vol,imp:imp,bub:bub,hz:hz,ang:Math.random()*360});
+  }
+}
+var lastNetKey='';
+function tankY(){var z=LV[G.lv].zt;return 128-(z-6)*1.55-42;}  /* y ด้านบนถัง */
+function buildNet(){
+  var key=G.lv+'|'+S.cnt+'|'+S.mode+'|'+S.dn;
+  if(key===lastNetKey)return; lastNetKey=key;
+  var sh=$('pipeShell'),wa=$('pipeWater'),pa=$('particles');
+  sh.innerHTML='';wa.innerHTML='';pa.innerHTML='';flowPaths=[];
+  var yT=tankY(), shellW=G.lv===4?({80:11,100:14,150:19})[S.dn]:16;
+  var ser=S.mode==='s'&&S.cnt>1;
+  var nets=[];  /* {d, key:'Q'|'Qp'|'idle', suc:bool} */
+  var hx=ser?PX[S.cnt-1]+40:PX[0]+40;
+  var riser='M'+hx+' 150 L556 150 L556 '+(yT-12)+' L592 '+(yT-12)+' L592 '+(yT+10);
+  if(!ser){
+    var last=PX[S.cnt-1];
+    nets.push({d:'M58 366 L58 345 L'+PX[2]+' 345',k:'Q',suc:true,lenFrac:1});
+    for(var i=0;i<3;i++){
+      var on=i<S.cnt,x=PX[i];
+      nets.push({d:'M'+x+' 345 L'+x+' 317',k:on?'Qp':'idle',suc:true});
+      nets.push({d:'M'+(x+22)+' '+PCY+' L'+(x+40)+' '+PCY+' L'+(x+40)+' 150',k:on?'Qp':'idle'});
+    }
+    nets.push({d:riser,k:'Q'});
+  }else{
+    var dd='M58 366 L58 345 L'+PX[0]+' 345 L'+PX[0]+' 317';
+    nets.push({d:dd,k:'Q',suc:true});
+    for(var j=0;j<S.cnt-1;j++){
+      var xa=PX[j],xb=PX[j+1];
+      nets.push({d:'M'+(xa+22)+' '+PCY+' L'+(xa+40)+' '+PCY+' L'+(xa+40)+' 345 L'+xb+' 345 L'+xb+' 317',k:'Q'});
+    }
+    var xl=PX[S.cnt-1];
+    nets.push({d:'M'+(xl+22)+' '+PCY+' L'+(xl+40)+' '+PCY+' L'+(xl+40)+' 150',k:'Q'});
+    for(var q=S.cnt;q<3;q++){var xi=PX[q];nets.push({d:'M'+(xi+22)+' '+PCY+' L'+(xi+40)+' '+PCY+' L'+(xi+40)+' 150',k:'idle'});}
+    nets.push({d:riser,k:'Q'});
+  }
+  for(var n=0;n<nets.length;n++){
+    var N=nets[n], w=N.suc?shellW:16;
+    mk('path',{d:N.d,stroke:'#5d6b7d','stroke-width':w+4,fill:'none','stroke-linejoin':'round','stroke-linecap':'round'},sh);
+    mk('path',{d:N.d,stroke:'#e9f6ff','stroke-width':w,fill:'none','stroke-linejoin':'round','stroke-linecap':'round',opacity:.92},sh);
+    if(N.k==='idle')continue;
+    var wp=mk('path',{d:N.d,stroke:'#42a5f5','stroke-width':6,fill:'none','stroke-linejoin':'round','stroke-linecap':'round',opacity:.55},wa);
+    var L=wp.getTotalLength(), np=Math.max(2,Math.floor(L/24)), parts=[];
+    for(var p=0;p<np;p++)parts.push(mk('circle',{r:2.6,fill:'#ffffff',opacity:.95},pa));
+    flowPaths.push({el:wp,L:L,k:N.k,suc:!!N.suc,parts:parts,phase:Math.random()*24,maxW:w-3});
+  }
+  /* tank position */
+  $('tankBody').setAttribute('y',yT);$('tankWater').setAttribute('y',yT+16);
+  $('legL').setAttribute('y1',yT+42);$('legR').setAttribute('y1',yT+42);
+  $('tankTxt').setAttribute('y',yT+58);$('tankTxt').textContent='ถัง +'+LV[G.lv].zt+' m';
+}
+
+/* ═════════ กราฟ H–Q ═════════ */
+var GX0=50,GX1=548,GY0=16,GY1=288;
+function gx(Q){return GX0+Q/LV[G.lv].qMax*(GX1-GX0);}
+function gy(H){return GY1-H/LV[G.lv].hMax*(GY1-GY0);}
+function ge(e){return GY1-e/100*(GY1-GY0);}
+function curvePts(fn,q0,q1,steps){
+  var pts=[],hm=LV[G.lv].hMax;
+  for(var i=0;i<=steps;i++){var q=q0+(q1-q0)*i/steps,h=fn(q);if(h===null||h<0)break;if(h>hm*1.02){if(pts.length)break;else continue;}pts.push(gx(q).toFixed(1)+','+gy(h).toFixed(1));}
+  return pts.join(' ');
+}
+function drawGraph(R){
+  var lv=LV[G.lv], svg=$('graph'), qm=lv.qMax, hm=lv.hMax, h='';
+  /* BEP band */
+  var bq0=0.7*R.Qb*R.par, bq1=Math.min(qm,1.2*R.Qb*R.par);
+  h+='<rect x="'+gx(bq0).toFixed(1)+'" y="'+GY0+'" width="'+Math.max(0,gx(bq1)-gx(bq0)).toFixed(1)+'" height="'+(GY1-GY0)+'" fill="#1fb45f" opacity=".14"/>';
+  h+='<text x="'+((gx(bq0)+gx(bq1))/2).toFixed(1)+'" y="'+(GY0+14)+'" font-size="12" font-weight="600" text-anchor="middle" fill="#13723b">BEP</text>';
+  /* grid */
+  var hs=hm>60?20:10;
+  for(var y=0;y<=hm;y+=hs){h+='<line x1="'+GX0+'" y1="'+gy(y)+'" x2="'+GX1+'" y2="'+gy(y)+'" stroke="#e6ecf3"/>'+
+    '<text x="'+(GX0-6)+'" y="'+(gy(y)+4)+'" font-size="12" text-anchor="end" fill="#5a6a80">'+y+'</text>';}
+  for(var q=0;q<=qm;q+=20){h+='<line x1="'+gx(q)+'" y1="'+GY0+'" x2="'+gx(q)+'" y2="'+GY1+'" stroke="#eef2f7"/>'+
+    '<text x="'+gx(q)+'" y="'+(GY1+16)+'" font-size="12" text-anchor="middle" fill="#5a6a80">'+q+'</text>';}
+  for(var e=0;e<=100;e+=25)h+='<text x="'+(GX1+4)+'" y="'+(ge(e)+4)+'" font-size="11" fill="#7b5bff">'+e+'</text>';
+  h+='<text x="'+((GX0+GX1)/2)+'" y="'+(GY1+32)+'" font-size="13" text-anchor="middle" fill="#213047">Q (m³/h)</text>';
+  h+='<text x="14" y="'+((GY0+GY1)/2)+'" font-size="13" text-anchor="middle" fill="#213047" transform="rotate(-90 14 '+((GY0+GY1)/2)+')">H (m)</text>';
+  h+='<text x="590" y="'+((GY0+GY1)/2)+'" font-size="12" text-anchor="middle" fill="#7b5bff" transform="rotate(90 590 '+((GY0+GY1)/2)+')">η (%)</text>';
+  h+='<rect x="'+GX0+'" y="'+GY0+'" width="'+(GX1-GX0)+'" height="'+(GY1-GY0)+'" fill="none" stroke="#9aa8ba" stroke-width="1.5"/>';
+  /* target band on Q axis */
+  var t0=lv.qT-lv.qTol,t1=lv.qT+lv.qTol;
+  h+='<rect x="'+gx(t0).toFixed(1)+'" y="'+(GY1-7)+'" width="'+(gx(t1)-gx(t0)).toFixed(1)+'" height="7" fill="#ff8f1c"/>';
+  h+='<line x1="'+gx(lv.qT)+'" y1="'+GY0+'" x2="'+gx(lv.qT)+'" y2="'+GY1+'" stroke="#ff8f1c" stroke-width="1.5" stroke-dasharray="3 5"/>';
+  /* L4: H_static line + shutoff */
+  if(G.lv===3){
+    h+='<line x1="'+GX0+'" y1="'+gy(R.Hs)+'" x2="'+GX1+'" y2="'+gy(R.Hs)+'" stroke="#e53935" stroke-width="1" stroke-dasharray="2 4"/>'+
+       '<text x="'+(GX1-4)+'" y="'+(gy(R.Hs)-4)+'" font-size="11" text-anchor="end" fill="#c62828">H_static '+f1(R.Hs)+' m</text>';
+    h+='<text x="'+(GX0+4)+'" y="'+(gy(S.n*S.n*S.d*S.d*H0)-4)+'" font-size="11" fill="#3f51b5">ปั๊ม 1 ตัว (shutoff '+f1(S.n*S.n*S.d*S.d*H0)+' m)</text>';
+  }
+  /* η curve */
+  var etaPts=[],qe=Math.min(qm,2*R.Qb*R.par);
+  for(var i=0;i<=50;i++){var qq=qe*i/50,xx=(qq/R.par)/R.Qb,et=EMAX*(2*xx-xx*xx)*100;etaPts.push(gx(qq).toFixed(1)+','+ge(Math.max(0,et)).toFixed(1));}
+  h+='<polyline points="'+etaPts.join(' ')+'" fill="none" stroke="#7b5bff" stroke-width="2" stroke-dasharray="6 4" opacity=".8"/>';
+  /* reference curves */
+  if(S.n<1||S.d<1){h+='<polyline points="'+curvePts(function(Q){return pumpH(Q,{n:1,d:1},S.cnt,S.mode);},0,qm,80)+'" fill="none" stroke="#9fa8da" stroke-width="1.5" stroke-dasharray="2 4"/>';}
+  if(S.cnt>1||G.lv===3){h+='<polyline points="'+curvePts(function(Q){return pumpH(Q,S,1,'p');},0,qm,80)+'" fill="none" stroke="#3f51b5" stroke-width="1.8" stroke-dasharray="7 5" opacity=".6"/>'+(G.lv===3?'':
+    '<text x="'+(GX0+6)+'" y="'+(gy(S.n*S.n*S.d*S.d*H0)+14)+'" font-size="11" fill="#3f51b5" opacity=".8">ปั๊ม 1 ตัว</text>');}
+  if(S.v<1){var sv={n:S.n,d:S.d,v:1,cnt:S.cnt,mode:S.mode,hs:S.hs,dn:S.dn};
+    h+='<polyline points="'+curvePts(function(Q){return sysH(Q,sv,lv);},0,qm,80)+'" fill="none" stroke="#ef9a9a" stroke-width="1.5" stroke-dasharray="2 4"/>';}
+  /* main curves */
+  h+='<polyline points="'+curvePts(function(Q){return pumpH(Q,S,S.cnt,S.mode);},0,qm,120)+'" fill="none" stroke="#3f51b5" stroke-width="3.5" stroke-linejoin="round"/>';
+  h+='<polyline points="'+curvePts(function(Q){return sysH(Q,S,lv);},0,qm,120)+'" fill="none" stroke="#e53935" stroke-width="3" stroke-linejoin="round"/>';
+  /* BEP marker */
+  var qB=R.Qb*R.par, hB=pumpH(qB,S,S.cnt,S.mode);
+  if(hB!==null&&qB<=qm&&hB<=hm)h+='<path d="M'+gx(qB).toFixed(1)+' '+(gy(hB)-7).toFixed(1)+' l2 5 5 0 -4 3 2 5 -5 -3 -5 3 2 -5 -4 -3 5 0z" fill="#1fb45f" stroke="#0d5c2e" stroke-width="1"/>';
+  /* phase-A ghost (L2) */
+  if(G.lv===1&&G.recA){h+='<circle cx="'+gx(G.recA.Q).toFixed(1)+'" cy="'+gy(G.recA.H).toFixed(1)+'" r="7" fill="#9e9e9e" stroke="#fff" stroke-width="2"/>'+
+    '<text x="'+(gx(G.recA.Q)+10).toFixed(1)+'" y="'+(gy(G.recA.H)-8).toFixed(1)+'" font-size="11" fill="#616161">A: วาล์ว '+f2(G.recA.P)+' kW</text>';}
+  /* operating point */
+  var ox=gx(Math.min(qm,R.Q)), oy=gy(Math.min(hm,R.H));
+  h+='<line x1="'+ox.toFixed(1)+'" y1="'+oy.toFixed(1)+'" x2="'+ox.toFixed(1)+'" y2="'+GY1+'" stroke="#213047" stroke-dasharray="3 3"/>';
+  h+='<line x1="'+GX0+'" y1="'+oy.toFixed(1)+'" x2="'+ox.toFixed(1)+'" y2="'+oy.toFixed(1)+'" stroke="#213047" stroke-dasharray="3 3"/>';
+  h+='<circle class="opBlink" cx="'+ox.toFixed(1)+'" cy="'+oy.toFixed(1)+'" r="7" fill="#ffd23f" stroke="#213047" stroke-width="2.5"/>';
+  var lx=ox+12, anc='start'; if(ox>GX1-150){lx=ox-12;anc='end';}
+  var ly=Math.max(GY0+30,oy-12);
+  h+='<rect x="'+(anc==='start'?lx-3:lx-135)+'" y="'+(ly-14)+'" width="138" height="19" rx="6" fill="#fff" opacity=".85"/>';
+  h+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" font-size="13" font-weight="700" text-anchor="'+anc+'" fill="#213047">Q '+f1(R.Q)+' · H '+f1(R.H)+' m</text>';
+  svg.innerHTML=h;
+}
+function drawNpsh(R){
+  if(G.lv!==4){$('npshWrap').style.display='none';return;}
+  $('npshWrap').style.display='block';
+  var svg=$('npshGraph'),X0=50,X1=548,Y0=12,Y1=166,qm=120,nmin=-2,nmax=12,h='';
+  var X=function(q){return X0+q/qm*(X1-X0);}, Y=function(v){return Y1-(v-nmin)/(nmax-nmin)*(Y1-Y0);};
+  for(var v=0;v<=12;v+=4)h+='<line x1="'+X0+'" y1="'+Y(v)+'" x2="'+X1+'" y2="'+Y(v)+'" stroke="#eef2f7"/><text x="'+(X0-6)+'" y="'+(Y(v)+4)+'" font-size="12" text-anchor="end" fill="#5a6a80">'+v+'</text>';
+  for(var q=0;q<=qm;q+=20)h+='<text x="'+X(q)+'" y="'+(Y1+15)+'" font-size="12" text-anchor="middle" fill="#5a6a80">'+q+'</text>';
+  h+='<line x1="'+X0+'" y1="'+Y(0)+'" x2="'+X1+'" y2="'+Y(0)+'" stroke="#9aa8ba"/>';
+  h+='<text x="'+((X0+X1)/2)+'" y="'+(Y1+31)+'" font-size="12" text-anchor="middle" fill="#213047">Q (m³/h)</text>';
+  h+='<text x="14" y="'+((Y0+Y1)/2)+'" font-size="12" text-anchor="middle" fill="#213047" transform="rotate(-90 14 '+((Y0+Y1)/2)+')">NPSH (m)</text>';
+  var pa=[],pr=[],pm=[];
+  for(var i=0;i<=60;i++){var qq=qm*i/60;
+    var a=NPSH_ATM+S.hs-R.ks*qq*qq-NPSH_V, r=S.n*S.n+2*(qq/QBEP)*(qq/QBEP);
+    pa.push(X(qq).toFixed(1)+','+Y(Math.max(nmin,Math.min(nmax,a))).toFixed(1));
+    pr.push(X(qq).toFixed(1)+','+Y(Math.min(nmax,r)).toFixed(1));
+    pm.push(X(qq).toFixed(1)+','+Y(Math.min(nmax,r+MARGIN)).toFixed(1));}
+  h+='<polyline points="'+pm.join(' ')+'" fill="none" stroke="#ef4b4b" stroke-width="1.5" stroke-dasharray="4 4"/>';
+  h+='<polyline points="'+pr.join(' ')+'" fill="none" stroke="#ef4b4b" stroke-width="3"/>';
+  h+='<polyline points="'+pa.join(' ')+'" fill="none" stroke="#0288d1" stroke-width="3"/>';
+  h+='<text x="'+(X1-4)+'" y="'+(Y(Math.min(nmax,S.n*S.n+2*4))-6)+'" font-size="12" text-anchor="end" fill="#c62828">NPSHr</text>';
+  h+='<text x="'+(X0+6)+'" y="'+(Y(Math.min(nmax,NPSH_ATM+S.hs-NPSH_V))-6)+'" font-size="12" fill="#01579b">NPSHa</text>';
+  var ok=R.npsha>=R.npshr+MARGIN, xo=X(Math.min(qm,R.Q));
+  h+='<line x1="'+xo+'" y1="'+Y0+'" x2="'+xo+'" y2="'+Y1+'" stroke="#213047" stroke-dasharray="3 3"/>';
+  h+='<circle cx="'+xo+'" cy="'+Y(Math.max(nmin,Math.min(nmax,R.npsha)))+'" r="6" fill="#0288d1" stroke="#fff" stroke-width="2"/>';
+  h+='<circle cx="'+xo+'" cy="'+Y(Math.min(nmax,R.npshr))+'" r="6" fill="#ef4b4b" stroke="#fff" stroke-width="2"/>';
+  var tx=xo>X1-190?xo-8:xo+8, an=xo>X1-190?'end':'start';
+  h+='<text x="'+tx+'" y="'+(Y0+14)+'" font-size="13" font-weight="700" text-anchor="'+an+'" fill="'+(ok?'#13723b':'#c62828')+'">a '+f1(R.npsha)+' / r '+f1(R.npshr)+' m '+(ok?'✔':'✘')+'</text>';
+  svg.innerHTML=h;
+}
+
+/* ═════════ อัปเดต UI จากสถานะ ═════════ */
+var R=null;
+function refresh(){
+  R=calc(S);
+  buildNet();
+  drawGraph(R);drawNpsh(R);
+  var lv=LV[G.lv];
+  $('vValve').textContent=Math.round(S.v*100)+'%';
+  $('vSpeed').textContent=Math.round(S.n*100)+'% · '+(50*S.n).toFixed(1)+' Hz';
+  $('vImp').textContent='Ø'+Math.round(200*S.d)+' mm ('+Math.round(S.d*100)+'%)';
+  $('vSump').textContent=fmtS(S.hs)+' m';
+  var inT=Math.abs(R.Q-lv.qT)<=lv.qTol+1e-9, inB=R.Q>0&&R.x>=0.7&&R.x<=1.2, npOk=R.npsha>=R.npshr+MARGIN;
+  $('chQ').textContent='Q '+f1(R.Q)+' m³/h';$('chQ').className=inT?'ok':'no';
+  $('chH').textContent='H '+f1(R.H)+' m';
+  $('chKW').textContent='⚡ '+f2(R.P)+' kW';
+  $('chEta').textContent='η '+Math.round(R.eta*100)+'% · '+Math.round(R.x*100)+'% BEP';$('chEta').className=inB?'ok':'';
+  $('ckT').className=inT?'ok':'';$('ckB').className=inB?'ok':'';
+  $('ckN').className=(G.lv===4?'':'hide ')+(npOk?'ok':'');
+  /* LCD */
+  $('lcdKW').textContent='⚡ '+f2(R.P)+' kW';
+  $('lcdQ').textContent='Q '+f1(R.Q)+' m³/h · H '+f1(R.H)+' m';
+  $('lcdE').textContent='η '+Math.round(R.eta*100)+' % · '+Math.round(R.x*100)+' % BEP';
+  /* valve visual */
+  var vs=150-8-S.v*22;
+  $('valveStem').setAttribute('y2',vs.toFixed(1));
+  $('valveWheel').setAttribute('transform','translate(0 '+(vs-122).toFixed(1)+')');
+  $('valveTxt').textContent='วาล์ว '+Math.round(S.v*100)+'%';
+  /* sump */
+  var yw=PCY-10*S.hs;
+  $('sumpWater').setAttribute('y',yw.toFixed(1));$('sumpWater').setAttribute('height',(374-yw).toFixed(1));
+  $('sumpWave').setAttribute('transform','translate(0 '+(yw-319).toFixed(1)+')');
+  $('sumpTxt').textContent='h_s '+fmtS(S.hs)+' m';
+  /* gauges: bar g */
+  var pSuc=(S.hs-R.hf)*RHO*GRAV/1e5, pDis=(S.hs-R.hf+R.H)*RHO*GRAV/1e5;
+  var aS=Math.max(-135,Math.min(135,pSuc/1*135)), aD=Math.max(-135,Math.min(135,-135+pDis/8*270));
+  $('needleSuc').setAttribute('transform','rotate('+aS.toFixed(1)+' 178 306)');
+  $('needleDis').setAttribute('transform','rotate('+aD.toFixed(1)+' 318 112)');
+  $('gSuc').querySelector('text').textContent='ดูด '+f2(pSuc);
+  $('gDis').querySelector('text').textContent='ส่ง '+f2(pDis)+' bar';
+  /* pumps */
+  for(var i=0;i<3;i++){var on=i<S.cnt,pe=pumpEls[i];
+    pe.motor.setAttribute('fill',on?'url(#motorG)':'url(#motorOff)');
+    pe.vol.setAttribute('fill',on?'#3f51b5':'#8a94a6');
+    pe.hz.textContent=on?(50*S.n).toFixed(1)+' Hz':'OFF';pe.hz.setAttribute('fill',on?'#283593':'#8a94a6');}
+  /* cavitation severity */
+  var cav=0;
+  if(R.Q>0){ if(R.npsha<R.npshr)cav=Math.min(1,0.45+(R.npshr-R.npsha)/3); else if(R.npsha<R.npshr+MARGIN&&G.lv===4)cav=0.15; }
+  G.cav=cav;
+  for(var j=0;j<3;j++)pumpEls[j].bub.setAttribute('opacity',(j<S.cnt&&cav>0.3)?Math.min(1,cav+0.2).toFixed(2):(j<S.cnt&&cav>0?'0.35':'0'));
+  $('cavBanner').classList.toggle('show',cav>0.3);
+  $('submitBtn').textContent=(G.lv===1&&G.phase===0)?'📌 บันทึกจุดนี้ (ขั้น A)':'✔ ส่งงาน';
+}
+
+/* ═════════ ด่าน ═════════ */
+function allowNow(){var lv=LV[G.lv];return (G.lv===1&&G.phase===1)?lv.allowB:lv.allow;}
+function applyLocks(){
+  var al=allowNow(), map={valve:'cValve',speed:'cSpeed',imp:'cImp',sump:'cSump',cnt:'cCnt',mode:'cMode',dn:'cDn'};
+  for(var k in map)$(map[k]).classList.toggle('hide',al.indexOf(k)<0);
+}
+function syncInputs(){
+  $('sValve').value=Math.round(S.v*100);$('sSpeed').value=Math.round(S.n*100);$('sImp').value=Math.round(S.d*100);$('sSump').value=Math.round(S.hs*2);
+  segSel('cCnt',String(S.cnt));segSel('cMode',S.mode);segSel('cDn',String(S.dn));
+}
+function segSel(id,v){var bs=$(id).querySelectorAll('button');for(var i=0;i<bs.length;i++)bs[i].classList.toggle('sel',bs[i].getAttribute('data-v')===v);}
+function startLevel(i){
+  G.lv=i;G.phase=0;G.running=true;G.t=0;G.recA=null;G.usedPar=false;G.maxCnt=1;G.triedPar4=false;
+  var lv=LV[i];
+  S.n=1;S.d=1;S.v=1;S.cnt=1;S.mode='p';S.hs=-2;S.dn=150;
+  for(var k in lv.start)S[k]=lv.start[k];
+  lastNetKey='';
+  G.q1=calc({n:1,d:1,v:1,cnt:1,mode:'p',hs:S.hs,dn:S.dn},lv).Q;
+  $('lvlName').textContent=lv.name;$('goalTxt').textContent=lv.goal;
+  applyLocks();syncInputs();refresh();
+  var intro=['ลองหรี่วาล์ว แล้วดูจุดเหลืองบนกราฟวิ่งตามเส้นปั๊ม 👀','ขั้น A ก่อน: หรี่วาล์วอย่างเดียว จำ kW ไว้นะ',
+    'ตอนนี้ปั๊ม 1 ตัวได้ '+f1(G.q1)+' m³/h — ยังไม่ถึงเป้า','ปั๊ม 1 ตัวดันไม่ขึ้น! น้ำไม่ไหลเลย 😱 ลองต่ออนุกรม','ได้ยินเสียงกรวดไหม? นั่นคือฟองไอแตกในปั๊ม 🫧'];
+  say(intro[i],3600);
+}
+function submit(force){
+  var lv=LV[G.lv]; R=calc(S);
+  var inT=Math.abs(R.Q-lv.qT)<=lv.qTol+1e-9;
+  if(G.lv===1&&G.phase===0){
+    if(!inT&&!force){sBad();say('ยังไม่ได้ Q เป้า 43–47 m³/h — หรี่วาล์วต่ออีกนิด',2600);return;}
+    if(!inT){ /* หมดเวลา: คำนวณจุดอ้างอิงให้ */
+      var b=kwBest(lv.qT,1,['valve'],{n:1,d:1,cnt:1,mode:'p',hs:-2,dn:150});
+      var sv={n:1,d:1,v:b.v,cnt:1,mode:'p',hs:-2,dn:150}; var rr=calc(sv,lv);
+      G.recA={Q:rr.Q,H:rr.H,P:rr.P,v:b.v,x:rr.x,dropV:rr.dropV,auto:true};
+    }else G.recA={Q:R.Q,H:R.H,P:R.P,v:S.v,x:R.x,dropV:R.dropV};
+    sRec();G.phase=1;G.t=0;$('goalTxt').textContent=lv.goalB;applyLocks();refresh();
+    say('บันทึกแล้ว: '+f2(G.recA.P)+' kW 📌 ต่อขั้น B — เปิดวาล์วสุด แล้วลดรอบ',3800);
+    return;
+  }
+  G.running=false;
+  showResult(evaluate());
+}
+
+/* ── ประเมินผล + เฉลยเฉพาะเจาะจง ── */
+function evaluate(){
+  var lv=LV[G.lv], r=calc(S), al=allowNow(), fb=[], cmp='';
+  var lo=lv.qT-lv.qTol, hi=lv.qT+lv.qTol;
+  var inT=Math.abs(r.Q-lv.qT)<=lv.qTol+1e-9, inB=r.Q>0&&r.x>=0.7&&r.x<=1.2, npOk=r.npsha>=r.npshr+MARGIN;
+  var tgt=inT&&(G.lv!==4||npOk);
+  var best=r.Q>0?kwBest(r.Q,G.lv,al):null;
+  var kwOk=tgt&&inB&&best&&r.P<=best.minP*1.05+0.005;
+  var st=tgt?(inB?(kwOk?3:2):1):0;
+  /* ข้อ 1: เป้า */
+  if(r.Q<=0)fb.push(['b','น้ำไม่ไหลเลย (Q = 0): head ที่ปั๊มให้ได้ '+f1(r.H)+' m ต่ำกว่า H_static '+f1(r.Hs)+' m — ปั๊มหมุนตีน้ำอยู่กับที่ (dead-head) ร้อนจัด']);
+  else if(r.Q<lo)fb.push(['b','Q = '+f1(r.Q)+' m³/h ต่ำกว่าเป้า ('+f1(lo)+'–'+f1(hi)+') ขาดไป '+f1(lo-r.Q)+' m³/h']);
+  else if(r.Q>hi)fb.push(['b','Q = '+f1(r.Q)+' m³/h เกินเป้า ('+f1(lo)+'–'+f1(hi)+') '+f1(r.Q-hi)+' m³/h — ส่งเกินคือเปลืองไฟ']);
+  else fb.push(['g','Q = '+f1(r.Q)+' m³/h อยู่ในช่วงเป้า ✔ (จุดตัด H = '+f1(r.H)+' m)']);
+  /* ข้อ 2: BEP */
+  if(r.Q>0){
+    if(r.x<0.7)fb.push(['b','ปั๊มแต่ละตัวทำงานที่ '+Math.round(r.x*100)+'% ของ Q_BEP (ซ้ายโซน 70–120%) — η เหลือ '+Math.round(r.eta*100)+'% เสี่ยงไหลวนย้อน (recirculation) สั่น ร้อน']);
+    else if(r.x>1.2)fb.push(['b','ปั๊มทำงานที่ '+Math.round(r.x*100)+'% ของ Q_BEP (ขวาโซน = run-out) — NPSHr สูง '+f1(r.npshr)+' m มอเตอร์เสี่ยง overload']);
+    else fb.push(['g','อยู่ในโซน BEP: '+Math.round(r.x*100)+'% ของ Q_BEP · η = '+Math.round(r.eta*100)+'% ✔']);
+  }
+  /* ข้อ 3: kW เทียบวิธีดีที่สุด */
+  if(!inT){
+    var bt=kwBest(lv.qT,G.lv,al);
+    if(bt)fb.push(['','เฉลย: ที่ Q เป้า '+lv.qT+' m³/h ทำได้ด้วย '+descCfg(bt,al)+' → '+f2(bt.P)+' kW · '+Math.round(bt.x*100)+'% BEP']);
+  }else if(best&&r.Q>0){
+    var dk=r.P-best.P;
+    if(r.P>best.minP*1.05+0.005)fb.push(['b','ใช้ไฟ '+f2(r.P)+' kW · ที่ Q เท่ากันทำได้ต่ำสุด '+f2(best.P)+' kW ด้วย: '+descCfg(best,al)+' → เปลืองเกิน '+f2(dk)+' kW ≈ '+baht(dk)+' บาท/ปี']);
+    else fb.push(['g','ใช้ไฟ '+f2(r.P)+' kW ใกล้ค่าต่ำสุดที่ทำได้ ('+f2(best.P)+' kW) ✔']);
+  }
+  /* เฉพาะด่าน */
+  var L=G.lv;
+  if(L===0&&S.v>=0.99){
+    fb.push(['b','ยังไม่ได้หรี่วาล์วเลย: เส้นระบบเดิมตัดเส้นปั๊มที่ Q '+f1(r.Q)+' m³/h (ขวาของ BEP) — หรี่วาล์วให้เส้นแดงชันขึ้น จุดตัดจะเลื่อนซ้าย']);
+  }else if(L===0){
+    fb.push(['','หรี่วาล์วเหลือ '+Math.round(S.v*100)+'%: k ระบบจาก '+(r.kd-KV0/(S.v*S.v)+KV0).toExponential(2)+' → '+r.kd.toExponential(2)+' m/(m³/h)² เส้นระบบชันขึ้น จุดตัดเลื่อนซ้ายตามเส้นปั๊ม']);
+    fb.push(['','วาล์วเผา head ทิ้ง '+f1(r.dropV)+' m (= '+f2(RHO*GRAV*r.Q/3600*r.dropV/Math.max(0.05,r.eta)/1000/ETA_M)+' kW) — ด่านถัดไปจะเห็นว่า VFD ประหยัดกว่า']);
+  }
+  if(L===1&&G.recA){
+    var pv=G.recA.P, sav=pv-r.P;
+    fb.push(['','ขั้น A (หรี่วาล์ว '+Math.round(G.recA.v*100)+'%): '+f2(pv)+' kW ที่ Q '+f1(G.recA.Q)+' — วาล์วเผา head ทิ้ง '+f1(G.recA.dropV)+' m'+(G.recA.auto?' (ระบบคำนวณให้เพราะหมดเวลา)':'')]);
+    fb.push([sav>0?'g':'b','ขั้น B (รอบ '+Math.round(S.n*100)+'%, วาล์ว '+Math.round(S.v*100)+'%): '+f2(r.P)+' kW → '+(sav>0?'ประหยัด '+f2(sav)+' kW ('+Math.round(sav/pv*100)+'%) ≈ '+baht(sav)+' บาท/ปี':'ยังไม่ประหยัดกว่าเลย')]);
+    if(S.v<0.97)fb.push(['b','ขั้น B ยังหรี่วาล์วค้างไว้ '+Math.round(S.v*100)+'% — ต้องเปิดวาล์ว 100% แล้วให้ VFD ทำงานแทน จึงไม่มี head ถูกเผาทิ้ง']);
+    fb.push(['','ระบบนี้ H_static แค่ '+f1(r.Hs)+' m (friction เด่น) — affinity P∝N³ จึงได้ผลแรง ถ้า static สูง VFD จะประหยัดได้น้อยลง']);
+    var mx=Math.max(pv,r.P,0.01);
+    cmp='<div class="row"><span>🚰 หรี่วาล์ว</span><div class="bar" style="width:'+(pv/mx*62).toFixed(0)+'%;background:#e53935"></div><b>'+f2(pv)+' kW</b></div>'+
+        '<div class="row"><span>⚙️ VFD</span><div class="bar" style="width:'+(r.P/mx*62).toFixed(0)+'%;background:#3f51b5"></div><b>'+f2(r.P)+' kW</b></div>';
+  }
+  if(L===2){
+    var q2=calc({n:1,d:1,v:1,cnt:2,mode:'p',hs:-2,dn:150},lv).Q, q3=calc({n:1,d:1,v:1,cnt:3,mode:'p',hs:-2,dn:150},lv).Q;
+    fb.push(['','วาล์วเปิดสุด รอบเต็ม: 1 ตัว '+f1(G.q1)+' → 2 ตัว '+f1(q2)+' m³/h = '+f2(q2/G.q1)+'× (ไม่ใช่ 2×!) · 3 ตัว '+f1(q3)+' m³/h (+'+f1(q3-q2)+' เท่านั้น)']);
+    fb.push(['','เหตุผล: ขนาน = บวก Q ที่ H เดียวกัน แต่เส้นระบบชัน (H_static '+f1(r.Hs)+' m + k·Q²) Q มากขึ้น head ต้องสูงขึ้น ปั๊มแต่ละตัวจึงถอยไปทางซ้ายของเส้น']);
+    if(S.cnt===3)fb.push(['b','เปิด 3 ตัว: แต่ละตัวเหลือ '+f1(r.Qp)+' m³/h ('+Math.round(r.x*100)+'% BEP) — ตัวที่ 3 แทบไม่ช่วย แถมดึงทุกตัวออกจาก BEP']);
+    if(S.cnt===1)fb.push(['b','ใช้ปั๊มตัวเดียว: Q สูงสุดทำได้แค่ '+f1(G.q1)+' m³/h ไม่ถึงเป้า — ต้องเปิดตัวที่ 2']);
+  }
+  if(L===3){
+    if(S.mode==='p'||S.cnt===1)fb.push(['b','ต่อขนาน/ตัวเดียว: shutoff ยังเป็น '+f1(S.n*S.n*S.d*S.d*H0)+' m < H_static '+f1(r.Hs)+' m — ขนานกี่ตัวน้ำก็ไม่ขึ้น (ขนานเพิ่มแต่ Q ไม่เพิ่ม H)']);
+    else fb.push(['g','อนุกรม '+S.cnt+' ตัว: head รวม = '+S.cnt+' × '+f1(r.Hp)+' = '+f1(r.H)+' m ที่ Q เดียวกัน ✔ ข้าม H_static '+f1(r.Hs)+' m ได้']);
+    if(S.mode==='s'&&S.cnt===3&&best&&best.cnt===2)fb.push(['','3 ตัวอนุกรมก็ทำได้ แต่ 2 ตัว + ปรับรอบ/ใบพัด ก็พอ — ตัวที่ 3 คือภาระซ่อมบำรุงเพิ่ม']);
+  }
+  if(L===4){
+    var hfTxt='NPSHa = 10.35 + ('+fmtS(S.hs)+') − '+f2(r.hf)+' (h_f ท่อดูด DN'+S.dn+') − 0.43 = '+f2(r.npsha)+' m';
+    fb.push([npOk?'g':'b',hfTxt+' · NPSHr = '+f2(r.npshr)+' m → margin '+f2(r.npsha-r.npshr)+' m '+(npOk?'≥ 1.0 ✔':'< 1.0 ✘')]);
+    var r0=calc({n:1,d:1,v:1,cnt:1,mode:'p',hs:-6,dn:80},lv);
+    fb.push(['','ตอนเริ่ม: บ่อ −6.0 m, DN80 → h_f '+f2(r0.hf)+' m, NPSHa '+fmtS(r0.npsha).replace('+','')+' m < NPSHr '+f2(r0.npshr)+' m = เดือดเป็นฟองในตาใบพัด']);
+    if(S.dn===80)fb.push(['b','ยังใช้ท่อดูด DN80 ยาว 30 m: ความเร็วน้ำ '+f2(r.Qp/3600/(Math.PI*0.0807*0.0807/4))+' m/s (ควร ≤ 1.5 m/s ด้านดูด) — เปลี่ยน DN150 ลด h_f เหลือราว 1/20']);
+    if(S.hs<-3)fb.push(['','ระดับน้ำยังต่ำ '+fmtS(S.hs)+' m — ยกบ่อ 1 m = NPSHa +1 m และลด H_static ลง 1 m (ประหยัดไฟด้วย)']);
+    if(S.n<0.9&&!inT)fb.push(['b','ลดรอบอย่างเดียวช่วย NPSH ได้ แต่ Q ตกต่ำกว่าเป้า — ต้องแก้ที่ต้นเหตุ (ระดับบ่อ/ท่อดูด)']);
+  }
+  return {st:st,fb:fb,cmp:cmp,r:r,best:best,inT:inT,inB:inB,npOk:npOk};
+}
+
+function showResult(ev){
+  var lv=LV[G.lv], r=ev.r;
+  if(ev.st>stars[G.lv]){stars[G.lv]=ev.st;saveStars();}
+  updateStarTotal();
+  var titles=['ลองใหม่อีกนิด!','ผ่านเป้าแล้ว','ดีมาก! อยู่ BEP','สุดยอด! ประหยัดสุด'];
+  $('resEmoji').textContent=['🔧','👍','🎯','🏆'][ev.st];
+  $('resTitle').textContent=lv.short+' — '+titles[ev.st];
+  $('resLesson').textContent='💡 '+lv.lesson;
+  var ul=$('resFb');ul.innerHTML='';
+  for(var i=0;i<ev.fb.length;i++){var li=document.createElement('li');if(ev.fb[i][0])li.className=ev.fb[i][0];li.textContent=ev.fb[i][1];ul.appendChild(li);}
+  $('resCmp').innerHTML=ev.cmp||'';
+  var html='<div><span>⭐ เกณฑ์</span><b>🎯'+(ev.inT&&(G.lv!==4||ev.npOk)?'✔':'✘')+' 🟢'+(ev.inB?'✔':'✘')+' ⚡'+(ev.st===3?'✔':'✘')+'</b></div>'+
+    '<div><span>จุดทำงาน</span><b>Q '+f1(r.Q)+' m³/h · H '+f1(r.H)+' m</b></div>'+
+    '<div><span>η · %BEP</span><b>'+Math.round(r.eta*100)+'% · '+Math.round(r.x*100)+'%</b></div>'+
+    '<div><span>กำลังไฟฟ้า</span><b>'+f2(r.P)+' kW (เพลา '+f2(r.Psh)+')</b></div>'+
+    '<div><span>พลังงานจำเพาะ</span><b>'+(r.Q>0?(r.P/r.Q*1000).toFixed(0)+' Wh/m³':'—')+'</b></div>'+
+    '<div><span>เวลา</span><b>'+Math.floor(G.t)+' วิ</b></div>';
+  $('resStats').innerHTML=html;
+  var ss=$('resStars').children;for(var k=0;k<3;k++)ss[k].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(ev.st>=2)sGood();else if(ev.st===0)sBad();
+  for(let j=0;j<ev.st;j++)setTimeout(function(){ss[j].classList.add('on');sStar(j);},350+j*380);
+  if(ev.st===3)confetti(30);
+  $('nextBtn').textContent=G.lv<NLV-1?'ด่านต่อไป ➜':'🏁 สรุปบทเรียน';
+  $('retryBtn').textContent=ev.st>0?'↻ เล่นซ้ำ':'↻ ลองใหม่';
+}
+function updateStarTotal(){var t=0;for(var i=0;i<NLV;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+function showEnd(){
+  $('endStars').textContent=updateStarTotal();
+  var ul=$('endList');ul.innerHTML='';
+  for(var i=0;i<NLV;i++){var li=document.createElement('li');li.textContent=LV[i].icon+' '+LV[i].lesson+'  ('+'⭐'.repeat(stars[i])+')';ul.appendChild(li);}
+  $('endOv').classList.add('show');
+}
+function confetti(n){var cols=['#3f51b5','#00acc1','#ffd23f','#1fb45f','#7b5bff'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ═════════ loop (อนุภาคน้ำ ใบพัดหมุน cavitation) ═════════ */
+function loop(ts){
+  if(!lastTs)lastTs=ts;
+  var dt=Math.min(0.08,(ts-lastTs)/1000);lastTs=ts;
+  if(G.running){
+    G.t+=dt;
+    var left=Math.max(0,G.T-G.t);
+    $('chT').textContent='⏱ '+Math.ceil(left)+' วิ';
+    $('timerFill').style.width=(left/G.T*100).toFixed(1)+'%';
+    if(left<=0){say('หมดเวลา! ⏰',1500);submit(true);}
+  }
+  if(R){
+    /* อนุภาคน้ำวิ่งตามท่อ: ความเร็ว ∝ flow ของช่วงนั้น */
+    for(var i=0;i<flowPaths.length;i++){
+      var fp=flowPaths[i], q=fp.k==='Qp'?R.Qp:R.Q;
+      var w=q>0?Math.min(fp.maxW,2+q/100*fp.maxW):0;
+      fp.el.setAttribute('stroke-width',w.toFixed(1));
+      var spd=q*1.6*(fp.suc&&G.lv===4?({80:3.6,100:2.2,150:1})[S.dn]:1);
+      if(!REDUCED)fp.phase=(fp.phase+spd*dt)%fp.L;
+      var gap=fp.L/fp.parts.length;
+      for(var p=0;p<fp.parts.length;p++){
+        var s=(fp.phase+p*gap)%fp.L, pt=fp.el.getPointAtLength(s);
+        var c=fp.parts[p]; c.setAttribute('cx',pt.x.toFixed(1));c.setAttribute('cy',pt.y.toFixed(1));
+        c.setAttribute('opacity',q>0?'0.95':'0');c.setAttribute('r',(1.6+Math.min(2.4,q/40)).toFixed(1));
+      }
+    }
+    /* ใบพัดหมุน + สั่นเมื่อ cavitation */
+    for(var k=0;k<3;k++){var pe=pumpEls[k],on=k<S.cnt;
+      if(on&&!REDUCED)pe.ang=(pe.ang+S.n*dt*900)%360;
+      pe.imp.setAttribute('transform','rotate('+pe.ang.toFixed(1)+' '+PX[k]+' '+PCY+')');
+      if(on&&G.cav>0.3&&!REDUCED){var a=1.8*G.cav;pe.inner.setAttribute('transform','translate('+((Math.random()*2-1)*a).toFixed(1)+' '+((Math.random()*2-1)*a).toFixed(1)+')');}
+      else pe.inner.removeAttribute('transform');}
+    /* เสียงกรวด */
+    if(G.cav>0.3&&G.running){G.crackT-=dt;if(G.crackT<=0){sCrackle(G.cav);G.crackT=0.05+Math.random()*0.09*(1.3-G.cav);}}
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ═════════ คู่มือวิธีเล่น (5 ขั้น SVG เคลื่อนไหว) ═════════ */
+var AX='<line x1="40" y1="140" x2="320" y2="140" stroke="#5a6a80" stroke-width="2"/><line x1="40" y1="140" x2="40" y2="14" stroke="#5a6a80" stroke-width="2"/>'+
+  '<text x="318" y="155" font-size="11" text-anchor="end" fill="#5a6a80">Q</text><text x="30" y="22" font-size="11" text-anchor="end" fill="#5a6a80">H</text>';
+var HELP=[
+ {t:'① ภารกิจ',txt:'ปั๊มดูดน้ำจากบ่อ ส่งขึ้นถังสูง — ให้ได้ Q เป้า · อยู่โซน BEP · ใช้ kW ต่ำสุด = ได้ 3 ดาว',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#eef3f9"/>'+
+   '<rect x="12" y="96" width="70" height="56" fill="#33414f"/><rect x="12" y="118" width="70" height="34" fill="#42a5f5"/>'+
+   '<path d="M40 140 L40 128 L150 128 L150 116" stroke="#5d6b7d" stroke-width="10" fill="none"/>'+
+   '<path class="tFlow" d="M40 140 L40 128 L150 128 L150 116" stroke="#fff" stroke-width="3" fill="none"/>'+
+   '<rect x="138" y="58" width="24" height="34" rx="5" fill="#26c6da" stroke="#24306e" stroke-width="2"/>'+
+   '<circle cx="150" cy="104" r="15" fill="#3f51b5" stroke="#1a237e" stroke-width="2"/>'+
+   '<g class="tSpin"><path d="M150 104 l10 -4 M150 104 l-4 10 M150 104 l-8 -6" stroke="#c5cae9" stroke-width="3"/></g>'+
+   '<path d="M165 104 L190 104 L190 40 L280 40 L280 52" stroke="#5d6b7d" stroke-width="10" fill="none"/>'+
+   '<path class="tFlow" d="M165 104 L190 104 L190 40 L280 40 L280 52" stroke="#fff" stroke-width="3" fill="none"/>'+
+   '<rect x="256" y="50" width="62" height="36" rx="6" fill="#cfd8e3" stroke="#5d6b7d" stroke-width="2"/><rect x="260" y="64" width="54" height="18" fill="#42a5f5"/>'+
+   '<line x1="264" y1="86" x2="264" y2="150" stroke="#6f7c8e" stroke-width="4"/><line x1="310" y1="86" x2="310" y2="150" stroke="#6f7c8e" stroke-width="4"/>'+
+   '<text x="226" y="128" font-size="15" font-weight="700" fill="#283593">⭐⭐⭐</text></svg>'},
+ {t:'② จุดทำงาน = จุดตัด',txt:'เส้นปั๊ม (น้ำเงิน) ตัดเส้นระบบ (แดง) ตรงไหน ปั๊มทำงานตรงนั้น — จุดเหลืองกะพริบ',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fff"/>'+AX+
+   '<rect x="150" y="14" width="80" height="126" fill="#1fb45f" opacity=".15"/><text x="190" y="28" font-size="11" text-anchor="middle" fill="#13723b">BEP</text>'+
+   '<path d="M40 34 Q180 40 300 140" stroke="#3f51b5" stroke-width="4" fill="none"/>'+
+   '<path d="M40 110 Q160 104 300 30" stroke="#e53935" stroke-width="4" fill="none"/>'+
+   '<circle class="tBlink" cx="196" cy="76" r="8" fill="#ffd23f" stroke="#213047" stroke-width="2.5"/>'+
+   '<text x="300" y="132" font-size="11" text-anchor="end" fill="#3f51b5">ปั๊ม</text><text x="292" y="26" font-size="11" text-anchor="end" fill="#c62828">ระบบ</text></svg>'},
+ {t:'③ วาล์ว vs VFD',txt:'หรี่วาล์ว = เส้นระบบชันขึ้น (เผา head ทิ้ง) · ลดรอบ VFD = เส้นปั๊มลดลง (P ∝ N³ ประหยัดกว่า)',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fff"/>'+AX+
+   '<path class="tPump" d="M40 34 Q180 40 300 140" stroke="#3f51b5" stroke-width="4" fill="none"/>'+
+   '<path class="tSys" d="M40 110 Q160 104 300 30" stroke="#e53935" stroke-width="4" fill="none"/>'+
+   '<rect x="96" y="148" width="150" height="8" rx="4" fill="#c5cae9"/>'+
+   '<circle class="tThumb" cx="240" cy="152" r="9" fill="#fff" stroke="#3f51b5" stroke-width="4"/>'+
+   '<text x="252" y="80" font-size="12" fill="#3f51b5">⚙️ VFD</text><text x="60" y="96" font-size="12" fill="#c62828">🚰 วาล์ว</text></svg>'},
+ {t:'④ ขนาน / อนุกรม',txt:'ขนาน = บวก Q ที่ H เดียวกัน (เส้นกว้างขึ้น) · อนุกรม = บวก H ที่ Q เดียวกัน (เส้นสูงขึ้น)',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fff"/>'+
+   '<line x1="30" y1="130" x2="160" y2="130" stroke="#5a6a80" stroke-width="2"/><line x1="30" y1="130" x2="30" y2="20" stroke="#5a6a80" stroke-width="2"/>'+
+   '<path d="M30 80 Q70 82 100 130" stroke="#9fa8da" stroke-width="3" fill="none" stroke-dasharray="5 4"/>'+
+   '<path class="tWide" d="M30 80 Q70 82 100 130" stroke="#3f51b5" stroke-width="4" fill="none"/>'+
+   '<text x="95" y="150" font-size="13" font-weight="600" text-anchor="middle" fill="#283593">ขนาน ↔</text>'+
+   '<line x1="200" y1="130" x2="330" y2="130" stroke="#5a6a80" stroke-width="2"/><line x1="200" y1="130" x2="200" y2="20" stroke="#5a6a80" stroke-width="2"/>'+
+   '<path d="M200 90 Q250 92 290 130" stroke="#9fa8da" stroke-width="3" fill="none" stroke-dasharray="5 4"/>'+
+   '<path class="tTall" d="M200 90 Q250 92 290 130" stroke="#3f51b5" stroke-width="4" fill="none"/>'+
+   '<text x="265" y="150" font-size="13" font-weight="600" text-anchor="middle" fill="#283593">อนุกรม ↕</text></svg>'},
+ {t:'⑤ ระวัง cavitation',txt:'บ่อต่ำ + ท่อดูดยาว → NPSHa ไม่พอ น้ำเดือดเป็นฟองแตกในปั๊ม ต้องให้ NPSHa ≥ NPSHr + 1 m',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#eef3f9"/>'+
+   '<g class="tShake"><circle cx="100" cy="80" r="44" fill="#3f51b5" stroke="#1a237e" stroke-width="4"/>'+
+   '<g class="tSpin"><path d="M100 80 l26 -8 M100 80 l-10 26 M100 80 l-18 -18 M100 80 l14 20" stroke="#c5cae9" stroke-width="5" stroke-linecap="round"/></g>'+
+   '<circle class="cb" cx="86" cy="66" r="6" fill="#fff"/><circle class="cb" style="animation-delay:.15s" cx="116" cy="70" r="5" fill="#fff"/>'+
+   '<circle class="cb" style="animation-delay:.3s" cx="94" cy="98" r="5" fill="#fff"/><circle class="cb" style="animation-delay:.42s" cx="112" cy="94" r="4" fill="#fff"/></g>'+
+   '<rect x="200" y="30" width="34" height="110" rx="6" fill="#e3f2fd"/><rect class="tBar" x="200" y="50" width="34" height="90" rx="6" fill="#0288d1"/>'+
+   '<rect x="256" y="30" width="34" height="110" rx="6" fill="#ffebee"/><rect x="256" y="84" width="34" height="56" rx="6" fill="#ef4b4b"/>'+
+   '<text x="217" y="154" font-size="12" text-anchor="middle" fill="#01579b">NPSHa</text><text x="273" y="154" font-size="12" text-anchor="middle" fill="#c62828">NPSHr</text></svg>'}
+];
+var helpPg=0;
+function renderHelp(){
+  $('helpStage').innerHTML=HELP[helpPg].svg;
+  $('helpTitle').textContent='วิธีเล่น · '+HELP[helpPg].t;
+  $('helpTxt').textContent=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';
+  for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';
+  $('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';
+}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){
+  $('helpOv').classList.remove('show');markSeen();
+  if(start&&!G.running){$('startOv').classList.remove('show');startLevel(pickNext());}
+}
+function pickNext(){for(var i=0;i<NLV;i++)if(!stars[i])return i;return 0;}
+
+/* ═════════ อีเวนต์ ═════════ */
+function onCtl(){sClick();refresh();}
+$('sValve').addEventListener('input',function(){S.v=+this.value/100;onCtl();});
+$('sSpeed').addEventListener('input',function(){S.n=+this.value/100;onCtl();});
+$('sImp').addEventListener('input',function(){S.d=+this.value/100;onCtl();});
+$('sSump').addEventListener('input',function(){S.hs=+this.value/2;onCtl();});
+function segInit(id,fn){var bs=$(id).querySelectorAll('button');for(var i=0;i<bs.length;i++)bs[i].addEventListener('click',function(){
+  audio();fn(this.getAttribute('data-v'));segSel(id,this.getAttribute('data-v'));onCtl();});}
+segInit('cCnt',function(v){var prev=S.cnt;S.cnt=+v;
+  if(G.lv===2&&S.cnt===2&&prev===1){var r2=calc(S);say('Q: '+f1(G.q1)+' → '+f1(r2.Q)+' m³/h = '+f2(r2.Q/G.q1)+'× เท่านั้น! ไม่ใช่ 2 เท่า 🤔',4200);}
+  if(G.lv===3&&S.mode==='p'&&S.cnt>1)say('ขนาน '+S.cnt+' ตัว น้ำยังไม่ขึ้น! shutoff ยัง 40 m เท่าเดิม 🤔',3600);});
+segInit('cMode',function(v){S.mode=v;if(G.lv===3&&v==='s'&&S.cnt>1)say('อนุกรม: head บวกกัน '+S.cnt+'×40 m น้ำขึ้นแล้ว! 🎉',3000);});
+segInit('cDn',function(v){S.dn=+v;});
+$('submitBtn').addEventListener('click',function(){audio();if(G.running)submit(false);});
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn2').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(G.lv);});
+$('nextBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');if(G.lv<NLV-1)startLevel(G.lv+1);else showEnd();});
+$('endHome').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('endReplay').addEventListener('click',function(){$('endOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('formBtn').addEventListener('click',function(){audio();sClick();$('formOv').classList.add('show');this.classList.add('on');});
+$('formClose').addEventListener('click',function(){sClick();$('formOv').classList.remove('show');$('formBtn').classList.remove('on');});
+
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<NLV;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.25rem">'+LV[i].icon+'</span><span class="nm">'+(i+1)+'. '+LV[i].short+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── debug hook สำหรับ QA ── */
+window.TEG={G:G,S:S,LV:LV,calc:calc,kwBest:kwBest,startLevel:startLevel,submit:submit,evaluate:evaluate,stars:stars,
+  set:function(o){for(var k in o)S[k]=o[k];syncInputs();refresh();return calc(S);},
+  consts:{H0:H0,A:A,QBEP:QBEP,EMAX:EMAX,RHO:RHO,GRAV:GRAV,KV0:KV0,NPSH_ATM:NPSH_ATM,NPSH_V:NPSH_V},kSuc:kSuc};
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();buildPumps();
+G.lv=0;startLevel(0);G.running=false;
+requestAnimationFrame(loop);
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ช่างปลอดภัย LOTO — Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "ช่างปลอดภัย LOTO" (Safe Tech LOTO) v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: ช่าง ปวช./ปวส.
+     หลักที่สอน: Lockout-Tagout (LOTO) — ก่อนซ่อมต้องตัด "ทุกแหล่งพลังงาน" รวมพลังงานสะสม แล้วยืนยันภาวะพลังงานเป็นศูนย์ (zero energy state)
+     ลำดับขั้น (OSHA 29 CFR 1910.147 (c)(9),(d)(1)–(6) + แนวปฏิบัติไทย กฎกระทรวงความปลอดภัยฯ เครื่องจักร 2552 / ไฟฟ้า 2558):
+       ① เตรียม/แจ้งผู้เกี่ยวข้อง ② หยุดเครื่องตามปกติ ③ ตัดแยกแหล่งพลังงานทุกจุด ④ ใส่กุญแจ+ป้ายส่วนตัว
+       ⑤ ปลดพลังงานสะสม ⑥ ยืนยัน (try-start / มิเตอร์ / เกจ) แล้วคืนสวิตช์ OFF ⑦ PPE ตรงงาน
+     พลังงาน 6 ชนิด: ไฟฟ้า · กล (หมุน/แรงโน้มถ่วง/สปริง) · ไฮดรอลิก · นิวแมติก · ความร้อน (ไอน้ำ) · เคมี
+     ฟิสิกส์เบื้องหลัง (ตัวเลขที่แสดงในเกม):
+       ความดันค้าง: ต่อแหล่ง → P→P_sup ; ตัดแยก+เปิดระบาย → dP/dt = −P/τ (blowdown อย่างง่าย) ; ตัดแยกแต่ไม่ระบาย → P คงค้าง
+       น้ำพุ่งจาก drain: v = √(2ΔP/ρ) → 2.5 bar g ≈ 22.4 m/s
+       แรงกระบอกลม: F = p·A = 6×10⁵ × π(0.08)²/4 ≈ 3,016 N (≈307 kgf)
+       พลังงานศักย์: E = m·g·h — ตุ้มถ่วง 400 kg × 1.5 m ≈ 5.9 kJ ; ram 800 kg × 0.40 m ≈ 3.1 kJ
+       แอคคิวมูเลเตอร์ (ก๊าซ isothermal, ความดันสัมบูรณ์): E ≈ p₀V₀·ln(p₂/p₀) = 91×10⁵×0.010×ln(161/91) ≈ 51.9 kJ
+       มู่เล่/โรเตอร์: E = ½Iω² = ½×25×(2π·1480/60)² ≈ 300 kJ ; หมุนค้าง (coast-down) dω/dt = −(a + b·ω)
+       ไอน้ำอิ่มตัว: Tsat(5 bar g) = 158.8 °C ; flash steam = (h_f1 − h_f2)/h_fg2 = (670.4−419.0)/2257 ≈ 11.1 %
+       การเย็นตัว: T = Ta + (T0−Ta)·e^(−t/τ) (ย่นเวลาในเกม) — จับได้เมื่อ ≤ 50 °C
+       มอเตอร์ 15 kW 400 V: I = P/(√3·V·pf·η) = 15000/(1.732×400×0.86×0.91) ≈ 28 A -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --mid:#f5a623; --warn:#f5a623; --bad:#ef4b4b;
+  --ind:#3f51b5; --cy:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#36435a,#27303f 60%,#1e2531);
+  color:var(--ink);min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow-x:hidden;user-select:none;-webkit-user-select:none}
+#app{width:100%;max-width:840px;padding:10px 12px 22px;display:flex;flex-direction:column;gap:10px}
+
+/* HUD */
+#hud{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.93);border:3px solid #fff;border-radius:18px;padding:7px 10px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hud .lvl-name{font-weight:600;font-size:1rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap;font-size:.95rem}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 8px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:40px}
+#hud button.on{background:#213047;color:#fff}
+
+/* Scene */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4);background:#39424f;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto;touch-action:manipulation}
+#bubble{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);max-width:92%;width:max-content;background:#fff;border-radius:14px;border:3px solid #00acc1;
+  padding:6px 12px;font-size:.9rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.3);transition:opacity .25s;opacity:0;pointer-events:none;text-align:center;line-height:1.4}
+#bubble.show{opacity:1}
+#bubble.bad{border-color:#ef4b4b;background:#fff1f1}
+#bubble.good{border-color:#1fb45f;background:#effcf3}
+@keyframes shakeS{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+#sceneWrap.shake{animation:shakeS .28s linear 4}
+#toolHint{position:absolute;left:8px;top:8px;background:rgba(0,172,193,.92);color:#fff;border-radius:12px;padding:4px 10px;font-size:.82rem;font-weight:600;display:none;pointer-events:none}
+#toolHint.show{display:block}
+
+/* tray + actions */
+#tray{background:#fff;border-radius:20px;padding:10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:8px}
+#tools{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
+#tools .tlab{font-size:.8rem;color:#55657c;font-weight:600;align-self:center;flex-basis:100%}
+.tool{border:3px solid #dfe6f0;background:#f7fafd;border-radius:14px;min-width:66px;min-height:56px;padding:4px 8px;font-family:inherit;cursor:grab;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none;color:var(--ink);font-size:1.5rem;line-height:1.1}
+.tool small{font-size:.7rem;font-weight:600}
+.tool.sel{border-color:#00acc1;background:#e0f7fa;box-shadow:0 0 0 3px rgba(0,172,193,.25)}
+.tool.done{opacity:.45}
+#acts{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:8px}
+.act{border:none;border-radius:14px;min-height:48px;font-family:inherit;font-size:.92rem;font-weight:600;cursor:pointer;color:var(--ink);background:#eef3fa;box-shadow:0 4px 0 #cbd5e3;transition:transform .08s}
+.act:active{transform:translateY(3px);box-shadow:0 1px 0 #cbd5e3}
+.act.ok{background:#dff6e8;box-shadow:0 4px 0 #9ed8b4}
+.act.go{color:#fff;background:var(--btn-grad);box-shadow:0 4px 0 #2a3a8c}
+
+/* panel */
+#panel{background:#fff;border-radius:20px;padding:10px 12px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:8px}
+#steps{display:flex;gap:5px;flex-wrap:wrap;justify-content:center}
+#steps span{font-size:.76rem;font-weight:600;padding:4px 8px;border-radius:999px;background:#eef2f7;color:#6a7a90;border:2px solid transparent}
+#steps span.on{background:#e0f7fa;color:#00838f;border-color:#00acc1}
+#readout{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;font-weight:600;font-size:.86rem}
+#readout span{background:#f1f5fb;border-radius:999px;padding:4px 10px;white-space:nowrap}
+#readout span.hot{background:#ffe3e3;color:#b3261e}
+#readout span.zero{background:#dff6e8;color:#11793d}
+#woMini{background:#fff8e1;border:2px dashed #f5a623;border-radius:14px;padding:6px 10px;font-size:.86rem;line-height:1.45;cursor:pointer}
+#woMini b{color:#3f51b5}
+.hint{font-size:.78rem;color:#6a7a90;text-align:center}
+
+/* buttons */
+.big-btn{border:none;border-radius:999px;padding:13px 30px;font-family:inherit;font-size:1.12rem;font-weight:700;color:#fff;background:var(--btn-grad);cursor:pointer;
+  box-shadow:0 6px 0 #2a3a8c,0 10px 18px rgba(0,0,0,.2);transition:transform .1s;min-height:48px}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #2a3a8c}
+.big-btn.alt{background:linear-gradient(135deg,#00acc1,#26c6da);box-shadow:0 6px 0 #00838f,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #00838f}
+.big-btn.small{font-size:.98rem;padding:10px 20px}
+
+/* overlays */
+.overlay{position:fixed;inset:0;background:rgba(10,18,32,.66);display:flex;align-items:center;justify-content:center;z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:24px;max-width:480px;width:100%;padding:20px 16px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.4);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.35rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+#startCard h1{font-size:1.75rem;line-height:1.25;background:linear-gradient(135deg,#3f51b5,#00acc1);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#55657c;margin:6px 0 8px;font-size:.93rem;line-height:1.5}
+.aud{display:inline-block;background:#e8eaf6;color:#3f51b5;border-radius:999px;padding:3px 12px;font-size:.82rem;font-weight:600;margin-top:4px}
+.brand{font-size:.78rem;color:#8795a8;margin-top:12px}
+.lvl-pick{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:14px;padding:6px 2px;font-family:inherit;cursor:pointer;min-height:64px}
+.lvl-pick .nm{font-size:.72rem;font-weight:600;display:block;line-height:1.2}
+.lvl-pick .st{font-size:.68rem;letter-spacing:0}
+.result-stars{font-size:2.7rem;letter-spacing:6px;margin:4px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e0f7fa;border-radius:14px;padding:8px 12px;font-weight:600;margin:6px 0;font-size:.93rem;color:#00606b}
+.fb{display:flex;flex-direction:column;gap:5px;margin:8px 0;text-align:left;font-size:.88rem;line-height:1.45}
+.fb div{border-radius:10px;padding:6px 10px}
+.fb .r{background:#ffe9e9;color:#9b1c1c;border-left:5px solid #ef4b4b}
+.fb .w{background:#fff4dc;color:#7a4d00;border-left:5px solid #f5a623}
+.fb .g{background:#e6f8ee;color:#11613a;border-left:5px solid #1fb45f}
+.fb .i{background:#eef2f7;color:#41526b;border-left:5px solid #9aa7b8}
+.fbh{font-weight:700;font-size:.95rem;margin-top:6px;text-align:left}
+.fbh.red{color:#c62828}
+.stat-tbl{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;font-size:.88rem;margin:4px 0}
+.stat-tbl span{background:#f1f5fb;border-radius:999px;padding:3px 10px}
+.btnrow{margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* WO card */
+.wo{background:#fffdf5;border:2px solid #e9d9a6;border-radius:16px;padding:12px;text-align:left;font-size:.92rem;line-height:1.55;position:relative}
+.wo .no{font-size:.8rem;color:#8a7440;font-weight:600}
+.wo .ttl{font-weight:700;font-size:1.02rem;color:#213047;margin:2px 0 4px}
+.wo .en{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.wo .en span{background:#e8eaf6;color:#303f9f;border-radius:999px;padding:2px 9px;font-size:.8rem;font-weight:600}
+.wo .stamp{position:absolute;right:10px;top:8px;border:2px solid #ef4b4b;color:#ef4b4b;border-radius:8px;padding:0 6px;font-size:.72rem;font-weight:700;transform:rotate(8deg)}
+
+/* PPE */
+#ppeGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+#ppeGrid button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:14px;padding:8px 4px;min-height:74px;font-family:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink)}
+#ppeGrid button .e{font-size:1.7rem}
+#ppeGrid button .n{font-size:.74rem;font-weight:600;line-height:1.2}
+#ppeGrid button.on{border-color:#1fb45f;background:#e6f8ee}
+
+/* formula panel */
+#fxBody{text-align:left;font-size:.88rem;line-height:1.6}
+#fxBody h3{font-size:1rem;color:#3f51b5;margin:10px 0 4px}
+#fxBody .eq{background:#f1f5fb;border-radius:10px;padding:6px 10px;margin:4px 0;font-family:ui-monospace,Consolas,monospace;font-size:.84rem;overflow-wrap:anywhere}
+#fxBody ol,#fxBody ul{padding-left:20px}
+
+/* help */
+#helpStage{background:#eef4fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:340px;height:auto}
+#helpTxt{font-size:.98rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd9e6}
+.dots i.on{background:#00acc1}
+.help-nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* summary */
+.sumlist{text-align:left;font-size:.9rem;line-height:1.55;background:#f5f8fc;border-radius:14px;padding:10px 12px 10px 30px;margin:8px 0}
+.sumstars{display:grid;grid-template-columns:1fr auto;gap:4px 10px;text-align:left;font-size:.9rem;margin:8px 0}
+
+/* drag ghost */
+#ghost{position:fixed;left:0;top:0;z-index:80;font-size:2.2rem;pointer-events:none;display:none;transform:translate(-50%,-60%);filter:drop-shadow(0 4px 6px rgba(0,0,0,.4))}
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ── SVG scene ── */
+.lbl{font-family:Mitr,sans-serif;font-weight:600;fill:#fff;paint-order:stroke;stroke:rgba(12,18,30,.8);stroke-width:4px;stroke-linejoin:round}
+.ink{font-family:Mitr,sans-serif;font-weight:600;fill:#213047}
+.sttx,.pilltx{font-family:Mitr,sans-serif;font-weight:700;fill:#fff}
+.hs{cursor:pointer}
+.hs .hit{fill:transparent}
+.hs .ring{fill:none;stroke:#ffd23f;stroke-width:3;stroke-dasharray:9 7;opacity:.5;animation:ringP 1.8s ease-in-out infinite}
+.hs:hover .ring{opacity:1;stroke-width:4}
+@keyframes ringP{0%,100%{opacity:.25}50%{opacity:.75}}
+body.dragging .hs.lk .ring,body.toolsel .hs.lk .ring{stroke:#00e5ff;opacity:1;stroke-width:4;animation:none}
+.hs.hot .ring{stroke:#00e5ff;opacity:1;stroke-width:6}
+.swing{transform-box:fill-box;transform-origin:50% 0;animation:swing 2.2s ease-in-out infinite}
+.swing2{transform-box:fill-box;transform-origin:50% 0;animation:swing 2.6s ease-in-out infinite reverse}
+@keyframes swing{0%,100%{transform:rotate(10deg)}50%{transform:rotate(-10deg)}}
+.pt{animation:ptMove .9s linear infinite}
+@keyframes ptMove{0%{transform:translate(0,0) scale(.4);opacity:.95}100%{transform:translate(78px,0) scale(1.7);opacity:0}}
+.flow{stroke-dasharray:10 14;animation:flowA .8s linear infinite}
+@keyframes flowA{to{stroke-dashoffset:-24}}
+.heatL{animation:riseHt 1.5s ease-out infinite}
+@keyframes riseHt{0%{transform:translateY(0);opacity:0}30%{opacity:.85}100%{transform:translateY(-40px);opacity:0}}
+#boomIn{transform-box:fill-box;transform-origin:center}
+#boom.go #boomIn{animation:boomA 1.4s ease-out}
+@keyframes boomA{0%{transform:scale(.2) rotate(-15deg)}25%{transform:scale(1.15) rotate(4deg)}45%{transform:scale(1) rotate(0)}100%{transform:scale(1)}}
+.jump{animation:jumpA .5s ease-out 3}
+@keyframes jumpA{0%,100%{transform:translateY(0)}50%{transform:translateY(-26px)}}
+.blinkLamp{animation:lampFl .5s linear infinite}
+@keyframes lampFl{0%,100%{opacity:1}50%{opacity:.2}}
+/* tutorial anims */
+@keyframes tLev{0%,25%{transform:translateY(0)}40%,100%{transform:translateY(20px)}}
+.tLev{animation:tLev 3.2s ease-in-out infinite}
+@keyframes tLamp{0%,30%{fill:#ffd23f}45%,100%{fill:#555}}
+.tLamp{animation:tLamp 3.2s linear infinite}
+@keyframes tSpin{0%{transform:rotate(0)}70%{transform:rotate(900deg)}100%{transform:rotate(900deg)}}
+.tSpin{transform-box:fill-box;transform-origin:center;animation:tSpin 3.2s cubic-bezier(.2,.7,.4,1) infinite}
+@keyframes tDrag{0%,10%{transform:translate(0,0)}55%,100%{transform:translate(150px,-78px)}}
+.tDrag{animation:tDrag 3s ease-in-out infinite}
+@keyframes tShow{0%,55%{opacity:0}62%,100%{opacity:1}}
+.tShow{animation:tShow 3s linear infinite}
+@keyframes tNd{0%,20%{transform:rotate(70deg)}80%,100%{transform:rotate(-118deg)}}
+.tNd{transform-box:view-box;transform-origin:110px 92px;animation:tNd 3.4s ease-in-out infinite}
+.tPuff{animation:ptMove 1s linear infinite}
+@keyframes tPop{0%,40%{transform:scale(0);opacity:0}55%{transform:scale(1.2);opacity:1}65%,100%{transform:scale(1);opacity:1}}
+.tPop{transform-box:fill-box;transform-origin:center;animation:tPop 3.4s ease-out infinite}
+@keyframes tSel{0%,20%{transform:rotate(-40deg)}30%,60%{transform:rotate(40deg)}72%,100%{transform:rotate(-40deg)}}
+.tSel{transform-box:fill-box;transform-origin:50% 85%;animation:tSel 3.4s ease-in-out infinite}
+@keyframes tMag{0%,100%{transform:translate(0,0)}50%{transform:translate(120px,10px)}}
+.tMag{animation:tMag 3.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .swing,.swing2,.pt,.flow,.heatL,#boom.go #boomIn,.jump,.blinkLamp,.hs .ring,
+  .tLev,.tLamp,.tSpin,.tDrag,.tShow,.tNd,.tPuff,.tPop,.tSel,.tMag,#sceneWrap.shake{animation:none}
+  .tShow,.tPop{opacity:1}
+}
+@media (max-width:480px){
+  #bubble{font-size:.8rem}
+  .card h2{font-size:1.18rem}
+  .act{font-size:.84rem}
+  #hud .lvl-name{font-size:.9rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">ช่างปลอดภัย LOTO</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="fxBtn" title="สูตร/ที่มา">📐</button>
+  </div>
+
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 800 540" xmlns="http://www.w3.org/2000/svg" aria-label="ฉากงานซ่อม LOTO"></svg>
+    <div id="bubble"></div>
+    <div id="toolHint">แตะจุดตัดแยกเพื่อแขวน</div>
+  </div>
+
+  <div id="tray">
+    <div id="tools"></div>
+    <div id="acts">
+      <button class="act" id="notifyBtn">📢 แจ้งผู้เกี่ยวข้อง</button>
+      <button class="act" id="ppeBtn">🦺 เลือก PPE</button>
+      <button class="act go" id="submitBtn">🔧 เริ่มซ่อม (ส่งงาน)</button>
+    </div>
+  </div>
+
+  <div id="panel">
+    <div id="steps"></div>
+    <div id="readout"></div>
+    <div id="woMini">—</div>
+    <div class="hint">แตะจุดในฉาก = หยุด / ตัด / ปิด / ระบาย / ตรวจ · ลาก 🔒🏷 ไปแขวนที่จุดที่ตัดแล้ว</div>
+  </div>
+</div>
+
+<!-- Start -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.6rem">🔒🏷️⚡</div>
+    <h1>ช่างปลอดภัย LOTO</h1>
+    <div class="aud">กลุ่มเป้าหมาย: ช่าง ปวช./ปวส.</div>
+    <div class="sub">ก่อนซ่อมต้อง <b>ตัดทุกแหล่งพลังงาน</b> — ไฟฟ้า ลม ไอน้ำ ไฮดรอลิก ของห้อย มู่เล่ —<br>ใส่กุญแจ+ป้าย ปลดพลังงานสะสม แล้ว <b>ยืนยันว่าเป็นศูนย์</b> (zero energy state)</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div class="btnrow">
+      <button class="big-btn alt small" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- Help -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2>วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt">—</div>
+    <div class="dots" id="helpDots"></div>
+    <div class="help-nav">
+      <button class="big-btn small alt" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- Work order -->
+<div class="overlay" id="woOv">
+  <div class="card">
+    <h2>📋 รับใบงานซ่อม</h2>
+    <div class="wo" id="woCard"></div>
+    <p style="font-size:.86rem;color:#55657c;margin-top:8px">อ่านใบงาน → หาแหล่งพลังงาน <b>ทุกจุด</b> ในฉาก แล้วทำ LOTO ให้ครบก่อนกด "เริ่มซ่อม"</p>
+    <div class="btnrow"><button class="big-btn" id="woGo">รับงาน ▶</button></div>
+  </div>
+</div>
+
+<!-- PPE -->
+<div class="overlay" id="ppeOv">
+  <div class="card">
+    <h2>🦺 เลือก PPE ให้ตรงงาน</h2>
+    <p style="font-size:.88rem;color:#55657c" id="ppeJob">—</p>
+    <div id="ppeGrid"></div>
+    <div class="btnrow"><button class="big-btn" id="ppeOk">✔ ยืนยัน PPE</button></div>
+  </div>
+</div>
+
+<!-- Formula -->
+<div class="overlay" id="fxOv">
+  <div class="card">
+    <h2>📐 สูตร / ที่มา</h2>
+    <div id="fxBody"></div>
+    <div class="btnrow"><button class="big-btn small" id="fxClose">ปิด</button></div>
+  </div>
+</div>
+
+<!-- Result -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <div id="resEmoji" style="font-size:2.2rem">🏁</div>
+    <h2 id="resTitle">จบด่าน</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <div class="stat-tbl" id="resStats"></div>
+    <div class="fbh" id="resFbh">เฉลย / ข้อคิด</div>
+    <div class="fb" id="resFb"></div>
+    <div class="btnrow">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- End summary -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.4rem">🏆🔒</div>
+    <h2>สรุปบทเรียน LOTO</h2>
+    <div class="sumstars" id="sumStars"></div>
+    <ol class="sumlist">
+      <li><b>แจ้ง</b> ผู้เกี่ยวข้อง + ผู้ใช้เครื่อง ก่อนเริ่ม</li>
+      <li><b>หยุดเครื่องตามปกติ</b> (ปุ่ม STOP) — ไม่ตัดเบรกเกอร์ขณะเครื่องเดิน</li>
+      <li><b>ตัดแยกทุกแหล่ง</b> — ไฟฟ้า วาล์วต้น/ปลาย/<u>บายพาส</u> ลม ไฮดรอลิก</li>
+      <li><b>กุญแจ + ป้ายส่วนตัว</b> ทุกจุด · งานกลุ่ม = ทุกคนล็อกกล่องกลุ่ม</li>
+      <li><b>ปลดพลังงานสะสม</b> — ระบายความดัน รอมู่เล่หยุด ค้ำของห้อย รอให้เย็น</li>
+      <li><b>ยืนยัน zero energy</b> — try-start / มิเตอร์ / เกจ = 0 แล้ว <u>คืนสวิตช์ OFF</u></li>
+      <li><b>PPE ตรงงาน</b> ไม่ขาด ไม่เกิน</li>
+    </ol>
+    <div class="btnrow">
+      <button class="big-btn small alt" id="endHome">🏠 หน้าแรก</button>
+      <button class="big-btn small" id="endReplay">↻ เล่นใหม่ตั้งแต่ด่าน 1</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<div id="ghost">🔒</div>
+
+<script>
+/* ═════════ ช่างปลอดภัย LOTO v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var RM=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+var NLV=5;
+
+/* ───────── SVG helpers ───────── */
+function L(x,y,t,sz,anc,cls,ex){return '<text class="'+(cls||'lbl')+'" x="'+x+'" y="'+y+'" font-size="'+(sz||17)+'" text-anchor="'+(anc||'middle')+'" '+(ex||'')+'>'+t+'</text>';}
+function R(x,y,w,h,f,ex){return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+f+'" '+(ex||'')+'/>';}
+function C(x,y,r,f,ex){return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+f+'" '+(ex||'')+'/>';}
+function HS(id,x,y,w,h,inner){return '<g class="hs" id="hs_'+id+'" data-hs="'+id+'">'+inner+
+  '<rect class="ring" x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="14"/><rect class="hit" x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="14"/></g>';}
+function polar(cx,cy,r,deg){var a=deg*Math.PI/180;return [cx+r*Math.sin(a),cy-r*Math.cos(a)];}
+function arc(cx,cy,r,a1,a2){var p=polar(cx,cy,r,a1),q=polar(cx,cy,r,a2);return 'M'+p[0].toFixed(1)+' '+p[1].toFixed(1)+' A'+r+' '+r+' 0 '+((a2-a1)>180?1:0)+' 1 '+q[0].toFixed(1)+' '+q[1].toFixed(1);}
+function hpipe(x1,x2,y,w,col){w=w||20;return R(Math.min(x1,x2),y-w/2,Math.abs(x2-x1),w,col||'#9aa3ad','stroke="#4b5563" stroke-width="2"');}
+function vpipe(x,y1,y2,w,col){w=w||20;return R(x-w/2,Math.min(y1,y2),w,Math.abs(y2-y1),col||'#9aa3ad','stroke="#4b5563" stroke-width="2"');}
+
+function bg(){return R(0,0,800,470,'url(#wallG)')+
+  '<g stroke="#56637a" stroke-width="2" opacity=".45"><line x1="0" y1="160" x2="800" y2="160"/><line x1="0" y1="315" x2="800" y2="315"/>'+
+  '<line x1="400" y1="0" x2="400" y2="160"/><line x1="200" y1="160" x2="200" y2="315"/><line x1="600" y1="160" x2="600" y2="315"/></g>'+
+  R(0,470,800,70,'#262d38')+R(0,463,800,9,'url(#hazP)');}
+
+function defs(){return '<defs>'+
+  '<linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a6880"/><stop offset="1" stop-color="#3c475a"/></linearGradient>'+
+  '<linearGradient id="steelG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7d8ba1"/><stop offset=".5" stop-color="#c3cddc"/><stop offset="1" stop-color="#6b7990"/></linearGradient>'+
+  '<linearGradient id="steelV" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c3cddc"/><stop offset="1" stop-color="#6b7990"/></linearGradient>'+
+  '<pattern id="hazP" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="22" height="22" fill="#ffd23f"/><rect width="11" height="22" fill="#222"/></pattern>'+
+  '<pattern id="blkP" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="16" height="16" fill="#ffd23f"/><rect width="8" height="16" fill="#2b2b2b"/></pattern>'+
+  '<radialGradient id="winG" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#2b3340"/><stop offset="1" stop-color="#151a22"/></radialGradient>'+
+  '</defs>';}
+
+/* ตู้ MDB + เบรกเกอร์ */
+function mdb(list){
+  var x=12,y=56,h=56+list.length*88,s='';
+  s+=R(x+20,y+h,14,470-(y+h),'#4b5563')+R(x+138,y+h,14,470-(y+h),'#4b5563');
+  s+=R(x,y,172,h,'#cfd6e0','rx="12" stroke="#5d6b80" stroke-width="5"')+R(x+5,y+5,162,34,'#3f51b5','rx="9"')+L(x+86,y+29,'MDB-1 ตู้ไฟหลัก',17);
+  for(var i=0;i<list.length;i++){
+    var b=list[i],by=y+48+i*88;
+    var inner=L(x+12,by+17,b.label,17,'start','ink')+R(x+12,by+22,74,58,'#2c3542','rx="8"')+R(x+20,by+28,20,46,'#0d1117','rx="5"')+
+      '<rect id="lv_'+b.id+'" x="'+(x+21)+'" y="'+(by+29)+'" width="18" height="22" rx="4" fill="#eef2f7"/>'+
+      C(x+64,by+40,7,'#ffd23f','id="lp_'+b.id+'" stroke="#111" stroke-width="2"')+
+      '<text id="st_'+b.id+'" class="sttx" x="'+(x+64)+'" y="'+(by+70)+'" font-size="14" text-anchor="middle">ON</text>';
+    s+=HS(b.id,x+6,by,160,84,inner);
+  }
+  return s;
+}
+function cbAnchors(i){var by=56+48+i*88;return {la:[122,by+30],ta:[154,by+28]};}
+
+/* สถานีควบคุม (STOP + selector try-start) */
+function station(x,y){
+  var s=R(x+52,y+140,16,470-(y+140),'#6b7686')+R(x,y,120,140,'#f2c94c','rx="12" stroke="#a07c12" stroke-width="4"')+
+    L(x+60,y+20,'สถานีควบคุม',14,'middle','ink')+C(x+46,y+40,8,'#555','id="lp_run" stroke="#222" stroke-width="2"')+L(x+60,y+45,'RUN',12,'start','ink');
+  s+=HS('stop',x,y+56,60,84,C(x+30,y+92,19,'#e53935','stroke="#8e1b1b" stroke-width="4"')+L(x+30,y+131,'STOP',13,'middle','ink'));
+  s+=HS('sel',x+60,y+56,60,84,C(x+90,y+92,17,'#263238','stroke="#000" stroke-width="3"')+
+    '<g id="selk" transform="rotate(-40 '+(x+90)+' '+(y+92)+')"><rect x="'+(x+87)+'" y="'+(y+74)+'" width="6" height="22" rx="3" fill="#fff"/></g>'+
+    L(x+73,y+70,'OFF',10,'middle','ink')+L(x+108,y+70,'START',10,'middle','ink')+L(x+90,y+131,'try-start',12,'middle','ink'));
+  return s;
+}
+function pill(id,x,cy){return '<rect id="pb_'+id+'" x="'+(x-27)+'" y="'+(cy-11)+'" width="54" height="22" rx="11" fill="#1fb45f" stroke="#fff" stroke-width="2"/>'+
+  '<text id="pt_'+id+'" class="pilltx" x="'+x+'" y="'+(cy+5)+'" font-size="13" text-anchor="middle">เปิด</text>';}
+/* gate valve (มือหมุน) บนท่อแนวนอน */
+function gate(id,x,y,label,below){
+  var inner='<path d="M'+(x-20)+' '+(y-15)+' L'+(x+20)+' '+(y+15)+' L'+(x+20)+' '+(y-15)+' L'+(x-20)+' '+(y+15)+' Z" fill="#7a8899" stroke="#39424f" stroke-width="3" stroke-linejoin="round"/>'+
+    R(x-4,y-40,8,26,'#5a6677')+
+    '<g id="wh_'+id+'"><circle cx="'+x+'" cy="'+(y-46)+'" r="18" fill="none" stroke="#d32f2f" stroke-width="6"/>'+
+    '<line x1="'+(x-18)+'" y1="'+(y-46)+'" x2="'+(x+18)+'" y2="'+(y-46)+'" stroke="#d32f2f" stroke-width="4"/>'+
+    '<line x1="'+x+'" y1="'+(y-64)+'" x2="'+x+'" y2="'+(y-28)+'" stroke="#d32f2f" stroke-width="4"/>'+C(x,y-46,5,'#8e1b1b')+'</g>'+
+    pill(id,x,y+28)+L(x,below?y+62:y-74,label,18);
+  var top=below?y-70:y-92,bot=below?y+70:y+42;
+  return HS(id,x-44,top,88,bot-top,inner);
+}
+/* ball valve (ก้านโยก) */
+function ball(id,x,y,label,ldy){
+  var inner=C(x,y,13,'#c9a227','stroke="#7a5f0c" stroke-width="3"')+
+    '<g id="bl_'+id+'"><rect x="'+(x-4)+'" y="'+(y-4)+'" width="38" height="8" rx="4" fill="#d32f2f" stroke="#7a140e" stroke-width="1.5"/></g>'+C(x,y,4,'#444')+
+    pill(id,x,y+30)+L(x,y+(ldy===undefined?-26:ldy),label,17);
+  return HS(id,x-44,y-46,88,92,inner);
+}
+/* เกจความดัน */
+function gauge(id,x,y,r,max,label){
+  var inner=C(x,y,r,'#f7f9fc','stroke="#39424f" stroke-width="4"')+
+    '<path d="'+arc(x,y,r-6,-120,-96)+'" stroke="#1fb45f" stroke-width="6" fill="none"/>'+
+    '<path d="'+arc(x,y,r-6,-96,120)+'" stroke="#c3cbd6" stroke-width="6" fill="none"/>'+
+    '<g id="nd_'+id+'"><line x1="'+x+'" y1="'+(y+5)+'" x2="'+x+'" y2="'+(y-r+8)+'" stroke="#d32f2f" stroke-width="3.5" stroke-linecap="round"/></g>'+C(x,y,4,'#213047')+
+    '<text id="gv_'+id+'" class="lbl" x="'+x+'" y="'+(y+r+18)+'" font-size="16" text-anchor="middle">0</text>'+
+    (label?L(x,y-r-6,label,13):'');
+  return HS(id,x-r-10,y-r-(label?22:10),2*r+20,2*r+(label?52:40),inner);
+}
+function rotor(id,cx,cy,r,n,col){
+  var sp='';for(var i=0;i<(n||4);i++){var p=polar(cx,cy,r-3,i*360/(n||4));sp+='<line x1="'+cx+'" y1="'+cy+'" x2="'+p[0].toFixed(1)+'" y2="'+p[1].toFixed(1)+'" stroke="#39424f" stroke-width="4"/>';}
+  return C(cx,cy,r,col||'#9aa7b8','stroke="#39424f" stroke-width="4"')+'<g id="rt_'+id+'" data-c="'+cx+' '+cy+'">'+sp+C(cx,cy-r*0.68,4.5,'#ffd23f','stroke="#8a6d00" stroke-width="1.5"')+'</g>'+C(cx,cy,5,'#39424f');
+}
+function spray(id,x,y,ang,col,big){
+  var s='<g transform="translate('+x+' '+y+') rotate('+ang+')"><g id="sp_'+id+'" opacity="0">';
+  for(var i=0;i<6;i++)s+='<circle class="pt" style="animation-delay:'+(i*0.15).toFixed(2)+'s" cx="0" cy="'+((i%3)-1)*4+'" r="'+(big?9:6)+'" fill="'+col+'"/>';
+  return s+'</g></g>';
+}
+function worker(id,x,y,helm,label,vest){
+  return '<g id="'+id+'" transform="translate('+x+' '+y+')"><g id="'+id+'_b">'+
+    '<ellipse cx="0" cy="0" rx="24" ry="5" fill="#000" opacity=".25"/>'+
+    R(-13,-30,11,30,'#34495e','rx="5"')+R(2,-30,11,30,'#34495e','rx="5"')+
+    R(-17,-66,34,40,vest||'#ff8f1c','rx="10"')+R(-17,-52,34,5,'#e0f2f1')+
+    C(0,-80,15,'#ffd9b3','stroke="#e0a875" stroke-width="2"')+
+    '<path d="M-16 -84 a16 15 0 0 1 32 0 Z" fill="'+helm+'" stroke="#00000040" stroke-width="2"/>'+R(-19,-86,38,5,helm,'rx="2.5"')+
+    C(-5,-79,2.2,'#213047')+C(5,-79,2.2,'#213047')+'<path d="M-5 -72 Q0 -68 5 -72" stroke="#a04040" stroke-width="2" fill="none"/>'+
+    '<text id="'+id+'_m" x="16" y="-96" font-size="20" opacity="0">✔</text>'+
+    '</g>'+(label?L(0,18,label,13):'')+'</g>';
+}
+function lockSVG(x,y,col){return '<g transform="translate('+x+' '+y+')"><g class="swing">'+
+  '<path d="M-7 12 v-5 a7 7 0 0 1 14 0 v5" fill="none" stroke="#b0bec5" stroke-width="4"/>'+
+  '<rect x="-11" y="10" width="22" height="19" rx="4" fill="'+col+'" stroke="#212121" stroke-width="2"/>'+
+  '<circle cx="0" cy="17" r="2.6" fill="#212121"/><rect x="-1.2" y="17" width="2.4" height="7" fill="#212121"/></g></g>';}
+function tagSVG(x,y){return '<g transform="translate('+x+' '+y+')"><g class="swing2">'+
+  '<line x1="0" y1="0" x2="0" y2="8" stroke="#eee" stroke-width="2"/>'+
+  '<rect x="-13" y="8" width="26" height="36" rx="4" fill="#ef4b4b" stroke="#fff" stroke-width="2"/>'+
+  '<rect x="-10" y="12" width="20" height="9" rx="2" fill="#fff"/><text x="0" y="19.3" font-size="6.6" text-anchor="middle" font-weight="700" fill="#c62828">DANGER</text>'+
+  '<text x="0" y="37" font-size="12" text-anchor="middle">⛔</text></g></g>';}
+function boom(){
+  var pts=[];for(var i=0;i<28;i++){var r=i%2?58:100,a=i*Math.PI*2/28;pts.push((Math.sin(a)*r*1.25).toFixed(1)+','+(-Math.cos(a)*r*0.8).toFixed(1));}
+  return '<g id="boom" opacity="0" pointer-events="none"><g id="boomIn"><polygon points="'+pts.join(' ')+'" fill="#ffd23f" stroke="#ef4b4b" stroke-width="7" stroke-linejoin="round"/>'+
+    '<text x="0" y="-4" font-size="34" font-weight="700" text-anchor="middle" fill="#c62828" font-family="Mitr,sans-serif">อันตราย!!</text>'+
+    '<text id="boomSub" x="0" y="26" font-size="17" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">เครื่องเดิน!</text></g></g>';
+}
+
+/* ───────── PPE ───────── */
+var PPE=[
+ {id:'helmet',ic:'⛑️',nm:'หมวกนิรภัย',why:'งานในโรงงานต้องสวมหมวกนิรภัยทุกครั้ง'},
+ {id:'glass',ic:'🥽',nm:'แว่นตานิรภัย',why:'ของไหล/เศษที่ค้างอาจกระเด็นเข้าตาตอนถอด'},
+ {id:'shield',ic:'🛡️',nm:'กระบังหน้า',why:'ไอ/คอนเดนเสทร้อนอาจพ่นใส่หน้าตอนเปิดหน้าแปลน'},
+ {id:'mglove',ic:'🧤',nm:'ถุงมือหนัง/กันบาด',why:'ขอบคม ชิ้นส่วนหนัก ตอนถอดประกอบ'},
+ {id:'hglove',ic:'🔥',nm:'ถุงมือกันความร้อน',why:'ท่อไอและ trap ยังร้อนแม้ระบายแล้ว'},
+ {id:'iglove',ic:'⚡',nm:'ถุงมือฉนวนไฟฟ้า',why:'ต้องวัดแรงดันที่ขั้วมอเตอร์ — ถือว่ามีไฟจนกว่าวัดได้ 0 V'},
+ {id:'cglove',ic:'🧶',nm:'ถุงมือผ้า',why:''},
+ {id:'mask',ic:'😷',nm:'หน้ากากกันฝุ่น',why:'ฝุ่นชีวมวลละเอียดในห้องเครื่องย่อย'},
+ {id:'shoes',ic:'🥾',nm:'รองเท้านิรภัย',why:'ชิ้นส่วนหนักตกทับเท้า'}
+];
+function ppeName(id){for(var i=0;i<PPE.length;i++)if(PPE[i].id===id)return PPE[i];return {nm:id,ic:'',why:''};}
+
+/* ───────── Tsat table (bar g → °C) ───────── */
+var TSAT=[[0,100],[0.5,111.4],[1,120.2],[2,133.5],[3,143.6],[4,151.8],[5,158.8],[6,165.0]];
+function tsat(p){if(p<=0)return 100;for(var i=1;i<TSAT.length;i++){if(p<=TSAT[i][0]){var a=TSAT[i-1],b=TSAT[i];return a[1]+(b[1]-a[1])*(p-a[0])/(b[0]-a[0]);}}return TSAT[TSAT.length-1][1];}
+
+/* ───────── ด่าน ───────── */
+function cbDefs(list,mainMiss){var o={};for(var i=0;i<list.length;i++){var an=cbAnchors(i);
+  o[list[i].id]={k:'cb',role:'iso',nm:list[i].label,main:i===0,decoy:i>0,la:an.la,ta:an.ta,miss:i===0?mainMiss:''};}return o;}
+function ext(a,b){for(var k in b)a[k]=b[k];return a;}
+
+var LV=[];
+/* ── ด่าน 1: ปั๊มน้ำเปลี่ยนซีล ── */
+LV.push({
+ name:'ด่าน 1 · ปั๊มน้ำเปลี่ยนซีล',icon:'💧',short:'ปั๊มน้ำ',
+ wo:{no:'WO-2569-1101',ttl:'เปลี่ยนแมคคานิคอลซีล (mechanical seal) ปั๊มน้ำหล่อเย็น P-101',
+     det:'ปั๊มหอยโข่ง 15 kW 400 V · ซีลรั่ว ต้องถอดฝาปั๊ม · ท่อต่อกับถังน้ำ (ด้านดูด) และเฮดเดอร์ (ด้านส่ง)',
+     en:['⚡ ไฟฟ้า','💧 แรงดันน้ำในท่อ','⚙️ กล (เพลาหมุน)']},
+ job:'งานถอดฝาปั๊มน้ำ — น้ำค้างอาจกระเด็น ชิ้นส่วนมีขอบคม',
+ mainCB:'cb1',hasSel:true,rpm:2950,coast:[0.35,1.6],
+ cbs:[{id:'cb1',label:'CB-1 · P-101'},{id:'cb2',label:'CB-2 · LP-1 ไฟ'},{id:'cb3',label:'CB-3 · AHU-2'}],
+ rel:['dr'],ver:['pg','sel'],ppe:['helmet','glass','mglove','shoes'],
+ lesson:'ปั๊มหยุดแล้วท่อยังมีแรงดัน — ปิดวาล์วดูด+ส่ง แล้วระบายจนเกจเป็นศูนย์',
+ boomAt:[540,230],
+ init:function(G){},
+ build:function(){
+   var s=bg()+mdb(this.cbs);
+   s+='<path d="M184 120 H300 V40 H420 V312" fill="none" stroke="#1f2630" stroke-width="5" stroke-dasharray="2 0"/>';
+   s+=station(200,170);
+   /* pedestal + base */
+   s+=R(338,424,280,46,'#6b7380')+R(330,410,296,14,'#4b5563','rx="3"');
+   /* suction pipe → right */
+   s+=hpipe(600,800,378,22)+L(796,418,'← จากถังน้ำ',13,'end');
+   s+='<line class="flow" id="fl_s" x1="800" y1="378" x2="612" y2="378" stroke="#bfe8ff" stroke-width="6" opacity="0"/>';
+   /* discharge vertical + horizontal */
+   s+=vpipe(565,150,330,22)+hpipe(554,800,150,22)+L(796,128,'ไปเฮดเดอร์ →',13,'end');
+   s+='<path class="flow" id="fl_d" d="M565 326 V150 H800" fill="none" stroke="#bfe8ff" stroke-width="6" opacity="0"/>';
+   /* drain tee */
+   s+=hpipe(500,556,250,12);
+   /* motor */
+   s+=R(330,336,16,68,'#2a6b5d','rx="4"')+R(345,330,130,80,'#2e8b74','rx="12" stroke="#1d5c4d" stroke-width="4"');
+   for(var i=0;i<6;i++)s+=R(360+i*18,336,6,68,'#246e5c');
+   s+=R(395,312,40,22,'#26705f','rx="4" stroke="#1d5c4d" stroke-width="3"')+L(410,378,'M',22);
+   s+=R(475,350,42,40,'#f2c94c','rx="6" stroke="#a07c12" stroke-width="3"')+rotor('m',496,370,17,4,'#d6dde6');
+   /* pump volute */
+   s+=C(565,370,46,'#3d6fb6','stroke="#24467a" stroke-width="5"')+C(565,370,20,'#5d8fd6','stroke="#24467a" stroke-width="3"')+L(470,452,'P-101',16);
+   s+=gate('vs',700,378,'วาล์วดูด',false)+gate('vd',690,150,'วาล์วส่ง',false);
+   s+=gauge('pg',625,250,28,6,'')+R(576,246,22,8,'#6b7380');
+   s+=ball('dr',500,250,'วาล์วระบาย',-26)+spray('dr',492,262,105,'#7fd0ff',false);
+   s+=boom();
+   return s;
+ },
+ hs:ext(cbDefs([{id:'cb1',label:'CB-1 · P-101'},{id:'cb2',label:'CB-2 · LP-1 ไฟ'},{id:'cb3',label:'CB-3 · AHU-2'}],
+   'ไม่ได้ตัด CB-1 (P-101) — มอเตอร์ 15 kW ยังมีไฟ 400 V (~28 A) ใครกดสตาร์ท ปั๊มหมุนทันทีขณะมือคุณอยู่ในตัวปั๊ม'),{
+   vs:{k:'gate',role:'iso',nm:'วาล์วดูด',src:'p1',la:[718,334],ta:[682,336],
+       miss:'ไม่ได้ปิดวาล์วดูด — น้ำจากถังไหลย้อนเข้าตัวปั๊ม (~1.2 bar g) ตอนถอดฝา',
+       runMsg:'ปิดวาล์วดูดขณะปั๊มเดิน → ปั๊มดูดแห้ง/คาวิเตชัน ซีลพังเพิ่ม (ต้องกด STOP ก่อน)'},
+   vd:{k:'gate',role:'iso',nm:'วาล์วส่ง',src:'p1',la:[708,106],ta:[672,108],
+       miss:'ไม่ได้ปิดวาล์วส่ง — น้ำจากเฮดเดอร์ 2.5 bar g ไหลย้อน พุ่งออกจากฝาปั๊ม (~22 m/s)',
+       runMsg:'ปิดวาล์วส่งขณะปั๊มเดิน → ปั๊มอัดตัน (dead-head) น้ำในปั๊มร้อนขึ้น (ต้องกด STOP ก่อน)'},
+   dr:{k:'ball',role:'rel',nm:'วาล์วระบาย',vent:'p1',ang:0,miss:'ไม่ได้เปิดวาล์วระบาย — น้ำค้างในตัวปั๊ม {P} bar g คลายน็อตฝาแล้วพุ่งใส่หน้า'},
+   pg:{k:'gauge',role:'ver',nm:'เกจความดัน',src:'p1',miss:'ไม่ได้อ่านเกจยืนยันว่า 0 bar g ก่อนเปิดฝา'},
+   stop:{k:'stop',role:'stop',nm:'ปุ่ม STOP'},
+   sel:{k:'sel',role:'sel',nm:'สวิตช์ทดลองสตาร์ท',miss:'ไม่ได้ทดลองสตาร์ท (try-start) ยืนยันว่าไฟถูกตัดจริง — อาจตัดผิดตัวโดยไม่รู้'}
+ }),
+ src:{p1:{nm:'ท่อน้ำ',vent:'dr',gauge:'pg',max:6,tau:0.55,P0:3.5,unit:'bar g',
+   sup:function(G){var vs=G.on.vs,vd=G.on.vd,run=G.running&&G.w>0.6;
+     if(vd)return (run&&vs)?3.5:2.5; if(vs)return run?4.0:1.2; return 0;}}},
+ draw:function(G){
+   var run=G.running&&G.w>0.3;
+   $('fl_s').setAttribute('opacity',(G.on.vs&&run)?'0.9':'0');
+   $('fl_d').setAttribute('opacity',(G.on.vd&&G.on.vs&&run)?'0.9':'0');
+ },
+ readout:function(G){var P=G.P.p1;return [['⚡ '+(energ()?'400 V':'0 V'),energ()?'hot':'zero'],['⚙️ '+Math.round(G.w*this.rpm)+' rpm',G.w>0.003?'hot':'zero'],
+   ['💧 '+P.toFixed(1)+' bar g',P>0.05?'hot':'zero']];}
+});
+
+/* ── ด่าน 2: สายพานลำเลียง ── */
+LV.push({
+ name:'ด่าน 2 · สายพานลำเลียง',icon:'📦',short:'สายพาน',
+ wo:{no:'WO-2569-1102',ttl:'เปลี่ยนลูกกลิ้ง (idler) สายพานลำเลียง CV-01',
+     det:'มอเตอร์เกียร์ 7.5 kW · มีกระบอกลมกดชิ้นงาน (stopper) ลม 6 bar g · ตุ้มถ่วงปรับตึงสายพาน (gravity take-up) 400 kg',
+     en:['⚡ ไฟฟ้า','💨 ลมอัด (นิวแมติก)','🪨 แรงโน้มถ่วง (ของห้อย)','⚙️ กล (พูลเลย์หมุน)']},
+ job:'งานเปลี่ยนลูกกลิ้งสายพาน — มีขอบคม ชิ้นส่วนหนัก ลมค้างอาจพ่น',
+ mainCB:'cb1',hasSel:true,rpm:96,coast:[0.3,1.0],
+ cbs:[{id:'cb1',label:'CB-4 · CV-01'},{id:'cb2',label:'CB-5 · CV-02'},{id:'cb3',label:'CB-6 · P-101'}],
+ rel:['bv','blk'],ver:['pg','sel'],ppe:['helmet','glass','mglove','shoes'],
+ lesson:'ตัดไฟอย่างเดียวไม่พอ — ลมในกระบอกสูบและตุ้มถ่วงที่ห้อยอยู่คือพลังงานสะสม',
+ boomAt:[500,250],
+ build:function(){
+   var s=bg()+mdb(this.cbs);
+   s+='<path d="M184 210 H250 V470" fill="none" stroke="#1f2630" stroke-width="5"/>';
+   /* air tank */
+   s+=R(204,60,48,112,'#d84343','rx="22" stroke="#8e1b1b" stroke-width="4"')+L(228,192,'ถังลม',13)+L(228,112,'7',18)+L(228,132,'bar',13);
+   s+=hpipe(250,532,80,14)+vpipe(520,73,112,14);
+   s+='<path class="flow" id="fl_a" d="M252 80 H520 V110" fill="none" stroke="#e3f2fd" stroke-width="5" opacity="0"/>';
+   /* cylinder */
+   s+=R(503,110,34,62,'url(#steelG)','rx="6" stroke="#39424f" stroke-width="3"')+L(578,148,'กระบอกลม',13);
+   s+='<g id="rod"><rect x="515" y="170" width="10" height="36" fill="#cfd8dc" stroke="#607d8b" stroke-width="2"/><rect x="494" y="204" width="52" height="9" rx="3" fill="#ff8f1c" stroke="#a85a00" stroke-width="2"/></g>';
+   /* conveyor frame */
+   s+=R(330,282,10,188,'#596579')+R(500,282,10,188,'#596579')+R(660,282,10,188,'#596579')+R(296,288,404,12,'#4b5563','rx="4"');
+   /* belt */
+   s+='<path d="M300 220 H690 A30 30 0 0 1 690 280 H300 A30 30 0 0 1 300 220 Z" fill="none" stroke="#1d1f24" stroke-width="10"/>';
+   s+='<path id="beltD" d="M300 220 H690 A30 30 0 0 1 690 280 H300 A30 30 0 0 1 300 220 Z" fill="none" stroke="#5b6270" stroke-width="3" stroke-dasharray="12 18"/>';
+   s+=rotor('t',300,250,26,4)+rotor('h',690,250,26,6,'#b7c2d1');
+   for(var i=0;i<4;i++)s+=C(390+i*80,232,7,'#9aa7b8','stroke="#39424f" stroke-width="2"');
+   s+='<g id="boxes"></g>';
+   /* gear motor */
+   s+=R(722,226,70,52,'#2e8b74','rx="8" stroke="#1d5c4d" stroke-width="3"')+L(757,258,'M',18);
+   /* counterweight */
+   s+='<g id="cwG"><line x1="398" y1="284" x2="398" y2="342" stroke="#ddd" stroke-width="3"/><line x1="422" y1="284" x2="422" y2="342" stroke="#ddd" stroke-width="3"/>'+
+     R(378,342,64,52,'#7b8494','rx="6" stroke="#3c4350" stroke-width="3"')+L(410,374,'400 kg',14)+'</g>';
+   s+=HS('blk',364,322,92,148,'<g id="blkG" opacity="0">'+R(386,396,48,74,'url(#blkP)','stroke="#3a3a3a" stroke-width="3"')+'</g>'+L(410,316,'ตุ้มถ่วง',14));
+   s+=station(568,322);
+   s+=ball('av',330,80,'วาล์วลมเข้า',-24)+ball('bv',462,80,'วาล์วระบายลม',-24)+spray('bv',462,66,-90,'#e3f2fd',false);
+   s+=gauge('pg',398,128,22,10,'');
+   s+=boom();
+   return s;
+ },
+ hs:ext(cbDefs([{id:'cb1',label:'CB-4 · CV-01'},{id:'cb2',label:'CB-5 · CV-02'},{id:'cb3',label:'CB-6 · P-101'}],
+   'ไม่ได้ตัด CB-4 (CV-01) — สายพานยังมีไฟ ถ้าใครกดเดิน มือที่อยู่ระหว่างลูกกลิ้งโดนดึงเข้าไป'),{
+   av:{k:'ball',role:'iso',nm:'วาล์วลมเข้า',src:'air',ang:0,la:[360,78],ta:[290,78],
+       miss:'ไม่ได้ปิดวาล์วลมเข้า — กระบอกลมมีลม 6 bar g ดันแรง ~3.0 kN (≈307 kgf) กดลงได้ทุกเมื่อ'},
+   bv:{k:'ball',role:'rel',nm:'วาล์วระบายลม',vent:'air',ang:0,miss:'ไม่ได้ระบายลมค้าง — ลม {P} bar g ค้างในกระบอกสูบ ถอดสายลมแล้วก้านสูบดีด'},
+   blk:{k:'blk',role:'rel',nm:'ค้ำตุ้มถ่วง',miss:'ไม่ได้ค้ำตุ้มถ่วง 400 kg — ถอดลูกกลิ้งแล้วสายพานหย่อน ตุ้มตกลง 1.5 m (≈5.9 kJ)'},
+   pg:{k:'gauge',role:'ver',nm:'เกจลม',src:'air',miss:'ไม่ได้อ่านเกจลมยืนยันว่า 0 bar g'},
+   stop:{k:'stop',role:'stop',nm:'ปุ่ม STOP'},
+   sel:{k:'sel',role:'sel',nm:'สวิตช์ทดลองสตาร์ท',miss:'ไม่ได้ทดลองสตาร์ท (try-start) ยืนยันว่าตัดไฟถูกตัว'}
+ }),
+ src:{air:{nm:'ลมอัด',vent:'bv',gauge:'pg',max:10,tau:0.5,P0:6,unit:'bar g',sup:function(G){return G.on.av?6:0;}}},
+ init:function(G){G.belt=0;},
+ draw:function(G){
+   var P=G.P.air, ext=Math.max(0,Math.min(1,P/6));
+   $('rod').setAttribute('transform','translate(0 '+(-(1-ext)*30).toFixed(1)+')');
+   $('fl_a').setAttribute('opacity',(G.on.av&&(G.on.bv||P<5.8))?'0.9':'0');
+   $('beltD').setAttribute('stroke-dashoffset',(-G.ang*0.6).toFixed(1));
+   var bx='';for(var i=0;i<3;i++){var x=310+((i*140+G.ang*0.6)%380);if(x<480||x>560||ext<0.5)bx+=R(x,198,30,20,'#c58b4f','rx="3" stroke="#7a5230" stroke-width="2"');}
+   $('boxes').innerHTML=bx;
+   $('blkG').setAttribute('opacity',G.rel.blk?'1':'0');
+   var jig=(G.w>0.05&&!G.rel.blk)?Math.sin(G.t*18)*2*G.w:0;
+   $('cwG').setAttribute('transform','translate(0 '+jig.toFixed(1)+')');
+ },
+ readout:function(G){var P=G.P.air;return [['⚡ '+(energ()?'400 V':'0 V'),energ()?'hot':'zero'],['⚙️ '+Math.round(G.w*this.rpm)+' rpm',G.w>0.003?'hot':'zero'],
+   ['💨 '+P.toFixed(1)+' bar g',P>0.05?'hot':'zero'],['🪨 ตุ้ม '+(G.rel.blk?'ค้ำแล้ว':'ห้อยอยู่'),G.rel.blk?'zero':'hot']];}
+});
+
+/* ── ด่าน 3: ท่อไอน้ำเปลี่ยน steam trap ── */
+LV.push({
+ name:'ด่าน 3 · เปลี่ยน steam trap',icon:'♨️',short:'ไอน้ำ',
+ wo:{no:'WO-2569-1103',ttl:'เปลี่ยน steam trap ST-12 ที่ขาท่อระบายเมนไอน้ำ',
+     det:'เมนไอน้ำ 5 bar g (อิ่มตัว 158.8 °C) · ชุด trap มีวาล์วต้นทาง ปลายทาง และบายพาส · ปลายทางต่อท่อคอนเดนเสทกลับ 0.5 bar g',
+     en:['♨️ ไอน้ำ (ความดัน)','🔥 ความร้อน','💧 คอนเดนเสทร้อน']},
+ job:'งานถอด steam trap — ท่อร้อน ไอ/คอนเดนเสทร้อนอาจพ่น',
+ mainCB:null,hasSel:false,rpm:0,coast:[1,1],
+ rel:['dr'],ver:['pg','th'],ppe:['helmet','glass','shield','hglove','shoes'],
+ lesson:'ไอน้ำต้องตัดทั้ง ต้นทาง–ปลายทาง–บายพาส ระบายจนเกจศูนย์ แล้วรอให้เย็น ≤ 50 °C',
+ boomAt:[480,250],
+ build:function(){
+   var s=bg();
+   /* header */
+   s+=R(0,67,800,28,'#c9ced6','stroke="#6b7380" stroke-width="2"');
+   for(var i=0;i<16;i++)s+=R(20+i*50,67,6,28,'#a6adb8');
+   s+='<line class="flow" x1="0" y1="81" x2="800" y2="81" stroke="#ffffff" stroke-width="5" opacity=".75"/>';
+   s+=L(560,56,'เมนไอน้ำ 5 bar g →',15);
+   /* kettle branch */
+   s+=vpipe(110,95,190,16,'#c9ced6')+R(94,122,32,24,'#5c6bc0','rx="4"')+L(150,140,'CV',12,'start');
+   s+=R(26,190,168,140,'url(#steelG)','rx="40" stroke="#39424f" stroke-width="4"')+R(46,330,12,140,'#596579')+R(162,330,12,140,'#596579')+L(110,268,'หม้อต้ม',17);
+   s+='<g id="kSteam" opacity="0"><circle class="heatL" cx="80" cy="186" r="9" fill="#fff"/><circle class="heatL" style="animation-delay:.5s" cx="110" cy="182" r="10" fill="#fff"/><circle class="heatL" style="animation-delay:1s" cx="140" cy="186" r="9" fill="#fff"/></g>';
+   /* kettle panel = STOP */
+   s+=HS('stop',198,186,84,104,R(204,192,72,92,'#f2c94c','rx="10" stroke="#a07c12" stroke-width="3"')+L(240,210,'แผงหม้อต้ม',11,'middle','ink')+
+      C(240,240,16,'#e53935','stroke="#8e1b1b" stroke-width="3"')+L(240,274,'STOP',13,'middle','ink')+C(266,206,6,'#555','id="lp_run" stroke="#222" stroke-width="2"'));
+   /* drip leg + station */
+   s+='<g id="stPipe">'+vpipe(310,95,400,20,'#9aa3ad')+R(300,400,20,26,'#7d8794','rx="4"')+hpipe(310,800,360,20,'#9aa3ad')+
+     '<path d="M340 360 V236 H740 V360" fill="none" stroke="#9aa3ad" stroke-width="16"/>'+vpipe(430,360,410,12,'#9aa3ad')+'</g>';
+   s+='<path class="flow" id="fl_m" d="M310 96 V360 H800" fill="none" stroke="#ffffff" stroke-width="5" opacity="0"/>';
+   s+='<path class="flow" id="fl_b" d="M340 360 V236 H740 V360" fill="none" stroke="#ffffff" stroke-width="5" opacity="0"/>';
+   /* strainer + trap */
+   s+='<path d="M482 352 L506 352 L520 392 L500 398 Z" fill="#7a8899" stroke="#39424f" stroke-width="3"/>';
+   s+=HS('th',522,300,76,96,R(536,336,48,48,'#5f6b7a','rx="10" stroke="#39424f" stroke-width="4"')+L(560,366,'ST-12',12)+L(560,318,'🌡 วัดอุณหภูมิ',14));
+   s+='<g id="heatG" opacity="0" stroke="#ffb38a" stroke-width="3" fill="none" stroke-linecap="round">'+
+     '<path class="heatL" d="M400 342 q5 -9 0 -18 q-5 -9 0 -18"/><path class="heatL" style="animation-delay:.4s" d="M470 342 q5 -9 0 -18 q-5 -9 0 -18"/>'+
+     '<path class="heatL" style="animation-delay:.8s" d="M640 342 q5 -9 0 -18 q-5 -9 0 -18"/></g>';
+   s+=gate('v1',372,360,'V1 ต้นทาง',false)+gate('v2',672,360,'V2 ปลายทาง',false)+gate('vb',540,236,'VB บายพาส',false);
+   s+=ball('dr',430,412,'drain',-26)+spray('dr',440,420,75,'#ffffff',true);
+   s+=gauge('pg',612,408,22,10,'')+R(608,370,8,20,'#6b7380');
+   s+=L(795,398,'คอนเดนเสทกลับ',12,'end');
+   s+=boom();
+   return s;
+ },
+ hs:{
+   v1:{k:'gate',role:'iso',main:true,nm:'V1 วาล์วต้นทาง',src:'st',la:[390,314],ta:[354,316],
+       miss:'ไม่ได้ปิด V1 — ไอ 5 bar g (158.8 °C) จากเมนไหลเข้าหา trap ตลอด'},
+   vb:{k:'gate',role:'iso',main:true,nm:'VB วาล์วบายพาส',src:'st',la:[558,190],ta:[522,192],
+       miss:'ลืมปิดวาล์วบายพาส VB (เดิมแง้มเปิดไว้) — ไออ้อมเข้าจุดที่จะถอด! เป็นจุดที่ช่างลืมบ่อยที่สุด'},
+   v2:{k:'gate',role:'iso',nm:'V2 วาล์วปลายทาง',src:'st',la:[690,314],ta:[654,316],
+       miss:'ไม่ได้ปิด V2 — คอนเดนเสท ~100 °C จากท่อกลับ (0.5 bar g) ไหลย้อนเข้ามา ลวกมือ'},
+   dr:{k:'ball',role:'rel',nm:'วาล์ว drain',vent:'st',ang:90,miss:'ไม่ได้เปิด drain — ไอ/คอนเดนเสทค้าง {P} bar g ในช่วงที่ตัดแยก ถอด trap แล้วพ่นใส่'},
+   pg:{k:'gauge',role:'ver',nm:'เกจไอ',src:'st',miss:'ไม่ได้อ่านเกจยืนยันว่า 0 bar g'},
+   th:{k:'thermo',role:'ver',nm:'วัดอุณหภูมิ',miss:'ไม่ได้วัดอุณหภูมิ — ต้องรอให้ท่อ ≤ 50 °C ก่อนจับ (คอนเดนเสท 158.8 °C ที่ปล่อยออกกลายเป็นไอแฟลช ~11 %)'},
+   stop:{k:'stop',role:'stop',nm:'STOP หม้อต้ม'}
+ },
+ src:{st:{nm:'ไอน้ำ',vent:'dr',gauge:'pg',max:10,tau:0.7,P0:5,unit:'bar g',
+   sup:function(G){return (G.on.v1||G.on.vb)?5:(G.on.v2?0.5:0);}}},
+ init:function(G){G.T=158.8;G.on.vb=true;},
+ draw:function(G){
+   var T=G.T, f=Math.max(0,Math.min(1,(T-40)/120));
+   var r=Math.round(154+(224-154)*f),g=Math.round(163+(96-163)*f),b=Math.round(173+(58-173)*f);
+   var col='rgb('+r+','+g+','+b+')';
+   var ps=$('stPipe').querySelectorAll('rect');for(var i=0;i<ps.length;i++)ps[i].setAttribute('fill',col);
+   $('stPipe').querySelector('path').setAttribute('stroke',col);
+   $('heatG').setAttribute('opacity',T>60?Math.min(1,(T-60)/60).toFixed(2):'0');
+   $('fl_m').setAttribute('opacity',(G.on.v1&&(G.on.v2||G.on.dr))?'0.8':'0');
+   $('fl_b').setAttribute('opacity',G.on.vb?'0.8':'0');
+   $('kSteam').setAttribute('opacity',G.running?'0.8':'0');
+ },
+ readout:function(G){var P=G.P.st;return [['♨️ '+P.toFixed(1)+' bar g',P>0.05?'hot':'zero'],['🌡 '+Math.round(G.T)+' °C',G.T>50?'hot':'zero'],
+   ['🍲 หม้อต้ม '+(G.running?'ทำงาน':'หยุด'),G.running?'hot':'zero']];}
+});
+
+/* ── ด่าน 4: เครื่องอัดไฮดรอลิก ── */
+LV.push({
+ name:'ด่าน 4 · เครื่องอัดไฮดรอลิก',icon:'🛢️',short:'ไฮดรอลิก',
+ wo:{no:'WO-2569-1104',ttl:'เปลี่ยนแม่พิมพ์ (die) เครื่องอัดไฮดรอลิก HP-01',
+     det:'ปั๊มไฮดรอลิก 22 kW · แอคคิวมูเลเตอร์ 10 L ที่ 160 bar g · ram หนัก 800 kg ค้างอยู่ด้านบน · ต้องเอามือเข้าใต้ ram',
+     en:['⚡ ไฟฟ้า','🛢️ ไฮดรอลิก (แอคคิวมูเลเตอร์)','🪨 แรงโน้มถ่วง (ram ห้อย)']},
+ job:'งานเปลี่ยนแม่พิมพ์ — ต้องวัดไฟที่ขั้วมอเตอร์ + ชิ้นส่วนหนัก น้ำมันแรงดันสูงอาจพุ่ง',
+ mainCB:'cb1',hasSel:true,rpm:1470,coast:[0.35,1.4],
+ cbs:[{id:'cb1',label:'CB-7 · HP-01'},{id:'cb2',label:'CB-8 · HP-02'},{id:'cb3',label:'CB-9 · CR-1'}],
+ rel:['dv','blk'],ver:['pg','mt','sel'],ppe:['helmet','glass','mglove','iglove','shoes'],
+ lesson:'แอคคิวมูเลเตอร์เก็บแรงดันได้แม้มอเตอร์ดับ — ระบายทิ้ง และค้ำ ram ทุกครั้ง',
+ boomAt:[440,250],
+ build:function(){
+   var s=bg()+mdb(this.cbs);
+   s+='<path d="M184 300 H196" fill="none" stroke="#1f2630" stroke-width="5"/>';
+   s+=station(200,170);
+   /* press */
+   s+=R(340,100,20,345,'url(#steelG)','stroke="#39424f" stroke-width="3"')+R(520,100,20,345,'url(#steelG)','stroke="#39424f" stroke-width="3"');
+   s+=R(326,66,228,52,'#5c6bc0','rx="8" stroke="#2c387e" stroke-width="4"')+L(440,98,'กระบอกไฮดรอลิก',14);
+   s+='<g id="ramG">'+R(410,118,60,10,'#cfd8dc')+R(372,126,136,82,'#8e99ab','rx="6" stroke="#39424f" stroke-width="4"')+L(440,172,'ram 800 kg',15)+
+     R(384,208,112,18,'#ff8f1c','rx="3" stroke="#a85a00" stroke-width="2"')+'</g>';
+   s+=R(384,370,112,16,'#ff8f1c','rx="3" stroke="#a85a00" stroke-width="2"')+R(352,386,176,56,'#6b7686','rx="4" stroke="#39424f" stroke-width="3"')+R(336,442,208,28,'#4b5563');
+   s+=HS('blk',380,228,120,140,'<g id="blkG" opacity="0">'+R(418,226,44,144,'url(#blkP)','stroke="#3a3a3a" stroke-width="3"')+'</g>'+L(440,300,'พื้นที่ใต้ ram',13,'middle','lbl','id="blkTxt"'));
+   /* hose */
+   s+='<path d="M556 281 H572 V92 H554" fill="none" stroke="#e65100" stroke-width="9" stroke-linejoin="round"/>';
+   /* accumulator */
+   s+=R(620,120,44,152,'#7e57c2','rx="20" stroke="#4527a0" stroke-width="4"')+L(642,110,'แอคคิวมูเลเตอร์',14)+
+     R(606,270,72,22,'#596579','rx="4" stroke="#39424f" stroke-width="2"');
+   s+=hpipe(556,606,281,12,'#e65100')+hpipe(678,770,281,12,'#e65100')+vpipe(764,281,402,12,'#e65100');
+   s+='<path class="flow" id="fl_o" d="M680 281 H764 V400" fill="none" stroke="#ffe082" stroke-width="4" opacity="0"/>';
+   /* HPU */
+   s+=R(590,400,200,62,'#455a64','rx="8" stroke="#263238" stroke-width="3"')+L(740,442,'HPU',15);
+   s+=R(600,350,92,50,'#2e8b74','rx="8" stroke="#1d5c4d" stroke-width="3"')+L(646,382,'M',18)+rotor('m',707,374,15,4,'#d6dde6')+
+     R(724,356,38,38,'#3d6fb6','rx="6" stroke="#24467a" stroke-width="3"');
+   s+=HS('mt',596,312,100,90,R(628,334,36,18,'#26705f','rx="3" stroke="#1d5c4d" stroke-width="2"')+L(646,347,'⚡',12)+L(646,326,'ขั้วมอเตอร์',12));
+   s+=gauge('pg',720,170,26,250,'')+R(664,166,30,8,'#6b7380');
+   s+=ball('aiv',585,281,'วาล์วแยก',-26)+ball('dv',720,281,'วาล์วระบาย',-26);
+   s+=boom();
+   return s;
+ },
+ hs:ext(cbDefs([{id:'cb1',label:'CB-7 · HP-01'},{id:'cb2',label:'CB-8 · HP-02'},{id:'cb3',label:'CB-9 · CR-1'}],
+   'ไม่ได้ตัด CB-7 (HP-01) — ปั๊ม 22 kW ยังมีไฟ กดสตาร์ทแล้ว ram อัดแรง ~503 kN (≈51 ตัน) ลงบนมือ'),{
+   aiv:{k:'ball',role:'iso',nm:'วาล์วแยกแอคคิวฯ',src:'acc',ang:0,la:[615,279],ta:[545,281],
+        miss:'ไม่ได้ปิด/ล็อกวาล์วแยกแอคคิวมูเลเตอร์ — น้ำมัน 160 bar g ไหลกลับเข้าระบบสั่ง ram ขยับได้'},
+   dv:{k:'ball',role:'rel',nm:'วาล์วระบาย (dump)',vent:'acc',ang:0,miss:'ไม่ได้ระบายแอคคิวมูเลเตอร์ — ยังเก็บ {P} bar g (เต็ม ≈ 52 kJ เท่ายกรถ 1.5 ตันสูง 3.5 m)'},
+   blk:{k:'blk',role:'rel',nm:'ค้ำ ram (safety block)',miss:'ไม่ได้ใส่ safety block ใต้ ram 800 kg — วาล์วกันตกรั่วนิดเดียว ram ไหลลง 0.4 m (≈3.1 kJ) ทับมือ'},
+   pg:{k:'gauge',role:'ver',nm:'เกจแอคคิวฯ',src:'acc',miss:'ไม่ได้อ่านเกจแอคคิวมูเลเตอร์ยืนยันว่า 0 bar g'},
+   mt:{k:'meter',role:'ver',nm:'วัดไฟที่ขั้วมอเตอร์',miss:'ไม่ได้วัดไฟที่ขั้วมอเตอร์ด้วยมิเตอร์ (ต้อง 0 V ทุกเฟส)'},
+   stop:{k:'stop',role:'stop',nm:'ปุ่ม STOP'},
+   sel:{k:'sel',role:'sel',nm:'สวิตช์ทดลองสตาร์ท',miss:'ไม่ได้ทดลองสตาร์ท (try-start) ยืนยันว่าปั๊มไม่ทำงาน'}
+ }),
+ src:{acc:{nm:'แอคคิวมูเลเตอร์',vent:'dv',gauge:'pg',max:250,tau:0.6,P0:160,unit:'bar g',
+   sup:function(G){return (G.on.aiv&&G.running&&G.w>0.5)?160:0;}}},
+ draw:function(G){
+   $('blkG').setAttribute('opacity',G.rel.blk?'1':'0');
+   $('blkTxt').setAttribute('opacity',G.rel.blk?'0':'1');
+   $('fl_o').setAttribute('opacity',(G.on.dv&&G.P.acc>0.5)?'0.95':'0');
+   var bob=(G.running&&G.w>0.3)?Math.sin(G.t*6)*3:0;
+   $('ramG').setAttribute('transform','translate(0 '+bob.toFixed(1)+')');
+ },
+ readout:function(G){var P=G.P.acc;return [['⚡ '+(energ()?'400 V':'0 V'),energ()?'hot':'zero'],['⚙️ '+Math.round(G.w*this.rpm)+' rpm',G.w>0.003?'hot':'zero'],
+   ['🛢️ '+P.toFixed(0)+' bar g',P>0.5?'hot':'zero'],['🪨 ram '+(G.rel.blk?'ค้ำแล้ว':'ห้อยอยู่'),G.rel.blk?'zero':'hot']];}
+});
+
+/* ── ด่าน 5: งานกลุ่ม เครื่องย่อยชีวมวล ── */
+LV.push({
+ name:'ด่าน 5 · งานกลุ่ม 3 ช่าง',icon:'👷',short:'งานกลุ่ม',group:true,
+ wo:{no:'WO-2569-1105',ttl:'เปลี่ยนค้อนเหวี่ยง (hammer) เครื่องย่อยชีวมวล HM-01 — ทีม 3 คน',
+     det:'มอเตอร์ 75 kW · โรเตอร์หนักหมุนค้างนาน (1,480 rpm) · ประตูป้อนใช้กระบอกลม 6 bar g · คุณเป็นหัวหน้าทีม ใช้กล่องล็อกกลุ่ม (group lock box)',
+     en:['⚡ ไฟฟ้า','⚙️ กล (โรเตอร์/มู่เล่หมุนค้าง)','💨 ลมอัด','👥 งานกลุ่ม']},
+ job:'งานในห้องเครื่องย่อยชีวมวล — ฝุ่นละเอียด ชิ้นส่วนค้อนหนักและคม',
+ mainCB:'cb1',hasSel:true,rpm:1480,coast:[0.05,0.16],
+ cbs:[{id:'cb1',label:'CB-10 · HM-01'},{id:'cb2',label:'CB-11 · LP-2'},{id:'cb3',label:'CB-12 · DF-1'}],
+ rel:['bv','rot'],ver:['pg','sel'],ppe:['helmet','glass','mglove','mask','shoes'],
+ lesson:'งานกลุ่ม: ทุกคนต้องล็อกกุญแจของตัวเองที่กล่องกลุ่ม — ป้ายบอกคนอื่นว่าห้ามเปิด',
+ boomAt:[450,250],
+ build:function(){
+   var s=bg()+mdb(this.cbs);
+   /* group lock box */
+   s+=HS('box',198,52,116,146,R(208,62,96,86,'#c62828','rx="10" stroke="#7f0000" stroke-width="4"')+L(256,82,'กล่องล็อกกลุ่ม',12)+
+     R(224,92,64,30,'#ffebee','rx="5" stroke="#7f0000" stroke-width="2"')+'<text id="boxKeys" x="256" y="114" font-size="20" text-anchor="middle" opacity="0">🗝️🗝️</text>'+
+     R(220,146,72,8,'#9e9e9e','rx="3"'));
+   s+=station(200,262);
+   /* air line */
+   s+=hpipe(640,800,100,14)+vpipe(640,100,152,14)+hpipe(600,640,152,14)+L(790,128,'← ลม 6 bar g',12,'end');
+   s+='<path class="flow" id="fl_a" d="M800 100 H640 V152 H604" fill="none" stroke="#e3f2fd" stroke-width="5" opacity="0"/>';
+   /* mill */
+   s+='<path d="M388 120 H512 L490 196 H410 Z" fill="#8d6e63" stroke="#4e342e" stroke-width="4"/>'+L(450,150,'ช่องป้อน',13);
+   s+=R(512,140,90,26,'url(#steelG)','rx="6" stroke="#39424f" stroke-width="3"')+'<g id="gateRod">'+R(486,148,30,10,'#cfd8dc','stroke="#607d8b" stroke-width="2"')+'</g>';
+   s+=R(338,194,224,240,'#37677a','rx="18" stroke="#1f3d49" stroke-width="5"');
+   s+=HS('rot',364,228,172,186,C(450,318,84,'url(#winG)','stroke="#90a4ae" stroke-width="6"')+
+     '<g id="rt_rot" data-c="450 318">'+(function(){var o='';for(var i=0;i<4;i++){var p=polar(450,318,64,i*90+45);o+='<line x1="450" y1="318" x2="'+p[0].toFixed(1)+'" y2="'+p[1].toFixed(1)+'" stroke="#b0bec5" stroke-width="10"/>'+
+       R(p[0]-9,p[1]-9,18,18,'#ff8f1c','rx="3" stroke="#a85a00" stroke-width="2"');}return o;})()+'</g>'+C(450,318,14,'#78909c','stroke="#37474f" stroke-width="3"')+
+     L(450,428,'ตรวจโรเตอร์หยุด',14));
+   s+=R(342,434,216,36,'#2c3e50');
+   /* motor */
+   s+=R(562,312,30,14,'#90a4ae')+R(590,286,120,74,'#2e8b74','rx="10" stroke="#1d5c4d" stroke-width="4"')+L(650,330,'M 75 kW',15);
+   s+=ball('bv',668,100,'ระบายลม',-24)+spray('bv',668,86,-90,'#e3f2fd',false)+ball('av',760,100,'วาล์วลม',-24);
+   s+=gauge('pg',716,178,20,10,'')+R(712,107,8,51,'#6b7380');
+   /* workers */
+   s+=worker('wA',612,466,'#e53935','คุณ (หัวหน้า)')+worker('wB',688,466,'#1e88e5','ช่างบี')+worker('wC',758,466,'#43a047','ช่างซี');
+   s+=worker('friend',880,466,'#fdd835','กะก่อน','#8e24aa');
+   s+=boom();
+   return s;
+ },
+ hs:ext(cbDefs([{id:'cb1',label:'CB-10 · HM-01'},{id:'cb2',label:'CB-11 · LP-2'},{id:'cb3',label:'CB-12 · DF-1'}],
+   'ไม่ได้ตัด CB-10 (HM-01) — มอเตอร์ 75 kW ยังมีไฟ ช่าง 3 คนอยู่ในเครื่องย่อย'),{
+   av:{k:'ball',role:'iso',nm:'วาล์วลม',src:'air',ang:0,la:[786,98],ta:[720,98],
+       miss:'ไม่ได้ปิดวาล์วลม — ประตูป้อนกระบอกลม 6 bar g ปิด-เปิดได้ หนีบมือช่าง'},
+   bv:{k:'ball',role:'rel',nm:'วาล์วระบายลม',vent:'air',ang:0,miss:'ไม่ได้ระบายลมค้าง {P} bar g — ประตูป้อนยังขยับได้'},
+   rot:{k:'rot',role:'rel',nm:'ตรวจโรเตอร์หยุด',miss:'ไม่ได้ยืนยันว่าโรเตอร์หยุดสนิท — โรเตอร์ 1,480 rpm เก็บพลังงาน ≈300 kJ หมุนค้างได้หลายนาที'},
+   box:{k:'box',role:'box',nm:'กล่องล็อกกลุ่ม'},
+   pg:{k:'gauge',role:'ver',nm:'เกจลม',src:'air',miss:'ไม่ได้อ่านเกจลมยืนยันว่า 0 bar g'},
+   stop:{k:'stop',role:'stop',nm:'ปุ่ม STOP'},
+   sel:{k:'sel',role:'sel',nm:'สวิตช์ทดลองสตาร์ท',miss:'ไม่ได้ทดลองสตาร์ท (try-start) ยืนยันว่าเครื่องย่อยไม่ทำงาน'}
+ }),
+ src:{air:{nm:'ลมอัด',vent:'bv',gauge:'pg',max:10,tau:0.5,P0:6,unit:'bar g',sup:function(G){return G.on.av?6:0;}}},
+ init:function(G){G.keysIn=false;G.pl={pA:false,pB:false,pC:false};G.friendX=880;},
+ draw:function(G){
+   var P=G.P.air,ext=Math.max(0,Math.min(1,P/6));
+   $('gateRod').setAttribute('transform','translate('+((1-ext)*26).toFixed(1)+' 0)');
+   $('fl_a').setAttribute('opacity',(G.on.av&&(G.on.bv||P<5.8))?'0.9':'0');
+   $('boxKeys').setAttribute('opacity',G.keysIn?'1':'0');
+   $('friend').setAttribute('transform','translate('+G.friendX.toFixed(1)+' 466)');
+   $('wA_m').setAttribute('opacity',G.pl.pA?'1':'0');$('wB_m').setAttribute('opacity',G.pl.pB?'1':'0');$('wC_m').setAttribute('opacity',G.pl.pC?'1':'0');
+ },
+ readout:function(G){var P=G.P.air,n=(G.pl.pA?1:0)+(G.pl.pB?1:0)+(G.pl.pC?1:0);
+   return [['⚡ '+(energ()?'400 V':'0 V'),energ()?'hot':'zero'],['⚙️ โรเตอร์ '+Math.round(G.w*this.rpm)+' rpm',G.w>0.003?'hot':'zero'],
+   ['💨 '+P.toFixed(1)+' bar g',P>0.05?'hot':'zero'],['👥 กุญแจทีม '+n+'/3',n===3?'zero':'hot']];}
+});
+
+/* ───────── เสียง Web Audio ───────── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.06,'square',0.07);}
+function sClank(){tone(300,0,0.08,'square',0.14);tone(900,0.05,0.12,'triangle',0.12);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sRadio(){tone(1200,0,0.07,'square',0.08);tone(1200,0.12,0.07,'square',0.08);tone(900,0.26,0.12,'square',0.08);}
+function sHiss(len){var a=audio();if(!a||!sndOn)return;len=len||0.9;
+  var n=Math.floor(a.sampleRate*len),buf=a.createBuffer(1,n,a.sampleRate),d=buf.getChannelData(0);
+  for(var i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);
+  var src=a.createBufferSource(),g=a.createGain();src.buffer=buf;
+  g.gain.setValueAtTime(0.2,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+len);
+  src.connect(g);g.connect(a.destination);src.start();}
+function sMotor(){tone(90,0,0.6,'sawtooth',0.1);tone(140,0.2,0.6,'sawtooth',0.08);}
+
+/* ───────── localStorage ───────── */
+var stars=[0,0,0,0,0];
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_skill_loto_stars')||'[]');for(var i=0;i<NLV;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_skill_loto_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_skill_loto_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_skill_loto_seen','1');}catch(e){}}
+
+/* ───────── สถานะเกม ───────── */
+var G={lv:0,active:false};
+var lv=LV[0];
+function energ(){return !!(lv.mainCB&&G.on[lv.mainCB]);}
+
+var bubT=null;
+function say(txt,ms,cls){var b=$('bubble');b.textContent=txt;b.className='show'+(cls?' '+cls:'');
+  clearTimeout(bubT);bubT=setTimeout(function(){b.className='';},ms||3000);}
+
+function startLevel(i){
+  G={lv:i,active:false,t:0,running:true,w:1,ang:0,on:{},locks:{},tags:{},rel:{},ver:{},P:{},flow:{},va:{},
+     sel:'OFF',notified:false,stopped:false,ppe:{},ppeSet:false,orderErr:[],notes:[],hazard:false,seq:[],cut:null,done:false,T:20,belt:0,
+     tryEnerg:false,decoyCut:{},nearRot:false};
+  lv=LV[i];
+  for(var id in lv.hs){var h=lv.hs[id];
+    if(h.role==='iso')G.on[id]=true;
+    if(h.role==='rel'&&h.k==='ball')G.on[id]=false;}
+  for(var k in lv.src){G.P[k]=lv.src[k].P0;G.flow[k]=0;}
+  if(!lv.mainCB){G.w=0;}
+  if(lv.init)lv.init(G);
+  for(id in lv.hs){h=lv.hs[id];if(h.k==='gate')G.va[id]=G.on[id]?0:540;if(h.k==='ball'){var open=G.on[id];G.va[id]=open?h.ang:h.ang+90;}}
+  $('scene').innerHTML=defs()+lv.build()+'<g id="lockLayer" pointer-events="none"></g>';
+  var bm=$('boom');bm.setAttribute('transform','translate('+lv.boomAt[0]+' '+lv.boomAt[1]+')');
+  $('lvlName').textContent=lv.name;
+  buildTools();buildSteps();
+  $('woMini').innerHTML='📋 <b>'+lv.wo.no+'</b> · '+lv.wo.ttl+' <span style="color:#8795a8">(แตะดูใบงาน)</span>';
+  $('ppeBtn').classList.remove('ok');$('notifyBtn').classList.remove('ok');
+  $('ppeBtn').textContent='🦺 เลือก PPE';$('notifyBtn').textContent='📢 แจ้งผู้เกี่ยวข้อง';
+  selTool=null;updateToolSel();
+  showWO();
+  render();
+}
+function showWO(){
+  var w=lv.wo;
+  $('woCard').innerHTML='<div class="stamp">LOTO</div><div class="no">'+w.no+' · '+lv.name+'</div><div class="ttl">'+w.ttl+'</div><div>'+w.det+'</div>'+
+    '<div class="en">'+w.en.map(function(e){return '<span>'+e+'</span>';}).join('')+'</div>';
+  $('woOv').classList.add('show');
+}
+
+/* ───────── tools tray ───────── */
+var selTool=null;
+function buildTools(){
+  var t=$('tools'),h='<div class="tlab">ลากไปแขวนที่ "จุดตัดแยกที่ตัดแล้ว" (หรือแตะเลือก แล้วแตะจุด)</div>';
+  h+='<button class="tool" data-tool="lock">🔒<small>'+(lv.group?'กุญแจระบบ':'แม่กุญแจของฉัน')+'</small></button>';
+  h+='<button class="tool" data-tool="tag">🏷️<small>ป้ายห้ามเปิด</small></button>';
+  if(lv.group){
+    h+='<button class="tool" data-tool="pA" style="border-color:#ef9a9a">🔴<small>กุญแจคุณ</small></button>';
+    h+='<button class="tool" data-tool="pB" style="border-color:#90caf9">🔵<small>กุญแจช่างบี</small></button>';
+    h+='<button class="tool" data-tool="pC" style="border-color:#a5d6a7">🟢<small>กุญแจช่างซี</small></button>';
+  }
+  t.innerHTML=h;
+  var bs=t.querySelectorAll('.tool');for(var i=0;i<bs.length;i++)bindTool(bs[i]);
+}
+function updateToolSel(){
+  var bs=$('tools').querySelectorAll('.tool');
+  for(var i=0;i<bs.length;i++){var tl=bs[i].getAttribute('data-tool');bs[i].classList.toggle('sel',tl===selTool);
+    if(lv.group&&G.pl&&G.pl[tl])bs[i].classList.add('done');}
+  document.body.classList.toggle('toolsel',!!selTool);
+  $('toolHint').className=selTool?'show':'';
+  markLockable();
+}
+function markLockable(){
+  var hs=document.querySelectorAll('#scene .hs');
+  for(var i=0;i<hs.length;i++){var id=hs[i].getAttribute('data-hs'),h=lv.hs[id];
+    var ok=h&&((h.role==='iso')||(h.role==='box'));hs[i].classList.toggle('lk',!!ok);}
+}
+var drag=null;
+function bindTool(b){
+  b.addEventListener('pointerdown',function(e){
+    if(!G.active)return;audio();
+    drag={tool:b.getAttribute('data-tool'),x:e.clientX,y:e.clientY,moved:false,el:b};
+    try{b.setPointerCapture(e.pointerId);}catch(er){}
+    e.preventDefault();
+  });
+  b.addEventListener('pointermove',function(e){
+    if(!drag||drag.el!==b)return;
+    if(!drag.moved&&Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>8){drag.moved=true;document.body.classList.add('dragging');
+      var gh=$('ghost');gh.textContent=toolIcon(drag.tool);gh.style.display='block';}
+    if(drag.moved){var gh2=$('ghost');gh2.style.left=e.clientX+'px';gh2.style.top=e.clientY+'px';hoverHS(e.clientX,e.clientY);}
+  });
+  function end(e){
+    if(!drag||drag.el!==b)return;
+    var d=drag;drag=null;$('ghost').style.display='none';document.body.classList.remove('dragging');hoverHS(-1,-1);
+    if(d.moved){var id=hsAt(e.clientX,e.clientY);if(id)applyTool(d.tool,id);else say('ปล่อยบนเบรกเกอร์/วาล์วที่ตัดแล้ว (กรอบสีฟ้า)',2400);}
+    else{sClick();selTool=(selTool===d.tool)?null:d.tool;updateToolSel();if(selTool)say('แตะจุดในฉากเพื่อแขวน '+toolIcon(selTool),2200);}
+  }
+  b.addEventListener('pointerup',end);
+  b.addEventListener('pointercancel',function(){drag=null;$('ghost').style.display='none';document.body.classList.remove('dragging');});
+}
+function toolIcon(t){return {lock:'🔒',tag:'🏷️',pA:'🔴🔒',pB:'🔵🔒',pC:'🟢🔒'}[t]||'🔒';}
+function hsAt(x,y){var el=document.elementFromPoint(x,y);if(!el)return null;var g=el.closest?el.closest('.hs'):null;return g?g.getAttribute('data-hs'):null;}
+var lastHot=null;
+function hoverHS(x,y){var id=x<0?null:hsAt(x,y);if(lastHot&&lastHot!==id){var o=$('hs_'+lastHot);if(o)o.classList.remove('hot');}
+  if(id){var n=$('hs_'+id);if(n)n.classList.add('hot');}lastHot=id;}
+
+/* ───────── ลำดับ / บันทึก ───────── */
+function oErr(msg){if(G.orderErr.indexOf(msg)<0)G.orderErr.push(msg);}
+function needNotify(){if(!G.notified)oErr('ไม่ได้แจ้งผู้เกี่ยวข้องก่อนเริ่มหยุด/ตัดแยก — คนที่ใช้เครื่องอยู่ไม่รู้ตัว');}
+function allIsoLocked(){for(var id in lv.hs){var h=lv.hs[id];if(h.role==='iso'&&!h.decoy&&!(!G.on[id]&&G.locks[id]))return false;}return true;}
+function hazard(sub){
+  G.hazard=true;$('boomSub').textContent=sub||'เครื่องเดิน!';
+  var bm=$('boom');bm.setAttribute('opacity','1');bm.classList.remove('go');void bm.getBoundingClientRect();bm.classList.add('go');
+  var sw=$('sceneWrap');sw.classList.remove('shake');void sw.offsetWidth;sw.classList.add('shake');
+  sBad();sMotor();
+  setTimeout(function(){bm.setAttribute('opacity','0');},2200);
+}
+
+/* ───────── การกระทำในฉาก ───────── */
+function act(id){
+  if(!G.active||G.cut)return;
+  var h=lv.hs[id];if(!h)return;
+  if(selTool){applyTool(selTool,id);return;}
+  audio();
+  if(h.role==='stop'){
+    if(lv.mainCB&&!energ()){say('ไม่มีไฟเลี้ยง เครื่องหยุดอยู่แล้ว',2200);G.stopped=true;return;}
+    if(G.running){needNotify();G.running=false;G.stopped=true;sClick();
+      say(lv.mainCB?'⏹ หยุดเครื่องตามปกติแล้ว — ดูมันค่อย ๆ หยุดหมุน':'⏹ หยุดหม้อต้มแล้ว — แต่เมนไอยังมีแรงดันอยู่นะ',2800);}
+    else{G.stopped=true;say('เครื่องหยุดอยู่แล้ว ✔',1800);}
+    return;
+  }
+  if(h.role==='iso'){
+    if(G.locks[id]){say('🔒 ล็อกอยู่ — ห้ามเปิดจนกว่างานเสร็จ',2200);return;}
+    var turningOff=G.on[id];
+    G.on[id]=!G.on[id];sClick();
+    if(turningOff){
+      if(h.decoy){G.decoyCut[id]=true;say('⚠ '+h.nm+' ไม่ใช่ของเครื่องในใบงาน — ตรวจป้ายชื่อก่อนตัด!',3000,'bad');return;}
+      needNotify();
+      if(h.k==='cb'){
+        if(G.running){oErr('ตัดเบรกเกอร์ขณะเครื่องยังเดิน (ไม่กด STOP ก่อน) — เสี่ยงอาร์คที่หน้าสัมผัส และเครื่องหยุดกระชาก');G.running=false;say('⚡ ตัดไฟขณะเครื่องเดิน! ควรกด STOP ก่อน',2800,'bad');}
+        else say('✔ ตัด '+h.nm+' แล้ว — ไฟบนตู้ดับ',2400,'good');
+      }else{
+        if(G.running&&h.runMsg){oErr(h.runMsg);say('⚠ '+h.runMsg,3200,'bad');}
+        else say('✔ ปิด '+h.nm+' แล้ว',2000,'good');
+      }
+      G.seq.push(3);
+    }else{
+      say('เปิด '+h.nm+' กลับ',1800);if(h.decoy)delete G.decoyCut[id];
+      if(h.k==='cb'&&!h.decoy&&G.sel==='START'){G.running=true;hazard('สวิตช์ค้าง START!');oErr('จ่ายไฟกลับขณะสวิตช์ค้าง START — เครื่องออกตัวเอง');}
+    }
+    return;
+  }
+  if(h.role==='rel'){
+    if(h.k==='ball'){
+      G.on[id]=!G.on[id];sClick();
+      var s=lv.src[h.vent];
+      if(G.on[id]){
+        if(s.sup(G)>0){oErr('เปิด'+h.nm+'ก่อนตัดแยกต้นทาง — ของไหลพุ่งออกไม่หยุด เติมเข้ามาตลอด');say('💦 ยังมีพลังงานไหลเข้า! ปิดวาล์วต้นทางก่อน',3000,'bad');sHiss(1.2);}
+        else if(G.P[h.vent]>0.05){say('ซ่าาา… กำลังระบายพลังงานสะสม ดูเข็มเกจ',2400);sHiss(1.1);}
+        else say('เปิด '+h.nm+' (ไม่มีแรงดันค้าง)',1800);
+      }else say('ปิด '+h.nm,1500);
+      return;
+    }
+    if(h.k==='blk'){
+      if(G.rel.blk){say('ค้ำไว้แล้ว ✔',1500);return;}
+      if(G.running||G.w>0.05){say('⛔ เครื่องยังเดิน! หยุดและตัดไฟก่อนเข้าไปค้ำ',2600,'bad');return;}
+      G.rel.blk=true;G.seq.push(5);sClank();
+      if(!allIsoLocked())oErr('ค้ำ/ปลดพลังงานสะสมก่อนล็อกจุดตัดแยกครบ — ระหว่างนั้นใครก็เปิดเครื่องได้');
+      say('✔ ใส่ตัวค้ำแล้ว — พลังงานศักย์ไม่ตกใส่ใคร',2600,'good');
+      return;
+    }
+    if(h.k==='rot'){
+      if(G.rel.rot){say('ยืนยันแล้ว โรเตอร์หยุดสนิท ✔',1500);return;}
+      if(G.w>0.004){G.nearRot=true;oErr('เข้าใกล้/เปิดฝาขณะโรเตอร์ยังหมุนค้าง — ต้องรอให้หยุดสนิทก่อน');
+        say('⛔ ยังหมุน '+Math.round(G.w*lv.rpm)+' rpm! ห้ามเอื้อมมือ — รอจนหยุด',2800,'bad');sBad();return;}
+      G.rel.rot=true;G.seq.push(5);sClick();
+      if(!allIsoLocked())oErr('ยืนยันโรเตอร์หยุดก่อนล็อกจุดตัดแยกครบ');
+      say('✔ โรเตอร์หยุดสนิท 0 rpm',2200,'good');return;
+    }
+  }
+  if(h.role==='box'){
+    if(G.keysIn){say('ลูกกุญแจระบบอยู่ในกล่องแล้ว — ให้ทุกคนล็อกกล่อง',2200);return;}
+    if(!allIsoLocked()){say('ล็อกจุดตัดแยกทุกจุดด้วยกุญแจระบบก่อน แล้วค่อยเก็บลูกกุญแจลงกล่อง',3000,'bad');return;}
+    G.keysIn=true;G.seq.push(4);sClank();say('🗝 เก็บลูกกุญแจระบบลงกล่องแล้ว — ต่อไปทุกคนแขวนกุญแจตัวเองที่กล่อง',3200,'good');return;
+  }
+  if(h.role==='ver'){
+    sClick();
+    if(h.k==='gauge'){var P=G.P[h.src],sc=lv.src[h.src];
+      if(P<0.05&&sc.sup(G)===0){if(!G.ver[id]){G.ver[id]=true;G.seq.push(6);}say('✔ เกจ 0 '+sc.unit+' — ไม่มีแรงดันค้าง',2400,'good');}
+      else say('❗ เกจยังชี้ '+(sc.max>50?P.toFixed(0):P.toFixed(1))+' '+sc.unit+' — ยังมีพลังงานค้าง!',2800,'bad');
+      return;}
+    if(h.k==='meter'){
+      if(!energ()){if(!G.ver[id]){G.ver[id]=true;G.seq.push(6);}if(!allIsoLocked())oErr('วัดไฟยืนยันก่อนใส่กุญแจ — ต้องล็อกก่อนแล้วค่อยยืนยัน');say('✔ มิเตอร์ L1-L2 / L2-L3 / L1-L3 = 0 V',2600,'good');}
+      else say('⚡ มิเตอร์ 400 V! ยังมีไฟที่ขั้วมอเตอร์',2600,'bad');
+      return;}
+    if(h.k==='thermo'){
+      if(G.T<=50){if(!G.ver[id]){G.ver[id]=true;G.seq.push(6);}say('✔ '+Math.round(G.T)+' °C — จับได้ปลอดภัย',2400,'good');}
+      else say('🌡 '+Math.round(G.T)+' °C — ยังร้อนเกิน 50 °C '+(G.P.st>0.05?'(ยังมีไอค้าง)':'รอให้เย็นก่อน'),2800,'bad');
+      return;}
+  }
+  if(h.role==='sel'){
+    if(G.sel==='OFF'){
+      G.sel='START';sClick();
+      if(energ()){G.running=true;G.tryEnerg=true;oErr('ทดลองสตาร์ทขณะยังไม่ตัดไฟ — เครื่องเดินจริง! (try-start ทำหลังตัด+ล็อกเท่านั้น)');hazard('เครื่องเดินจริง!');say('💥 เครื่องเดิน! ยังไม่ได้ตัดไฟ',2800,'bad');}
+      else{
+        if(!G.ver.sel){G.ver.sel=true;G.seq.push(6);}
+        if(!allIsoLocked())oErr('ทดลองสตาร์ทก่อนใส่กุญแจครบ — ลำดับที่ถูกคือ ล็อก → ปลดพลังงานสะสม → ทดลองสตาร์ท');
+        say('▶ กด START… เงียบ ✔ ยืนยันว่าตัดไฟจริง — อย่าลืมบิดกลับ OFF!',3200,'good');
+      }
+    }else{G.sel='OFF';sClick();if(G.running){G.running=false;}say('↩ บิดสวิตช์กลับ OFF แล้ว ✔',2000,'good');}
+    return;
+  }
+}
+
+function applyTool(tool,id){
+  if(!G.active||G.cut)return;
+  var h=lv.hs[id];selTool=null;updateToolSel();
+  if(!h){return;}
+  if(tool==='pA'||tool==='pB'||tool==='pC'){
+    if(h.role!=='box'){say('กุญแจส่วนตัวของแต่ละคน แขวนที่ "กล่องล็อกกลุ่ม"',2600,'bad');return;}
+    if(!G.keysIn){say('ต้องเก็บลูกกุญแจระบบลงกล่องก่อน (แตะกล่อง)',2600,'bad');return;}
+    if(G.pl[tool]){say('คนนี้ล็อกแล้ว',1500);return;}
+    G.pl[tool]=true;G.seq.push(4);sClank();
+    var nm={pA:'คุณ',pB:'ช่างบี',pC:'ช่างซี'}[tool];
+    say('🔒 '+nm+' แขวนกุญแจตัวเองที่กล่องแล้ว',2200,'good');updateToolSel();drawLocks();return;
+  }
+  if(h.role!=='iso'){say('แขวนกุญแจ/ป้ายได้เฉพาะจุดตัดแยก (เบรกเกอร์/วาล์วแยก)',2600,'bad');return;}
+  if(G.on[id]){say('ต้องตัด/ปิด '+h.nm+' ก่อน จึงจะล็อกได้',2600,'bad');return;}
+  if(tool==='lock'){
+    if(G.locks[id]){say('มีกุญแจแล้ว',1400);return;}
+    G.locks[id]=true;G.seq.push(4);sClank();needNotify();
+    if(h.decoy)say('🔒 ล็อก '+h.nm+' (ไม่ใช่เครื่องในใบงาน!)',2600,'bad');else say('🔒 ใส่กุญแจที่ '+h.nm+' แล้ว',2000,'good');
+  }else{
+    if(G.tags[id]){say('มีป้ายแล้ว',1400);return;}
+    G.tags[id]=true;G.seq.push(4);sClank();
+    say('🏷 แขวนป้าย "อันตราย ห้ามเปิด" ที่ '+h.nm,2000,'good');
+  }
+  drawLocks();
+}
+function drawLocks(){
+  var s='';
+  for(var id in lv.hs){var h=lv.hs[id];
+    if(G.locks[id])s+=lockSVG(h.la[0],h.la[1],lv.group?'#fbc02d':'#e53935');
+    if(G.tags[id])s+=tagSVG(h.ta[0],h.ta[1]);}
+  if(lv.group&&G.pl){var cols={pA:'#e53935',pB:'#1e88e5',pC:'#43a047'},xs={pA:230,pB:256,pC:282};
+    for(var k in G.pl)if(G.pl[k])s+=lockSVG(xs[k],150,cols[k]);}
+  $('lockLayer').innerHTML=s;
+}
+
+/* ───────── ปุ่มแผง ───────── */
+function doNotify(){
+  if(!G.active||G.cut)return;audio();
+  if(G.notified){say('แจ้งไปแล้ว ✔',1500);return;}
+  G.notified=true;
+  if(G.seq.length)oErr('แจ้งผู้เกี่ยวข้องช้า — ต้องแจ้งก่อนหยุดเครื่อง/ตัดแยก');
+  G.seq.push(1);sRadio();
+  $('notifyBtn').classList.add('ok');$('notifyBtn').textContent='📢 แจ้งแล้ว ✔';
+  say(lv.group?'📢 ประชุมทีม 3 คน + แจ้งหัวหน้ากะและผู้ควบคุมเครื่อง: "หยุดซ่อม HM-01"':'📢 แจ้งหัวหน้ากะ + ผู้ใช้เครื่องแล้ว: "หยุดเครื่องเพื่อซ่อม"',3000,'good');
+}
+function openPPE(){
+  if(!G.active||G.cut)return;audio();sClick();
+  $('ppeJob').textContent='งาน: '+lv.job;
+  var g=$('ppeGrid');g.innerHTML='';
+  PPE.forEach(function(p){var b=document.createElement('button');b.innerHTML='<span class="e">'+p.ic+'</span><span class="n">'+p.nm+'</span>';
+    if(G.ppe[p.id])b.classList.add('on');
+    b.addEventListener('click',function(){G.ppe[p.id]=!G.ppe[p.id];b.classList.toggle('on',!!G.ppe[p.id]);sClick();});g.appendChild(b);});
+  $('ppeOv').classList.add('show');
+}
+function closePPE(){
+  $('ppeOv').classList.remove('show');
+  var n=0;for(var k in G.ppe)if(G.ppe[k])n++;
+  G.ppeSet=n>0;$('ppeBtn').classList.toggle('ok',G.ppeSet);$('ppeBtn').textContent=G.ppeSet?'🦺 PPE '+n+' ชิ้น ✔':'🦺 เลือก PPE';
+  if(G.ppeSet)sGood();
+}
+function submit(){
+  if(!G.active||G.cut)return;audio();
+  if(!G.ppeSet){say('เลือก PPE ก่อนเข้าไปซ่อม 🦺',2400,'bad');openPPE();return;}
+  if(lv.group){startCut();return;}
+  finish();
+}
+
+/* ───────── ด่าน 5: เพื่อนกะก่อนเดินมา ───────── */
+function startCut(){
+  var cb=lv.mainCB,out;
+  if(G.on[cb])out='live';else if(G.tags[cb])out='stop';else if(G.locks[cb])out='cut';else out='flip';
+  G.cut={t:0,out:out,phase:0};selTool=null;updateToolSel();
+  say('👀 เพื่อนกะก่อนเดินมา "เครื่องหยุดทำไม? เดี๋ยวเปิดให้"',3000);
+}
+function stepCut(dt){
+  var c=G.cut;c.t+=dt;
+  if(c.phase===0){G.friendX=Math.max(206,880-c.t*300);if(G.friendX<=206){c.phase=1;c.t=0;}}
+  else if(c.phase===1&&c.t>0.6){
+    c.phase=2;c.t=0;
+    if(c.out==='stop'){say('✋ เพื่อน: "อ๋อ มีป้ายห้ามเปิด มีคนซ่อมอยู่ — ไม่แตะ!"',3200,'good');sGood();$('friend_m').textContent='✋';$('friend_m').setAttribute('opacity','1');}
+    else{
+      var msg={live:'😱 เพื่อน: "ไฟยังมีนี่ กดสตาร์ทเลย!"',flip:'😱 เพื่อน: "ใครปิดไว้ ไม่มีป้าย? สับคืนให้!"',cut:'😱 เพื่อน: "กุญแจใครลืม ไม่มีป้ายบอก — ตัดทิ้งแล้วสับ!"'}[c.out];
+      if(c.out==='cut'){G.locks[lv.mainCB]=false;drawLocks();}
+      G.on[lv.mainCB]=true;G.running=true;G.friendHazard=true;
+      say(msg,3400,'bad');hazard('เพื่อนเปิดเครื่อง!');
+      ['wA_b','wB_b','wC_b'].forEach(function(w){var e=$(w);e.classList.remove('jump');void e.getBoundingClientRect();e.classList.add('jump');});
+    }
+  }
+  else if(c.phase===2&&c.t>2.6){c.phase=3;finish();}
+}
+
+/* ───────── ตัดสิน ───────── */
+function fmtMiss(h){var m=h.miss||'';if(h.vent){var P=G.P[h.vent],u=lv.src[h.vent];m=m.replace('{P}',u.max>50?P.toFixed(0):P.toFixed(1));}return m;}
+function grade(){
+  var red=[],warn=[],good=[],info=[];
+  var nIso=0,okIso=0,isoNames=[];
+  for(var id in lv.hs){var h=lv.hs[id];
+    if(h.role==='iso'&&!h.decoy){nIso++;isoNames.push(h.nm);
+      if(G.friendHazard&&id===lv.mainCB)continue;
+      if(G.on[id])red.push(h.miss);
+      else if(!G.locks[id]&&!(G.friendHazard&&id===lv.mainCB))red.push('ตัด '+h.nm+' แล้วแต่ไม่ได้ใส่กุญแจ — ใครก็เปิดคืนได้ (ป้ายอย่างเดียวไม่พอ)');
+      else if(!G.tags[id]&&!lv.group)warn.push('ใส่กุญแจที่ '+h.nm+' แต่ไม่มีป้าย — คนอื่นไม่รู้ว่าใครล็อก ล็อกทำไม อาจถูกตัดกุญแจทิ้ง');
+      else if(!G.tags[id]&&lv.group&&id!==lv.mainCB)warn.push('จุด '+h.nm+' มีกุญแจแต่ไม่มีป้าย');
+      else okIso++;}
+  }
+  if(lv.group){
+    if(G.friendHazard){
+      var why={live:'ไม่ได้ตัด CB-10 — เพื่อนกะก่อนกดสตาร์ท เครื่องย่อยหมุนขณะช่าง 3 คนอยู่ข้างใน',
+        flip:'CB-10 ไม่มีทั้งกุญแจและป้าย — เพื่อนคิดว่าใครปิดผิด จึงสับเบรกเกอร์คืน',
+        cut:'CB-10 มีกุญแจแต่ไม่มีป้าย — เพื่อนคิดว่าเป็นกุญแจลืมทิ้ง ตัดกุญแจแล้วสับคืน! ป้ายต้องบอก "ใคร / ทำไม / ติดต่อใคร"'}[G.cut.out];
+      red.unshift(why);
+    }else if(G.cut&&G.cut.out==='stop')good.push('เพื่อนกะก่อนเห็นป้ายแล้วหยุด — ป้ายช่วยชีวิตทีม');
+    if(!G.keysIn)red.push('ไม่ได้เก็บลูกกุญแจระบบลงกล่องล็อกกลุ่ม — ทีมไม่มีหลักประกันร่วม');
+    var nm={pA:'คุณ (หัวหน้า)',pB:'ช่างบี',pC:'ช่างซี'};
+    for(var k in G.pl)if(!G.pl[k])red.push(nm[k]+' ไม่ได้แขวนกุญแจตัวเองที่กล่องกลุ่ม — ถ้าคนอื่นปลดล็อกเสร็จก่อน เขายังอยู่ในเครื่อง');
+  }
+  for(var i=0;i<lv.rel.length;i++){var r=lv.rel[i];if(!G.rel[r])warn.push(fmtMiss(lv.hs[r]));}
+  for(i=0;i<lv.ver.length;i++){var v=lv.ver[i];if(!G.ver[v])warn.push(lv.hs[v].miss);}
+  if(lv.hasSel&&G.sel==='START')warn.push('สวิตช์สตาร์ทค้างที่ START — ตอนปลดล็อกจ่ายไฟคืน เครื่องจะออกตัวทันที (ต้องบิดกลับ OFF)');
+  if(!G.notified)warn.push('ไม่ได้แจ้งผู้เกี่ยวข้อง (ขั้น ①) — ผู้ใช้เครื่องไม่รู้ว่ากำลังซ่อม');
+  if(!G.stopped&&G.orderErr.join().indexOf('STOP')<0)warn.push('ไม่ได้หยุดเครื่องตามปกติ (ขั้น ②) ด้วยปุ่ม STOP');
+  for(i=0;i<G.orderErr.length;i++){if(!G.notified&&G.orderErr[i].indexOf('ไม่ได้แจ้ง')===0)continue;warn.push('ลำดับผิด: '+G.orderErr[i]);}
+  /* PPE */
+  var miss=[],extra=[];
+  lv.ppe.forEach(function(p){if(!G.ppe[p])miss.push(p);});
+  for(var p in G.ppe)if(G.ppe[p]&&lv.ppe.indexOf(p)<0)extra.push(p);
+  miss.forEach(function(p){var o=ppeName(p);warn.push('PPE ขาด '+o.ic+' '+o.nm+' — '+o.why);});
+  extra.forEach(function(p){var o=ppeName(p);
+    warn.push('PPE ไม่ตรงงาน '+o.ic+' '+o.nm+' — '+(p==='cglove'?'ถุงมือผ้าซึมน้ำ/น้ำมันร้อน และไม่กันบาด ไม่ใช่ PPE ที่เหมาะ':'งานนี้ไม่จำเป็น เลือกให้ตรงความเสี่ยงจริง'));});
+  for(var d in G.decoyCut)info.push('ตัด '+lv.hs[d].nm+' โดยไม่จำเป็น — เครื่อง/ระบบอื่นหยุดไปด้วย ต้องอ่านป้ายชื่อให้ตรงใบงาน');
+  if(!red.length){good.push('ตัดแยกครบ '+okIso+'/'+nIso+' จุด + ล็อก + ป้าย');}
+  if(!red.length&&!warn.length){good.push('ปลดพลังงานสะสมครบ และยืนยัน zero energy แล้ว');good.push('PPE ตรงงาน · ลำดับถูกต้องตามขั้น ①→⑦');}
+  var st=red.length?1:(warn.length?2:3);
+  return {st:st,red:red,warn:warn,good:good,info:info,isoNames:isoNames};
+}
+function finish(){
+  G.active=false;G.done=true;
+  var r=grade();
+  if(r.st>stars[G.lv]){stars[G.lv]=r.st;saveStars();}
+  updateStarTotal();
+  $('resEmoji').textContent=r.st===3?'🏆':(r.st===2?'🙂':'🚨');
+  $('resTitle').textContent=r.st===3?'Zero energy! ปลอดภัย 100%':(r.st===2?'เกือบครบ — ยังมีจุดเสี่ยง':'เฉลย: ยังมีพลังงานถึงตัวช่าง!');
+  $('resLesson').textContent='💡 '+lv.lesson;
+  $('resStats').innerHTML='<span>⏱ '+Math.floor(G.t)+' วิ</span><span>🔒 '+Object.keys(G.locks).filter(function(k){return G.locks[k];}).length+' กุญแจ</span>'+
+    '<span>🏷 '+Object.keys(G.tags).length+' ป้าย</span>';
+  var fbh=$('resFbh');fbh.className='fbh'+(r.st===1?' red':'');
+  fbh.textContent=r.st===1?'🟥 เฉลย / ข้อคิด — จุดที่ทำให้อันตรายถึงชีวิต':'เฉลย / ข้อคิด';
+  var h='';
+  r.red.forEach(function(m){h+='<div class="r">✗ '+m+'</div>';});
+  r.warn.forEach(function(m){h+='<div class="w">⚠ '+m+'</div>';});
+  r.good.forEach(function(m){h+='<div class="g">✓ '+m+'</div>';});
+  r.info.forEach(function(m){h+='<div class="i">ℹ '+m+'</div>';});
+  if(r.st===1)h+='<div class="i">จุดตัดแยกที่ต้องทำในงานนี้: <b>'+r.isoNames.join(' · ')+'</b></div>';
+  $('resFb').innerHTML=h;
+  var ss=$('resStars').children;for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(r.st>=2)sGood();else sBad();
+  for(let i=0;i<r.st;i++)setTimeout(function(){ss[i].classList.add('on');sStar(i);},350+i*380);
+  if(r.st===3)confetti(30);
+  $('nextBtn').textContent=G.lv<NLV-1?'ด่านต่อไป ➜':'🏆 สรุปบทเรียน';
+  window.__lastGrade=r;
+}
+function updateStarTotal(){var t=0;for(var i=0;i<NLV;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+function confetti(n){var cols=['#3f51b5','#ffd23f','#00acc1','#1fb45f','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ───────── ฟิสิกส์ต่อเฟรม ───────── */
+function step(dt){
+  if(!lv||!G.on)return;
+  if(G.active)G.t+=dt;
+  if(G.cut)stepCut(dt);
+  /* rotor */
+  if(lv.mainCB){
+    if(G.running&&!energ())G.running=false;
+    var pw=G.running&&energ();
+    if(pw)G.w+=(1-G.w)*Math.min(1,dt*2.6);
+    else{G.w-=(lv.coast[0]+lv.coast[1]*G.w)*dt;if(G.w<0)G.w=0;}
+    if(!RM)G.ang=(G.ang+G.w*720*dt)%36000;
+  }
+  /* pressure sources */
+  for(var k in lv.src){var s=lv.src[k],sup=s.sup(G),vo=!!G.on[s.vent],P=G.P[k];
+    if(sup>0){var tg=vo?sup*0.85:sup;P+=(tg-P)*Math.min(1,dt*4);G.flow[k]=vo?1:0;}
+    else{if(vo){P-=P*Math.min(1,dt/s.tau);if(P<0.02)P=0;}G.flow[k]=vo?Math.min(1,P/(s.P0*0.4)):0;}
+    G.P[k]=P;
+    if(vo&&sup===0&&P<0.03&&!G.rel[s.vent]&&G.active){G.rel[s.vent]=true;G.seq.push(5);
+      if(!allIsoLocked())oErr('ระบายพลังงานสะสมก่อนล็อกจุดตัดแยกครบ — ควรล็อกก่อน แล้วค่อยระบาย');
+      say('✔ ระบายหมดแล้ว — เกจลงศูนย์',2200,'good');}
+  }
+  /* temperature (ด่าน 3) */
+  if(lv.src.st){var sp=lv.src.st.sup(G),Pst=G.P.st;
+    var tgt=sp>=5?158.8:(sp>0?100:(Pst>0.05?tsat(Pst):32));
+    var tau=tgt>G.T?0.6:4.5;G.T+=(tgt-G.T)*Math.min(1,dt/tau);}
+}
+
+/* ───────── render ───────── */
+function render(){
+  if(!lv||!G.on)return;
+  for(var id in lv.hs){var h=lv.hs[id],e;
+    if(h.k==='cb'){var on=G.on[id];e=$('lv_'+id);if(e)e.setAttribute('transform',on?'':'translate(0 22)');
+      e=$('lp_'+id);if(e){e.setAttribute('fill',on?'#ffd23f':'#3b3f45');}
+      e=$('st_'+id);if(e){e.textContent=on?'ON':'OFF';e.setAttribute('fill',on?'#7CFC9a':'#ff8a80');}}
+    else if(h.k==='gate'){var tg=G.on[id]?0:540;G.va[id]+=(tg-G.va[id])*0.18;
+      var c=$('wh_'+id).querySelector('circle');var cx=+c.getAttribute('cx'),cy=+c.getAttribute('cy');
+      $('wh_'+id).setAttribute('transform','rotate('+G.va[id].toFixed(1)+' '+cx+' '+cy+')');pillSet(id,G.on[id]);}
+    else if(h.k==='ball'){var ta=G.on[id]?h.ang:h.ang+90;G.va[id]+=(ta-G.va[id])*0.25;
+      var bc=$('hs_'+id).querySelector('circle');$('bl_'+id).setAttribute('transform','rotate('+G.va[id].toFixed(1)+' '+bc.getAttribute('cx')+' '+bc.getAttribute('cy')+')');
+      if(h.role==='rel')pillSet(id,G.on[id],true);else pillSet(id,G.on[id]);}
+    else if(h.k==='gauge'){var sc=lv.src[h.src],P=G.P[h.src],a=-120+240*Math.min(1,P/sc.max);
+      var gc=$('hs_'+id).querySelector('circle');$('nd_'+id).setAttribute('transform','rotate('+a.toFixed(1)+' '+gc.getAttribute('cx')+' '+gc.getAttribute('cy')+')');
+      $('gv_'+id).textContent=(sc.max>50?P.toFixed(0):P.toFixed(1))+' bar g';}
+  }
+  /* sprays */
+  for(var k in lv.src){var s=lv.src[k],sp=$('sp_'+s.vent);if(sp)sp.setAttribute('opacity',G.flow[k].toFixed(2));}
+  /* rotors */
+  ['m','t','h','rot'].forEach(function(r){var el=$('rt_'+r);if(!el)return;var k2=(r==='t')?1.15:1;
+    el.setAttribute('transform','rotate('+(G.ang*k2).toFixed(1)+' '+el.getAttribute('data-c')+')');});
+  /* station */
+  var lr=$('lp_run');if(lr)lr.setAttribute('fill',(G.running&&(lv.mainCB?G.w>0.05:true))?'#2ecc71':'#555');
+  var sk=$('selk');if(sk){var t0=sk.getAttribute('transform').match(/rotate\(([-\d.]+) ([\d.]+) ([\d.]+)\)/);
+    if(t0)sk.setAttribute('transform','rotate('+(G.sel==='START'?40:-40)+' '+t0[2]+' '+t0[3]+')');}
+  if(lv.draw)lv.draw(G);
+  /* panel */
+  var ro=lv.readout(G),h2='';ro.forEach(function(x){h2+='<span class="'+x[1]+'">'+x[0]+'</span>';});
+  h2+='<span>⏱ '+Math.floor(G.t)+' วิ</span>';
+  $('readout').innerHTML=h2;
+  updateSteps();
+}
+function pillSet(id,on,vent){var b=$('pb_'+id),t=$('pt_'+id);if(!b)return;
+  if(vent){b.setAttribute('fill',on?'#1e88e5':'#78909c');t.textContent=on?'เปิด':'ปิด';}
+  else{b.setAttribute('fill',on?'#1fb45f':'#d32f2f');t.textContent=on?'เปิด':'ปิด';}}
+
+var STEPN=['① แจ้ง','② หยุดเครื่อง','③ ตัดแยก','④ กุญแจ+ป้าย','⑤ ปลดพลังงานสะสม','⑥ ยืนยัน 0','⑦ PPE'];
+function buildSteps(){var h='';for(var i=0;i<7;i++)h+='<span id="stp'+i+'">'+STEPN[i]+'</span>';$('steps').innerHTML=h;}
+function updateSteps(){
+  var anyIso=false,anyLock=false,anyRel=false,anyVer=false;
+  for(var id in lv.hs){var h=lv.hs[id];if(h.role==='iso'&&!h.decoy&&!G.on[id])anyIso=true;if(G.locks[id]||G.tags[id])anyLock=true;}
+  for(var r in G.rel)if(G.rel[r])anyRel=true;for(var v in G.ver)if(G.ver[v])anyVer=true;
+  var on=[G.notified,G.stopped||(lv.mainCB&&!G.running&&G.w<0.01),anyIso,anyLock,anyRel,anyVer,G.ppeSet];
+  for(var i=0;i<7;i++){var e=$('stp'+i);if(e)e.classList.toggle('on',!!on[i]);}
+}
+
+function loop(ts){
+  if(!loop.last)loop.last=ts;var dt=Math.min(0.08,(ts-loop.last)/1000);loop.last=ts;
+  step(dt);render();requestAnimationFrame(loop);
+}
+
+/* ───────── คู่มือวิธีเล่น (5 ขั้น SVG เคลื่อนไหว) ───────── */
+var HELP=[
+ {txt:'① รับใบงาน แล้วมองหา "แหล่งพลังงานทุกชนิด" ในฉาก — ไฟฟ้า ลม ไอน้ำ ไฮดรอลิก ของห้อย มู่เล่ ฯลฯ',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#eef4fb"/>'+
+   '<rect x="18" y="22" width="92" height="118" rx="8" fill="#fffdf5" stroke="#e9d9a6" stroke-width="3"/><rect x="44" y="14" width="40" height="14" rx="4" fill="#8a7440"/>'+
+   '<rect x="30" y="44" width="68" height="7" rx="3" fill="#cfd6e0"/><rect x="30" y="60" width="56" height="7" rx="3" fill="#cfd6e0"/><rect x="30" y="76" width="62" height="7" rx="3" fill="#cfd6e0"/>'+
+   '<text x="64" y="120" font-size="13" text-anchor="middle" fill="#ef4b4b" font-weight="700" font-family="Mitr,sans-serif">LOTO</text>'+
+   '<g transform="translate(150 50)"><text class="tPop" x="0" y="0" font-size="30">⚡</text><text class="tPop" style="animation-delay:.4s" x="52" y="10" font-size="30">💨</text>'+
+   '<text class="tPop" style="animation-delay:.8s" x="104" y="0" font-size="30">♨️</text><text class="tPop" style="animation-delay:1.2s" x="26" y="62" font-size="30">🛢️</text>'+
+   '<text class="tPop" style="animation-delay:1.6s" x="82" y="64" font-size="30">⚙️</text></g>'+
+   '<g class="tMag"><circle cx="160" cy="90" r="20" fill="#e0f7fa" fill-opacity=".5" stroke="#00838f" stroke-width="5"/><line x1="174" y1="104" x2="192" y2="122" stroke="#00838f" stroke-width="8" stroke-linecap="round"/></g></svg>'},
+ {txt:'② กด 📢 แจ้งผู้เกี่ยวข้อง → กด STOP ให้เครื่องหยุดปกติ → แตะเบรกเกอร์/วาล์วเพื่อ "ตัดแยก" ทุกจุด',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#39424f"/>'+
+   '<rect x="30" y="24" width="96" height="112" rx="10" fill="#cfd6e0" stroke="#5d6b80" stroke-width="4"/><rect x="44" y="40" width="68" height="80" rx="8" fill="#2c3542"/>'+
+   '<rect x="54" y="48" width="22" height="64" rx="5" fill="#0d1117"/><rect class="tLev" x="56" y="50" width="18" height="26" rx="4" fill="#eef2f7"/>'+
+   '<circle class="tLamp" cx="96" cy="62" r="9" stroke="#111" stroke-width="2"/>'+
+   '<text x="78" y="152" font-size="13" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">ตัดเบรกเกอร์</text>'+
+   '<circle cx="240" cy="78" r="44" fill="#9aa7b8" stroke="#1d2530" stroke-width="5"/><g class="tSpin"><line x1="240" y1="38" x2="240" y2="118" stroke="#39424f" stroke-width="6"/>'+
+   '<line x1="200" y1="78" x2="280" y2="78" stroke="#39424f" stroke-width="6"/><circle cx="240" cy="48" r="6" fill="#ffd23f"/></g><circle cx="240" cy="78" r="8" fill="#39424f"/>'+
+   '<text x="240" y="152" font-size="13" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">มอเตอร์ค่อย ๆ หยุด</text></svg>'},
+ {txt:'③ ลาก 🔒 แม่กุญแจ + 🏷 ป้าย ไปแขวนที่จุดที่ตัดแล้ว (ต้องตัดก่อนถึงล็อกได้) · แตะเลือกแล้วแตะจุดก็ได้',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#eef4fb"/>'+
+   '<rect x="200" y="14" width="110" height="100" rx="10" fill="#cfd6e0" stroke="#5d6b80" stroke-width="4"/><rect x="214" y="30" width="56" height="70" rx="8" fill="#2c3542"/>'+
+   '<rect x="222" y="36" width="18" height="56" rx="4" fill="#0d1117"/><rect x="223" y="64" width="16" height="22" rx="3" fill="#eef2f7"/><circle cx="256" cy="48" r="7" fill="#3b3f45"/>'+
+   '<rect x="22" y="112" width="120" height="38" rx="10" fill="#fff" stroke="#00acc1" stroke-width="3"/>'+
+   '<g class="tDrag"><g transform="translate(130 108)"><path d="M-7 12 v-5 a7 7 0 0 1 14 0 v5" fill="none" stroke="#90a4ae" stroke-width="4"/>'+
+   '<rect x="-11" y="10" width="22" height="19" rx="4" fill="#e53935" stroke="#212121" stroke-width="2"/></g>'+
+   '<text x="134" y="150" font-size="26">👆</text></g>'+
+   '<g class="tShow"><g transform="translate(286 74)"><g class="swing2"><line x1="0" y1="0" x2="0" y2="8" stroke="#555" stroke-width="2"/><rect x="-11" y="8" width="22" height="30" rx="3" fill="#ef4b4b"/></g></g></g>'+
+   '<text x="56" y="138" font-size="18">🔒</text><text x="96" y="138" font-size="18">🏷️</text></svg>'},
+ {txt:'④ ปลดพลังงานสะสม: เปิดวาล์วระบายให้เกจลงศูนย์ · รอมู่เล่หยุด · ค้ำของที่ห้อยอยู่ · รอท่อร้อนเย็นลง',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#39424f"/>'+
+   '<circle cx="110" cy="92" r="52" fill="#f7f9fc" stroke="#1d2530" stroke-width="5"/>'+
+   '<path d="'+arc(110,92,44,-120,-96)+'" stroke="#1fb45f" stroke-width="8" fill="none"/><path d="'+arc(110,92,44,-96,120)+'" stroke="#c3cbd6" stroke-width="8" fill="none"/>'+
+   '<g class="tNd"><line x1="110" y1="96" x2="110" y2="50" stroke="#d32f2f" stroke-width="4" stroke-linecap="round"/></g><circle cx="110" cy="92" r="6" fill="#213047"/>'+
+   '<rect x="180" y="84" width="130" height="16" fill="#9aa3ad"/><circle cx="246" cy="92" r="12" fill="#c9a227" stroke="#7a5f0c" stroke-width="3"/><rect x="242" y="88" width="34" height="8" rx="4" fill="#d32f2f"/>'+
+   '<g transform="translate(246 78) rotate(-90)"><circle class="tPuff" cx="0" cy="0" r="7" fill="#e3f2fd"/><circle class="tPuff" style="animation-delay:.3s" cx="0" cy="-4" r="6" fill="#e3f2fd"/><circle class="tPuff" style="animation-delay:.6s" cx="0" cy="4" r="7" fill="#e3f2fd"/></g>'+
+   '<text x="110" y="156" font-size="13" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">เข็มลงศูนย์</text>'+
+   '<text x="246" y="132" font-size="13" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">ระบายลม/ความดัน</text></svg>'},
+ {txt:'⑤ ยืนยัน: ทดลองสตาร์ท (ต้องเงียบ) / วัดไฟ / ดูเกจ = 0 แล้ว "บิดกลับ OFF" → เลือก 🦺 PPE → กด 🔧 เริ่มซ่อม รับดาว',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#eef4fb"/>'+
+   '<rect x="24" y="20" width="110" height="122" rx="12" fill="#f2c94c" stroke="#a07c12" stroke-width="4"/>'+
+   '<circle cx="79" cy="80" r="26" fill="#263238" stroke="#000" stroke-width="3"/><g class="tSel"><rect x="75" y="52" width="8" height="32" rx="4" fill="#fff"/></g>'+
+   '<text x="52" y="44" font-size="11" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600">OFF</text><text x="108" y="44" font-size="11" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600">START</text>'+
+   '<text x="79" y="130" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600">เงียบ = ✔</text>'+
+   '<text class="tPop" x="160" y="70" font-size="30">✅</text><text class="tPop" style="animation-delay:.3s" x="204" y="70" font-size="30">⛑️</text><text class="tPop" style="animation-delay:.6s" x="250" y="70" font-size="30">🥽</text>'+
+   '<text class="tPop" style="animation-delay:.9s" x="168" y="124" font-size="28">⭐</text><text class="tPop" style="animation-delay:1.1s" x="212" y="124" font-size="28">⭐</text><text class="tPop" style="animation-delay:1.3s" x="256" y="124" font-size="28">⭐</text></svg>'}
+];
+var helpPg=0;
+function renderHelp(){
+  $('helpStage').innerHTML=HELP[helpPg].svg;$('helpTxt').textContent=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';
+  $('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';
+}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){$('helpOv').classList.remove('show');markSeen();
+  if(start&&!G.active&&!$('woOv').classList.contains('show')&&!$('resultOv').classList.contains('show')){$('startOv').classList.remove('show');startLevel(pickNext());}}
+function pickNext(){for(var i=0;i<NLV;i++)if(!stars[i])return i;return 0;}
+
+/* ───────── สูตร/ที่มา ───────── */
+var FX=[
+ '<h3>ด่าน 1 · ปั๊มน้ำ</h3><div class="eq">น้ำพุ่งจากรู: v = √(2ΔP/ρ) = √(2×2.5×10⁵/1000) ≈ 22.4 m/s</div><div class="eq">มอเตอร์ 15 kW: I = P/(√3·V·pf·η) = 15000/(1.732×400×0.86×0.91) ≈ 28 A</div>ปั๊มหยุด ≠ ไม่มีแรงดัน: เฮดเดอร์ด้านส่ง 2.5 bar g · ถังด้านดูด ~1.2 bar g',
+ '<h3>ด่าน 2 · สายพาน</h3><div class="eq">แรงกระบอกลม: F = p·A = 6×10⁵ × π(0.08)²/4 ≈ 3,016 N (≈307 kgf)</div><div class="eq">ตุ้มถ่วง: E = mgh = 400×9.81×1.5 ≈ 5,886 J</div>ระบายลมแล้วก้านสูบสปริงคืนขยับ — ยืนให้พ้นแนวก่อนระบาย',
+ '<h3>ด่าน 3 · steam trap</h3><div class="eq">Tsat(5 bar g = 6.0 bar abs) = 158.8 °C</div><div class="eq">ไอแฟลช = (h_f1 − h_f2)/h_fg2 = (670.4 − 419.0)/2257 ≈ 11.1 %</div><div class="eq">เย็นตัว: T = Ta + (T₀ − Ta)·e^(−t/τ) — เกมย่นเวลา จริงใช้หลายสิบนาที</div>ตัดยังร้อน: ไอค้างทำให้ T คง = Tsat(P) จนกว่าจะระบาย',
+ '<h3>ด่าน 4 · ไฮดรอลิก</h3><div class="eq">แอคคิวฯ (isothermal, abs): E ≈ p₀V₀·ln(p₂/p₀) = 91×10⁵×0.010×ln(161/91) ≈ 51.9 kJ</div><div class="eq">ram: E = mgh = 800×9.81×0.40 ≈ 3.1 kJ</div><div class="eq">แรงอัด: F = 160×10⁵ × π(0.20)²/4 ≈ 502.7 kN (≈51 tf)</div>แอคคิวมูเลเตอร์มีวาล์วกันกลับ — มอเตอร์ดับแล้วแรงดันยังค้าง',
+ '<h3>ด่าน 5 · งานกลุ่ม</h3><div class="eq">โรเตอร์: E = ½Iω² = ½×25×(2π×1480/60)² ≈ 300 kJ (≈ยก 1 ตันสูง 30 m)</div><div class="eq">coast-down: dω/dt = −(a + b·ω) — โรเตอร์หนักหมุนค้างนาน</div>Group lockout: หัวหน้าล็อกจุดตัดแยกด้วยกุญแจระบบ → เก็บลูกกุญแจลงกล่อง → ทุกคนล็อกกล่องด้วยกุญแจตัวเอง (OSHA 1910.147(f)(3))'
+];
+function openFx(){
+  var b='<h3>LOTO 7 ขั้น (OSHA 29 CFR 1910.147)</h3><ol><li>เตรียม/แจ้งผู้เกี่ยวข้อง (c)(9),(d)(1)</li><li>หยุดเครื่องตามปกติ (d)(2)</li><li>ตัดแยกแหล่งพลังงานทุกจุด (d)(3)</li>'+
+    '<li>ใส่อุปกรณ์ล็อก + ป้าย (d)(4)</li><li>ปลด/กักพลังงานสะสม (d)(5)</li><li>ยืนยันการตัดแยก — try-start แล้วคืนสวิตช์ OFF (d)(6)</li><li>PPE ให้ตรงความเสี่ยง</li></ol>'+
+    '<h3>พลังงาน 6 ชนิด</h3>⚡ ไฟฟ้า · ⚙️ กล (หมุน/สปริง/แรงโน้มถ่วง) · 🛢️ ไฮดรอลิก · 💨 นิวแมติก · 🔥 ความร้อน/ไอน้ำ · ☣️ เคมี'+
+    '<h3>Zero energy state</h3>ทุกแหล่งถูกตัดแยก ล็อก ป้าย ปลดพลังงานสะสม และ <b>ยืนยันแล้ว</b> ว่าเครื่องเริ่มทำงานหรือปล่อยพลังงานไม่ได้'+
+    '<h3>แนวปฏิบัติไทย</h3>กฎกระทรวงกำหนดมาตรฐานการบริหารจัดการด้านความปลอดภัยฯ เกี่ยวกับเครื่องจักร ปั้นจั่น และหม้อน้ำ พ.ศ. 2552 และเกี่ยวกับไฟฟ้า พ.ศ. 2558 — หยุดเครื่อง ใส่กุญแจ/ติดป้ายห้ามเปิดขณะซ่อม'+
+    FX[G&&G.on?G.lv:0]+
+    '<h3>สมมติฐานในเกม</h3><ul><li>ความดันระบาย: dP/dt = −P/τ (τ ≈ 0.5–0.7 s ย่นเวลา)</li><li>ความดันเป็น bar g (เกจ) · อุณหภูมิ °C</li><li>ตัวเลขอุปกรณ์เป็นค่าตัวอย่างสมจริง ไม่ใช่ของโรงงานใดโดยเฉพาะ</li></ul>';
+  $('fxBody').innerHTML=b;$('fxOv').classList.add('show');
+}
+
+/* ───────── level picker ───────── */
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<NLV;i++){var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.3rem">'+LV[i].icon+'</span><span class="nm">'+(i+1)+'. '+LV[i].short+'</span><span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});box.appendChild(b);}
+}
+function showEnd(){
+  var h='';for(var i=0;i<NLV;i++)h+='<span>'+LV[i].icon+' '+LV[i].name+'</span><span>'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+  h+='<span><b>รวม</b></span><span><b>'+updateStarTotal()+'/15</b></span>';
+  $('sumStars').innerHTML=h;$('endOv').classList.add('show');
+}
+
+/* ───────── events ───────── */
+$('scene').addEventListener('click',function(e){var g=e.target.closest?e.target.closest('.hs'):null;if(g)act(g.getAttribute('data-hs'));});
+$('notifyBtn').addEventListener('click',doNotify);
+$('ppeBtn').addEventListener('click',openPPE);
+$('ppeOk').addEventListener('click',closePPE);
+$('submitBtn').addEventListener('click',submit);
+$('woMini').addEventListener('click',function(){if(G.active){sClick();showWO();}});
+$('woGo').addEventListener('click',function(){audio();sGood();$('woOv').classList.remove('show');if(!G.done&&G.on){G.active=true;}
+  if(G.t<0.5)say('เริ่มจาก ① แจ้ง → ② STOP → ③ ตัดแยก … 🔒',3000);});
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn2').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(G.lv);});
+$('nextBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');if(G.lv<NLV-1)startLevel(G.lv+1);else showEnd();});
+$('endHome').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('endReplay').addEventListener('click',function(){$('endOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('fxBtn').addEventListener('click',function(){audio();sClick();openFx();});
+$('fxClose').addEventListener('click',function(){$('fxOv').classList.remove('show');});
+
+/* ───────── QA hook ───────── */
+window.TEL={G:function(){return G;},LV:LV,act:act,tool:applyTool,notify:doNotify,submit:submit,start:startLevel,stars:stars,tsat:tsat,
+  setPPE:function(list){G.ppe={};list.forEach(function(p){G.ppe[p]=true;});closePPE();},
+  ff:function(sec){var n=Math.round(sec/0.05);for(var i=0;i<n;i++)step(0.05);render();},
+  accept:function(){$('woOv').classList.remove('show');G.active=true;}};
+
+/* ───────── init ───────── */
+loadStars();updateStarTotal();buildLvlPick();
+startLevel(0);$('woOv').classList.remove('show');G.active=false;
+requestAnimationFrame(loop);
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>หมอเครื่องจักร (Machine Doctor) — Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "หมอเครื่องจักร" (Machine Doctor) v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: ช่าง ปวช./ปวส.
+     หลักที่สอน: วินิจฉัยเครื่องจักรหมุน (rotating equipment) จากอาการ — ฟังเสียง ดูการสั่น วัดอุณหภูมิ วัดกระแส แล้วสรุปสาเหตุ
+       โรค 8 แบบ: unbalance, misalignment, แบริ่งชำรุด/ขาดจาระบี, สายพานหย่อน, cavitation, กระแส 3 เฟสไม่สมดุล/single-phasing,
+       ไส้กรองตัน, soft foot/ฐานหลวม (+ "ปกติ" เพื่อสอนว่าไม่ต้องซ่อมเกินจำเป็น)
+     สูตร/เกณฑ์เบื้องหลัง:
+       1) ISO 10816-3 (ปัจจุบันแทนที่ด้วย ISO 20816-3) เครื่องกลุ่ม 2 (15–300 kW) ฐานแข็ง (rigid), velocity mm/s rms:
+          A < 1.4 · B 1.4–2.8 · C 2.8–4.5 · D > 4.5
+       2) ค่าสั่นรวม (overall) = √(Σ a_i² + a_floor²) — ทุก peak ในสเปกตรัมรวมกันได้ค่าที่หน้าจอเครื่องวัด
+       3) ความถี่รอบเพลา f1 = rpm/60 (1460 rpm → 24.33 Hz · 2950 rpm → 49.17 Hz)
+          unbalance = 1× แนวรัศมี · misalignment = 2× (+1×) และแนวแกน (axial) สูง · ฐานหลวม = 1× + ฮาร์มอนิก 2×–6× แนวดิ่งเด่น
+       4) BPFO = (n/2)·f1·(1 − d/D·cosθ)  แบริ่ง 6309: n=8, d=17.5, D=72.5 mm, θ=0 → 3.03×  (BPFI = (n/2)(1+d/D) = 4.97×)
+       5) ความถี่สายพาน f_belt = π·D_pulley·n / (60·L)  มู่เล่ย์ 200 mm @1460 rpm, สายพาน 2,500 mm → 6.12 Hz
+       6) NPSHa = (P_atm − P_v)/ρg + h_s − h_f  (= (P_s,abs − P_v)/ρg + v²/2g)  ต้อง > NPSHr (+margin)
+          น้ำ 35 °C: P_v = 5.63 kPa, ρ = 994 kg/m³ · h_s = +2 m · ปกติ h_f 0.8 m → NPSHa 11.0 m
+          วาล์วดูดหรี่ h_f 8.0 m → NPSHa 3.81 m < NPSHr 4.5 m → cavitation · เกจดูด ≈ −0.60 bar g
+       7) % กระแสไม่สมดุล (NEMA MG-1) = ค่าเบี่ยงสูงสุดจากค่าเฉลี่ย / ค่าเฉลี่ย × 100  — เกณฑ์ ≤ 10%
+          แรงดันไม่สมดุล 1% → กระแสไม่สมดุล ~6–10% · อุณหภูมิขดลวดเพิ่ม ≈ 2×(%Vunb)² %
+       8) กำลังมอเตอร์ P_in = √3·V·I·PF — ใช้ตรวจว่ากระแสเดินเครื่องสมจริง (เช่น 37 kW, 60 A @400 V PF 0.88 → 36.6 kW)
+       9) พัดลม: กำลัง ∝ n³ (affinity) → สายพานลื่น 980→905 rpm กำลังเหลือ (905/980)³ = 0.79 → กระแสลด
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sky2:#cdeaff;
+  --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff;
+  --good:#1fb45f; --mid:#f5a623; --warn:#f5a623; --bad:#ef4b4b;
+  --indigo:#3f51b5; --cyan:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+  --zA:#1fb45f; --zB:#9ccc3c; --zC:#f5a623; --zD:#ef4b4b;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#d9ecff 0%,#eaf6f6 55%,#dfeaf3 100%);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:980px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.92);
+  border:3px solid #fff;border-radius:18px;padding:7px 10px;box-shadow:0 4px 14px rgba(33,48,71,.15)}
+#hud .lvl-name{font-weight:600;font-size:.98rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--indigo)}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap;font-size:.95rem}
+#hud button{border:none;background:#e8ecf8;border-radius:12px;padding:6px 9px;min-height:40px;min-width:40px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink)}
+#hud button.on{background:var(--indigo);color:#fff}
+
+/* ───── main layout ───── */
+#main{display:flex;flex-direction:column;gap:10px}
+.colL,.colR{display:flex;flex-direction:column;gap:10px;min-width:0}
+@media (min-width:880px){
+  #main{display:grid;grid-template-columns:1.08fr 1fr;gap:12px;align-items:start}
+}
+
+/* goal + timer */
+.goal{font-size:.92rem;font-weight:500;background:#eef1ff;border:2px dashed #7986cb;border-radius:14px;padding:7px 11px;line-height:1.45}
+#timerRow{display:none;align-items:center;gap:8px;font-weight:700}
+#timerRow.show{display:flex}
+#timerWrap{flex:1;background:#e3e8f2;border-radius:10px;height:14px;overflow:hidden}
+#timerBar{height:100%;width:100%;background:linear-gradient(90deg,#00acc1,#3f51b5);transition:width .25s linear}
+#timerRow.low #timerBar{background:linear-gradient(90deg,#ff8f1c,#ef4b4b)}
+
+/* beds */
+#beds{display:flex;gap:8px}
+.bedBtn{flex:1;min-height:52px;border:3px solid #cfd8ea;background:#f6f8fd;border-radius:16px;font-family:inherit;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;padding:4px 6px;font-size:.88rem;font-weight:600;color:var(--ink);transition:transform .12s}
+.bedBtn:active{transform:scale(.95)}
+.bedBtn.sel{border-color:var(--indigo);background:#e8eaf6}
+.bedBtn.done{border-color:var(--good);background:#e7f8ee}
+.bedBtn .em{font-size:1.25rem}
+
+/* scene */
+#sceneOuter{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(33,48,71,.18);border:4px solid #fff;background:#eaf3fb}
+#scene{display:block;width:100%;height:auto;aspect-ratio:400/240}
+#bubble{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);max-width:86%;z-index:5;background:#fff;border-radius:14px;border:3px solid var(--cyan);
+  padding:5px 11px;font-size:.86rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.14);transition:opacity .25s;opacity:0;pointer-events:none;text-align:center}
+#bubble.show{opacity:1}
+
+/* patient chart */
+#chart{background:#fff;border-radius:18px;padding:10px 12px;box-shadow:0 6px 18px rgba(33,48,71,.12);font-size:.88rem;line-height:1.5}
+#chart .pname{font-weight:700;color:var(--indigo);font-size:.98rem}
+#chart .plate{color:#55657c;font-size:.8rem}
+#chart .cmp{background:#fff8e1;border-radius:10px;padding:5px 9px;margin-top:5px}
+#chart .gg{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px}
+.chip{display:inline-block;border-radius:9px;padding:2px 8px;font-size:.8rem;font-weight:600;background:#eef2f8}
+.chip.ok{background:#e3f7ea;color:#16803f}
+.chip.warn{background:#fff1d6;color:#a8650a}
+.chip.bad{background:#ffe1e1;color:#b62626}
+
+/* bag */
+#bag{background:#fff;border-radius:18px;padding:10px 10px 12px;box-shadow:0 6px 18px rgba(33,48,71,.12)}
+#bag .bt{font-weight:600;font-size:.92rem;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+#bag .bt small{font-weight:500;color:#55657c;font-size:.8rem}
+.tool-row{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.toolBtn{display:flex;flex-direction:column;align-items:center;gap:1px;border:3px solid #cfd8ea;background:#f4f7fc;border-radius:16px;
+  padding:6px 2px;min-height:72px;font-family:inherit;cursor:pointer;transition:transform .12s,border-color .2s,background .2s;color:var(--ink);position:relative}
+.toolBtn:active{transform:scale(.93)}
+.toolBtn .ic{font-size:1.55rem;line-height:1.15}
+.toolBtn .nm{font-size:.76rem;font-weight:600;line-height:1.2}
+.toolBtn .cs{font-size:.68rem;color:#6a7a90}
+.toolBtn.used{background:#e0f7fa;border-color:var(--cyan)}
+.toolBtn.view{box-shadow:0 0 0 3px var(--indigo) inset}
+.toolBtn:disabled{opacity:.45;cursor:default}
+.toolBtn .ck{position:absolute;top:2px;right:5px;font-size:.7rem;color:var(--cyan);font-weight:700}
+
+/* result panel */
+#resPanel{background:#fff;border-radius:18px;padding:10px 12px;box-shadow:0 6px 18px rgba(33,48,71,.12);min-height:150px;font-size:.88rem;line-height:1.5}
+#resPanel h3{font-size:.95rem;color:var(--indigo);margin-bottom:4px}
+.empty{color:#8795a8;text-align:center;padding:24px 6px}
+.hva{display:flex;gap:6px;margin:4px 0}
+.hva div{flex:1;background:#f2f5fb;border-radius:10px;text-align:center;padding:3px 2px;font-size:.78rem}
+.hva b{display:block;font-size:1rem}
+.hva .worst{background:#e8eaf6;outline:2px solid var(--indigo)}
+.zbar{position:relative;display:flex;height:18px;border-radius:9px;overflow:visible;margin:16px 0 4px}
+.zbar span{display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;color:#fff}
+.zbar span:first-child{border-radius:9px 0 0 9px}.zbar span:last-child{border-radius:0 9px 9px 0}
+.zmark{position:absolute;top:-14px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:12px solid var(--ink);transform:translateX(-7px);transition:left .6s cubic-bezier(.3,.9,.4,1)}
+.zlab{display:flex;justify-content:space-between;font-size:.66rem;color:#6a7a90}
+.irrow,.amprow{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px dashed #e3e8f2;font-size:.84rem}
+.irrow .p{flex:1}
+.irrow b{width:56px;text-align:right}
+.amprow .p{width:28px;font-weight:700}
+.amprow .tr{flex:1;background:#eef2f8;border-radius:8px;height:18px;overflow:hidden}
+.amprow .fl{height:100%;border-radius:8px;background:linear-gradient(90deg,#00acc1,#3f51b5);transition:width .6s cubic-bezier(.3,.9,.4,1)}
+.amprow b{width:60px;text-align:right}
+.note{font-size:.78rem;color:#55657c;margin-top:4px}
+.wave{display:flex;align-items:center;justify-content:center;gap:3px;height:56px;margin:6px 0}
+.wave i{display:block;width:6px;height:10px;border-radius:3px;background:#7986cb}
+.wave.play i{animation:wv .5s ease-in-out infinite alternate}
+@keyframes wv{from{height:8px}to{height:var(--h,40px)}}
+.relisten{border:none;background:#e8eaf6;border-radius:12px;min-height:44px;padding:6px 14px;font-family:inherit;font-weight:600;cursor:pointer;color:var(--indigo)}
+
+#dxBtn{width:100%}
+
+.big-btn{border:none;border-radius:999px;padding:13px 30px;font-family:inherit;font-size:1.12rem;font-weight:700;color:#fff;min-height:48px;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #2c3a8a,0 10px 18px rgba(0,0,0,.2);transition:transform .1s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #2c3a8a}
+.big-btn:disabled{opacity:.5;cursor:default}
+.big-btn.alt{background:linear-gradient(135deg,#00acc1,#26c6da);box-shadow:0 6px 0 #00838f,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #00838f}
+.big-btn.small{font-size:.98rem;padding:10px 20px}
+.big-btn.gray{background:linear-gradient(135deg,#8795a8,#6a7a90);box-shadow:0 6px 0 #55657c,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.gray:active{box-shadow:0 2px 0 #55657c}
+
+/* overlays */
+.overlay{position:fixed;inset:0;background:rgba(18,28,46,.58);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:24px;max-width:500px;width:100%;padding:20px 16px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.3rem;margin-bottom:6px;color:var(--indigo)}
+.card p{font-size:.95rem;line-height:1.55}
+.result-stars{font-size:2.7rem;letter-spacing:6px;margin:6px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e0f7fa;border-radius:14px;padding:9px 12px;font-weight:600;margin:8px 0;font-size:.93rem}
+.lvl-pick{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e7f3;background:#f7f9fd;border-radius:16px;padding:6px 8px;font-family:inherit;cursor:pointer;min-width:76px;min-height:58px;color:var(--ink)}
+.lvl-pick .nm{font-size:.82rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.8rem;letter-spacing:1px}
+#startCard h1{font-size:1.85rem;line-height:1.25;background:linear-gradient(135deg,#3f51b5,#00acc1);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#55657c;margin:2px 0 8px;font-size:.92rem}
+.aud{display:inline-block;background:#e8eaf6;color:var(--indigo);border-radius:999px;padding:3px 12px;font-size:.82rem;font-weight:600;margin-bottom:6px}
+.brand{font-size:.8rem;color:#8795a8;margin-top:12px}
+
+/* diagnosis overlay */
+.dxsec{text-align:left;font-weight:600;font-size:.92rem;margin:10px 0 5px;color:var(--indigo)}
+.optGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.opt{border:2px solid #dbe2ef;background:#f7f9fd;border-radius:12px;padding:7px 8px;min-height:46px;font-family:inherit;font-size:.82rem;
+  text-align:left;cursor:pointer;color:var(--ink);line-height:1.3}
+.opt.sel{border-color:var(--indigo);background:#e8eaf6;font-weight:600}
+#dxFb{display:none;text-align:left;background:#ffecec;border-radius:12px;padding:8px 10px;font-size:.86rem;margin-top:10px;line-height:1.5}
+#dxFb.show{display:block}
+
+/* review */
+.rv{text-align:left;border:2px solid #e3e8f2;border-radius:14px;padding:8px 10px;margin:8px 0;font-size:.85rem;line-height:1.5}
+.rv .h{display:flex;justify-content:space-between;font-weight:700;color:var(--indigo)}
+.rv .ans{background:#e7f8ee;border-radius:8px;padding:3px 8px;margin:4px 0}
+.rv .key{background:#e0f7fa;border-radius:8px;padding:3px 8px;margin:4px 0}
+.rv ul{padding-left:18px;margin-top:3px}
+.rv li{margin:2px 0}
+.rv li.bad{color:#b62626}.rv li.good{color:#16803f}
+
+/* tutorial */
+#tutPic{background:#f2f6fd;border-radius:18px;padding:8px;margin:8px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#tutTxt{font-size:.98rem;font-weight:600;min-height:3em;display:flex;align-items:center;justify-content:center;line-height:1.45}
+#tutDots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+#tutDots .d{width:11px;height:11px;border-radius:50%;background:#d4dbeb}
+#tutDots .d.on{background:var(--indigo)}
+#tutNav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* formula panel */
+#fxCard{text-align:left}
+#fxCard h2{text-align:center}
+#fxCard h4{color:var(--indigo);margin:10px 0 3px;font-size:.95rem}
+#fxCard p,#fxCard li{font-size:.85rem;line-height:1.55}
+#fxCard ul{padding-left:18px}
+.fx{background:#f2f5fb;border-radius:10px;padding:5px 9px;font-family:ui-monospace,Consolas,monospace;font-size:.82rem;margin:3px 0;overflow-x:auto;white-space:nowrap}
+table.zt{width:100%;border-collapse:collapse;font-size:.82rem;margin:4px 0}
+table.zt td,table.zt th{border:1px solid #e3e8f2;padding:3px 5px;text-align:center}
+
+/* end */
+.sumrow{display:flex;gap:6px;text-align:left;font-size:.8rem;padding:4px 0;border-bottom:1px dashed #e3e8f2;line-height:1.4}
+.sumrow b{width:118px;flex:none;color:var(--indigo)}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── SVG animations (ผูกกับสถานะเกม) ───── */
+.shake{animation:shk .11s linear infinite}
+@keyframes shk{0%{transform:translate(0,0)}25%{transform:translate(calc(var(--a)*1px),calc(var(--a)*-.5px))}50%{transform:translate(0,calc(var(--a)*.6px))}75%{transform:translate(calc(var(--a)*-1px),0)}100%{transform:translate(0,0)}}
+.spin{animation:spinA var(--spd,.5s) linear infinite;transform-box:fill-box;transform-origin:center}
+.spinR{animation:spinA var(--spd,.5s) linear infinite reverse;transform-box:fill-box;transform-origin:center}
+@keyframes spinA{to{transform:rotate(360deg)}}
+.beltRun{stroke-dasharray:10 7;animation:beltA .35s linear infinite}
+.beltSlow{stroke-dasharray:10 7;animation:beltA .6s linear infinite}
+@keyframes beltA{to{stroke-dashoffset:-34}}
+.sag{animation:sagA .45s ease-in-out infinite alternate}
+@keyframes sagA{from{transform:translateY(0)}to{transform:translateY(5px)}}
+.cpl{animation:cplA .25s linear infinite}
+@keyframes cplA{from{transform:translateY(-10px)}to{transform:translateY(10px)}}
+.haze{animation:hazeA 1.6s ease-out infinite;opacity:0}
+@keyframes hazeA{0%{opacity:0;transform:translateY(0)}25%{opacity:.85}100%{opacity:0;transform:translateY(-22px)}}
+.drip{animation:dripA 1.3s ease-in infinite}
+@keyframes dripA{0%{transform:translateY(0);opacity:0}20%{opacity:1}100%{transform:translateY(14px);opacity:0}}
+.eyeB{transform-box:fill-box;transform-origin:center;animation:blinkA 4.2s infinite}
+@keyframes blinkA{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+.needleJ{animation:njA .3s ease-in-out infinite alternate;transform-box:view-box}
+@keyframes njA{from{transform:rotate(-7deg)}to{transform:rotate(7deg)}}
+.ecg{stroke-dasharray:300;animation:ecgA 1.6s linear infinite}
+@keyframes ecgA{from{stroke-dashoffset:300}to{stroke-dashoffset:0}}
+.grow{transform-box:fill-box;transform-origin:center bottom;animation:growA .6s cubic-bezier(.3,.9,.4,1) backwards}
+@keyframes growA{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.pop{transform-box:fill-box;transform-origin:center;animation:popA .45s cubic-bezier(.34,1.56,.64,1) backwards}
+@keyframes popA{from{transform:scale(0)}to{transform:scale(1)}}
+.puls{animation:pulsA 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes pulsA{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+.irSweep{animation:irA .7s ease-out forwards}
+@keyframes irA{from{opacity:.9}to{opacity:0}}
+/* tutorial pictogram */
+.tBob{animation:tBobA 1.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes tBobA{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.tTap{animation:tTapA 2.4s ease-in-out infinite}
+@keyframes tTapA{0%,15%{transform:translate(0,0)}35%,55%{transform:translate(0,0) scale(.9)}75%,100%{transform:translate(0,0)}}
+.tCheck{animation:tChkA 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes tChkA{0%,40%{transform:scale(0)}55%{transform:scale(1.25)}65%,100%{transform:scale(1)}}
+.tStar{animation:tStarA 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes tStarA{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
+
+@media (prefers-reduced-motion:reduce){
+  .shake,.spin,.spinR,.beltRun,.beltSlow,.sag,.cpl,.haze,.drip,.eyeB,.needleJ,.ecg,.grow,.pop,.puls,.irSweep,
+  .tBob,.tTap,.tCheck,.tStar,.wave.play i,.confetti{animation:none}
+  .haze{opacity:.6}
+}
+@media (max-width:400px){
+  .toolBtn .nm{font-size:.7rem}
+  .opt{font-size:.78rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">🩺 หมอเครื่องจักร</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="fxBtn" title="สูตร/ที่มา">📐</button>
+  </div>
+
+  <div id="main">
+    <div class="colL">
+      <div class="goal" id="goalTxt">—</div>
+      <div id="timerRow">⏱ <span id="timeLeft">120</span> วิ<div id="timerWrap"><div id="timerBar"></div></div></div>
+      <div id="beds"></div>
+      <div id="sceneOuter">
+        <svg id="scene" viewBox="0 0 400 240" xmlns="http://www.w3.org/2000/svg" aria-label="เครื่องจักรบนเตียงคนไข้"></svg>
+        <div id="bubble"></div>
+      </div>
+      <div id="chart"></div>
+    </div>
+    <div class="colR">
+      <div id="bag">
+        <div class="bt">🧰 กระเป๋าหมอ <small>เวลาตรวจ: <b id="examMin">0</b> นาที · ใช้ <b id="useN">0</b> ชิ้น</small></div>
+        <div class="tool-row">
+          <button class="toolBtn" id="t_steth"><span class="ic">🎧</span><span class="nm">หูฟัง</span><span class="cs">2 นาที</span></button>
+          <button class="toolBtn" id="t_vib"><span class="ic">📳</span><span class="nm">วัดสั่น</span><span class="cs">6 นาที</span></button>
+          <button class="toolBtn" id="t_ir"><span class="ic">🌡</span><span class="nm">IR gun</span><span class="cs">1 นาที</span></button>
+          <button class="toolBtn" id="t_amp"><span class="ic">⚡</span><span class="nm">แคลมป์</span><span class="cs">3 นาที</span></button>
+        </div>
+      </div>
+      <div id="resPanel"><div class="empty">เลือกเครื่องมือจากกระเป๋าหมอ เพื่อตรวจคนไข้ 🩺</div></div>
+      <button class="big-btn" id="dxBtn">🩺 วินิจฉัย + สั่งรักษา</button>
+    </div>
+  </div>
+  <div class="brand" style="text-align:center">Energy Skills Lab · Triple E Technology</div>
+</div>
+
+<!-- ───── Start overlay ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.8rem">🩺⚙️</div>
+    <h1>หมอเครื่องจักร</h1>
+    <div class="aud">กลุ่มเป้าหมาย: ช่าง ปวช./ปวส.</div>
+    <div class="sub">Machine Doctor — วินิจฉัยเครื่องจักรหมุน (rotating equipment)</div>
+    <p>ฟังเสียง วัดสั่น วัดอุณหภูมิ วัดกระแส แล้วสรุปว่า "ป่วยเป็นอะไร" และ "รักษาอย่างไร" — ตรวจให้ตรงจุด ใช้เครื่องมือให้น้อย!</p>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="howBtn">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── Tutorial overlay ───── -->
+<div class="overlay" id="tutOv">
+  <div class="card">
+    <h2>📖 วิธีเล่น</h2>
+    <div id="tutPic"></div>
+    <div id="tutTxt">—</div>
+    <div id="tutDots"></div>
+    <div id="tutNav">
+      <button class="big-btn small gray" id="tutPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="tutNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Diagnosis overlay ───── -->
+<div class="overlay" id="dxOv">
+  <div class="card">
+    <h2>🩺 วินิจฉัย: <span id="dxName">—</span></h2>
+    <div class="dxsec">1) ป่วยเป็นอะไร (สาเหตุ)</div>
+    <div class="optGrid" id="dzGrid"></div>
+    <div class="dxsec">2) สั่งรักษา</div>
+    <div class="optGrid" id="txGrid"></div>
+    <div id="dxFb"></div>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small gray" id="dxBack">◀ ตรวจเพิ่ม</button>
+      <button class="big-btn small" id="dxOk" disabled>✔ ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Result overlay ───── -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <h2 id="resTitle">จบด่าน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <div id="resReview"></div>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Formula overlay ───── -->
+<div class="overlay" id="fxOv">
+  <div class="card" id="fxCard">
+    <h2>📐 สูตร / ที่มา</h2>
+    <h4>1) เกณฑ์ความสั่นสะเทือน ISO 10816-3</h4>
+    <p>เครื่องกลุ่ม 2 (15–300 kW) ฐานแข็ง (rigid) · velocity rms ย่าน 10–1,000 Hz · (ฉบับใหม่ ISO 20816-3 ใช้ค่าใกล้เคียงกัน)</p>
+    <table class="zt"><tr><th>โซน</th><th>mm/s rms</th><th>ความหมาย</th></tr>
+      <tr><td style="background:#e3f7ea">A</td><td>&lt; 1.4</td><td>เครื่องใหม่/ดีมาก</td></tr>
+      <tr><td style="background:#f1f8e0">B</td><td>1.4 – 2.8</td><td>เดินต่อได้ระยะยาว</td></tr>
+      <tr><td style="background:#fff1d6">C</td><td>2.8 – 4.5</td><td>เดินได้จำกัด วางแผนซ่อม</td></tr>
+      <tr><td style="background:#ffe1e1">D</td><td>&gt; 4.5</td><td>อันตราย เสี่ยงเสียหาย</td></tr></table>
+    <div class="fx">V_overall = √( Σ a_i² + a_floor² )</div>
+    <h4>2) อ่านสเปกตรัม (ความถี่ = อันดับ × รอบเพลา)</h4>
+    <div class="fx">f1 = rpm / 60   (1460 rpm → 24.3 Hz = 1×)</div>
+    <ul>
+      <li><b>1×</b> เด่น แนวรัศมี (H≈V) แกนต่ำ → <b>unbalance</b></li>
+      <li><b>2×</b> สูง + แนวแกน (A) สูง → <b>misalignment</b></li>
+      <li>1× + ฮาร์มอนิก 2×–6× แนวดิ่งเด่น → <b>soft foot/ฐานหลวม</b></li>
+      <li>ความถี่ไม่ลงตัว (3.03×, 6.07×…) + ย่านสูงยกตัว → <b>แบริ่ง</b></li>
+      <li>peak ต่ำกว่า 1× (0.4×, 0.8×) → <b>สายพาน</b></li>
+      <li>สัญญาณกว้าง ๆ ย่านสูง + vane pass (6×) → <b>cavitation</b></li>
+    </ul>
+    <div class="fx">BPFO = (n/2)·f1·(1 − d/D·cosθ)</div>
+    <p>แบริ่ง 6309: n = 8 ลูก, d = 17.5 mm, D = 72.5 mm → BPFO ≈ 3.03× · BPFI ≈ 4.97× (คร่าว ๆ BPFO ≈ 0.4·n·f1)</p>
+    <div class="fx">f_belt = π·D_pulley·n / (60·L)</div>
+    <p>มู่เล่ย์ 200 mm @1460 rpm, สายพานยาว 2.5 m → 6.1 Hz (≈ 0.41× ของรอบพัดลม)</p>
+    <h4>3) Cavitation — NPSH</h4>
+    <div class="fx">NPSHa = (P_atm − P_v)/ρg + h_s − h_f  &gt;  NPSHr + margin</div>
+    <p>น้ำ 35 °C: P_v = 5.63 kPa · h_s = +2 m (ถังสูงกว่าปั๊ม) · ปกติ h_f = 0.8 m → <b>NPSHa = 11.0 m</b><br>
+      วาล์วดูดหรี่จน h_f = 8 m → <b>NPSHa = 3.8 m &lt; NPSHr 4.5 m</b> → ฟองไอแตก = เสียงกรวด · เกจดูด ≈ −0.60 bar g</p>
+    <h4>4) กระแส 3 เฟสไม่สมดุล (NEMA MG-1)</h4>
+    <div class="fx">%Unbal = |I − I_avg|max / I_avg × 100  ≤ 10%</div>
+    <p>แรงดันไม่สมดุล 1% ทำกระแสไม่สมดุล ~6–10% · ขดลวดร้อนเพิ่ม ≈ 2×(%V_unb)² % · ไฟขาดเฟส (single-phasing) = เฟสหนึ่ง 0 A อีกสองเฟสพุ่ง ~1.7 เท่า</p>
+    <div class="fx">P_in = √3 · V · I · PF</div>
+    <h4>5) อุณหภูมิ & ไส้กรอง</h4>
+    <ul>
+      <li>แบริ่ง (อากาศรอบ 35 °C): ปกติ ≤ 70 °C · เฝ้าระวัง 70–80 · &gt; 80 °C ผิดปกติ</li>
+      <li>ขั้วสาย/กล่องต่อสาย: ร้อนกว่าเฟสอื่นหรือ &gt; 60 °C = ขั้วหลวม/ออกไซด์</li>
+      <li>ไส้กรองพัดลม: ใหม่ ~150 Pa เปลี่ยนที่ ~300 Pa (≈2 เท่า) · กรองอากาศคอมเพรสเซอร์: เตือนที่ 50 mbar</li>
+      <li>ไส้กรองตัน → ลม/อากาศไหลน้อยลง → <b>กระแสลดลง</b> (ไม่ใช่เพิ่ม) แต่ประสิทธิภาพแย่ลง</li>
+      <li>พัดลม: กำลัง ∝ n³ → สายพานลื่น 980→905 rpm กำลังเหลือ ~79%</li>
+    </ul>
+    <p class="note">ตัวเลขในเกมสร้างจากสูตรข้างต้นและค่าที่พบบ่อยในโรงงาน ใช้เพื่อการฝึก — หน้างานจริงให้ดูเทรนด์เทียบค่าเดิมของเครื่องเสมอ</p>
+    <div style="text-align:center;margin-top:12px"><button class="big-btn small" id="fxClose">ปิด</button></div>
+  </div>
+</div>
+
+<!-- ───── End overlay ───── -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.5rem">🏆🩺</div>
+    <h2>หมอเครื่องจักรตัวจริง!</h2>
+    <p>ได้ดาวทั้งหมด <b id="endStars">0</b> / 15 ดวง · เวลาตรวจรวม <b id="endMin">0</b> นาที</p>
+    <div class="lesson">สรุปอาการ → เครื่องมือชี้ขาด</div>
+    <div id="sumBox"></div>
+    <p style="margin-top:8px;font-size:.9rem">จำไว้: <b>ดูเกจก่อน → เลือกเครื่องมือชี้ขาด → ยืนยัน → ค่อยสั่งซ่อม</b> ไม่ต้องเปลี่ยนทั้งเครื่อง!</p>
+    <div style="margin-top:12px"><button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button></div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ หมอเครื่องจักร v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+
+/* ── ฟิสิกส์/เกณฑ์ ── */
+var G=9.81, PATM=101.325;
+var ZONES=[{z:'A',max:1.4,c:'#1fb45f'},{z:'B',max:2.8,c:'#9ccc3c'},{z:'C',max:4.5,c:'#f5a623'},{z:'D',max:99,c:'#ef4b4b'}];
+function zoneOf(v){for(var i=0;i<ZONES.length;i++)if(v<ZONES[i].max)return ZONES[i];return ZONES[3];}
+function overall(pk,nf){var s=nf*nf;for(var i=0;i<pk.length;i++)s+=pk[i][1]*pk[i][1];return Math.sqrt(s);}
+function unbalPct(a){var avg=(a[0]+a[1]+a[2])/3,m=0;for(var i=0;i<3;i++)m=Math.max(m,Math.abs(a[i]-avg));return avg>0?m/avg*100:0;}
+function bpfo(n,d,D,th){return n/2*(1-d/D*Math.cos(th||0));}
+function bpfi(n,d,D,th){return n/2*(1+d/D*Math.cos(th||0));}
+function beltHz(Dp,rpm,L){return Math.PI*Dp*rpm/(60*L);}
+/* ด้านดูดปั๊ม: น้ำ 35 °C */
+var WATER={Pv:5.63,rho:994};
+function suctionBarg(s){return WATER.rho*G*(s.hs-s.hf-s.v*s.v/(2*G))/1e5;}           /* bar g */
+function npshaFromHead(s){return (PATM-WATER.Pv)*1000/(WATER.rho*G)+s.hs-s.hf;}          /* m */
+function npshaFromGauge(barg,v){var Pabs=PATM+barg*100;return (Pabs-WATER.Pv)*1000/(WATER.rho*G)+v*v/(2*G);}
+function pIn(V,I,pf){return Math.sqrt(3)*V*I*pf/1000;}
+var NPSHR=4.5;
+
+/* ── เครื่องมือ ── */
+var TOOLS={
+  steth:{ic:'🎧',nm:'หูฟัง (Stethoscope)',sh:'หูฟัง',min:2},
+  vib:{ic:'📳',nm:'เครื่องวัดสั่น',sh:'วัดสั่น',min:6},
+  ir:{ic:'🌡',nm:'IR gun',sh:'IR gun',min:1},
+  amp:{ic:'⚡',nm:'แคลมป์มิเตอร์',sh:'แคลมป์',min:3}
+};
+var TORDER=['steth','vib','ir','amp'];
+
+/* ── โรค / วิธีรักษา ── */
+var DZ={
+  normal:{nm:'ปกติ ไม่พบความผิดปกติ',tx:'none',sig:'ทุกค่าปกติ: สั่นโซน A–B, เสียงฮัมเรียบ, อุณหภูมิและกระแสปกติ'},
+  unbalance:{nm:'ไม่สมดุล (Unbalance)',tx:'balance',sig:'peak 1× เด่นแนวรัศมี (H≈V) แนวแกนต่ำ ไม่มีฮาร์มอนิกมาก'},
+  misalign:{nm:'เยื้องศูนย์ (Misalignment)',tx:'align',sig:'peak 2× สูง (มักมี 1× ด้วย) และแนวแกน (A) สูงเด่น'},
+  bearing:{nm:'แบริ่งชำรุด / ขาดจาระบี',tx:'grease',sig:'เสียงแกรก ๆ, แบริ่งร้อน > 80 °C, สเปกตรัมความถี่สูง/BPFO ไม่ลงตัว'},
+  belt:{nm:'สายพานหย่อน',tx:'belt',sig:'เสียงหวีด (squeal), peak ต่ำกว่า 1× (ความถี่สายพาน), รอบพัดลมตก'},
+  cav:{nm:'Cavitation (NPSH ไม่พอ)',tx:'npsh',sig:'เสียงกรวดในปั๊ม, เกจด้านดูดต่ำ/ติดลบ, สั่นย่านสูงแบบกว้าง'},
+  phase:{nm:'กระแส 3 เฟสไม่สมดุล / ไฟขาดเฟส',tx:'elec',sig:'กระแส 3 เฟสต่างกัน > 10% (NEMA), มอเตอร์/ขั้วสายร้อน'},
+  filter:{nm:'ไส้กรองตัน',tx:'filter',sig:'ΔP คร่อมไส้กรองเกินพิกัด และกระแสลดลงกว่าปกติ'},
+  softfoot:{nm:'Soft foot / ฐานหลวม',tx:'shim',sig:'1× + ฮาร์มอนิก 2×–6× หลายตัว แนวดิ่ง (V) เด่น'}
+};
+var DZORDER=['unbalance','misalign','bearing','belt','cav','phase','filter','softfoot','normal'];
+var TX={
+  none:{nm:'เดินเครื่องต่อ ตรวจตามรอบ PM'},
+  balance:{nm:'ล้างใบพัด + ถ่วงสมดุล (Balancing)'},
+  align:{nm:'ตั้งศูนย์เพลาใหม่ (Laser/Dial gauge)'},
+  grease:{nm:'อัดจาระบีให้ถูกชนิด/ปริมาณ หรือเปลี่ยนแบริ่ง'},
+  belt:{nm:'ตั้งแรงตึงสายพาน (สึกให้เปลี่ยนทั้งชุด)'},
+  npsh:{nm:'เปิดวาล์วดูดให้สุด ล้างกรองดูด (เพิ่ม NPSHa)'},
+  elec:{nm:'ขันขั้วสาย ตรวจคอนแทคเตอร์ วัดแรงดัน 3 เฟส'},
+  filter:{nm:'ทำความสะอาด / เปลี่ยนไส้กรอง'},
+  shim:{nm:'ขันน็อตฐาน แก้ soft foot ด้วย shim'},
+  newmotor:{nm:'เปลี่ยนมอเตอร์ใหม่ทั้งลูกทันที',bad:'แพงเกินจำเป็น — ถ้าไม่แก้ต้นเหตุ มอเตอร์ใหม่ก็เสียซ้ำ'},
+  bigbrk:{nm:'เปลี่ยนเบรกเกอร์ให้ใหญ่ขึ้น กันทริป',bad:'อันตราย! เบรกเกอร์ทริป = ระบบป้องกันทำงาน ขยายขนาดเสี่ยงมอเตอร์ไหม้/ไฟไหม้'}
+};
+var TXORDER=['balance','align','grease','belt','npsh','elec','filter','shim','none','newmotor','bigbrk'];
+
+/* ── ป้ายชื่อเครื่อง (ตัวเลขสมจริง) ── */
+var PLATE={
+  pump:{kW:18.5,rpm:1460,V:400,FLA:34,txt:'มอเตอร์ 18.5 kW · 4 โพล 1460 rpm · 400 V · FLA 34 A'},
+  fan:{kW:15,rpm:1460,V:400,FLA:28,fanRpm:980,txt:'มอเตอร์ 15 kW · 1460 rpm · 400 V · FLA 28 A · พัดลม 980 rpm (สายพาน)'},
+  comp:{kW:37,rpm:2950,V:400,FLA:66,txt:'สกรูคอมเพรสเซอร์ · มอเตอร์ 37 kW · 2 โพล 2950 rpm · 400 V · FLA 66 A'}
+};
+var BRG={n:8,d:17.5,D:72.5};            /* 6309 */
+var BPR=bpfo(BRG.n,BRG.d,BRG.D,0), BP=+BPR.toFixed(2);  /* 3.0345 → 3.03× · 2×=6.07× · 3×=9.10× */
+var SUC_N={hs:2,hf:0.8,v:1.8}, SUC_CAV={hs:2,hf:8.0,v:1.8};
+var BELT_ORD=+(beltHz(0.2,1460,2.5)/(905/60)).toFixed(2); /* 6.12 Hz / 15.08 Hz = 0.41× */
+
+/* ── คนไข้ (case) ── */
+var CASES={
+ L1A:{type:'pump',tag:'P-101',nm:'ปั๊มน้ำหล่อเย็น',dz:'bearing',
+   cmp:'ช่างกะเช้า: "ได้ยินเสียงแปลก ๆ ฝั่งมอเตอร์ มาได้ 3 วันแล้ว"',
+   face:{m:'sick',sweat:1},snd:'bearing',sndTxt:'เสียงแกรก ๆ / ซ่า ๆ แหลม ต่อเนื่อง ทับเสียงฮัม (high-frequency noise)',
+   vib:{pt:'แบริ่งมอเตอร์ด้านคัปปลิ้ง (DE)',dir:'H',r:{H:1,V:.85,A:.5},rpm:1460,
+     pk:[[1,.9],[2,.3],[BP,2.1],[+(BPR*2).toFixed(2),1.6],[+(BPR*3).toFixed(2),1.1],[10.2,.5],[11.3,.4]],nf:.4,hf:1},
+   ir:{nde:48,de:84,body:62,tb:45,drv:52},amp:[27.8,28.1,27.6],suc:SUC_N,dis:3.5,
+   key:['vib','ir','steth'],
+   keyTxt:'🌡 แบริ่ง DE 84 °C (ปกติ ≤ 70) · 📳 peak ไม่ลงตัว 3.03×/6.07×/9.10× = BPFO แบริ่ง 6309 · 🎧 เสียงแกรก'},
+ L2A:{type:'pump',tag:'P-201',nm:'ปั๊มน้ำดิบ',dz:'unbalance',
+   cmp:'ผู้ควบคุม: "สูบน้ำดิบตะกอนเยอะ ช่วงนี้ปั๊มสั่นขึ้นเรื่อย ๆ"',
+   face:{m:'meh'},snd:'unb',sndTxt:'ฮัมหนัก ๆ เป็นจังหวะ วูบ ๆ (หูฟังแยก 1× กับ 2× ได้ยาก)',
+   vib:{pt:'แบริ่งปั๊มด้านคัปปลิ้ง',dir:'H',r:{H:1,V:.86,A:.22},rpm:1460,pk:[[1,4.0],[2,.4],[3,.2]],nf:.3},
+   ir:{nde:47,de:52,body:61,tb:44,drv:56},amp:[28.4,28.7,28.3],suc:SUC_N,dis:3.5,
+   key:['vib'],keyTxt:'📳 peak 1× = 4.0 mm/s เด่นตัวเดียว แนว H≈V แนวแกนต่ำ (0.22 เท่า) → ตะกอนเกาะใบพัดไม่เท่ากัน'},
+ L2B:{type:'pump',tag:'P-202',nm:'ปั๊มน้ำดิบ (ตัวสำรอง)',dz:'misalign',
+   cmp:'ช่างซ่อม: "เพิ่งเปลี่ยนแมคคานิคอลซีลเมื่อวาน หลังจากนั้นสั่นขึ้น"',
+   face:{m:'meh'},snd:'mis',sndTxt:'ฮัมหนัก ๆ เป็นจังหวะถี่ (คล้ายตัวแรก — หูฟังอย่างเดียวแยกไม่ออก)',
+   vib:{pt:'แบริ่งปั๊มด้านคัปปลิ้ง',dir:'A',r:{H:.75,V:.6,A:1},rpm:1460,pk:[[1,1.8],[2,2.9],[3,.7]],nf:.3},
+   ir:{nde:47,de:66,body:62,tb:44,drv:67},amp:[28.6,28.9,28.5],suc:SUC_N,dis:3.5,
+   key:['vib'],keyTxt:'📳 peak 2× (2.9) สูงกว่า 1× (1.8) และแนวแกน A สูงสุด → ถอดประกอบแล้วไม่ได้ตั้งศูนย์'},
+ L3A:{type:'comp',tag:'AC-301',nm:'คอมเพรสเซอร์ลม',dz:'phase',
+   cmp:'ผู้ควบคุม: "มอเตอร์ร้อนผิดปกติ เบรกเกอร์ทริปไป 1 ครั้งเมื่อวาน"',
+   face:{m:'sick',sweat:1,anger:1},snd:'buzz',sndTxt:'เสียงหึ่ง (buzz) ดังกว่าปกติจากตัวมอเตอร์ ไม่มีเสียงแกรก',
+   vib:{pt:'แบริ่งมอเตอร์ด้านคัปปลิ้ง (DE)',dir:'H',r:{H:1,V:.8,A:.3},rpm:2950,pk:[[1,.7],[2,.6]],nf:.3,elec:1},
+   ir:{nde:52,de:58,body:78,tb:96,drv:60},amp:[68,60,50],dp:24,dis:7.0,
+   key:['amp'],keyTxt:'⚡ กระแส 68/60/50 A ไม่สมดุล 15.7% (> 10%) + 🌡 กล่องขั้วสาย 96 °C → ขั้วสายเฟส L3 หลวม/ออกไซด์'},
+ L3B:{type:'fan',tag:'EF-302',nm:'พัดลมดูดฝุ่น',dz:'bearing',
+   cmp:'ผู้ควบคุม: "แถวตัวพัดลมร้อนมือ ไม่ได้อัดจาระบีมานานแล้ว"',
+   face:{m:'sick',sweat:1},snd:'grease',sndTxt:'เสียงเสียดสีแหลม ๆ ซ่า ๆ ที่ฝั่งแบริ่งพัดลม (ขาดจาระบี)',
+   vib:{pt:'แบริ่งพัดลม (ฝั่งมู่เล่ย์)',dir:'H',r:{H:1,V:.8,A:.45},rpm:980,
+     pk:[[1,.7],[BP,.6],[8.5,.8],[9.3,.9],[10.1,1.0],[10.8,.9],[11.6,.8]],nf:.4,hf:1},
+   ir:{nde:46,de:50,body:60,tb:43,drv:91},amp:[22.8,23.1,22.9],dp:150,fanRpm:980,
+   key:['ir'],keyTxt:'🌡 แบริ่งพัดลม 91 °C ขณะมอเตอร์ปกติ ⚡ กระแสสมดุล → ร้อนเพราะกลไก (ขาดจาระบี) ไม่ใช่ไฟฟ้า'},
+ L4A:{type:'pump',tag:'P-401',nm:'ปั๊มน้ำร้อนจากบ่อพัก',dz:'cav',
+   cmp:'ผู้ควบคุม: "น้ำ 35 °C แรงดันจ่ายแกว่ง ๆ ตั้งแต่เปลี่ยนกะ"',
+   face:{m:'sick'},snd:'gravel',sndTxt:'เสียงเหมือน "กรวด/ทรายไหลในท่อ" ดังกรอบแกรบเป็นระยะ ๆ',
+   vib:{pt:'ตัวเรือนปั๊ม (volute)',dir:'H',r:{H:1,V:.9,A:.5},rpm:1460,
+     pk:[[1,1.0],[6,2.0],[5.2,.5],[7.1,.6],[7.9,.7],[8.6,.7],[9.4,.8],[10.3,.7],[11.1,.6],[11.8,.5]],nf:.5,cav:1},
+   ir:{nde:46,de:51,body:58,tb:43,drv:53},amp:[25.2,25.6,25.3],suc:SUC_CAV,dis:2.9,disJ:1,gaugeKey:1,
+   key:['steth'],keyTxt:'🎧 เสียงกรวด + เกจดูด −0.60 bar g (ตัวคู่ +0.10) → NPSHa 3.8 m < NPSHr 4.5 m: มีคนหรี่วาล์วด้านดูด'},
+ L4B:{type:'pump',tag:'P-402',nm:'ปั๊มน้ำร้อน (ตัวคู่)',dz:'normal',
+   cmp:'ผู้ควบคุม: "ตัวนี้ปกติดีไหม? หัวหน้าสั่งให้ส่งซ่อมทั้งคู่"',
+   face:{m:'meh'},snd:'normal',sndTxt:'เสียงฮัมเรียบ สม่ำเสมอ (ปกติ)',
+   vib:{pt:'แบริ่งมอเตอร์ด้านคัปปลิ้ง (DE)',dir:'H',r:{H:1,V:.85,A:.35},rpm:1460,pk:[[1,1.0],[2,.3]],nf:.3},
+   ir:{nde:46,de:52,body:60,tb:43,drv:54},amp:[27.6,27.9,27.7],suc:SUC_N,dis:3.5,
+   key:['steth','vib'],keyTxt:'🎧 ฮัมเรียบ · 📳 1.09 mm/s โซน A · เกจปกติ → ไม่ต้องซ่อม (ส่งซ่อมเกินจำเป็น = เสียเงิน+เสี่ยงประกอบผิด)'},
+ L5A:{type:'fan',tag:'SF-501',nm:'พัดลมเติมอากาศ',dz:'belt',
+   cmp:'ผู้ควบคุม: "ลมอ่อนลงกว่าเดิม ตอนสตาร์ทมีเสียงแปลก ๆ"',
+   face:{m:'meh'},snd:'squeal',sndTxt:'เสียงหวีดแหลม "เอี๊ยด" เป็นช่วง ๆ (belt squeal) ที่ชุดมู่เล่ย์',
+   vib:{pt:'แบริ่งพัดลม (ฝั่งมู่เล่ย์)',dir:'H',r:{H:1,V:.7,A:.3},rpm:905,
+     pk:[[BELT_ORD,1.4],[+(BELT_ORD*2).toFixed(2),.9],[1,.9]],nf:.3,belt:1},
+   ir:{nde:45,de:49,body:57,tb:42,drv:55},amp:[19.6,19.9,19.7],dp:135,fanRpm:905,looseBelt:1,
+   key:['steth','vib'],keyTxt:'🎧 เสียงหวีด + 📳 peak 0.41×/0.82× (ความถี่สายพาน 6.1 Hz) และ 1× = 905 rpm (ป้าย 980) → สายพานลื่น'},
+ L5B:{type:'comp',tag:'AC-502',nm:'คอมเพรสเซอร์ลม',dz:'filter',
+   cmp:'ผู้ควบคุม: "ผลิตลมได้น้อยลง เครื่องเดินนานขึ้นกว่าจะถึงความดัน"',
+   face:{m:'meh',anger:1},snd:'whistle',sndTxt:'ฮัมปกติ + เสียงลมดูดหวีดเบา ๆ ที่หม้อกรองอากาศ',
+   vib:{pt:'แบริ่งมอเตอร์ด้านคัปปลิ้ง (DE)',dir:'H',r:{H:1,V:.8,A:.3},rpm:2950,pk:[[1,1.0],[2,.3]],nf:.35},
+   ir:{nde:50,de:55,body:64,tb:46,drv:62},amp:[54.5,55.0,54.6],dp:68,dis:7.0,gaugeKey:1,
+   key:['amp'],keyTxt:'เกจ ΔP กรองอากาศ 68 mbar (เตือน 50) + ⚡ กระแส 55 A ต่ำกว่าปกติ 60 A → อากาศเข้าได้น้อย'},
+ L5C:{type:'pump',tag:'P-503',nm:'ปั๊มน้ำประปา',dz:'softfoot',
+   cmp:'ช่าง: "เพิ่งย้ายปั๊มมาตั้งฐานใหม่ สั่นมากจนน็อตคลาย"',
+   face:{m:'sick'},snd:'rattle',sndTxt:'ฮัม + เสียงก๊อกแก๊กสั่นกระพือที่ฐาน (rattle)',
+   vib:{pt:'ขาฐานมอเตอร์ / แบริ่ง DE',dir:'V',r:{H:.62,V:1,A:.3},rpm:1460,pk:[[1,3.6],[2,1.9],[3,1.1],[4,.8],[5,.6],[6,.4]],nf:.3},
+   ir:{nde:47,de:53,body:61,tb:44,drv:55},amp:[27.9,28.2,27.8],suc:SUC_N,dis:3.5,
+   key:['vib'],keyTxt:'📳 1× + ฮาร์มอนิก 2×–6× ไล่ลงเป็นแถว และแนวดิ่ง V สูงสุด (H 0.62 เท่า) → ขาตั้งไม่แนบฐาน'}
+};
+/* คำนวณค่า overall/H-V-A จากสเปกตรัม (ให้สอดคล้องกันเสมอ) */
+(function(){for(var k in CASES){var v=CASES[k].vib;v.ov=overall(v.pk,v.nf);
+  v.hva={H:v.ov*v.r.H,V:v.ov*v.r.V,A:v.ov*v.r.A};}})();
+
+/* ── ด่าน ── */
+var LEVELS=[
+ {nm:'ด่าน 1 · แบริ่งร้องไห้',ic:'🎧',beds:['L1A'],t:0,
+  goal:'คนไข้ 1 เตียง — ใช้เครื่องมือในกระเป๋าหมอ หาว่าเจ็บตรงไหน แล้วกด 🩺 วินิจฉัย (ใช้ ≤ 2 ชิ้น = ⭐⭐⭐)',
+  lesson:'แบริ่งเสีย: เสียงแกรก + ร้อน > 80 °C + ความถี่ไม่ลงตัว (BPFO)'},
+ {nm:'ด่าน 2 · 1× หรือ 2×?',ic:'📳',beds:['L2A','L2B'],t:0,
+  goal:'ปั๊ม 2 ตัวสั่นพอ ๆ กัน (โซน C) — อ่านสเปกตรัม 📳 ให้ออก: 1× เด่น หรือ 2× + แนวแกนสูง?',
+  lesson:'1× แนวรัศมี = unbalance · 2× + แนวแกนสูง = เยื้องศูนย์'},
+ {nm:'ด่าน 3 · ไฟฟ้า หรือ กล?',ic:'⚡',beds:['L3A','L3B'],t:0,
+  goal:'ร้อนทั้งคู่! ร้อนเพราะไฟฟ้าหรือเพราะกลไก? 🌡 บอกว่า "ร้อนตรงไหน" ⚡ บอกว่า "ไฟเข้าสมดุลไหม"',
+  lesson:'ขั้วสายร้อน + กระแสต่างกัน > 10% = ไฟฟ้า · ร้อนเฉพาะแบริ่ง = กลไก'},
+ {nm:'ด่าน 4 · กรวดในปั๊ม',ic:'💧',beds:['L4A','L4B'],t:0,
+  goal:'ปั๊มคู่ — ตัวไหนป่วย? ดูเกจด้านดูดในบัตรคนไข้ แล้วฟังเสียง 🎧 เทียบกัน (ตัวที่ปกติ อย่าสั่งซ่อม!)',
+  lesson:'เสียงกรวด + ดูดติดลบ = cavitation · NPSHa ต้อง > NPSHr'},
+ {nm:'ด่าน 5 · วอร์ดฉุกเฉิน',ic:'🚑',beds:['L5A','L5B','L5C'],t:120,
+  goal:'3 เตียง ใน 120 วินาที! ดูเกจ → เลือกเครื่องมือชี้ขาด ≤ 2 ชิ้นต่อเตียง → วินิจฉัย',
+  lesson:'ตรวจเป็นระบบ: ดูเกจฟรีก่อน → เครื่องมือชี้ขาด → ยืนยัน → สั่งซ่อม'}
+];
+
+/* ── สถานะ ── */
+var level=0, stars=[0,0,0,0,0], pats=[], cur=0, running=false, timeLeft=0, lastTs=0, totalMin=[0,0,0,0,0];
+var dxSel={dz:null,tx:null};
+
+/* ── เสียง Web Audio ── */
+var AC=null, sndOn=true, noiseBuf=null, sndNodes=[], sndMaster=null, sndTimer=null;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){try{AC.resume();}catch(e){}}return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;try{var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}catch(e){}}
+function sClick(){tone(620,0,0.07,'square',0.07);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.11);tone(180,0.18,0.3,'sawtooth',0.11);}
+function sBeep(){tone(1320,0,0.06,'square',0.06);tone(1760,0.07,0.06,'square',0.06);}
+function sTick(){tone(1000,0,0.04,'square',0.05);}
+function getNoise(a){if(noiseBuf)return noiseBuf;var n=a.sampleRate*2,b=a.createBuffer(1,n,a.sampleRate),d=b.getChannelData(0);
+  for(var i=0;i<n;i++)d[i]=Math.random()*2-1;noiseBuf=b;return b;}
+/* บัฟเฟอร์แรงกระแทก: แบริ่ง (ถี่ สั้น) / กรวด (สุ่ม หนา) / ฐานหลวม (เป็นจังหวะ 1×) */
+var impCache={};
+function impBuf(a,key,rate,burstMs,periodic,jit){if(impCache[key])return impCache[key];
+  var sr=a.sampleRate,n=Math.floor(sr*1.5),b=a.createBuffer(1,n,sr),d=b.getChannelData(0),t=0,L=Math.max(8,Math.floor(sr*burstMs/1000));
+  while(t<n){var amp=0.35+Math.random()*0.65;for(var i=0;i<L&&t+i<n;i++)d[t+i]+=(Math.random()*2-1)*amp*Math.exp(-i/(L/4));
+    t+=periodic?Math.floor(sr/rate*(1+(Math.random()-.5)*(jit||0))):Math.floor(-Math.log(1-Math.random()*0.999)*sr/rate)+1;}
+  impCache[key]=b;return b;}
+function stopSound(){for(var i=0;i<sndNodes.length;i++){try{sndNodes[i].stop();}catch(e){}}sndNodes=[];
+  if(sndMaster){try{sndMaster.disconnect();}catch(e){}sndMaster=null;}}
+function playSound(kind){
+  var a=audio();if(!a)return;stopSound();if(!sndOn)return;
+  try{
+  var t0=a.currentTime+0.02,D=2.6,m=a.createGain();sndMaster=m;
+  m.gain.setValueAtTime(0.0001,t0);m.gain.exponentialRampToValueAtTime(0.55,t0+0.15);
+  m.gain.setValueAtTime(0.55,t0+D-0.3);m.gain.exponentialRampToValueAtTime(0.0001,t0+D);m.connect(a.destination);
+  var hum=a.createGain();hum.gain.value=0.8;hum.connect(m);
+  function osc(type,f,g,dest){var o=a.createOscillator(),gg=a.createGain();o.type=type;o.frequency.value=f;gg.gain.value=g;
+    o.connect(gg);gg.connect(dest||m);o.start(t0);o.stop(t0+D);sndNodes.push(o);return {o:o,g:gg};}
+  function buf(b,ft,fq,Q,g){var s=a.createBufferSource();s.buffer=b;s.loop=true;var f=a.createBiquadFilter();f.type=ft;f.frequency.value=fq;f.Q.value=Q||0.7;
+    var gg=a.createGain();gg.gain.value=g;s.connect(f);f.connect(gg);gg.connect(m);s.start(t0);s.stop(t0+D);sndNodes.push(s);return gg;}
+  function lfo(f,depth,target){var l=a.createOscillator(),lg=a.createGain();l.frequency.value=f;lg.gain.value=depth;l.connect(lg);lg.connect(target);l.start(t0);l.stop(t0+D);sndNodes.push(l);}
+  /* ฮัมพื้นฐานของมอเตอร์ (50/100 Hz) */
+  osc('sine',50,.10,hum);osc('sine',100,.16,hum);osc('triangle',150,.03,hum);buf(getNoise(a),'lowpass',380,.7,.07);
+  switch(kind){
+    case 'bearing': buf(impBuf(a,'brg',95,4,false),'bandpass',4300,0.9,.55);buf(getNoise(a),'highpass',6500,.7,.05);break;
+    case 'grease': buf(impBuf(a,'brg',95,4,false),'bandpass',5200,1.2,.35);var sq=osc('sine',3150,.025);lfo(5,40,sq.o.frequency);break;
+    case 'gravel': buf(impBuf(a,'grv',26,16,false),'lowpass',2300,.8,1.1);break;
+    case 'squeal': var s1=osc('sine',2300,0),s2=osc('sine',4600,0);lfo(8,70,s1.o.frequency);
+      for(var k=0;k<5;k++){var ts=t0+0.1+k*0.5;[s1,s2].forEach(function(s,j){s.g.gain.setValueAtTime(0,ts);s.g.gain.linearRampToValueAtTime(j?0.02:0.06,ts+0.08);
+        s.g.gain.setValueAtTime(j?0.02:0.06,ts+0.28);s.g.gain.linearRampToValueAtTime(0,ts+0.38);});}break;
+    case 'unb': lfo(4,.6,hum.gain);osc('sine',100,.08,hum);break;
+    case 'mis': lfo(9,.5,hum.gain);osc('sine',200,.07,hum);break;
+    case 'rattle': buf(impBuf(a,'rat',24.3,7,true,0.15),'bandpass',900,1.2,.9);break;
+    case 'buzz': osc('sawtooth',100,.045);osc('sine',100,.12,hum);break;
+    case 'whistle': buf(getNoise(a),'bandpass',1900,14,.6);break;
+    default: break;
+  }}catch(e){}
+}
+
+/* ── localStorage ── */
+var LSK='te_skill_doctor';
+function loadStars(){try{var v=JSON.parse(localStorage.getItem(LSK+'_stars')||'[]');for(var i=0;i<5;i++)stars[i]=Math.min(3,v[i]|0);}catch(e){}}
+function saveStars(){try{localStorage.setItem(LSK+'_stars',JSON.stringify(stars));}catch(e){}}
+function seenTut(){try{return localStorage.getItem(LSK+'_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem(LSK+'_seen','1');}catch(e){}}
+var reduceMotion=false;
+try{reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){}
+
+/* ═════════ วาดฉาก SVG ═════════ */
+function f1(x){return (Math.round(x*10)/10).toFixed(1);}
+function f2(x){return (Math.round(x*100)/100).toFixed(2);}
+function tempCol(t,kind){var lim=kindLim(kind);return t>lim[1]?'#ef4b4b':(t>lim[0]?'#f5a623':'#1fb45f');}
+function kindLim(kind){return kind==='body'?[75,90]:(kind==='tb'?[60,80]:[70,80]);}
+function gaugeSvg(x,y,r,frac,redFrom,jit){
+  frac=Math.max(0,Math.min(1,frac));var a0=-135,ang=a0+270*frac;
+  var rr=function(f){var A=(a0+270*f-90)*Math.PI/180;return [x+Math.cos(A)*(r-3),y+Math.sin(A)*(r-3)];};
+  var p1=rr(redFrom),p2=rr(1);
+  return '<g><circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="#fff" stroke="#5c6b80" stroke-width="2.5"/>'+
+    '<path d="M'+p1[0].toFixed(1)+' '+p1[1].toFixed(1)+' A'+(r-3)+' '+(r-3)+' 0 '+((1-redFrom)>0.5?1:0)+' 1 '+p2[0].toFixed(1)+' '+p2[1].toFixed(1)+'" stroke="#ef4b4b" stroke-width="3" fill="none"/>'+
+    '<g transform="rotate('+ang.toFixed(1)+' '+x+' '+y+')"><g'+(jit?' class="needleJ" style="transform-origin:'+x+'px '+y+'px"':'')+'><line x1="'+x+'" y1="'+y+'" x2="'+x+'" y2="'+(y-r+5)+'" stroke="#d32f2f" stroke-width="2.2" stroke-linecap="round"/></g></g>'+
+    '<circle cx="'+x+'" cy="'+y+'" r="2.4" fill="#213047"/></g>';
+}
+function faceSvg(cx,cy,f,cured,hotNow){
+  var s='';var m=cured?'happy':f.m;
+  if(m==='happy'){
+    s+='<path d="M'+(cx-19)+' '+(cy-6)+' q5 -7 10 0" stroke="#213047" stroke-width="3" fill="none" stroke-linecap="round"/>'+
+       '<path d="M'+(cx+9)+' '+(cy-6)+' q5 -7 10 0" stroke="#213047" stroke-width="3" fill="none" stroke-linecap="round"/>'+
+       '<path d="M'+(cx-12)+' '+(cy+8)+' q12 13 24 0 z" fill="#c2185b" stroke="#213047" stroke-width="2.5" stroke-linejoin="round"/>'+
+       '<circle cx="'+(cx-24)+'" cy="'+(cy+4)+'" r="4" fill="#ff8fab" opacity=".7"/><circle cx="'+(cx+24)+'" cy="'+(cy+4)+'" r="4" fill="#ff8fab" opacity=".7"/>';
+  }else if(m==='sick'){
+    s+='<path d="M'+(cx-21)+' '+(cy-17)+' l10 4" stroke="#213047" stroke-width="2.6" stroke-linecap="round"/>'+
+       '<path d="M'+(cx+21)+' '+(cy-17)+' l-10 4" stroke="#213047" stroke-width="2.6" stroke-linecap="round"/>'+
+       '<path d="M'+(cx-19)+' '+(cy-7)+' q5 5 10 0" stroke="#213047" stroke-width="3" fill="none" stroke-linecap="round"/>'+
+       '<path d="M'+(cx+9)+' '+(cy-7)+' q5 5 10 0" stroke="#213047" stroke-width="3" fill="none" stroke-linecap="round"/>'+
+       '<path d="M'+(cx-10)+' '+(cy+14)+' q10 -8 20 0" stroke="#213047" stroke-width="3" fill="none" stroke-linecap="round"/>';
+  }else{ /* meh */
+    s+='<circle class="eyeB" cx="'+(cx-14)+'" cy="'+(cy-6)+'" r="4.3" fill="#213047"/><circle class="eyeB" cx="'+(cx+14)+'" cy="'+(cy-6)+'" r="4.3" fill="#213047"/>'+
+       '<path d="M'+(cx-9)+' '+(cy+11)+' q5 -3 9 0 q5 3 9 0" stroke="#213047" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
+  }
+  if(!cured&&f.sweat&&hotNow){
+    s+='<path class="drip" d="M'+(cx+30)+' '+(cy-16)+' q-4 7 0 10 q4 -3 0 -10z" fill="#4fc3f7"/>'+
+       '<path class="drip" style="animation-delay:.6s" d="M'+(cx-32)+' '+(cy-12)+' q-4 7 0 10 q4 -3 0 -10z" fill="#4fc3f7"/>';
+  }
+  if(!cured&&f.anger){s+='<text x="'+(cx+26)+'" y="'+(cy-20)+'" font-size="15" class="puls">💢</text>';}
+  return s;
+}
+function motorSvg(x,y,w,h,P,cure){
+  var cx=x+w/2,cy=y+h/2,s='';
+  s+='<rect x="'+(x-16)+'" y="'+(y+8)+'" width="18" height="'+(h-16)+'" rx="7" fill="#5c6bc0" stroke="#283593" stroke-width="3"/>';
+  s+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="14" fill="url(#motG)" stroke="#283593" stroke-width="3.5"/>';
+  for(var i=1;i<5;i++){var yy=y+h*i/5;s+='<line x1="'+(x+6)+'" y1="'+yy+'" x2="'+(x+16)+'" y2="'+yy+'" stroke="#9fa8da" stroke-width="2.5" stroke-linecap="round"/>'+
+    '<line x1="'+(x+w-16)+'" y1="'+yy+'" x2="'+(x+w-6)+'" y2="'+yy+'" stroke="#9fa8da" stroke-width="2.5" stroke-linecap="round"/>';}
+  s+='<rect x="'+(cx-18)+'" y="'+(y-17)+'" width="36" height="18" rx="4" fill="#7986cb" stroke="#283593" stroke-width="3"/>';
+  s+='<rect x="'+(x+10)+'" y="'+(y+h)+'" width="22" height="6" fill="#283593"/><rect x="'+(x+w-32)+'" y="'+(y+h)+'" width="22" height="6" fill="#283593"/>';
+  s+=faceSvg(cx,cy+2,P.c.face,cure,true);
+  return s;
+}
+function bedSvg(){
+  return '<rect x="14" y="112" width="12" height="92" rx="5" fill="#7986cb"/><rect x="10" y="106" width="20" height="10" rx="5" fill="#5c6bc0"/>'+
+    '<rect x="22" y="184" width="356" height="12" rx="5" fill="#90a4ae" stroke="#607d8b" stroke-width="2"/>'+
+    '<rect x="40" y="196" width="8" height="10" fill="#607d8b"/><rect x="352" y="196" width="8" height="10" fill="#607d8b"/>'+
+    '<circle cx="44" cy="210" r="6" fill="#455a64"/><circle cx="356" cy="210" r="6" fill="#455a64"/>';
+}
+function monitorSvg(P){
+  var v=P.used.vib?P.c.vib.ov:null, z=v!==null?zoneOf(v):null, amp=z?({A:4,B:8,C:13,D:17}[z.z]):3;
+  var col=z?z.c:'#78909c', pts='', x0=40, y0=34;
+  for(var i=0;i<=24;i++){var xx=x0+i*3,yy=y0;var ph=i%8;
+    if(ph===2)yy=y0-amp;else if(ph===3)yy=y0+amp*0.8;else if(ph===4)yy=y0-amp*0.35;
+    if(P.cured){yy=y0+(ph===2?-4:ph===3?3:0);}pts+=xx+','+yy+' ';}
+  return '<g><rect x="34" y="8" width="82" height="50" rx="8" fill="#102030" stroke="#90a4ae" stroke-width="2.5"/>'+
+    '<polyline class="ecg" points="'+pts+'" fill="none" stroke="'+(P.cured?'#1fb45f':col)+'" stroke-width="2.2" stroke-linejoin="round"/>'+
+    '<text x="40" y="54" font-size="9" fill="#b0bec5" font-family="Mitr,sans-serif">'+(v!==null?f2(v)+' mm/s':'สั่น: ?')+'</text>'+
+    (z?'<text x="110" y="54" font-size="10" font-weight="700" text-anchor="end" fill="'+z.c+'" font-family="Mitr,sans-serif">'+z.z+'</text>':'')+'</g>';
+}
+function hazeSvg(x,y){
+  return '<g pointer-events="none">'+[0,1,2].map(function(i){return '<path class="haze" style="animation-delay:'+(i*0.5)+'s" d="M'+(x-6+i*6)+' '+(y-6)+' q-4 -5 0 -10 q4 -5 0 -10" stroke="#ff7043" stroke-width="2.4" fill="none" stroke-linecap="round"/>';}).join('')+'</g>';
+}
+function irSvg(P,pts){
+  if(!P.used.ir)return '';var s='',ir=P.c.ir;
+  ['nde','de','body','tb','drv'].forEach(function(k){var p=pts[k],t=ir[k],col=tempCol(t,k);
+    if(t>75)s+=hazeSvg(p[0],p[1]-6);
+    s+='<g class="pop"><circle cx="'+p[0]+'" cy="'+p[1]+'" r="7" fill="'+col+'" stroke="#fff" stroke-width="2.5"/>'+
+      '<text x="'+p[0]+'" y="'+(p[1]+p[3])+'" font-size="11" font-weight="700" text-anchor="middle" fill="'+(col==='#1fb45f'?'#16602f':col)+'" stroke="#fff" stroke-width="3" paint-order="stroke" font-family="Mitr,sans-serif">'+t+'°</text></g>';});
+  return s;
+}
+function drawScene(){
+  var P=pats[cur];if(!P)return;var c=P.c,cure=P.cured,s='';
+  var z=zoneOf(c.vib.ov),shakeA=cure?0:({A:0,B:.7,C:1.6,D:2.6}[z.z]);
+  if(reduceMotion)shakeA=0;
+  s+='<defs><linearGradient id="motG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c5cae9"/><stop offset=".55" stop-color="#9fa8da"/><stop offset="1" stop-color="#7986cb"/></linearGradient>'+
+     '<linearGradient id="pipeG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e0e6ee"/><stop offset=".5" stop-color="#b0bccb"/><stop offset="1" stop-color="#8796aa"/></linearGradient>'+
+     '<linearGradient id="tealG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4dd0e1"/><stop offset="1" stop-color="#00838f"/></linearGradient>'+
+     '<linearGradient id="grayG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b0bec5"/><stop offset="1" stop-color="#607d8b"/></linearGradient>'+
+     '<clipPath id="cplClip"><rect x="0" y="0" width="22" height="40" rx="4"/></clipPath></defs>';
+  /* ผนังวอร์ด + พื้น */
+  s+='<rect width="400" height="240" fill="#eaf3fb"/>';
+  for(var i=0;i<9;i++)s+='<line x1="'+(i*50)+'" y1="0" x2="'+(i*50)+'" y2="200" stroke="#dbe7f3" stroke-width="2"/>';
+  s+='<rect y="200" width="400" height="40" fill="#cfdbe8"/><rect y="200" width="400" height="4" fill="#b7c6d8"/>';
+  s+='<g transform="translate(170 10)"><rect width="40" height="26" rx="5" fill="#fff" stroke="#cfd8ea" stroke-width="2"/><path d="M14 13 h12 M20 7 v12" stroke="#ef4b4b" stroke-width="4" stroke-linecap="round"/></g>';
+  s+=monitorSvg(P);
+  s+=bedSvg();
+  s+='<text x="36" y="232" font-size="12" font-weight="600" fill="#55657c" font-family="Mitr,sans-serif">เตียง '+(cur+1)+' · '+c.tag+'</text>';
+  var pts, mach='';
+  var spd=cure?'.45s':(c.looseBelt?'.8s':'.45s');
+  if(c.type==='pump'){
+    mach+=motorSvg(40,98,128,78,P,cure);
+    mach+='<rect x="168" y="131" width="18" height="10" fill="#78909c"/>';
+    mach+='<g transform="translate(186 116)"><rect width="22" height="40" rx="4" fill="#ffb74d" stroke="#e65100" stroke-width="2.5"/>'+
+      '<g clip-path="url(#cplClip)"><g class="cpl" style="animation-duration:'+(cure?'.25s':'.25s')+'"><rect x="0" y="6" width="22" height="5" fill="#e65100" opacity=".55"/><rect x="0" y="26" width="22" height="5" fill="#e65100" opacity=".55"/></g></g></g>';
+    mach+='<rect x="208" y="122" width="38" height="28" rx="5" fill="url(#grayG)" stroke="#455a64" stroke-width="2.5"/><rect x="216" y="150" width="22" height="34" fill="#607d8b"/>';
+    /* ท่อดูด + วาล์ว */
+    var cav=c.suc&&c.suc.hf>3;
+    mach+='<rect x="334" y="122" width="66" height="20" fill="url(#pipeG)" stroke="#78909c" stroke-width="2"/>';
+    mach+='<path d="M366 120 l12 12 l-12 12 z M390 120 l-12 12 l12 12 z" fill="#ef5350" stroke="#b71c1c" stroke-width="2"/>';
+    mach+='<rect x="376" y="104" width="4" height="18" fill="#455a64"/><ellipse cx="378" cy="103" rx="'+(cav?6:12)+'" ry="4" fill="#d32f2f" stroke="#7f0000" stroke-width="2"/>';
+    var sb=suctionBarg(c.suc);
+    mach+='<rect x="346" y="106" width="3" height="16" fill="#78909c"/>'+gaugeSvg(347.5,94,12,(sb+1)/2,0,false).replace('<g>','<g>');
+    /* ท่อจ่าย */
+    mach+='<rect x="282" y="46" width="20" height="44" fill="url(#pipeG)" stroke="#78909c" stroke-width="2"/><rect x="282" y="40" width="118" height="20" fill="url(#pipeG)" stroke="#78909c" stroke-width="2"/>';
+    mach+='<rect x="262" y="66" width="20" height="3" fill="#78909c"/>'+gaugeSvg(254,67,12,c.dis/6,0.85,!!c.disJ && !cure);
+    /* volute + ใบพัด */
+    mach+='<circle cx="292" cy="132" r="46" fill="url(#tealG)" stroke="#006064" stroke-width="3.5"/>';
+    mach+='<circle cx="292" cy="132" r="30" fill="#e0f7fa" stroke="#006064" stroke-width="2.5"/>';
+    mach+='<g class="spin" style="--spd:'+spd+'">';for(var b=0;b<6;b++)mach+='<path d="M292 132 q10 -6 12 -24" transform="rotate('+(b*60)+' 292 132)" stroke="#00838f" stroke-width="5" fill="none" stroke-linecap="round"/>';
+    mach+='<circle cx="292" cy="132" r="6" fill="#006064"/></g>';
+    if(cav&&!cure){for(var q=0;q<6;q++)mach+='<circle class="puls" style="animation-delay:'+(q*0.17)+'s" cx="'+(280+((q*7)%26))+'" cy="'+(120+((q*11)%24))+'" r="'+(2+q%2)+'" fill="#fff" stroke="#4dd0e1" stroke-width="1"/>';}
+    mach+='<rect x="268" y="176" width="48" height="8" fill="#006064"/>';
+    pts={nde:[56,137,0,-11],de:[154,137,0,-11],body:[62,164,0,-10],tb:[104,90,0,-11],drv:[227,136,0,-11]};
+  }else if(c.type==='fan'){
+    mach+=motorSvg(40,118,104,62,P,cure);
+    mach+='<rect x="144" y="145" width="16" height="8" fill="#78909c"/>';
+    /* filter box + manometer */
+    var clog=c.dp>280;
+    mach+='<rect x="348" y="98" width="18" height="28" fill="url(#pipeG)" stroke="#78909c" stroke-width="2"/>';
+    mach+='<rect x="362" y="70" width="34" height="96" rx="5" fill="#eceff1" stroke="#607d8b" stroke-width="2.5"/>';
+    for(var pl=0;pl<7;pl++)mach+='<path d="M366 '+(78+pl*12)+' l13 6 l13 -6" stroke="'+(clog?'#795548':'#90a4ae')+'" stroke-width="2" fill="none"/>';
+    mach+='<rect x="377" y="54" width="3" height="16" fill="#78909c"/>'+gaugeSvg(378.5,42,12,c.dp/400,0.75,false);
+    /* fan scroll + outlet */
+    mach+='<rect x="262" y="14" width="44" height="50" fill="url(#grayG)" stroke="#455a64" stroke-width="2.5"/>';
+    mach+='<circle cx="284" cy="112" r="66" fill="url(#grayG)" stroke="#37474f" stroke-width="3.5"/>';
+    mach+='<circle cx="284" cy="112" r="50" fill="#e8eaf6" stroke="#455a64" stroke-width="2.5"/>';
+    mach+='<g class="spin" style="--spd:'+spd+'">';for(var bl=0;bl<10;bl++)mach+='<path d="M284 76 q8 8 4 18" transform="rotate('+(bl*36)+' 284 112)" stroke="#5c6bc0" stroke-width="5" fill="none" stroke-linecap="round"/>';mach+='</g>';
+    mach+='<rect x="268" y="176" width="32" height="8" fill="#37474f"/>';
+    /* มู่เล่ย์ + สายพาน */
+    mach+='<circle cx="164" cy="149" r="15" fill="#90a4ae" stroke="#37474f" stroke-width="3"/>';
+    mach+='<circle cx="284" cy="112" r="22" fill="#90a4ae" stroke="#37474f" stroke-width="3"/>';
+    mach+='<g class="spin" style="--spd:'+spd+'"><path d="M284 92 v40 M264 112 h40" stroke="#455a64" stroke-width="4"/></g>';
+    mach+='<g class="spin" style="--spd:.3s"><path d="M164 137 v24 M152 149 h24" stroke="#455a64" stroke-width="3.5"/></g>';
+    var loose=c.looseBelt&&!cure, beltCls=loose?'beltSlow':'beltRun';
+    mach+='<path class="'+beltCls+'" d="M164 134 L284 90" stroke="#263238" stroke-width="5" fill="none"/>';
+    if(loose)mach+='<g class="sag"><path class="'+beltCls+'" d="M164 164 Q228 '+(184)+' 284 134" stroke="#263238" stroke-width="5" fill="none"/></g>';
+    else mach+='<path class="'+beltCls+'" d="M164 164 L284 134" stroke="#263238" stroke-width="5" fill="none"/>';
+    pts={nde:[52,140,0,-11],de:[132,140,0,-11],body:[58,168,0,-10],tb:[92,108,0,-11],drv:[284,112,0,-11]};
+  }else{ /* comp */
+    mach+=motorSvg(40,98,128,78,P,cure);
+    mach+='<rect x="168" y="131" width="18" height="10" fill="#78909c"/>';
+    mach+='<g transform="translate(186 116)"><rect width="22" height="40" rx="4" fill="#ffb74d" stroke="#e65100" stroke-width="2.5"/>'+
+      '<g clip-path="url(#cplClip)"><g class="cpl" style="animation-duration:.14s"><rect x="0" y="6" width="22" height="5" fill="#e65100" opacity=".55"/><rect x="0" y="26" width="22" height="5" fill="#e65100" opacity=".55"/></g></g></g>';
+    mach+='<rect x="208" y="92" width="124" height="86" rx="16" fill="url(#tealG)" stroke="#006064" stroke-width="3.5"/>';
+    mach+='<circle cx="248" cy="136" r="22" fill="#e0f7fa" stroke="#006064" stroke-width="2.5"/><circle cx="294" cy="136" r="22" fill="#e0f7fa" stroke="#006064" stroke-width="2.5"/>';
+    mach+='<g class="spin" style="--spd:.35s">';for(var lb=0;lb<4;lb++)mach+='<ellipse cx="248" cy="124" rx="5" ry="10" transform="rotate('+(lb*90)+' 248 136)" fill="#00838f"/>';mach+='</g>';
+    mach+='<g class="spinR" style="--spd:.52s">';for(var lf=0;lf<6;lf++)mach+='<path d="M294 116 q4 10 0 20" transform="rotate('+(lf*60)+' 294 136)" stroke="#00838f" stroke-width="4" fill="none"/>';mach+='</g>';
+    mach+='<rect x="212" y="178" width="116" height="6" fill="#006064"/>';
+    /* หม้อกรองอากาศ */
+    var clg=c.dp>50;
+    mach+='<rect x="258" y="80" width="20" height="14" fill="#78909c"/><rect x="234" y="38" width="68" height="44" rx="12" fill="#eceff1" stroke="#607d8b" stroke-width="2.5"/>';
+    for(var pp=0;pp<6;pp++)mach+='<line x1="'+(244+pp*10)+'" y1="44" x2="'+(244+pp*10)+'" y2="76" stroke="'+(clg?'#795548':'#b0bec5')+'" stroke-width="3"/>';
+    mach+='<rect x="302" y="56" width="10" height="3" fill="#78909c"/>'+gaugeSvg(322,57,11,c.dp/80,50/80,false);
+    /* ท่อลมออก */
+    mach+='<rect x="332" y="112" width="68" height="14" fill="url(#pipeG)" stroke="#78909c" stroke-width="2"/>';
+    mach+='<rect x="364" y="96" width="3" height="16" fill="#78909c"/>'+gaugeSvg(365.5,86,11,c.dis/10,0.9,false);
+    pts={nde:[56,137,0,-11],de:[154,137,0,-11],body:[62,164,0,-10],tb:[104,90,0,-11],drv:[222,108,0,-10]};
+  }
+  s+='<g class="'+(shakeA>0?'shake':'')+'" style="--a:'+shakeA+'">'+mach+'</g>';
+  s+=irSvg(P,pts);
+  if(P.irFlash){s+='<rect class="irSweep" width="400" height="240" fill="#ff7043" opacity="0"/>';P.irFlash=false;}
+  if(cure)s+='<g class="pop"><circle cx="40" cy="80" r="16" fill="#1fb45f" stroke="#fff" stroke-width="3"/><text x="40" y="86" font-size="17" font-weight="700" text-anchor="middle" fill="#fff">✔</text></g>';
+  $('scene').innerHTML=s;
+}
+
+/* ═════════ UI ═════════ */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2400);}
+function faceEmoji(P){if(P.cured)return '😄';return P.c.face.m==='sick'?'🤒':'😐';}
+function renderBeds(){
+  var box=$('beds');box.innerHTML='';
+  pats.forEach(function(P,i){var b=document.createElement('button');
+    b.className='bedBtn'+(i===cur?' sel':'')+(P.cured?' done':'');
+    b.innerHTML='<span class="em">'+faceEmoji(P)+'</span><span>เตียง '+(i+1)+'<br><small style="font-weight:500">'+P.c.tag+(P.cured?' ✔':'')+'</small></span>';
+    b.addEventListener('click',function(){if(cur!==i){cur=i;sClick();stopSound();renderAll();}});
+    box.appendChild(b);});
+  box.style.display=pats.length>1?'flex':'none';
+}
+function gaugeChips(c){
+  var s='';
+  if(c.type==='pump'){var sb=suctionBarg(c.suc);
+    s+='<span class="chip '+(sb<0?'bad':'ok')+'">เกจดูด '+(sb>=0?'+':'')+f2(sb)+' bar g</span>';
+    s+='<span class="chip '+(c.disJ?'warn':'ok')+'">เกจจ่าย '+f1(c.dis)+' bar g'+(c.disJ?' (แกว่ง ±0.3)':'')+'</span>';}
+  else if(c.type==='fan'){s+='<span class="chip '+(c.dp>280?'bad':'ok')+'">ΔP ไส้กรอง '+c.dp+' Pa (เปลี่ยนที่ 300)</span>';}
+  else{s+='<span class="chip '+(c.dp>50?'bad':'ok')+'">ΔP กรองอากาศ '+c.dp+' mbar (เตือน 50)</span><span class="chip ok">ลมออก '+f1(c.dis)+' bar g</span>';}
+  return s;
+}
+function renderChart(){
+  var P=pats[cur],c=P.c;
+  $('chart').innerHTML='<div class="pname">🏷 '+c.tag+' · '+c.nm+(P.cured?' <span class="chip ok">หายแล้ว ✔</span>':'')+'</div>'+
+    '<div class="plate">'+PLATE[c.type].txt+'</div>'+
+    '<div class="cmp">🗣 '+c.cmp+'</div>'+
+    '<div class="gg"><span style="font-size:.8rem;color:#55657c">👀 เกจหน้าเครื่อง (ดูฟรี):</span>'+gaugeChips(c)+'</div>';
+}
+function renderTools(){
+  var P=pats[cur];
+  TORDER.forEach(function(t){var b=$('t_'+t);b.classList.toggle('used',!!P.used[t]);b.classList.toggle('view',P.view===t);
+    b.disabled=!running||P.cured&&!P.used[t];
+    var ck=b.querySelector('.ck');if(P.used[t]&&!ck){ck=document.createElement('span');ck.className='ck';ck.textContent='✔';b.appendChild(ck);}
+    if(!P.used[t]&&ck)ck.remove();});
+  $('examMin').textContent=P.min;$('useN').textContent=P.order.length;
+  $('dxBtn').disabled=!running||P.cured;
+  $('dxBtn').textContent=P.cured?'✔ เตียงนี้รักษาแล้ว':'🩺 วินิจฉัย + สั่งรักษา';
+}
+function spectrumSvg(v){
+  var W=340,H=150,x0=34,x1=W-8,y0=12,y1=118,maxO=12.5;
+  var mx=0;v.pk.forEach(function(p){mx=Math.max(mx,p[1]);});var ym=Math.max(1,Math.ceil(mx*1.15));
+  var X=function(o){return x0+o/maxO*(x1-x0);},Y=function(a){return y1-a/ym*(y1-y0);};
+  var s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="display:block;max-height:190px">';
+  s+='<rect x="'+X(8)+'" y="'+y0+'" width="'+(X(maxO)-X(8))+'" height="'+(y1-y0)+'" fill="#fff3e0"/>';
+  s+='<text x="'+((X(8)+X(maxO))/2)+'" y="'+(y0+10)+'" font-size="9" text-anchor="middle" fill="#e65100" font-family="Mitr,sans-serif">ย่านความถี่สูง</text>';
+  for(var g=0;g<=ym;g+=(ym>4?2:1)){s+='<line x1="'+x0+'" y1="'+Y(g)+'" x2="'+x1+'" y2="'+Y(g)+'" stroke="#e3e8f2" stroke-width="1"/>'+
+    '<text x="'+(x0-4)+'" y="'+(Y(g)+3)+'" font-size="9" text-anchor="end" fill="#6a7a90">'+g+'</text>';}
+  /* noise floor (deterministic) */
+  var fl='',seed=7;for(var o=0;o<=maxO;o+=0.12){seed=(seed*9301+49297)%233280;var r=seed/233280;
+    var base=0.04+r*0.05+(v.hf&&o>8?0.12+r*0.12:0)+(v.cav&&o>4.5?0.1+r*0.15:0);fl+=X(o).toFixed(1)+','+Y(base).toFixed(1)+' ';}
+  s+='<polyline points="'+fl+'" fill="none" stroke="#9fa8da" stroke-width="1.2"/>';
+  var sorted=v.pk.slice().sort(function(a,b){return b[1]-a[1];}),lab={},labX=[];for(var k=0;k<Math.min(3,sorted.length);k++){var ox=sorted[k][0],yy=Y(sorted[k][1])-4;labX.forEach(function(q){if(Math.abs(q-ox)<0.5)yy=Math.min(yy,lab[q]-11);});lab[ox]=yy;labX.push(ox);}
+  v.pk.forEach(function(p,i){var col=p[0]<1-0.01?'#8e24aa':(Math.abs(p[0]-Math.round(p[0]))<0.02?(Math.round(p[0])===1?'#3f51b5':(Math.round(p[0])===2?'#00acc1':'#5c6bc0')):'#e65100');
+    s+='<rect class="grow" style="animation-delay:'+(i*60)+'ms" x="'+(X(p[0])-3)+'" y="'+Y(p[1])+'" width="6" height="'+(y1-Y(p[1]))+'" rx="2" fill="'+col+'"/>';
+    if(lab[p[0]])s+='<text class="pop" style="animation-delay:'+(300+i*60)+'ms" x="'+X(p[0])+'" y="'+lab[p[0]]+'" font-size="9.5" font-weight="700" text-anchor="middle" fill="'+col+'">'+(Math.abs(p[0]-Math.round(p[0]))<0.001?Math.round(p[0]):p[0].toFixed(2))+'×</text>';});
+  s+='<line x1="'+x0+'" y1="'+y1+'" x2="'+x1+'" y2="'+y1+'" stroke="#213047" stroke-width="1.5"/>';
+  [1,2,3,4,6,8,10,12].forEach(function(o){s+='<line x1="'+X(o)+'" y1="'+y1+'" x2="'+X(o)+'" y2="'+(y1+4)+'" stroke="#213047"/>'+
+    '<text x="'+X(o)+'" y="'+(y1+14)+'" font-size="9.5" text-anchor="middle" fill="#213047">'+o+'×</text>';});
+  s+='<text x="'+x0+'" y="'+(H-2)+'" font-size="9" fill="#55657c" font-family="Mitr,sans-serif">mm/s rms · อันดับ (×) ของรอบเพลา '+v.rpm+' rpm = '+f1(v.rpm/60)+' Hz</text>';
+  s+='</svg>';return s;
+}
+function zoneBar(v){
+  var M=7,segs=[[0,1.4,'A','#1fb45f'],[1.4,2.8,'B','#9ccc3c'],[2.8,4.5,'C','#f5a623'],[4.5,7,'D','#ef4b4b']],s='<div class="zbar">';
+  segs.forEach(function(g){s+='<span style="width:'+((g[1]-g[0])/M*100)+'%;background:'+g[3]+'">'+g[2]+'</span>';});
+  s+='<div class="zmark" id="zmark" data-l="'+(Math.min(v,M)/M*100)+'" style="left:0%"></div></div>';
+  s+='<div class="zlab"><span>0</span><span style="margin-left:12%">1.4</span><span>2.8</span><span>4.5</span><span>7 mm/s</span></div>';
+  return s;
+}
+function renderResult(){
+  var P=pats[cur],c=P.c,t=P.view,box=$('resPanel'),s='';
+  if(!t){box.innerHTML='<div class="empty">'+(P.cured?'เตียงนี้รักษาแล้ว 😄 — เลือกเตียงอื่น':'เลือกเครื่องมือจากกระเป๋าหมอ เพื่อตรวจคนไข้ 🩺<br><small>ใช้ครั้งแรกเสียเวลาตรวจ · ดูซ้ำฟรี</small>')+'</div>';return;}
+  if(t==='steth'){
+    s+='<h3>🎧 ฟังเสียง: '+c.tag+'</h3><div class="wave'+(P.playing?' play':'')+'" id="wave">';
+    for(var i=0;i<22;i++){var h=c.snd==='normal'?14+((i*7)%10):(c.snd==='gravel'||c.snd==='rattle'||c.snd==='bearing'||c.snd==='grease'?12+((i*37)%44):18+((i*13)%30));
+      s+='<i style="--h:'+h+'px;animation-delay:'+((i*53)%400)+'ms"></i>';}
+    s+='</div><div><b>ได้ยิน:</b> '+c.sndTxt+'</div><div style="text-align:center;margin-top:6px"><button class="relisten" id="relisten">▶ ฟังอีกครั้ง (ฟรี)</button></div>'+
+      (sndOn?'':'<div class="note">🔇 ปิดเสียงอยู่ — อ่านคำบรรยายเสียงแทนได้</div>');
+  }else if(t==='vib'){
+    var v=c.vib,z=zoneOf(v.ov);
+    s+='<h3>📳 วัดสั่น: '+v.pt+'</h3>';
+    s+='<div class="hva">'+['H','V','A'].map(function(d){return '<div class="'+(d===v.dir?'worst':'')+'">'+({H:'แนวนอน H',V:'แนวดิ่ง V',A:'แนวแกน A'}[d])+'<b>'+f2(v.hva[d])+'</b>mm/s</div>';}).join('')+'</div>';
+    s+='<div style="font-size:.84rem">ค่าสูงสุด <b>'+f2(v.ov)+' mm/s rms</b> → <span class="chip" style="background:'+z.c+';color:#fff">โซน '+z.z+'</span> (ISO 10816-3 กลุ่ม 2 ฐานแข็ง)</div>';
+    s+=zoneBar(v.ov);
+    s+='<div style="font-size:.8rem;margin-top:6px;font-weight:600">สเปกตรัม (แนว '+v.dir+'):</div>'+spectrumSvg(v);
+    if(v.rpm!==PLATE[c.type].rpm&&c.type==='fan')s+='<div class="note">1× ที่วัดได้ = '+f1(v.rpm/60)+' Hz = <b>'+v.rpm+' rpm</b> (ป้ายพัดลม '+PLATE.fan.fanRpm+' rpm)</div>';
+    if(v.elec)s+='<div class="note">ℹ มอเตอร์ 2 โพล: 2× (98.3 Hz) อยู่ติดกับ 2×ความถี่ไฟ (100 Hz) — ต้องใช้ความละเอียดสูงจึงแยกได้ · ค่ารวมยังโซน A</div>';
+  }else if(t==='ir'){
+    var ir=c.ir,lbl={nde:'แบริ่งมอเตอร์ท้าย (NDE)',de:'แบริ่งมอเตอร์หน้า (DE)',body:'ผิวโครงมอเตอร์',tb:'กล่องต่อสาย (ขั้วสาย)',drv:(c.type==='pump'?'แบริ่งปั๊ม':(c.type==='fan'?'แบริ่งพัดลม':'แบริ่งสกรู airend'))};
+    s+='<h3>🌡 IR gun (อากาศรอบ 35 °C)</h3>';
+    ['nde','de','body','tb','drv'].forEach(function(k){var col=tempCol(ir[k],k),lim=kindLim(k);
+      var st=col==='#1fb45f'?'<span class="chip ok">ปกติ</span>':(col==='#f5a623'?'<span class="chip warn">สูง</span>':'<span class="chip bad">ร้อนจัด</span>');
+      s+='<div class="irrow"><span class="p">'+lbl[k]+' <small style="color:#8795a8">(≤'+lim[0]+')</small></span><b style="color:'+col+'">'+ir[k]+' °C</b>'+st+'</div>';});
+    s+='<div class="note">ดูจุดวัดและไอร้อนบนภาพเครื่องได้เลย</div>';
+  }else if(t==='amp'){
+    var a=c.amp,avg=(a[0]+a[1]+a[2])/3,ub=unbalPct(a),fla=PLATE[c.type].FLA;
+    s+='<h3>⚡ แคลมป์มิเตอร์ (กระแส 3 เฟส)</h3>';
+    ['L1','L2','L3'].forEach(function(p,i){s+='<div class="amprow"><span class="p">'+p+'</span><div class="tr"><div class="fl" data-w="'+(a[i]/(fla*1.15)*100)+'" style="width:0%"></div></div><b>'+f1(a[i])+' A</b></div>';});
+    s+='<div style="margin-top:6px;font-size:.85rem">เฉลี่ย <b>'+f1(avg)+' A</b> = '+Math.round(avg/fla*100)+'% ของ FLA '+fla+' A</div>';
+    s+='<div style="font-size:.85rem">ไม่สมดุล <b>'+f1(ub)+'%</b> '+(ub>10?'<span class="chip bad">เกิน 10% (NEMA)</span>':'<span class="chip ok">≤ 10% ผ่าน</span>')+'</div>';
+    var ref={pump:'~27.8 A',fan:'~23 A',comp:'~60 A'}[c.type];
+    s+='<div class="note">ค่าปกติของเครื่องรุ่นนี้ที่โหลดเดียวกัน '+ref+' · P_in ≈ √3·V·I·PF = '+f1(pIn(400,avg,c.type==='comp'?0.88:0.85))+' kW</div>';
+  }
+  box.innerHTML=s;
+  var rl=$('relisten');if(rl)rl.addEventListener('click',function(){listen(P);});
+  requestAnimationFrame(function(){var zm=$('zmark');if(zm)zm.style.left=zm.dataset.l+'%';
+    var fs=box.querySelectorAll('.amprow .fl');fs.forEach(function(f){f.style.width=Math.min(100,f.dataset.w)+'%';});});
+}
+function renderAll(){drawScene();renderBeds();renderChart();renderTools();renderResult();}
+
+/* ═════════ การใช้เครื่องมือ ═════════ */
+function listen(P){P.playing=true;playSound(P.c.snd);clearTimeout(sndTimer);
+  var w=$('wave');if(w)w.classList.add('play');
+  sndTimer=setTimeout(function(){P.playing=false;var w2=$('wave');if(w2)w2.classList.remove('play');},2600);}
+function useTool(t){
+  var P=pats[cur];if(!running||!P)return;audio();
+  if(P.cured&&!P.used[t])return;
+  if(!P.used[t]){P.used[t]=true;P.order.push(t);P.min+=TOOLS[t].min;
+    if(t==='steth')say('🎧 แนบหูฟังที่ตัวเครื่อง… ฟังให้ดี',1800);
+    else if(t==='vib'){sBeep();say('📳 วัดที่แบริ่ง 3 แนว H/V/A + สเปกตรัม',1800);}
+    else if(t==='ir'){sBeep();P.irFlash=true;say('🌡 ยิง IR 5 จุด',1500);}
+    else if(t==='amp'){sBeep();say('⚡ คล้องสายทีละเฟส L1 L2 L3',1600);}
+  }else sClick();
+  P.view=t;
+  if(t==='steth')P.playing=true;
+  renderAll();
+  if(t==='steth')listen(P);
+}
+
+/* ═════════ วินิจฉัย ═════════ */
+function openDx(){
+  var P=pats[cur];if(!running||P.cured)return;audio();sClick();
+  dxSel={dz:null,tx:null};$('dxName').textContent=P.c.tag;$('dxFb').classList.remove('show');
+  buildOpts();$('dxOv').classList.add('show');
+}
+function buildOpts(){
+  var g1=$('dzGrid'),g2=$('txGrid');g1.innerHTML='';g2.innerHTML='';
+  DZORDER.forEach(function(k){var b=document.createElement('button');b.className='opt'+(dxSel.dz===k?' sel':'');b.textContent=DZ[k].nm;
+    b.addEventListener('click',function(){dxSel.dz=k;sClick();buildOpts();});g1.appendChild(b);});
+  TXORDER.forEach(function(k){var b=document.createElement('button');b.className='opt'+(dxSel.tx===k?' sel':'');b.textContent=TX[k].nm;
+    b.addEventListener('click',function(){dxSel.tx=k;sClick();buildOpts();});g2.appendChild(b);});
+  $('dxOk').disabled=!(dxSel.dz&&dxSel.tx);
+}
+function wrongMsg(P,dz,tx){
+  var c=P.c,m='';
+  if(dz!==c.dz){
+    m='❌ ยังไม่ใช่ "'+DZ[dz].nm+'" — โรคนี้ต้องเห็น: '+DZ[dz].sig+'.';
+    var notUsed=c.key.filter(function(k){return !P.used[k];});
+    if(notUsed.length)m+=' ลองตรวจด้วย '+notUsed.map(function(k){return TOOLS[k].ic+' '+TOOLS[k].sh;}).join(' / ')+' ดูก่อน';
+    else m+=' ลองดูผลจาก '+c.key.map(function(k){return TOOLS[k].ic;}).join(' ')+' อีกครั้ง';
+  }else{
+    m='⚠ วินิจฉัยถูก แต่วิธีรักษาไม่ตรงต้นเหตุ'+(TX[tx].bad?': '+TX[tx].bad:' — "'+TX[tx].nm+'" ไม่ได้แก้ '+DZ[dz].nm);
+  }
+  return m;
+}
+function confirmDx(){
+  var P=pats[cur],c=P.c;if(!dxSel.dz||!dxSel.tx)return;
+  if(dxSel.dz===c.dz&&dxSel.tx===DZ[c.dz].tx){
+    P.cured=true;P.tSolved=LEVELS[level].t?LEVELS[level].t-timeLeft:0;
+    $('dxOv').classList.remove('show');sGood();stopSound();
+    say('✔ ถูกต้อง! '+DZ[c.dz].nm+' — รักษาแล้ว 😄',2200);
+    renderAll();
+    var left=pats.filter(function(p){return !p.cured;});
+    if(!left.length){running=false;setTimeout(finishLevel,1100);}
+    else setTimeout(function(){if(!running)return;cur=pats.indexOf(left[0]);renderAll();say('ต่อไป: เตียง '+(cur+1)+' · '+pats[cur].c.tag,1800);},1300);
+  }else{
+    P.wrong++;P.wrongPicks.push({dz:dxSel.dz,tx:dxSel.tx});sBad();
+    var fb=$('dxFb');fb.textContent=wrongMsg(P,dxSel.dz,dxSel.tx);fb.classList.add('show');try{fb.scrollIntoView({block:'nearest',behavior:reduceMotion?'auto':'smooth'});}catch(e){}
+  }
+}
+
+/* ═════════ ดาว / เฉลย ═════════ */
+function usedKey(P){if(P.c.gaugeKey)return true;for(var i=0;i<P.c.key.length;i++)if(P.used[P.c.key[i]])return true;return false;}
+function patStars(P){if(!P.cured)return 0;if(P.wrong>0)return 1;if(usedKey(P)&&P.order.length<=2)return 3;return 2;}
+function levelStars(){var s=0;pats.forEach(function(P){s+=patStars(P);});return Math.max(1,Math.min(3,Math.round(s/pats.length)));}
+function toolList(arr){return arr.length?arr.map(function(k){return TOOLS[k].ic+' '+TOOLS[k].sh;}).join(', '):'ไม่ได้ใช้เครื่องมือ';}
+function reviewHtml(P,i){
+  var c=P.c,st=patStars(P),li=[];
+  if(!P.cured)li.push('<li class="bad">⏱ หมดเวลาก่อนวินิจฉัย — เตียงนี้ยังไม่ได้รักษา</li>');
+  P.wrongPicks.forEach(function(w,j){
+    if(w.dz!==c.dz)li.push('<li class="bad">ครั้งที่ '+(j+1)+' ตอบ "'+DZ[w.dz].nm+'" — แต่โรคนั้นต้องเห็น '+DZ[w.dz].sig+' ซึ่งเครื่องนี้ไม่มี</li>');
+    else li.push('<li class="bad">ครั้งที่ '+(j+1)+' วินิจฉัยถูกแต่สั่ง "'+TX[w.tx].nm+'"'+(TX[w.tx].bad?' — '+TX[w.tx].bad:' — ไม่แก้ต้นเหตุ')+'</li>');});
+  if(P.cured&&!usedKey(P))li.push('<li class="bad">ไม่ได้ใช้เครื่องมือชี้ขาด ('+toolList(c.key)+') — ครั้งนี้เดาถูก แต่หน้างานต้องยืนยันก่อนสั่งซ่อม</li>');
+  var extra=P.order.filter(function(k){return c.key.indexOf(k)<0;});
+  if(P.order.length>2&&extra.length){var em=extra.reduce(function(s,k){return s+TOOLS[k].min;},0);
+    li.push('<li class="bad">'+toolList(extra)+' ไม่ได้ช่วยแยกโรคนี้ (ค่าปกติ) — เสียเวลาไป '+em+' นาที</li>');}
+  if(st===3)li.push('<li class="good">ตรวจตรงจุด! ใช้ '+toolList(P.order)+(c.gaugeKey&&!P.order.length?' (อ่านเกจอย่างเดียว)':'')+' ก็สรุปได้</li>');
+  else if(st===2&&P.order.length>2&&usedKey(P))li.push('<li>ใช้ '+P.order.length+' ชิ้น — ถ้าเลือกเครื่องมือชี้ขาดก่อน จะได้ ⭐⭐⭐</li>');
+  return '<div class="rv"><div class="h"><span>เตียง '+(i+1)+' · '+c.tag+' '+c.nm+'</span><span>'+'⭐'.repeat(st)+'<span style="opacity:.25">'+'⭐'.repeat(3-st)+'</span></span></div>'+
+    '<div class="ans">✅ '+DZ[c.dz].nm+' → '+TX[DZ[c.dz].tx].nm+'</div>'+
+    '<div class="key">🔑 ชี้ขาด: '+c.keyTxt+'</div>'+
+    '<div style="font-size:.8rem;color:#55657c">คุณใช้: '+toolList(P.order)+' · '+P.min+' นาที'+(P.wrong?' · ตอบผิด '+P.wrong+' ครั้ง':'')+'</div>'+
+    (li.length?'<ul>'+li.join('')+'</ul>':'')+'</div>';
+}
+function finishLevel(){
+  running=false;stopSound();$('timerRow').classList.remove('show');
+  var st=levelStars();
+  if(st>stars[level]){stars[level]=st;saveStars();}
+  var mins=pats.reduce(function(s,P){return s+P.min;},0);totalMin[level]=mins;
+  updateStarTotal();
+  var L=LEVELS[level];
+  $('resTitle').textContent=L.nm;
+  $('resLesson').textContent='💡 '+L.lesson;
+  $('resReview').innerHTML='<div style="font-size:.85rem;color:#55657c">เวลาตรวจรวม '+mins+' นาที'+(L.t?' · เวลาจริง '+Math.round(L.t-Math.max(0,timeLeft))+' วิ':'')+'</div>'+pats.map(reviewHtml).join('');
+  var ss=$('resStars').children;for(var j=0;j<3;j++)ss[j].classList.remove('on');
+  $('resultOv').classList.add('show');$('resultOv').querySelector('.card').scrollTop=0;
+  if(st>=2)sGood();else sBad();
+  for(let k=0;k<st;k++)setTimeout(function(){ss[k].classList.add('on');sStar(k);},350+k*380);
+  if(st===3)confetti(26);
+  $('nextBtn').textContent=level<LEVELS.length-1?'ด่านต่อไป ➜':'ดูสรุป 🏆';
+  renderAll();
+}
+function updateStarTotal(){var t=0;for(var i=0;i<5;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+function confetti(n){if(reduceMotion)return;var cols=['#3f51b5','#00acc1','#ffd23f','#1fb45f','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+function showEnd(){
+  $('endStars').textContent=updateStarTotal();$('endMin').textContent=totalMin.reduce(function(a,b){return a+b;},0);
+  var rows=[['unbalance','📳 1× แนวรัศมี'],['misalign','📳 2× + แนวแกน'],['bearing','🌡 + 🎧 + 📳 HF/BPFO'],['belt','🎧 หวีด + 📳 < 1×'],
+    ['cav','🎧 กรวด + เกจดูด'],['phase','⚡ + 🌡 ขั้วสาย'],['filter','เกจ ΔP + ⚡ ลดลง'],['softfoot','📳 ฮาร์มอนิก + แนวดิ่ง'],['normal','ทุกค่าปกติ → ไม่ซ่อม']];
+  $('sumBox').innerHTML=rows.map(function(r){return '<div class="sumrow"><b>'+DZ[r[0]].nm+'</b><span>'+r[1]+'</span></div>';}).join('');
+  $('endOv').classList.add('show');confetti(40);sGood();
+}
+
+/* ═════════ เริ่มด่าน / ลูปเวลา ═════════ */
+function startLevel(i){
+  level=i;stopSound();
+  var L=LEVELS[i];
+  pats=L.beds.map(function(k){return {id:k,c:CASES[k],used:{},order:[],min:0,wrong:0,wrongPicks:[],cured:false,view:null,playing:false};});
+  cur=0;running=true;timeLeft=L.t;lastTs=0;
+  $('lvlName').textContent=L.nm;$('goalTxt').textContent='🎯 '+L.goal;
+  $('timerRow').classList.toggle('show',!!L.t);$('timerRow').classList.remove('low');
+  if(L.t){$('timeLeft').textContent=L.t;$('timerBar').style.width='100%';}
+  renderAll();
+  say(pats.length>1?'มีคนไข้ '+pats.length+' เตียง — แตะเลือกเตียงด้านบน':'คนไข้มาแล้ว! อ่านบัตรคนไข้ก่อน',2200);
+}
+var lastSec=-1;
+function loop(ts){
+  if(running&&LEVELS[level].t&&!overlayBlocking()){
+    if(lastTs){timeLeft-=(ts-lastTs)/1000;}
+    lastTs=ts;
+    var s=Math.max(0,Math.ceil(timeLeft));$('timeLeft').textContent=s;
+    $('timerBar').style.width=Math.max(0,timeLeft/LEVELS[level].t*100)+'%';
+    $('timerRow').classList.toggle('low',timeLeft<20);
+    if(timeLeft<10&&s!==lastSec){sTick();}lastSec=s;
+    if(timeLeft<=0){running=false;$('dxOv').classList.remove('show');say('⏱ หมดเวลา!',1500);setTimeout(finishLevel,700);}
+  }else lastTs=0;
+  requestAnimationFrame(loop);
+}
+function overlayBlocking(){return $('tutOv').classList.contains('show')||$('fxOv').classList.contains('show');}
+
+/* ═════════ คู่มือวิธีเล่น ═════════ */
+var TUT=[
+ {txt:'คนไข้คือเครื่องจักร! ดูหน้าตา อ่านบัตรคนไข้ และ "เกจหน้าเครื่อง" ซึ่งดูได้ฟรี',
+  svg:'<svg viewBox="0 0 320 160" width="100%" style="max-height:165px">'+
+   '<rect x="20" y="124" width="280" height="10" rx="4" fill="#90a4ae"/><circle cx="36" cy="142" r="6" fill="#455a64"/><circle cx="284" cy="142" r="6" fill="#455a64"/>'+
+   '<g class="shake" style="--a:1.6"><rect x="40" y="62" width="110" height="60" rx="12" fill="#9fa8da" stroke="#283593" stroke-width="3"/>'+
+   '<rect x="78" y="48" width="34" height="15" rx="4" fill="#7986cb" stroke="#283593" stroke-width="3"/>'+
+   '<path d="M70 80 l9 3 M120 80 l-9 3" stroke="#213047" stroke-width="2.6" stroke-linecap="round"/>'+
+   '<path d="M72 89 q5 5 10 0 M108 89 q5 5 10 0" stroke="#213047" stroke-width="3" fill="none" stroke-linecap="round"/>'+
+   '<path d="M85 110 q10 -8 20 0" stroke="#213047" stroke-width="3" fill="none" stroke-linecap="round"/>'+
+   '<path class="drip" d="M132 74 q-4 7 0 10 q4 -3 0 -10z" fill="#4fc3f7"/>'+
+   '<rect x="150" y="86" width="22" height="12" fill="#78909c"/><circle cx="210" cy="92" r="32" fill="#26a69a" stroke="#006064" stroke-width="3"/>'+
+   '<g class="spin" style="--spd:.5s"><path d="M210 72 v40 M190 92 h40" stroke="#e0f7fa" stroke-width="5"/></g></g>'+
+   '<circle cx="270" cy="40" r="16" fill="#fff" stroke="#5c6b80" stroke-width="2.5"/><g class="needleJ" style="transform-origin:270px 40px"><line x1="270" y1="40" x2="262" y2="28" stroke="#d32f2f" stroke-width="2.5" stroke-linecap="round"/></g>'+
+   '<text x="270" y="74" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#55657c">👀 เกจฟรี</text></svg>'},
+ {txt:'กระเป๋าหมอมี 4 เครื่องมือ — ใช้ครั้งแรกเสีย "เวลาตรวจ" (ดูซ้ำฟรี)',
+  svg:'<svg viewBox="0 0 320 160" width="100%" style="max-height:165px">'+
+   [['🎧','2 นาที',40],['📳','6 นาที',120],['🌡','1 นาที',200],['⚡','3 นาที',280]].map(function(t,i){
+     return '<g class="tBob" style="animation-delay:'+(i*0.2)+'s"><rect x="'+(t[2]-32)+'" y="36" width="64" height="70" rx="14" fill="#f4f7fc" stroke="#cfd8ea" stroke-width="3"/>'+
+       '<text x="'+t[2]+'" y="80" font-size="30" text-anchor="middle">'+t[0]+'</text></g>'+
+       '<text x="'+t[2]+'" y="128" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#55657c">'+t[1]+'</text>';}).join('')+
+   '<text x="160" y="152" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#3f51b5" font-weight="600">ฟังเสียง · วัดสั่น · วัดร้อน · วัดกระแส</text></svg>'},
+ {txt:'อ่านสเปกตรัมให้เป็น: 1× เด่น = ไม่สมดุล · 2× + แนวแกน = เยื้องศูนย์ · ความถี่สูง = แบริ่ง',
+  svg:'<svg viewBox="0 0 320 160" width="100%" style="max-height:165px">'+
+   '<line x1="20" y1="120" x2="300" y2="120" stroke="#213047" stroke-width="2"/>'+
+   '<rect x="210" y="20" width="90" height="100" fill="#fff3e0"/>'+
+   '<rect class="grow" x="54" y="34" width="12" height="86" rx="3" fill="#3f51b5" style="animation-iteration-count:infinite;animation-duration:2.4s"/>'+
+   '<rect class="grow" x="94" y="84" width="12" height="36" rx="3" fill="#00acc1" style="animation-iteration-count:infinite;animation-duration:2.4s;animation-delay:.2s"/>'+
+   '<rect class="grow" x="228" y="78" width="10" height="42" rx="3" fill="#e65100" style="animation-iteration-count:infinite;animation-duration:2.4s;animation-delay:.4s"/>'+
+   '<rect class="grow" x="256" y="90" width="10" height="30" rx="3" fill="#e65100" style="animation-iteration-count:infinite;animation-duration:2.4s;animation-delay:.5s"/>'+
+   '<text x="60" y="138" font-size="13" text-anchor="middle" fill="#213047">1×</text><text x="100" y="138" font-size="13" text-anchor="middle" fill="#213047">2×</text>'+
+   '<text x="255" y="138" font-size="12" text-anchor="middle" font-family="Mitr,sans-serif" fill="#e65100">ความถี่สูง</text>'+
+   '<text x="60" y="26" font-size="12" text-anchor="middle" font-family="Mitr,sans-serif" fill="#3f51b5">unbalance</text>'+
+   '<text x="160" y="155" font-size="12" text-anchor="middle" font-family="Mitr,sans-serif" fill="#55657c">แถบสีบอกโซน ISO 10816-3: A · B · C · D</text></svg>'},
+ {txt:'กด 🩺 วินิจฉัย → เลือก "ป่วยเป็นอะไร" + "สั่งรักษา" ให้ตรงต้นเหตุ',
+  svg:'<svg viewBox="0 0 320 160" width="100%" style="max-height:165px">'+
+   '<rect x="20" y="22" width="130" height="34" rx="10" fill="#e8eaf6" stroke="#3f51b5" stroke-width="2.5"/><text x="85" y="44" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#213047">เยื้องศูนย์</text>'+
+   '<rect x="20" y="66" width="130" height="34" rx="10" fill="#f7f9fd" stroke="#dbe2ef" stroke-width="2"/><text x="85" y="88" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#55657c">ไม่สมดุล</text>'+
+   '<rect x="170" y="22" width="130" height="34" rx="10" fill="#e8eaf6" stroke="#3f51b5" stroke-width="2.5"/><text x="235" y="44" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#213047">ตั้งศูนย์เพลา</text>'+
+   '<rect x="170" y="66" width="130" height="34" rx="10" fill="#f7f9fd" stroke="#dbe2ef" stroke-width="2"/><text x="235" y="88" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#55657c">เปลี่ยนมอเตอร์</text>'+
+   '<g class="tTap"><text x="120" y="56" font-size="26">👆</text></g>'+
+   '<g class="tCheck"><circle cx="160" cy="130" r="18" fill="#1fb45f"/><text x="160" y="137" font-size="20" font-weight="700" text-anchor="middle" fill="#fff">✔</text></g></svg>'},
+ {txt:'ถูกครั้งแรก + ใช้เครื่องมือชี้ขาด ≤ 2 ชิ้น = ⭐⭐⭐ · ตรวจเยอะ = ⭐⭐ · ตอบผิดแล้วแก้ = ⭐',
+  svg:'<svg viewBox="0 0 320 160" width="100%" style="max-height:165px">'+
+   '<text x="60" y="56" font-size="26" text-anchor="middle">🎧📳</text><text x="150" y="56" font-size="22" text-anchor="middle">➜</text>'+
+   '<g class="tStar"><text x="240" y="58" font-size="30" text-anchor="middle">⭐⭐⭐</text></g>'+
+   '<text x="60" y="104" font-size="20" text-anchor="middle">🎧📳🌡⚡</text><text x="150" y="104" font-size="22" text-anchor="middle">➜</text>'+
+   '<text x="240" y="106" font-size="26" text-anchor="middle">⭐⭐</text>'+
+   '<text x="160" y="146" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#55657c" font-weight="600">หน้าเฉลยบอกว่าเครื่องมือไหน "ชี้ขาด"</text></svg>'}
+];
+var tutPage=0, tutFromStart=false;
+function openTut(fromStart){tutFromStart=!!fromStart;tutPage=0;renderTut();$('tutOv').classList.add('show');}
+function renderTut(){
+  $('tutPic').innerHTML=TUT[tutPage].svg;$('tutTxt').textContent=TUT[tutPage].txt;
+  var d=$('tutDots');d.innerHTML='';
+  for(var i=0;i<TUT.length;i++){var dd=document.createElement('div');dd.className='d'+(i===tutPage?' on':'');d.appendChild(dd);}
+  $('tutPrev').style.visibility=tutPage===0?'hidden':'visible';
+  $('tutNext').textContent=tutPage===TUT.length-1?'เริ่มเล่นเลย! 🚀':'ถัดไป ▶';
+}
+function tutNextFn(){
+  sClick();
+  if(tutPage<TUT.length-1){tutPage++;renderTut();}
+  else{markSeen();$('tutOv').classList.remove('show');
+    if(tutFromStart||$('startOv').classList.contains('show')){$('startOv').classList.remove('show');audio();startLevel(0);}}
+}
+
+/* ═════════ ปุ่ม ═════════ */
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<LEVELS.length;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.2rem">'+LEVELS[i].ic+'</span><span class="nm">ด่าน '+(i+1)+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+function bindUI(){
+  TORDER.forEach(function(t){$('t_'+t).addEventListener('click',function(){useTool(t);});});
+  $('dxBtn').addEventListener('click',openDx);
+  $('dxBack').addEventListener('click',function(){sClick();$('dxOv').classList.remove('show');});
+  $('dxOk').addEventListener('click',confirmDx);
+  $('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(0);});
+  $('howBtn').addEventListener('click',function(){audio();sClick();openTut(false);});
+  $('helpBtn').addEventListener('click',function(){audio();sClick();openTut(false);});
+  $('tutPrev').addEventListener('click',function(){if(tutPage>0){tutPage--;renderTut();sClick();}});
+  $('tutNext').addEventListener('click',tutNextFn);
+  $('fxBtn').addEventListener('click',function(){audio();sClick();$('fxOv').classList.add('show');$('fxBtn').classList.add('on');});
+  $('fxClose').addEventListener('click',function(){sClick();$('fxOv').classList.remove('show');$('fxBtn').classList.remove('on');});
+  $('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(level);});
+  $('nextBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');
+    if(level<LEVELS.length-1)startLevel(level+1);else showEnd();});
+  $('againBtn').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+  $('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(!sndOn)stopSound();else sClick();});
+  document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+}
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();bindUI();
+startLevel(0);running=false;renderTools();
+requestAnimationFrame(loop);
+if(!seenTut())setTimeout(function(){openTut(true);},500);
+
+/* ── debug/QA API ── */
+window.GAME={CASES:CASES,LEVELS:LEVELS,DZ:DZ,TX:TX,PLATE:PLATE,zoneOf:zoneOf,overall:overall,unbalPct:unbalPct,bpfo:bpfo,bpfi:bpfi,beltHz:beltHz,
+  suctionBarg:suctionBarg,npshaFromHead:npshaFromHead,npshaFromGauge:npshaFromGauge,pIn:pIn,SUC_N:SUC_N,SUC_CAV:SUC_CAV,NPSHR:NPSHR,
+  startLevel:startLevel,useTool:useTool,finish:finishLevel,
+  select:function(i){cur=i;renderAll();},
+  diagnose:function(dz,tx){openDx();dxSel={dz:dz,tx:tx};buildOpts();confirmDx();},
+  state:function(){return {level:level,cur:cur,running:running,timeLeft:timeLeft,stars:stars.slice(),
+    pats:pats.map(function(P){return {id:P.id,cured:P.cured,wrong:P.wrong,uses:P.order.slice(),min:P.min,st:patStars(P)};})};},
+  setTime:function(t){timeLeft=t;}
+};
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

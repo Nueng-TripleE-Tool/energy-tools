@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Baseline Buster — นักล่าสมการพลังงาน · Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "Baseline Buster — นักล่าสมการพลังงาน" v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: มหาวิทยาลัย / วิศวกรใหม่ (ใช้เปิดหลักสูตร "การวิเคราะห์ข้อมูลพลังงานโดยการสร้างสมการพยากรณ์" 6 ชม.)
+     หลักที่สอน: สร้าง Energy Baseline (EnB) ด้วย regression เดี่ยว/พหุ · เลือกตัวแปรขับเคลื่อน (ผลผลิต, CDD)
+       · อ่าน R² / adj R² / CV(RMSE) / t-stat / p-value · ตัด outlier อย่างมีเหตุผล · CUSUM จับจุดสมรรถนะเปลี่ยน
+     สูตรเบื้องหลัง:
+       ข้อมูลสังเคราะห์ (seed ต่อด่าน): E = a + b·Prod + c·CDD + ε,  ε ~ N(0,σ²)
+       CDD(ฐาน Tb) = Σวัน max(0, T_วัน − Tb)   (อุณหภูมิรายวันจำลองจากค่าเฉลี่ยรายเดือนของเชียงใหม่/ภาคกลาง)
+       OLS: β = (XᵀX)⁻¹Xᵀy  (normal equations, Gauss-Jordan + column scaling)
+       R² = 1 − SSE/SST · adj R² = 1 − (1−R²)(n−1)/(n−p) · p = จำนวนพารามิเตอร์รวมค่าคงที่
+       RMSE = √(SSE/(n−p)) · CV(RMSE) = RMSE/ȳ × 100%  (ASHRAE Guideline 14: ≤ 15% สำหรับข้อมูลรายเดือน)
+       SE(bj) = √(s²·[(XᵀX)⁻¹]jj), s² = SSE/(n−p) · t = bj/SE(bj) · p-value สองทาง จาก t-distribution df = n−p
+       CUSUM_k = Σ(E_จริง − E_คาดการณ์) · ผลประหยัดสะสม = −CUSUM ปลายช่วงรายงาน (IPMVP Option C / ISO 50015)
+     อ้างอิง: ISO 50006:2023 (EnB/EnPI), ISO 50015, IPMVP Core Concepts 2022, ASHRAE Guideline 14-2014 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --mid:#f5a623; --warn:#f5a623; --bad:#ef4b4b;
+  --ind:#3f51b5; --cyan:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+  --scr:#0f1b38; --scr2:#16264d; --grid:#24396b; --axt:#a9bde6;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background-color:#1b2556;
+  background-image:
+    linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px),
+    linear-gradient(180deg,#1b2556 0%,#283593 45%,#12606e 100%);
+  background-size:26px 26px,26px 26px,100% 100%;
+  background-attachment:fixed;
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:880px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+#main{display:flex;flex-direction:column;gap:10px}
+#leftCol,#rightCol{display:flex;flex-direction:column;gap:10px;min-width:0}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.93);
+  border:3px solid #fff;border-radius:18px;padding:7px 10px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hud .lvl-name{font-weight:600;font-size:1rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap;font-size:.95rem}
+#hud button{border:none;background:#eef1fb;border-radius:12px;padding:6px 8px;font-family:inherit;font-size:.92rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:44px}
+#hud button.on{background:#283593;color:#fff}
+#hud #fxBtn{font-size:.82rem;white-space:nowrap}
+
+/* ───── Lab bar: robot + bubble ───── */
+#labBar{display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,#202c66,#1a3f6e);border:3px solid #5c6bc0;
+  border-radius:20px;padding:6px 10px 6px 6px;box-shadow:0 6px 16px rgba(0,0,0,.35);min-height:88px}
+#robot{width:78px;height:86px;flex:0 0 78px;cursor:pointer}
+#sayBox{flex:1;position:relative;background:#fff;border-radius:16px;border:3px solid #4dd0e1;padding:8px 12px;
+  font-size:.9rem;font-weight:500;line-height:1.45;min-height:52px;color:var(--ink)}
+#sayBox:before{content:'';position:absolute;left:-12px;top:22px;border:8px solid transparent;border-right-color:#4dd0e1;border-left:0}
+#sayBox .who{font-size:.72rem;color:#00838f;font-weight:600;display:block}
+#sayTxt{transition:opacity .2s}
+#hintBtn{border:none;background:#ffd23f;color:#5a4300;border-radius:12px;font-family:inherit;font-weight:600;font-size:.8rem;
+  min-height:44px;min-width:44px;padding:4px 8px;cursor:pointer;box-shadow:0 3px 0 #c9a100}
+#hintBtn:active{transform:translateY(2px);box-shadow:0 1px 0 #c9a100}
+
+/* ───── Monitor ───── */
+#mon{background:linear-gradient(180deg,#39477f,#2a3566);border-radius:22px;padding:8px 8px 10px;border:3px solid #7986cb;
+  box-shadow:0 10px 26px rgba(0,0,0,.45),inset 0 2px 0 rgba(255,255,255,.18);position:relative}
+#monTop{display:flex;align-items:center;gap:6px;padding:0 6px 6px;color:#c5cae9;font-size:.78rem;font-weight:600;letter-spacing:.5px}
+#monTop .led{width:9px;height:9px;border-radius:50%;background:#1fb45f;box-shadow:0 0 6px #1fb45f}
+#monTop .led.y{background:#ffd23f;box-shadow:0 0 6px #ffd23f;animation:ledB 1.4s steps(2) infinite}
+#monTop .led.r{background:#ff5d8f;box-shadow:0 0 6px #ff5d8f;animation:ledB 2.2s steps(2) infinite .5s}
+#monTop .ttl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+#monTop .tm{background:#10183a;border-radius:8px;padding:2px 8px;color:#80deea;font-variant-numeric:tabular-nums}
+@keyframes ledB{0%{opacity:1}50%{opacity:.25}}
+.screen{background:radial-gradient(ellipse at 50% 30%,#1a2d5c,var(--scr) 75%);border-radius:14px;border:2px solid #0a1230;
+  position:relative;overflow:hidden}
+.screen:after{content:'';position:absolute;left:0;right:0;top:-40%;height:30%;background:linear-gradient(180deg,transparent,rgba(128,222,234,.06),transparent);
+  animation:scan 5s linear infinite;pointer-events:none}
+@keyframes scan{to{top:120%}}
+.screen svg{display:block;width:100%;height:auto}
+.scrLbl{position:absolute;left:10px;top:6px;color:#80deea;font-size:.74rem;font-weight:600;pointer-events:none;z-index:2}
+#scr2{margin-top:6px}
+#chart{touch-action:manipulation}
+.ax text{fill:var(--axt);font-size:10.5px;font-family:Mitr,sans-serif}
+.ax .gl{stroke:var(--grid);stroke-width:1}
+.ax .zl{stroke:#5c76b5;stroke-width:1.4}
+.ax .at{fill:#cfd8f5;font-size:11px;font-weight:500}
+.pt{transition:transform .55s cubic-bezier(.3,.9,.3,1.1);cursor:pointer}
+.pt .pc{fill:#4dd0e1;stroke:#0f1b38;stroke-width:1.5;transform-box:fill-box;transform-origin:center;animation:popIn .45s cubic-bezier(.34,1.7,.6,1) both}
+.pt .hit{fill:transparent}
+.pt.flag .pc{fill:#0f1b38;stroke:#ff8a80;stroke-width:2.2;stroke-dasharray:3 2}
+.pt.sus .pc{fill:#ffd23f}
+.pt.sel .pc{fill:#ff5d8f;stroke:#fff;stroke-width:2}
+.pt.rep .pc{fill:#ffb74d}
+@keyframes popIn{0%{transform:scale(0)}70%{transform:scale(1.5)}100%{transform:scale(1)}}
+.regL{stroke:#ff5d8f;stroke-width:3.2;stroke-linecap:round;fill:none}
+.userL{stroke:#ffd23f;stroke-width:3;stroke-linecap:round;stroke-dasharray:8 5}
+.handle{cursor:grab;touch-action:none}
+.handle .hc{fill:#ffd23f;stroke:#fff;stroke-width:3}
+.handle .hr{fill:none;stroke:#ffd23f;stroke-width:2;opacity:.6;transform-box:fill-box;transform-origin:center;animation:ring 1.6s ease-out infinite}
+@keyframes ring{0%{transform:scale(.7);opacity:.8}100%{transform:scale(1.8);opacity:0}}
+.resb{transition:y .35s,height .35s}
+.cuL{stroke:#69f0ae;stroke-width:3;fill:none;stroke-linejoin:round}
+.tip rect{fill:#fff}
+.tip text{fill:#213047;font-size:11px;font-weight:600;font-family:Mitr,sans-serif}
+
+/* ───── Panel ───── */
+#panel{background:#fff;border-radius:20px;padding:12px 14px 14px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:10px}
+.goal{font-size:.93rem;font-weight:600;text-align:left;background:#e8eaf6;border:2px dashed #7986cb;border-radius:14px;padding:8px 12px;line-height:1.5}
+.goal b{color:#283593}
+#ctrl{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chipBtn{border:3px solid #c5cae9;background:#f5f6fd;border-radius:14px;padding:8px 12px;font-family:inherit;font-size:.95rem;font-weight:600;
+  cursor:pointer;min-height:48px;color:var(--ink);flex:1;min-width:90px;transition:transform .1s,border-color .2s,background .2s}
+.chipBtn small{display:block;font-weight:500;font-size:.75rem;color:#5c6b8a}
+.chipBtn.on{border-color:#3f51b5;background:#e3e7ff;box-shadow:0 0 0 3px rgba(63,81,181,.18)}
+.chipBtn:active{transform:scale(.97)}
+.chipBtn:disabled{opacity:.55;cursor:default}
+.vtog{display:flex;align-items:center;gap:10px;border:3px solid #dfe3f5;border-radius:14px;padding:6px 10px;min-height:50px;cursor:pointer;background:#fafbff}
+.vtog.on{border-color:#00acc1;background:#e0f7fa}
+.vtog .bx{width:26px;height:26px;border-radius:8px;border:3px solid #9fa8da;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;flex:0 0 26px}
+.vtog.on .bx{background:#00acc1;border-color:#00acc1}
+.vtog .nm{flex:1;font-weight:600;font-size:.93rem}
+.vtog .nm small{display:block;font-weight:400;font-size:.74rem;color:#6a7a90}
+.vtog .tv{font-size:.8rem;font-weight:600;border-radius:999px;padding:2px 9px;background:#eceff1;color:#6a7a90;white-space:nowrap}
+.vtog .tv.ok{background:#e3f6ea;color:#1b7a43}
+.vtog .tv.no{background:#ffe5e5;color:#b3261e}
+#stats{display:flex;flex-direction:column;gap:6px}
+.eq{font-family:'Mitr',monospace;background:#10183a;color:#80deea;border-radius:12px;padding:8px 10px;font-size:.88rem;line-height:1.45;word-break:break-word}
+.eq b{color:#ffd23f;font-weight:600}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.met{background:#f1f3fb;border-radius:12px;padding:5px 4px;text-align:center}
+.met .k{font-size:.7rem;color:#5c6b8a;display:block;white-space:nowrap}
+.met .v{font-size:1rem;font-weight:700;color:#283593;font-variant-numeric:tabular-nums}
+.met.ok{background:#e3f6ea}.met.ok .v{color:#1b7a43}
+.met.bad{background:#ffe9e9}.met.bad .v{color:#b3261e}
+.ashrae{font-size:.76rem;color:#5c6b8a;text-align:center}
+table.coef{width:100%;border-collapse:collapse;font-size:.8rem;font-variant-numeric:tabular-nums}
+table.coef th{background:#e8eaf6;color:#283593;font-weight:600;padding:4px 3px}
+table.coef td{padding:4px 3px;text-align:right;border-bottom:1px solid #eef0f8}
+table.coef td:first-child{text-align:left;font-weight:600}
+table.coef .ok{color:#1b7a43;font-weight:700}
+table.coef .no{color:#b3261e;font-weight:700}
+.big-btn{border:none;border-radius:999px;padding:13px 30px;font-family:inherit;font-size:1.12rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #2c387e,0 10px 18px rgba(0,0,0,.2);transition:transform .1s;min-height:48px}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #2c387e}
+.big-btn.alt{background:linear-gradient(135deg,#00acc1,#26c6da);box-shadow:0 6px 0 #00838f,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #00838f}
+.big-btn.gray{background:linear-gradient(135deg,#8ea4bd,#6a7a90);box-shadow:0 6px 0 #4d5d73,0 10px 18px rgba(0,0,0,.18)}
+.big-btn.gray:active{box-shadow:0 2px 0 #4d5d73}
+.big-btn.small{font-size:.98rem;padding:10px 20px;min-height:44px}
+.big-btn:disabled{opacity:.45;cursor:default;transform:none}
+#goBtn{width:100%}
+.sseBox{background:#f1f3fb;border-radius:14px;padding:8px 10px}
+.sseBox .l{display:flex;justify-content:space-between;font-size:.86rem;font-weight:600}
+.sseBox .tr{height:14px;border-radius:8px;background:#dde2f3;overflow:hidden;margin-top:5px}
+.sseBox .fl{height:100%;border-radius:8px;background:linear-gradient(90deg,#00acc1,#3f51b5);transition:width .15s}
+.quiz{background:#fff8e1;border:2px solid #ffd23f;border-radius:14px;padding:10px;font-size:.92rem;font-weight:500;line-height:1.5}
+.numIn{width:100%;font-family:inherit;font-size:1.2rem;font-weight:600;padding:10px 12px;border-radius:14px;border:3px solid #c5cae9;min-height:50px;color:var(--ink)}
+.numIn:focus{outline:none;border-color:#3f51b5}
+.small-note{font-size:.76rem;color:#6a7a90;line-height:1.45}
+
+/* ───── Data table ───── */
+#tblBox{background:#fff;border-radius:18px;box-shadow:0 6px 18px rgba(0,0,0,.25);overflow:hidden}
+#tblBox summary{padding:10px 14px;font-weight:600;cursor:pointer;min-height:44px;list-style:none;display:flex;align-items:center;gap:8px}
+#tblBox summary::-webkit-details-marker{display:none}
+#tblBox summary:after{content:'▾';margin-left:auto;transition:transform .2s}
+#tblBox[open] summary:after{transform:rotate(180deg)}
+.tblWrap{max-height:300px;overflow:auto;padding:0 8px 10px}
+#tbl{width:100%;border-collapse:collapse;font-size:.78rem;font-variant-numeric:tabular-nums}
+#tbl th{position:sticky;top:0;background:#283593;color:#fff;padding:5px 4px;font-weight:600;white-space:nowrap}
+#tbl td{padding:4px;text-align:right;border-bottom:1px solid #eef0f8;white-space:nowrap}
+#tbl td:first-child{text-align:left;font-weight:600}
+#tbl tr.flag td{background:#ffebee;text-decoration:line-through;color:#b3261e}
+#tbl tr.rep td{background:#fff8e1}
+#tbl tr.sel td{background:#fce4ec}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(10,16,40,.66);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+#helpOv{z-index:62}#fxOv{z-index:64}#ptOv{z-index:55}
+.card{background:#fff;border-radius:26px;max-width:480px;width:100%;padding:20px 16px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.45);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.35rem;margin-bottom:6px}
+.card p{font-size:.96rem;line-height:1.55}
+.result-stars{font-size:2.8rem;letter-spacing:6px;margin:4px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e0f7fa;border-radius:14px;padding:9px 12px;font-weight:600;margin:8px 0;font-size:.93rem;color:#00525c}
+.fb{text-align:left;display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.fb .it{background:#f6f7fc;border-radius:12px;padding:7px 10px;font-size:.88rem;line-height:1.5;border-left:5px solid #9fa8da}
+.fb .it.ok{border-left-color:#1fb45f;background:#effaf3}
+.fb .it.no{border-left-color:#ef4b4b;background:#fff1f1}
+.fb .it.tip{border-left-color:#ffd23f;background:#fffbea}
+.fbH{font-weight:700;text-align:left;color:#283593;margin-top:6px;font-size:.95rem}
+.stat-tbl{display:flex;flex-direction:column;gap:4px;margin:6px 0;text-align:left;font-size:.86rem}
+.stat-tbl div{display:flex;justify-content:space-between;gap:8px;background:#f4f6fb;border-radius:10px;padding:5px 10px}
+.stat-tbl b{color:#283593;text-align:right}
+.lvl-pick{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
+.lvl-pick button{border:3px solid #dfe3f5;background:#f7f8fe;border-radius:14px;padding:6px 2px;font-family:inherit;cursor:pointer;min-height:64px}
+.lvl-pick .ic{font-size:1.25rem;display:block}
+.lvl-pick .nm{font-size:.72rem;font-weight:600;display:block;line-height:1.25}
+.lvl-pick .st{font-size:.7rem;letter-spacing:0}
+#startCard h1{font-size:1.75rem;line-height:1.2;background:linear-gradient(135deg,#3f51b5,#00acc1);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard h1 small{display:block;font-size:1.05rem}
+.tgt{display:inline-block;background:#e8eaf6;color:#283593;border-radius:999px;padding:3px 12px;font-size:.8rem;font-weight:600;margin:6px 0}
+#startCard .sub{color:#56657d;margin:4px 0 6px;font-size:.92rem;line-height:1.5}
+.brand{font-size:.78rem;color:#8795a8;margin-top:12px}
+#helpStage{background:#eef1fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:340px;height:auto}
+#helpTxt{font-size:.95rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd6ea}
+.dots i.on{background:var(--cyan);transform:scale(1.2)}
+.help-nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.fxs{text-align:left;font-size:.86rem;line-height:1.55}
+.fxs h3{font-size:.95rem;color:#283593;margin:10px 0 3px}
+.fxs code{display:block;background:#10183a;color:#80deea;border-radius:10px;padding:6px 10px;font-family:'Mitr',monospace;font-size:.84rem;margin:3px 0;white-space:normal}
+.fxs ul{padding-left:18px}
+.ptInfo{text-align:left;background:#f4f6fb;border-radius:12px;padding:8px 12px;font-size:.88rem;line-height:1.6;margin:6px 0}
+.ptInfo b{color:#283593}
+.logNote{background:#fff8e1;border-left:5px solid #ffb300;border-radius:10px;padding:8px 10px;text-align:left;font-size:.9rem;margin:6px 0}
+.rsnBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.rsnBtns button{border:3px solid #dfe3f5;background:#fafbff;border-radius:14px;min-height:52px;font-family:inherit;font-size:.88rem;font-weight:600;cursor:pointer;color:var(--ink);padding:4px}
+.rsnBtns button.on{border-color:#ef4b4b;background:#ffebee}
+.rsnBtns button.keep{border-color:#a5d6a7;background:#f1f8f1}
+.endList{text-align:left;font-size:.9rem;line-height:1.55;display:flex;flex-direction:column;gap:5px;margin:8px 0}
+.endList div{background:#f4f6fb;border-radius:10px;padding:6px 10px}
+.foot{text-align:center;color:#c5cae9;font-size:.78rem;margin-top:4px}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:80;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── Robot animations ───── */
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+#rbAll{animation:bob 2.4s ease-in-out infinite}
+@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+.rEye{transform-box:fill-box;transform-origin:center;animation:blink 3.8s infinite}
+@keyframes ledPulse{0%,100%{opacity:1}50%{opacity:.3}}
+#rbLed{animation:ledPulse 1.2s ease-in-out infinite}
+#rbChest{animation:ledPulse 2s ease-in-out infinite}
+@keyframes talk{0%,100%{transform:scaleY(1)}50%{transform:scaleY(2.2)}}
+#robot.talking #rbMouth{transform-box:fill-box;transform-origin:center;animation:talk .22s ease-in-out 6}
+@keyframes jump{0%,100%{transform:translateY(0)}40%{transform:translateY(-10px)}}
+#robot.happy #rbJump{animation:jump .45s ease-out 2}
+@keyframes lensSw{0%,100%{transform:rotate(0)}50%{transform:rotate(-14deg)}}
+#rbArm{transform-box:fill-box;transform-origin:10% 90%;animation:lensSw 3s ease-in-out infinite}
+
+/* tutorial anims */
+@keyframes hPop{0%,8%{transform:scale(0)}16%{transform:scale(1.4)}22%,100%{transform:scale(1)}}
+.hPop{transform-box:fill-box;transform-origin:center;animation:hPop 4s ease-out infinite}
+@keyframes hRot{0%,100%{transform:rotate(-16deg)}50%{transform:rotate(6deg)}}
+.hRot{transform-origin:60px 112px;animation:hRot 3.2s ease-in-out infinite}
+@keyframes hBar{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.32)}}
+.hBar{transform-box:fill-box;transform-origin:left center;animation:hBar 3.2s ease-in-out infinite}
+@keyframes hChk{0%,30%{opacity:0}40%,100%{opacity:1}}
+.hChk{animation:hChk 3s ease-in-out infinite}
+@keyframes hStrike{0%,55%{stroke-dashoffset:120}75%,100%{stroke-dashoffset:0}}
+.hStrike{stroke-dasharray:120;animation:hStrike 3s ease-in-out infinite}
+@keyframes hTap{0%,100%{transform:scale(.5);opacity:0}30%{opacity:.9}60%{transform:scale(1.8);opacity:0}}
+.hTap{transform-box:fill-box;transform-origin:center;animation:hTap 1.8s ease-out infinite}
+@keyframes hFlag{0%,35%{transform:translateY(10px);opacity:0}50%,100%{transform:translateY(0);opacity:1}}
+.hFlag{animation:hFlag 3s ease-out infinite}
+@keyframes hDraw{0%{stroke-dashoffset:400}60%,100%{stroke-dashoffset:0}}
+.hDraw{stroke-dasharray:400;animation:hDraw 3.4s ease-out infinite}
+@keyframes hFing{0%,100%{transform:translate(0,0)}50%{transform:translate(0,-26px)}}
+.hFing{animation:hFing 3.2s ease-in-out infinite}
+
+@media (prefers-reduced-motion:reduce){
+  #rbAll,.rEye,#rbLed,#rbChest,#robot.talking #rbMouth,#robot.happy #rbJump,#rbArm,.screen:after,#monTop .led,
+  .pt .pc,.handle .hr,.hPop,.hRot,.hBar,.hChk,.hStrike,.hTap,.hFlag,.hDraw,.hFing{animation:none!important}
+  .pt{transition:none}
+}
+@media (max-width:420px){
+  .mets{grid-template-columns:repeat(2,1fr)}
+  #sayBox{font-size:.84rem}
+  .card h2{font-size:1.2rem}
+  #hud .lvl-name{font-size:.9rem}
+}
+@media (min-width:960px){
+  #app{max-width:1120px}
+  #main{display:grid;grid-template-columns:1.2fr 1fr;gap:12px;align-items:start}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">Baseline Buster</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="fxBtn" title="สูตร/ที่มา">📐 สูตร</button>
+  </div>
+
+  <div id="main">
+    <div id="leftCol">
+      <!-- Robot + speech -->
+      <div id="labBar">
+        <svg id="robot" viewBox="0 0 90 100" xmlns="http://www.w3.org/2000/svg" aria-label="หุ่นยนต์ผู้ช่วย ดาต้า">
+          <g id="rbJump"><g id="rbAll">
+            <line x1="45" y1="9" x2="45" y2="21" stroke="#9fa8da" stroke-width="4" stroke-linecap="round"/>
+            <circle id="rbLed" cx="45" cy="8" r="5.5" fill="#ffd23f" stroke="#c9a100" stroke-width="2"/>
+            <rect x="5" y="36" width="9" height="17" rx="3" fill="#00acc1"/>
+            <rect x="76" y="36" width="9" height="17" rx="3" fill="#00acc1"/>
+            <rect x="12" y="20" width="66" height="50" rx="17" fill="#e8ecfb" stroke="#3f51b5" stroke-width="4"/>
+            <rect x="20" y="28" width="50" height="33" rx="10" fill="#10204a"/>
+            <g id="rbEyes">
+              <rect class="rEye" x="29" y="36" width="10" height="12" rx="4" fill="#4dd0e1"/>
+              <rect class="rEye" x="51" y="36" width="10" height="12" rx="4" fill="#4dd0e1"/>
+            </g>
+            <path id="rbMouth" d="M37 53 Q45 58 53 53" stroke="#4dd0e1" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <rect x="26" y="72" width="38" height="22" rx="9" fill="#3f51b5"/>
+            <circle id="rbChest" cx="45" cy="83" r="4.5" fill="#69f0ae"/>
+            <g id="rbArm">
+              <rect x="63" y="74" width="16" height="7" rx="3.5" fill="#5c6bc0"/>
+              <circle cx="82" cy="70" r="7" fill="rgba(178,235,242,.5)" stroke="#ffd23f" stroke-width="3"/>
+            </g>
+          </g></g>
+        </svg>
+        <div id="sayBox"><span class="who">🤖 ดาต้า ผู้ช่วยแล็บ</span><span id="sayTxt">สวัสดีครับ! มาล่าสมการพลังงานกัน</span></div>
+        <button id="hintBtn" title="ขอคำใบ้">💡<br>ใบ้</button>
+      </div>
+
+      <!-- Monitor -->
+      <div id="mon">
+        <div id="monTop"><span class="led"></span><span class="led y"></span><span class="led r"></span>
+          <span class="ttl" id="monTtl">DATA LAB · MONITOR 01</span><span class="tm" id="timer">00:00</span></div>
+        <div class="screen" id="scr1">
+          <div class="scrLbl" id="c1Lbl">กราฟกระจาย</div>
+          <svg id="chart" viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg" aria-label="กราฟหลัก">
+            <defs><clipPath id="clip1"><rect id="clip1r" x="52" y="36" width="336" height="200"/></clipPath></defs>
+            <g id="c1ax" class="ax"></g>
+            <g id="c1band"></g>
+            <g id="c1ln" clip-path="url(#clip1)"></g>
+            <g id="c1pt"></g>
+            <g id="c1top"></g>
+          </svg>
+        </div>
+        <div class="screen" id="scr2">
+          <div class="scrLbl" id="c2Lbl">Residual รายเดือน</div>
+          <svg id="chart2" viewBox="0 0 400 140" xmlns="http://www.w3.org/2000/svg" aria-label="กราฟรอง">
+            <g id="c2ax" class="ax"></g>
+            <g id="c2ln"></g>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div id="rightCol">
+      <!-- Panel -->
+      <div id="panel">
+        <div class="goal" id="goalTxt">—</div>
+        <div id="ctrl"></div>
+        <div id="stats"></div>
+        <button class="big-btn" id="goBtn">ส่งคำตอบ ✔</button>
+      </div>
+
+      <!-- Data table -->
+      <details id="tblBox">
+        <summary>📋 ตารางข้อมูล <span id="tblN">24</span> เดือน</summary>
+        <div class="tblWrap"><table id="tbl"></table></div>
+      </details>
+      <div class="foot">Energy Skills Lab · Triple E Technology</div>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Start overlay ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.6rem">📈🤖</div>
+    <h1>Baseline Buster<small>นักล่าสมการพลังงาน</small></h1>
+    <div class="tgt">กลุ่ม: มหาวิทยาลัย / วิศวกรใหม่</div>
+    <div class="sub">สร้าง Energy Baseline ด้วย regression · อ่าน R², CV(RMSE), t-stat<br>ตัด outlier อย่างมีเหตุผล · ใช้ CUSUM จับผลประหยัด</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── Help overlay ───── -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2>วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt">—</div>
+    <div class="dots" id="helpDots"></div>
+    <div class="help-nav">
+      <button class="big-btn small gray" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Formula overlay ───── -->
+<div class="overlay" id="fxOv">
+  <div class="card">
+    <h2>📐 สูตร / ที่มา</h2>
+    <div class="fxs">
+      <h3>1) Regression แบบ OLS (Ordinary Least Squares)</h3>
+      <code>E = a + b₁·x₁ + b₂·x₂ + … + ε<br>β = (XᵀX)⁻¹ Xᵀy  — เส้นที่ทำให้ SSE = Σ(y − ŷ)² ต่ำที่สุด</code>
+      <h3>2) ความเหมาะสมของโมเดล</h3>
+      <code>R² = 1 − SSE/SST &nbsp;·&nbsp; adj R² = 1 − (1−R²)(n−1)/(n−p)<br>RMSE = √(SSE/(n−p)) &nbsp;·&nbsp; CV(RMSE) = RMSE/ȳ × 100%</code>
+      <ul><li>n = จำนวนเดือน, p = จำนวนพารามิเตอร์ (รวมค่าคงที่ a)</li>
+        <li>ASHRAE Guideline 14: ข้อมูลรายเดือน CV(RMSE) ≤ 15% และ NMBE ≤ ±5% (OLS ให้ NMBE = 0 ในช่วง baseline เสมอ)</li></ul>
+      <h3>3) ความมีนัยสำคัญของแต่ละตัวแปร</h3>
+      <code>SE(bⱼ) = √(s²·[(XᵀX)⁻¹]ⱼⱼ), s² = SSE/(n−p)<br>t = bⱼ / SE(bⱼ) &nbsp;·&nbsp; p-value จาก t-distribution (df = n−p)</code>
+      <ul><li>กฎหัวแม่มือ |t| &gt; 2 ≈ p &lt; 0.05 → ตัวแปรช่วยอธิบายจริง</li>
+        <li>adj R² จะ "ลดลง" เมื่อเพิ่มตัวแปรที่ |t| &lt; 1</li></ul>
+      <h3>4) Cooling Degree Days</h3>
+      <code>CDD(Tb) = Σ<sub>วัน</sub> max(0, T<sub>เฉลี่ยวัน</sub> − Tb)</code>
+      <ul><li>Tb ≈ balance point ของอาคาร — เลือกค่าที่ให้ R² สูงสุด (ISO 50006 ภาคผนวก)</li></ul>
+      <h3>5) CUSUM และผลประหยัด</h3>
+      <code>CUSUMₖ = Σ<sub>i≤k</sub> (E<sub>จริง</sub> − E<sub>คาดการณ์จาก baseline</sub>)<br>ผลประหยัดสะสม = Σ(E<sub>คาดการณ์</sub> − E<sub>จริง</sub>) = −CUSUM ปลายช่วง</code>
+      <ul><li>ความชันของ CUSUM เปลี่ยน = สมรรถนะเปลี่ยน (มาตรการเริ่มผล / เครื่องเสื่อม)</li>
+        <li>IPMVP Option C (ทั้งโรงงาน) · ISO 50015 (M&amp;V) · ISO 50006 (EnB/EnPI)</li></ul>
+      <h3>สมมติฐานของเกม</h3>
+      <ul><li>ข้อมูลสังเคราะห์: E = a + b·ผลผลิต + c·CDD + สัญญาณรบกวนแบบปกติ (seed คงที่ต่อด่าน)</li>
+        <li>อุณหภูมิรายวันจำลองจากค่าเฉลี่ยรายเดือนเชียงใหม่ (ด่าน 2) / ภาคกลาง (ด่าน 3, 5)</li>
+        <li>ตัวเลขอยู่ในช่วงโรงงานอาหารขนาดกลาง 0.3–0.6 GWh/เดือน และอาคารสำนักงาน 70–190 MWh/เดือน</li></ul>
+    </div>
+    <div style="margin-top:12px"><button class="big-btn small" id="fxClose">ปิด ✔</button></div>
+  </div>
+</div>
+
+<!-- ───── Point (outlier) overlay ───── -->
+<div class="overlay" id="ptOv">
+  <div class="card">
+    <h2 id="ptTitle">ข้อมูลเดือน</h2>
+    <div class="ptInfo" id="ptInfo">—</div>
+    <div class="logNote" id="ptLog">—</div>
+    <div style="font-weight:600;font-size:.92rem;margin-top:6px">ตัดจุดนี้ออกจาก baseline เพราะ…</div>
+    <div class="rsnBtns">
+      <button data-r="oh">🔧 เครื่องหยุดซ่อม</button>
+      <button data-r="mt">📟 มิเตอร์ผิด</button>
+      <button data-r="nr">🤷 ไม่มีเหตุผล<br><small>(แค่ดูแปลก)</small></button>
+      <button data-r="keep" class="keep">✅ เก็บไว้ ไม่ตัด</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Result overlay ───── -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <div id="resEmoji" style="font-size:2.2rem">🏁</div>
+    <h2 id="resTitle">จบด่าน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <div class="fbH">🔎 เฉลย / ข้อคิด</div>
+    <div class="fb" id="resFb"></div>
+    <div class="stat-tbl" id="resStats"></div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small gray" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── End overlay ───── -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.6rem">🏆📈</div>
+    <h2>ปิดแล็บ! คุณคือ Baseline Buster</h2>
+    <p>ได้ดาวทั้งหมด <b id="endStars">0</b> / 15 ดวง</p>
+    <div class="fbH">สรุปบทเรียน 5 ข้อ</div>
+    <div class="endList">
+      <div>① OLS = เส้นที่ SSE ต่ำสุด · b = พลังงานต่อหน่วยส่วนเพิ่ม, a = โหลดพื้นฐาน</div>
+      <div>② CDD ต้องเลือกฐานอุณหภูมิให้ตรง balance point — ดูจาก R²</div>
+      <div>③ ใส่เฉพาะตัวแปรที่มีเหตุผลทางวิศวกรรมและ |t| &gt; 2 · ดู adj R² ไม่ใช่ R²</div>
+      <div>④ ตัด outlier ได้เมื่อมีหลักฐานหน้างานเท่านั้น และต้องบันทึกเหตุผล</div>
+      <div>⑤ CUSUM หักหัว = สมรรถนะเปลี่ยน · ผลประหยัด = Σ(คาดการณ์ − จริง)</div>
+    </div>
+    <p class="small-note">เกณฑ์อ้างอิง: ASHRAE Guideline 14 (CV(RMSE) ≤ 15% รายเดือน) · ISO 50006 · IPMVP</p>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small gray" id="homeBtn">🏠 หน้าแรก</button>
+      <button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ Baseline Buster v0.1 — core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var NS='http://www.w3.org/2000/svg';
+
+/* ───────── คณิต/สถิติ ───────── */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gaussF(r){return function(){var u=0;while(u===0)u=r();var v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};}
+function invert(A){ /* Gauss-Jordan + partial pivot; คืน null ถ้า singular */
+  var n=A.length,M=A.map(function(r,i){var e=new Array(n).fill(0);e[i]=1;return r.slice().concat(e);});
+  for(var c=0;c<n;c++){
+    var p=c;for(var r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;
+    if(Math.abs(M[p][c])<1e-12)return null;
+    var tmp=M[c];M[c]=M[p];M[p]=tmp;
+    var d=M[c][c];for(var j=0;j<2*n;j++)M[c][j]/=d;
+    for(r=0;r<n;r++)if(r!==c){var f=M[r][c];if(f)for(j=0;j<2*n;j++)M[r][j]-=f*M[c][j];}
+  }
+  return M.map(function(r){return r.slice(n);});
+}
+function lgam(x){var c=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];
+  var y=x,tmp=x+5.5;tmp-=(x+0.5)*Math.log(tmp);var ser=1.000000000190015;for(var j=0;j<6;j++)ser+=c[j]/++y;return -tmp+Math.log(2.5066282746310005*ser/x);}
+function betacf(a,b,x){var FP=1e-300,qab=a+b,qap=a+1,qam=a-1,c=1,d=1-qab*x/qap;if(Math.abs(d)<FP)d=FP;d=1/d;var h=d;
+  for(var m=1;m<=300;m++){var m2=2*m,aa=m*(b-m)*x/((qam+m2)*(a+m2));d=1+aa*d;if(Math.abs(d)<FP)d=FP;c=1+aa/c;if(Math.abs(c)<FP)c=FP;d=1/d;h*=d*c;
+    aa=-(a+m)*(qab+m)*x/((a+m2)*(qap+m2));d=1+aa*d;if(Math.abs(d)<FP)d=FP;c=1+aa/c;if(Math.abs(c)<FP)c=FP;d=1/d;var del=d*c;h*=del;if(Math.abs(del-1)<3e-15)break;}
+  return h;}
+function ibeta(x,a,b){if(x<=0)return 0;if(x>=1)return 1;var bt=Math.exp(lgam(a+b)-lgam(a)-lgam(b)+a*Math.log(x)+b*Math.log(1-x));
+  return x<(a+1)/(a+b+2)?bt*betacf(a,b,x)/a:1-bt*betacf(b,a,1-x)/b;}
+function tPval(t,df){if(!isFinite(t))return 0;return ibeta(df/(df+t*t),df/2,0.5);}  /* p สองทาง */
+
+/* OLS: cols = อาร์เรย์ของตัวแปรอิสระ (ไม่รวมค่าคงที่), y = ตัวแปรตาม, mask = true = ตัดออก */
+function ols(cols,y,mask){
+  var idx=[];for(var i=0;i<y.length;i++)if(!(mask&&mask[i]))idx.push(i);
+  var n=idx.length,k=cols.length+1;
+  var sc=[1];for(var j=0;j<cols.length;j++){var mx=0;idx.forEach(function(ii){mx=Math.max(mx,Math.abs(cols[j][ii]));});sc.push(mx||1);}
+  var A=[],g=[];for(var a=0;a<k;a++){A.push(new Array(k).fill(0));g.push(0);}
+  idx.forEach(function(ii){
+    var row=[1];for(var j=0;j<cols.length;j++)row.push(cols[j][ii]/sc[j+1]);
+    for(var a=0;a<k;a++){g[a]+=row[a]*y[ii];for(var b=0;b<k;b++)A[a][b]+=row[a]*row[b];}
+  });
+  var inv=invert(A);if(!inv)return null;
+  var bs=[];for(a=0;a<k;a++){var s=0;for(var b=0;b<k;b++)s+=inv[a][b]*g[b];bs.push(s);}
+  var B=bs.map(function(v,a){return v/sc[a];});
+  var yhat=y.map(function(_,ii){var s=B[0];for(var j=0;j<cols.length;j++)s+=B[j+1]*cols[j][ii];return s;});
+  var ybar=0;idx.forEach(function(ii){ybar+=y[ii];});ybar/=n;
+  var sse=0,sst=0;idx.forEach(function(ii){sse+=Math.pow(y[ii]-yhat[ii],2);sst+=Math.pow(y[ii]-ybar,2);});
+  var df=n-k,s2=df>0?sse/df:NaN,r2=1-sse/sst;
+  var se=[],t=[],p=[];for(a=0;a<k;a++){var e=Math.sqrt(s2*inv[a][a])/sc[a];se.push(e);t.push(B[a]/e);p.push(tPval(B[a]/e,df));}
+  return {B:B,se:se,t:t,p:p,yhat:yhat,res:y.map(function(v,ii){return v-yhat[ii];}),n:n,k:k,df:df,sse:sse,sst:sst,
+    r2:r2,adj:1-(1-r2)*(n-1)/df,rmse:Math.sqrt(s2),cv:Math.sqrt(s2)/ybar*100,ybar:ybar,mask:mask||null};
+}
+
+/* ───────── ข้อมูล: เดือนไทย พ.ศ. + อุณหภูมิ ───────── */
+var TM=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function mLabel(i){return TM[i%12]+' '+(66+Math.floor(i/12));}       /* idx 0 = ม.ค. 2566 */
+function dim(i){var m=i%12,ce=2023+Math.floor(i/12);return [31,(ce%4===0?29:28),31,30,31,30,31,31,30,31,30,31][m];}
+var T_CM=[21.6,23.6,26.9,29.0,28.6,27.9,27.3,27.0,27.1,26.4,24.7,22.1];  /* เชียงใหม่ °C */
+var T_CEN=[26.6,28.1,29.4,30.4,29.9,29.2,28.8,28.6,28.2,28.0,27.3,26.3]; /* ภาคกลาง °C */
+function genTemps(g,means,sdDay,n){var out=[],yo=[g()*0.3,g()*0.3,g()*0.3];
+  for(var i=0;i<n;i++){var mo=means[i%12]+yo[Math.floor(i/12)]+g()*0.5,d=[];for(var j=0;j<dim(i);j++)d.push(mo+g()*sdDay);out.push(d);}
+  return out;}
+function cddOf(days,base){var s=0;for(var i=0;i<days.length;i++)if(days[i]>base)s+=days[i]-base;return Math.round(s);}
+function seq(n){var a=[];for(var i=0;i<n;i++)a.push(i);return a;}
+
+/* ด่าน 1: kWh vs ผลผลิต (โรงงานอาหาร) */
+function genL1(seed){var r=mulberry32(seed),g=gaussF(r),P=[],E=[];
+  for(var i=0;i<24;i++){var m=i%12,p=3200+420*Math.sin(2*Math.PI*(m-1)/12)+g()*300+(i>=12?120:0);if(m===3)p*=0.86;
+    p=Math.round(p);P.push(p);E.push(Math.round(135000+92*p+g()*13000));}
+  return {n:24,lbl:seq(24).map(mLabel),P:P,E:E};}
+
+/* ด่าน 2: อาคารสำนักงานเชียงใหม่ kWh vs CDD (เลือกฐาน) */
+var BASES=[18,24,27];
+function genL2(seed){
+  for(var tries=0;tries<80;tries++,seed+=17){
+    var r=mulberry32(seed),g=gaussF(r),T=genTemps(g,T_CM,2.2,24),C={},E=[];
+    BASES.forEach(function(b){C[b]=T.map(function(d){return cddOf(d,b);});});
+    for(var i=0;i<24;i++)E.push(Math.round(70000+600*C[24][i]+g()*4000));
+    var r2=BASES.map(function(b){return ols([C[b]],E).r2;});
+    if(r2[1]-Math.max(r2[0],r2[2])>=0.015)return {n:24,lbl:seq(24).map(mLabel),C:C,E:E,r2:r2,seed:seed};
+  }
+  return null;}
+
+/* ด่าน 3: พหุ 2 ตัวแปร + ตัวหลอก */
+function genL3(seed){
+  var DAYS=[22,20,21,18,21,22,22,22,21,22,22,20];
+  for(var tries=0;tries<600;tries++,seed+=31){
+    var r=mulberry32(seed),g=gaussF(r),T=genTemps(g,T_CEN,1.5,24),P=[],C=[],D=[],K=[],E=[];
+    for(var i=0;i<24;i++){var m=i%12,d=Math.max(17,Math.min(26,DAYS[m]+Math.round(g()*1.0)));
+      var rate=148*(1+0.05*Math.sin(2*Math.PI*(m-1)/12)),p=Math.round(d*rate*(1+g()*0.08)),c=cddOf(T[i],24);
+      D.push(d);P.push(p);C.push(c);K.push(1+Math.floor(r()*3));E.push(Math.round(98000+88*p+430*c+g()*9000));}
+    var f=ols([P,C,D,K],E),a=ols([P,C,D],E),b=ols([P,C,K],E);
+    if(Math.abs(f.t[3])<1.5&&Math.abs(f.t[4])<1.5&&f.t[1]>4&&f.t[2]>3&&Math.abs(a.t[3])<1&&Math.abs(b.t[3])<1)
+      return {n:24,lbl:seq(24).map(mLabel),P:P,C:C,D:D,K:K,E:E,seed:seed};
+  }
+  return null;}
+
+/* ด่าน 4: outlier 2 จุดมีเหตุผล + 1 จุดหลอก */
+var L4_OH=4,L4_MT=14,L4_DC=20;
+function genL4(seed){var r=mulberry32(seed),g=gaussF(r),P=[],E=[],LOG=[];
+  var NOTE_OK=['ผลิตปกติ','ผลิตปกติ','ผลิตปกติ','ออเดอร์ส่งออกเพิ่ม — เดินเครื่องเต็มกะ','ล้างคอนเดนเซอร์ chiller ตามแผน','ผลิตปกติ','ตรวจสอบมิเตอร์ประจำปี — ผ่าน'];
+  for(var i=0;i<24;i++){var m=i%12,p=3150+400*Math.sin(2*Math.PI*(m-1)/12)+g()*300+(i>=12?100:0);
+    if(m===3)p*=0.84;p=Math.round(p);
+    var e=Math.max(-1.6,Math.min(1.6,g()))*8000;
+    LOG.push(m===3?'สงกรานต์ หยุด 5 วัน — ผลผลิตลดลงตามจริง':NOTE_OK[Math.floor(r()*NOTE_OK.length)]);
+    if(i===L4_OH){p=Math.round(p*0.58);e=52000;LOG[i]='หยุดซ่อมใหญ่ (overhaul) 11 วัน — เดินเครื่องเปล่าทดสอบ + ไฟแสงสว่าง/ปั๊มยังทำงาน';}
+    if(i===L4_DC){e=2.5*8000;LOG[i]='ผลิตปกติ — ไม่มีเหตุการณ์พิเศษ';}
+    var mod=128000+94*p,ev=Math.round(mod+e);
+    if(i===L4_MT){ev=Math.round(mod*0.68);LOG[i]='เปลี่ยนมิเตอร์ใหม่ ตั้ง CT ratio ผิด 3 สัปดาห์ (ฝ่ายไฟฟ้ายืนยัน แก้แล้ว)';}
+    P.push(p);E.push(ev);}
+  return {n:24,lbl:seq(24).map(mLabel),P:P,E:E,LOG:LOG};}
+
+/* ด่าน 5: CUSUM — baseline 24 เดือน + ช่วงรายงาน 12 เดือน (ปี 68) */
+function genL5(seed,scen){
+  var DAYS=[22,20,21,18,21,22,22,22,21,22,22,20];
+  for(var tries=0;tries<300;tries++,seed+=13){
+    var r=mulberry32(seed),g=gaussF(r),T=genTemps(g,T_CEN,1.5,36),P=[],C=[],E=[],TRUE=[];
+    var k=4+Math.floor(r()*4);     /* เดือนที่เปลี่ยน (index ในปี 68): พ.ค.–ส.ค. */
+    for(var i=0;i<36;i++){var m=i%12,d=Math.max(17,Math.min(26,DAYS[m]+Math.round(g()*1.0)));
+      var p=Math.round(d*150*(1+0.05*Math.sin(2*Math.PI*(m-1)/12))*(1+g()*0.07)),c=cddOf(T[i],24);
+      var mod=102000+86*p+440*c;P.push(p);C.push(c);
+      var f=1;if(i>=24+k)f=(scen==='wear')?1.07:0.94;
+      E.push(Math.round(mod*f+g()*5000));}
+    var mask=seq(36).map(function(i){return i>=24;});
+    var m0=ols([P,C],E,mask);
+    var res=E.map(function(v,i){return v-m0.yhat[i];});
+    var sg=scen==='wear'?1:-1,shift=0.065*m0.ybar;
+    var ok=sg*res[24+k]>0.5*shift&&sg*res[24+k-1]<0.35*shift&&sg*res[24+k-2]<0.5*shift&&sg*res[24+k+1]>0.3*shift;
+    if(!ok)continue;
+    var cu=[],s=0;for(i=0;i<36;i++){s+=res[i];cu.push(s);}
+    var rep=0;for(i=24;i<36;i++)rep+=res[i];
+    return {n:36,lbl:seq(36).map(mLabel),P:P,C:C,E:E,m0:m0,res:res,cu:cu,k:k,scen:scen,
+      target:Math.abs(rep),repSum:rep,seed:seed};
+  }
+  return null;}
+
+/* ───────── เสียง ───────── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),gg=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  gg.gain.setValueAtTime(0.0001,a.currentTime+t);gg.gain.exponentialRampToValueAtTime(vol||0.16,a.currentTime+t+0.015);
+  gg.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(gg);gg.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.05,'square',0.06);}
+function sPop(i){tone(520+(i%12)*40,0,0.05,'triangle',0.05);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.22,'sawtooth',0.1);tone(180,0.16,0.28,'sawtooth',0.1);}
+function sBeep(){tone(980,0,0.07,'sine',0.08);tone(1320,0.07,0.08,'sine',0.07);}
+
+/* ───────── localStorage ───────── */
+var stars=[0,0,0,0,0];
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_skill_baseline_stars')||'[]');for(var i=0;i<5;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_skill_baseline_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_skill_baseline_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_skill_baseline_seen','1');}catch(e){}}
+
+/* ───────── รูปแบบตัวเลข ───────── */
+function fmt(v,d){if(!isFinite(v))return '—';return v.toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});}
+function fK(v){var a=Math.abs(v);if(a>=1e6)return (v/1e6).toFixed(2)+'M';if(a>=1e4)return Math.round(v/1000)+'k';if(a>=1000)return (v/1000).toFixed(1)+'k';return String(Math.round(v*10)/10);}
+function fP(p){return p<0.001?'<0.001':p.toFixed(3);}
+function mmss(s){s=Math.max(0,Math.floor(s));return (s<60?'0':'')+Math.floor(s/60)+':'+(s%60<10?'0':'')+(s%60);}
+
+/* ───────── Chart helpers ───────── */
+function nice(lo,hi,n){if(hi===lo){hi+=1;lo-=1;}var span=hi-lo,st=Math.pow(10,Math.floor(Math.log10(span/n))),e=span/n/st;
+  if(e>=7.5)st*=10;else if(e>=3.5)st*=5;else if(e>=1.5)st*=2;
+  var a=Math.floor(lo/st)*st,b=Math.ceil(hi/st)*st,t=[];for(var v=a;v<=b+st*0.01;v+=st)t.push(Math.round(v/st)*st);return {lo:a,hi:b,t:t};}
+function mkChart(ax,ln,pt,top,W,H,m){return {ax:$(ax),ln:$(ln),pt:pt?$(pt):null,top:top?$(top):null,W:W,H:H,m:m,x0:0,x1:1,y0:0,y1:1,
+  X:function(v){return this.m.l+(v-this.x0)/(this.x1-this.x0)*(this.W-this.m.l-this.m.r);},
+  Y:function(v){return this.H-this.m.b-(v-this.y0)/(this.y1-this.y0)*(this.H-this.m.t-this.m.b);},
+  iY:function(py){return this.y0+(this.H-this.m.b-py)/(this.H-this.m.t-this.m.b)*(this.y1-this.y0);}};}
+var CH1=mkChart('c1ax','c1ln','c1pt','c1top',400,280,{l:52,r:12,t:36,b:44});
+var CH2=mkChart('c2ax','c2ln',null,null,400,140,{l:52,r:12,t:28,b:22});
+function el(tag,attrs,parent,txt){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(txt!=null)e.textContent=txt;if(parent)parent.appendChild(e);return e;}
+function setAxes(ch,xlo,xhi,ylo,yhi,xl,yl,fx,fy,xTicks){
+  var nx=xTicks||nice(xlo,xhi,5),ny=nice(ylo,yhi,ch.H>200?5:3);
+  ch.x0=nx.lo;ch.x1=nx.hi;ch.y0=ny.lo;ch.y1=ny.hi;
+  var g=ch.ax;g.innerHTML='';
+  ny.t.forEach(function(v){var y=ch.Y(v);el('line',{x1:ch.m.l,x2:ch.W-ch.m.r,y1:y,y2:y,class:v===0?'zl':'gl'},g);
+    el('text',{x:ch.m.l-5,y:y+3.5,'text-anchor':'end'},g,(fy||fK)(v));});
+  (nx.t||[]).forEach(function(v,i){var x=ch.X(v);el('line',{x1:x,x2:x,y1:ch.m.t,y2:ch.H-ch.m.b,class:'gl'},g);
+    if(nx.lab){if(nx.lab[i])el('text',{x:x,y:ch.H-ch.m.b+13,'text-anchor':'middle'},g,nx.lab[i]);}
+    else el('text',{x:x,y:ch.H-ch.m.b+13,'text-anchor':'middle'},g,(fx||fK)(v));});
+  if(xl)el('text',{x:(ch.m.l+ch.W-ch.m.r)/2,y:ch.H-6,'text-anchor':'middle',class:'at'},g,xl);
+  if(yl)el('text',{x:12,y:(ch.m.t+ch.H-ch.m.b)/2,'text-anchor':'middle',class:'at',transform:'rotate(-90 12 '+((ch.m.t+ch.H-ch.m.b)/2)+')'},g,yl);
+}
+function setPts(ch,xs,ys,cls,anim){
+  var lay=ch.pt,n=xs.length;
+  if(anim||lay.children.length!==n){lay.innerHTML='';
+    for(var i=0;i<n;i++){var gp=el('g',{class:'pt','data-i':i},lay);el('circle',{class:'hit',r:13},gp);var c=el('circle',{class:'pc',r:5.5},gp);
+      if(anim){c.style.animationDelay=(i*55)+'ms';(function(i){setTimeout(function(){sPop(i);},i*55);})(i);}else c.style.animation='none';}}
+  for(i=0;i<n;i++){var e=lay.children[i];e.style.transform='translate('+ch.X(xs[i]).toFixed(1)+'px,'+ch.Y(ys[i]).toFixed(1)+'px)';
+    e.setAttribute('class','pt '+((cls&&cls[i])||''));}
+}
+function drawLine(e,x1,y1,x2,y2,anim){e.setAttribute('x1',x1);e.setAttribute('y1',y1);e.setAttribute('x2',x2);e.setAttribute('y2',y2);
+  if(anim){var L=Math.hypot(x2-x1,y2-y1);e.style.transition='none';e.style.strokeDasharray=L;e.style.strokeDashoffset=L;e.getBoundingClientRect();
+    e.style.transition='stroke-dashoffset .7s ease-out';e.style.strokeDashoffset=0;}
+  else if(!e.classList.contains('userL')){e.style.transition='none';e.style.strokeDasharray='none';e.style.strokeDashoffset=0;}}
+function drawResid(res,s,cls,mask){ /* แท่ง residual รายเดือน + แถบ ±2s */
+  var ch=CH2,n=res.length,mx=0;res.forEach(function(v,i){if(!(mask&&mask[i]))mx=Math.max(mx,Math.abs(v));});mx=Math.max(mx,2.2*s||1);
+  var tk={lo:-0.5,hi:n-0.5,t:[],lab:[]};for(var i=0;i<n;i+=6){tk.t.push(i);tk.lab.push(mLabel(i));}
+  setAxes(ch,-0.5,n-0.5,-mx,mx,'','',null,fK,tk);
+  var g=ch.ln;g.innerHTML='';
+  if(isFinite(s)){el('rect',{x:ch.m.l,y:ch.Y(2*s),width:ch.W-ch.m.l-ch.m.r,height:ch.Y(-2*s)-ch.Y(2*s),fill:'#69f0ae',opacity:.08},g);
+    el('line',{x1:ch.m.l,x2:ch.W-ch.m.r,y1:ch.Y(2*s),y2:ch.Y(2*s),stroke:'#69f0ae','stroke-dasharray':'4 3',opacity:.6},g);
+    el('line',{x1:ch.m.l,x2:ch.W-ch.m.r,y1:ch.Y(-2*s),y2:ch.Y(-2*s),stroke:'#69f0ae','stroke-dasharray':'4 3',opacity:.6},g);
+    el('text',{x:ch.W-ch.m.r-2,y:ch.Y(2*s)-3,'text-anchor':'end',fill:'#69f0ae','font-size':9.5,'font-family':'Mitr,sans-serif'},g,'±2σ');}
+  var bw=(ch.W-ch.m.l-ch.m.r)/n*0.62;
+  for(i=0;i<n;i++){var v=Math.max(-mx,Math.min(mx,res[i])),x=ch.X(i)-bw/2,y0=ch.Y(0),y1=ch.Y(v);
+    var col=(mask&&mask[i])?'#5c6b8a':(isFinite(s)&&Math.abs(v)>2*s?'#ff8a80':(v>=0?'#4dd0e1':'#7986cb'));
+    if(cls&&cls[i])col=cls[i];
+    el('rect',{class:'resb',x:x.toFixed(1),y:Math.min(y0,y1).toFixed(1),width:bw.toFixed(1),height:Math.max(1,Math.abs(y1-y0)).toFixed(1),rx:2,fill:col,opacity:(mask&&mask[i])?.45:1},g);}
+}
+
+/* ───────── ตัวแปร ───────── */
+var VN={P:'ผลผลิต',C:'CDD',D:'วันทำงาน',K:'สีรถผู้จัดการ'};
+var VU={P:'kWh/t',C:'kWh/(°C·วัน)',D:'kWh/วัน',K:'kWh/รหัส'};
+function eqHTML(m,keys,dec){var s='E = <b>'+fmt(m.B[0],0)+'</b>';
+  keys.forEach(function(k,j){var b=m.B[j+1];s+=(b<0?' − ':' + ')+'<b>'+fmt(Math.abs(b),dec&&dec[j]!=null?dec[j]:2)+'</b>·'+VN[k];});return s+'  (kWh/เดือน)';}
+function metsHTML(m){var cvOk=m.cv<=15;
+  return '<div class="mets"><div class="met"><span class="k">R²</span><span class="v">'+m.r2.toFixed(3)+'</span></div>'+
+   '<div class="met"><span class="k">adj R²</span><span class="v">'+m.adj.toFixed(3)+'</span></div>'+
+   '<div class="met '+(cvOk?'ok':'bad')+'"><span class="k">CV(RMSE)</span><span class="v">'+m.cv.toFixed(1)+'%</span></div>'+
+   '<div class="met"><span class="k">n · p</span><span class="v">'+m.n+' · '+m.k+'</span></div></div>'+
+   '<div class="ashrae">'+(cvOk?'✔ ผ่านเกณฑ์แนะนำ ASHRAE G14 (CV(RMSE) ≤ 15% รายเดือน)':'⚠ เกินเกณฑ์แนะนำ ASHRAE G14 (≤ 15%)')+'</div>';}
+function coefHTML(m,keys){var h='<table class="coef"><tr><th>พารามิเตอร์</th><th>ค่า b</th><th>SE</th><th>t</th><th>p</th><th></th></tr>';
+  var nm=['ค่าคงที่ a'].concat(keys.map(function(k){return VN[k];}));
+  for(var j=0;j<m.k;j++){var ok=Math.abs(m.t[j])>2;
+    h+='<tr><td>'+nm[j]+'</td><td>'+fmt(m.B[j],j?2:0)+'</td><td>'+fmt(m.se[j],j?2:0)+'</td><td>'+m.t[j].toFixed(2)+'</td><td>'+fP(m.p[j])+'</td><td class="'+(ok?'ok':'no')+'">'+(ok?'✔':'✖')+'</td></tr>';}
+  return h+'</table><div class="ashrae">เกณฑ์ |t| &gt; 2 (≈ p &lt; 0.05) = ตัวแปรมีนัยสำคัญ</div>';}
+
+/* ───────── ตาราง ───────── */
+function setTable(heads,rows,cls){var h='<tr>'+heads.map(function(x){return '<th>'+x+'</th>';}).join('')+'</tr>';
+  rows.forEach(function(r,i){h+='<tr class="'+((cls&&cls[i])||'')+'" data-i="'+i+'">'+r.map(function(x){return '<td>'+x+'</td>';}).join('')+'</tr>';});
+  $('tbl').innerHTML=h;$('tblN').textContent=rows.length;}
+
+/* ───────── หุ่นยนต์พูด ───────── */
+var hintI=0;
+function say(txt,mood){var t=$('sayTxt');t.style.opacity=0;setTimeout(function(){t.textContent=txt;t.style.opacity=1;},120);
+  var rb=$('robot');rb.classList.remove('talking','happy');void rb.getBBox();rb.classList.add('talking');
+  if(mood==='happy'){rb.classList.add('happy');$('rbMouth').setAttribute('d','M35 51 Q45 61 55 51');}
+  else if(mood==='alert'){$('rbMouth').setAttribute('d','M40 54 a5 4 0 1 0 10 0 a5 4 0 1 0 -10 0');}
+  else $('rbMouth').setAttribute('d','M37 53 Q45 58 53 53');
+  $('rbEyes').querySelectorAll('rect').forEach(function(e){e.setAttribute('fill',mood==='alert'?'#ffd23f':'#4dd0e1');});
+  setTimeout(function(){rb.classList.remove('talking');},1500);}
+
+/* ═════════ สถานะเกม ═════════ */
+var LVN=['① เส้นแนวโน้มด้วยมือ','② อาคาร: เลือกฐาน CDD','③ พหุตัวแปร + ตัวหลอก','④ ล่า outlier','⑤ CUSUM จับผลประหยัด'];
+var LVI=['✍️','🏢','🧪','🚩','📉'];
+var LVS=['เส้นมือ','ฐาน CDD','พหุตัวแปร','Outlier','CUSUM'];
+var SEEDS=[2566101,2566202,2566303,2566404,2566505];
+var HINTS=[
+ ['ลากวงกลมสีเหลืองที่ปลายเส้นขึ้น–ลง ให้เส้นผ่ากลางกลุ่มจุด','ดูแท่ง residual ด้านล่าง — เส้นดีต้องมีแท่งบวก/ลบสลับกัน ไม่เอียงข้างเดียว','SSE ยิ่งน้อยยิ่งดี — OLS คือเส้นที่ SSE ต่ำที่สุดเท่าที่เป็นไปได้'],
+ ['กดฐานอุณหภูมิทีละค่า แล้วดูจุดเลื่อนและ R² เปลี่ยน','ฐานต่ำไป → เดือนหนาว (ธ.ค.–ม.ค.) ยังมี CDD สูง ทั้งที่แทบไม่เปิดแอร์','ฐานที่ R² สูงสุดคือฐานที่ใกล้ balance point ของอาคารที่สุด'],
+ ['ติ๊กตัวแปรแล้วดูคอลัมน์ t — |t| > 2 แปลว่ามีนัยสำคัญ','R² เพิ่มเสมอเมื่อใส่ตัวแปร แต่ adj R² จะลดถ้าตัวแปรนั้นไร้ประโยชน์','วันทำงานเดินคู่กับผลผลิต — ใส่คู่กันแล้วดูว่าตัวไหน t ตก','สีรถผู้จัดการ… มีเหตุผลทางวิศวกรรมไหมครับ? 😄'],
+ ['แตะจุดที่ดูแปลกเพื่อเปิดสมุดบันทึกหน้างาน 📓','ตัดได้เมื่อมีหลักฐานทางกายภาพ เช่น หยุดซ่อม หรือมิเตอร์ผิด','จุดที่ residual สูงแต่บันทึกบอกว่า "ปกติ" = ข้อมูลจริง ต้องเก็บไว้','สงกรานต์ผลิตน้อยจริง แต่จุดยังอยู่บนเส้น — ไม่ใช่ outlier'],
+ ['ช่วง baseline (ปี 66–67) CUSUM จะวนรอบศูนย์ — ดูปี 68 ว่าหักหัวเดือนไหน','เส้นดิ่งลงต่อเนื่อง = ใช้ไฟน้อยกว่าที่ควร (ประหยัด) · พุ่งขึ้น = แย่ลง','แตะจุดบนกราฟเพื่ออ่านค่า CUSUM — ผลสะสม = ค่าปลายช่วง ธ.ค. 68 (เทียบกับ ธ.ค. 67)']
+];
+var LESSON=[
+ 'OLS คือเส้นที่ SSE ต่ำที่สุด — b = พลังงานต่อหน่วยผลผลิตส่วนเพิ่ม, a = โหลดพื้นฐาน',
+ 'เลือกฐานอุณหภูมิของ CDD ด้วย R² — ฐานที่ถูกสะท้อน balance point ของอาคาร',
+ 'ใส่เฉพาะตัวแปรที่มีเหตุผลทางวิศวกรรมและ |t| > 2 — ตัดสินด้วย adj R² ไม่ใช่ R²',
+ 'ตัด outlier ได้เมื่อมีหลักฐานหน้างานเท่านั้น — "ดูไม่สวย" ไม่ใช่เหตุผล',
+ 'CUSUM เปลี่ยนความชัน = สมรรถนะเปลี่ยน · ผลประหยัด = Σ(คาดการณ์ − จริง)'
+];
+var L=0,S=null,tries=[0,0,0,0,0],t0=0,tStop=null,resultShown=false;
+
+function startLevel(i){
+  L=i;resultShown=false;hintI=0;
+  var seed=SEEDS[i]+tries[i]*7919;
+  $('lvlName').textContent=LVN[i];
+  $('monTtl').textContent='DATA LAB · ด่าน '+(i+1)+' · '+LVS[i];
+  $('goBtn').disabled=false;$('goBtn').style.display='block';
+  CH1.top.innerHTML='';CH1.ln.innerHTML='';$('c1band').innerHTML='';
+  t0=performance.now();tStop=null;
+  [initL1,initL2,initL3,initL4,initL5][i](seed);
+}
+function elapsed(){return ((tStop||performance.now())-t0)/1000;}
+
+/* ═════════ ด่าน 1: ลากเส้นด้วยมือ ═════════ */
+function initL1(seed){
+  var d=genL1(seed),m=ols([d.P],d.E);
+  S={d:d,m:m,phase:'drag'};
+  var xlo=Math.min.apply(null,d.P),xhi=Math.max.apply(null,d.P),ylo=Math.min.apply(null,d.E),yhi=Math.max.apply(null,d.E);
+  setAxes(CH1,xlo-80,xhi+80,ylo-25000,yhi+25000,'ผลผลิต (ตัน/เดือน)','kWh/เดือน');
+  var xs=(CH1.x1-CH1.x0)*0.04;S.xa=CH1.x0+xs;S.xb=CH1.x1-xs;
+  var yr=CH1.y1-CH1.y0;S.yA=CH1.y0+yr*0.78;S.yB=CH1.y0+yr*0.35;  /* เส้นเริ่มต้นเอียงผิดทาง */
+  setPts(CH1,d.P,d.E,null,true);
+  S.reg=el('line',{class:'regL',opacity:0},CH1.ln);
+  S.uL=el('line',{class:'userL'},CH1.ln);
+  S.hA=mkHandle('A');S.hB=mkHandle('B');
+  $('c1Lbl').textContent='kWh vs ผลผลิต';$('c2Lbl').textContent='Residual ของเส้นคุณ (kWh)';
+  $('goalTxt').innerHTML='<b>โรงงานแปรรูปอาหาร</b> 24 เดือน — ลากปลายเส้น <b>2 จุด (วงกลมเหลือง)</b> ให้เป็นเส้นแนวโน้มที่ดีที่สุด แล้วกดส่งเพื่อเทียบกับ OLS';
+  $('ctrl').innerHTML='<div class="sseBox"><div class="l"><span>SSE เส้นของคุณ</span><span id="sseV">—</span></div><div class="tr"><div class="fl" id="sseF"></div></div>'+
+    '<div class="l" style="margin-top:6px;font-weight:500;font-size:.82rem"><span>R² ของเส้นคุณ = 1 − SSE/SST</span><span id="r2u">—</span></div></div>'+
+    '<div class="small-note">SSE = Σ(kWh จริง − kWh บนเส้น)² · ยิ่งเล็กยิ่งดี</div>';
+  $('stats').innerHTML='<div class="eq" id="eqU">—</div>';
+  $('goBtn').textContent='เทียบกับ OLS ✔';
+  setTable(['เดือน','ผลผลิต (t)','kWh'],d.lbl.map(function(l,i){return [l,fmt(d.P[i]),fmt(d.E[i])];}));
+  S.sse0=null;updL1();
+  say('ผมพล็อตข้อมูล 24 เดือนให้แล้ว ลองลากวงกลมเหลืองให้เส้นผ่ากลางกลุ่มจุดดูครับ');
+}
+function mkHandle(w){var g=el('g',{class:'handle','data-h':w},CH1.top);el('circle',{class:'hr',r:12},g);el('circle',{r:22,fill:'transparent'},g);el('circle',{class:'hc',r:10},g);
+  g.addEventListener('pointerdown',function(e){if(S.phase!=='drag')return;e.preventDefault();audio();S.drag=w;try{g.setPointerCapture(e.pointerId);}catch(_){}});
+  g.addEventListener('pointermove',function(e){if(S.drag!==w)return;var p=svgPt($('chart'),e);var v=CH1.iY(p.y);v=Math.max(CH1.y0,Math.min(CH1.y1,v));
+    if(w==='A')S.yA=v;else S.yB=v;updL1();});
+  var end=function(){if(S.drag===w){S.drag=null;sClick();}};g.addEventListener('pointerup',end);g.addEventListener('pointercancel',end);
+  return g;}
+function svgPt(svg,e){var p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(svg.getScreenCTM().inverse());}
+function userLine(){var b=(S.yB-S.yA)/(S.xb-S.xa);return {b:b,a:S.yA-b*S.xa};}
+function updL1(){
+  var u=userLine(),d=S.d,sse=0,res=[];
+  for(var i=0;i<d.n;i++){var r=d.E[i]-(u.a+u.b*d.P[i]);res.push(r);sse+=r*r;}
+  if(S.sse0==null)S.sse0=sse;
+  S.sseU=sse;S.uRes=res;
+  drawLine(S.uL,CH1.X(S.xa),CH1.Y(S.yA),CH1.X(S.xb),CH1.Y(S.yB),false);
+  S.hA.setAttribute('transform','translate('+CH1.X(S.xa)+','+CH1.Y(S.yA)+')');
+  S.hB.setAttribute('transform','translate('+CH1.X(S.xb)+','+CH1.Y(S.yB)+')');
+  $('sseV').textContent=(sse/1e9).toFixed(2)+' ×10⁹ kWh²';
+  $('sseF').style.width=Math.max(2,Math.min(100,sse/S.sse0*100))+'%';
+  $('r2u').textContent=(1-sse/S.m.sst).toFixed(3);
+  $('eqU').innerHTML='เส้นของคุณ: E = <b>'+fmt(u.a,0)+'</b> '+(u.b<0?'− ':'+ ')+'<b>'+fmt(Math.abs(u.b),1)+'</b>·ผลผลิต';
+  if(S.phase==='drag')drawResid(res,NaN);
+}
+function submitL1(){
+  S.phase='done';tStop=performance.now();
+  var m=S.m,u=userLine(),ratio=S.sseU/m.sse;
+  S.reg.setAttribute('opacity',1);
+  drawLine(S.reg,CH1.X(CH1.x0),CH1.Y(m.B[0]+m.B[1]*CH1.x0),CH1.X(CH1.x1),CH1.Y(m.B[0]+m.B[1]*CH1.x1),true);
+  drawResid(m.res,m.rmse);$('c2Lbl').textContent='Residual ของ OLS (kWh)';
+  $('stats').innerHTML='<div class="eq">เส้นคุณ: E = '+fmt(u.a,0)+(u.b<0?' − ':' + ')+fmt(Math.abs(u.b),1)+'·ผลผลิต<br>OLS: '+eqHTML(m,['P'])+'</div>'+metsHTML(m)+coefHTML(m,['P']);
+  var st=ratio<=1.10?3:(ratio<=1.35?2:1);
+  var fb=[],db=(u.b-m.B[1])/m.B[1]*100;
+  fb.push([st===3?'ok':(st===2?'tip':'no'),'SSE ของคุณ = '+(S.sseU/1e9).toFixed(2)+' ×10⁹ เทียบ OLS = '+(m.sse/1e9).toFixed(2)+' ×10⁹ → มากกว่า <b>'+((ratio-1)*100).toFixed(1)+'%</b> (OLS ต่ำสุดเสมอ จึงไม่มีใครชนะ OLS ได้)']);
+  if(Math.abs(db)<=8)fb.push(['ok','ความชันของคุณ '+fmt(u.b,1)+' kWh/t ใกล้ OLS '+fmt(m.B[1],1)+' kWh/t (ต่าง '+db.toFixed(0)+'%) — ประเมิน SEC ส่วนเพิ่มได้ดี']);
+  else fb.push(['no','เส้นของคุณ'+(db>0?'ชันเกิน':'ลาดเกิน')+' — b = '+fmt(u.b,1)+' เทียบ OLS '+fmt(m.B[1],1)+' kWh/t ('+(db>0?'+':'')+db.toFixed(0)+'%) ทำให้พลังงานต่อตันที่เพิ่มขึ้น'+(db>0?'สูง':'ต่ำ')+'เกินจริง']);
+  fb.push(['tip','ค่าคงที่ a = '+fmt(m.B[0],0)+' kWh/เดือน คือ "โหลดพื้นฐาน" (ไฟแสงสว่าง ห้องเย็น อากาศอัดรั่ว) — ของคุณได้ '+fmt(u.a,0)+' · ระวัง: a เป็นการ extrapolate ไปที่ผลผลิต 0 ซึ่งอยู่นอกช่วงข้อมูล']);
+  fb.push(['tip','ข้อสังเกต: residual ของ OLS ผลรวม = 0 พอดี และกระจายสุ่มรอบศูนย์ — ถ้าเห็นรูปแบบ (โค้ง/เป็นช่วง) แปลว่ายังขาดตัวแปร']);
+  say(st===3?'เป๊ะมาก! เส้นมือคุณเกือบทับ OLS เลย':'เส้นสีชมพูคือ OLS — เส้นที่ SSE ต่ำที่สุดครับ',st===3?'happy':null);
+  setTimeout(function(){showResult(st,fb,[['SSE คุณ / OLS',ratio.toFixed(3)+' เท่า'],['ความชัน คุณ / OLS',fmt(u.b,1)+' / '+fmt(m.B[1],1)+' kWh/t'],['R² (OLS)',m.r2.toFixed(3)],['CV(RMSE) (OLS)',m.cv.toFixed(1)+' %'],['เวลา',mmss(elapsed())]]);},1600);
+}
+
+/* ═════════ ด่าน 2: เลือกฐาน CDD ═════════ */
+function initL2(seed){
+  var d=genL2(seed);S={d:d,base:null,tried:{},phase:'pick',m:null};
+  setPts(CH1,[0],[0],null,false);CH1.pt.innerHTML='';
+  $('c1Lbl').textContent='kWh vs CDD';$('c2Lbl').textContent='Residual (kWh)';
+  $('goalTxt').innerHTML='<b>อาคารสำนักงาน เชียงใหม่</b> — แอร์คือโหลดหลัก ลองฐานอุณหภูมิ CDD ทั้ง 3 ค่า แล้ว<b>เลือกฐานที่โมเดลดีที่สุด</b> จากนั้นใช้สมการทำนาย';
+  var h='<div class="row">';BASES.forEach(function(b){h+='<button class="chipBtn" data-b="'+b+'">ฐาน '+b+'°C<small id="r2b'+b+'">ยังไม่ลอง</small></button>';});
+  $('ctrl').innerHTML=h+'</div><div id="quizBox"></div>';
+  $('stats').innerHTML='<div class="eq">เลือกฐานอุณหภูมิด้านบนเพื่อสร้าง baseline</div>';
+  $('goBtn').textContent='ใช้ฐานนี้เป็น baseline ✔';$('goBtn').disabled=true;
+  $('ctrl').querySelectorAll('.chipBtn').forEach(function(b){b.addEventListener('click',function(){if(S.phase!=='pick')return;audio();sClick();pickBase(+b.dataset.b);});});
+  CH2.ax.innerHTML='';CH2.ln.innerHTML='';
+  tblL2(null);
+  /* แกนเริ่มต้นว่าง */
+  setAxes(CH1,0,250,60000,200000,'CDD (°C·วัน/เดือน)','kWh/เดือน');
+  say('อาคารนี้ใช้ไฟตามแอร์ — แต่ CDD ฐานกี่องศาถึงจะสะท้อนการเปิดแอร์จริง? ลองกดดูครับ');
+}
+function tblL2(b){var d=S.d;setTable(['เดือน','CDD ฐาน 18','CDD ฐาน 24','CDD ฐาน 27','kWh'],
+  d.lbl.map(function(l,i){return [l,d.C[18][i],d.C[24][i],d.C[27][i],fmt(d.E[i])];}));
+  if(b!=null){var col=BASES.indexOf(b)+1;$('tbl').querySelectorAll('tr').forEach(function(tr){var c=tr.children[col];if(c)c.style.background='#e0f7fa';});}}
+function pickBase(b){
+  var d=S.d,x=d.C[b],m=ols([x],d.E),first=!S.base;S.base=b;S.m=m;S.tried[b]=m.r2;
+  var xmax=Math.max.apply(null,x);
+  setAxes(CH1,0,xmax*1.06+5,Math.min.apply(null,d.E)-8000,Math.max.apply(null,d.E)+8000,'CDD ฐาน '+b+'°C (°C·วัน/เดือน)','kWh/เดือน');
+  setPts(CH1,x,d.E,null,first);
+  CH1.ln.innerHTML='';var rl=el('line',{class:'regL'},CH1.ln);
+  drawLine(rl,CH1.X(CH1.x0),CH1.Y(m.B[0]+m.B[1]*CH1.x0),CH1.X(CH1.x1),CH1.Y(m.B[0]+m.B[1]*CH1.x1),true);
+  drawResid(m.res,m.rmse);
+  $('ctrl').querySelectorAll('.chipBtn').forEach(function(e){var bb=+e.dataset.b;e.classList.toggle('on',bb===b);});
+  $('r2b'+b).textContent='R² = '+m.r2.toFixed(3);
+  $('stats').innerHTML='<div class="eq">'+eqHTML(m,['C'])+'</div>'+metsHTML(m);
+  $('goBtn').disabled=false;$('goBtn').textContent='ใช้ฐาน '+b+'°C เป็น baseline ✔';
+  tblL2(b);
+  var lo=0;x.forEach(function(v){if(v<8)lo++;});
+  if(b===18)say('ฐาน 18°C: ทุกเดือนมี CDD สูงแม้หน้าหนาว — จุดเดือนหนาวเลยไม่เข้าแนวครับ');
+  else if(b===27)say('ฐาน 27°C: มี '+lo+' เดือนที่ CDD แทบเป็นศูนย์ แต่ยังใช้ไฟ — ข้อมูลกองที่แกนซ้าย');
+  else say('ฐาน 24°C: ลองเทียบ R² กับฐานอื่นดูนะครับ');
+}
+function submitL2(){
+  if(S.phase==='pick'){
+    S.phase='quiz';sGood();
+    var d=S.d,b=S.base,m=S.m;
+    var V=Math.round((d.C[b][3]+d.C[b][15])/2*1.06);S.V=V;
+    var right=m.B[0]+m.B[1]*V,opts=[{v:right,k:'ok'},{v:m.B[1]*V,k:'noA'},{v:m.ybar,k:'mean'}];
+    if(Math.abs(opts[2].v-right)/right<0.06)opts[2]={v:m.B[0]+m.B[1]*V*1.25,k:'x'};
+    opts.sort(function(){return Math.random()-0.5;});S.opts=opts;
+    $('ctrl').querySelectorAll('.chipBtn').forEach(function(e){e.disabled=true;});
+    var h='<div class="quiz">🔮 คาดว่า <b>เม.ย. 68</b> มี CDD (ฐาน '+b+'°C) = <b>'+V+' °C·วัน</b><br>ตาม baseline นี้ อาคารควรใช้ไฟกี่ kWh?</div><div class="row" style="margin-top:6px">';
+    opts.forEach(function(o,i){h+='<button class="chipBtn" data-q="'+i+'">'+fmt(Math.round(o.v/100)*100)+'<small>kWh</small></button>';});
+    $('quizBox').innerHTML=h+'</div>';
+    $('quizBox').querySelectorAll('.chipBtn').forEach(function(e){e.addEventListener('click',function(){if(S.phase!=='quiz')return;audio();sClick();answerL2(+e.dataset.q);});});
+    $('goBtn').style.display='none';
+    var vl=el('line',{x1:CH1.X(V),x2:CH1.X(V),y1:CH1.m.t,y2:CH1.H-CH1.m.b,stroke:'#ffd23f','stroke-dasharray':'5 4','stroke-width':2},CH1.ln);
+    el('text',{x:CH1.X(V)+4,y:CH1.m.t+12,fill:'#ffd23f','font-size':11,'font-family':'Mitr,sans-serif'},CH1.top,'CDD = '+V);
+    say('ใช้สมการ baseline ทำนายเลย — แทนค่า CDD ลงในสมการครับ');
+    return;}
+}
+function answerL2(i){
+  S.phase='done';tStop=performance.now();
+  var d=S.d,best=BASES[d.r2.indexOf(Math.max.apply(null,d.r2))],o=S.opts[i],okB=S.base===best,okQ=o.k==='ok',m=S.m;
+  var st=1+(okB?1:0)+(okQ?1:0);
+  $('quizBox').querySelectorAll('.chipBtn').forEach(function(e,j){e.disabled=true;if(S.opts[j].k==='ok')e.classList.add('on');});
+  var py=m.B[0]+m.B[1]*S.V;el('circle',{cx:CH1.X(S.V),cy:CH1.Y(py),r:8,fill:'#ffd23f',stroke:'#fff','stroke-width':3},CH1.top);
+  var fb=[],r2t=BASES.map(function(b,j){return b+'°C: R² '+d.r2[j].toFixed(3)+(S.tried[b]!=null?'':' (ไม่ได้ลอง)');}).join(' · ');
+  fb.push([okB?'ok':'no',(okB?'เลือกถูก: ฐาน '+best+'°C ให้ R² สูงสุด':'ฐาน '+S.base+'°C ยังไม่ดีที่สุด — ฐานที่ดีคือ '+best+'°C')+'<br><small>'+r2t+'</small>']);
+  if(Object.keys(S.tried).length<3)fb.push(['tip','คุณลองไป '+Object.keys(S.tried).length+'/3 ฐาน — งานจริงควรไล่ทุกฐาน (หรือทุก 1°C) แล้วเลือกจาก R² และ CV(RMSE)']);
+  fb.push(['tip','ฐาน 18°C: หน้าหนาวยังนับ CDD สูง (อาคารไม่ได้เปิดแอร์หนัก) · ฐาน 27°C: หลายเดือน CDD ≈ 0 แต่แอร์ยังทำงาน → จุดกองที่แกนซ้าย ทั้งสองแบบทำให้ความสัมพันธ์ไม่เป็นเส้นตรง']);
+  var right=m.B[0]+m.B[1]*S.V;
+  if(okQ)fb.push(['ok','ทำนายถูก: E = '+fmt(m.B[0],0)+' + '+fmt(m.B[1],1)+'×'+S.V+' = '+fmt(right,0)+' kWh']);
+  else fb.push(['no',(o.k==='noA'?'ลืมบวกค่าคงที่ a ('+fmt(m.B[0],0)+' kWh = โหลดพื้นฐานที่ไม่ขึ้นกับอากาศ) ':(o.k==='mean'?'ค่านี้คือค่าเฉลี่ย kWh ของ 24 เดือน ไม่ได้ใช้สมการ ':'คำนวณคลาดเคลื่อน '))+'— ที่ถูก: '+fmt(m.B[0],0)+' + '+fmt(m.B[1],1)+'×'+S.V+' = '+fmt(right,0)+' kWh']);
+  say(st===3?'เยี่ยม! ได้ทั้งฐานที่ถูกและทำนายแม่น':(okB?'ฐานถูกแล้ว แต่ระวังการแทนค่าในสมการนะครับ':'ดู R² ของแต่ละฐานในเฉลยครับ'),st===3?'happy':null);
+  setTimeout(function(){showResult(st,fb,[['ฐานที่เลือก',S.base+'°C (R² '+m.r2.toFixed(3)+')'],['ฐานที่ดีที่สุด',best+'°C'],['สมการ',fmt(m.B[0],0)+' + '+fmt(m.B[1],1)+'·CDD'],['CV(RMSE)',m.cv.toFixed(1)+' %'],['เวลา',mmss(elapsed())]]);},1300);
+}
+
+/* ═════════ ด่าน 3: พหุตัวแปร + ตัวหลอก ═════════ */
+function initL3(seed){
+  var d=genL3(seed);S={d:d,sel:{P:false,C:false,D:false,K:false},n:0,phase:'pick',m:null,seen:{}};
+  $('c1Lbl').textContent='kWh จริง vs คาดการณ์';$('c2Lbl').textContent='Residual (kWh)';
+  $('goalTxt').innerHTML='<b>โรงงานแปรรูปอาหาร (ภาคกลาง)</b> — มีตัวแปรให้เลือก 4 ตัว <b>เลือกชุดที่ดีที่สุด</b>: ทุกตัวต้องมีนัยสำคัญ (|t| &gt; 2) และมีเหตุผลทางวิศวกรรม';
+  var V=[['P','ผลผลิต','ตัน/เดือน'],['C','CDD ฐาน 24°C','°C·วัน — ห้องเย็น/แอร์'],['D','จำนวนวันทำงาน','วัน/เดือน'],['K','สีรถผู้จัดการ','1=ขาว 2=ดำ 3=แดง 🚗']];
+  var h='';V.forEach(function(v){h+='<div class="vtog" data-v="'+v[0]+'"><div class="bx">✓</div><div class="nm">'+v[1]+'<small>'+v[2]+'</small></div><span class="tv" id="tv'+v[0]+'">—</span></div>';});
+  $('ctrl').innerHTML=h;
+  $('ctrl').querySelectorAll('.vtog').forEach(function(e){e.addEventListener('click',function(){if(S.phase!=='pick')return;audio();sClick();
+    var k=e.dataset.v;S.sel[k]=!S.sel[k];e.classList.toggle('on',S.sel[k]);S.n++;updL3(true);});});
+  $('goBtn').textContent='ใช้ชุดตัวแปรนี้ ✔';
+  setTable(['เดือน','kWh','ผลผลิต','CDD','วันทำงาน','สีรถ'],d.lbl.map(function(l,i){return [l,fmt(d.E[i]),fmt(d.P[i]),d.C[i],d.D[i],['','ขาว','ดำ','แดง'][d.K[i]]];}));
+  CH1.pt.innerHTML='';updL3(true);
+  say('ตัวแปรไหนขับเคลื่อนพลังงานจริง? ติ๊กแล้วดูค่า t ครับ — ระวังตัวหลอก!');
+}
+function selKeys(){return ['P','C','D','K'].filter(function(k){return S.sel[k];});}
+function updL3(anim){
+  var d=S.d,keys=selKeys();
+  var m=keys.length?ols(keys.map(function(k){return d[k];}),d.E):null;S.m=m;S.keys=keys;
+  ['P','C','D','K'].forEach(function(k){var j=keys.indexOf(k),e=$('tv'+k);
+    if(j<0||!m){e.className='tv';e.textContent='—';}else{var t=m.t[j+1];e.className='tv '+(Math.abs(t)>2?'ok':'no');e.textContent='t = '+t.toFixed(2);}});
+  CH1.ln.innerHTML='';
+  if(!m){
+    var lo=Math.min.apply(null,d.E),hi=Math.max.apply(null,d.E);
+    var tk={lo:-0.5,hi:23.5,t:[],lab:[]};for(var i=0;i<24;i+=4){tk.t.push(i);tk.lab.push(mLabel(i));}
+    setAxes(CH1,-0.5,23.5,lo-15000,hi+15000,'เดือน (ยังไม่มีโมเดล = ใช้ค่าเฉลี่ย)','kWh/เดือน',null,null,tk);
+    setPts(CH1,seq(24),d.E,null,CH1.pt.children.length!==24);
+    var ybar=d.E.reduce(function(a,b){return a+b;},0)/24,ml=el('line',{class:'regL'},CH1.ln);
+    drawLine(ml,CH1.X(-0.5),CH1.Y(ybar),CH1.X(23.5),CH1.Y(ybar),anim);
+    drawResid(d.E.map(function(v){return v-ybar;}),NaN);
+    $('stats').innerHTML='<div class="eq">ยังไม่ได้เลือกตัวแปร — โมเดลคือค่าเฉลี่ย ȳ = '+fmt(ybar,0)+' kWh (R² = 0)</div>';
+    return;}
+  if(keys.length===1){
+    var x=d[keys[0]],xl={P:'ผลผลิต (ตัน/เดือน)',C:'CDD ฐาน 24°C',D:'วันทำงาน (วัน)',K:'รหัสสีรถผู้จัดการ'}[keys[0]];
+    var xlo=Math.min.apply(null,x),xhi=Math.max.apply(null,x),pad=(xhi-xlo)*0.08||1;
+    setAxes(CH1,xlo-pad,xhi+pad,Math.min.apply(null,d.E)-15000,Math.max.apply(null,d.E)+15000,xl,'kWh/เดือน');
+    setPts(CH1,x,d.E,null,false);var rl=el('line',{class:'regL'},CH1.ln);
+    drawLine(rl,CH1.X(CH1.x0),CH1.Y(m.B[0]+m.B[1]*CH1.x0),CH1.X(CH1.x1),CH1.Y(m.B[0]+m.B[1]*CH1.x1),anim);
+    $('c1Lbl').textContent='kWh vs '+VN[keys[0]];
+  }else{
+    var lo2=Math.min(Math.min.apply(null,d.E),Math.min.apply(null,m.yhat))-15000,hi2=Math.max(Math.max.apply(null,d.E),Math.max.apply(null,m.yhat))+15000;
+    setAxes(CH1,lo2,hi2,lo2,hi2,'kWh คาดการณ์จากสมการ','kWh จริง');
+    setPts(CH1,m.yhat,d.E,null,false);var dl=el('line',{class:'regL'},CH1.ln);
+    drawLine(dl,CH1.X(CH1.x0),CH1.Y(CH1.x0),CH1.X(CH1.x1),CH1.Y(CH1.x1),anim);
+    el('text',{x:CH1.W-CH1.m.r-6,y:CH1.m.t+14,'text-anchor':'end',fill:'#ff8fb1','font-size':10.5,'font-family':'Mitr,sans-serif'},CH1.ln,'เส้น 45° = ทำนายแม่น');
+    $('c1Lbl').textContent='kWh จริง vs คาดการณ์';
+  }
+  drawResid(m.res,m.rmse);
+  S.seen[keys.join('')]={r2:m.r2,adj:m.adj};
+  $('stats').innerHTML='<div class="eq">'+eqHTML(m,keys)+'</div>'+metsHTML(m)+coefHTML(m,keys);
+  var bad=keys.filter(function(k,j){return Math.abs(m.t[j+1])<=2;});
+  if(bad.length)say('ตัวแปร "'+VN[bad[0]]+'" มี |t| ≤ 2 — ช่วยอธิบายจริงหรือเปล่า?','alert');
+  else if(keys.length)say('ทุกตัวแปรมีนัยสำคัญ — ดู adj R² กับ CV(RMSE) ประกอบครับ');
+}
+function submitL3(){
+  S.phase='done';tStop=performance.now();
+  var d=S.d,keys=S.keys||[],has=function(k){return keys.indexOf(k)>=0;};
+  var best=ols([d.P,d.C],d.E),full=ols([d.P,d.C,d.D,d.K],d.E),pd=ols([d.P,d.D],d.E),donly=ols([d.D,d.C],d.E);
+  var exact=has('P')&&has('C')&&!has('D')&&!has('K'),core=has('P')&&has('C');
+  var st=exact?3:(core?2:1);
+  var fb=[];
+  if(exact)fb.push(['ok','ชุดที่ดีที่สุด: ผลผลิต + CDD — ทั้งสองตัว |t| สูง (t = '+best.t[1].toFixed(1)+', '+best.t[2].toFixed(1)+') และ adj R² = '+best.adj.toFixed(3)+' สูงสุด']);
+  else fb.push(['no','ชุดที่ดีที่สุดคือ ผลผลิต + CDD (adj R² '+best.adj.toFixed(3)+', CV(RMSE) '+best.cv.toFixed(1)+'%) — ของคุณ: '+(keys.length?keys.map(function(k){return VN[k];}).join(' + '):'ไม่เลือกเลย')+(S.m?' (adj R² '+S.m.adj.toFixed(3)+')':'')]);
+  if(!has('P'))fb.push(['no','ขาด "ผลผลิต" — ตัวขับเคลื่อนหลักของโรงงาน (b ≈ '+fmt(best.B[1],0)+' kWh/t)'+(has('D')?' · "วันทำงาน" ดูมีนัยสำคัญเพราะเป็นตัวแทน (proxy) ของผลผลิต — พอใส่ผลผลิตคู่กัน t ของวันทำงานตกเหลือ '+pd.t[2].toFixed(2):'')]);
+  if(!has('C'))fb.push(['no','ขาด "CDD" — ห้องเย็น/แอร์ทำงานหนักขึ้นตามอากาศ (b ≈ '+fmt(best.B[2],0)+' kWh ต่อ °C·วัน, t = '+best.t[2].toFixed(1)+')']);
+  if(has('D'))fb.push(['no','"วันทำงาน" t = '+full.t[3].toFixed(2)+' ในโมเดลเต็ม — ข้อมูลซ้ำกับผลผลิต (multicollinearity) ไม่ได้อธิบายอะไรเพิ่ม']);
+  if(has('K'))fb.push(['no','"สีรถผู้จัดการ" t = '+full.t[4].toFixed(2)+' และไม่มีเหตุผลทางกายภาพ — R² ขึ้นนิดหน่อยเพราะบังเอิญ (spurious) ไม่ใช่เพราะเกี่ยวข้อง']);
+  fb.push(['tip','R² เพิ่มเสมอเมื่อใส่ตัวแปร: 2 ตัว R² '+best.r2.toFixed(4)+' → 4 ตัว '+full.r2.toFixed(4)+' แต่ adj R² '+best.adj.toFixed(4)+' → '+full.adj.toFixed(4)+' (ลดลง) — ใช้ adj R² ตัดสิน']);
+  say(st===3?'ใช่เลย! ผลผลิต + CDD คือ driver จริง':'ดูค่า t และ adj R² ในเฉลยนะครับ',st===3?'happy':null);
+  setTimeout(function(){showResult(st,fb,[['ชุดของคุณ',keys.length?keys.map(function(k){return VN[k];}).join(' + '):'—'],['adj R² ของคุณ / ดีสุด',(S.m?S.m.adj.toFixed(3):'0')+' / '+best.adj.toFixed(3)],['CV(RMSE) ชุดดีสุด',best.cv.toFixed(1)+' %'],['ลองสลับตัวแปร',S.n+' ครั้ง'],['เวลา',mmss(elapsed())]]);},900);
+}
+
+/* ═════════ ด่าน 4: outlier ═════════ */
+var RSN={oh:'🔧 เครื่องหยุดซ่อม',mt:'📟 มิเตอร์ผิด',nr:'🤷 ไม่มีเหตุผล'};
+function initL4(seed){
+  var d=genL4(seed);S={d:d,flag:{},phase:'pick',cur:null,opened:0};
+  $('c1Lbl').textContent='kWh vs ผลผลิต (แตะจุดเพื่อตรวจ)';$('c2Lbl').textContent='Residual (kWh) · แดง = เกิน ±2σ';
+  $('goalTxt').innerHTML='<b>โรงงานอีกแห่ง</b> — ข้อมูลมีจุดแปลกปน <b>แตะจุด</b> เพื่ออ่านสมุดบันทึกหน้างาน แล้วตัดเฉพาะจุดที่<b>มีเหตุผลยืนยัน</b>';
+  $('ctrl').innerHTML='<div class="small-note" id="flagList">ยังไม่ได้ตัดจุดใด</div>';
+  $('goBtn').textContent='ส่ง baseline ✔';
+  var xlo=Math.min.apply(null,d.P),xhi=Math.max.apply(null,d.P),ylo=Math.min.apply(null,d.E),yhi=Math.max.apply(null,d.E);
+  setAxes(CH1,xlo-100,xhi+100,ylo-20000,yhi+20000,'ผลผลิต (ตัน/เดือน)','kWh/เดือน');
+  setPts(CH1,d.P,d.E,null,true);
+  S.rl=el('line',{class:'regL'},CH1.ln);
+  CH1.pt.onclick=function(e){var g=e.target.closest('.pt');if(!g||S.phase!=='pick'||L!==3)return;audio();sClick();openPt(+g.dataset.i);};
+  $('tbl').onclick=function(e){var tr=e.target.closest('tr');if(!tr||tr.dataset.i==null||S.phase!=='pick'||L!==3)return;openPt(+tr.dataset.i);};
+  updL4(true);
+  say('มีบางจุดดูแปลก ๆ — แตะเพื่อเปิดสมุดบันทึกก่อนตัดสินใจนะครับ');
+}
+function maskL4(){return seq(24).map(function(i){return !!S.flag[i];});}
+function updL4(anim){
+  var d=S.d,mask=maskL4(),m=ols([d.P],d.E,mask);S.m=m;
+  var cls=seq(24).map(function(i){return S.flag[i]?'flag':(Math.abs(m.res[i])>2*m.rmse?'sus':'');});
+  setPts(CH1,d.P,d.E,cls,false);
+  drawLine(S.rl,CH1.X(CH1.x0),CH1.Y(m.B[0]+m.B[1]*CH1.x0),CH1.X(CH1.x1),CH1.Y(m.B[0]+m.B[1]*CH1.x1),anim);
+  CH1.top.innerHTML='';
+  Object.keys(S.flag).forEach(function(i){var x=CH1.X(d.P[i]),y=CH1.Y(d.E[i]);
+    el('text',{x:x+5,y:y-7,'font-size':14},CH1.top,'🚩');});
+  drawResid(m.res,m.rmse,null,mask);
+  $('stats').innerHTML='<div class="eq">'+eqHTML(m,['P'])+'</div>'+metsHTML(m);
+  var fl=Object.keys(S.flag);
+  $('flagList').innerHTML=fl.length?'ตัดแล้ว '+fl.length+' จุด: '+fl.map(function(i){return '<b>'+d.lbl[i]+'</b> ('+RSN[S.flag[i]]+')';}).join(', '):'ยังไม่ได้ตัดจุดใด · จุดสีเหลือง = residual เกิน 2σ';
+  setTable(['เดือน','ผลผลิต (t)','kWh','บันทึกหน้างาน'],d.lbl.map(function(l,i){return [l,fmt(d.P[i]),fmt(d.E[i]),'<span style="white-space:normal;display:inline-block;min-width:150px;text-align:left">'+d.LOG[i]+'</span>'];}),
+    seq(24).map(function(i){return S.flag[i]?'flag':'';}));
+}
+function openPt(i){
+  var d=S.d,m=S.m;S.cur=i;S.opened++;
+  var pred=m.B[0]+m.B[1]*d.P[i],r=d.E[i]-pred,z=r/m.rmse;
+  $('ptTitle').textContent='📅 '+d.lbl[i];
+  $('ptInfo').innerHTML='ผลผลิต <b>'+fmt(d.P[i])+'</b> ตัน · kWh จริง <b>'+fmt(d.E[i])+'</b><br>kWh ตามเส้นปัจจุบัน <b>'+fmt(pred,0)+'</b><br>residual <b>'+(r>=0?'+':'')+fmt(r,0)+'</b> kWh = <b>'+(z>=0?'+':'')+z.toFixed(1)+'σ</b>'+(S.flag[i]?' (จุดนี้ถูกตัดอยู่)':'');
+  $('ptLog').innerHTML='📓 <b>บันทึกหน้างาน:</b> '+d.LOG[i];
+  $('ptOv').querySelectorAll('.rsnBtns button').forEach(function(b){b.classList.toggle('on',S.flag[i]===b.dataset.r);});
+  $('ptOv').classList.add('show');
+}
+function setFlag(r){var i=S.cur;if(i==null)return;
+  if(r==='keep')delete S.flag[i];else S.flag[i]=r;
+  $('ptOv').classList.remove('show');sClick();updL4(true);
+  if(r!=='keep'){var d=S.d;say('ตัด '+d.lbl[i]+' แล้ว — สังเกต R² และ CV(RMSE) เปลี่ยนไป',r==='nr'?'alert':null);}}
+function submitL4(){
+  S.phase='done';tStop=performance.now();
+  var d=S.d,fl=S.flag,pen=0,fb=[];
+  var all=seq(24).map(function(){return false;});all[L4_OH]=all[L4_MT]=true;var clean=ols([d.P],d.E,all),raw=ols([d.P],d.E);
+  if(fl[L4_OH]==='oh')fb.push(['ok',d.lbl[L4_OH]+': ตัดถูก เหตุผลถูก — หยุดซ่อมใหญ่ ผลผลิตน้อยแต่ไฟยังเดิน (โหลดพื้นฐาน + ทดสอบเครื่อง) ไม่ใช่สภาพการผลิตปกติ']);
+  else if(fl[L4_OH]){pen+=0.5;fb.push(['tip',d.lbl[L4_OH]+': ตัดถูกแต่เหตุผลไม่ตรง — บันทึกระบุ "หยุดซ่อมใหญ่ 11 วัน" ต้องอ้างเหตุผลให้ตรงหลักฐาน']);}
+  else{pen+=1;fb.push(['no',d.lbl[L4_OH]+': ควรตัด — บันทึก "หยุดซ่อมใหญ่ 11 วัน" ทำให้จุดนี้ (ซ้ายบน) ดึงเส้นให้ลาดลง และเพิ่มค่าคงที่ a เกินจริง']);}
+  if(fl[L4_MT]==='mt')fb.push(['ok',d.lbl[L4_MT]+': ตัดถูก เหตุผลถูก — มิเตอร์ตั้ง CT ratio ผิด ค่า kWh ต่ำกว่าจริง ~32% (ข้อมูลวัดผิด ไม่ใช่พฤติกรรมจริง)']);
+  else if(fl[L4_MT]){pen+=0.5;fb.push(['tip',d.lbl[L4_MT]+': ตัดถูกแต่เหตุผลไม่ตรง — บันทึกระบุ "ตั้ง CT ratio ผิด" = มิเตอร์ผิด']);}
+  else{pen+=1;fb.push(['no',d.lbl[L4_MT]+': ควรตัด — ฝ่ายไฟฟ้ายืนยันมิเตอร์ตั้ง CT ratio ผิด ค่าที่จดได้ไม่ใช่การใช้พลังงานจริง']);}
+  if(fl[L4_DC]){pen+=1;fb.push(['no',d.lbl[L4_DC]+': จุดหลอก! residual สูง (~+2.5σ) แต่บันทึก "ผลิตปกติ" — ข้อมูลจริงที่มีความแปรปรวนตามธรรมชาติ ห้ามตัดเพื่อให้ R² สวย']);}
+  else fb.push(['ok',d.lbl[L4_DC]+': เก็บไว้ถูกต้อง — residual สูงแต่ไม่มีเหตุการณ์ผิดปกติ ตัดไม่ได้']);
+  var other=Object.keys(fl).filter(function(i){i=+i;return i!==L4_OH&&i!==L4_MT&&i!==L4_DC;});
+  if(other.length){pen+=other.length;fb.push(['no','ตัดข้อมูลปกติ '+other.length+' จุด ('+other.map(function(i){return d.lbl[i];}).join(', ')+') — บันทึกไม่มีเหตุผิดปกติ'+(other.some(function(i){return i%12===3;})?' · สงกรานต์ผลิตน้อยจริงและจุดยังอยู่บนเส้น':'')]);}
+  var nr=Object.keys(fl).filter(function(i){return fl[i]==='nr';});
+  if(nr.length){fb.push(['no','เลือกเหตุผล "ไม่มีเหตุผล" '+nr.length+' จุด — การตัดข้อมูลโดยไม่มีหลักฐานขัดกับ ISO 50006/IPMVP (ต้องบันทึกเหตุผลการปรับข้อมูลทุกครั้ง)']);}
+  fb.push(['tip','ก่อนตัด: R² '+raw.r2.toFixed(3)+', CV '+raw.cv.toFixed(1)+'%, b '+fmt(raw.B[1],1)+' → ตัดเฉพาะ 2 จุดที่มีเหตุผล: R² '+clean.r2.toFixed(3)+', CV '+clean.cv.toFixed(1)+'%, b '+fmt(clean.B[1],1)+' kWh/t']);
+  var st=Math.max(1,Math.min(3,Math.floor(3-pen+0.001)));
+  say(st===3?'ตัดแม่นและมีหลักฐานครบ แบบนี้ผู้ทวนสอบชอบครับ':'ดูเฉลยแต่ละจุดนะครับ',st===3?'happy':'alert');
+  setTimeout(function(){showResult(st,fb,[['จุดที่ตัด',Object.keys(fl).length+' จุด'],['R² / CV(RMSE) ของคุณ',S.m.r2.toFixed(3)+' / '+S.m.cv.toFixed(1)+' %'],['R² / CV(RMSE) ที่ถูก',clean.r2.toFixed(3)+' / '+clean.cv.toFixed(1)+' %'],['เปิดดูจุด',S.opened+' ครั้ง'],['เวลา',mmss(elapsed())]]);},900);
+}
+
+/* ═════════ ด่าน 5: CUSUM ═════════ */
+function initL5(seed){
+  var scen=tries[4]%2===0?'vfd':'wear';
+  var d=genL5(seed,scen);S={d:d,pick:null,phase:'pick'};
+  var m=d.m0,wear=scen==='wear';
+  $('c1Lbl').textContent='CUSUM = Σ(จริง − คาดการณ์) kWh';$('c2Lbl').textContent='kWh จริง (จุด) vs baseline (เส้น)';
+  $('goalTxt').innerHTML=wear?
+    '<b>โรงงานเดิม ปี 68</b> — ช่วงกลางปีเครื่องอัดอากาศเริ่ม<b>เสื่อม</b> ดู CUSUM แล้ว<b>แตะเดือนที่สมรรถนะเริ่มแย่ลง</b> และกรอก<b>พลังงานสูญเสียสะสม</b> ถึง ธ.ค. 68':
+    '<b>โรงงานเดิม ปี 68</b> — มีการติดตั้ง <b>VFD</b> ที่ปั๊ม/พัดลม ดู CUSUM แล้ว<b>แตะเดือนที่มาตรการเริ่มผล</b> และกรอก<b>ผลประหยัดสะสม</b> ถึง ธ.ค. 68';
+  $('ctrl').innerHTML='<div class="quiz" id="pickInfo">👆 แตะจุดบนกราฟ CUSUM ในช่วงปี 68 (พื้นสีส้ม)</div>'+
+    '<label style="font-weight:600;font-size:.9rem">'+(wear?'พลังงานสูญเสียสะสม ม.ค.–ธ.ค. 68 (kWh)':'ผลประหยัดสะสม ม.ค.–ธ.ค. 68 (kWh)')+'</label>'+
+    '<input class="numIn" id="savIn" type="number" inputmode="numeric" placeholder="เช่น 150000">'+
+    '<div class="small-note">ยอมรับคลาดเคลื่อน ±10% · '+(wear?'สูญเสีย = Σ(จริง − คาดการณ์) = CUSUM ปลายช่วง':'ผลประหยัด = Σ(คาดการณ์ − จริง) = −CUSUM ปลายช่วง')+' (CUSUM ณ ธ.ค. 67 = 0 พอดี)</div>';
+  $('stats').innerHTML='<div class="eq">Baseline ปี 66–67: '+eqHTML(m,['P','C'])+'</div>'+metsHTML(m);
+  $('goBtn').textContent='ส่งคำตอบ ✔';
+  $('savIn').addEventListener('input',chkL5);
+  drawL5(true);
+  setTable(['เดือน','ผลผลิต','CDD','kWh จริง','คาดการณ์','จริง−คาด','CUSUM'],d.lbl.map(function(l,i){return [l,fmt(d.P[i]),d.C[i],fmt(d.E[i]),fmt(m.yhat[i],0),fmt(d.res[i],0),fmt(d.cu[i],0)];}),
+    seq(36).map(function(i){return i>=24?'rep':'';}));
+  chkL5();
+  say(wear?'baseline พร้อมแล้ว — ปีนี้มีอะไรแปลก ๆ ดูความชันของ CUSUM นะครับ':'baseline พร้อมแล้ว — ปี 68 ติดตั้ง VFD เดือนไหนเริ่มเห็นผล? ดูที่ CUSUM หักหัวครับ');
+}
+function drawL5(anim){
+  var d=S.d,cu=d.cu,lo=Math.min(0,Math.min.apply(null,cu)),hi=Math.max(0,Math.max.apply(null,cu));
+  var tk={lo:-0.5,hi:35.5,t:[],lab:[]};for(var i=0;i<36;i+=6){tk.t.push(i);tk.lab.push(mLabel(i));}
+  var pad=(hi-lo)*0.12;
+  setAxes(CH1,-0.5,35.5,lo-pad,hi+pad,'เดือน (ม.ค. 66 – ธ.ค. 68)','CUSUM (kWh)',null,null,tk);
+  var b=$('c1band');b.innerHTML='';
+  el('rect',{x:CH1.X(23.5),y:CH1.m.t,width:CH1.X(35.5)-CH1.X(23.5),height:CH1.H-CH1.m.t-CH1.m.b,fill:'#ff9800',opacity:.12},b);
+  var ly=d.scen==='wear'?CH1.H-CH1.m.b-6:CH1.m.t+12;
+  el('text',{x:CH1.X(29.5),y:ly,'text-anchor':'middle',fill:'#ffb74d','font-size':10.5,'font-family':'Mitr,sans-serif'},b,'ช่วงรายงาน ปี 68');
+  el('text',{x:CH1.X(11.5),y:ly,'text-anchor':'middle',fill:'#80deea','font-size':10.5,'font-family':'Mitr,sans-serif'},b,'ช่วง baseline ปี 66–67');
+  CH1.ln.innerHTML='';
+  var dd='';for(i=0;i<36;i++)dd+=(i?'L':'M')+CH1.X(i).toFixed(1)+' '+CH1.Y(cu[i]).toFixed(1);
+  var p=el('path',{d:dd,class:'cuL'},CH1.ln);
+  if(anim){var Lp=p.getTotalLength();p.style.strokeDasharray=Lp;p.style.strokeDashoffset=Lp;p.getBoundingClientRect();p.style.transition='stroke-dashoffset 2.2s ease-out';p.style.strokeDashoffset=0;}
+  setPts(CH1,seq(36),cu,seq(36).map(function(i){return (S.pick===i-24?'sel':(i>=24?'rep':''));}),anim);
+  CH1.pt.onclick=function(e){var g=e.target.closest('.pt');if(!g||S.phase!=='pick'||L!==4)return;var i=+g.dataset.i;audio();
+    if(i<24){sClick();say('นั่นช่วง baseline ครับ — CUSUM วนรอบศูนย์ตามธรรมชาติ ลองดูปี 68','alert');return;}
+    sBeep();S.pick=i-24;drawL5(false);chkL5();
+    $('pickInfo').innerHTML='📍 เลือก <b>'+d.lbl[i]+'</b> · CUSUM = <b>'+fmt(cu[i],0)+'</b> kWh';};
+  /* tooltip */
+  CH1.top.innerHTML='';
+  if(S.pick!=null){var ii=S.pick+24,x=CH1.X(ii),y=CH1.Y(cu[ii]);
+    el('line',{x1:x,x2:x,y1:CH1.m.t,y2:CH1.H-CH1.m.b,stroke:'#ff5d8f','stroke-dasharray':'4 3','stroke-width':1.6},CH1.top);
+    var tg=el('g',{class:'tip'},CH1.top),tx=Math.min(Math.max(x,CH1.m.l+60),CH1.W-CH1.m.r-60),ty=y<CH1.m.t+50?y+16:y-34;
+    el('rect',{x:tx-58,y:ty,width:116,height:22,rx:8},tg);
+    el('text',{x:tx,y:ty+15,'text-anchor':'middle'},tg,d.lbl[ii]+' : '+fK(cu[ii]));}
+  /* กราฟรอง: จริง vs baseline */
+  var ch=CH2,lo2=Math.min(Math.min.apply(null,d.E),Math.min.apply(null,d.m0.yhat)),hi2=Math.max(Math.max.apply(null,d.E),Math.max.apply(null,d.m0.yhat));
+  setAxes(ch,-0.5,35.5,lo2-10000,hi2+10000,'','',null,fK,tk);
+  var g=ch.ln;g.innerHTML='';
+  el('rect',{x:ch.X(23.5),y:ch.m.t,width:ch.X(35.5)-ch.X(23.5),height:ch.H-ch.m.t-ch.m.b,fill:'#ff9800',opacity:.12},g);
+  var pl='';for(i=0;i<36;i++)pl+=(i?'L':'M')+ch.X(i).toFixed(1)+' '+ch.Y(d.m0.yhat[i]).toFixed(1);
+  el('path',{d:pl,stroke:'#ff5d8f','stroke-width':2,fill:'none'},g);
+  for(i=0;i<36;i++)el('circle',{cx:ch.X(i),cy:ch.Y(d.E[i]),r:2.8,fill:i>=24?'#ffb74d':'#4dd0e1'},g);
+}
+function chkL5(){var v=parseFloat(($('savIn')||{}).value);$('goBtn').disabled=!(S.pick!=null&&isFinite(v));}
+function submitL5(){
+  S.phase='done';tStop=performance.now();
+  var d=S.d,wear=d.scen==='wear',v=Math.abs(parseFloat($('savIn').value)),err=(v-d.target)/d.target*100;
+  var mOk=S.pick===d.k,mNear=Math.abs(S.pick-d.k)===1,sOk=Math.abs(err)<=10;
+  var st=(mOk&&sOk)?3:((mOk||sOk)?2:1);
+  if(!mOk&&mNear&&sOk)st=2;
+  var fb=[],kl=d.lbl[24+d.k];
+  if(mOk)fb.push(['ok','เดือนถูก: '+kl+' — CUSUM เริ่ม'+(wear?'พุ่งขึ้น':'ดิ่งลง')+'ต่อเนื่องตั้งแต่เดือนนี้ (residual เดือนนั้น '+(d.res[24+d.k]>=0?'+':'')+fmt(d.res[24+d.k],0)+' kWh)']);
+  else fb.push(['no','คุณเลือก '+d.lbl[24+S.pick]+' แต่จุดเปลี่ยนจริงคือ <b>'+kl+'</b> — '+(S.pick<d.k?'ก่อนหน้านั้น CUSUM ยังแกว่งรอบระดับเดิม (สัญญาณรบกวนปกติ)':'ความชันเปลี่ยนตั้งแต่ก่อนเดือนที่คุณเลือก ดูจุดที่เส้น "เริ่มหักหัว" ไม่ใช่จุดที่เห็นชัด')]);
+  fb.push([sOk?'ok':'no',(wear?'สูญเสียสะสม':'ผลประหยัดสะสม')+' ที่ถูก = '+fmt(d.target,0)+' kWh · ของคุณ '+fmt(v,0)+' kWh (คลาด '+(err>=0?'+':'')+err.toFixed(1)+'%)'+(sOk?' ✔ อยู่ใน ±10%':'')]);
+  var after=0;for(var i=24+d.k;i<36;i++)after+=d.res[i];
+  fb.push(['tip','ค่าเฉลี่ยหลังเปลี่ยน ≈ '+fmt(Math.abs(after)/(12-d.k),0)+' kWh/เดือน (~'+(Math.abs(after)/(12-d.k)/d.m0.ybar*100).toFixed(1)+'% ของการใช้ไฟ) · ค่าบาท ≈ '+fmt(d.target*4.2,0)+' บาท ที่ 4.2 บาท/kWh']);
+  fb.push(['tip','หลัก IPMVP: ผลประหยัด = baseline ที่ปรับตามผลผลิต/อากาศจริง − การใช้จริง ไม่ใช่ "ปีนี้ − ปีก่อน" เพราะผลผลิตและอากาศเปลี่ยนทุกปี']);
+  if(S.pick!=null){var ii=24+d.k,x=CH1.X(ii);el('line',{x1:x,x2:x,y1:CH1.m.t,y2:CH1.H-CH1.m.b,stroke:'#69f0ae','stroke-width':2.4},CH1.top);
+    el('text',{x:x+4,y:CH1.H-CH1.m.b-6,fill:'#69f0ae','font-size':11,'font-family':'Mitr,sans-serif'},CH1.top,'จุดเปลี่ยนจริง');}
+  say(st===3?'แม่นทั้งเดือนและตัวเลข! พร้อมทำรายงาน M&V แล้วครับ':'ดูเส้นเขียว = เดือนที่เปลี่ยนจริงครับ',st===3?'happy':null);
+  setTimeout(function(){showResult(st,fb,[['สถานการณ์',wear?'เครื่องเสื่อม (+7%)':'ติดตั้ง VFD (−6%)'],['เดือนที่เลือก / จริง',d.lbl[24+S.pick]+' / '+kl],[wear?'สูญเสียสะสม':'ผลประหยัดสะสม',fmt(d.target,0)+' kWh'],['คำตอบของคุณ',fmt(v,0)+' kWh'],['เวลา',mmss(elapsed())]]);},1200);
+}
+
+/* ═════════ ผลลัพธ์ ═════════ */
+function showResult(st,fb,stats){
+  if(resultShown)return;resultShown=true;
+  if(st>stars[L]){stars[L]=st;saveStars();}
+  updateStarTotal();
+  $('resEmoji').textContent=st===3?'🏆':(st===2?'👍':'🔁');
+  $('resTitle').textContent='จบด่าน '+LVN[L];
+  $('resLesson').textContent='💡 '+LESSON[L];
+  $('resFb').innerHTML=fb.map(function(f){return '<div class="it '+f[0]+'">'+(f[0]==='ok'?'✔ ':(f[0]==='no'?'✖ ':'💡 '))+f[1]+'</div>';}).join('');
+  $('resStats').innerHTML=stats.map(function(s){return '<div><span>'+s[0]+'</span><b>'+s[1]+'</b></div>';}).join('');
+  var ss=$('resStars').children;for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');$('resultOv').querySelector('.card').scrollTop=0;
+  if(st>=2)sGood();else sBad();
+  for(let i=0;i<st;i++)setTimeout(function(){ss[i].classList.add('on');sStar(i);},350+i*380);
+  if(st===3)confetti(30);
+  $('nextBtn').textContent=L<4?'ด่านต่อไป ➜':'🏁 สรุปผล';
+}
+function updateStarTotal(){var t=stars.reduce(function(a,b){return a+b;},0);$('starTotal').textContent=t;return t;}
+function confetti(n){var cols=['#3f51b5','#ffd23f','#00acc1','#ff5d8f','#69f0ae'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3600);}}
+
+/* ═════════ คู่มือวิธีเล่น (5 ขั้น SVG เคลื่อนไหว) ═════════ */
+var DOTS=[[40,118],[62,104],[80,108],[100,90],[120,92],[138,74],[160,70],[176,58],[198,52],[214,40]];
+function dotsSvg(cls){return DOTS.map(function(p,i){return '<circle class="'+(cls||'')+'" style="animation-delay:'+(i*0.18)+'s" cx="'+p[0]+'" cy="'+p[1]+'" r="5" fill="#4dd0e1"/>';}).join('');}
+var HELP=[
+ {txt:'① ภารกิจ: สร้าง Energy Baseline (EnB) จากข้อมูล 24 เดือน — สมการที่ทำนาย kWh จากตัวแปรขับเคลื่อน',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="14" fill="#0f1b38"/>'+
+   '<line x1="28" y1="136" x2="236" y2="136" stroke="#5c76b5" stroke-width="2"/><line x1="28" y1="20" x2="28" y2="136" stroke="#5c76b5" stroke-width="2"/>'+
+   dotsSvg('hPop')+'<line class="hDraw" x1="34" y1="124" x2="230" y2="36" stroke="#ff5d8f" stroke-width="3.5" stroke-linecap="round"/>'+
+   '<text x="130" y="152" font-size="11" fill="#a9bde6" text-anchor="middle" font-family="Mitr,sans-serif">ผลผลิต / CDD</text>'+
+   '<g transform="translate(252 46)"><rect x="6" y="14" width="66" height="50" rx="16" fill="#e8ecfb" stroke="#3f51b5" stroke-width="4"/><rect x="14" y="22" width="50" height="32" rx="9" fill="#10204a"/>'+
+   '<rect class="rEye" x="24" y="30" width="9" height="11" rx="4" fill="#4dd0e1"/><rect class="rEye" x="45" y="30" width="9" height="11" rx="4" fill="#4dd0e1"/>'+
+   '<path d="M31 46 Q39 52 47 46" stroke="#4dd0e1" stroke-width="3" fill="none"/><line x1="39" y1="2" x2="39" y2="14" stroke="#9fa8da" stroke-width="4"/><circle cx="39" cy="2" r="5" fill="#ffd23f"/>'+
+   '<rect x="20" y="66" width="38" height="22" rx="8" fill="#3f51b5"/></g></svg>'},
+ {txt:'② ด่าน 1: ลากวงกลมเหลืองที่ปลายเส้น ให้เส้นผ่ากลางกลุ่มจุด — ดู SSE ลดลงสด ๆ แล้วเทียบกับ OLS',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="14" fill="#0f1b38"/>'+dotsSvg('')+
+   '<g class="hRot"><line x1="40" y1="112" x2="226" y2="112" stroke="#ffd23f" stroke-width="3" stroke-dasharray="8 5" transform="rotate(-24 40 112)"/>'+
+   '<g transform="rotate(-24 40 112)"><circle cx="226" cy="112" r="10" fill="#ffd23f" stroke="#fff" stroke-width="3"/><text x="222" y="142" font-size="22">👆</text></g></g>'+
+   '<circle cx="40" cy="112" r="10" fill="#ffd23f" stroke="#fff" stroke-width="3"/>'+
+   '<text x="252" y="40" font-size="12" fill="#cfd8f5" font-family="Mitr,sans-serif">SSE</text>'+
+   '<rect x="252" y="48" width="74" height="14" rx="7" fill="#24396b"/><rect class="hBar" x="252" y="48" width="74" height="14" rx="7" fill="#00acc1"/>'+
+   '<text x="252" y="86" font-size="11" fill="#a9bde6" font-family="Mitr,sans-serif">ยิ่งสั้นยิ่งดี</text></svg>'},
+ {txt:'③ เลือกตัวแปรขับเคลื่อน — เก็บตัวที่ |t| > 2 และมีเหตุผลทางวิศวกรรม ทิ้งตัวหลอกที่ t ต่ำ',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="14" fill="#eef1fb"/>'+
+   '<g font-family="Mitr,sans-serif" font-size="14" fill="#213047">'+
+   '<rect x="24" y="16" width="292" height="36" rx="12" fill="#e0f7fa" stroke="#00acc1" stroke-width="3"/><rect x="36" y="25" width="18" height="18" rx="5" fill="#00acc1"/><text class="hChk" x="39" y="40" fill="#fff" font-weight="700">✓</text><text x="64" y="40">ผลผลิต</text><rect x="230" y="23" width="74" height="22" rx="11" fill="#e3f6ea"/><text x="267" y="39" font-size="12" text-anchor="middle" fill="#1b7a43">t = 14.2</text>'+
+   '<rect x="24" y="60" width="292" height="36" rx="12" fill="#e0f7fa" stroke="#00acc1" stroke-width="3"/><rect x="36" y="69" width="18" height="18" rx="5" fill="#00acc1"/><text class="hChk" style="animation-delay:.4s" x="39" y="84" fill="#fff" font-weight="700">✓</text><text x="64" y="84">CDD</text><rect x="230" y="67" width="74" height="22" rx="11" fill="#e3f6ea"/><text x="267" y="83" font-size="12" text-anchor="middle" fill="#1b7a43">t = 6.8</text>'+
+   '<rect x="24" y="104" width="292" height="36" rx="12" fill="#fff" stroke="#ef4b4b" stroke-width="3"/><text x="64" y="128">สีรถผู้จัดการ 🚗</text><rect x="230" y="111" width="74" height="22" rx="11" fill="#ffe5e5"/><text x="267" y="127" font-size="12" text-anchor="middle" fill="#b3261e">t = 0.4</text>'+
+   '<line class="hStrike" x1="60" y1="122" x2="190" y2="122" stroke="#ef4b4b" stroke-width="3"/></g></svg>'},
+ {txt:'④ แตะจุดแปลกเพื่ออ่านสมุดบันทึกหน้างาน — ตัดได้เฉพาะเมื่อมีเหตุผล (หยุดซ่อม / มิเตอร์ผิด)',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="14" fill="#0f1b38"/>'+dotsSvg('')+
+   '<line x1="34" y1="124" x2="230" y2="36" stroke="#ff5d8f" stroke-width="3"/>'+
+   '<circle cx="74" cy="40" r="6" fill="#ffd23f"/><circle class="hTap" cx="74" cy="40" r="10" fill="none" stroke="#fff" stroke-width="3"/>'+
+   '<text class="hFlag" x="80" y="32" font-size="18">🚩</text><text x="78" y="72" font-size="22" class="hFing">👆</text>'+
+   '<g class="hFlag"><rect x="236" y="30" width="96" height="62" rx="10" fill="#fff8e1" stroke="#ffb300" stroke-width="2"/>'+
+   '<text x="244" y="50" font-size="11" fill="#213047" font-family="Mitr,sans-serif">📓 พ.ค. 66</text>'+
+   '<text x="244" y="68" font-size="11" fill="#213047" font-family="Mitr,sans-serif">หยุดซ่อมใหญ่</text>'+
+   '<text x="244" y="84" font-size="11" fill="#b3261e" font-family="Mitr,sans-serif">→ ตัดได้ 🔧</text></g></svg>'},
+ {txt:'⑤ ด่าน 5: ดูกราฟ CUSUM แตะเดือนที่เส้น "หักหัว" แล้วกรอกผลประหยัดสะสม (kWh)',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="14" fill="#0f1b38"/>'+
+   '<rect x="190" y="14" width="136" height="126" fill="#ff9800" opacity=".14"/>'+
+   '<line x1="20" y1="60" x2="326" y2="60" stroke="#5c76b5" stroke-width="1.5"/>'+
+   '<path class="hDraw" d="M20 60 L44 52 L68 66 L92 56 L116 64 L140 54 L164 62 L190 58 L214 60 L238 82 L262 100 L286 116 L310 132" stroke="#69f0ae" stroke-width="3.5" fill="none"/>'+
+   '<circle class="hTap" cx="214" cy="60" r="10" fill="none" stroke="#ff5d8f" stroke-width="3"/>'+
+   '<text x="204" y="96" font-size="22" class="hFing">👆</text>'+
+   '<line x1="318" y1="60" x2="318" y2="132" stroke="#ffd23f" stroke-width="2.5"/><path d="M312 126 L318 136 L324 126 Z" fill="#ffd23f"/>'+
+   '<text x="312" y="54" font-size="11" fill="#ffd23f" text-anchor="end" font-family="Mitr,sans-serif">ผลประหยัด</text>'+
+   '<text x="96" y="34" font-size="11" fill="#80deea" text-anchor="middle" font-family="Mitr,sans-serif">baseline วนรอบ 0</text></svg>'}
+];
+var helpPg=0;
+function renderHelp(){$('helpStage').innerHTML=HELP[helpPg].svg;$('helpTxt').textContent=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';
+  $('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){$('helpOv').classList.remove('show');markSeen();
+  if(start&&$('startOv').classList.contains('show')){$('startOv').classList.remove('show');startLevel(pickNext());}}
+function pickNext(){for(var i=0;i<5;i++)if(!stars[i])return i;return 0;}
+
+/* ═════════ ปุ่ม/อีเวนต์ ═════════ */
+$('goBtn').addEventListener('click',function(){if(this.disabled)return;audio();sClick();
+  if(L===0&&S.phase==='drag')submitL1();
+  else if(L===1&&S.phase==='pick'&&S.base)submitL2();
+  else if(L===2&&S.phase==='pick')submitL3();
+  else if(L===3&&S.phase==='pick')submitL4();
+  else if(L===4&&S.phase==='pick'&&S.pick!=null)submitL5();});
+$('ptOv').querySelectorAll('.rsnBtns button').forEach(function(b){b.addEventListener('click',function(){audio();setFlag(b.dataset.r);});});
+$('ptOv').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');});
+$('robot').addEventListener('click',nextHint);$('hintBtn').addEventListener('click',nextHint);
+function nextHint(){audio();sClick();var h=HINTS[L];say('💡 '+h[hintI%h.length]);hintI++;}
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn2').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+$('fxBtn').addEventListener('click',function(){audio();sClick();$('fxOv').classList.add('show');$('fxOv').querySelector('.card').scrollTop=0;});
+$('fxClose').addEventListener('click',function(){sClick();$('fxOv').classList.remove('show');});
+$('fxOv').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('retryBtn').addEventListener('click',function(){sClick();$('resultOv').classList.remove('show');tries[L]++;startLevel(L);});
+$('nextBtn').addEventListener('click',function(){sClick();$('resultOv').classList.remove('show');
+  if(L<4)startLevel(L+1);else{$('endStars').textContent=updateStarTotal();$('endOv').classList.add('show');if(updateStarTotal()>=12)confetti(40);}});
+$('againBtn').addEventListener('click',function(){sClick();$('endOv').classList.remove('show');for(var i=0;i<5;i++)tries[i]++;startLevel(0);});
+$('homeBtn').addEventListener('click',function(){sClick();$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+function buildLvlPick(){var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<5;i++){var b=document.createElement('button');
+    b.innerHTML='<span class="ic">'+LVI[i]+'</span><span class="nm">'+(i+1)+'. '+LVS[i]+'</span><span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});box.appendChild(b);}}
+
+/* timer */
+function loop(){if(S&&!tStop&&!$('startOv').classList.contains('show'))$('timer').textContent=mmss(elapsed());else if(tStop)$('timer').textContent=mmss(elapsed());requestAnimationFrame(loop);}
+
+/* ═════════ debug hook สำหรับ QA ═════════ */
+window.TEB={ols:ols,tPval:tPval,genL1:genL1,genL2:genL2,genL3:genL3,genL4:genL4,genL5:genL5,startLevel:startLevel,
+  state:function(){return S;},L:function(){return L;},stars:stars,SEEDS:SEEDS,BASES:BASES,
+  setLine:function(a,b){S.yA=a+b*S.xa;S.yB=a+b*S.xb;updL1();},
+  submit:function(){$('goBtn').click();},pickBase:function(b){pickBase(b);},answerL2:function(k){var i=S.opts.findIndex(function(o){return o.k===k;});answerL2(i<0?0:i);},
+  setVars:function(arr){['P','C','D','K'].forEach(function(k){S.sel[k]=arr.indexOf(k)>=0;var e=document.querySelector('.vtog[data-v="'+k+'"]');if(e)e.classList.toggle('on',S.sel[k]);});updL3(false);},
+  flag:function(i,r){S.cur=i;setFlag(r);},openPt:openPt,
+  pickMonth:function(k){S.pick=k;drawL5(false);chkL5();},setSav:function(v){$('savIn').value=v;chkL5();},
+  L4:{OH:L4_OH,MT:L4_MT,DC:L4_DC}};
+
+/* ═════════ init ═════════ */
+loadStars();updateStarTotal();buildLvlPick();
+S={phase:'idle'};
+setAxes(CH1,0,10,0,10,'','');
+requestAnimationFrame(loop);
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

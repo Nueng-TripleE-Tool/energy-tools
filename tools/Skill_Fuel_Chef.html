@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>เชฟเชื้อเพลิง — Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "เชฟเชื้อเพลิง" (Fuel Chef) v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: เด็กโต/อาชีวะ
+     หลักที่สอน: การผสมเชื้อเพลิง (fuel blending) ให้ได้ตามสเปกหม้อไอน้ำด้วยต้นทุนต่อหน่วยพลังงานต่ำสุด
+       — ถ่วงน้ำหนักค่าความร้อน ความชื้น เถ้า ราคา/GJ และดัชนีตะกรัน B/A, Alkali index, Cl
+     ฟิสิกส์เบื้องหลัง (ผสมโดยมวล ฐาน as-received, x_i = สัดส่วนมวล, Σx_i = 1):
+       LHV_ar,i = LHV_db,i×(1−M_i) − 2.443×M_i          [MJ/kg, M เป็นเศษส่วน, 2.443 MJ/kg = h_fg น้ำที่ 25 °C]
+       Ash_ar,i = Ash_db,i×(1−M_i) · Cl_ar,i = Cl_db,i×(1−M_i)
+       ค่าเชิงมวลของ blend: LHV, M, Ash, Cl, S, ราคา/ตัน = Σ x_i·ค่า_i (ถ่วงตรง)
+       องค์ประกอบเถ้า blend: ox_j = Σ(x_i·Ash_i·ox_ij) / Σ(x_i·Ash_i)   (ถ่วงด้วยปริมาณเถ้า)
+       B/A = (Fe2O3+CaO+MgO+Na2O+K2O)/(SiO2+Al2O3+TiO2)
+       Alkali index (Miles et al. 1996) = kg(Na2O+K2O)/GJ = Ash%×(Na2O+K2O)%/(10×LHV MJ/kg)
+         เกณฑ์ AI < 0.17 ปลอดภัย · 0.17–0.34 มีโอกาส fouling · > 0.34 fouling แน่
+       บาท/GJ = (Σx_i·ราคา_i บาท/ตัน)/(Σx_i·LHV_i MJ/kg)   (บาท/ตัน ÷ MJ/kg = บาท/GJ)
+       สูตรเหมาะสุด = grid search ทุกสัดส่วน step 1 % หาค่า บาท/GJ ต่ำสุดที่ผ่านสเปกทุกข้อของด่าน
+     ข้อมูลเชื้อเพลิง: ค่ากลางจากคลังของ Tool_Slagging_Fouling_Predictor (วรรณกรรม + KM Triple E)
+       ปรับถ่านหินซับบิทูมินัส/ไม้สับเล็กน้อยให้ LHV db สมจริง · ราคาส่งถึงโรงงานเป็นค่าประมาณตลาดไทย 2569 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --warn:#f5a623; --mid:#f5a623; --bad:#ef4b4b;
+  --indigo:#3f51b5; --cyan:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#24305e,#1d2647 55%,#151b33);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:1080px;padding:10px 12px 26px;display:grid;grid-template-columns:1fr;gap:10px}
+#colL,#colR{display:flex;flex-direction:column;gap:10px;min-width:0}
+@media (min-width:920px){
+  #app{grid-template-columns:1.25fr 1fr;align-items:start}
+  #hud{grid-column:1 / span 2}
+}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.93);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hud .lvl-name{font-weight:600;font-size:1.02rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef1fb;border-radius:12px;padding:6px 8px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:44px}
+#hud button.on{background:#3f51b5;color:#fff}
+
+/* ───── Goal / timer ───── */
+.goal{background:#fff;border-radius:18px;padding:10px 14px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.goal .gt{font-weight:600;font-size:.98rem;line-height:1.45}
+.goal .specs{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.goal .specs span{background:#e8ecfa;color:#2c3a8c;border-radius:999px;padding:2px 10px;font-size:.82rem;font-weight:600}
+.goal .row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;font-size:.85rem;color:#5a6a85}
+#timeChip{font-weight:700;color:#3f51b5;background:#eef1fb;border-radius:999px;padding:2px 10px}
+#timeChip.low{color:#fff;background:#ef4b4b}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4);background:#f6e7cf;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto;touch-action:none}
+#bubble{position:absolute;left:10px;top:10px;max-width:52%;background:#fff;border-radius:16px;border:3px solid #00acc1;
+  padding:6px 11px;font-size:.88rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.25);transition:opacity .25s;opacity:0;pointer-events:none;line-height:1.35}
+#bubble.show{opacity:1}
+.sack{cursor:grab}
+.sack:active{cursor:grabbing}
+
+/* ───── Mix panel ───── */
+.panel{background:#fff;border-radius:20px;padding:12px 14px 14px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:8px}
+.panel h3{font-size:1rem;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.panel h3 small{font-weight:500;color:#6a7a90;font-size:.8rem}
+.frow{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;border-bottom:1px dashed #e3e8f2;padding-bottom:4px}
+.frow:last-child{border-bottom:none}
+.frow .nm{font-weight:600;font-size:.95rem;display:flex;align-items:center;gap:6px;min-width:0}
+.frow .nm i{width:14px;height:14px;border-radius:4px;display:inline-block;flex:none;border:2px solid rgba(0,0,0,.25)}
+.frow .nm span.t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.frow .pv{display:flex;align-items:center;gap:6px}
+.frow .pct{font-size:1.25rem;font-weight:700;min-width:52px;text-align:right}
+.frow .lock{border:none;background:#eef1fb;border-radius:10px;min-width:44px;min-height:44px;font-size:1rem;cursor:pointer}
+.frow .lock.on{background:#3f51b5}
+.frow .info{grid-column:1 / span 2;font-size:.76rem;color:#6a7a90;line-height:1.3}
+.frow input{grid-column:1 / span 2}
+input[type=range]{width:100%;height:40px;appearance:none;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:8px;background:var(--trk,#ccc)}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:34px;height:34px;border-radius:50%;margin-top:-10px;
+  background:#fff;border:6px solid var(--thm,#555);box-shadow:0 3px 8px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:14px;border-radius:8px;background:var(--trk,#ccc)}
+input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:6px solid var(--thm,#555)}
+.sumline{font-size:.82rem;color:#6a7a90;text-align:center}
+
+/* ───── Nutrition label ───── */
+#label{background:#fff;border:3px solid #111;border-radius:14px;padding:10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);font-family:'Mitr',system-ui,sans-serif}
+#label .lt{font-size:1.25rem;font-weight:700;border-bottom:8px solid #111;padding-bottom:2px;line-height:1.2}
+#label .ls{font-size:.78rem;color:#444;border-bottom:3px solid #111;padding:3px 0 4px}
+.mrow{display:grid;grid-template-columns:1fr auto 22px;gap:2px 8px;align-items:center;border-bottom:1px solid #222;padding:5px 0}
+.mrow:last-child{border-bottom:none}
+.mrow .mn{font-size:.86rem;font-weight:600;line-height:1.2}
+.mrow .mn small{display:block;font-weight:400;color:#666;font-size:.72rem}
+.mrow .mv{font-size:1.05rem;font-weight:700;text-align:right;white-space:nowrap}
+.mrow .mv small{font-size:.72rem;font-weight:500;color:#555}
+.mrow .ok{font-size:1rem;text-align:center}
+.mrow .bar{grid-column:1 / span 3;position:relative;height:12px;border-radius:7px;overflow:hidden;background:#e7e9ee}
+.mrow .bar .z{position:absolute;top:0;bottom:0}
+.mrow .bar .mk{position:absolute;top:-2px;width:4px;height:16px;background:#111;border-radius:2px;margin-left:-2px;transition:left .2s}
+.mrow .bar .op{position:absolute;top:-2px;width:0;height:16px;border-left:3px dotted #3f51b5;margin-left:-1px;display:none}
+.mrow.off{opacity:.42}
+.mrow .zone{grid-column:1 / span 3;font-size:.72rem;color:#555}
+.costrow{background:#f3f6ff;border-radius:8px;padding:5px 8px!important;border:none!important;margin:4px 0}
+
+.big-btn{border:none;border-radius:999px;padding:14px 30px;font-family:inherit;font-size:1.15rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #2c3a8c,0 10px 18px rgba(0,0,0,.2);transition:transform .1s;min-height:48px}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #2c3a8c}
+.big-btn.alt{background:linear-gradient(135deg,#00acc1,#00c2a8);box-shadow:0 6px 0 #00838f,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #00838f}
+.big-btn.small{font-size:1rem;padding:10px 20px}
+#serveBtn{width:100%}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(10,14,40,.66);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:12px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:24px;max-width:500px;width:100%;padding:20px 16px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.4);transform:translateY(14px);transition:transform .3s;max-height:94vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.35rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:2.8rem;letter-spacing:6px;margin:4px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e9f7f9;border-radius:14px;padding:9px 12px;font-weight:600;margin:8px 0;font-size:.93rem;border-left:5px solid #00acc1;text-align:left}
+.fb{text-align:left;font-size:.88rem;line-height:1.5;display:flex;flex-direction:column;gap:6px;margin:6px 0}
+.fb div{background:#f6f7fb;border-radius:10px;padding:6px 10px}
+.fb div.bad{background:#fdecec}
+.fb div.good{background:#e8f7ee}
+.cmp{width:100%;border-collapse:collapse;font-size:.84rem;margin:6px 0}
+.cmp th,.cmp td{padding:4px 6px;border-bottom:1px solid #e3e8f2;text-align:right}
+.cmp th:first-child,.cmp td:first-child{text-align:left}
+.cmp th{background:#eef1fb;color:#2c3a8c}
+.cmp td.bad{color:#c62828;font-weight:700}
+.lvl-pick{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e7f5;background:#f7f9fe;border-radius:16px;padding:6px 6px;font-family:inherit;cursor:pointer;min-width:78px;min-height:64px}
+.lvl-pick .nm{font-size:.78rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.78rem;letter-spacing:1px}
+#startCard h1{font-size:1.9rem;line-height:1.25;background:var(--btn-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#5a6a85;margin:4px 0 6px;font-size:.93rem;line-height:1.5}
+.tag{display:inline-block;background:#e8ecfa;color:#2c3a8c;border-radius:999px;padding:3px 12px;font-size:.8rem;font-weight:600;margin:2px}
+.brand{font-size:.8rem;color:#8795a8;margin-top:12px}
+.btnrow{margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+#helpStage{background:#eef3fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:340px;height:auto}
+#helpTxt{font-size:.98rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd9e6}
+.dots i.on{background:#3f51b5}
+.help-nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+.fx{text-align:left;font-size:.86rem;line-height:1.55}
+.fx h4{font-size:.95rem;margin:10px 0 2px;color:#2c3a8c}
+.fx code{display:block;background:#f3f5fb;border-radius:8px;padding:5px 8px;font-family:'Mitr',monospace;font-size:.82rem;margin:3px 0;white-space:normal}
+.fx table{width:100%;border-collapse:collapse;font-size:.74rem;margin-top:4px}
+.fx th,.fx td{border-bottom:1px solid #e3e8f2;padding:3px 3px;text-align:right}
+.fx th:first-child,.fx td:first-child{text-align:left}
+
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── SVG animations ───── */
+@keyframes flick{0%,100%{transform:scaleY(1) scaleX(1)}50%{transform:scaleY(1.12) scaleX(.94)}}
+#flameFlick{transform-box:fill-box;transform-origin:center bottom;animation:flick .5s ease-in-out infinite}
+@keyframes riseSm{0%{transform:translateY(0) scale(.6);opacity:.85}100%{transform:translateY(-58px) scale(1.5);opacity:0}}
+.smokeP{animation:riseSm 2.2s linear infinite;transform-box:fill-box;transform-origin:center}
+@keyframes belt{to{stroke-dashoffset:-40}}
+.beltLine{stroke-dasharray:14 6;animation:belt .9s linear infinite}
+@keyframes lumpMove{0%{transform:translateX(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(150px);opacity:0}}
+.lump{animation:lumpMove 2.4s linear infinite}
+@keyframes blinkA{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+.eye{transform-box:fill-box;transform-origin:center;animation:blinkA 4.2s infinite}
+@keyframes bossBob{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-5px) scale(1.06,.94)}}
+.bossBody{transform-box:fill-box;transform-origin:center bottom;animation:bossBob .9s ease-in-out infinite}
+@keyframes paddle{to{transform:rotate(360deg)}}
+#paddle{transform-box:fill-box;transform-origin:center;animation:paddle 2.6s linear infinite}
+@keyframes drip{0%{transform:translateY(0);opacity:0}20%{opacity:1}100%{transform:translateY(16px);opacity:0}}
+.drip{animation:drip 1.4s ease-in infinite}
+@keyframes sweatA{0%{transform:translateY(0);opacity:0}25%{opacity:1}100%{transform:translateY(14px);opacity:0}}
+.sweatd{animation:sweatA 1.1s ease-in infinite;opacity:0}
+@keyframes sparkle{0%,100%{opacity:0;transform:scale(.4)}50%{opacity:1;transform:scale(1.1)}}
+.spark{transform-box:fill-box;transform-origin:center;animation:sparkle 1.3s ease-in-out infinite}
+/* tutorial */
+@keyframes tPour{0%{transform:translate(0,0);opacity:0}15%{opacity:1}100%{transform:translate(var(--dx),var(--dy));opacity:0}}
+.tPour{animation:tPour 1.3s ease-in infinite}
+@keyframes tFill{0%,10%{transform:scaleY(.2)}80%,100%{transform:scaleY(1)}}
+.tFill{transform-box:fill-box;transform-origin:center bottom;animation:tFill 2.6s ease-out infinite}
+@keyframes tThumbA{0%,100%{transform:translateX(0)}50%{transform:translateX(120px)}}
+@keyframes tThumbB{0%,100%{transform:translateX(120px)}50%{transform:translateX(0)}}
+.tThA{animation:tThumbA 2.6s ease-in-out infinite}
+.tThB{animation:tThumbB 2.6s ease-in-out infinite}
+@keyframes tMark{0%,100%{transform:translateX(0)}50%{transform:translateX(200px)}}
+.tMark{animation:tMark 3.4s ease-in-out infinite}
+@keyframes tPop{0%,30%{transform:scale(0)}45%{transform:scale(1.15)}55%,100%{transform:scale(1)}}
+.tPop{transform-box:fill-box;transform-origin:center bottom;animation:tPop 2.8s ease-out infinite}
+@keyframes tStar{0%,20%{transform:scale(0) rotate(-40deg)}40%{transform:scale(1.2) rotate(0)}55%,100%{transform:scale(1)}}
+.tStar{transform-box:fill-box;transform-origin:center;animation:tStar 2.4s ease-out infinite}
+@media (prefers-reduced-motion:reduce){
+  #flameFlick,.smokeP,.beltLine,.lump,.eye,.bossBody,#paddle,.drip,.sweatd,.spark,
+  .tPour,.tFill,.tThA,.tThB,.tMark,.tPop,.tStar,.confetti{animation:none}
+}
+@media (max-width:480px){
+  #bubble{font-size:.76rem;max-width:44%;padding:5px 9px}
+  .card h2{font-size:1.2rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">เชฟเชื้อเพลิง</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="fxBtn" title="สูตร/ที่มา">📐</button>
+  </div>
+
+  <div id="colL">
+    <!-- SCENE -->
+    <div id="sceneWrap">
+      <svg id="scene" viewBox="0 0 860 420" xmlns="http://www.w3.org/2000/svg" aria-label="ครัวเชฟเชื้อเพลิง ลานกองเชื้อเพลิง หม้อผสม และหม้อไอน้ำ">
+        <defs>
+          <linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fdf3e1"/><stop offset="1" stop-color="#f1dcbc"/>
+          </linearGradient>
+          <linearGradient id="boilG" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#7f8fb0"/><stop offset=".5" stop-color="#c4d0e4"/><stop offset="1" stop-color="#65779a"/>
+          </linearGradient>
+          <linearGradient id="siloG" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#b9c6dc"/><stop offset=".5" stop-color="#eef3fb"/><stop offset="1" stop-color="#a5b4cf"/>
+          </linearGradient>
+          <radialGradient id="glassBg" cx=".5" cy=".6" r=".7">
+            <stop offset="0" stop-color="#2a1a08"/><stop offset="1" stop-color="#120b04"/>
+          </radialGradient>
+          <clipPath id="siloClip"><rect x="392" y="128" width="96" height="172" rx="14"/></clipPath>
+          <clipPath id="tubeClip"><rect x="642" y="136" width="126" height="76" rx="10"/></clipPath>
+        </defs>
+
+        <!-- wall tiles -->
+        <rect x="0" y="0" width="860" height="330" fill="url(#wallG)"/>
+        <g stroke="#e6cfa8" stroke-width="2" opacity=".8">
+          <line x1="0" y1="60" x2="860" y2="60"/><line x1="0" y1="120" x2="860" y2="120"/><line x1="0" y1="180" x2="860" y2="180"/><line x1="0" y1="240" x2="860" y2="240"/>
+          <line x1="80" y1="0" x2="80" y2="330"/><line x1="200" y1="0" x2="200" y2="330"/><line x1="320" y1="0" x2="320" y2="330"/>
+          <line x1="560" y1="0" x2="560" y2="330"/><line x1="820" y1="0" x2="820" y2="330"/>
+        </g>
+        <!-- yard floor -->
+        <rect x="0" y="330" width="860" height="90" fill="#9aa3ad"/>
+        <rect x="0" y="326" width="860" height="8" fill="#7d8792"/>
+        <g fill="#8a939e" opacity=".7"><rect x="40" y="360" width="60" height="4" rx="2"/><rect x="260" y="398" width="80" height="4" rx="2"/><rect x="600" y="380" width="70" height="4" rx="2"/></g>
+
+        <!-- shelf with pots (kitchen decoration) -->
+        <rect x="20" y="100" width="300" height="10" rx="4" fill="#b98a55"/>
+        <g>
+          <rect x="40" y="70" width="44" height="30" rx="8" fill="#e57373"/><rect x="34" y="66" width="56" height="8" rx="4" fill="#c62828"/>
+          <rect x="250" y="76" width="40" height="24" rx="6" fill="#4db6ac"/><rect x="246" y="72" width="48" height="7" rx="3" fill="#00897b"/>
+          <text x="160" y="94" font-size="22" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="700" fill="#b0702f">ลานวัตถุดิบ</text>
+        </g>
+
+        <!-- fuel piles (dynamic) -->
+        <g id="pileLayer"></g>
+
+        <!-- conveyor from silo to boiler -->
+        <g id="convG">
+          <rect x="430" y="318" width="226" height="18" rx="9" fill="#37474f"/>
+          <line class="beltLine" x1="440" y1="327" x2="646" y2="327" stroke="#90a4ae" stroke-width="5"/>
+          <circle cx="440" cy="327" r="11" fill="#546e7a" stroke="#263238" stroke-width="3"/>
+          <circle cx="646" cy="327" r="11" fill="#546e7a" stroke="#263238" stroke-width="3"/>
+          <rect x="452" y="336" width="8" height="54" fill="#546e7a"/><rect x="626" y="336" width="8" height="54" fill="#546e7a"/>
+          <g id="lumpG">
+            <ellipse class="lump" cx="470" cy="312" rx="11" ry="7" fill="#7a5a3a"/>
+            <ellipse class="lump" style="animation-delay:.6s" cx="470" cy="312" rx="9" ry="6" fill="#7a5a3a"/>
+            <ellipse class="lump" style="animation-delay:1.2s" cx="470" cy="312" rx="12" ry="7" fill="#7a5a3a"/>
+            <ellipse class="lump" style="animation-delay:1.8s" cx="470" cy="312" rx="9" ry="6" fill="#7a5a3a"/>
+          </g>
+        </g>
+
+        <!-- mixing silo (หม้อผสม) -->
+        <g id="siloG2">
+          <path d="M372 112 L508 112 L496 128 L384 128 Z" fill="#8091b3" stroke="#3b4a6b" stroke-width="4"/>
+          <rect x="384" y="122" width="112" height="186" rx="18" fill="url(#siloG)" stroke="#3b4a6b" stroke-width="5"/>
+          <g clip-path="url(#siloClip)">
+            <rect x="392" y="128" width="96" height="172" fill="#e8eef8"/>
+            <g id="layerG"></g>
+            <g id="paddle" opacity=".55"><rect x="436" y="170" width="8" height="110" rx="4" fill="#3b4a6b"/><rect x="410" y="221" width="60" height="8" rx="4" fill="#3b4a6b"/></g>
+          </g>
+          <rect x="398" y="134" width="12" height="160" rx="6" fill="#fff" opacity=".35"/>
+          <path d="M420 308 L460 308 L452 322 L428 322 Z" fill="#5d6f92" stroke="#3b4a6b" stroke-width="3"/>
+          <!-- pot handles + name -->
+          <rect x="362" y="170" width="24" height="12" rx="6" fill="#3b4a6b"/><rect x="494" y="170" width="24" height="12" rx="6" fill="#3b4a6b"/>
+          <rect x="396" y="82" width="88" height="28" rx="10" fill="#3f51b5"/>
+          <text x="440" y="102" font-size="18" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600" fill="#fff">หม้อผสม</text>
+          <g id="dropZone"><rect x="356" y="76" width="168" height="244" fill="transparent"/></g>
+        </g>
+
+        <!-- boiler -->
+        <g id="boilerGrp">
+          <rect x="742" y="56" width="34" height="62" rx="6" fill="#7f8fb0" stroke="#3b4a6b" stroke-width="4"/>
+          <rect x="736" y="50" width="46" height="12" rx="5" fill="#3b4a6b"/>
+          <g id="smokeGrey" fill="#cfd8df" opacity=".5">
+            <circle class="smokeP" cx="759" cy="44" r="9"/><circle class="smokeP" style="animation-delay:.8s" cx="752" cy="42" r="8"/>
+            <circle class="smokeP" style="animation-delay:1.5s" cx="766" cy="44" r="8"/>
+          </g>
+          <g id="smokeWhite" fill="#ffffff" opacity="0">
+            <circle class="smokeP" cx="759" cy="42" r="15"/><circle class="smokeP" style="animation-delay:.5s" cx="747" cy="40" r="13"/>
+            <circle class="smokeP" style="animation-delay:1s" cx="771" cy="42" r="14"/><circle class="smokeP" style="animation-delay:1.6s" cx="759" cy="38" r="12"/>
+          </g>
+          <rect x="626" y="112" width="160" height="214" rx="26" fill="url(#boilG)" stroke="#3b4a6b" stroke-width="5"/>
+          <!-- tube bank window -->
+          <rect x="638" y="132" width="134" height="84" rx="12" fill="#2b2f3a" stroke="#3b4a6b" stroke-width="4"/>
+          <g clip-path="url(#tubeClip)">
+            <g stroke="#9aa7bd" stroke-width="7" stroke-linecap="round">
+              <line x1="656" y1="138" x2="656" y2="210"/><line x1="676" y1="138" x2="676" y2="210"/><line x1="696" y1="138" x2="696" y2="210"/>
+              <line x1="716" y1="138" x2="716" y2="210"/><line x1="736" y1="138" x2="736" y2="210"/><line x1="756" y1="138" x2="756" y2="210"/>
+            </g>
+            <!-- slag boss -->
+            <g id="bossG" opacity="0">
+              <g id="bossScale" transform="translate(705 212) scale(1)">
+                <g class="bossBody">
+                  <path d="M-38 0 C-42 -26 -26 -50 0 -50 C26 -50 42 -26 38 0 Z" fill="#8e6fd6" stroke="#4a2f8f" stroke-width="3"/>
+                  <path d="M-30 -36 q6 -8 12 -2 M14 -40 q8 -6 14 2" stroke="#cdb8ff" stroke-width="3" fill="none" stroke-linecap="round"/>
+                  <circle cx="-13" cy="-26" r="8" fill="#fff"/><circle cx="13" cy="-26" r="8" fill="#fff"/>
+                  <circle cx="-11" cy="-25" r="4" fill="#1b1033"/><circle cx="15" cy="-25" r="4" fill="#1b1033"/>
+                  <path d="M-12 -10 q12 9 24 0" stroke="#1b1033" stroke-width="3" fill="#ff8fb1"/>
+                  <path d="M-38 -6 q-8 4 -10 12 M38 -6 q8 4 10 12" stroke="#4a2f8f" stroke-width="5" fill="none" stroke-linecap="round"/>
+                  <ellipse cx="-22" cy="-14" rx="5" ry="3" fill="#ff8fb1" opacity=".7"/><ellipse cx="22" cy="-14" rx="5" ry="3" fill="#ff8fb1" opacity=".7"/>
+                </g>
+              </g>
+              <g fill="#8e6fd6">
+                <path class="drip" d="M676 150 q-4 8 0 10 q4 -2 0 -10"/>
+                <path class="drip" style="animation-delay:.5s" d="M736 146 q-4 8 0 10 q4 -2 0 -10"/>
+              </g>
+            </g>
+          </g>
+          <text id="tubeTxt" x="705" y="230" font-size="14" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600" fill="#2b2f3a">แผงท่อ</text>
+          <!-- firebox -->
+          <circle cx="705" cy="282" r="38" fill="#3b4a6b"/>
+          <circle cx="705" cy="282" r="31" fill="url(#glassBg)" stroke="#ffb74d" stroke-width="4"/>
+          <g id="flameSize" transform="translate(705 306) scale(0.6)">
+            <g id="flameFlick">
+              <path id="flOut" d="M0 0 C -34 -6 -34 -46 -18 -62 C -12 -46 -8 -44 -6 -56 C 4 -78 18 -72 14 -52 C 24 -58 30 -44 26 -30 C 34 -18 20 2 0 0 Z" fill="#ff6a1f"/>
+              <path id="flMid" d="M0 -2 C -20 -4 -22 -30 -10 -44 C -6 -32 0 -32 2 -44 C 12 -52 18 -36 12 -24 C 18 -14 10 -2 0 -2 Z" fill="#ff9f1c"/>
+              <path id="flCore" d="M0 -4 C -10 -6 -12 -20 -4 -30 C 0 -22 4 -22 6 -30 C 12 -20 8 -6 0 -4 Z" fill="#ffd23f"/>
+            </g>
+          </g>
+          <!-- ash pile under boiler -->
+          <path id="ashPile" d="M660 392 Q705 380 750 392 Z" fill="#6f6a66"/>
+          <text x="705" y="412" font-size="15" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600" fill="#3b4a6b">กองเถ้า</text>
+        </g>
+
+        <!-- chef -->
+        <g id="chefG">
+          <ellipse cx="548" cy="398" rx="40" ry="7" fill="#000" opacity=".18"/>
+          <rect x="526" y="356" width="18" height="40" rx="8" fill="#37474f"/><rect x="552" y="356" width="18" height="40" rx="8" fill="#37474f"/>
+          <path d="M514 300 Q548 284 582 300 L586 366 Q548 376 510 366 Z" fill="#fff" stroke="#b0bec5" stroke-width="3"/>
+          <g fill="#3f51b5"><circle cx="548" cy="318" r="3.5"/><circle cx="548" cy="334" r="3.5"/><circle cx="548" cy="350" r="3.5"/></g>
+          <path d="M530 296 L548 312 L566 296" fill="#ef5350"/>
+          <!-- arm with spoon -->
+          <rect x="574" y="304" width="14" height="40" rx="7" fill="#fff" stroke="#b0bec5" stroke-width="2" transform="rotate(-35 581 304)"/>
+          <g id="spoon"><line x1="596" y1="282" x2="570" y2="258" stroke="#8d6e63" stroke-width="5" stroke-linecap="round"/><ellipse cx="566" cy="254" rx="9" ry="6" fill="#bcaaa4" transform="rotate(-40 566 254)"/></g>
+          <rect x="506" y="306" width="14" height="44" rx="7" fill="#fff" stroke="#b0bec5" stroke-width="2"/>
+          <!-- head -->
+          <circle id="chefFace" cx="548" cy="262" r="30" fill="#ffd9b3" stroke="#e8b27f" stroke-width="3"/>
+          <!-- toque -->
+          <rect x="526" y="222" width="44" height="16" rx="4" fill="#fff" stroke="#cfd8dc" stroke-width="2"/>
+          <path d="M524 226 C510 210 524 192 538 200 C540 186 560 186 562 200 C576 192 588 210 572 226 Z" fill="#fff" stroke="#cfd8dc" stroke-width="2"/>
+          <g class="eye"><circle id="eyeL" cx="537" cy="260" r="4.2" fill="#213047"/></g>
+          <g class="eye"><circle id="eyeR" cx="559" cy="260" r="4.2" fill="#213047"/></g>
+          <ellipse cx="530" cy="272" rx="5" ry="3" fill="#ff9aa2" opacity=".7"/><ellipse cx="566" cy="272" rx="5" ry="3" fill="#ff9aa2" opacity=".7"/>
+          <path d="M540 248 l-8 -3 M556 248 l8 -3" id="brows" stroke="#5d4037" stroke-width="3" stroke-linecap="round" opacity="0"/>
+          <path id="chefMouth" d="M538 276 Q548 286 558 276" stroke="#b34a4a" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <g id="chefSweat" opacity="0">
+            <path class="sweatd" d="M516 246 q-5 9 0 12 q6 -3 0 -12" fill="#4aa8ff"/>
+            <path class="sweatd" style="animation-delay:.5s" d="M582 240 q-5 9 0 12 q6 -3 0 -12" fill="#4aa8ff"/>
+          </g>
+          <g id="chefSpark" opacity="0" fill="#ffd23f">
+            <path class="spark" d="M500 222 l4 10 l10 4 l-10 4 l-4 10 l-4 -10 l-10 -4 l10 -4 Z"/>
+            <path class="spark" style="animation-delay:.6s" d="M598 218 l3 8 l8 3 l-8 3 l-3 8 l-3 -8 l-8 -3 l8 -3 Z"/>
+          </g>
+        </g>
+
+        <!-- pour particles + drag ghost -->
+        <g id="partG"></g>
+        <g id="ghostG" pointer-events="none"></g>
+      </svg>
+      <div id="bubble"></div>
+    </div>
+
+    <!-- MIX PANEL -->
+    <div class="panel" id="mixPanel">
+      <h3>🥄 สูตรผสม (โดยมวล ar) <small>🔒 = ล็อกค่าไว้</small></h3>
+      <div id="fuelRows"></div>
+      <div class="sumline" id="sumLine">รวม 100 %</div>
+    </div>
+  </div>
+
+  <div id="colR">
+    <div class="goal" id="goalBox">
+      <div class="gt" id="goalTxt">—</div>
+      <div class="specs" id="specChips"></div>
+      <div class="row"><span>ดาว: ผ่านสเปกครบ + บาท/GJ ใกล้สูตรเหมาะสุด</span><span id="timeChip">⏱ 120</span></div>
+    </div>
+
+    <!-- NUTRITION LABEL -->
+    <div id="label">
+      <div class="lt">ฉลากโภชนาการเชื้อเพลิง</div>
+      <div class="ls">Fuel Facts · ต่อ 1 kg เชื้อเพลิงผสม (ฐาน as-received) · แถบสีเทียบสเปกด่านนี้</div>
+      <div id="mrows"></div>
+    </div>
+
+    <button class="big-btn" id="serveBtn">🍽 เสิร์ฟเข้าหม้อไอน้ำ!</button>
+  </div>
+</div>
+
+<!-- ───── Start overlay ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.8rem">👨‍🍳🔥</div>
+    <h1>เชฟเชื้อเพลิง</h1>
+    <div><span class="tag">Energy Skills Lab</span><span class="tag">เด็กโต / อาชีวะ</span></div>
+    <div class="sub">ผสมเชื้อเพลิงไทย 8 ชนิด (การผสมเชื้อเพลิง — fuel blending)<br>ให้ผ่านสเปกหม้อไอน้ำ และได้ <b>บาท/GJ ต่ำสุด</b><br>ระวัง "บอสตะกรัน" เกาะท่อ!</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div class="btnrow">
+      <button class="big-btn alt small" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn small" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── Help overlay ───── -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2>วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt">—</div>
+    <div class="dots" id="helpDots"></div>
+    <div class="help-nav">
+      <button class="big-btn small alt" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Formula overlay ───── -->
+<div class="overlay" id="fxOv">
+  <div class="card">
+    <h2>📐 สูตร / ที่มา</h2>
+    <div class="fx" id="fxBody"></div>
+    <div class="btnrow"><button class="big-btn small" id="fxClose">ปิด</button></div>
+  </div>
+</div>
+
+<!-- ───── Result overlay (เฉลย/ข้อคิด) ───── -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <div id="resEmoji" style="font-size:2.2rem">🍽</div>
+    <h2 id="resTitle">จบด่าน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <h3 style="font-size:1rem;text-align:left;margin-top:6px">🔎 เฉลย / ข้อคิด</h3>
+    <div class="fb" id="resFb"></div>
+    <table class="cmp" id="resCmp"></table>
+    <div class="btnrow">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── End overlay ───── -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.6rem">🏆👨‍🍳</div>
+    <h2>จบคอร์สเชฟเชื้อเพลิง!</h2>
+    <div class="result-stars" id="endStars" style="font-size:1.6rem">⭐ 0/15</div>
+    <div class="fx" id="endLessons"></div>
+    <div class="btnrow">
+      <button class="big-btn small alt" id="endHome">🏠 หน้าแรก</button>
+      <button class="big-btn small" id="endReplay">↻ เล่นใหม่ตั้งแต่ด่าน 1</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ เชฟเชื้อเพลิง v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var H_FG=2.443;   /* MJ/kg น้ำ — LHV ar = LHVdb(1−M) − 2.443·M */
+var OXK=['SiO2','Al2O3','TiO2','Fe2O3','CaO','MgO','Na2O','K2O','P2O5'];
+
+/* ── คลังเชื้อเพลิง (ค่าดิบ: mc = ความชื้น ar %, ashd/cld/sd = % ฐานแห้ง, lhvd = MJ/kg ฐานแห้ง, p = บาท/ตัน ส่งถึงโรงงาน) ──
+   องค์ประกอบเถ้า % ของเถ้า (XRF) — ค่ากลางตามคลัง Tool_Slagging_Fouling_Predictor */
+var FUELS={
+ subbit:{n:'ถ่านหินซับบิทูมินัส',sn:'ถ่านหิน',em:'⚫',col:'#37474f',mc:25,ashd:7.0,cld:0.02,sd:0.50,lhvd:27.5,p:3300,
+   ox:{SiO2:45,Al2O3:22,TiO2:1.0,Fe2O3:10,CaO:10,MgO:2.5,Na2O:1.5,K2O:1.5,P2O5:0.5}},
+ lignite:{n:'ถ่านหินลิกไนต์',sn:'ลิกไนต์',em:'🟤',col:'#6d4c41',mc:32,ashd:25,cld:0.02,sd:2.50,lhvd:18.8,p:1300,
+   ox:{SiO2:40,Al2O3:20,TiO2:0.8,Fe2O3:8,CaO:15,MgO:3,Na2O:1.0,K2O:1.5,P2O5:0.3}},
+ husk:{n:'แกลบ',sn:'แกลบ',em:'🌾',col:'#f2c14e',mc:10,ashd:18,cld:0.12,sd:0.05,lhvd:15.6,p:1300,
+   ox:{SiO2:90.4,Al2O3:0.5,TiO2:0.02,Fe2O3:0.3,CaO:2.3,MgO:0.3,Na2O:0.3,K2O:4.4,P2O5:0.7}},
+ bagasse:{n:'ชานอ้อย',sn:'ชานอ้อย',em:'🎋',col:'#cddc39',mc:50,ashd:4.0,cld:0.05,sd:0.06,lhvd:18.0,p:650,
+   ox:{SiO2:55,Al2O3:12,TiO2:1.5,Fe2O3:8,CaO:6,MgO:3,Na2O:1.0,K2O:8,P2O5:2.5}},
+ wood:{n:'ไม้สับ (ยางพารา)',sn:'ไม้สับ',em:'🪵',col:'#a1673a',mc:40,ashd:2.0,cld:0.01,sd:0.03,lhvd:19.1,p:1200,
+   ox:{SiO2:24,Al2O3:5,TiO2:0.3,Fe2O3:2.5,CaO:34,MgO:5,Na2O:1.3,K2O:9,P2O5:4.5}},
+ efb:{n:'ทะลายปาล์มเปล่า (EFB)',sn:'EFB',em:'🌴',col:'#e0603a',mc:50,ashd:5.5,cld:0.70,sd:0.08,lhvd:18.4,p:450,
+   ox:{SiO2:25,Al2O3:2,TiO2:0.2,Fe2O3:3,CaO:8,MgO:5,Na2O:2,K2O:38,P2O5:4}},
+ pellet:{n:'Wood pellet',sn:'เพลเล็ต',em:'🟫',col:'#e4b47c',mc:8,ashd:0.7,cld:0.02,sd:0.03,lhvd:18.7,p:4500,
+   ox:{SiO2:15,Al2O3:3,TiO2:0.2,Fe2O3:2,CaO:40,MgO:6,Na2O:1,K2O:16,P2O5:5}},
+ cane:{n:'ใบและยอดอ้อย',sn:'ใบอ้อย',em:'🍃',col:'#66bb6a',mc:20,ashd:8.0,cld:0.35,sd:0.08,lhvd:16.9,p:1100,
+   ox:{SiO2:55,Al2O3:3,TiO2:0.3,Fe2O3:2,CaO:6,MgO:3,Na2O:1.5,K2O:22,P2O5:3}}
+};
+/* ค่าฐาน ar ที่คำนวณจาก db */
+(function(){for(var k in FUELS){var f=FUELS[k],M=f.mc/100;
+  f.lhv=f.lhvd*(1-M)-H_FG*M; f.ash=f.ashd*(1-M); f.cl=f.cld*(1-M); f.s=f.sd*(1-M);
+  var o=f.ox; f.ba=(o.Fe2O3+o.CaO+o.MgO+o.Na2O+o.K2O)/(o.SiO2+o.Al2O3+o.TiO2);
+  f.ai=f.ash*(o.Na2O+o.K2O)/(10*f.lhv); f.pgj=f.p/f.lhv;}})();
+
+/* ── ตัวชี้วัดบนฉลาก ── */
+var MET=[
+ {k:'lhv',n:'ค่าความร้อน LHV',sub:'Lower Heating Value · ar',u:'MJ/kg',dec:2,type:'min',max:22},
+ {k:'M',n:'ความชื้น',sub:'Moisture · ar',u:'%',dec:1,type:'max',max:55},
+ {k:'ash',n:'เถ้า',sub:'Ash · ar',u:'%',dec:1,type:'max',max:18},
+ {k:'ba',n:'B/A',sub:'เบส/กรด ในเถ้า — ดัชนีตะกรัน (slagging)',u:'',dec:2,type:'max',max:2.5},
+ {k:'ai',n:'Alkali index',sub:'kg (Na₂O+K₂O)/GJ — ดัชนีเกาะท่อ (fouling)',u:'kg/GJ',dec:3,type:'max',max:1.0},
+ {k:'cl',n:'คลอรีน Cl',sub:'Chlorine · ar — กัดกร่อน',u:'%',dec:3,type:'max',max:0.36}
+];
+var SPEC_TXT={lhv:'LHV ≥ ',M:'ความชื้น ≤ ',ash:'เถ้า ≤ ',ba:'B/A ≤ ',ai:'AI ≤ ',cl:'Cl ≤ '};
+var SPEC_U={lhv:' MJ/kg',M:' %',ash:' %',ba:'',ai:' kg/GJ',cl:' %'};
+
+/* ── ด่าน ── */
+var LV=[
+ {name:'① ถ่านหิน+ไม้สับ',icon:'⚫🪵',ids:['subbit','wood'],spec:{lhv:18},
+  goal:'หม้อไอน้ำออกแบบมาเผาถ่านหิน ต้องการ LHV ≥ 18 MJ/kg — ผสมไม้สับ (ถูกกว่าต่อ GJ) ให้มากที่สุดเท่าที่ทำได้',
+  lesson:'ค่าความร้อนถ่วงน้ำหนักตรงตามมวล — ใส่ของถูกต่อ GJ จนชนสเปก LHV พอดี คือจุดต้นทุนต่ำสุด'},
+ {name:'② แกลบเถ้าสูง',icon:'🌾',ids:['husk','wood'],spec:{ash:12,lhv:11},
+  goal:'แกลบถูกต่อ GJ แต่เถ้า ~16 % ทำระบบขนเถ้าล้น — คุมเถ้า ≤ 12 % และ LHV ≥ 11 MJ/kg ให้ต้นทุนต่ำสุด',
+  lesson:'เชื้อเพลิงเถ้าสูงต้อง "เจือจาง" ด้วยเชื้อเพลิงเถ้าต่ำ — เพดานเถ้าคือสิ่งที่กำหนดสัดส่วนแกลบสูงสุด'},
+ {name:'③ ชานอ้อยชื้น 50%',icon:'🎋',ids:['bagasse','husk','wood'],spec:{M:35,lhv:10},
+  goal:'ชานอ้อยถูกสุดแต่ชื้น 50 % ไฟอ่อน ควันขาว — คุมความชื้น ≤ 35 % และ LHV ≥ 10 MJ/kg',
+  lesson:'ความชื้นกิน LHV สองต่อ (มวลแห้งลด + ต้องระเหยน้ำ 2.443 MJ/kg) — ผสมเชื้อเพลิงแห้งดึงความชื้นลง'},
+ {name:'④ EFB โพแทสเซียมสูง',icon:'🌴',ids:['efb','wood','subbit'],spec:{ai:0.34,cl:0.10,lhv:9},
+  goal:'EFB ถูกที่สุดต่อ GJ แต่ K₂O ในเถ้า ~38 % และ Cl สูง — คุม Alkali index ≤ 0.34, Cl ≤ 0.10 %, LHV ≥ 9',
+  lesson:'ของถูกต่อ GJ อาจแพงทีหลัง — EFB ใส่ได้จำกัดเพราะ AI/Cl ไม่ใช่ค่าความร้อน'},
+ {name:'⑤ สูตรเชฟ 4 ชนิด',icon:'👨‍🍳',ids:['subbit','lignite','cane','wood'],spec:{lhv:14,M:30,ash:10,ba:0.6,ai:0.25,cl:0.10},
+  goal:'สูตรเชฟ! ผ่านทุกสเปกพร้อมกัน แล้วหา บาท/GJ ต่ำสุด (AI ผ่อนเป็น 0.25 เพราะลิกไนต์กำมะถันสูงช่วยจับ K)',
+  lesson:'การผสมจริงคือการหาจุดต่ำสุดภายใต้หลายข้อจำกัดพร้อมกัน — ดูว่า "สเปกไหนชนก่อน" แล้วไล่ปรับ'}
+];
+var TLIM=120;
+
+/* ── คำนวณ blend (x = สัดส่วนมวล 0–1) ── */
+function blend(ids,x){
+  var r={M:0,ash:0,lhv:0,cl:0,s:0,price:0,ox:{}},aw=0,i,k;
+  for(k=0;k<OXK.length;k++)r.ox[OXK[k]]=0;
+  for(i=0;i<ids.length;i++){var f=FUELS[ids[i]],w=x[i];
+    r.M+=w*f.mc; r.ash+=w*f.ash; r.lhv+=w*f.lhv; r.cl+=w*f.cl; r.s+=w*f.s; r.price+=w*f.p;
+    for(k=0;k<OXK.length;k++)r.ox[OXK[k]]+=w*f.ash*f.ox[OXK[k]];}
+  aw=r.ash;
+  for(k=0;k<OXK.length;k++)r.ox[OXK[k]]=aw>0?r.ox[OXK[k]]/aw:0;
+  var o=r.ox, base=o.Fe2O3+o.CaO+o.MgO+o.Na2O+o.K2O, acid=o.SiO2+o.Al2O3+o.TiO2;
+  r.ba=acid>0?base/acid:0;
+  r.ai=r.lhv>0?r.ash*(o.Na2O+o.K2O)/(10*r.lhv):0;
+  r.cost=r.lhv>0?r.price/r.lhv:0;
+  r.scl=r.cl>0?(r.s/32.06)/(r.cl/35.45):99;
+  return r;
+}
+function rnd(v,d){var m=Math.pow(10,d);return Math.round(v*m)/m;}
+function metDec(k){for(var i=0;i<MET.length;i++)if(MET[i].k===k)return MET[i].dec;return 3;}
+/* ผ่าน/ไม่ผ่าน — เทียบที่ความละเอียดเดียวกับที่แสดงบนฉลาก */
+function checkSpec(r,spec){
+  var res={},all=true;
+  for(var k in spec){var v=rnd(r[k],metDec(k)),L=spec[k],ok=(k==='lhv')?v>=L:v<=L;res[k]=ok;if(!ok)all=false;}
+  res.all=all;return res;
+}
+/* ── สูตรเหมาะสุด: grid search step 1 % ── */
+var optCache={};
+function optimum(li){
+  if(optCache[li])return optCache[li];
+  var L=LV[li],n=L.ids.length,best=null,x=new Array(n),xf=new Array(n);
+  function rec(i,rem){
+    if(i===n-1){x[i]=rem;for(var j=0;j<n;j++)xf[j]=x[j]/100;
+      var r=blend(L.ids,xf);
+      if(checkSpec(r,L.spec).all&&(!best||r.cost<best.r.cost-1e-12))best={x:x.slice(),r:r};return;}
+    for(var v=0;v<=rem;v++){x[i]=v;rec(i+1,rem-v);}
+  }
+  rec(0,100);optCache[li]=best;return best;
+}
+
+/* ── สถานะ ── */
+var cur=0,mix=[50,50],locks=[false,false],running=false,tLeft=TLIM,lastTs=0,stars=[0,0,0,0,0],lastWorst='',served=false;
+var parts=[];
+
+/* ── เสียง ── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+var clickT=0;
+function sClick(){var n=Date.now();if(n-clickT<60)return;clickT=n;tone(620,0,0.05,'square',0.06);}
+function sPour(){tone(300,0,0.08,'triangle',0.12);tone(240,0.07,0.1,'triangle',0.1);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sBoss(){tone(160,0,0.18,'square',0.1);tone(130,0.16,0.22,'square',0.1);}
+
+/* ── localStorage ── */
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_skill_fuelchef_stars')||'[]');for(var i=0;i<5;i++)stars[i]=Math.min(3,v[i]|0);}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_skill_fuelchef_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_skill_fuelchef_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_skill_fuelchef_seen','1');}catch(e){}}
+
+/* ── bubble ── */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');
+  clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2800);}
+
+function fmt(v,d){return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}
+
+/* ═════════ ตั้งค่าสัดส่วน (รวม 100 % เสมอ) ═════════ */
+function setShare(i,v){
+  var n=mix.length,j,lockedSum=0;
+  for(j=0;j<n;j++)if(j!==i&&locks[j])lockedSum+=mix[j];
+  var free=[];for(j=0;j<n;j++)if(j!==i&&!locks[j])free.push(j);
+  if(!free.length)return;              /* ทุกตัวอื่นล็อก — ขยับไม่ได้ */
+  v=Math.max(0,Math.min(100-lockedSum,Math.round(v)));
+  var rest=100-lockedSum-v,S=0;
+  for(j=0;j<free.length;j++)S+=mix[free[j]];
+  var raw=[],fl=[],tot=0;
+  for(j=0;j<free.length;j++){raw[j]=S>0?mix[free[j]]*rest/S:rest/free.length;fl[j]=Math.floor(raw[j]);tot+=fl[j];}
+  var left=rest-tot,ord=free.map(function(_,q){return q;}).sort(function(a,b){return (raw[b]-fl[b])-(raw[a]-fl[a]);});
+  for(j=0;j<left;j++)fl[ord[j%ord.length]]++;
+  mix[i]=v;for(j=0;j<free.length;j++)mix[free[j]]=fl[j];
+}
+function fracs(){return mix.map(function(v){return v/100;});}
+
+/* ═════════ สร้าง UI ตามด่าน ═════════ */
+function buildRows(){
+  var L=LV[cur],box=$('fuelRows');box.innerHTML='';
+  L.ids.forEach(function(id,i){
+    var f=FUELS[id],d=document.createElement('div');d.className='frow';
+    d.innerHTML='<div class="nm"><i style="background:'+f.col+'"></i><span class="t">'+f.em+' '+f.n+'</span></div>'+
+      '<div class="pv"><span class="pct" id="pct'+i+'">0%</span><button class="lock" id="lk'+i+'" title="ล็อก">🔓</button></div>'+
+      '<div class="info">LHV '+fmt(f.lhv,1)+' MJ/kg · ชื้น '+f.mc+' % · เถ้า '+fmt(f.ash,1)+' % · '+fmt(f.p,0)+' บ./ตัน = <b>'+fmt(f.pgj,0)+' บ./GJ</b></div>'+
+      '<input type="range" min="0" max="100" step="1" id="sl'+i+'" aria-label="'+f.n+'" style="--trk:linear-gradient(90deg,#eceff4,'+f.col+');--thm:'+f.col+'">';
+    box.appendChild(d);
+    $('sl'+i).addEventListener('input',function(){if(!running)return;var old=mix[i];setShare(i,+this.value);sClick();
+      if(mix[i]>old)spawnPour(i,Math.min(6,1+Math.round((mix[i]-old)/3)));update();});
+    $('lk'+i).addEventListener('click',function(){locks[i]=!locks[i];this.classList.toggle('on',locks[i]);this.textContent=locks[i]?'🔒':'🔓';sClick();
+      $('sl'+i).disabled=locks[i];});
+  });
+}
+function pileSlots(n){var xs=[];var w=310/n;for(var i=0;i<n;i++)xs.push(20+w*(i+0.5));return xs;}
+function buildPiles(){
+  var L=LV[cur],g=$('pileLayer'),xs=pileSlots(L.ids.length),h='';
+  L.ids.forEach(function(id,i){var f=FUELS[id],x=xs[i],sw=L.ids.length>3?30:36;
+    h+='<g class="sack" data-i="'+i+'" transform="translate('+x.toFixed(1)+' 0)">'+
+      '<path d="M'+(-sw-8)+' 384 Q'+(-sw)+' 346 0 340 Q'+sw+' 346 '+(sw+8)+' 384 Z" fill="'+f.col+'" stroke="rgba(0,0,0,.35)" stroke-width="3"/>'+
+      '<circle cx="-10" cy="362" r="4" fill="rgba(0,0,0,.25)"/><circle cx="12" cy="368" r="3" fill="rgba(255,255,255,.35)"/><circle cx="2" cy="352" r="3" fill="rgba(0,0,0,.2)"/>'+
+      '<path d="M'+(-sw+4)+' 330 Q'+(-sw)+' 266 '+(-sw*0.55)+' 252 L'+(sw*0.55)+' 252 Q'+sw+' 266 '+(sw-4)+' 330 Q0 340 '+(-sw+4)+' 330 Z" fill="#f3e3c3" stroke="#a88a5a" stroke-width="3"/>'+
+      '<path d="M'+(-sw*0.55)+' 252 Q0 238 '+(sw*0.55)+' 252" fill="none" stroke="#a88a5a" stroke-width="5"/>'+
+      '<rect x="'+(-sw+8)+'" y="282" width="'+(2*sw-16)+'" height="22" rx="6" fill="'+f.col+'"/>'+
+      '<text x="0" y="299" font-size="'+(L.ids.length>3?14:16)+'" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="700" fill="#fff" stroke="rgba(0,0,0,.45)" stroke-width="3" paint-order="stroke">'+f.sn+'</text>'+
+      '<text id="spct'+i+'" x="0" y="232" font-size="24" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="700" fill="#213047">0%</text>'+
+      '<rect x="'+(-sw-10)+'" y="210" width="'+(2*sw+20)+'" height="180" fill="transparent"/></g>';});
+  g.innerHTML=h;
+  var sacks=g.querySelectorAll('.sack');
+  for(var k=0;k<sacks.length;k++)attachDrag(sacks[k]);
+}
+
+/* ── ลากกระสอบเทลงหม้อผสม ── */
+function svgPt(e){var s=$('scene'),p=s.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(s.getScreenCTM().inverse());}
+function attachDrag(el){
+  var i=+el.getAttribute('data-i'),start=null,drag=false;
+  el.addEventListener('pointerdown',function(e){if(!running)return;audio();start=svgPt(e);drag=false;el.setPointerCapture(e.pointerId);e.preventDefault();});
+  el.addEventListener('pointermove',function(e){if(!start)return;var p=svgPt(e);
+    if(!drag&&Math.hypot(p.x-start.x,p.y-start.y)>8)drag=true;
+    if(drag){var f=FUELS[LV[cur].ids[i]];
+      $('ghostG').innerHTML='<g transform="translate('+p.x.toFixed(0)+' '+p.y.toFixed(0)+')"><path d="M-22 18 Q-26 -14 -12 -22 L12 -22 Q26 -14 22 18 Z" fill="#f3e3c3" stroke="#a88a5a" stroke-width="3"/><rect x="-16" y="-6" width="32" height="12" rx="4" fill="'+f.col+'"/></g>';}});
+  function end(e){if(!start)return;var p=svgPt(e);$('ghostG').innerHTML='';
+    if(!drag){addFuel(i,5);}                                  /* แตะ = +5 % */
+    else if(p.x>350&&p.x<530&&p.y>70&&p.y<330){addFuel(i,10);} /* ลากลงหม้อ = +10 % */
+    start=null;drag=false;}
+  el.addEventListener('pointerup',end);
+  el.addEventListener('pointercancel',function(){start=null;$('ghostG').innerHTML='';});
+}
+function addFuel(i,d){if(!running||locks[i])return;var old=mix[i];setShare(i,mix[i]+d);
+  if(mix[i]!==old){sPour();spawnPour(i,8);}else sClick();update();}
+function spawnPour(i,n){
+  var xs=pileSlots(LV[cur].ids.length),f=FUELS[LV[cur].ids[i]];
+  for(var k=0;k<n;k++)parts.push({x:xs[i]+(Math.random()-.5)*20,y:250,tx:410+Math.random()*60,ty:118,t:0,d:0.55+Math.random()*0.3,col:f.col,r:3+Math.random()*3,del:k*0.05});
+}
+
+/* ═════════ อัปเดตผลแบบทันที ═════════ */
+function zoneHtml(m,L){
+  var mx=m.max,z='';
+  function seg(a,b,c){a=Math.max(0,Math.min(mx,a));b=Math.max(0,Math.min(mx,b));if(b<=a)return '';
+    return '<div class="z" style="left:'+(a/mx*100)+'%;width:'+((b-a)/mx*100)+'%;background:'+c+'"></div>';}
+  if(L==null)return seg(0,mx,'#d9dde5');
+  if(m.type==='max'){z+=seg(0,0.9*L,'#7fd6a0')+seg(0.9*L,L,'#ffd27a')+seg(L,mx,'#f59b9b');}
+  else{z+=seg(0,L,'#f59b9b')+seg(L,1.05*L,'#ffd27a')+seg(1.05*L,mx,'#7fd6a0');}
+  return z;
+}
+function buildLabel(){
+  var L=LV[cur],h='';
+  h+='<div class="mrow costrow"><div class="mn">ต้นทุนพลังงาน<small>ราคา/LHV · ยิ่งต่ำยิ่งดี</small></div><div class="mv" id="mv_cost">—</div><div class="ok">💰</div>'+
+     '<div class="zone" id="mz_cost">—</div></div>';
+  MET.forEach(function(m){var on=L.spec[m.k]!=null;
+    h+='<div class="mrow'+(on?'':' off')+'" id="mr_'+m.k+'"><div class="mn">'+m.n+'<small>'+m.sub+(on?'':' · ไม่คิดในด่านนี้')+'</small></div>'+
+      '<div class="mv"><span id="mv_'+m.k+'">—</span> <small>'+m.u+'</small></div><div class="ok" id="mo_'+m.k+'">—</div>'+
+      '<div class="bar">'+zoneHtml(m,on?L.spec[m.k]:null)+'<div class="op" id="mp_'+m.k+'"></div><div class="mk" id="mk_'+m.k+'"></div></div>'+
+      (m.k==='ai'?'<div class="zone" id="mz_ai">—</div>':'')+'</div>';});
+  $('mrows').innerHTML=h;
+}
+function statusOf(m,v,L){
+  if(L==null)return 'off';
+  v=rnd(v,m.dec);
+  if(m.type==='max'){if(v>L)return 'bad';if(v>0.9*L)return 'near';return 'ok';}
+  if(v<L)return 'bad';if(v<1.05*L)return 'near';return 'ok';
+}
+var lastBoss=false;
+function update(){
+  var L=LV[cur],r=blend(L.ids,fracs()),i;
+  /* แถวสไลเดอร์ + กระสอบ */
+  for(i=0;i<mix.length;i++){$('pct'+i).textContent=mix[i]+'%';$('sl'+i).value=mix[i];var sp=$('spct'+i);if(sp)sp.textContent=mix[i]+'%';}
+  $('sumLine').textContent='รวม '+mix.reduce(function(a,b){return a+b;},0)+' % · ราคาผสม '+fmt(r.price,0)+' บาท/ตัน';
+  /* ฉลาก */
+  $('mv_cost').innerHTML=fmt(r.cost,1)+' <small>บาท/GJ</small>';
+  $('mz_cost').textContent='S/Cl (โมล) = '+(r.scl>=99?'> 99':fmt(r.scl,1))+' · Na₂O+K₂O ในเถ้า '+fmt(r.ox.Na2O+r.ox.K2O,1)+' %';
+  var worst=null,worstSev=0,status={};
+  MET.forEach(function(m){var v=r[m.k],Ls=L.spec[m.k],st=statusOf(m,v,Ls);status[m.k]=st;
+    $('mv_'+m.k).textContent=fmt(v,m.dec);
+    $('mk_'+m.k).style.left=Math.max(0,Math.min(100,v/m.max*100))+'%';
+    $('mo_'+m.k).textContent=st==='off'?'·':(st==='bad'?'✖':(st==='near'?'⚠':'✔'));
+    if(st==='bad'){var sev=m.type==='max'?v/Ls:Ls/Math.max(0.01,v);if(sev>worstSev){worstSev=sev;worst=m.k;}}
+  });
+  var zone=r.ai<0.17?'ปลอดภัย':(r.ai<=0.34?'มีโอกาส fouling':'fouling แน่');
+  $('mz_ai').textContent='โซน Miles (1996): '+zone+' (<0.17 ปลอดภัย · 0.17–0.34 มีโอกาส · >0.34 แน่)';
+  /* ── ฉาก ── */
+  /* ชั้นในหม้อผสม */
+  var lh='',y=300;
+  for(i=0;i<mix.length;i++){var hh=mix[i]*1.72;if(hh<=0)continue;y-=hh;
+    lh+='<rect x="392" y="'+y.toFixed(1)+'" width="96" height="'+(hh+0.5).toFixed(1)+'" fill="'+FUELS[L.ids[i]].col+'"/>';}
+  $('layerG').innerHTML=lh;
+  /* สีก้อนบนสายพาน = สีผสม */
+  var rgb=[0,0,0];for(i=0;i<mix.length;i++){var c=FUELS[L.ids[i]].col;for(var q=0;q<3;q++)rgb[q]+=parseInt(c.substr(1+2*q,2),16)*mix[i]/100;}
+  var bc='rgb('+rgb.map(Math.round).join(',')+')',lumps=$('lumpG').children;for(i=0;i<lumps.length;i++)lumps[i].setAttribute('fill',bc);
+  /* เปลวไฟ: ขนาดตาม LHV · ชื้นเกิน → อ่อน ซีด ควันขาว */
+  var mLim=L.spec.M!=null?L.spec.M:40, wet=rnd(r.M,1)>mLim;
+  var sc=Math.max(0.25,Math.min(1.05,0.25+(r.lhv-6)/14*0.8));
+  if(wet)sc*=0.75;
+  $('flameSize').setAttribute('transform','translate(705 306) scale('+sc.toFixed(2)+')');
+  if(wet){$('flOut').setAttribute('fill','#f4c27a');$('flMid').setAttribute('fill','#ffe1a8');$('flCore').setAttribute('fill','#fff6dc');}
+  else{$('flOut').setAttribute('fill','#ff6a1f');$('flMid').setAttribute('fill','#ff9f1c');$('flCore').setAttribute('fill','#ffd23f');}
+  $('smokeWhite').setAttribute('opacity',wet?'0.95':'0');
+  $('smokeGrey').setAttribute('opacity',wet?'0':'0.5');
+  /* กองเถ้า */
+  var ah=Math.min(48,4+r.ash*2.6);
+  $('ashPile').setAttribute('d','M'+(705-30-ah*0.6).toFixed(0)+' 392 Q705 '+(392-ah*2).toFixed(0)+' '+(705+30+ah*0.6).toFixed(0)+' 392 Z');
+  /* บอสตะกรัน: ดัชนีตะกรันของด่าน (AI/B/A/Cl) เกินสเปก */
+  var bossSev=0;['ai','ba','cl'].forEach(function(k){var Ls=L.spec[k];if(Ls!=null&&status[k]==='bad')bossSev=Math.max(bossSev,r[k]/Ls);});
+  var boss=bossSev>0;
+  $('bossG').setAttribute('opacity',boss?'1':'0');
+  var bs=boss?Math.min(1.25,0.6+(bossSev-1)*0.8):0.6;
+  $('bossScale').setAttribute('transform','translate(705 212) scale('+bs.toFixed(2)+')');
+  $('tubeTxt').textContent=boss?'บอสตะกรันเกาะท่อ!':'แผงท่อ';
+  $('tubeTxt').setAttribute('fill',boss?'#c62828':'#2b2f3a');
+  if(boss&&!lastBoss&&running){sBoss();}
+  lastBoss=boss;
+  /* หน้าเชฟ */
+  var anyBad=!!worst,anyNear=false;for(var k in status)if(status[k]==='near')anyNear=true;
+  var m=$('chefMouth');
+  if(anyBad){m.setAttribute('d','M536 282 q4 -6 8 0 q4 6 8 0 q4 -6 8 0');$('chefSweat').setAttribute('opacity','1');$('chefSpark').setAttribute('opacity','0');
+    $('brows').setAttribute('opacity','1');$('chefFace').setAttribute('fill',worst==='M'?'#e3f0ff':(boss?'#e9e0ff':'#ffd9b3'));}
+  else if(anyNear){m.setAttribute('d','M538 279 L558 279');$('chefSweat').setAttribute('opacity','0');$('chefSpark').setAttribute('opacity','0');
+    $('brows').setAttribute('opacity','0');$('chefFace').setAttribute('fill','#ffd9b3');}
+  else{m.setAttribute('d','M536 274 Q548 290 560 274');$('chefSweat').setAttribute('opacity','0');$('chefSpark').setAttribute('opacity','1');
+    $('brows').setAttribute('opacity','0');$('chefFace').setAttribute('fill','#ffd9b3');}
+  /* คำชิม */
+  var w=worst||(anyNear?'near':'ok');
+  if(running&&w!==lastWorst){lastWorst=w;
+    var T={lhv:'จืดไป! ค่าความร้อนไม่ถึงสเปก 🔥',M:'แฉะไป! ไฟอ่อน ควันขาว 💧',ash:'กรุบกรวด! เถ้าเยอะ ขนไม่ทัน 🪨',
+      cl:'เค็มไป! คลอรีนกัดท่อ 🧂',ai:'ด่างจัด! บอสตะกรันเกาะท่อแล้ว 👾',ba:'เถ้าหลอมง่าย ตะกรันเกาะผนัง 🫠',
+      near:'เกือบชนเพดานสเปกแล้วนะ ⚠',ok:'อร่อย! ผ่านสเปก 😋 ลดต้นทุนได้อีกไหม?'};
+    say(T[w],2600);}
+  return r;
+}
+
+/* ═════════ เริ่มด่าน ═════════ */
+function startLevel(i){
+  cur=i;var L=LV[i],n=L.ids.length;
+  mix=[];locks=[];for(var j=0;j<n;j++){mix.push(Math.floor(100/n));locks.push(false);}
+  mix[0]+=100-mix.reduce(function(a,b){return a+b;},0);
+  tLeft=TLIM;running=true;served=false;lastWorst='';lastBoss=false;parts=[];
+  $('lvlName').textContent=L.name;
+  $('goalTxt').textContent=L.goal;
+  var sc='';for(var k in L.spec)sc+='<span>'+SPEC_TXT[k]+L.spec[k]+SPEC_U[k]+'</span>';
+  sc+='<span>เป้า: บาท/GJ ต่ำสุด</span>';
+  $('specChips').innerHTML=sc;
+  buildRows();buildPiles();buildLabel();
+  optimum(i);
+  update();
+  setTimeout(function(){say('แตะ/ลากกระสอบลงหม้อผสม หรือเลื่อนสไลเดอร์ 🥄',3000);},300);
+}
+
+/* ═════════ เสิร์ฟ → เฉลย ═════════ */
+var PROP={lhv:'lhv',M:'mc',ash:'ash',cl:'cl',ai:'ai',ba:'ba'};
+var PROP_N={lhv:'LHV',M:'ความชื้น',ash:'เถ้า',cl:'Cl',ai:'AI',ba:'B/A'};
+function serve(){
+  if(!running)return;
+  running=false;served=true;
+  var L=LV[cur],r=blend(L.ids,fracs()),chk=checkSpec(r,L.spec),opt=optimum(cur);
+  var gap=(r.cost-opt.r.cost)/opt.r.cost*100,st=0;
+  if(chk.all){st=gap<=0.5?3:(gap<=3?2:1);}
+  if(st>stars[cur]){stars[cur]=st;saveStars();}
+  updateStarTotal();
+  var fb=[],k,i;
+  /* 1) สเปกที่ไม่ผ่าน — ระบุตัวการ + ทางแก้ */
+  for(k in L.spec){if(chk[k])continue;
+    var m=null;MET.forEach(function(q){if(q.k===k)m=q;});
+    var culprit=-1,cv=null;
+    for(i=0;i<L.ids.length;i++){if(mix[i]<=0)continue;var fv=FUELS[L.ids[i]][PROP[k]];
+      if(k==='lhv'){if(cv===null||fv<cv){cv=fv;culprit=i;}}else{if(cv===null||fv>cv){cv=fv;culprit=i;}}}
+    var cf=FUELS[L.ids[culprit]];
+    var txt='✖ '+PROP_N[k]+' = '+fmt(r[k],m.dec)+' '+m.u+' '+(k==='lhv'?'ต่ำกว่า':'เกิน')+'สเปก '+L.spec[k]+' '+m.u+
+      ' — ตัวการหลักคือ '+cf.em+' '+cf.n+' ('+PROP_N[k]+' '+fmt(cv,k==='M'?0:m.dec)+(k==='M'?' %':'')+') ที่ใส่ '+mix[culprit]+' % · สูตรเหมาะสุดใส่ '+opt.x[culprit]+' %';
+    if(k==='ai')txt+=' · K₂O/Na₂O ในเถ้าระเหยแล้วควบแน่นเกาะท่อ superheater';
+    if(k==='cl')txt+=' · Cl จับกับ K เป็น KCl เกาะผิวท่อและกัดกร่อน';
+    if(k==='M')txt+=' · น้ำทุก 1 kg ดึงความร้อนไประเหย 2.443 MJ';
+    fb.push({c:'bad',t:txt});}
+  if(!chk.all&&r.cost<opt.r.cost)fb.push({c:'',t:'⚠ บาท/GJ ของคุณ ('+fmt(r.cost,1)+') ต่ำกว่าสูตรเหมาะสุด ('+fmt(opt.r.cost,1)+') ก็เพราะตกสเปก — ของถูกที่ใช้กับหม้อไอน้ำไม่ได้ไม่นับเป็นสูตร'});
+  /* 2) ผ่านแล้ว — เทียบต้นทุนกับสูตรเหมาะสุด */
+  if(chk.all){
+    fb.push({c:'good',t:'✔ ผ่านสเปกครบ · ต้นทุน '+fmt(r.cost,1)+' บาท/GJ เทียบสูตรเหมาะสุด '+fmt(opt.r.cost,1)+' บาท/GJ (ห่าง '+fmt(Math.max(0,gap),1)+' %)'});
+    if(gap>0.05){
+      for(i=0;i<L.ids.length;i++){var dlt=mix[i]-opt.x[i],f=FUELS[L.ids[i]];
+        if(dlt>=2)fb.push({c:'',t:'↓ ใส่ '+f.em+' '+f.n+' มากไป '+dlt+' % — ต้นทุน '+fmt(f.pgj,0)+' บาท/GJ'+(f.pgj>opt.r.cost?' แพงกว่าค่าเฉลี่ยสูตรเหมาะสุด':'')});
+        else if(dlt<=-2)fb.push({c:'',t:'↑ ยังเติม '+f.em+' '+f.n+' ได้อีก '+(-dlt)+' % ('+fmt(f.pgj,0)+' บาท/GJ) ก่อนชนสเปก'});}
+    }
+  }
+  /* 3) สเปกที่ "ชนพอดี" ที่จุดเหมาะสุด */
+  var bind=[];
+  for(k in L.spec){var lim=L.spec[k],ov=opt.r[k];if(Math.abs(ov-lim)/lim<0.03)bind.push(PROP_N[k]+' ('+fmt(ov,metDec(k))+')');}
+  if(bind.length)fb.push({c:'',t:'💡 ที่สูตรเหมาะสุด สเปกที่ "ชนพอดี" คือ '+bind.join(', ')+' — นี่คือข้อจำกัดที่กำหนดราคาต่ำสุด'});
+  /* 4) ข้อคิดเฉพาะด่าน */
+  var extra=[
+    'ไม้สับ '+fmt(FUELS.wood.pgj,0)+' บ./GJ ถูกกว่าถ่านหิน '+fmt(FUELS.subbit.pgj,0)+' บ./GJ แต่ LHV ต่ำ — สัดส่วนถ่านหินขั้นต่ำ = (18−10.48)/(20.01−10.48) ≈ 79 %',
+    'แกลบมี AI สูง (~0.55) แต่ SiO₂ ในเถ้า >90 % จับ K เป็นแก้ว silicate จึงระเหยไปเกาะท่อน้อยกว่าที่ AI บอก (ด่านนี้จึงไม่คิด AI)',
+    'ไม้สับชื้น 40 % และแพงกว่า '+fmt(FUELS.wood.pgj,0)+' บ./GJ จึงไม่ช่วยทั้งความชื้นและต้นทุน — ตัวช่วยที่ถูกคือแกลบที่แห้ง (10 %)',
+    'ถ่านหินช่วยเจือจาง AI ได้ดีกว่า (LHV สูง) แต่แพง '+fmt(FUELS.subbit.pgj,0)+' บ./GJ — ไม้สับจึงคุ้มกว่าเมื่อ AI ไม่ต้องต่ำมาก',
+    'S/Cl (โมล) ของสูตรคุณ = '+(r.scl>=99?'> 99':fmt(r.scl,1))+' — ถ้า > 4 กำมะถันจะจับ K เป็น K₂SO₄ แทน KCl ช่วยลดการกัดกร่อน (ลิกไนต์ S 2.5 %)'];
+  fb.push({c:'',t:'📌 '+extra[cur]});
+  $('resFb').innerHTML=fb.map(function(o){return '<div class="'+o.c+'">'+o.t+'</div>';}).join('');
+  /* ตารางเปรียบเทียบ */
+  var tb='<tr><th>สูตร</th><th>ของคุณ</th><th>เหมาะสุด</th></tr>';
+  for(i=0;i<L.ids.length;i++)tb+='<tr><td>'+FUELS[L.ids[i]].em+' '+FUELS[L.ids[i]].sn+'</td><td>'+mix[i]+' %</td><td>'+opt.x[i]+' %</td></tr>';
+  for(k in L.spec){var dm=metDec(k);tb+='<tr><td>'+PROP_N[k]+' (สเปก '+(k==='lhv'?'≥':'≤')+' '+L.spec[k]+')</td><td class="'+(chk[k]?'':'bad')+'">'+fmt(r[k],dm)+'</td><td>'+fmt(opt.r[k],dm)+'</td></tr>';}
+  tb+='<tr><td><b>บาท/GJ</b></td><td><b>'+fmt(r.cost,1)+'</b></td><td><b>'+fmt(opt.r.cost,1)+'</b></td></tr>';
+  tb+='<tr><td>เวลาที่ใช้</td><td colspan="2">'+Math.round(TLIM-tLeft)+' วิ</td></tr>';
+  $('resCmp').innerHTML=tb;
+  /* หัวผล */
+  $('resEmoji').textContent=chk.all?(st===3?'🏆':'🍽'):'🤢';
+  $('resTitle').textContent=chk.all?(st===3?'สูตรเชฟระดับมิชลิน!':'ผ่านสเปก! ลดต้นทุนได้อีก'):'ตกสเปก — เชฟชิมแล้วส่ายหน้า';
+  $('resLesson').textContent='📘 '+L.lesson;
+  /* ตำแหน่งสูตรเหมาะสุดบนฉลาก */
+  MET.forEach(function(m){var p=$('mp_'+m.k);p.style.left=Math.max(0,Math.min(100,opt.r[m.k]/m.max*100))+'%';p.style.display='block';});
+  var ss=$('resStars').children;for(i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(st>=2)sGood();else if(!chk.all)sBad();
+  for(let j=0;j<st;j++)setTimeout(function(){ss[j].classList.add('on');sStar(j);},350+j*380);
+  if(st===3)confetti(30);
+  $('nextBtn').textContent=cur<4?'ด่านต่อไป ➜':'🏁 สรุปบทเรียน';
+  $('retryBtn').textContent=chk.all?'↻ เล่นซ้ำ':'↻ ลองใหม่';
+  return {st:st,gap:gap,pass:chk.all,r:r,opt:opt};
+}
+function updateStarTotal(){var t=0;for(var i=0;i<5;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+
+function confetti(n){var cols=['#3f51b5','#ffd23f','#00acc1','#ff5d8f','#1fb45f'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+function showEnd(){
+  var t=updateStarTotal();
+  $('endStars').textContent='⭐ '+t+'/15';
+  var h='';
+  LV.forEach(function(L,i){h+='<h4>'+L.name+' — '+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></h4><div>'+L.lesson+'</div>';});
+  h+='<h4>สรุปหลักคิดของเชฟ</h4><div>ค่าเชิงมวล (LHV, ความชื้น, เถ้า, Cl) ถ่วงตรงตามสัดส่วนมวล · องค์ประกอบเถ้าถ่วงด้วยปริมาณเถ้า · ต้นทุนให้คิดเป็น บาท/GJ ไม่ใช่ บาท/ตัน</div>';
+  $('endLessons').innerHTML=h;
+  $('endOv').classList.add('show');
+}
+
+/* ═════════ loop ═════════ */
+function loop(ts){
+  if(!lastTs)lastTs=ts;var dt=Math.min(0.08,(ts-lastTs)/1000);lastTs=ts;
+  if(running){tLeft-=dt;
+    var tc=$('timeChip');tc.textContent='⏱ '+Math.max(0,Math.ceil(tLeft));tc.classList.toggle('low',tLeft<=20);
+    if(tLeft<=0){say('หมดเวลา! เสิร์ฟตามสูตรที่มี ⏰',2000);serve();}}
+  /* อนุภาคเทเชื้อเพลิง */
+  if(parts.length){var h='';
+    for(var i=parts.length-1;i>=0;i--){var p=parts[i];
+      if(p.del>0){p.del-=dt;continue;}
+      p.t+=dt/p.d;if(p.t>=1){parts.splice(i,1);continue;}
+      var e=p.t,x=p.x+(p.tx-p.x)*e,y=p.y+(p.ty-p.y)*e-Math.sin(e*Math.PI)*90;
+      h+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+p.r.toFixed(1)+'" fill="'+p.col+'" stroke="rgba(0,0,0,.3)" stroke-width="1"/>';}
+    $('partG').innerHTML=h;}
+  else if($('partG').firstChild)$('partG').innerHTML='';
+  requestAnimationFrame(loop);
+}
+
+/* ═════════ คู่มือวิธีเล่น 5 ขั้น ═════════ */
+function sackSvg(x,col,lab){return '<g transform="translate('+x+' 0)"><path d="M-24 120 Q-28 80 -14 70 L14 70 Q28 80 24 120 Q0 126 -24 120 Z" fill="#f3e3c3" stroke="#a88a5a" stroke-width="3"/>'+
+  '<rect x="-18" y="90" width="36" height="14" rx="4" fill="'+col+'"/><text x="0" y="142" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600" fill="#213047">'+lab+'</text></g>';}
+var HELP=[
+ {txt:'① แตะกระสอบ (+5 %) หรือลากลง "หม้อผสม" (+10 %) — สัดส่วนทุกชนิดรวมกันได้ 100 % เสมอ',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fdf3e1"/>'+sackSvg(50,'#37474f','ถ่านหิน')+sackSvg(120,'#a1673a','ไม้สับ')+
+   '<rect x="210" y="34" width="80" height="110" rx="14" fill="#eef3fb" stroke="#3b4a6b" stroke-width="4"/>'+
+   '<rect class="tFill" x="218" y="96" width="64" height="42" fill="#a1673a"/><rect x="218" y="122" width="64" height="16" fill="#37474f"/>'+
+   '<circle class="tPour" style="--dx:130px;--dy:-30px" cx="120" cy="66" r="5" fill="#a1673a"/>'+
+   '<circle class="tPour" style="--dx:126px;--dy:-24px;animation-delay:.3s" cx="122" cy="66" r="4" fill="#a1673a"/>'+
+   '<circle class="tPour" style="--dx:134px;--dy:-28px;animation-delay:.6s" cx="118" cy="66" r="5" fill="#a1673a"/>'+
+   '<text x="250" y="26" font-size="14" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600" fill="#3f51b5">หม้อผสม</text></svg>'},
+ {txt:'② หรือเลื่อนสไลเดอร์ — เพิ่มตัวหนึ่ง ตัวอื่นลดตามสัดส่วนอัตโนมัติ · กด 🔒 ล็อกค่าที่ไม่อยากให้ขยับ',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#eef3fb"/>'+
+   '<text x="20" y="44" font-size="15" font-family="Mitr,sans-serif" font-weight="600">⚫ ถ่านหิน</text>'+
+   '<rect x="110" y="34" width="160" height="12" rx="6" fill="#cfd8dc"/><circle class="tThA" cx="125" cy="40" r="13" fill="#fff" stroke="#37474f" stroke-width="6"/>'+
+   '<text x="20" y="104" font-size="15" font-family="Mitr,sans-serif" font-weight="600">🪵 ไม้สับ</text>'+
+   '<rect x="110" y="94" width="160" height="12" rx="6" fill="#e8d5c2"/><circle class="tThB" cx="125" cy="100" r="13" fill="#fff" stroke="#a1673a" stroke-width="6"/>'+
+   '<text x="170" y="146" font-size="15" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="700" fill="#3f51b5">รวม = 100 %</text>'+
+   '<text x="300" y="104" font-size="22">🔒</text></svg>'},
+ {txt:'③ อ่าน "ฉลากโภชนาการเชื้อเพลิง" — แถบเขียว = ผ่านสบาย · เหลือง = ใกล้เพดาน · แดง = ตกสเปก',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fff" stroke="#111" stroke-width="3"/>'+
+   '<text x="20" y="34" font-size="17" font-family="Mitr,sans-serif" font-weight="700">Fuel Facts</text><rect x="20" y="42" width="300" height="6" fill="#111"/>'+
+   '<text x="20" y="76" font-size="14" font-family="Mitr,sans-serif" font-weight="600">ความชื้น %</text>'+
+   '<rect x="60" y="92" width="130" height="16" fill="#7fd6a0"/><rect x="190" y="92" width="30" height="16" fill="#ffd27a"/><rect x="220" y="92" width="80" height="16" fill="#f59b9b"/>'+
+   '<rect class="tMark" x="70" y="86" width="6" height="28" rx="3" fill="#111"/>'+
+   '<text x="125" y="138" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#1b7a43">✔ ผ่าน</text>'+
+   '<text x="205" y="138" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#a86a00">⚠</text>'+
+   '<text x="262" y="138" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#c62828">✖ เกิน</text></svg>'},
+ {txt:'④ ดัชนีตะกรัน (AI, B/A, Cl) เกิน → "บอสตะกรัน" โผล่เกาะท่อ · ชื้นเกิน → ไฟอ่อน ควันขาว',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#eef3fb"/>'+
+   '<rect x="40" y="30" width="150" height="120" rx="20" fill="#c4d0e4" stroke="#3b4a6b" stroke-width="4"/>'+
+   '<rect x="55" y="42" width="120" height="70" rx="10" fill="#2b2f3a"/>'+
+   '<g stroke="#9aa7bd" stroke-width="6"><line x1="75" y1="46" x2="75" y2="108"/><line x1="100" y1="46" x2="100" y2="108"/><line x1="125" y1="46" x2="125" y2="108"/><line x1="150" y1="46" x2="150" y2="108"/></g>'+
+   '<g class="tPop"><path d="M86 110 C82 88 96 70 115 70 C134 70 148 88 144 110 Z" fill="#8e6fd6" stroke="#4a2f8f" stroke-width="3"/>'+
+   '<circle cx="106" cy="88" r="6" fill="#fff"/><circle cx="124" cy="88" r="6" fill="#fff"/><circle cx="107" cy="89" r="3" fill="#1b1033"/><circle cx="125" cy="89" r="3" fill="#1b1033"/>'+
+   '<path d="M106 100 q9 7 18 0" stroke="#1b1033" stroke-width="2.5" fill="#ff8fb1"/></g>'+
+   '<rect x="240" y="70" width="34" height="80" rx="6" fill="#7f8fb0"/>'+
+   '<circle class="smokeP" cx="257" cy="58" r="13" fill="#fff" stroke="#cfd8dc"/><circle class="smokeP" style="animation-delay:.7s" cx="248" cy="56" r="11" fill="#fff" stroke="#cfd8dc"/>'+
+   '<circle class="smokeP" style="animation-delay:1.4s" cx="266" cy="58" r="12" fill="#fff" stroke="#cfd8dc"/>'+
+   '<text x="300" y="120" font-size="14" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600" fill="#213047">ควันขาว</text>'+
+   '<text x="300" y="138" font-size="12" text-anchor="middle" font-family="Mitr,sans-serif" fill="#5a6a85">(ไอน้ำ)</text></svg>'},
+ {txt:'⑤ ผ่านทุกสเปกแล้วกด 🍽 เสิร์ฟ — บาท/GJ ยิ่งใกล้สูตรเหมาะสุดยิ่งได้ดาว (≤2 นาที/ด่าน) แล้วอ่านเฉลย!',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fdf3e1"/>'+
+   '<circle cx="80" cy="80" r="30" fill="#ffd9b3" stroke="#e8b27f" stroke-width="3"/>'+
+   '<path d="M56 56 C42 40 56 22 70 30 C72 16 92 16 94 30 C108 22 120 40 104 56 Z" fill="#fff" stroke="#cfd8dc" stroke-width="2"/>'+
+   '<circle cx="70" cy="78" r="4" fill="#213047"/><circle cx="90" cy="78" r="4" fill="#213047"/><path d="M68 92 Q80 104 92 92" stroke="#b34a4a" stroke-width="4" fill="none" stroke-linecap="round"/>'+
+   '<rect x="130" y="40" width="190" height="34" rx="17" fill="#3f51b5"/><text x="225" y="63" font-size="15" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600" fill="#fff">🍽 เสิร์ฟ!</text>'+
+   '<text class="tStar" x="160" y="122" font-size="30">⭐</text><text class="tStar" style="animation-delay:.25s" x="205" y="122" font-size="30">⭐</text><text class="tStar" style="animation-delay:.5s" x="250" y="122" font-size="30">⭐</text>'+
+   '<text x="225" y="150" font-size="13" text-anchor="middle" font-family="Mitr,sans-serif" fill="#213047">บาท/GJ ใกล้สูตรเหมาะสุด</text></svg>'}
+];
+var helpPg=0;
+function renderHelp(){
+  $('helpStage').innerHTML=HELP[helpPg].svg;$('helpTxt').textContent=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';
+  for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';
+  $('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';
+}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){$('helpOv').classList.remove('show');markSeen();
+  if(start&&!running){$('startOv').classList.remove('show');startLevel(pickNext());}}
+function pickNext(){for(var i=0;i<5;i++)if(!stars[i])return i;return 0;}
+
+/* ═════════ สูตร/ที่มา ═════════ */
+function buildFx(){
+  var t='<table><tr><th>เชื้อเพลิง</th><th>M%</th><th>LHVdb</th><th>LHVar</th><th>Ash ar</th><th>Cl ar</th><th>B/A</th><th>AI</th><th>บ./ตัน</th><th>บ./GJ</th></tr>';
+  for(var k in FUELS){var f=FUELS[k];t+='<tr><td>'+f.sn+'</td><td>'+f.mc+'</td><td>'+fmt(f.lhvd,1)+'</td><td>'+fmt(f.lhv,2)+'</td><td>'+fmt(f.ash,2)+'</td><td>'+fmt(f.cl,3)+'</td><td>'+fmt(f.ba,2)+'</td><td>'+fmt(f.ai,3)+'</td><td>'+fmt(f.p,0)+'</td><td>'+fmt(f.pgj,0)+'</td></tr>';}
+  t+='</table>';
+  $('fxBody').innerHTML=
+   '<h4>1) ฐานการผสม</h4>ผสมโดยมวล ฐาน as-received (ar = ตามที่รับเข้า มีความชื้นรวม) · db = ฐานแห้ง'+
+   '<code>LHV<sub>ar</sub> = LHV<sub>db</sub>×(1−M) − 2.443×M &nbsp; [MJ/kg, M เป็นเศษส่วน]</code>'+
+   '<code>Ash<sub>ar</sub> = Ash<sub>db</sub>×(1−M) · Cl<sub>ar</sub> = Cl<sub>db</sub>×(1−M)</code>'+
+   '<h4>2) ค่าเชิงมวล — ถ่วงน้ำหนักตรง</h4><code>X<sub>blend</sub> = Σ x<sub>i</sub>·X<sub>i</sub> &nbsp; (LHV, M, Ash, Cl, S, บาท/ตัน)</code>'+
+   '<h4>3) องค์ประกอบเถ้า — ถ่วงด้วยปริมาณเถ้า</h4><code>ox<sub>j</sub> = Σ(x<sub>i</sub>·Ash<sub>i</sub>·ox<sub>ij</sub>) / Σ(x<sub>i</sub>·Ash<sub>i</sub>)</code>'+
+   '<h4>4) ดัชนีตะกรัน</h4><code>B/A = (Fe₂O₃+CaO+MgO+Na₂O+K₂O) / (SiO₂+Al₂O₃+TiO₂)</code>'+
+   'เกณฑ์ทั่วไป (ถ่านหิน): &lt;0.5 ต่ำ · 0.5–1.0 ปานกลาง · &gt;1.0 สูง — ใช้กับชีวมวลต้องระวัง (เถ้า CaO สูงหลอมยาก)'+
+   '<code>AI = Ash%×(Na₂O+K₂O)%/(10×LHV) &nbsp; [kg/GJ] — Miles et al. (1996)</code>'+
+   '&lt;0.17 ปลอดภัย · 0.17–0.34 มีโอกาส fouling · &gt;0.34 fouling แน่ (ใช้ Ash และ LHV ฐานเดียวกัน)'+
+   '<code>S/Cl (โมล) = (S/32.06)/(Cl/35.45) — &gt; 4 ช่วยลด KCl (เกิด K₂SO₄ แทน)</code>'+
+   '<h4>5) ต้นทุน</h4><code>บาท/GJ = (Σx<sub>i</sub>·ราคา<sub>i</sub> บาท/ตัน) / (Σx<sub>i</sub>·LHV<sub>i</sub> MJ/kg)</code>'+
+   'สูตรเหมาะสุด = ไล่ทุกสัดส่วน (grid search ทีละ 1 %) เลือก บาท/GJ ต่ำสุดที่ผ่านสเปกทุกข้อ · ดาว: ผ่านสเปก + ห่างจากเหมาะสุด ≤0.5 % = ⭐⭐⭐, ≤3 % = ⭐⭐, อื่น ๆ = ⭐'+
+   '<h4>6) ข้อมูลเชื้อเพลิง (ค่ากลาง)</h4>'+t+
+   '<div style="font-size:.74rem;color:#6a7a90;margin-top:6px">ที่มา: ค่ากลางจากวรรณกรรม + KM Triple E (คลัง Slagging & Fouling Predictor) · ราคา = ประมาณการราคาส่งถึงโรงงาน ปี 2569 ใช้เพื่อการเรียนรู้ · สมมติฐาน: ไม่คิดผลมลทินดิน/ทราย และอุณหภูมิผิวท่อ · อ้างอิง: Miles T.R. et al. (1996) Alkali deposits found in biomass power plants, NREL/TP-433-8142; ASTM D3174, D5865, E871</div>';
+}
+
+/* ═════════ อีเวนต์ ═════════ */
+$('serveBtn').addEventListener('click',function(){audio();if(running)serve();});
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn2').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(cur);});
+$('nextBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');if(cur<4)startLevel(cur+1);else showEnd();});
+$('endHome').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('endReplay').addEventListener('click',function(){$('endOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('fxBtn').addEventListener('click',function(){audio();sClick();buildFx();$('fxOv').classList.add('show');this.classList.add('on');});
+$('fxClose').addEventListener('click',function(){$('fxOv').classList.remove('show');$('fxBtn').classList.remove('on');});
+
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  var nm=['ถ่านหิน+ไม้','แกลบ','ชานอ้อย','EFB','สูตรเชฟ'];
+  for(let i=0;i<5;i++){var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.15rem">'+LV[i].icon+'</span><span class="nm">'+(i+1)+'. '+nm[i]+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);}
+}
+
+/* ── hook สำหรับ QA ── */
+window.TEG={FUELS:FUELS,LV:LV,blend:blend,optimum:optimum,checkSpec:checkSpec,startLevel:startLevel,serve:serve,showEnd:showEnd,
+  setMix:function(a){mix=a.slice();update();},getMix:function(){return mix.slice();},setShare:function(i,v){setShare(i,v);update();},
+  addFuel:addFuel,state:function(){return {cur:cur,running:running,tLeft:tLeft,stars:stars.slice()};}};
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();
+startLevel(0);running=false;
+requestAnimationFrame(loop);
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

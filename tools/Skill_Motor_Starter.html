@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ต่อตู้สตาร์ทมอเตอร์ — Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "ต่อตู้สตาร์ทมอเตอร์" (Motor Starter Wiring) v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: ช่าง ปวช./ปวส. (ช่างไฟฟ้ากำลัง)
+     หลักที่สอน: อ่านแบบวงจรกำลัง/วงจรควบคุม แล้วต่อวงจรสตาร์ทมอเตอร์ 3 เฟสให้ถูก
+       DOL · Start/Stop + self-hold + OL · กลับทางหมุน (interlock) · สตาร์-เดลต้า · หาจุดผิด (troubleshoot)
+     ระบบตรวจ: จำลองไฟฟ้าจริงจาก netlist ที่ผู้เล่นต่อ (nodal analysis เฟสเซอร์ 50 Hz)
+       แหล่งจ่าย 400/230 V: L1=230.9∠0°, L2=230.9∠−120°, L3=230.9∠+120°, N=PE=0
+       สายไฟ/หน้าสัมผัสที่ปิด = ตัวนำศูนย์โอห์ม (union-find) → ถ้าโหนดเดียวมีศักย์ต่างกัน 2 ค่า = ลัดวงจร → Q1 ทริป
+       โหลด: คอยล์ 230 V (Z≈5.29 kΩ∠60°), หลอด 52.9 kΩ, ขั้ว OL 0.01 Ω (ใช้วัดกระแส), ขดลวดมอเตอร์ Z(s)
+       มอเตอร์ 7.5 kW 400 V Δ, In = 15 A, Ist(DOL) = 6.5·In (IEC 60034-12 ช่วง 6–7×In)
+         |Zw(s)| = 400 / (In·k(s)/√3),  k(s) = √[(6.877·s/√(s²+0.35²))² + 0.35²]  → k(1)=6.5, k(0.054)≈1.0
+         Y: V ขด = 400/√3 = 231 V → I สาย Y = I สาย Δ / 3 (≈2.17·In) · แรงบิด ∝ V² → 1/3
+       แรงบิด Kloss: T(s) = 2·Tmax/(s/sk + sk/s), Tmax 2.6 pu, sk 0.35
+         Te = (|Vp|²·T(1−ω) − |Vn|²·T(1+ω))/400²  (Vp/Vn = ลำดับบวก/ลบของแรงดันขดลวด → ทิศหมุน)
+         dω/dt = (Te − TL)/H, TL = 0.25 + 0.55·ω² (พัดลม/ปั๊ม), H = 1.2 s
+       การกลับทางหมุน: สลับ 2 เฟส → ลำดับเฟสกลับ (Vp↔Vn)
+       คอนแทคเตอร์ IEC 60947-4-1: ดึงเมื่อ ≥85% Us, ปล่อยเมื่อ <50% Us, เวลาดึง 20 ms ปล่อย 40 ms
+         (เวลาปล่อย > เวลาดึง → Y/Δ ไม่มี interlock จะติดซ้อนกัน 20 ms = ลัดวงจร), mirror contact (ภาคผนวก F)
+       OL class 10: ความร้อนสะสม Σ((I/Ir)²−1)dt ≥ 6×(7.2²−1) → ตัดใน ~6 s ที่ 7.2×Ir
+       สีสาย มอก. 11-2553 / IEC 60445: L1 น้ำตาล · L2 ดำ · L3 เทา · N ฟ้า · PE เขียว-เหลือง -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --warn:#f5a623; --bad:#ef4b4b;
+  --acc1:#3f51b5; --acc2:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#25304a,#1b2236 60%,#151b2b);color:var(--ink);min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;overflow-x:hidden;user-select:none;-webkit-user-select:none}
+#app{width:100%;max-width:1180px;padding:10px 10px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* HUD */
+#hud{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.94);border:3px solid #fff;border-radius:18px;padding:7px 10px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hud .lvl-name{font-weight:600;font-size:1rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap;font-size:.95rem}
+#hud button{border:none;background:#e8ecf8;border-radius:12px;padding:6px 8px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:44px}
+#hud button.on{background:var(--acc1);color:#fff}
+
+#main{display:grid;grid-template-columns:1fr;gap:10px}
+@media (min-width:900px){#main{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start}
+  #sceneWrap #scene{height:calc(100vh - 250px);min-height:540px;width:auto;max-width:100%;margin:0 auto}
+  #sceneWrap.zoom #scene{height:auto;width:175%;max-width:none}
+  #sideCol{position:sticky;top:8px}}
+#leftCol,#sideCol{display:flex;flex-direction:column;gap:10px;min-width:0}
+
+.goal{font-size:.92rem;font-weight:500;background:#fff;border-radius:16px;padding:8px 12px;box-shadow:0 4px 12px rgba(0,0,0,.25);line-height:1.45}
+.goal b{color:var(--acc1)}
+.goal .sub{font-size:.8rem;color:#5f6b80;margin-top:2px}
+
+/* Scene */
+#sceneWrap{position:relative;border-radius:20px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.45);background:#3a4252;border:4px solid #fff}
+#sceneScroll{overflow:auto;max-height:none;-webkit-overflow-scrolling:touch}
+#scene{display:block;width:100%;height:auto;touch-action:manipulation}
+#sceneWrap.zoom #scene{width:175%}
+#sceneWrap.zoom #sceneScroll{max-height:78vh}
+#meter{position:absolute;left:8px;top:8px;background:rgba(10,16,28,.86);color:#fff;border-radius:12px;padding:5px 9px;font-size:.76rem;line-height:1.45;display:none;pointer-events:none;max-width:58%}
+#meter b{color:#ffd23f}
+#capBar{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:min(94%,440px);background:rgba(18,26,48,.92);border:2px solid #00acc1;border-radius:14px;padding:6px 10px;color:#fff;font-weight:500;text-align:center;display:none;font-size:.86rem;pointer-events:none}
+#toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:#fff;border:3px solid #3f51b5;border-radius:14px;padding:6px 12px;font-size:.86rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.3);opacity:0;transition:opacity .25s;pointer-events:none;width:max-content;max-width:90%;text-align:center}
+#toast.show{opacity:1}
+@keyframes shakeS{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+#sceneWrap.shake{animation:shakeS .28s linear 3}
+
+/* toolbar */
+#tools{background:#fff;border-radius:18px;padding:9px 10px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:8px}
+#swatches{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.sw{border:3px solid #d8deea;border-radius:12px;background:#f7f9fd;min-width:58px;min-height:48px;padding:4px 4px 2px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink)}
+.sw i{display:block;width:34px;height:12px;border-radius:6px;border:1.5px solid #222}
+.sw span{font-size:.68rem;font-weight:600;line-height:1}
+.sw.on{border-color:var(--acc1);background:#e8ecff;box-shadow:0 0 0 2px #00acc1 inset}
+.row-btns{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.tb{border:none;border-radius:12px;background:#e8ecf8;min-height:44px;min-width:44px;padding:6px 10px;font-family:inherit;font-size:.88rem;font-weight:600;color:var(--ink);cursor:pointer}
+.tb.on{background:var(--acc1);color:#fff}
+.tb:disabled{opacity:.4}
+.tb.danger{background:#ffe3e3;color:#b3261e}
+.big-btn{border:none;border-radius:999px;padding:13px 30px;font-family:inherit;font-size:1.15rem;font-weight:700;color:#fff;background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #283593,0 10px 18px rgba(0,0,0,.2);transition:transform .1s;min-height:48px}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #283593}
+.big-btn.alt{background:linear-gradient(135deg,#00acc1,#26c6da);box-shadow:0 6px 0 #00838f,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #00838f}
+.big-btn.small{font-size:1rem;padding:10px 20px}
+.big-btn.power{background:linear-gradient(135deg,#ff8f1c,#ef4b4b);box-shadow:0 6px 0 #a83224,0 10px 18px rgba(0,0,0,.2);width:100%}
+.big-btn.power:active{box-shadow:0 2px 0 #a83224}
+.big-btn:disabled{opacity:.5}
+#liveBar{display:none;gap:6px;justify-content:center;flex-wrap:wrap}
+
+/* side panel */
+.panel{background:#fff;border-radius:18px;padding:10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.panel h3{font-size:.98rem;margin-bottom:4px;color:var(--acc1);display:flex;justify-content:space-between;align-items:center;gap:6px}
+.panel h3 small{font-weight:500;color:#6a7a90;font-size:.74rem}
+#diagPanel svg{width:100%;height:auto;display:block;background:#fbfcff;border-radius:12px;border:1px solid #e3e8f2}
+#checkList{list-style:none;display:flex;flex-direction:column;gap:4px;font-size:.84rem}
+#checkList li{display:flex;gap:6px;align-items:flex-start;background:#f4f7fb;border-radius:10px;padding:5px 8px;line-height:1.35}
+#checkList li .ic{flex:none;width:20px;text-align:center}
+#checkList li.ok{background:#e6f7ed}
+#checkList li.fail{background:#ffe9e9}
+#checkList li.skip{opacity:.55}
+#curveSvg{width:100%;height:auto;display:block;background:#0f1a2e;border-radius:12px;margin-top:6px}
+#testPanel{display:none}
+
+/* overlays */
+.overlay{position:fixed;inset:0;background:rgba(10,18,32,.66);display:flex;align-items:center;justify-content:center;z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:24px;max-width:500px;width:100%;padding:20px 16px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.4);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.35rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:2.8rem;letter-spacing:6px;margin:6px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e8f6f8;border-radius:14px;padding:9px 12px;font-weight:600;margin:8px 0;font-size:.92rem;border-left:5px solid #00acc1;text-align:left}
+.fb{text-align:left;display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.fb div{background:#fff1f1;border-radius:12px;padding:8px 10px;font-size:.88rem;line-height:1.5;border-left:5px solid #ef4b4b}
+.fb div.okk{background:#ecf9f0;border-left-color:#1fb45f}
+.fb div b{color:#b3261e}
+.fb div.okk b{color:#137a3e}
+.stat-tbl{display:flex;flex-direction:column;gap:4px;margin:8px 0;text-align:left;font-size:.9rem}
+.stat-tbl div{display:flex;justify-content:space-between;gap:8px;background:#f4f7fb;border-radius:10px;padding:5px 10px}
+.stat-tbl b{color:#3f51b5;text-align:right}
+.lvl-pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:7px;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e7f5;background:#f7f9ff;border-radius:16px;padding:7px 4px;font-family:inherit;cursor:pointer;min-height:64px;color:var(--ink)}
+.lvl-pick .nm{font-size:.76rem;font-weight:600;display:block;line-height:1.25}
+.lvl-pick .st{font-size:.8rem;letter-spacing:1px}
+#startCard h1{font-size:1.75rem;line-height:1.25;background:var(--btn-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#5f6b80;margin:4px 0 6px;font-size:.92rem;line-height:1.5}
+.tag-aud{display:inline-block;background:#e8ecff;color:#3f51b5;border-radius:999px;padding:3px 12px;font-size:.82rem;font-weight:600;margin:4px 0}
+.brand{font-size:.78rem;color:#8795a8;margin-top:12px}
+#helpStage{background:#eef3fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:340px;height:auto}
+#helpTxt{font-size:.98rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd9e6}
+.dots i.on{background:var(--acc2)}
+.help-nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#fxCard{text-align:left}
+#fxCard h2{text-align:center}
+#fxCard h4{color:#3f51b5;margin:10px 0 3px;font-size:.95rem}
+#fxCard p,#fxCard li{font-size:.86rem;line-height:1.55}
+#fxCard ul{padding-left:18px}
+#fxCard code{background:#eef2fb;border-radius:6px;padding:0 4px;font-family:inherit}
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+footer{color:#9fb0cc;font-size:.78rem;text-align:center;margin-top:4px}
+
+/* SVG scene classes */
+.term{fill:#d8a948;stroke:#6b4f1d;stroke-width:1.6}
+.slot{stroke:#6b4f1d;stroke-width:1.4}
+.tl{font-size:8.5px;font-weight:600;fill:#2a3240;text-anchor:middle;pointer-events:none;font-family:Mitr,sans-serif}
+.tl.w{fill:#e8edf7}
+.hit{fill:transparent;cursor:pointer}
+.whit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
+.wsel .wcore{filter:drop-shadow(0 0 3px #00e5ff)}
+.wsel .wout{stroke:#00e5ff!important}
+.wbad .wout{stroke:#ff1744!important;animation:badBlink .6s linear infinite}
+@keyframes badBlink{50%{stroke:#ffd23f}}
+.flow{fill:none;stroke:#fff59d;stroke-width:2.6;stroke-linecap:round;stroke-dasharray:1 9;animation:flowA .55s linear infinite;pointer-events:none}
+.flow.fast{stroke:#ffe082;stroke-width:3;animation-duration:.28s}
+@keyframes flowA{to{stroke-dashoffset:-20}}
+@keyframes selPulse{0%,100%{r:9;opacity:1}50%{r:13;opacity:.5}}
+.selring{fill:none;stroke:#00e5ff;stroke-width:3;animation:selPulse .9s ease-in-out infinite;pointer-events:none}
+@keyframes snapK{0%{transform:scale(1)}40%{transform:scale(1.035)}100%{transform:scale(1)}}
+.snap{transform-box:fill-box;transform-origin:center;animation:snapK .18s ease-out}
+@keyframes sparkA{0%{transform:scale(.2) rotate(0);opacity:1}60%{transform:scale(1.25) rotate(20deg);opacity:1}100%{transform:scale(1) rotate(10deg);opacity:.95}}
+#sparkG.go .sp{transform-box:fill-box;transform-origin:center;animation:sparkA .45s ease-out}
+@keyframes lampG{0%,100%{opacity:.75}50%{opacity:1}}
+.lampOn{animation:lampG 1s ease-in-out infinite}
+.pbtn{cursor:pointer}
+/* help anims */
+@keyframes tapMove{0%,15%{transform:translate(0,0)}45%,60%{transform:translate(150px,0)}90%,100%{transform:translate(0,0)}}
+.tFinger{animation:tapMove 3s ease-in-out infinite}
+@keyframes drawW{0%,40%{stroke-dashoffset:200}60%,100%{stroke-dashoffset:0}}
+.tWire{stroke-dasharray:200;animation:drawW 3s ease-in-out infinite}
+@keyframes ringCyc{0%,18%{transform:translateX(0)}20%,38%{transform:translateX(62px)}40%,58%{transform:translateX(124px)}60%,78%{transform:translateX(186px)}80%,100%{transform:translateX(248px)}}
+.tRing{animation:ringCyc 5s steps(1) infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tSpin{transform-box:fill-box;transform-origin:center;animation:spin 1.2s linear infinite}
+@keyframes pulseB{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.tPulse{transform-box:fill-box;transform-origin:center;animation:pulseB 1s ease-in-out infinite}
+@keyframes popIn{0%,30%{opacity:0;transform:scale(.3)}45%,100%{opacity:1;transform:scale(1)}}
+.tPop{transform-box:fill-box;transform-origin:center;animation:popIn 3s ease-out infinite}
+@keyframes kSnap{0%,30%{transform:translateY(0)}35%,100%{transform:translateY(5px)}}
+.tK{animation:kSnap 3s ease-out infinite}
+@keyframes hiMove{0%{transform:translateY(0)}100%{transform:translateY(96px)}}
+.tHi{animation:hiMove 2.6s linear infinite}
+@media (prefers-reduced-motion:reduce){
+  .flow,.selring,.snap,#sparkG.go .sp,.lampOn,.wbad .wout,.tFinger,.tWire,.tRing,.tSpin,.tPulse,.tPop,.tK,.tHi,#sceneWrap.shake{animation:none!important}
+  .tWire{stroke-dashoffset:0}
+}
+@media (max-width:480px){
+  .card h2{font-size:1.18rem}
+  .sw{min-width:54px}
+  #hud .lvl-name{font-size:.9rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">ต่อตู้สตาร์ทมอเตอร์</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="homeBtn" title="เลือกด่าน">🏠</button>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="fxBtn" title="สูตร/ที่มา">📐</button>
+  </div>
+
+  <div id="main">
+    <div id="leftCol">
+      <div class="goal" id="goalBox"><div id="goalTxt">—</div><div class="sub" id="goalSub">แตะขั้วต้น → แตะขั้วปลาย = ต่อสาย 1 เส้น · แตะสายเพื่อเลือก/ลบ</div></div>
+      <div id="sceneWrap">
+        <div id="sceneScroll"><svg id="scene" viewBox="0 0 420 650" xmlns="http://www.w3.org/2000/svg" aria-label="ตู้ควบคุมมอเตอร์เปิดฝา"></svg></div>
+        <div id="meter"></div>
+        <div id="capBar"></div>
+        <div id="toast"></div>
+      </div>
+      <div id="tools">
+        <div id="swatches"></div>
+        <div class="row-btns" id="editBtns">
+          <button class="tb" id="undoBtn">↶ ย้อน</button>
+          <button class="tb danger" id="delBtn" disabled>🗑 ลบสาย</button>
+          <button class="tb" id="clrBtn">🧹 ล้าง</button>
+          <button class="tb on" id="diagBtn">📋 แบบ</button>
+          <button class="tb" id="zoomBtn">🔍 ซูม</button>
+        </div>
+        <div class="row-btns" id="liveBar">
+          <button class="tb" id="jamBtn">🔩 เพลาติด</button>
+          <button class="tb" id="olBtn">⚠ ทดสอบ OL</button>
+          <button class="tb danger" id="exitLiveBtn">⏹ ตัดไฟ กลับไปต่อสาย</button>
+        </div>
+        <button class="big-btn power" id="testBtn">⚡ ทดสอบจ่ายไฟ</button>
+      </div>
+    </div>
+    <div id="sideCol">
+      <div class="panel" id="diagPanel"><h3>📋 แบบวงจรที่ต้องต่อ <small id="diagSub">วงจรกำลัง + วงจรควบคุม</small></h3><div id="diagBox"></div></div>
+      <div class="panel" id="testPanel"><h3>🧪 ผลทดสอบ <small id="testSub"></small></h3>
+        <ul id="checkList"></ul>
+        <svg id="curveSvg" viewBox="0 0 360 150"></svg>
+      </div>
+    </div>
+  </div>
+  <footer>Energy Skills Lab · Triple E Technology</footer>
+</div>
+
+<!-- Start -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.6rem">🔌⚙️</div>
+    <h1>ต่อตู้สตาร์ทมอเตอร์</h1>
+    <div class="tag-aud">สำหรับ: ช่าง ปวช./ปวส. (ช่างไฟฟ้ากำลัง)</div>
+    <div class="sub">อ่านแบบวงจรกำลัง/ควบคุม แล้วต่อสายในตู้ให้มอเตอร์ 3 เฟสทำงานถูก<br>DOL · Self-hold · กลับทางหมุน · สตาร์-เดลต้า · หาจุดผิด</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- Help -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2>วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt">—</div>
+    <div class="dots" id="helpDots"></div>
+    <div class="help-nav">
+      <button class="big-btn small alt" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- Result -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <div id="resEmoji" style="font-size:2.3rem">🏁</div>
+    <h2 id="resTitle">ผลทดสอบ</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div style="font-weight:600;color:#3f51b5;font-size:.95rem">เฉลย / ข้อคิด</div>
+    <div class="fb" id="resFb"></div>
+    <div class="lesson" id="resLesson">—</div>
+    <div class="stat-tbl" id="resStats"></div>
+    <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="liveBtn">🔌 ลองกดเอง</button>
+      <button class="big-btn small alt" id="fixBtn">🔧 กลับไปแก้สาย</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- Formula -->
+<div class="overlay" id="fxOv">
+  <div class="card" id="fxCard">
+    <h2>📐 สูตร / ที่มา</h2>
+    <h4>1) กระแสสตาร์ท DOL</h4>
+    <p>มอเตอร์ตัวอย่าง 7.5 kW 400 V Δ, In ≈ 15 A · กระแสสตาร์ท (locked-rotor) ≈ <b>6–7 × In</b> → ใช้ 6.5×In ≈ <b>97.5 A</b> แล้วลดลงเหลือ ≈ In เมื่อถึงความเร็วพิกัด (~1,420 rpm)</p>
+    <h4>2) สตาร์-เดลต้า (Y-Δ)</h4>
+    <p>ต่อ Y: แรงดันขด = 400/√3 = <b>231 V</b> → กระแสขดลด 1/√3 และกระแสสาย Y = กระแสขด (ไม่คูณ √3)<br>
+      ⇒ <code>I<sub>สาย,Y</sub> = I<sub>สาย,Δ</sub> / 3</code> ≈ 32.5 A (≈2.2×In) · แรงบิดสตาร์ท ∝ V² → เหลือ 1/3<br>
+      ต้องมี interlock: NC 21-22 ของ K3(Y) อนุกรมคอยล์ K2(Δ) และกลับกัน — ไม่งั้น Y กับ Δ ติดซ้อน = ลัดวงจรเฟส</p>
+    <h4>3) กลับทางหมุน</h4>
+    <p>สลับ <b>2 เฟสใดก็ได้</b> (เช่น L1↔L3) → ลำดับเฟสกลับ สนามแม่เหล็กหมุนกลับ · ต้อง interlock NC ไขว้ K1⇄K2</p>
+    <h4>4) วงจรควบคุม 230 V</h4>
+    <ul><li>L1 → OL 95-96 (NC) → Stop 11-12 (NC) → Start 13-14 (NO) ∥ K1 13-14 (self-hold) → คอยล์ A1-A2 → N</li>
+      <li>คอนแทคเตอร์ดึงที่ ≥85% Us (IEC 60947-4-1) · คอยล์ 230 V ถ้าได้ 400 V (L-L) จะไหม้</li>
+      <li>OL class 10: ตัดใน 4–10 วินาทีที่ 7.2×Ir · ตั้ง Ir = In (DOL) หรือ 0.58×In เมื่อ OL อยู่ในวงจรขดลวด Y-Δ</li></ul>
+    <h4>5) สีสาย (มอก. 11-2553 / IEC 60445)</h4>
+    <p>L1 <b style="color:#8b4513">น้ำตาล</b> · L2 <b>ดำ</b> · L3 <b style="color:#808890">เทา</b> · N <b style="color:#2f80ed">ฟ้า</b> · PE <b style="color:#2e9e3e">เขียว-เหลือง</b> · วงจรควบคุมที่รับไฟจาก L1 ใช้สีเฟสได้</p>
+    <h4>6) สมมติฐานของตัวจำลอง</h4>
+    <ul><li>แก้วงจรแบบ nodal analysis เฟสเซอร์ 50 Hz จากสายที่ต่อจริง · สาย/หน้าสัมผัสปิด = 0 Ω · ถ้าโหนดเดียวมีศักย์ 2 ค่า = ลัดวงจร → Q1 ทริป</li>
+      <li>ขดลวดมอเตอร์ Z(s) เปลี่ยนตาม slip · แรงบิด Kloss (Tmax 2.6 pu, sk 0.35) · โหลดพัดลม T = 0.25+0.55ω²</li>
+      <li>คอนแทคเตอร์ดึง 20 ms ปล่อย 40 ms · ไทม์เมอร์ Y-Δ ตั้ง 5 s (งานจริง 5–15 s ตามภาระ)</li>
+      <li>อ้างอิง: IEC 60947-4-1 (คอนแทคเตอร์/สตาร์ทเตอร์, mirror contact), IEC 60947-5-1 (ปุ่มกด/เลขขั้ว), IEC 60204-1 (สีปุ่ม Stop แดง/Start เขียว), มาตรฐานการติดตั้งทางไฟฟ้า วสท.</li></ul>
+    <div id="fxLive" class="stat-tbl"></div>
+    <div style="text-align:center;margin-top:10px"><button class="big-btn small" id="fxClose">ปิด</button></div>
+  </div>
+</div>
+
+<!-- Final -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.6rem">🏆</div>
+    <h2>ผ่านครบทุกด่าน!</h2>
+    <div class="result-stars" style="font-size:1.6rem">⭐ <span id="endStars">0</span>/15</div>
+    <div class="fb" id="endLessons"></div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="endHome">🏠 เลือกด่าน</button>
+      <button class="big-btn small" id="endReplay">↻ เล่นใหม่ตั้งแต่ด่าน 1</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ ต่อตู้สตาร์ทมอเตอร์ v0.1 — core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var RM=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ───────── ค่าคงที่ทางไฟฟ้า ───────── */
+var VLL=400, VPH=400/Math.sqrt(3), DT=0.005;
+var P={In:15,kW:7.5,lrK:6.8767,sk:0.35,Tmax:2.6,H:1.2,TLc:0.25,TLq:0.55,
+  coilZ:5290,coilAng:60,lampZ:52900,olR:0.01,tPick:0.020,tDrop:0.040,ktPreset:5,
+  Us:230,pickV:0.85*230,holdV:0.5*230,burnV:300,olTripHeat:6*(7.2*7.2-1)};
+function ph(a){return [VPH*Math.cos(a*Math.PI/180),VPH*Math.sin(a*Math.PI/180)];}
+var SRC={L1:ph(0),L2:ph(-120),L3:ph(120),N:[0,0],PE:[0,0]};
+var COL={br:'#8b4513',bk:'#1d1d1d',gr:'#9aa0a6',bu:'#2f80ed',gy:'#2e9e3e',cu:'#c87533'};
+var COLN={br:'น้ำตาล',bk:'ดำ',gr:'เทา',bu:'ฟ้า',gy:'เขียว-เหลือง',cu:'ทองแดง'};
+var PHCOL={L1:'br',L2:'bk',L3:'gr'};
+function linePU(s){s=Math.min(2,Math.max(0.002,Math.abs(s)));var r=P.lrK*s/Math.sqrt(s*s+P.sk*P.sk);return Math.sqrt(r*r+P.sk*P.sk);}
+function windY(s){ /* admittance ของขดลวด 1 ขด (Δ basis) */
+  var zm=VLL/(P.In*linePU(s)/Math.sqrt(3));
+  var sa=Math.abs(s),pf=sa<=0.05?0.85:0.85-0.55*Math.min(1,(sa-0.05)/0.45);
+  var phi=Math.acos(pf);return [Math.cos(phi)/zm,-Math.sin(phi)/zm];}
+function Tk(s){if(Math.abs(s)<1e-5)return 0;return 2*P.Tmax/(s/P.sk+P.sk/s);}
+/* complex helpers */
+function cadd(a,b){return [a[0]+b[0],a[1]+b[1]];}
+function csub(a,b){return [a[0]-b[0],a[1]-b[1]];}
+function cmul(a,b){return [a[0]*b[0]-a[1]*b[1],a[0]*b[1]+a[1]*b[0]];}
+function cabs(a){return Math.sqrt(a[0]*a[0]+a[1]*a[1]);}
+var CA=[-0.5,Math.sqrt(3)/2], CA2=[-0.5,-Math.sqrt(3)/2];
+var COILY=(function(){var z=P.coilZ,a=P.coilAng*Math.PI/180;return [Math.cos(a)/z,-Math.sin(a)/z];})();
+
+/* ───────── ชนิดอุปกรณ์ (เรขาคณิต) ───────── */
+var TY={
+  supply:{w:110,h:50,terms:[['L1',25,38,'d'],['L2',55,38,'d'],['L3',85,38,'d']]},
+  mcb3:{w:100,h:110,terms:[['1',20,12,'u'],['3',50,12,'u'],['5',80,12,'u'],['2',20,98,'d'],['4',50,98,'d'],['6',80,98,'d']]},
+  cont:{w:168,h:112,terms:[['A1',14,12,'u'],['1',42,12,'u'],['3',70,12,'u'],['5',98,12,'u'],['13',127,12,'u'],['21',155,12,'u'],
+        ['A2',14,100,'d'],['2',42,100,'d'],['4',70,100,'d'],['6',98,100,'d'],['14',127,100,'d'],['22',155,100,'d']]},
+  ol:{w:112,h:96,terms:[['1',14,12,'u'],['3',42,12,'u'],['5',70,12,'u'],['95',98,12,'u'],['2',14,84,'d'],['4',42,84,'d'],['6',70,84,'d'],['96',98,84,'d']]},
+  tmr:{w:84,h:100,terms:[['A1',14,12,'u'],['15',56,12,'u'],['A2',14,88,'d'],['16',42,88,'d'],['18',70,88,'d']]},
+  pbNC:{w:64,h:84,terms:[['11',14,72,'d'],['12',50,72,'d']]},
+  pbNO:{w:64,h:84,terms:[['13',14,72,'d'],['14',50,72,'d']]},
+  lamp:{w:64,h:84,terms:[['X1',14,72,'d'],['X2',50,72,'d']]},
+  motor:{w:150,h:84,terms:[['U1',20,18,'u','r'],['V1',50,18,'u','r'],['W1',80,18,'u','r'],['W2',20,60,'u','r'],['U2',50,60,'u','r'],['V2',80,60,'u','r'],['PE',126,26,'u','b']]}
+};
+function termsOf(d){
+  var out=[];
+  if(d.t==='bar'){for(var i=1;i<=d.n;i++)out.push({id:d.tag+':'+i,nm:''+i,x:d.x+22+(i-1)*28,y:d.y+15,dir:'d',dev:d.tag,lp:'n'});return out;}
+  TY[d.t].terms.forEach(function(t){out.push({id:d.tag+':'+t[0],nm:t[0],x:d.x+t[1],y:d.y+t[2],dir:t[3],dev:d.tag,lp:t[4]||(t[3]==='u'?'b':'a')});});
+  return out;
+}
+
+/* ───────── ด่าน ───────── */
+function W(a,b,c,lock){return {a:a,b:b,c:c,lock:!!lock};}
+var SUP=[W('X0:L1','Q1:1','br',1),W('X0:L2','Q1:3','bk',1),W('X0:L3','Q1:5','gr',1)];
+var DLINK=[W('M:U1','M:W2','cu',1),W('M:V1','M:U2','cu',1),W('M:W1','M:V2','cu',1)];
+var POW_DOL=[W('Q1:2','K1:1','br'),W('Q1:4','K1:3','bk'),W('Q1:6','K1:5','gr'),W('K1:2','F3:1','br'),W('K1:4','F3:3','bk'),W('K1:6','F3:5','gr'),
+  W('F3:2','M:U1','br'),W('F3:4','M:V1','bk'),W('F3:6','M:W1','gr'),W('M:PE','PE:1','gy')];
+var CTL_DOL=[W('Q1:2','F3:95','br'),W('F3:96','S0:11','br'),W('S0:12','S1:13','br'),W('S1:13','K1:13','br'),W('S1:14','K1:14','br'),W('K1:14','K1:A1','br'),W('K1:A2','N:1','bu')];
+function lockAll(a){return a.map(function(w){return W(w.a,w.b,w.c,1);});}
+var BASE5=POW_DOL.concat(CTL_DOL).concat([W('K1:A1','H1:X1','br'),W('H1:X2','N:2','bu')]);
+
+var DEV_DOL=function(lamp){var d=[
+  {t:'supply',tag:'X0',x:16,y:26},{t:'mcb3',tag:'Q1',x:16,y:100},{t:'cont',tag:'K1',x:16,y:240,role:'MAIN'},
+  {t:'ol',tag:'F3',x:44,y:388},{t:'motor',tag:'M',x:24,y:524},
+  {t:'bar',tag:'N',x:200,y:24,n:6},{t:'bar',tag:'PE',x:200,y:64,n:4},
+  {t:'pbNC',tag:'S0',x:206,y:122},{t:'pbNO',tag:'S1',x:276,y:122,lab:'START'}];
+  if(lamp)d.push({t:'lamp',tag:'H1',x:346,y:122});return d;};
+
+var LV=[
+ {name:'ด่าน 1 · วงจรกำลัง DOL',short:'DOL กำลัง',icon:'⚡',H:668,motor:{x:300,y:572},door:[198,104,150,110],olIr:15,
+  goal:'<b>ต่อวงจรกำลัง DOL</b>: Q1 (2-4-6) → K1 (1-3-5 / 2-4-6) → OL F3 (1-3-5 / 2-4-6) → มอเตอร์ U1 V1 W1 + สายดิน PE · เลือกสีตามเฟส',
+  lesson:'วงจรกำลัง DOL: เบรกเกอร์ตัดลัดวงจร · คอนแทคเตอร์ตัด-ต่อ · OL กันโหลดเกิน — ลำดับเฟส L1-L2-L3 → U1-V1-W1',
+  dev:DEV_DOL(false),pre:SUP.concat(DLINK).concat(lockAll(CTL_DOL)),need:10},
+ {name:'ด่าน 2 · วงจรควบคุม Start/Stop',short:'Self-hold',icon:'🔘',H:668,motor:{x:300,y:572},door:[198,104,214,110],olIr:15,
+  goal:'<b>ต่อวงจรควบคุม 230 V</b>: Q1:2 (L1) → F3 95-96 → Stop S0 11-12 → Start S1 13-14 → K1 A1 · A2 → N · K1 13-14 ขนาน Start (self-hold) · ไฟ H1 ขนานคอยล์',
+  lesson:'Start (NO) ขนานกับ K1 13-14 = self-hold · Stop (NC) และ OL 95-96 ต้องอนุกรมต้นทาง ตัดได้เสมอ',
+  dev:DEV_DOL(true),pre:SUP.concat(DLINK).concat(lockAll(POW_DOL)),need:9},
+ {name:'ด่าน 3 · กลับทางหมุน FWD/REV',short:'กลับทาง',icon:'🔄',H:688,motor:{x:300,y:592},door:[198,104,214,110],olIr:15,
+  goal:'<b>กลับทางหมุน</b>: K2 รับไฟจาก Q1 แล้ว<b>สลับ 2 เฟส</b>ก่อนเข้า F3 (L1↔L3) · ต่อคอยล์ K2 ด้วยปุ่ม S2 + self-hold · <b>interlock</b>: NC 21-22 ของ K2 ก่อนคอยล์ K1 และ NC ของ K1 ก่อนคอยล์ K2',
+  lesson:'สลับ 2 เฟสใดก็ได้มอเตอร์กลับทาง · interlock NC ไขว้กัน (K1⇄K2) กันสองตัวติดพร้อมกันจนลัดวงจร',
+  dev:[{t:'supply',tag:'X0',x:16,y:26},{t:'mcb3',tag:'Q1',x:16,y:100},{t:'cont',tag:'K1',x:10,y:240,role:'FWD'},{t:'cont',tag:'K2',x:240,y:240,role:'REV'},
+    {t:'ol',tag:'F3',x:38,y:388},{t:'motor',tag:'M',x:24,y:544},{t:'bar',tag:'N',x:200,y:24,n:7},{t:'bar',tag:'PE',x:200,y:64,n:3},
+    {t:'pbNC',tag:'S0',x:206,y:122},{t:'pbNO',tag:'S1',x:276,y:122,lab:'FWD'},{t:'pbNO',tag:'S2',x:346,y:122,lab:'REV'}],
+  pre:SUP.concat(DLINK).concat(lockAll([W('Q1:2','K1:1','br'),W('Q1:4','K1:3','bk'),W('Q1:6','K1:5','gr'),W('K1:2','F3:1','br'),W('K1:4','F3:3','bk'),W('K1:6','F3:5','gr'),
+    W('F3:2','M:U1','br'),W('F3:4','M:V1','bk'),W('F3:6','M:W1','gr'),W('M:PE','PE:1','gy'),
+    W('Q1:2','F3:95','br'),W('F3:96','S0:11','br'),W('S0:12','S1:13','br'),W('S1:13','K1:13','br'),W('S1:14','K1:14','br'),W('K1:A2','N:1','bu')])),need:14},
+ {name:'ด่าน 4 · สตาร์-เดลต้า (Y-Δ)',short:'Y-Δ',icon:'⭐',H:690,motor:{x:346,y:602},door:[198,104,150,110],olIr:8.7,
+  goal:'<b>สตาร์-เดลต้า</b>: ต่อ K2(Δ) ขาออก 2-4-6 → <b>W2 U2 V2</b> · คอยล์ K3(Y) ผ่าน KT 15-16 + NC K2 21-22 · คอยล์ K2(Δ) ผ่าน KT 15-18 + NC K3 21-22 · A2 ลง N',
+  lesson:'Y-Δ ลดกระแสสตาร์ทเหลือ 1/3 ของ DOL · ต้องมี interlock NC กัน K2(Δ) กับ K3(Y) ติดซ้อนกัน',
+  dev:[{t:'supply',tag:'X0',x:16,y:26},{t:'mcb3',tag:'Q1',x:16,y:100},{t:'cont',tag:'K1',x:10,y:240,role:'MAIN'},{t:'cont',tag:'K2',x:240,y:240,role:'Δ DELTA'},
+    {t:'ol',tag:'F3',x:38,y:388},{t:'cont',tag:'K3',x:240,y:388,role:'Y STAR'},{t:'tmr',tag:'KT',x:186,y:530},{t:'motor',tag:'M',x:24,y:550},
+    {t:'bar',tag:'N',x:200,y:24,n:7},{t:'bar',tag:'PE',x:200,y:64,n:3},{t:'pbNC',tag:'S0',x:206,y:122},{t:'pbNO',tag:'S1',x:276,y:122,lab:'START'}],
+  pre:SUP.concat(lockAll([W('Q1:2','K1:1','br'),W('K1:1','K2:1','br'),W('Q1:4','K1:3','bk'),W('K1:3','K2:3','bk'),W('Q1:6','K1:5','gr'),W('K1:5','K2:5','gr'),
+    W('K1:2','F3:1','br'),W('K1:4','F3:3','bk'),W('K1:6','F3:5','gr'),W('F3:2','M:U1','br'),W('F3:4','M:V1','bk'),W('F3:6','M:W1','gr'),
+    W('M:U2','K3:1','bk'),W('M:V2','K3:3','gr'),W('M:W2','K3:5','br'),W('K3:2','K3:4','bk'),W('K3:4','K3:6','bk'),W('M:PE','PE:1','gy'),
+    W('Q1:2','F3:95','br'),W('F3:96','S0:11','br'),W('S0:12','S1:13','br'),W('S1:13','K1:13','br'),W('S1:14','K1:14','br'),W('K1:14','K1:A1','br'),
+    W('K1:A1','KT:A1','br'),W('KT:A1','KT:15','br'),W('K1:A2','N:1','bu'),W('KT:A2','N:2','bu')])),need:9},
+ {name:'ด่าน 5 · หาจุดผิดในตู้ (3 จุด)',short:'หาจุดผิด',icon:'🔍',H:668,motor:{x:300,y:572},door:[198,104,214,110],olIr:15,
+  goal:'<b>ตู้ DOL ที่ช่างคนก่อนต่อไว้ ผิด 3 จุด</b> — กด ⚡ ทดสอบ ดูอาการ เทียบแบบ แล้วแตะสายที่ผิดเพื่อลบ/ต่อใหม่ (สายทุกเส้นแก้ได้)',
+  lesson:'ไล่อาการจากผลทดสอบ: หมุนกลับ = เฟสสลับ · สั่น/ไม่ค้าง = หน้าสัมผัสช่วยผิด · กด Stop/OL ไม่ตัด = ถูกข้าม · สีผิด/ไม่มี PE = อันตราย',
+  dev:DEV_DOL(true),pre:SUP.concat(DLINK),need:0}
+];
+var FAULTS={
+  swap:{nm:'สลับเฟสที่มอเตอร์ (F3:4→W1, F3:6→V1) → มอเตอร์หมุนกลับ',rm:[['F3:4','M:V1'],['F3:6','M:W1']],add:[W('F3:4','M:W1','bk'),W('F3:6','M:V1','gr')]},
+  nchold:{nm:'ใช้ K1 21-22 (NC) ทำ self-hold แทน 13-14 → คอนแทคเตอร์สั่น (chattering)',rm:[['S1:13','K1:13'],['S1:14','K1:14'],['K1:14','K1:A1']],add:[W('S1:13','K1:21','br'),W('S1:14','K1:22','br'),W('K1:22','K1:A1','br')]},
+  olbyp:{nm:'ไฟเข้าวงจรควบคุมข้าม OL 95-96 (Q1:2→S0:11 ตรง) → OL ทริปแล้วไม่ตัด',rm:[['Q1:2','F3:95'],['F3:96','S0:11']],add:[W('Q1:2','S0:11','br')]},
+  nblack:{nm:'สาย N ของคอยล์ K1 ใช้สีดำ (ต้องฟ้า)',rm:[['K1:A2','N:1']],add:[W('K1:A2','N:1','bk')]},
+  stopbyp:{nm:'ไฟเลี้ยง self-hold ต่อจาก F3:96 (ก่อน Stop) → กด Stop ไม่หยุด',rm:[['S1:13','K1:13']],add:[W('F3:96','K1:13','br')]},
+  nope:{nm:'มอเตอร์ไม่ได้ต่อสายดิน PE',rm:[['M:PE','PE:1']],add:[]}
+};
+var FCONF=[['nchold','stopbyp'],['olbyp','stopbyp']];
+function faultWires(list){
+  var w=BASE5.map(function(x){return W(x.a,x.b,x.c);});
+  list.forEach(function(f){var F=FAULTS[f];
+    F.rm.forEach(function(r){w=w.filter(function(x){return !((x.a===r[0]&&x.b===r[1])||(x.a===r[1]&&x.b===r[0]));});});
+    F.add.forEach(function(a){w.push(W(a.a,a.b,a.c));});});
+  return w;
+}
+function pickFaults(){
+  var keys=Object.keys(FAULTS),out=[],guard=0;
+  while(out.length<3&&guard++<200){var k=keys[Math.floor(Math.random()*keys.length)];
+    if(out.indexOf(k)>=0)continue;
+    var bad=FCONF.some(function(c){return (c[0]===k&&out.indexOf(c[1])>=0)||(c[1]===k&&out.indexOf(c[0])>=0);});
+    if(!bad)out.push(k);}
+  return out;
+}
+
+/* ───────── Union-Find ───────── */
+function UF(n){this.p=new Int32Array(n);for(var i=0;i<n;i++)this.p[i]=i;}
+UF.prototype.f=function(x){var p=this.p;while(p[x]!==x){p[x]=p[p[x]];x=p[x];}return x;};
+UF.prototype.u=function(a,b){a=this.f(a);b=this.f(b);if(a!==b)this.p[a]=b;};
+
+/* ───────── โมเดลวงจร ───────── */
+function buildModel(lv,wires){
+  var T=[],ix={},devs={};
+  lv.dev.forEach(function(d){devs[d.tag]=d;termsOf(d).forEach(function(t){ix[t.id]=T.length;T.push(t);});});
+  var Wl=[];wires.forEach(function(w,i){if(ix[w.a]!=null&&ix[w.b]!=null)Wl.push([ix[w.a],ix[w.b],i]);});
+  var src=[];
+  if(devs.X0){['L1','L2','L3'].forEach(function(p){src.push([ix['X0:'+p],p]);});}
+  if(devs.N)src.push([ix['N:1'],'N']);
+  if(devs.PE)src.push([ix['PE:1'],'PE']);
+  return {lv:lv,T:T,ix:ix,devs:devs,W:Wl,wires:wires,n:T.length,src:src};
+}
+function newSim(lv,wires){
+  var M=buildModel(lv,wires);
+  var S={M:M,lv:lv,t:0,q1:false,q1Trip:false,upTrip:false,K:{},kt:{t:0,done:false,v:0,on:false},ol:{trip:false,heat:0,I:[0,0,0]},
+    pb:{},jam:false,weld:{},w:0,sw:1,burnt:{},fatal:null,spark:null,lampOn:{},lampV:{},coilV:{},Vw:[[0,0],[0,0],[0,0]],IL:0,
+    flowW:'',root:null,Vr:null,olTest:false,events:[]};
+  lv.dev.forEach(function(d){if(d.t==='cont')S.K[d.tag]={closed:false,coil:false,tp:0,td:0,tog:[]};if(d.t==='pbNC'||d.t==='pbNO')S.pb[d.tag]=false;});
+  return S;
+}
+function topo(S,o){
+  var M=S.M,uf=new UF(M.n),ix=M.ix;
+  function J(a,b){var A=ix[a],B=ix[b];if(A!=null&&B!=null)uf.u(A,B);}
+  M.W.forEach(function(w){uf.u(w[0],w[1]);});
+  M.lv.dev.forEach(function(d){var g=d.tag+':';
+    switch(d.t){
+      case 'bar':for(var i=2;i<=d.n;i++)J(g+'1',g+i);break;
+      case 'mcb3':if(o.q1){J(g+1,g+2);J(g+3,g+4);J(g+5,g+6);}break;
+      case 'cont':var k=S.K[d.tag],c=o.allK?o.allK.indexOf(d.tag)>=0:(k.closed||!!S.weld[d.tag]);
+        if(c){J(g+1,g+2);J(g+3,g+4);J(g+5,g+6);}
+        if(o.allAux){J(g+13,g+14);J(g+21,g+22);}else if(c)J(g+13,g+14);else J(g+21,g+22);break;
+      case 'ol':if(o.olc){J(g+1,g+2);J(g+3,g+4);J(g+5,g+6);}if(o.allAux||!S.ol.trip)J(g+95,g+96);break;
+      case 'tmr':if(o.allAux){J(g+15,g+16);J(g+15,g+18);}else if(S.kt.done)J(g+15,g+18);else J(g+15,g+16);break;
+      case 'pbNC':if(o.allAux||!S.pb[d.tag])J(g+11,g+12);break;
+      case 'pbNO':if(o.allAux||S.pb[d.tag])J(g+13,g+14);break;
+    }});
+  return uf;
+}
+function potKey(l){return (l==='N'||l==='PE')?'Z':l;}
+function shortCheck(S,uf,noSrc){
+  if(noSrc)return null;
+  var m={};
+  for(var i=0;i<S.M.src.length;i++){var s=S.M.src[i],r=uf.f(s[0]);m[r]=m[r]||{};m[r][potKey(s[1])]=1;m[r]['_'+s[1]]=1;}
+  for(var r in m){var ks=Object.keys(m[r]).filter(function(k){return k[0]!=='_';});if(ks.length>1)return {root:+r,keys:ks,raw:m[r]};}
+  return null;
+}
+function describeShort(S,uf,sc){
+  var raw=sc.raw,ph=['L1','L2','L3'].filter(function(p){return raw['_'+p];});
+  var txt;
+  if(ph.length>=2)txt='เฟส '+ph.join(' ชน ')+' (ลัดวงจรเฟส-เฟส)';
+  else if(raw._PE)txt='เฟส '+ph[0]+' ลงดิน PE (ลัดวงจรลงดิน)';
+  else txt='เฟส '+ph[0]+' ชน N (ลัดวงจรเฟส-นิวทรัล)';
+  var terms=[];S.M.T.forEach(function(t,i){if(uf.f(i)===sc.root&&t.dev!=='X0'&&t.dev!=='N'&&t.dev!=='PE')terms.push(t.id);});
+  return {txt:txt,terms:terms.slice(0,6)};
+}
+function pickSpark(S,uf,sc){
+  var best=null,pri={M:5,F3:4,K1:3,K2:3,K3:3,Q1:2};
+  S.M.T.forEach(function(t,i){if(uf.f(i)!==sc.root)return;var p=pri[t.dev]||1;if(!best||p>best.p)best={p:p,id:t.id};});
+  return best?best.id:null;
+}
+
+/* ───────── nodal analysis (เฟสเซอร์) ───────── */
+function nodal(S,uf){
+  var M=S.M,n=M.n,root=new Int32Array(n);for(var i=0;i<n;i++)root[i]=uf.f(i);
+  var srcV={};
+  if(!S.upTrip)M.src.forEach(function(s){srcV[root[s[0]]]=SRC[s[1]];});
+  var E=[],ix=M.ix;
+  function el(a,b,y,kind,ref){var A=root[ix[a]],B=root[ix[b]];if(A===B)return null;var e={a:A,b:B,y:y,kind:kind,ref:ref};E.push(e);return e;}
+  var eCoil={},eLamp={},eW=[],eOL=[];
+  M.lv.dev.forEach(function(d){var g=d.tag+':';
+    if(d.t==='cont'&&!S.burnt[d.tag])eCoil[d.tag]=el(g+'A1',g+'A2',COILY,'coil',d.tag);
+    if(d.t==='tmr'&&!S.burnt.KT)eCoil.KT=el(g+'A1',g+'A2',COILY,'coil','KT');
+    if(d.t==='lamp'&&!S.burnt[d.tag])eLamp[d.tag]=el(g+'X1',g+'X2',[1/P.lampZ,0],'lamp',d.tag);
+    if(d.t==='ol'){eOL=[el(g+1,g+2,[1/P.olR,0],'ol',0),el(g+3,g+4,[1/P.olR,0],'ol',1),el(g+5,g+6,[1/P.olR,0],'ol',2)];}
+    if(d.t==='motor'){var y=windY(S.sw);eW=[el(g+'U1',g+'U2',y,'w',0),el(g+'V1',g+'V2',y,'w',1),el(g+'W1',g+'W2',y,'w',2)];}
+  });
+  var uk={},list=[];
+  E.forEach(function(e){[e.a,e.b].forEach(function(r){if(!(r in srcV)&&!(r in uk)){uk[r]=list.length;list.push(r);}});});
+  var m=list.length,ar=new Float64Array(m*m),ai=new Float64Array(m*m),br=new Float64Array(m),bi=new Float64Array(m);
+  for(i=0;i<m;i++)ar[i*m+i]=1e-9;
+  E.forEach(function(e){
+    var pa=uk[e.a],pb=uk[e.b],y=e.y;
+    if(pa!=null){ar[pa*m+pa]+=y[0];ai[pa*m+pa]+=y[1];
+      if(pb!=null){ar[pa*m+pb]-=y[0];ai[pa*m+pb]-=y[1];}else{var v=srcV[e.b];br[pa]+=y[0]*v[0]-y[1]*v[1];bi[pa]+=y[0]*v[1]+y[1]*v[0];}}
+    if(pb!=null){ar[pb*m+pb]+=y[0];ai[pb*m+pb]+=y[1];
+      if(pa!=null){ar[pb*m+pa]-=y[0];ai[pb*m+pa]-=y[1];}else{var v2=srcV[e.a];br[pb]+=y[0]*v2[0]-y[1]*v2[1];bi[pb]+=y[0]*v2[1]+y[1]*v2[0];}}
+  });
+  /* Gauss elimination complex, partial pivot */
+  for(var c=0;c<m;c++){
+    var piv=c,pm=0;for(var r=c;r<m;r++){var mg=ar[r*m+c]*ar[r*m+c]+ai[r*m+c]*ai[r*m+c];if(mg>pm){pm=mg;piv=r;}}
+    if(pm<1e-30)continue;
+    if(piv!==c){for(var k=0;k<m;k++){var t1=ar[c*m+k];ar[c*m+k]=ar[piv*m+k];ar[piv*m+k]=t1;t1=ai[c*m+k];ai[c*m+k]=ai[piv*m+k];ai[piv*m+k]=t1;}
+      t1=br[c];br[c]=br[piv];br[piv]=t1;t1=bi[c];bi[c]=bi[piv];bi[piv]=t1;}
+    var dr=ar[c*m+c],di=ai[c*m+c],dd=dr*dr+di*di;
+    for(r=c+1;r<m;r++){var nr=ar[r*m+c],ni=ai[r*m+c];if(nr===0&&ni===0)continue;
+      var fr=(nr*dr+ni*di)/dd,fi=(ni*dr-nr*di)/dd;
+      for(k=c;k<m;k++){var xr=ar[c*m+k],xi=ai[c*m+k];ar[r*m+k]-=fr*xr-fi*xi;ai[r*m+k]-=fr*xi+fi*xr;}
+      br[r]-=fr*br[c]-fi*bi[c];bi[r]-=fr*bi[c]+fi*br[c];}
+  }
+  var xr2=new Float64Array(m),xi2=new Float64Array(m);
+  for(c=m-1;c>=0;c--){var sr=br[c],si=bi[c];for(k=c+1;k<m;k++){sr-=ar[c*m+k]*xr2[k]-ai[c*m+k]*xi2[k];si-=ar[c*m+k]*xi2[k]+ai[c*m+k]*xr2[k];}
+    dr=ar[c*m+c];di=ai[c*m+c];dd=dr*dr+di*di;if(dd<1e-30){xr2[c]=0;xi2[c]=0;continue;}
+    xr2[c]=(sr*dr+si*di)/dd;xi2[c]=(si*dr-sr*di)/dd;}
+  var Vr={};for(var key in srcV)Vr[key]=srcV[key];
+  for(i=0;i<m;i++)Vr[list[i]]=[xr2[i],xi2[i]];
+  S.root=root;S.Vr=Vr;
+  function V(r){return Vr[r]||[0,0];}
+  /* ผลลัพธ์ */
+  var flowR={};
+  function cur(e){return cmul(e.y,csub(V(e.a),V(e.b)));}
+  S.coilV={};for(var g in eCoil){var e=eCoil[g];S.coilV[g]=e?cabs(csub(V(e.a),V(e.b))):0;}
+  S.lampV={};for(g in eLamp){e=eLamp[g];S.lampV[g]=e?cabs(csub(V(e.a),V(e.b))):0;}
+  S.Vw=eW.map(function(e){return e?csub(V(e.a),V(e.b)):[0,0];});
+  if(!eW.length)S.Vw=[[0,0],[0,0],[0,0]];
+  S.ol.I=eOL.map(function(e){return e?cabs(cur(e)):0;});
+  var l1r=M.src.length?root[M.src[0][0]]:-1,IL=[0,0];
+  E.forEach(function(e){var I=cur(e),mI=cabs(I);if(mI>0.005){flowR[e.a]=Math.max(flowR[e.a]||0,mI);flowR[e.b]=Math.max(flowR[e.b]||0,mI);}
+    if(e.a===l1r)IL=cadd(IL,I);else if(e.b===l1r)IL=csub(IL,I);});
+  S.IL=(S.upTrip||!(S.q1&&!S.q1Trip))?0:cabs(IL);
+  var fw='';M.W.forEach(function(w){var f=flowR[root[w[0]]]||0;fw+=f>3?'2':(f>0.005?'1':'0');});
+  S.flowW=fw;
+}
+function Vt(S,id){var i=S.M.ix[id];if(i==null||!S.root)return [0,0];return S.Vr[S.root[i]]||[0,0];}
+function live(S,id){return cabs(Vt(S,id))>150;}
+function phaseOf(S,id){var v=Vt(S,id);if(cabs(v)<150)return null;var a=Math.atan2(v[1],v[0])*180/Math.PI;
+  if(Math.abs(a)<40)return 'L1';if(Math.abs(a+120)<40)return 'L2';if(Math.abs(a-120)<40)return 'L3';return '?';}
+
+/* ───────── ก้าวเวลา ───────── */
+function fatal(S,o){if(!S.fatal){o.t=S.t;S.fatal=o;}}
+function simStep(S,dt){
+  var q1c=S.q1&&!S.q1Trip;
+  var uf=topo(S,{q1:q1c,olc:true});
+  var sc=shortCheck(S,uf,S.upTrip);
+  if(sc){
+    S.spark=pickSpark(S,uf,sc);var info=describeShort(S,uf,sc);
+    var kc=Object.keys(S.K).filter(function(g){return S.K[g].closed||S.weld[g];});
+    if(q1c){var sc0=shortCheck(S,topo(S,{q1:false,olc:true}),false);if(sc0)S.upTrip=true;else S.q1Trip=true;}
+    else S.upTrip=true;
+    fatal(S,{type:'short',info:info,kc:kc,up:S.upTrip});
+    S.events.push('short');
+    q1c=false;
+  }
+  nodal(S,topo(S,{q1:q1c,olc:false}));
+  /* คอนแทคเตอร์ */
+  for(var g in S.K){var k=S.K[g],v=S.coilV[g]||0;
+    if(v>P.burnV&&!S.burnt[g]){S.burnt[g]=true;fatal(S,{type:'burn',dev:g,v:v});}
+    var en=!S.burnt[g]&&(k.closed?v>=P.holdV:v>=P.pickV);
+    k.coil=en;
+    if(en){k.td=0;if(!k.closed){k.tp+=dt;if(k.tp>=P.tPick-1e-9){k.closed=true;k.tp=0;togg(S,g,k);}}}
+    else{k.tp=0;if(k.closed){k.td+=dt;if(k.td>=P.tDrop-1e-9){k.closed=false;k.td=0;togg(S,g,k);}}}
+  }
+  /* ไทม์เมอร์ */
+  if(S.M.devs.KT){var kv=S.coilV.KT||0;
+    if(kv>P.burnV&&!S.burnt.KT){S.burnt.KT=true;fatal(S,{type:'burn',dev:'KT',v:kv});}
+    if(!S.burnt.KT&&kv>=P.pickV){S.kt.on=true;S.kt.t+=dt;if(S.kt.t>=P.ktPreset)S.kt.done=true;}
+    else if(kv<P.holdV){S.kt.on=false;S.kt.t=0;S.kt.done=false;}}
+  /* หลอด */
+  for(g in S.lampV){var lv2=S.lampV[g];if(lv2>P.burnV&&!S.burnt[g]){S.burnt[g]=true;S.events.push('lampburn');}S.lampOn[g]=!S.burnt[g]&&lv2>150;}
+  /* OL thermal (class 10) */
+  if(S.M.devs.F3){var ir=S.lv.olIr,im=Math.max.apply(null,S.ol.I),r=im/ir;
+    if(r>1.05)S.ol.heat+=(r*r-1)*dt;else S.ol.heat=Math.max(0,S.ol.heat-S.ol.heat*dt/20);
+    if(S.ol.heat>=P.olTripHeat&&!S.ol.trip){S.ol.trip=true;S.events.push('oltrip');}
+    if(S.olTest)S.ol.trip=true;}
+  /* มอเตอร์ */
+  var Vu=S.Vw[0],Vv=S.Vw[1],Vw=S.Vw[2];
+  var Vp=[(Vu[0]+cmul(CA,Vv)[0]+cmul(CA2,Vw)[0])/3,(Vu[1]+cmul(CA,Vv)[1]+cmul(CA2,Vw)[1])/3];
+  var Vn=[(Vu[0]+cmul(CA2,Vv)[0]+cmul(CA,Vw)[0])/3,(Vu[1]+cmul(CA2,Vv)[1]+cmul(CA,Vw)[1])/3];
+  var p2=(Vp[0]*Vp[0]+Vp[1]*Vp[1])/(VLL*VLL),n2=(Vn[0]*Vn[0]+Vn[1]*Vn[1])/(VLL*VLL);
+  S.p2=p2;S.n2=n2;
+  var Te=p2*Tk(1-S.w)-n2*Tk(1+S.w);
+  if(S.jam)S.w=0;
+  else if(Math.abs(S.w)<0.003&&Math.abs(Te)<=P.TLc)S.w=0;
+  else{var sg=S.w!==0?Math.sign(S.w):Math.sign(Te),TL=sg*(P.TLc+P.TLq*S.w*S.w),w0=S.w;
+    S.w+=(Te-TL)/P.H*dt;if(w0!==0&&Math.sign(S.w)!==Math.sign(w0)&&Math.abs(Te)<=P.TLc)S.w=0;}
+  var d=(p2>=n2)?1:-1;S.sw=Math.max(0.002,Math.min(2,1-d*S.w));
+}
+function togg(S,g,k){k.tog.push(S.t);while(k.tog.length&&k.tog[0]<S.t-1)k.tog.shift();
+  if(k.tog.length>=10)fatal(S,{type:'chatter',dev:g});}
+function snap(S,oi){
+  var k={},kc={};for(var g in S.K){k[g]=(S.K[g].closed||!!S.weld[g])?1:0;kc[g]=S.K[g].coil?1:0;}
+  var vw=S.Vw.map(cabs);
+  return {t:S.t,oi:oi,k:k,kc:kc,q1:S.q1Trip?2:(S.q1?1:0),up:S.upTrip?1:0,ol:S.ol.trip?1:0,kt:Math.min(1,S.kt.t/P.ktPreset),ktOn:S.kt.on?1:0,
+    pb:JSON.parse(JSON.stringify(S.pb)),lamp:JSON.parse(JSON.stringify(S.lampOn)),w:S.w,vw:vw,I:S.IL,flow:S.flowW,spark:S.fatal&&S.fatal.type==='short'?S.spark:null,
+    burnt:Object.keys(S.burnt).join(','),jam:S.jam?1:0,weld:Object.keys(S.weld).filter(function(x){return S.weld[x];}).join(',')};
+}
+
+/* ───────── วินิจฉัย ───────── */
+function ko(S,g){return S.K[g]&&(S.K[g].closed||!!S.weld[g]);}
+function F(code,msg){return {code:code,msg:msg};}
+function motorPh(S){return ['U1','V1','W1'].map(function(t){return t+'='+(phaseOf(S,'M:'+t)||'ไม่มีไฟ');}).join(', ');}
+function chkMotor(S,dir,ctx){
+  var vw=S.Vw.map(cabs);
+  if(dir>0&&S.w>0.8)return null;
+  if(dir<0&&S.w<-0.8)return null;
+  if(Math.abs(S.w)>0.5&&Math.sign(S.w)!==dir){
+    if(ctx==='rev')return F('rev_dir','กด REV แล้วมอเตอร์ยัง<b>หมุนทางเดิม</b> — K2 ต้อง<b>สลับ 2 เฟส</b>ที่ขาออก เช่น K2:2(L1)→F3:5 และ K2:6(L3)→F3:1 (K2:4→F3:3 คงเดิม)');
+    return F('mot_rev','มอเตอร์<b>หมุนกลับทาง</b> — ลำดับเฟสที่ขั้วมอเตอร์: '+motorPh(S)+' → ต้องเป็น U1=L1, V1=L2, W1=L3 (สีน้ำตาล-ดำ-เทา เรียงตรงกัน)');}
+  var phs=['U1','V1','W1'].map(function(t){return phaseOf(S,'M:'+t);});
+  var cnt=phs.filter(function(x){return x;}).length,uniq={};phs.forEach(function(x){if(x)uniq[x]=1;});
+  if(cnt===0)return F('mot_nopow','<b>ไม่มีไฟถึงมอเตอร์</b> — ไล่สายวงจรกำลัง Q1 2-4-6 → K1 1-3-5 → K1 2-4-6 → F3 1-3-5 → F3 2-4-6 → U1 V1 W1');
+  if(cnt<3||Object.keys(uniq).length<3)return F('mot_1ph','มอเตอร์<b>ขาดเฟส (single phasing)</b> ครางไม่หมุน กระแสสูง — ขั้วมอเตอร์ได้: '+motorPh(S)+' ต้องครบ L1 L2 L3 คนละขั้ว');
+  return F('mot_slow','มอเตอร์ได้ไฟแต่เร่งไม่ถึงความเร็ว (แรงดันขด '+vw.map(function(v){return Math.round(v);}).join('/')+' V) — ตรวจการต่อขั้วมอเตอร์');
+}
+function chkOLcur(S){
+  var I=S.ol.I,bad=[];for(var i=0;i<3;i++)if(I[i]<3)bad.push(['1-2','3-4','5-6'][i]);
+  if(!bad.length)return null;
+  if(bad.length===3)return F('ol_bypass','OL (F3) <b>วัดกระแสได้ 0 A</b> — สายไปมอเตอร์ไม่ได้ผ่าน OL ต้องเข้า F3 1-3-5 ออก 2-4-6 แล้วค่อยไป U1 V1 W1 (ไม่งั้นโหลดเกินมอเตอร์ไหม้ OL ไม่ตัด)');
+  return F('ol_part','OL เห็นกระแส<b>ไม่ครบ 3 เฟส</b> — ขั้ว '+bad.join(', ')+' ของ F3 ไม่มีกระแส แปลว่ามีสายข้าม OL ไป');
+}
+function wireCnt(S,id){var n=0;S.M.wires.forEach(function(w){if(w.a===id||w.b===id)n++;});return n;}
+function chainDiag(S,coil,chain){
+  if(S.burnt[coil])return F('coil400','คอยล์ '+coil+' (230 V) <b>ได้แรงดัน 400 V ไหม้!</b> — A2 ต้องลง N (สายฟ้า) ไม่ใช่ต่อเข้าเฟสอื่น');
+  var last=-1;for(var i=0;i<chain.length;i++)if(live(S,chain[i]))last=i;
+  var a1=coil+':A1',a2=coil+':A2';
+  if(live(S,a1)){
+    if(live(S,a2)||wireCnt(S,a2)===0)return F('noN','มีไฟถึง '+a1+' แล้ว แต่ <b>'+a2+' ไม่ได้ต่อลง N</b> — ต่อ '+a2+' → แท่ง N ด้วยสายฟ้า');
+    return F('coilv','คอยล์ '+coil+' ได้แรงดันไม่พอ ('+Math.round(S.coilV[coil]||0)+' V) — ตรวจว่าไม่ได้ต่ออนุกรมกับคอยล์/หลอดอื่น');
+  }
+  if(last<0)return F('nofeed','<b>ไม่มีไฟเข้าวงจรควบคุม</b> — ต้องเอาไฟจาก Q1:2 (L1 หลังเบรกเกอร์) ไปเข้า F3:95 ก่อน');
+  var a=chain[last],b=chain[last+1]||a1;
+  var same=a.split(':')[0]===b.split(':')[0];
+  if(same)return F('stopat','ไฟมาถึง <b>'+a+'</b> แต่ไม่ผ่าน '+b+' — หน้าสัมผัสนี้ยังเปิดอยู่ (ใช้ขั้ว NO/NC ผิด หรือยังไม่ได้ต่อขั้วนี้)');
+  return F('stopat','ไฟมาถึง <b>'+a+'</b> แต่<b>ไม่มีสายต่อไป '+b+'</b> — ตามแบบ: '+a+' → '+b);
+}
+function noHoldMsg(S,coil,btn){
+  var c13=coil+':13',c14=coil+':14';
+  if(wireCnt(S,c13)===0||wireCnt(S,c14)===0){
+    if(wireCnt(S,coil+':21')>0||wireCnt(S,coil+':22')>0)return F('no_hold','ปล่อยปุ่มแล้ว '+coil+' ดับ — ต่อ self-hold ที่ <b>21-22 (NC)</b> ผิดขั้ว ต้องใช้ <b>'+coil+' 13-14 (NO)</b> ขนานกับปุ่ม '+btn);
+    return F('no_hold','ปล่อยปุ่ม '+btn+' แล้ว '+coil+' ดับ — <b>ไม่มีวงจรค้าง (self-hold)</b>: ต่อ '+c13+' ขนาน '+btn+':13 และ '+c14+' ขนาน '+btn+':14 (เข้า A1)');}
+  return F('no_hold','ปล่อยปุ่มแล้ว '+coil+' ดับ — ต่อ 13-14 แล้วแต่<b>ไม่ได้ขนานกับปุ่ม '+btn+'</b>: '+c13+' ต้องรับไฟหลัง Stop (ฝั่ง '+btn+':13) และ '+c14+' ต้องไปที่ A1 (ฝั่ง '+btn+':14)');
+}
+function fatalMsg(S,op){
+  var f=S.fatal;
+  if(f.type==='burn'){
+    if(f.dev==='KT')return F('coil400','คอยล์ไทม์เมอร์ KT ได้ '+Math.round(f.v)+' V <b>ไหม้</b> — A2 ต้องลง N');
+    return F('coil400','คอยล์ '+f.dev+' (230 V) ได้ '+Math.round(f.v)+' V <b>ไหม้!</b> — A2 ต้องลงแท่ง N (สายฟ้า) อย่าต่อเข้าเฟสอื่น');}
+  if(f.type==='chatter')return F('chatter','คอนแทคเตอร์ '+f.dev+' <b>สั่นกระพือ (chattering)</b> — ใช้หน้าสัมผัส NC 21-22 ของตัวเองในวงจรคอยล์ ต้องใช้ NO 13-14 ทำ self-hold');
+  var info=f.info,where=info.terms.length?' ที่ '+info.terms.slice(0,4).join(', '):'';
+  var base='💥 <b>ลัดวงจร</b> '+info.txt+where+' — '+(f.up?'ฟิวส์/เบรกเกอร์ต้นทาง (MDB) ตัด':'เบรกเกอร์ Q1 ทริป')+'. ';
+  var code=op&&op.sc;
+  if(code==='il_k1')return F('il_k1',base+'กด REV ขณะเดินหน้าแล้ว <b>K1 กับ K2 ติดพร้อมกัน</b> → ขาด interlock: ต่อ <b>NC 21-22 ของ K1</b> อนุกรมก่อนคอยล์ K2');
+  if(code==='il_k2')return F('il_k2',base+'กด FWD ขณะถอยหลังแล้ว <b>K1 กับ K2 ติดพร้อมกัน</b> → ขาด interlock: ต่อ <b>NC 21-22 ของ K2</b> อนุกรมก่อนคอยล์ K1');
+  if(code==='overlap'||code==='mirror_k3')return F(code,base+'ตอนเปลี่ยน Y→Δ <b>K3(Y) ยังไม่ปล่อย แต่ K2(Δ) ติดแล้ว</b> → ลัดวงจรเฟส! ต่อ <b>NC 21-22 ของ K3</b> อนุกรมคอยล์ K2 (K2 ติดได้หลัง K3 ปล่อยจริง)');
+  if(code==='mirror_k2')return F('mirror_k2',base+'จำลอง K2 หน้าสัมผัสค้าง แล้ว <b>K3 ยังติดได้</b> → ต้องต่อ <b>NC 21-22 ของ K2</b> อนุกรมคอยล์ K3');
+  if(f.kc.indexOf('K2')>=0&&f.kc.indexOf('K3')>=0)return F('yd_short',base+'K2(Δ) กับ K3(Y) ติดพร้อมกัน — ต้องมี interlock NC ไขว้กัน');
+  if(f.kc.indexOf('K1')>=0&&f.kc.indexOf('K2')>=0&&S.M.devs.S2)return F('il',base+'K1 กับ K2 ติดพร้อมกัน — ต้องมี interlock NC ไขว้กัน');
+  if(f.kc.length)return F('short',base+'เกิดเมื่อ '+f.kc.join(', ')+' ติด → สายด้านขาออกของคอนแทคเตอร์ต่อเฟสชนกัน ตรวจว่าแต่ละขั้วได้เฟสเดียว');
+  return F('short',base+'เกิดทันทีที่สับ Q1 → มีสายต่อเฟสชนกัน/ลง N/PE ตรง ๆ ตรวจขั้วที่ระบุ');
+}
+
+/* ───────── ตรวจสีสาย (static) ───────── */
+var POWT={mcb3:1,supply:1,motor:1};
+function isPowerTerm(t,devs){var d=devs[t.dev];if(!d)return false;
+  if(POWT[d.t])return t.nm!=='PE';
+  if(d.t==='cont'||d.t==='ol')return /^[1-6]$/.test(t.nm);return false;}
+function colorCheck(lv,wires){
+  var S=newSim(lv,wires),M=S.M,ks=Object.keys(S.K),subs=[[]];
+  ks.forEach(function(k){subs=subs.concat(subs.map(function(s){return s.concat([k]);}));});
+  var lab={};M.W.forEach(function(w){lab[w[2]]={};});
+  subs.forEach(function(sub){
+    var uf=topo(S,{q1:true,olc:true,allK:sub,allAux:true});
+    if(shortCheck(S,uf,false))return;
+    var m={};M.src.forEach(function(s){var r=uf.f(s[0]);m[r]=m[r]||{};m[r][s[1]]=1;});
+    M.W.forEach(function(w){var r=uf.f(w[0]);if(m[r])for(var k in m[r])lab[w[2]][k]=1;});
+  });
+  var pw={};var uf0=topo(S,{q1:true,olc:true,allK:ks,allAux:false});
+  /* power net = net (ตัวนำล้วน) ที่มีขั้ววงจรกำลัง */
+  var ufw=new UF(M.n);M.W.forEach(function(w){ufw.u(w[0],w[1]);});
+  M.T.forEach(function(t,i){if(isPowerTerm(t,M.devs))pw[ufw.f(i)]=1;});
+  var bad=[];
+  M.W.forEach(function(w){var i=w[2],wr=wires[i];if(wr.c==='cu')return;
+    var L=Object.keys(lab[i]),phs=L.filter(function(x){return x[0]==='L';}),isPow=!!pw[ufw.f(w[0])];
+    var c=wr.c,need=null,why='';
+    if(L.indexOf('PE')>=0&&!phs.length&&L.indexOf('N')<0){if(c!=='gy'){need=['gy'];why='สายดิน PE';}}
+    else if(c==='gy'){need=phs.length?phs.map(function(p){return PHCOL[p];}):(L.indexOf('N')>=0?['bu']:['br','bk','gr']);why='เขียว-เหลืองใช้กับ PE เท่านั้น';}
+    else if(L.indexOf('N')>=0&&!phs.length){if(c!=='bu'){need=['bu'];why='นิวทรัล N';}}
+    else if(phs.length){
+      if(c==='bu'){need=isPow?phs.map(function(p){return PHCOL[p];}):['br'];why='ฟ้าใช้กับ N เท่านั้น — สายนี้มีไฟเฟส';}
+      else if(isPow){var ok=phs.some(function(p){return PHCOL[p]===c;});if(!ok){need=phs.map(function(p){return PHCOL[p];});why='สายวงจรกำลังเฟส '+phs.join('/');}}
+    }
+    if(need)bad.push({i:i,msg:'สาย '+wr.a+' → '+wr.b+' สี<b>'+COLN[c]+'</b> ✘ — '+why+' ต้องใช้สี'+need.map(function(x){return COLN[x];}).join('/')});
+  });
+  return bad;
+}
+function pePresent(lv,wires){var M=buildModel(lv,wires),uf=new UF(M.n);M.W.forEach(function(w){uf.u(w[0],w[1]);});
+  if(M.devs.PE)for(var i=2;i<=M.devs.PE.n;i++)uf.u(M.ix['PE:1'],M.ix['PE:'+i]);
+  return uf.f(M.ix['M:PE'])===uf.f(M.ix['PE:1']);}
+
+/* ───────── สคริปต์ทดสอบรายด่าน ───────── */
+function press(g){return function(S){S.pb[g]=true;};}
+function rel(g){return function(S){S.pb[g]=false;};}
+var CH_K1=['Q1:2','F3:95','F3:96','S0:11','S0:12','S1:13','S1:14','K1:A1'];
+var CH3_K1=['Q1:2','F3:95','F3:96','S0:11','S0:12','S1:13','S1:14','K2:21','K2:22','K1:A1'];
+var CH3_K2=['Q1:2','F3:95','F3:96','S0:11','S0:12','S2:13','S2:14','K1:21','K1:22','K2:A1'];
+var CH4_K3=['K1:A1','KT:15','KT:16','K2:21','K2:22','K3:A1'];
+var CH4_K2=['K1:A1','KT:15','KT:18','K3:21','K3:22','K2:A1'];
+function opQ1(lab,chk){return {cap:'สับเบรกเกอร์ Q1 → ON',act:function(S){S.q1=true;},wait:0.45,lab:lab,chk:chk,stop:1};}
+function allOff(names){return function(S){var on=names.filter(function(g){return ko(S,g);});
+  return on.length?F('self_start','สับ Q1 แล้ว <b>'+on.join(', ')+' ติดเองทั้งที่ยังไม่กด Start</b> — ปุ่ม Start ถูกคร่อม/ใช้ขั้ว NC (ต้องใช้ 13-14 NO) หรือ self-hold รับไฟผิดจุด'):null;};}
+var SCN=[
+ /* ด่าน 1 */ function(){return [
+  opQ1('จ่ายไฟ Q1 — ไม่ลัดวงจร',function(){return null;}),
+  {cap:'กด Start (S1)',act:press('S1'),wait:0.3,graph:1},
+  {cap:'ปล่อย Start · มอเตอร์เร่งความเร็ว',act:rel('S1'),wait:1.6,lab:'K1 ติด → มอเตอร์หมุนครบ 3 เฟส ถูกทิศ',chk:function(S){return chkMotor(S,1);},stop:1},
+  {lab:'กระแสมอเตอร์ไหลผ่าน OL (F3) ครบ 3 เฟส',chk:chkOLcur,stop:1},
+  {cap:'จำลองเพลาติด (rotor ล็อก) — รอ OL ตัด… (เร่งเวลา ×4)',act:function(S){S.jam=true;},wait:12,spd:4,nograph:1,until:function(S){return S.ol.trip&&!ko(S,'K1');},
+   lab:'โหลดเกิน → OL ตัด (class 10) → K1 ดับ',chk:function(S){return (S.ol.trip&&!ko(S,'K1'))?null:F('ol_notrip','เพลาติดนาน 12 วินาทีแล้ว <b>OL ไม่ตัด</b> — สายมอเตอร์ไม่ผ่าน OL มอเตอร์จะไหม้');}},
+  {cap:'ปลดเพลา · รีเซ็ต OL',act:function(S){S.jam=false;S.ol.trip=false;S.ol.heat=0;},wait:0.3},
+  {lab:'สายดินโครงมอเตอร์ (PE)',chk:function(S){return pePresent(S.lv,S.M.wires)?null:F('no_pe','<b>มอเตอร์ไม่ได้ต่อสายดิน</b> — ต่อ M:PE → แท่ง PE ด้วยสายเขียว-เหลือง (กันไฟรั่วถึงคน)');}}
+ ];},
+ /* ด่าน 2 */ function(){return [
+  opQ1('สับ Q1 แล้ว K1 ไม่ติดเอง',allOff(['K1'])),
+  {cap:'กด Start (S1) ค้างไว้',act:press('S1'),wait:0.4,graph:1,lab:'กด Start → K1 ติด',chk:function(S){return ko(S,'K1')?null:chainDiag(S,'K1',CH_K1);},stop:1},
+  {cap:'ปล่อย Start',act:rel('S1'),wait:1.2,lab:'ปล่อย Start แล้วยังเดิน (self-hold)',chk:function(S){return ko(S,'K1')?null:noHoldMsg(S,'K1','S1');},stop:1},
+  {lab:'ไฟแสดง H1 ติดขณะมอเตอร์เดิน',chk:function(S){return S.lampOn.H1?null:F('lamp_off','<b>ไฟ H1 ไม่ติด</b>ขณะมอเตอร์เดิน — ต่อ H1:X1 เข้ากับ K1:A1 (ขนานคอยล์) และ H1:X2 ลง N');}},
+  {cap:'กด Stop (S0)',act:press('S0'),wait:0.3,lab:'กด Stop → K1 ดับ',chk:function(S){return ko(S,'K1')?F('stop_fail','กด Stop แล้ว <b>K1 ไม่ดับ</b> — self-hold (K1:13) รับไฟจากก่อนปุ่ม Stop หรือ Stop ไม่ได้อยู่ในวงจร → K1:13 ต้องรับไฟหลัง Stop (S0:12)'):null;},stop:1},
+  {cap:'ปล่อย Stop',act:rel('S0'),wait:0.4,lab:'ปล่อย Stop แล้วไม่ออกตัวเอง',chk:allOff(['K1']),stop:1},
+  {lab:'ไฟ H1 ดับเมื่อหยุด',chk:function(S){return S.lampOn.H1?F('lamp_stuck','มอเตอร์หยุดแล้ว <b>H1 ยังติด</b> — H1 ต้องรับไฟจาก K1:A1 (หลัง Start/self-hold) ไม่ใช่ไฟตรง'):null;}},
+  {cap:'กด Start อีกครั้ง',act:press('S1'),wait:0.3},
+  {cap:'ปล่อย Start · มอเตอร์เดิน',act:rel('S1'),wait:0.6},
+  {cap:'กดปุ่มทดสอบ OL (จำลองโหลดเกิน)',act:function(S){S.olTest=true;},wait:0.4,lab:'OL ทริป → K1 ดับ',stop:1,chk:function(S){return ko(S,'K1')?F('ol_ctrl','OL ทริปแล้ว <b>K1 ยังติด</b> — ต้องต่อ <b>F3 95-96 (NC)</b> อนุกรมต้นวงจรควบคุม: Q1:2 → F3:95, F3:96 → S0:11'):null;}},
+  {cap:'OL ยังทริปอยู่ — กด Start',act:press('S1'),wait:0.4,lab:'OL ทริปค้าง → กด Start ต้องไม่ติด',chk:function(S){return ko(S,'K1')?F('ol_ctrl2','OL ทริปอยู่แต่ <b>กด Start แล้วติดได้</b> — Start/self-hold ต้องรับไฟหลัง F3:96 เท่านั้น'):null;}},
+  {cap:'ปล่อย · รีเซ็ต OL',act:function(S){S.pb.S1=false;S.olTest=false;S.ol.trip=false;S.ol.heat=0;},wait:0.3}
+ ];},
+ /* ด่าน 3 */ function(){return [
+  opQ1('สับ Q1 แล้วไม่ออกตัวเอง',allOff(['K1','K2'])),
+  {cap:'กด FWD (S1)',act:press('S1'),wait:0.3,graph:1},
+  {cap:'ปล่อย FWD · เดินหน้า',act:rel('S1'),wait:1.3,lab:'FWD: K1 ติดค้าง มอเตอร์เดินหน้า',chk:function(S){
+    if(!ko(S,'K1')){var c=chainDiag(S,'K1',CH3_K1);return (live(S,'K1:A1')||c.code!=='stopat')?c:F(c.code,c.msg+' (กดปุ่มแล้วถ้า K1 ติดแต่ปล่อยแล้วดับ = self-hold ขาด)');}
+    if(ko(S,'K2'))return F('both','กด FWD แล้ว K2 ติดด้วย — คอยล์ K2 ต้องรับไฟจากปุ่ม S2 เท่านั้น');
+    return chkMotor(S,1);},stop:1},
+  {cap:'กด REV ขณะเดินหน้า',act:press('S2'),wait:0.3,sc:'il_k1'},
+  {cap:'ปล่อย REV',act:rel('S2'),wait:0.3,sc:'il_k1',lab:'กด REV ขณะเดินหน้า → K2 ต้องไม่ติด (interlock)',chk:function(S){return ko(S,'K2')?F('il_k1','K2 ติดขณะ K1 ติด — ขาด interlock NC 21-22 ของ K1 ในวงจรคอยล์ K2'):(ko(S,'K1')?null:F('fwd_drop','กด REV แล้ว K1 ดับ — interlock ต่อผิดตำแหน่ง ทำให้วงจร FWD ขาด'));}},
+  {cap:'กด Stop',act:press('S0'),wait:0.3},
+  {cap:'ปล่อย Stop · มอเตอร์ค่อย ๆ หยุด',act:rel('S0'),wait:1.6,lab:'Stop → หยุด',chk:allOffStop(['K1','K2'])},
+  {cap:'กด REV (S2)',act:press('S2'),wait:0.3},
+  {cap:'ปล่อย REV · ถอยหลัง',act:rel('S2'),wait:1.9,lab:'REV: K2 ติดค้าง มอเตอร์ถอยหลัง',chk:function(S){
+    if(!ko(S,'K2')){if(wireCnt(S,'K2:A1')===0)return F('no_k2','<b>คอยล์ K2 ยังไม่ได้ต่อ</b> — S2:14 → NC K1 21-22 → K2:A1, K2:A2 → N');
+      return chainDiag(S,'K2',CH3_K2);}
+    if(ko(S,'K1'))return F('both','กด REV แล้ว K1 ติดด้วย — ตรวจวงจรคอยล์');
+    return chkMotor(S,-1,'rev');},stop:1},
+  {cap:'กด FWD ขณะถอยหลัง',act:press('S1'),wait:0.3,sc:'il_k2'},
+  {cap:'ปล่อย FWD',act:rel('S1'),wait:0.3,sc:'il_k2',lab:'กด FWD ขณะถอยหลัง → K1 ต้องไม่ติด (interlock)',chk:function(S){return ko(S,'K1')?F('il_k2','K1 ติดขณะ K2 ติด — ขาด interlock NC 21-22 ของ K2 ในวงจรคอยล์ K1'):(ko(S,'K2')?null:F('rev_drop','กด FWD แล้ว K2 ดับ — วงจรค้างของ K2 ไม่สมบูรณ์ (ต้องใช้ K2 13-14 ขนาน S2)'));}},
+  {cap:'กด Stop',act:press('S0'),wait:0.3},
+  {cap:'ปล่อย Stop',act:rel('S0'),wait:0.4,lab:'Stop ขณะถอยหลัง → หยุด',chk:allOffStop(['K1','K2'])}
+ ];},
+ /* ด่าน 4 */ function(){return [
+  opQ1('สับ Q1 แล้วไม่ออกตัวเอง',allOff(['K1','K2','K3'])),
+  {cap:'กด Start (S1)',act:press('S1'),wait:0.3,graph:1,lab:'กด Start → K1 + K3 ติด (สตาร์ทแบบ Y)',chk:function(S){
+    if(!ko(S,'K1'))return chainDiag(S,'K1',CH_K1);
+    if(ko(S,'K2'))return F('d_early','<b>K2(Δ) ติดตั้งแต่กด Start</b> — คอยล์ K2 ต้องผ่าน <b>KT 15-18 (NO หน่วงเวลา)</b> ไม่ใช่ 15-16');
+    if(!ko(S,'K3')){if(wireCnt(S,'K3:A1')===0)return F('no_k3','<b>คอยล์ K3(Y) ยังไม่ได้ต่อ</b> — KT:16 → K2:21, K2:22 → K3:A1, K3:A2 → N');return chainDiag(S,'K3',CH4_K3);}
+    return null;},stop:1},
+  {cap:'ปล่อย Start · เดินแบบ Y (ขด 231 V)',act:rel('S1'),wait:1.0,lab:'ปล่อย Start แล้วยังเดิน Y',chk:function(S){return (ko(S,'K1')&&ko(S,'K3')&&!ko(S,'K2'))?null:F('y_drop','ปล่อย Start แล้ว Y หลุด — ตรวจ K3 ต้องรับไฟจากจุดหลัง self-hold (K1:A1/KT:15)');},stop:1},
+  {cap:'รอไทม์เมอร์ KT 5 วินาที → เปลี่ยน Y เป็น Δ',act:null,wait:4.6,sc:'overlap',lab:'หมดเวลา → K3 ดับ แล้ว K2 ติด (เดิน Δ)',chk:function(S){
+    if(ko(S,'K3'))return F('y_stuck','หมดเวลาแล้ว <b>K3(Y) ยังไม่ดับ</b> — คอยล์ K3 ต้องผ่าน <b>KT 15-16 (NC หน่วงเวลา)</b>');
+    if(!ko(S,'K2')){if(wireCnt(S,'K2:A1')===0)return F('no_k2d','<b>คอยล์ K2(Δ) ยังไม่ได้ต่อ</b> — KT:18 → K3:21, K3:22 → K2:A1, K2:A2 → N');return chainDiag(S,'K2',CH4_K2);}
+    return null;},stop:1},
+  {cap:'เดิน Δ · ตรวจแรงดันขดลวด',act:null,wait:0.7,lab:'เดิน Δ: ขดลวดได้ 400 V หมุนทางเดิม',chk:function(S){
+    var vw=S.Vw.map(cabs),ok=vw.every(function(v){return Math.abs(v-400)<40;});
+    if(ok&&S.w>0.8)return null;
+    return F('d_map','<b>ต่อ Δ ผิด</b> — เมื่อ K2 ติด ขดลวด U/V/W ได้ '+vw.map(function(v){return Math.round(v);}).join(' / ')+' V'+(S.w<-0.3?' และมอเตอร์หมุนกลับ':'')+' (ควร 400 V ทุกขด หมุนทางเดิม) · Δ ที่ถูก: U1–W2, V1–U2, W1–V2 ⇒ <b>K2:2(L1)→W2, K2:4(L2)→U2, K2:6(L3)→V2</b>');},stop:1},
+  {cap:'กด Stop',act:press('S0'),wait:0.3},
+  {cap:'ปล่อย Stop',act:rel('S0'),wait:0.5,lab:'Stop → ดับทุกตัว',chk:allOffStop(['K1','K2','K3'])},
+  {cap:'ทดสอบ interlock: จำลอง K3 หน้าสัมผัสเชื่อมติด (welded)',act:function(S){S.weld.K3=true;S.pb.S1=true;},wait:0.3,sc:'mirror_k3'},
+  {cap:'K3 ค้าง · รอ KT หมดเวลา (เร่งเวลา ×3)',act:rel('S1'),wait:5.6,spd:3,sc:'mirror_k3',lab:'Interlock: K3 ค้าง → K2 ต้องไม่ติด',chk:function(S){return ko(S,'K2')?F('mirror_k3','K3 ค้างแต่ K2 ยังติดได้ — ขาด NC 21-22 ของ K3 ในวงจร K2'):null;}},
+  {cap:'Stop · ปลด K3',act:function(S){S.pb.S0=true;},wait:0.3},
+  {cap:'ปล่อย Stop',act:function(S){S.pb.S0=false;S.weld.K3=false;},wait:0.4},
+  {cap:'ทดสอบ interlock: จำลอง K2 หน้าสัมผัสค้าง แล้วกด Start',act:function(S){S.weld.K2=true;S.pb.S1=true;},wait:0.3,sc:'mirror_k2'},
+  {cap:'ปล่อย Start',act:rel('S1'),wait:0.4,sc:'mirror_k2',lab:'Interlock: K2 ค้าง → K3 ต้องไม่ติด',chk:function(S){return ko(S,'K3')?F('mirror_k2','K2 ค้างแต่ K3 ยังติดได้ — ขาด NC 21-22 ของ K2 ในวงจร K3'):null;}},
+  {cap:'Stop · ปลด K2',act:function(S){S.pb.S0=true;},wait:0.3},
+  {cap:'จบการทดสอบ',act:function(S){S.pb.S0=false;S.weld.K2=false;},wait:0.3}
+ ];},
+ /* ด่าน 5 */ function(){return [
+  opQ1('สับ Q1 แล้วไม่ออกตัวเอง ไม่สั่น',allOff(['K1'])),
+  {cap:'กด Start (S1)',act:press('S1'),wait:0.4,graph:1,lab:'กด Start → K1 ติด',chk:function(S){return ko(S,'K1')?null:chainDiag(S,'K1',CH_K1);},stop:1},
+  {cap:'ปล่อย Start',act:rel('S1'),wait:1.3,lab:'ปล่อย Start แล้วยังเดิน (self-hold)',chk:function(S){return ko(S,'K1')?null:noHoldMsg(S,'K1','S1');},stop:1},
+  {lab:'มอเตอร์หมุนครบ 3 เฟส ถูกทิศ',chk:function(S){return chkMotor(S,1);}},
+  {lab:'กระแสผ่าน OL ครบ 3 เฟส',chk:chkOLcur},
+  {lab:'ไฟแสดง H1 ติดขณะเดิน',chk:function(S){return S.lampOn.H1?null:F('lamp_off','<b>ไฟ H1 ไม่ติด</b> — H1:X1 → K1:A1, H1:X2 → N');}},
+  {cap:'กด Stop (S0)',act:press('S0'),wait:0.3,lab:'กด Stop → K1 ดับ',chk:function(S){return ko(S,'K1')?F('stop_fail','กด Stop แล้ว <b>K1 ไม่ดับ</b> — มีสายเลี้ยง self-hold (K1:13) จากจุด<b>ก่อน</b>ปุ่ม Stop → ย้ายให้รับไฟจาก S0:12/S1:13'):null;}},
+  {cap:'ปล่อย Stop',act:rel('S0'),wait:0.3},
+  {cap:'กด Start อีกครั้ง',act:press('S1'),wait:0.3},
+  {cap:'ปล่อย Start',act:rel('S1'),wait:0.5},
+  {cap:'กดปุ่มทดสอบ OL',act:function(S){S.olTest=true;},wait:0.4,lab:'OL ทริป → K1 ดับ',chk:function(S){return ko(S,'K1')?F('ol_ctrl','OL ทริปแล้ว <b>K1 ยังติด</b> — ไฟวงจรควบคุมถูกต่อข้าม F3 95-96 · ต้องเป็น Q1:2 → F3:95, F3:96 → S0:11'):null;}},
+  {cap:'รีเซ็ต OL',act:function(S){S.olTest=false;S.ol.trip=false;S.ol.heat=0;},wait:0.3},
+  {lab:'สายดินโครงมอเตอร์ (PE)',chk:function(S){return pePresent(S.lv,S.M.wires)?null:F('no_pe','<b>มอเตอร์ไม่ได้ต่อสายดิน</b> — ต่อ M:PE → แท่ง PE (เขียว-เหลือง)');}}
+ ];}
+];
+function allOffStop(names){return function(S){var on=names.filter(function(g){return ko(S,g);});
+  return on.length?F('stop_fail','กด Stop แล้ว <b>'+on.join(', ')+' ไม่ดับ</b> — self-hold ต้องรับไฟ<b>หลัง</b>ปุ่ม Stop (S0:12) เท่านั้น'):null;};}
+
+function runScenario(li,wires){
+  var lv=LV[li],S=newSim(lv,wires),ops=SCN[li](),items=[],frames=[],fails=[],stopped=false,nextF=0,graph=null,peak=0;
+  function rec(oi){if(S.t>=nextF-1e-9){frames.push(snap(S,oi));nextF+=0.02;}}
+  rec(0);
+  for(var oi=0;oi<ops.length;oi++){var op=ops[oi];op.t0=S.t;
+    if(stopped){if(op.lab)items.push({lab:op.lab,st:'skip'});op.t1=S.t;continue;}
+    if(op.graph&&!graph)graph={t0:S.t,t1:S.t+(li===3?7.5:2.5)};
+    if(op.nograph&&graph)graph.t1=Math.min(graph.t1,S.t);
+    if(op.act)op.act(S);
+    var tEnd=S.t+(op.wait||0);
+    while(S.t<tEnd-1e-9){simStep(S,DT);S.t+=DT;if(graph&&S.t<=graph.t0+2.5)peak=Math.max(peak,S.IL);rec(oi);if(S.fatal)break;if(op.until&&op.until(S))break;}
+    op.t1=S.t;
+    if(S.fatal){var fm=fatalMsg(S,op);items.push({lab:op.lab||op.cap,st:'fail',msg:fm.msg,t:S.t});fails.push(fm);stopped=true;continue;}
+    if(op.chk){var r=op.chk(S);
+      if(r){items.push({lab:op.lab,st:'fail',msg:r.msg,t:S.t});fails.push(r);if(op.stop)stopped=true;}
+      else items.push({lab:op.lab,st:'ok',t:S.t});}
+  }
+  var endT=S.t;for(var k=0;k<20;k++){simStep(S,DT);S.t+=DT;rec(ops.length-1);}
+  var cb=colorCheck(lv,wires);
+  items.push({lab:'สีสายตามมาตรฐาน (มอก. 11 / IEC 60445)',st:cb.length?'fail':'ok',t:endT,msg:cb.length?cb.slice(0,4).map(function(x){return x.msg;}).join('<br>'):''});
+  if(cb.length)fails.push(F('color',cb.slice(0,4).map(function(x){return x.msg;}).join('<br>')+(cb.length>4?'<br>…และอีก '+(cb.length-4)+' เส้น':'')));
+  return {pass:fails.length===0,items:items,fails:fails,frames:frames,ops:ops,graph:graph,peak:peak,badWires:cb.map(function(x){return x.i;}),fatal:S.fatal,endT:endT};
+}
+
+/* ───────── เสียง ───────── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.16,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.05,'square',0.06);}
+function sTerm(){tone(880,0,0.06,'triangle',0.12);}
+function sWire(){tone(660,0,0.07,'triangle',0.12);tone(990,0.07,0.09,'triangle',0.12);}
+function sGood(){tone(523,0,0.12);tone(659,0.1,0.12);tone(784,0.2,0.2);}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sClack(){tone(140,0,0.05,'square',0.18);tone(90,0.02,0.06,'square',0.12);}
+function sBang(){var a=audio();if(!a||!sndOn)return;var len=a.sampleRate*0.5,buf=a.createBuffer(1,len,a.sampleRate),d=buf.getChannelData(0);
+  for(var i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2);
+  var s=a.createBufferSource(),g=a.createGain();s.buffer=buf;g.gain.value=0.35;s.connect(g);g.connect(a.destination);s.start();}
+var humO=null;
+function hum(on){var a=audio();if(!a)return;
+  if(on&&sndOn&&!humO){humO=a.createOscillator();var g=a.createGain();humO.type='sawtooth';humO.frequency.value=100;g.gain.value=0.018;humO.connect(g);g.connect(a.destination);humO.start();humO._g=g;}
+  else if((!on||!sndOn)&&humO){try{humO.stop();}catch(e){}humO=null;}}
+
+/* ───────── storage ───────── */
+var stars=[0,0,0,0,0];
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_skill_starter_stars')||'[]');for(var i=0;i<5;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_skill_starter_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_skill_starter_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_skill_starter_seen','1');}catch(e){}}
+
+/* ───────── สถานะ UI ───────── */
+var G={li:0,mode:'wire',player:[],undo:[],color:'br',selT:null,selW:-1,attempts:0,res:null,faults:[],PB:null,LS:null,showDiag:true,lastPeaks:{}};
+var TP={};      /* terminal positions */
+function allWires(){return LV[G.li].pre.concat(G.player);}
+
+/* ───────── วาด SVG ฉาก ───────── */
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function txt(x,y,s,sz,fill,anc,wt){return '<text x="'+x+'" y="'+y+'" font-size="'+(sz||10)+'" fill="'+(fill||'#2a3240')+'" text-anchor="'+(anc||'middle')+'" font-weight="'+(wt||600)+'" font-family="Mitr,sans-serif" pointer-events="none">'+esc(s)+'</text>';}
+function drawDev(d){
+  var x=d.x,y=d.y,g=d.tag,s='<g id="dev_'+g+'">';
+  if(d.t==='supply'){
+    s+='<rect x="'+x+'" y="'+y+'" width="110" height="50" rx="8" fill="#2b3240" stroke="#151a22" stroke-width="2"/>';
+    s+=txt(x+55,y+12,'X0 · 3~ 400/230V 50Hz',8.5,'#ffd23f');
+    ['#8b4513','#1d1d1d','#9aa0a6'].forEach(function(c,i){s+='<rect x="'+(x+15+i*30)+'" y="'+(y+18)+'" width="20" height="8" rx="3" fill="'+c+'" stroke="#fff" stroke-width=".8"/>';});
+  }else if(d.t==='bar'){
+    var w=28*d.n+16,isN=g==='N';
+    s+='<rect x="'+x+'" y="'+(y+6)+'" width="'+w+'" height="18" rx="5" fill="'+(isN?'#2f80ed':'#2e9e3e')+'" stroke="#123" stroke-width="1.5"/>';
+    if(!isN)for(var i=0;i<w;i+=14)s+='<rect x="'+(x+i)+'" y="'+(y+6)+'" width="7" height="18" fill="#ffd23f" opacity=".75"/>';
+    s+='<rect x="'+(x-30)+'" y="'+(y+5)+'" width="28" height="20" rx="5" fill="'+(isN?'#2f80ed':'#2e9e3e')+'"/>'+txt(x-16,y+19,isN?'N':'PE',11,'#fff');
+  }else if(d.t==='mcb3'){
+    s+='<rect x="'+x+'" y="'+y+'" width="100" height="110" rx="8" fill="#f6f7f9" stroke="#59626f" stroke-width="2"/>';
+    s+='<rect x="'+x+'" y="'+y+'" width="100" height="24" rx="6" fill="#3b4350"/><rect x="'+x+'" y="'+(y+86)+'" width="100" height="24" rx="6" fill="#3b4350"/>';
+    s+='<rect x="'+(x+30)+'" y="'+(y+34)+'" width="40" height="46" rx="6" fill="#cfd5de" stroke="#59626f"/>';
+    s+='<g id="Q1_h" class="pbtn" data-ctl="Q1"><rect id="Q1_hr" x="'+(x+36)+'" y="'+(y+56)+'" width="28" height="18" rx="4" fill="#2b3240"/></g>';
+    s+=txt(x+14,y+56,'Q1',12,'#213047','middle',700)+txt(x+86,y+50,'C25',8,'#59626f')+txt(x+86,y+62,'3P',8,'#59626f');
+    s+='<text id="Q1_st" x="'+(x+50)+'" y="'+(y+46)+'" font-size="8" text-anchor="middle" font-weight="700" fill="#ef4b4b" font-family="Mitr,sans-serif">OFF</text>';
+  }else if(d.t==='cont'){
+    s+='<g id="'+g+'_body"><rect x="'+x+'" y="'+y+'" width="112" height="112" rx="8" fill="#eef1f5" stroke="#59626f" stroke-width="2"/>';
+    s+='<rect x="'+x+'" y="'+y+'" width="112" height="24" rx="6" fill="#3b4350"/><rect x="'+x+'" y="'+(y+88)+'" width="112" height="24" rx="6" fill="#3b4350"/>';
+    s+='<rect x="'+(x+113)+'" y="'+y+'" width="55" height="112" rx="7" fill="#dfe4ec" stroke="#59626f" stroke-width="1.5"/>';
+    s+='<rect x="'+(x+113)+'" y="'+y+'" width="55" height="24" rx="6" fill="#4a5262"/><rect x="'+(x+113)+'" y="'+(y+88)+'" width="55" height="24" rx="6" fill="#4a5262"/>';
+    s+=txt(x+127,y+56,'NO',8,'#1f6f3f')+txt(x+155,y+56,'NC',8,'#b3261e');
+    s+=txt(x+60,y+50,g,15,'#213047','middle',700)+txt(x+60,y+62,d.role||'',7.5,'#3f51b5');
+    s+='<rect x="'+(x+36)+'" y="'+(y+67)+'" width="48" height="16" rx="4" fill="#1d2330"/>';
+    s+='<rect id="'+g+'_arm" x="'+(x+40)+'" y="'+(y+70)+'" width="40" height="7" rx="2" fill="#ef4b4b"/>';
+    s+='<circle id="'+g+'_led" cx="'+(x+97)+'" cy="'+(y+40)+'" r="4.5" fill="#55606e" stroke="#222"/>';
+    s+='<rect id="'+g+'_weld" x="'+(x+2)+'" y="'+(y+26)+'" width="34" height="13" rx="3" fill="#ff8f1c" opacity="0"/>';
+    s+='<text id="'+g+'_weldt" x="'+(x+19)+'" y="'+(y+36)+'" font-size="7.5" text-anchor="middle" font-weight="700" fill="#fff" opacity="0" font-family="Mitr,sans-serif">ค้าง!</text></g>';
+  }else if(d.t==='ol'){
+    s+='<rect x="'+x+'" y="'+y+'" width="112" height="96" rx="8" fill="#e6ecf4" stroke="#59626f" stroke-width="2"/>';
+    s+='<rect x="'+x+'" y="'+y+'" width="112" height="24" rx="6" fill="#3b4350"/><rect x="'+x+'" y="'+(y+72)+'" width="112" height="24" rx="6" fill="#3b4350"/>';
+    s+=txt(x+22,y+44,'F3',13,'#213047','middle',700)+txt(x+22,y+56,'OL',8,'#3f51b5');
+    s+='<circle cx="'+(x+52)+'" cy="'+(y+48)+'" r="10" fill="#fff" stroke="#59626f"/><line x1="'+(x+52)+'" y1="'+(y+48)+'" x2="'+(x+58)+'" y2="'+(y+42)+'" stroke="#213047" stroke-width="2"/>';
+    s+=txt(x+52,y+67,'Ir '+d.ir+'A',7.5,'#59626f');
+    s+='<circle id="F3_rst" class="pbtn" data-ctl="F3" cx="'+(x+84)+'" cy="'+(y+42)+'" r="8" fill="#2f80ed" stroke="#123"/>'+txt(x+84,y+45,'R',8,'#fff');
+    s+='<rect id="F3_flag" x="'+(x+72)+'" y="'+(y+54)+'" width="26" height="12" rx="3" fill="#9aa5b4"/><text id="F3_flagt" x="'+(x+85)+'" y="'+(y+63)+'" font-size="7" text-anchor="middle" font-weight="700" fill="#fff" font-family="Mitr,sans-serif">OK</text>';
+  }else if(d.t==='tmr'){
+    s+='<rect x="'+x+'" y="'+y+'" width="84" height="100" rx="8" fill="#eef1f5" stroke="#59626f" stroke-width="2"/>';
+    s+='<rect x="'+x+'" y="'+y+'" width="84" height="24" rx="6" fill="#3b4350"/><rect x="'+x+'" y="'+(y+76)+'" width="84" height="24" rx="6" fill="#3b4350"/>';
+    s+='<circle cx="'+(x+56)+'" cy="'+(y+50)+'" r="15" fill="#fff" stroke="#59626f" stroke-width="1.5"/>';
+    s+='<path id="KT_arc" d="" fill="none" stroke="#00acc1" stroke-width="5"/>';
+    s+=txt(x+18,y+46,'KT',12,'#213047','middle',700)+txt(x+18,y+58,'5 s',8,'#3f51b5')+txt(x+56,y+54,'⏱',11);
+    s+='<circle id="KT_led" cx="'+(x+18)+'" cy="'+(y+66)+'" r="4" fill="#55606e"/>';
+  }else if(d.t==='pbNC'||d.t==='pbNO'||d.t==='lamp'){
+    s+='<rect x="'+x+'" y="'+y+'" width="64" height="84" rx="10" fill="#cfd5de" stroke="#59626f" stroke-width="1.5"/>';
+    if(d.t==='lamp'){
+      s+='<circle cx="'+(x+32)+'" cy="'+(y+26)+'" r="19" fill="#4a5262"/><circle id="H1_g" cx="'+(x+32)+'" cy="'+(y+26)+'" r="14" fill="#1f4d2c"/>';
+      s+=txt(x+32,y+54,'H1 RUN',8,'#213047');
+    }else{
+      var col=d.t==='pbNC'?'#e53935':'#22a447',sh=d.t==='pbNC'?'#8e1c1a':'#126b2c';
+      s+='<g class="pbtn" data-ctl="'+g+'"><circle cx="'+(x+32)+'" cy="'+(y+26)+'" r="20" fill="#4a5262"/>';
+      s+='<circle id="'+g+'_b" cx="'+(x+32)+'" cy="'+(y+25)+'" r="15" fill="'+col+'" stroke="'+sh+'" stroke-width="3"/>';
+      s+=txt(x+32,y+29,d.t==='pbNC'?'O':'I',12,'#fff','middle',700)+'</g>';
+      s+=txt(x+32,y+54,g+' '+(d.t==='pbNC'?'STOP':(d.lab||'START')),7.5,'#213047');
+    }
+  }else if(d.t==='motor'){
+    s+='<rect x="'+x+'" y="'+y+'" width="150" height="84" rx="10" fill="#5b6b82" stroke="#2b3240" stroke-width="2"/>';
+    s+='<rect x="'+(x+6)+'" y="'+(y+4)+'" width="98" height="76" rx="6" fill="#e9dcc4" stroke="#8a7350"/>';
+    s+=txt(x+128,y+60,'กล่องขั้ว',7.5,'#fff')+txt(x+128,y+72,'มอเตอร์',7.5,'#fff');
+  }
+  return s+'</g>';
+}
+function drawMotorBody(lv){
+  var c=lv.motor,x=c.x,y=c.y,s='<g id="motorG">',md=lv.dev.filter(function(d){return d.t==='motor';})[0],bx=md.x+150,by=md.y+42;
+  s+='<path d="M'+bx+' '+by+' C '+(bx+40)+' '+by+' '+(x-90)+' '+y+' '+(x-50)+' '+y+'" stroke="#222" stroke-width="7" fill="none" opacity=".8"/>';
+  s+='<rect x="'+(x-52)+'" y="'+(y-34)+'" width="104" height="68" rx="14" fill="#3f6fb0" stroke="#1d3557" stroke-width="2.5"/>';
+  for(var i=0;i<6;i++)s+='<rect x="'+(x-44+i*16)+'" y="'+(y-40)+'" width="8" height="80" rx="3" fill="#335d96"/>';
+  s+='<rect x="'+(x-30)+'" y="'+(y+34)+'" width="60" height="10" rx="3" fill="#25334a"/>';
+  s+='<circle cx="'+x+'" cy="'+y+'" r="28" fill="#dfe8f5" stroke="#1d3557" stroke-width="3"/>';
+  s+='<g id="rotor" transform="rotate(0 '+x+' '+y+')">';
+  for(i=0;i<4;i++){var a=i*90;s+='<path d="M'+x+' '+y+' L'+(x-6)+' '+(y-23)+' Q'+x+' '+(y-28)+' '+(x+7)+' '+(y-22)+' Z" fill="#ff8f1c" stroke="#a85a0c" stroke-width="1.2" transform="rotate('+a+' '+x+' '+y+')"/>';}
+  s+='<circle cx="'+x+'" cy="'+y+'" r="5" fill="#213047"/></g>';
+  s+='<g id="rotArr" opacity="0"><path id="rotArrP" d="" fill="none" stroke="#ffd23f" stroke-width="4" stroke-linecap="round"/><path id="rotArrH" d="" fill="#ffd23f"/></g>';
+  s+='<text id="motTxt" x="'+x+'" y="'+(y+60)+'" font-size="10" text-anchor="middle" font-weight="700" fill="#fff" font-family="Mitr,sans-serif">M 3~ 7.5 kW · หยุด</text>';
+  s+='<text id="motTxt2" x="'+x+'" y="'+(y+73)+'" font-size="8.5" text-anchor="middle" font-weight="500" fill="#cfe0f5" font-family="Mitr,sans-serif">400 V Δ · In 15 A</text>';
+  return s+'</g>';
+}
+function renderScene(){
+  var lv=LV[G.li],H=lv.H,sv=$('scene');
+  sv.setAttribute('viewBox','0 0 420 '+H);
+  lv.dev.forEach(function(d){if(d.t==='ol')d.ir=lv.olIr;});
+  var s='<defs><pattern id="plate" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#c9cfd8"/><circle cx="4" cy="4" r=".8" fill="#b5bcc7"/><circle cx="12" cy="12" r=".8" fill="#b5bcc7"/></pattern>'+
+    '<linearGradient id="rail" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef1f5"/><stop offset=".5" stop-color="#9aa3b0"/><stop offset="1" stop-color="#dfe3ea"/></linearGradient></defs>';
+  s+='<rect x="0" y="0" width="420" height="'+H+'" fill="#4a5262"/><rect x="5" y="5" width="410" height="'+(H-10)+'" rx="10" fill="url(#plate)" stroke="#2b3240" stroke-width="3"/>';
+  /* duct + DIN rails */
+  [[212,24],[356,26]].forEach(function(r){s+='<rect x="10" y="'+r[0]+'" width="400" height="'+r[1]+'" fill="#9ea6b2" opacity=".55"/>';for(var i=14;i<410;i+=12)s+='<rect x="'+i+'" y="'+(r[0]+3)+'" width="4" height="'+(r[1]-6)+'" fill="#7e8794" opacity=".5"/>';});
+  lv.dev.forEach(function(d){if(d.t==='cont'||d.t==='ol'||d.t==='mcb3'||d.t==='tmr'){var h=TY[d.t].h;s+='<rect x="'+(d.x-6)+'" y="'+(d.y+h/2-6)+'" width="'+(TY[d.t].w+12)+'" height="12" fill="url(#rail)" stroke="#7e8794" stroke-width=".8"/>';}});
+  var dr=lv.door;s+='<rect x="'+dr[0]+'" y="'+dr[1]+'" width="'+dr[2]+'" height="'+dr[3]+'" rx="10" fill="#7d8796" opacity=".45" stroke="#555f6e" stroke-dasharray="5 4"/>';
+  s+=txt(dr[0]+dr[2]/2,dr[1]+dr[3]-4,'อุปกรณ์หน้าตู้ (ฝาตู้)',8,'#2b3240');
+  lv.dev.forEach(function(d){s+=drawDev(d);});
+  s+=drawMotorBody(lv);
+  s+='<g id="wiresG"></g><g id="flowG"></g><g id="termsG"></g><g id="selG"></g>';
+  s+='<g id="sparkG" opacity="0"><g class="sp"><polygon id="sparkP" points="" fill="#ffd23f" stroke="#ff5722" stroke-width="2.5"/><text id="sparkT" font-size="12" font-weight="700" fill="#b71c1c" text-anchor="middle" font-family="Mitr,sans-serif">ปึ้ง!</text></g></g>';
+  sv.innerHTML=s;
+  /* terminals */
+  TP={};var ts='';
+  lv.dev.forEach(function(d){termsOf(d).forEach(function(t){TP[t.id]=t;
+    ts+='<circle class="term" cx="'+t.x+'" cy="'+t.y+'" r="6.5"/><line class="slot" x1="'+(t.x-3.5)+'" y1="'+(t.y-3.5)+'" x2="'+(t.x+3.5)+'" y2="'+(t.y+3.5)+'"/>';
+    if(t.lp!=='n'){var lx=t.x,ly=t.y,an='middle',white=false;
+      if(t.lp==='b'){ly=t.y+18;}else if(t.lp==='a'){ly=t.y-10;}else if(t.lp==='r'){lx=t.x+9;ly=t.y+12;an='start';}
+      var dd=d.t;if((dd==='cont'||dd==='mcb3'||dd==='ol'||dd==='tmr'))white=false;
+      if(dd==='supply'){ly=t.y-14;white=true;}
+      ts+='<text class="tl'+(white?' w':'')+'" x="'+lx+'" y="'+ly+'" text-anchor="'+an+'">'+t.nm+'</text>';}
+    ts+='<circle class="hit" data-t="'+t.id+'" cx="'+t.x+'" cy="'+t.y+'" r="13"/>';
+  });});
+  $('termsG').innerHTML=ts;
+  renderWires();
+}
+function wirePath(w,i){
+  var A=TP[w.a],B=TP[w.b];if(!A||!B)return '';
+  if(w.c==='cu')return 'M'+A.x+' '+A.y+' L'+B.x+' '+B.y;
+  var dy=Math.abs(A.y-B.y),dx=Math.abs(A.x-B.x),k=Math.max(24,Math.min(95,dy*0.45+dx*0.18));
+  var off=((i%5)-2)*3;
+  var ca=A.y+(A.dir==='u'?-k:k),cb=B.y+(B.dir==='u'?-k:k);
+  if(A.dev===B.dev&&A.dir===B.dir){ca=A.y+(A.dir==='u'?-22:22);cb=B.y+(B.dir==='u'?-22:22);}
+  return 'M'+A.x+' '+A.y+' C'+(A.x+off)+' '+ca.toFixed(1)+' '+(B.x+off)+' '+cb.toFixed(1)+' '+B.x+' '+B.y;
+}
+function renderWires(){
+  var ws=allWires(),s='',bad=(G.mode==='wire'&&G.res&&!G.res.pass)?G.res.badWires:[],np=LV[G.li].pre.length;
+  ws.forEach(function(w,i){var d=wirePath(w,i);if(!d)return;var pl=i<np,cls='wg'+(i===G.selW?' wsel':'')+(bad.indexOf(i)>=0?' wbad':'');
+    if(w.c==='cu'){s+='<g class="'+cls+'"><path class="wout" d="'+d+'" stroke="#6d3d12" stroke-width="7" stroke-linecap="round"/><path d="'+d+'" stroke="#d98c45" stroke-width="4.5" stroke-linecap="round"/></g>';return;}
+    var sw=pl?3.2:3.8;
+    s+='<g class="'+cls+'" data-w="'+i+'">';
+    s+='<path class="wout" d="'+d+'" fill="none" stroke="'+(w.c==='bk'?'#f2f2f2':'#141414')+'" stroke-width="'+(sw+2.2)+'" stroke-linecap="round" opacity="'+(pl?.75:.9)+'"/>';
+    s+='<path class="wcore" d="'+d+'" fill="none" stroke="'+COL[w.c]+'" stroke-width="'+sw+'" stroke-linecap="round"/>';
+    if(w.c==='gy')s+='<path d="'+d+'" fill="none" stroke="#ffd23f" stroke-width="'+sw+'" stroke-dasharray="6 6" stroke-linecap="butt"/>';
+    if(!pl||G.li===4)s+='<path class="whit" d="'+d+'" data-w="'+i+'"/>';
+    s+='</g>';});
+  $('wiresG').innerHTML=s;
+  $('flowG').innerHTML='';lastFlow='';
+  var cnt=G.player.length;
+  $('goalSub').textContent=G.li===4?('สายในตู้ '+allWires().length+' เส้น · ผิด 3 จุด · ทดสอบแล้ว '+G.attempts+' ครั้ง'):('ต่อแล้ว '+cnt+' / '+LV[G.li].need+' เส้น · ทดสอบแล้ว '+G.attempts+' ครั้ง · แตะขั้วต้น → แตะขั้วปลาย');
+  $('delBtn').disabled=G.selW<0;
+}
+function renderSel(){
+  var s='';if(G.selT&&TP[G.selT]){var t=TP[G.selT];s='<circle class="selring" cx="'+t.x+'" cy="'+t.y+'" r="10"/>';}
+  $('selG').innerHTML=s;
+}
+
+/* ───────── interaction ───────── */
+var toastT=null;
+function toast(m,ms){var t=$('toast');t.innerHTML=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('show');},ms||2200);}
+function wireCount(id){var n=0;allWires().forEach(function(w){if(w.a===id||w.b===id)n++;});return n;}
+function editableIdx(i){return i>=LV[G.li].pre.length;}
+function onTerm(id){
+  if(G.mode!=='wire')return;
+  audio();
+  if(G.selW>=0){G.selW=-1;}
+  if(!G.selT){
+    if(wireCount(id)>=2){toast('ขั้ว <b>'+id+'</b> มีสาย 2 เส้นแล้ว (ขันได้ไม่เกิน 2) — ต่อพ่วงจากขั้วอื่นที่เป็นจุดเดียวกัน');sBad();return;}
+    G.selT=id;sTerm();renderSel();toast('เลือก <b>'+id+'</b> แล้ว → แตะขั้วปลาย (สี'+COLN[G.color]+')',1600);return;}
+  if(G.selT===id){G.selT=null;renderSel();sClick();return;}
+  var a=G.selT,b=id;
+  if(wireCount(b)>=2){toast('ขั้ว <b>'+b+'</b> มีสาย 2 เส้นแล้ว — เลือกขั้วปลายอื่น');sBad();return;}
+  var dup=allWires().some(function(w){return (w.a===a&&w.b===b)||(w.a===b&&w.b===a);});
+  if(dup){toast('มีสายเส้นนี้อยู่แล้ว');G.selT=null;renderSel();return;}
+  pushUndo();G.player.push(W(a,b,G.color));G.selT=null;G.res=null;
+  sWire();renderSel();renderWires();toast('ต่อ '+a+' → '+b+' (สี'+COLN[G.color]+') ✔',1300);
+}
+function onWire(i){
+  if(G.mode!=='wire')return;
+  if(G.selT){G.selT=null;renderSel();}
+  if(!editableIdx(i)){toast('สายนี้ต่อมาจากโรงงาน (ล็อก)');return;}
+  G.selW=(G.selW===i)?-1:i;sClick();renderWires();
+  if(G.selW>=0){var w=allWires()[i];toast('เลือกสาย '+w.a+' → '+w.b+' · กด 🗑 ลบ หรือแตะสีเพื่อเปลี่ยนสี',2400);}
+}
+function pushUndo(){G.undo.push(JSON.stringify(G.player));if(G.undo.length>60)G.undo.shift();}
+function setColor(c){G.color=c;
+  Array.prototype.forEach.call(document.querySelectorAll('.sw'),function(b){b.classList.toggle('on',b.dataset.c===c);});
+  if(G.selW>=0&&G.mode==='wire'){var pi=G.selW-LV[G.li].pre.length;if(pi>=0){pushUndo();G.player[pi].c=c;G.res=null;renderWires();toast('เปลี่ยนเป็นสี'+COLN[c]+' ✔',1200);}}
+}
+function buildSwatches(){
+  var list=[['br','L1 น้ำตาล'],['bk','L2 ดำ'],['gr','L3 เทา'],['bu','N ฟ้า'],['gy','PE เขียวเหลือง']],h='';
+  list.forEach(function(x){var st=x[0]==='gy'?'background:repeating-linear-gradient(90deg,#2e9e3e 0 7px,#ffd23f 7px 12px)':'background:'+COL[x[0]];
+    h+='<button class="sw'+(x[0]===G.color?' on':'')+'" data-c="'+x[0]+'"><i style="'+st+'"></i><span>'+x[1]+'</span></button>';});
+  $('swatches').innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll('.sw'),function(b){b.addEventListener('click',function(){audio();sClick();setColor(b.dataset.c);});});
+}
+/* pointer events on scene */
+(function(){
+  var sv=$('scene');
+  sv.addEventListener('click',function(e){
+    var t=e.target;
+    if(t.dataset&&t.dataset.t){onTerm(t.dataset.t);return;}
+    if(t.dataset&&t.dataset.w!=null&&t.classList.contains('whit')){onWire(+t.dataset.w);return;}
+    var c=t.closest&&t.closest('[data-ctl]');
+    if(c&&G.mode==='live'){var k=c.getAttribute('data-ctl');
+      if(k==='Q1'){var S=G.LS;if(S.q1Trip||S.upTrip){S.q1Trip=false;S.upTrip=false;S.fatal=null;S.spark=null;S.q1=true;toast('รีเซ็ต/สับ Q1 ใหม่');}else S.q1=!S.q1;sClack();}
+      if(k==='F3'){G.LS.olTest=false;G.LS.ol.trip=false;G.LS.ol.heat=0;toast('รีเซ็ต OL แล้ว');sClick();}
+      return;}
+    if(G.mode==='wire'&&(G.selT||G.selW>=0)&&!(t.dataset&&(t.dataset.t||t.dataset.w))){G.selT=null;G.selW=-1;renderSel();renderWires();}
+  });
+  function pbDown(e){if(G.mode!=='live')return;var c=e.target.closest&&e.target.closest('[data-ctl]');if(!c)return;var k=c.getAttribute('data-ctl');
+    if(G.LS&&k in G.LS.pb){G.LS.pb[k]=true;sClick();e.preventDefault();}}
+  function pbUp(){if(G.mode!=='live'||!G.LS)return;for(var k in G.LS.pb)G.LS.pb[k]=false;}
+  sv.addEventListener('pointerdown',pbDown);
+  window.addEventListener('pointerup',pbUp);window.addEventListener('pointercancel',pbUp);
+})();
+
+/* ───────── render สถานะไฟฟ้า (ใช้ทั้ง playback และ live) ───────── */
+var lastFlow='',lastK={},rotA=0,lastSpark=null;
+function arcPath(cx,cy,r,f){if(f<=0)return '';f=Math.min(0.999,f);var a0=-Math.PI/2,a1=a0+f*2*Math.PI;
+  return 'M'+(cx+r*Math.cos(a0)).toFixed(1)+' '+(cy+r*Math.sin(a0)).toFixed(1)+' A'+r+' '+r+' 0 '+(f>0.5?1:0)+' 1 '+(cx+r*Math.cos(a1)).toFixed(1)+' '+(cy+r*Math.sin(a1)).toFixed(1);}
+function renderState(f,dt){
+  var lv=LV[G.li],ws=allWires();
+  /* flow */
+  if(f.flow!==lastFlow){lastFlow=f.flow;var s='';
+    var M=buildModel(lv,ws);
+    M.W.forEach(function(w,j){var c=f.flow.charAt(j);if(c==='0'||!c)return;var wr=ws[w[2]];var d=wirePath(wr,w[2]);
+      s+='<path class="flow'+(c==='2'?' fast':'')+'" d="'+d+'"/>';});
+    $('flowG').innerHTML=s;}
+  /* contactors */
+  for(var g in f.k){var arm=$(g+'_arm');if(!arm)continue;var on=f.k[g];
+    arm.setAttribute('fill',on?'#1fb45f':'#ef4b4b');arm.setAttribute('y',lv.dev.filter(function(d){return d.tag===g;})[0].y+(on?74:70));
+    $(g+'_led').setAttribute('fill',f.kc[g]?'#ffd23f':'#55606e');
+    var wd=f.weld.indexOf(g)>=0;$(g+'_weld').setAttribute('opacity',wd?1:0);$(g+'_weldt').setAttribute('opacity',wd?1:0);
+    if(lastK[g]!==undefined&&lastK[g]!==on){var b=$(g+'_body');b.classList.remove('snap');void b.getBBox();b.classList.add('snap');sClack();}
+    lastK[g]=on;}
+  /* Q1 */
+  var q=lv.dev[1],hr=$('Q1_hr');if(hr){hr.setAttribute('y',q.y+(f.q1===1?36:(f.q1===2?47:56)));hr.setAttribute('fill',f.q1===2?'#ffb300':(f.q1===1?'#1fb45f':'#2b3240'));
+    var st=$('Q1_st');st.textContent=f.q1===1?'ON':(f.q1===2?'TRIP':'OFF');st.setAttribute('fill',f.q1===1?'#1fb45f':(f.q1===2?'#ff6f00':'#ef4b4b'));}
+  /* OL */
+  if($('F3_flag')){$('F3_flag').setAttribute('fill',f.ol?'#ff6f00':'#9aa5b4');$('F3_flagt').textContent=f.ol?'TRIP':'OK';}
+  /* timer */
+  var kt=lv.dev.filter(function(d){return d.t==='tmr';})[0];
+  if(kt){$('KT_arc').setAttribute('d',arcPath(kt.x+56,kt.y+50,15,f.kt));$('KT_led').setAttribute('fill',f.ktOn?'#ffd23f':'#55606e');}
+  /* push buttons */
+  for(var p in f.pb){var bb=$(p+'_b');if(bb){var pd=lv.dev.filter(function(d){return d.tag===p;})[0];bb.setAttribute('r',f.pb[p]?12.5:15);bb.setAttribute('cy',pd.y+(f.pb[p]?27:25));}}
+  /* lamp */
+  var hg=$('H1_g');if(hg){var lo=f.lamp.H1;hg.setAttribute('fill',lo?'#7dff8f':'#1f4d2c');hg.classList.toggle('lampOn',!!lo);
+    hg.style.filter=lo?'drop-shadow(0 0 6px #7dff8f)':'none';}
+  /* motor */
+  var c=lv.motor;rotA+=f.w*(RM?0:540)*(dt||0);rotA%=360;
+  $('rotor').setAttribute('transform','rotate('+rotA.toFixed(1)+' '+c.x+' '+c.y+')');
+  var ra=$('rotArr');
+  if(Math.abs(f.w)>0.05){ra.setAttribute('opacity',1);var r=40,dir=f.w>0?1:-1;
+    var a0=-150,a1=-30,x0=c.x+r*Math.cos(a0*Math.PI/180),y0=c.y+r*Math.sin(a0*Math.PI/180),x1=c.x+r*Math.cos(a1*Math.PI/180),y1=c.y+r*Math.sin(a1*Math.PI/180);
+    $('rotArrP').setAttribute('d','M'+x0.toFixed(1)+' '+y0.toFixed(1)+' A'+r+' '+r+' 0 0 1 '+x1.toFixed(1)+' '+y1.toFixed(1));
+    var hx=dir>0?x1:x0,hy=dir>0?y1:y0,ang=dir>0?a1+90:a0-90,rad=ang*Math.PI/180;
+    var p1=[hx+9*Math.cos(rad),hy+9*Math.sin(rad)],p2=[hx+7*Math.cos(rad+2.3),hy+7*Math.sin(rad+2.3)],p3=[hx+7*Math.cos(rad-2.3),hy+7*Math.sin(rad-2.3)];
+    $('rotArrH').setAttribute('d','M'+p1.map(function(v){return v.toFixed(1);}).join(' ')+' L'+p2.map(function(v){return v.toFixed(1);}).join(' ')+' L'+p3.map(function(v){return v.toFixed(1);}).join(' ')+' Z');
+  }else ra.setAttribute('opacity',0);
+  var vavg=(f.vw[0]+f.vw[1]+f.vw[2])/3,mode=vavg<50?'':(Math.abs(vavg-231)<35?' · Y':(Math.abs(vavg-400)<40?' · Δ':''));
+  $('motTxt').textContent='M 3~ · '+(Math.abs(f.w)<0.02?(f.jam?'เพลาติด!':'หยุด'):(Math.round(Math.abs(f.w)*1500).toLocaleString()+' rpm '+(f.w>0?'↻ FWD':'↺ REV')))+mode;
+  $('motTxt2').textContent=f.I>0.5?('I สาย L1 = '+f.I.toFixed(1)+' A ('+(f.I/P.In).toFixed(1)+'×In)'):'400 V Δ · In 15 A';
+  hum(Math.abs(f.w)>0.05||f.I>20);
+  /* spark */
+  var sg=$('sparkG');
+  if(f.spark&&TP[f.spark]){if(lastSpark!==f.spark){lastSpark=f.spark;var t=TP[f.spark],pts=[];
+      for(var i=0;i<16;i++){var rr=i%2?9:22,aa=i*Math.PI/8;pts.push((t.x+rr*Math.cos(aa)).toFixed(1)+','+(t.y+rr*Math.sin(aa)).toFixed(1));}
+      $('sparkP').setAttribute('points',pts.join(' '));var st2=$('sparkT');st2.setAttribute('x',t.x);st2.setAttribute('y',t.y+4);
+      sg.setAttribute('opacity',1);sg.classList.remove('go');void sg.getBBox();sg.classList.add('go');sBang();
+      var sw=$('sceneWrap');sw.classList.remove('shake');void sw.offsetWidth;sw.classList.add('shake');}}
+  else{sg.setAttribute('opacity',0);lastSpark=null;}
+  /* meter */
+  var m=$('meter');m.style.display='block';
+  m.innerHTML='I<sub>L1</sub> <b>'+f.I.toFixed(1)+'</b> A · <b>'+Math.round(Math.abs(f.w)*1500)+'</b> rpm<br>V ขด <b>'+Math.round(vavg)+'</b> V'+(kt?' · KT <b>'+(f.kt*P.ktPreset).toFixed(1)+'</b>/5 s':'')+(f.q1===2?'<br><b>⚡ Q1 TRIP</b>':'');
+}
+function resetStateView(){
+  lastFlow='';lastK={};lastSpark=null;$('flowG').innerHTML='';$('meter').style.display='none';$('capBar').style.display='none';hum(false);
+  var lv=LV[G.li];
+  renderState({k:zeroK(),kc:zeroK(),q1:0,ol:0,kt:0,ktOn:0,pb:{},lamp:{},w:0,vw:[0,0,0],I:0,flow:'',spark:null,weld:'',jam:0},0);
+  $('meter').style.display='none';
+}
+function zeroK(){var o={};LV[G.li].dev.forEach(function(d){if(d.t==='cont')o[d.tag]=0;});return o;}
+
+/* ───────── playback ───────── */
+function startTest(){
+  if(G.mode!=='wire')return;audio();
+  if(G.li!==4&&G.player.length===0){toast('ยังไม่ได้ต่อสายเลย — แตะขั้วต้น แล้วแตะขั้วปลาย');sBad();return;}
+  G.selT=null;G.selW=-1;renderSel();
+  G.attempts++;
+  var res=runScenario(G.li,allWires());G.res=res;
+  G.mode='play';setModeUI();renderWires();
+  G.PB={fi:0,t:0,res:res,shown:0};lastK={};
+  buildChecklist(res,true);
+  $('testPanel').style.display='block';$('testSub').textContent='ครั้งที่ '+G.attempts;
+  drawCurve(res,0);
+  sClack();
+}
+function buildChecklist(res,pending){
+  var h='';res.items.forEach(function(it,i){h+='<li id="ck'+i+'" class="'+(pending?'':it.st)+'"><span class="ic">'+(pending?'⏳':icon(it.st))+'</span><span>'+esc(it.lab)+'</span></li>';});
+  $('checkList').innerHTML=h;
+}
+function icon(st){return st==='ok'?'✅':(st==='fail'?'❌':'➖');}
+function stepPlayback(dt){
+  var PB=G.PB,res=PB.res,fr=res.frames;if(!fr.length){finishPlayback();return;}
+  var cur=fr[Math.min(PB.fi,fr.length-1)],op=res.ops[cur.oi]||{},spd=op.spd||1;
+  PB.t+=dt*spd;
+  while(PB.fi<fr.length-1&&fr[PB.fi+1].t<=PB.t)PB.fi++;
+  var f=fr[PB.fi];
+  renderState(f,dt*spd);
+  var cap=(res.ops[f.oi]||{}).cap;if(cap){$('capBar').style.display='block';$('capBar').textContent='▶ '+cap;}
+  while(PB.shown<res.items.length&&res.items[PB.shown].t<=PB.t+1e-6&&res.items[PB.shown].st!=='skip'||(PB.shown<res.items.length&&res.items[PB.shown].st==='skip'&&PB.fi>=fr.length-1)){
+    var it=res.items[PB.shown],li=$('ck'+PB.shown);if(li){li.className=it.st;li.querySelector('.ic').textContent=icon(it.st);}
+    if(it.st==='ok')tone(1046,0,0.08,'triangle',0.1);else if(it.st==='fail')tone(260,0,0.15,'square',0.1);
+    PB.shown++;}
+  if(res.graph)drawCurve(res,f.t);
+  if(PB.fi>=fr.length-1){finishPlayback();}
+}
+function skipPlayback(){if(G.mode!=='play')return;var PB=G.PB;PB.fi=PB.res.frames.length-1;PB.t=PB.res.frames[PB.fi].t;stepPlayback(0);}
+function finishPlayback(){
+  var res=G.PB.res;buildChecklist(res,false);drawCurve(res,1e9);
+  G.mode='done';setModeUI();
+  setTimeout(function(){showResult(res);},500);
+}
+function drawCurve(res,tNow){
+  var sv=$('curveSvg'),g=res.graph;if(!g){sv.innerHTML='';return;}
+  var X0=34,X1=352,Y0=128,Y1=14,ymax=110,tw=g.t1-g.t0;
+  function X(t){return X0+(t-g.t0)/tw*(X1-X0);}function Y(i){return Y0-(Math.min(ymax,i)/ymax)*(Y0-Y1);}
+  var s='<rect x="0" y="0" width="360" height="150" fill="#0f1a2e"/>';
+  [0,25,50,75,100].forEach(function(v){s+='<line x1="'+X0+'" x2="'+X1+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="#24324d"/>'+'<text x="'+(X0-4)+'" y="'+(Y(v)+3)+'" font-size="8" fill="#8fa3c4" text-anchor="end" font-family="Mitr,sans-serif">'+v+'</text>';});
+  function ref(v,lab,col){s+='<line x1="'+X0+'" x2="'+X1+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="'+col+'" stroke-dasharray="4 3"/><text x="'+(X1-2)+'" y="'+(Y(v)-3)+'" font-size="8" fill="'+col+'" text-anchor="end" font-family="Mitr,sans-serif">'+lab+'</text>';}
+  ref(P.In*6.5,'DOL 6.5×In = 97.5 A','#ff8a80');ref(P.In*6.5/3,'Y ≈ DOL/3 = 32.5 A','#80deea');ref(P.In,'In 15 A','#c5e1a5');
+  var pts=[],pk=0,pkT=0,pk2=0,pk2T=0;res.frames.forEach(function(f){if(f.t<g.t0||f.t>g.t1||f.t>tNow)return;pts.push(X(f.t).toFixed(1)+','+Y(f.I).toFixed(1));
+    if(f.t<=g.t0+2.5){if(f.I>pk){pk=f.I;pkT=f.t;}}else if(f.I>pk2){pk2=f.I;pk2T=f.t;}});
+  if(pts.length>1)s+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="#ffd23f" stroke-width="2.4" stroke-linejoin="round"/>';
+  if(pk>1)s+='<circle cx="'+X(pkT)+'" cy="'+Y(pk)+'" r="3.5" fill="#ff5d8f"/><text x="'+Math.min(X1-120,X(pkT)+6)+'" y="'+(Y(pk)+(pk>80?14:-6))+'" font-size="9" fill="#fff" font-weight="600" font-family="Mitr,sans-serif">สตาร์ท '+pk.toFixed(1)+' A ('+(pk/P.In).toFixed(2)+'×In)</text>';
+  if(G.li===3&&pk2>pk*1.05)s+='<circle cx="'+X(pk2T)+'" cy="'+Y(pk2)+'" r="3" fill="#80deea"/><text x="'+(X(pk2T)-4)+'" y="'+(Y(pk2)-5)+'" font-size="8.5" fill="#80deea" text-anchor="end" font-family="Mitr,sans-serif">ช่วงเปลี่ยน Y→Δ '+pk2.toFixed(0)+' A</text>';
+  s+='<text x="'+X0+'" y="146" font-size="8.5" fill="#cfe0f5" font-family="Mitr,sans-serif">กระแสสตาร์ท สาย L1 (A) · 0–'+tw.toFixed(1)+' วินาทีหลังกด Start</text>';
+  sv.innerHTML=s;
+}
+
+/* ───────── ผลลัพธ์ ───────── */
+function starFor(n){return n<=1?3:(n<=3?2:1);}
+function showResult(res){
+  var li=G.li,st=res.pass?starFor(G.attempts):0;
+  if(st>stars[li]){stars[li]=st;saveStars();}
+  updateStarTotal();
+  if(res.peak>0)G.lastPeaks[li]=res.peak;
+  $('resEmoji').textContent=res.pass?(st===3?'🏆':'✅'):(res.fatal&&res.fatal.type==='short'?'💥':'🔧');
+  $('resTitle').textContent=res.pass?'ผ่าน! วงจรทำงานถูกต้อง':'ยังไม่ผ่าน — ทดสอบครั้งที่ '+G.attempts;
+  var fb='';
+  if(res.pass){
+    fb+='<div class="okk"><b>✔ ผ่านทุกข้อทดสอบ</b> ('+res.items.length+' ข้อ) · ทดสอบ '+G.attempts+' ครั้ง → '+(st===3?'ผ่านครั้งแรก 3 ดาว':(st===2?'ผ่านภายใน 3 ครั้ง 2 ดาว':'1 ดาว'))+'</div>';
+    if(li===4)fb+='<div class="okk"><b>จุดผิดที่ช่างคนก่อนทำไว้:</b><br>'+G.faults.map(function(k,i){return (i+1)+') '+FAULTS[k].nm;}).join('<br>')+'</div>';
+    if(li===3)fb+='<div class="okk"><b>กระแสสตาร์ท Y</b> สูงสุด '+res.peak.toFixed(1)+' A ≈ '+(res.peak/P.In).toFixed(2)+'×In — เทียบ DOL ≈ 97.5 A (6.5×In) ลดเหลือ ~1/3</div>';
+    if(li===0||li===4)fb+='<div class="okk"><b>กระแสสตาร์ท DOL</b> สูงสุด '+res.peak.toFixed(1)+' A ≈ '+(res.peak/P.In).toFixed(2)+'×In · ตั้ง Q1 แบบ C25 ไม่ทริปเพราะทริปแม่เหล็กที่ 5–10×25 A</div>';
+  }else{
+    res.fails.forEach(function(x){fb+='<div>'+x.msg+'</div>';});
+    if(G.attempts>=3&&li!==4)fb+='<div class="okk"><b>คำใบ้:</b> เปิด 📋 แบบ ไล่ตามเลขขั้วทีละเส้น · สายที่กะพริบแดงคือสายสีผิด</div>';
+    if(G.attempts>=3&&li===4)fb+='<div class="okk"><b>คำใบ้:</b> จุดผิดมี 3 จุด ดูอาการทีละข้อ แล้วเทียบสายกับแบบ (มีทั้งเรื่องเฟส, self-hold, Stop/OL, สี, PE)</div>';
+  }
+  $('resFb').innerHTML=fb;
+  $('resLesson').textContent='💡 '+LV[li].lesson;
+  var stt='<div><span>ผลทดสอบ</span><b>'+res.items.filter(function(x){return x.st==='ok';}).length+' / '+res.items.length+' ข้อผ่าน</b></div>';
+  if(res.peak>0)stt+='<div><span>กระแสสตาร์ทสูงสุด (L1)</span><b>'+res.peak.toFixed(1)+' A · '+(res.peak/P.In).toFixed(2)+'×In</b></div>';
+  stt+='<div><span>จำนวนสายในตู้</span><b>'+allWires().filter(function(w){return w.c!=='cu';}).length+' เส้น</b></div>';
+  $('resStats').innerHTML=stt;
+  var ss=$('resStars').children;for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(res.pass){sGood();for(let j=0;j<st;j++)setTimeout(function(){ss[j].classList.add('on');sStar(j);},350+j*380);if(st===3)confetti(30);}
+  else sBad();
+  $('nextBtn').style.display=res.pass?'inline-block':'none';
+  $('nextBtn').textContent=li<4?'ด่านต่อไป ➜':'🏁 สรุปผล';
+  $('fixBtn').textContent=res.pass?'↻ เล่นด่านนี้ใหม่':'🔧 กลับไปแก้สาย';
+}
+function updateStarTotal(){var t=0;for(var i=0;i<5;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+function confetti(n){var cols=['#3f51b5','#00acc1','#ffd23f','#1fb45f','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';document.body.appendChild(e);
+    setTimeout(function(ee){return function(){ee.remove();};}(e),3600);}}
+
+/* ───────── live mode ───────── */
+function startLive(){
+  $('resultOv').classList.remove('show');
+  G.LS=newSim(LV[G.li],allWires());G.LS.q1=true;G.mode='live';setModeUI();lastK={};
+  toast('🔌 จ่ายไฟแล้ว — กดปุ่ม Start/Stop บนฝาตู้ได้เลย (กดค้าง = กดปุ่มค้าง) · แตะคันโยก Q1 เพื่อ ON/OFF',3800);
+}
+function stepLive(dt){
+  var S=G.LS,n=Math.max(1,Math.round(dt/DT));
+  for(var i=0;i<n;i++){simStep(S,DT);S.t+=DT;}
+  renderState(snap(S,0),dt);
+  var cap='';if(S.fatal){var m=fatalMsg(S,null).msg.replace(/<[^>]+>/g,'');cap=m.slice(0,90)+(m.length>90?'…':'');}
+  else if(S.ol.trip)cap='OL ทริป — แตะปุ่ม R สีฟ้าบน F3 เพื่อรีเซ็ต';
+  $('capBar').style.display=cap?'block':'none';$('capBar').textContent=cap;
+  $('jamBtn').classList.toggle('on',S.jam);
+}
+function exitLive(){G.mode='wire';G.LS=null;setModeUI();resetStateView();renderWires();}
+function setModeUI(){
+  var m=G.mode;
+  $('editBtns').style.display=(m==='live')?'none':'flex';
+  $('liveBar').style.display=m==='live'?'flex':'none';
+  $('swatches').style.display=m==='live'?'none':'flex';
+  var tb=$('testBtn');
+  if(m==='play'){tb.textContent='⏩ ข้ามไปดูผล';tb.disabled=false;}
+  else if(m==='live'){tb.textContent='⚡ ทดสอบอัตโนมัติอีกครั้ง';tb.disabled=false;}
+  else if(m==='done'){tb.textContent='⚡ ทดสอบจ่ายไฟ';tb.disabled=false;}
+  else {tb.textContent='⚡ ทดสอบจ่ายไฟ';tb.disabled=false;}
+  ['undoBtn','clrBtn','delBtn'].forEach(function(id){$(id).disabled=(m!=='wire')||(id==='delBtn'&&G.selW<0);});
+}
+
+/* ───────── ด่าน ───────── */
+function startLevel(i){
+  G.li=i;G.mode='wire';G.undo=[];G.selT=null;G.selW=-1;G.attempts=0;G.res=null;G.PB=null;G.LS=null;
+  if(i===4){G.faults=pickFaults();G.player=faultWires(G.faults);}else{G.player=[];G.faults=[];}
+  $('lvlName').textContent=LV[i].name;$('goalTxt').innerHTML=LV[i].goal;
+  renderScene();resetStateView();renderSel();
+  $('diagBox').innerHTML=DIAG[i]();$('diagSub').textContent=['วงจรกำลัง DOL (ควบคุมต่อไว้แล้ว)','วงจรควบคุม 230 V','กำลัง + ควบคุม กลับทางหมุน','สตาร์-เดลต้า','แบบที่ถูกต้อง (เทียบหาจุดผิด)'][i];
+  $('testPanel').style.display='none';$('checkList').innerHTML='';$('curveSvg').innerHTML='';
+  setModeUI();
+  $('resultOv').classList.remove('show');
+}
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  LV.forEach(function(l,i){var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.25rem">'+l.icon+'</span><span class="nm">'+(i+1)+'. '+l.short+'</span><span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});box.appendChild(b);});
+}
+function pickNext(){for(var i=0;i<5;i++)if(!stars[i])return i;return 0;}
+function showEnd(){
+  $('endStars').textContent=updateStarTotal();
+  $('endLessons').innerHTML=LV.map(function(l,i){return '<div class="okk"><b>'+(i+1)+'. '+l.short+' '+'⭐'.repeat(stars[i])+'</b><br>'+l.lesson+'</div>';}).join('');
+  $('endOv').classList.add('show');confetti(36);sGood();
+}
+
+/* ───────── แบบวงจร (ladder / single line) ───────── */
+var DS={st:'#213047'};
+function L(x1,y1,x2,y2,c,w,da){return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(c||DS.st)+'" stroke-width="'+(w||1.6)+'"'+(da?' stroke-dasharray="'+da+'"':'')+' stroke-linecap="round"/>';}
+function T(x,y,s,sz,c,anc,wt){return '<text x="'+x+'" y="'+y+'" font-size="'+(sz||8.5)+'" fill="'+(c||'#213047')+'" text-anchor="'+(anc||'middle')+'" font-weight="'+(wt||500)+'" font-family="Mitr,sans-serif">'+esc(s)+'</text>';}
+function dot(x,y){return '<circle cx="'+x+'" cy="'+y+'" r="2.4" fill="#213047"/>';}
+/* สัญลักษณ์แนวตั้ง สูง 40 จาก y → y+40 */
+function sNO(x,y,tag,t1,t2,mod,c){c=c||DS.st;var s=L(x,y,x,y+12,c)+L(x,y+28,x,y+40,c)+L(x,y+28,x-10,y+13,c);
+  if(mod==='pb'){s+=L(x-5,y+20,x-22,y+20,c,1.2,'2 2')+L(x-22,y+15,x-22,y+25,c,1.4)+L(x-22,y+15,x-19,y+15,c,1.4)+L(x-22,y+25,x-19,y+25,c,1.4);}
+  if(mod==='t'){s+='<path d="M'+(x-13)+' '+(y+17)+' a5 5 0 0 1 10 0" fill="none" stroke="'+c+'" stroke-width="1.3"/>'+L(x-8,y+17,x-6,y+21,c,1.2);}
+  s+=T(x+4,y+10,t1,7,'#5f6b80','start')+T(x+4,y+39,t2,7,'#5f6b80','start');if(tag)s+=T(x-(mod==='pb'?26:14),y+24,tag,8.5,c,'end',600);return s;}
+function sNC(x,y,tag,t1,t2,mod,c){c=c||DS.st;var s=L(x,y,x,y+12,c)+L(x,y+12,x+9,y+12,c)+L(x,y+28,x,y+40,c)+L(x,y+28,x+11,y+10,c);
+  if(mod==='pb'){s+=L(x+4,y+20,x-14,y+20,c,1.2,'2 2')+L(x-14,y+15,x-14,y+25,c,1.4)+L(x-14,y+15,x-11,y+15,c,1.4)+L(x-14,y+25,x-11,y+25,c,1.4);}
+  if(mod==='ol'){s+=L(x+4,y+20,x-10,y+20,c,1.2,'2 2')+'<path d="M'+(x-18)+' '+(y+24)+' h4 v-8 h4 v8 h4" fill="none" stroke="'+c+'" stroke-width="1.3"/>';}
+  if(mod==='t'){s+='<path d="M'+(x-1)+' '+(y+23)+' a5 5 0 0 0 10 0" fill="none" stroke="'+c+'" stroke-width="1.3"/>';}
+  s+=T(x+12,y+10,t1,7,'#5f6b80','start')+T(x+4,y+39,t2,7,'#5f6b80','start');if(tag)s+=T(x-(mod?22:8),y+24,tag,8.5,c,'end',600);return s;}
+function sCoil(x,y,tag,c,sub){c=c||DS.st;return L(x,y,x,y+8,c)+'<rect x="'+(x-11)+'" y="'+(y+8)+'" width="22" height="24" fill="#fff" stroke="'+c+'" stroke-width="1.6"/>'+(sub==='t'?'<rect x="'+(x-11)+'" y="'+(y+8)+'" width="7" height="24" fill="'+c+'" opacity=".25"/>':'')+L(x,y+32,x,y+40,c)+
+  T(x+4,y+6,'A1',7,'#5f6b80','start')+T(x+4,y+40,'A2',7,'#5f6b80','start')+T(x+15,y+24,tag,9,c,'start',700);}
+function sLamp(x,y,tag,c){c=c||DS.st;return L(x,y,x,y+10,c)+'<circle cx="'+x+'" cy="'+(y+20)+'" r="10" fill="#fff" stroke="'+c+'" stroke-width="1.6"/>'+L(x-7,y+13,x+7,y+27,c,1.3)+L(x+7,y+13,x-7,y+27,c,1.3)+L(x,y+30,x,y+40,c)+T(x+14,y+24,tag,9,c,'start',700);}
+function pBrk(xs,y,tag){var s='';xs.forEach(function(x,i){s+=L(x,y,x,y+12)+L(x,y+28,x,y+40)+L(x,y+28,x-9,y+13)+L(x-3,y+9,x+3,y+15,DS.st,1.4)+L(x+3,y+9,x-3,y+15,DS.st,1.4);
+  s+=T(x+3,y+8,['1','3','5'][i],6.5,'#5f6b80','start')+T(x+3,y+39,['2','4','6'][i],6.5,'#5f6b80','start');});
+  s+=L(xs[0]-5,y+20,xs[2]-4,y+20,DS.st,1,'2 2')+T(xs[0]-12,y+24,tag,8.5,DS.st,'end',700);return s;}
+function pK(xs,y,tag,c){c=c||DS.st;var s='';xs.forEach(function(x,i){s+=L(x,y,x,y+12,c)+'<path d="M'+(x-4)+' '+(y+12)+' a4 4 0 0 0 8 0" fill="none" stroke="'+c+'" stroke-width="1.3"/>'+L(x,y+28,x,y+40,c)+L(x,y+28,x-9,y+13,c);
+  s+=T(x+3,y+8,['1','3','5'][i],6.5,'#5f6b80','start')+T(x+3,y+39,['2','4','6'][i],6.5,'#5f6b80','start');});
+  s+=L(xs[0]-5,y+20,xs[2]-4,y+20,c,1,'2 2')+T(xs[0]-12,y+24,tag,8.5,c,'end',700);return s;}
+function pOL(xs,y,tag){var s='<rect x="'+(xs[0]-8)+'" y="'+(y+8)+'" width="'+(xs[2]-xs[0]+16)+'" height="22" fill="#fff" stroke="'+DS.st+'" stroke-width="1.5"/>';
+  xs.forEach(function(x){s+=L(x,y,x,y+8)+'<path d="M'+(x-4)+' '+(y+24)+' v-8 h8 v8" fill="none" stroke="'+DS.st+'" stroke-width="1.2"/>'+L(x,y+30,x,y+40);});
+  return s+T(xs[0]-12,y+23,tag,8.5,DS.st,'end',700);}
+function pMotor(x,y,lab){return '<circle cx="'+x+'" cy="'+y+'" r="20" fill="#fff" stroke="'+DS.st+'" stroke-width="1.8"/>'+T(x,y-1,'M',11,DS.st,'middle',700)+T(x,y+10,'3~',8,DS.st)+(lab?T(x,y+32,lab,7.5,'#5f6b80'):'');}
+function phaseHead(xs,y){var s='',cs=['#8b4513','#1d1d1d','#9aa0a6'];['L1','L2','L3'].forEach(function(p,i){s+=T(xs[i],y,p,8.5,cs[i],'middle',700);});return s;}
+function svgWrap(h,w,body){return '<svg viewBox="0 0 '+(w||380)+' '+h+'" xmlns="http://www.w3.org/2000/svg">'+body+'</svg>';}
+function ctlDOL(ox,lamp,grey){
+  var c=grey?'#9aa5b4':null,s='';var X=ox,Y=30;
+  s+=L(X-30,Y,X+(lamp?130:70),Y,c,2)+T(X-30,Y-6,'L1 (Q1:2)',8,'#8b4513','start',600);
+  s+=sNC(X,Y,'F3',95,96,'ol',c)+sNC(X,Y+42,'S0',11,12,'pb',c);
+  s+=L(X,Y+82,X,Y+90,c)+dot(X,Y+90)+L(X,Y+90,X+40,Y+90,c);
+  s+=sNO(X,Y+90,'S1',13,14,'pb',c)+sNO(X+40,Y+90,'K1',13,14,null,c);
+  s+=L(X+40,Y+130,X+40,Y+138,c)+L(X,Y+130,X,Y+138,c)+L(X,Y+138,X+40,Y+138,c)+dot(X,Y+138);
+  s+=sCoil(X,Y+150,'K1',c)+L(X,Y+138,X,Y+150,c);
+  if(lamp){s+=L(X+40,Y+138,X+100,Y+138,c)+L(X+100,Y+138,X+100,Y+150,c)+sLamp(X+100,Y+150,'H1',c)+L(X+100,Y+190,X+100,Y+202,c);}
+  s+=L(X,Y+190,X,Y+202,c)+L(X-30,Y+202,X+(lamp?130:70),Y+202,c,2)+T(X-30,Y+214,'N',8.5,'#2f80ed','start',700);
+  if(grey)s+=T(X+20,Y+226,'(วงจรควบคุมต่อไว้แล้ว)',7.5,'#9aa5b4');
+  return s;
+}
+function powDOL(xs,y0){var s=phaseHead(xs,y0)+'';
+  xs.forEach(function(x){s+=L(x,y0+4,x,y0+14);});
+  s+=pBrk(xs,y0+14,'Q1');xs.forEach(function(x){s+=L(x,y0+54,x,y0+66);});
+  s+=pK(xs,y0+66,'K1');xs.forEach(function(x){s+=L(x,y0+106,x,y0+116);});
+  s+=pOL(xs,y0+116,'F3');xs.forEach(function(x,i){s+=L(x,y0+156,x,y0+170)+T(x+3,y0+168,['U1','V1','W1'][i],6.5,'#5f6b80','start');});
+  s+=L(xs[0],y0+170,xs[1]-8,y0+186)+L(xs[1],y0+170,xs[1],y0+184)+L(xs[2],y0+170,xs[1]+8,y0+186)+pMotor(xs[1],y0+204,'7.5 kW 400V Δ');
+  s+=L(xs[1]+20,y0+204,xs[2]+22,y0+204,'#2e9e3e',1.6,'4 2')+T(xs[2]+24,y0+207,'PE',7.5,'#2e9e3e','start',700);
+  return s;}
+var DIAG=[
+  function(){return svgWrap(270,380,powDOL([60,82,104],14)+ctlDOL(250,false,true)+T(82,262,'วงจรกำลัง (ต่อด่านนี้)',8.5,'#3f51b5','middle',700));},
+  function(){var s=powDOL([42,62,82],14);s=s.replace(/stroke="#213047"/g,'stroke="#9aa5b4"');return svgWrap(270,380,s+T(62,262,'(กำลังต่อไว้แล้ว)',7.5,'#9aa5b4')+ctlDOL(200,true,false)+T(260,262,'วงจรควบคุม 230 V (ต่อด่านนี้)',8.5,'#3f51b5','middle',700));},
+  function(){
+    var s='',a=[34,52,70],b=[108,126,144],y0=14;
+    s+=phaseHead(a,y0);a.forEach(function(x){s+=L(x,y0+4,x,y0+14);});s+=pBrk(a,y0+14,'Q1');
+    var yt=[y0+60,y0+64,y0+68];
+    a.forEach(function(x,i){s+=L(x,y0+54,x,y0+76)+dot(x,yt[i])+L(x,yt[i],b[i],yt[i])+L(b[i],yt[i],b[i],y0+76);});
+    s+=pK(a,y0+76,'K1')+pK(b,y0+76,'K2');
+    /* K2 output crossing L1↔L3 */
+    var yo=y0+116,yj=[y0+150,y0+146,y0+142];
+    a.forEach(function(x){s+=L(x,yo,x,y0+160);});
+    s+=L(b[0],yo,b[0],y0+124)+L(b[0],y0+124,b[2],y0+132)+L(b[2],y0+132,b[2],yj[2])+L(b[2],yj[2],a[2],yj[2])+dot(a[2],yj[2]);
+    s+=L(b[2],yo,b[2],y0+124)+L(b[2],y0+124,b[0],y0+132)+L(b[0],y0+132,b[0],yj[0])+L(b[0],yj[0],a[0],yj[0])+dot(a[0],yj[0]);
+    s+=L(b[1],yo,b[1],yj[1])+L(b[1],yj[1],a[1],yj[1])+dot(a[1],yj[1]);
+    s+=T(b[1],y0+164,'สลับ L1↔L3',7.5,'#c62828','middle',600);
+    s+=pOL(a,y0+160,'F3');a.forEach(function(x,i){s+=L(x,y0+200,x,y0+210);});
+    s+=L(a[0],y0+210,a[1]-8,y0+226)+L(a[1],y0+210,a[1],y0+224)+L(a[2],y0+210,a[1]+8,y0+226)+pMotor(a[1],y0+244,'U1 V1 W1');
+    /* control */
+    var X=228,Y=30,c=null;
+    s+=L(X-20,Y,X+130,Y,c,2)+T(X-20,Y-6,'L1 (Q1:2)',8,'#8b4513','start',600);
+    s+=sNC(X,Y,'F3',95,96,'ol')+sNC(X,Y+42,'S0',11,12,'pb');
+    s+=L(X,Y+82,X,Y+88)+dot(X,Y+88)+L(X,Y+88,X+90,Y+88);
+    var c1=X,c2=X+90;
+    s+=sNO(c1,Y+88,'S1',13,14,'pb')+sNO(c1+34,Y+88,'',13,14)+T(c1+40,Y+112,'K1',8,DS.st,'start',600);
+    s+=L(c1,Y+88,c1+34,Y+88)+L(c1,Y+128,c1+34,Y+128)+dot(c1,Y+128);
+    s+=sNC(c1,Y+128,'K2',21,22)+sCoil(c1,Y+170,'K1');
+    s+=sNO(c2,Y+88,'S2',13,14,'pb')+sNO(c2+34,Y+88,'',13,14)+T(c2+40,Y+112,'K2',8,DS.st,'start',600);
+    s+=L(c2,Y+88,c2+34,Y+88)+L(c2,Y+128,c2+34,Y+128)+dot(c2,Y+128);
+    s+=sNC(c2,Y+128,'K1',21,22)+sCoil(c2,Y+170,'K2');
+    s+=L(c1,Y+210,c1,Y+218)+L(c2,Y+210,c2,Y+218)+L(X-20,Y+218,X+130,Y+218,null,2)+T(X-20,Y+230,'N',8.5,'#2f80ed','start',700);
+    s+=T(c1+40,Y+150,'interlock',7,'#c62828','start')+T(c2+40,Y+150,'interlock',7,'#c62828','start');
+    return svgWrap(280,380,s);},
+  function(){
+    var s='',a=[28,44,60],y0=12;
+    s+=phaseHead(a,y0);a.forEach(function(x){s+=L(x,y0+4,x,y0+12);});s+=pBrk(a,y0+12,'Q1');
+    var d=[100,116,132],yt=[y0+58,y0+62,y0+66];
+    a.forEach(function(x,i){s+=L(x,y0+52,x,y0+72)+dot(x,yt[i])+L(x,yt[i],d[i],yt[i])+L(d[i],yt[i],d[i],y0+72);});
+    s+=pK(a,y0+72,'K1')+pK(d,y0+72,'K2');
+    a.forEach(function(x){s+=L(x,y0+112,x,y0+120);});s+=pOL(a,y0+120,'F3');
+    /* motor box */
+    var my=y0+176;s+='<rect x="18" y="'+my+'" width="130" height="58" rx="6" fill="#fff" stroke="'+DS.st+'" stroke-width="1.5"/>'+T(83,my+33,'M 3~ (6 ขั้ว)',8,DS.st,'middle',700);
+    a.forEach(function(x,i){s+=L(x,y0+160,x,my)+T(x,my+10,['U1','V1','W1'][i],7,'#213047','middle',600);});
+    var dl=['W2','U2','V2'];d.forEach(function(x,i){s+=L(x,y0+112,x,my)+T(x,my+10,dl[i],7,'#c62828','middle',700);});
+    s+=T(140,y0+144,'K2:2→W2',6.8,'#c62828','start',600)+T(140,y0+153,'K2:4→U2',6.8,'#c62828','start',600)+T(140,y0+162,'K2:6→V2',6.8,'#c62828','start',600);
+    var sx=[50,72,94],ky=my+58;
+    ['U2','V2','W2'].forEach(function(p,i){s+=T(sx[i],my+54,p,7,'#5f6b80')+L(sx[i],ky,sx[i],ky+10);});
+    s+=pK(sx,ky+10,'K3');s+=L(sx[0],ky+50,sx[2],ky+50)+dot(sx[1],ky+50)+L(sx[1],ky+50,sx[1],ky+56)+T(sx[2]+8,ky+53,'จุดสตาร์',7,'#5f6b80','start');
+    /* control */
+    var X=204,Y=26;
+    s+=L(X-20,Y,X+160,Y,null,2)+T(X-20,Y-6,'L1 (Q1:2)',8,'#8b4513','start',600);
+    s+=sNC(X,Y,'F3',95,96,'ol')+sNC(X,Y+42,'S0',11,12,'pb');
+    s+=L(X,Y+82,X,Y+86)+dot(X,Y+86)+L(X,Y+86,X+34,Y+86);
+    s+=sNO(X,Y+86,'S1',13,14,'pb')+sNO(X+34,Y+86,'',13,14)+T(X+40,Y+110,'K1',8,DS.st,'start',600);
+    s+=L(X,Y+126,X+34,Y+126)+L(X,Y+126,X,Y+134)+dot(X,Y+134)+L(X,Y+134,X+142,Y+134);
+    var cK1=X,cKT=X+44,cY=X+96,cD=X+142;
+    s+=L(cK1,Y+134,cK1,Y+216)+sCoil(cK1,Y+216,'K1');
+    s+=L(cKT,Y+134,cKT,Y+216)+sCoil(cKT,Y+216,'KT','#00838f','t');
+    s+=sNC(cY,Y+134,'KT',15,16,'t')+sNC(cY,Y+175,'K2',21,22)+L(cY,Y+215,cY,Y+216)+sCoil(cY,Y+216,'K3');
+    s+=sNO(cD,Y+134,'KT',15,18,'t')+sNC(cD,Y+175,'K3',21,22)+L(cD,Y+215,cD,Y+216)+sCoil(cD,Y+216,'K2');
+    [cK1,cKT,cY,cD].forEach(function(x){s+=L(x,Y+256,x,Y+264);});
+    s+=L(X-20,Y+264,X+160,Y+264,null,2)+T(X-20,Y+276,'N',8.5,'#2f80ed','start',700);
+    s+=T(cY,Y+290,'Y (สตาร์)',7.5,'#3f51b5')+T(cD,Y+290,'Δ (เดลต้า)',7.5,'#3f51b5')+T(cKT,Y+290,'5 s',7.5,'#00838f');
+    return svgWrap(330,380,s);},
+  function(){return svgWrap(270,380,powDOL([42,62,82],14)+ctlDOL(200,true,false)+T(190,262,'แบบที่ถูกต้อง — เทียบกับสายในตู้',8.5,'#3f51b5','middle',700));}
+];
+
+/* ───────── คู่มือวิธีเล่น ───────── */
+var HELP=[
+ {txt:'① ภารกิจ: ต่อสายในตู้ให้มอเตอร์ 3 เฟสสตาร์ท-หยุด-กลับทาง ได้ถูกตามแบบ',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#4a5262"/><rect x="10" y="10" width="200" height="140" rx="8" fill="#c9cfd8"/>'+
+   '<rect x="24" y="24" width="70" height="56" rx="6" fill="#eef1f5" stroke="#59626f" stroke-width="2"/><rect x="24" y="24" width="70" height="12" fill="#3b4350"/><rect x="44" y="58" width="30" height="8" rx="2" fill="#1d2330"/><rect class="tK" x="47" y="56" width="24" height="5" rx="1" fill="#1fb45f"/>'+
+   '<text x="59" y="52" font-size="11" text-anchor="middle" font-weight="700" font-family="Mitr,sans-serif">K1</text>'+
+   '<circle cx="140" cy="50" r="15" fill="#4a5262"/><circle cx="140" cy="50" r="11" fill="#22a447"/><circle cx="178" cy="50" r="15" fill="#4a5262"/><circle cx="178" cy="50" r="11" fill="#e53935"/>'+
+   '<path d="M40 80 C40 120 200 100 250 100" stroke="#8b4513" stroke-width="4" fill="none"/><path class="flow" d="M40 80 C40 120 200 100 250 100"/>'+
+   '<circle cx="280" cy="90" r="40" fill="#3f6fb0"/><circle cx="280" cy="90" r="26" fill="#dfe8f5"/><g class="tSpin"><path d="M280 90 L274 68 Q280 63 287 69Z" fill="#ff8f1c"/><path d="M280 90 L302 84 Q307 90 301 97Z" fill="#ff8f1c"/><path d="M280 90 L286 112 Q280 117 273 111Z" fill="#ff8f1c"/><path d="M280 90 L258 96 Q253 90 259 83Z" fill="#ff8f1c"/></g></svg>'},
+ {txt:'② แตะขั้วต้น (วงฟ้ากะพริบ) → แตะขั้วปลาย = ได้สาย 1 เส้น · แตะที่สายเพื่อเลือก แล้วกด 🗑 ลบ',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#c9cfd8"/><rect x="40" y="30" width="80" height="40" rx="6" fill="#3b4350"/><rect x="190" y="90" width="110" height="40" rx="6" fill="#3b4350"/>'+
+   '<path class="tWire" d="M80 50 C80 110 245 40 245 110" stroke="#8b4513" stroke-width="5" fill="none"/>'+
+   '<circle cx="80" cy="50" r="9" fill="#d8a948" stroke="#6b4f1d" stroke-width="2"/><circle cx="245" cy="110" r="9" fill="#d8a948" stroke="#6b4f1d" stroke-width="2"/>'+
+   '<circle cx="80" cy="50" r="13" fill="none" stroke="#00e5ff" stroke-width="3"/>'+
+   '<text x="80" y="24" font-size="11" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600">Q1:2</text><text x="245" y="150" font-size="11" text-anchor="middle" font-family="Mitr,sans-serif" font-weight="600">K1:1</text>'+
+   '<g class="tFinger"><g transform="translate(86 50) scale(.9)"><path d="M0 0 l8 22 l4 -8 l9 9 l5 -5 l-9 -9 l8 -4 z" fill="#fff" stroke="#213047" stroke-width="2"/></g></g></svg>'},
+ {txt:'③ เลือกสีสายก่อนต่อ: L1 น้ำตาล · L2 ดำ · L3 เทา · N ฟ้า · PE เขียว-เหลือง (มอก. 11 / IEC)',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#eef3fb"/>'+
+   '<rect x="14" y="40" width="54" height="22" rx="8" fill="#8b4513"/><rect x="76" y="40" width="54" height="22" rx="8" fill="#1d1d1d"/><rect x="138" y="40" width="54" height="22" rx="8" fill="#9aa0a6"/><rect x="200" y="40" width="54" height="22" rx="8" fill="#2f80ed"/>'+
+   '<rect x="262" y="40" width="54" height="22" rx="8" fill="#2e9e3e"/><rect x="270" y="40" width="9" height="22" fill="#ffd23f"/><rect x="290" y="40" width="9" height="22" fill="#ffd23f"/>'+
+   '<g font-size="12" font-family="Mitr,sans-serif" font-weight="600" text-anchor="middle"><text x="41" y="84">L1</text><text x="103" y="84">L2</text><text x="165" y="84">L3</text><text x="227" y="84">N</text><text x="289" y="84">PE</text></g>'+
+   '<rect class="tRing" x="10" y="34" width="62" height="34" rx="10" fill="none" stroke="#00acc1" stroke-width="4"/>'+
+   '<path d="M20 120 H320" stroke="#8b4513" stroke-width="5"/><path d="M20 132 H320" stroke="#1d1d1d" stroke-width="5"/><path d="M20 144 H320" stroke="#9aa0a6" stroke-width="5"/></svg>'},
+ {txt:'④ กด 📋 ดูแบบวงจร (ladder) — เลขขั้วในแบบตรงกับเลขขั้วบนอุปกรณ์ในตู้ ต่อตามทีละเส้น',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#fbfcff" stroke="#e3e8f2"/>'+
+   '<line x1="60" y1="20" x2="280" y2="20" stroke="#213047" stroke-width="2"/><line x1="60" y1="140" x2="280" y2="140" stroke="#213047" stroke-width="2"/>'+
+   '<line x1="150" y1="20" x2="150" y2="44" stroke="#213047" stroke-width="2"/><line x1="150" y1="44" x2="160" y2="44" stroke="#213047" stroke-width="2"/><line x1="150" y1="60" x2="162" y2="42" stroke="#213047" stroke-width="2"/>'+
+   '<line x1="150" y1="60" x2="150" y2="74" stroke="#213047" stroke-width="2"/><line x1="150" y1="74" x2="141" y2="88" stroke="#213047" stroke-width="2"/><line x1="150" y1="90" x2="150" y2="100" stroke="#213047" stroke-width="2"/>'+
+   '<rect x="138" y="100" width="24" height="26" fill="#fff" stroke="#213047" stroke-width="2"/><line x1="150" y1="126" x2="150" y2="140" stroke="#213047" stroke-width="2"/>'+
+   '<text x="172" y="54" font-size="11" font-family="Mitr,sans-serif">S0 11-12</text><text x="172" y="86" font-size="11" font-family="Mitr,sans-serif">S1 13-14</text><text x="172" y="118" font-size="11" font-family="Mitr,sans-serif" font-weight="700">K1 A1-A2</text>'+
+   '<text x="40" y="24" font-size="11" font-family="Mitr,sans-serif" fill="#8b4513" font-weight="700">L1</text><text x="44" y="144" font-size="11" font-family="Mitr,sans-serif" fill="#2f80ed" font-weight="700">N</text>'+
+   '<g class="tHi"><circle cx="150" cy="26" r="7" fill="#ffd23f" opacity=".8"/></g></svg>'},
+ {txt:'⑤ กด ⚡ ทดสอบจ่ายไฟ → ดูกระแสไหล คอนแทคเตอร์ดีด มอเตอร์หมุน แล้วอ่าน ✅/❌ + เฉลยว่าผิดตรงไหน',
+  svg:'<svg viewBox="0 0 340 160"><rect width="340" height="160" rx="12" fill="#eef3fb"/>'+
+   '<g class="tPulse"><rect x="20" y="58" width="120" height="44" rx="22" fill="#ef4b4b"/><text x="80" y="86" font-size="14" text-anchor="middle" fill="#fff" font-weight="700" font-family="Mitr,sans-serif">⚡ ทดสอบ</text></g>'+
+   '<g font-size="13" font-family="Mitr,sans-serif" font-weight="500"><g class="tPop"><rect x="160" y="22" width="166" height="28" rx="8" fill="#e6f7ed"/><text x="170" y="41">✅ K1 ติด → มอเตอร์หมุน</text></g>'+
+   '<g class="tPop" style="animation-delay:.4s"><rect x="160" y="58" width="166" height="28" rx="8" fill="#e6f7ed"/><text x="170" y="77">✅ ปล่อย Start ยังเดิน</text></g>'+
+   '<g class="tPop" style="animation-delay:.8s"><rect x="160" y="94" width="166" height="28" rx="8" fill="#ffe9e9"/><text x="170" y="113">❌ สีสายผิด 1 เส้น</text></g></g>'+
+   '<text x="170" y="148" font-size="11" text-anchor="middle" fill="#5f6b80" font-family="Mitr,sans-serif">ผ่านครั้งแรก = ⭐⭐⭐ · ภายใน 3 ครั้ง = ⭐⭐</text></svg>'}
+];
+var helpPg=0;
+function renderHelp(){$('helpStage').innerHTML=HELP[helpPg].svg;$('helpTxt').textContent=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';$('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){$('helpOv').classList.remove('show');markSeen();
+  if(start&&$('startOv').classList.contains('show')){$('startOv').classList.remove('show');startLevel(pickNext());}}
+
+/* ───────── ปุ่ม ───────── */
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn2').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('homeBtn').addEventListener('click',function(){sClick();if(G.mode==='live')exitLive();buildLvlPick();$('startOv').classList.add('show');});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(!sndOn)hum(false);else sClick();});
+$('fxBtn').addEventListener('click',function(){sClick();var h='';
+  for(var k in G.lastPeaks)h+='<div><span>ด่าน '+(+k+1)+' กระแสสตาร์ทวัดได้</span><b>'+G.lastPeaks[k].toFixed(1)+' A ('+(G.lastPeaks[k]/P.In).toFixed(2)+'×In)</b></div>';
+  $('fxLive').innerHTML=h;$('fxOv').classList.add('show');});
+$('fxClose').addEventListener('click',function(){$('fxOv').classList.remove('show');});
+$('undoBtn').addEventListener('click',function(){if(G.mode!=='wire'||!G.undo.length)return;G.player=JSON.parse(G.undo.pop());G.selW=-1;G.res=null;sClick();renderWires();});
+$('delBtn').addEventListener('click',function(){if(G.mode!=='wire'||G.selW<0)return;var pi=G.selW-LV[G.li].pre.length;if(pi<0)return;pushUndo();G.player.splice(pi,1);G.selW=-1;G.res=null;sClick();renderWires();toast('ลบสายแล้ว');});
+$('clrBtn').addEventListener('click',function(){if(G.mode!=='wire'||!G.player.length)return;pushUndo();G.player=[];G.selW=-1;G.res=null;sClick();renderWires();toast('ล้างสายที่ต่อทั้งหมด (กด ↶ ย้อนได้)');});
+$('diagBtn').addEventListener('click',function(){G.showDiag=!G.showDiag;this.classList.toggle('on',G.showDiag);$('diagPanel').style.display=G.showDiag?'block':'none';sClick();});
+$('zoomBtn').addEventListener('click',function(){var w=$('sceneWrap');w.classList.toggle('zoom');this.classList.toggle('on',w.classList.contains('zoom'));sClick();});
+$('testBtn').addEventListener('click',function(){
+  if(G.mode==='play'){skipPlayback();return;}
+  if(G.mode==='live'){exitLive();}
+  if(G.mode==='done'){G.mode='wire';resetStateView();}
+  startTest();});
+$('fixBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');
+  if(G.res&&G.res.pass){startLevel(G.li);return;}
+  G.mode='wire';setModeUI();resetStateView();renderWires();
+  if(G.res&&G.res.badWires.length)toast('สายที่กะพริบแดง = สีผิดมาตรฐาน',2600);});
+$('nextBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');if(G.li<4)startLevel(G.li+1);else showEnd();});
+$('liveBtn').addEventListener('click',function(){startLive();});
+$('jamBtn').addEventListener('click',function(){if(G.LS){G.LS.jam=!G.LS.jam;sClick();toast(G.LS.jam?'🔩 เพลาติด! กระแสพุ่ง — ดู OL ตัดภายใน ~7 วินาที':'ปลดเพลาแล้ว');}});
+$('olBtn').addEventListener('click',function(){if(G.LS){G.LS.ol.trip=true;sClick();toast('⚠ จำลอง OL ทริป (95-96 เปิด) — แตะปุ่ม R บน F3 เพื่อรีเซ็ต');}});
+$('exitLiveBtn').addEventListener('click',function(){sClick();exitLive();});
+$('endHome').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('endReplay').addEventListener('click',function(){$('endOv').classList.remove('show');startLevel(0);});
+
+/* ───────── loop ───────── */
+var lastTs=0;
+function loop(ts){if(!lastTs)lastTs=ts;var dt=Math.min(0.05,(ts-lastTs)/1000);lastTs=ts;
+  if(G.mode==='play'&&G.PB)stepPlayback(dt);
+  else if(G.mode==='live'&&G.LS)stepLive(dt);
+  requestAnimationFrame(loop);}
+
+/* ───────── QA hook ───────── */
+window.TES={LV:LV,P:P,G:G,runScenario:runScenario,colorCheck:colorCheck,faultWires:faultWires,FAULTS:FAULTS,BASE5:BASE5,W:W,newSim:newSim,simStep:simStep,
+  startLevel:startLevel,setPlayer:function(ws){G.player=ws.map(function(w){return W(w.a,w.b,w.c);});G.res=null;renderWires();},
+  test:startTest,skip:skipPlayback,stars:stars,linePU:linePU,Tk:Tk,startLive:startLive};
+
+/* ───────── init ───────── */
+loadStars();updateStarTotal();buildLvlPick();buildSwatches();
+startLevel(0);$('startOv').classList.add('show');
+requestAnimationFrame(loop);
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

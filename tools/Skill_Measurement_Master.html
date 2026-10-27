@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ช่างวัดมือทอง — Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "ช่างวัดมือทอง" (Measurement Master) v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: ช่าง ปวช./ปวส.
+     หลักที่สอน: การตรวจวัดภาคสนาม — เลือกเครื่องมือถูกชนิด + วัดถูกจุด + ตั้งค่าถูก ไม่งั้นได้ตัวเลขเพี้ยน
+     กลไก: ① ลากเครื่องมือ ② วางลงจุดวัด ③ ตั้งค่า ④ อ่านค่าจอ (ตัวเลขวิ่งแล้วนิ่ง) ⑤ บันทึกผล → หน้าเฉลยรายข้อ
+     ฟิสิกส์/สูตรเบื้องหลัง:
+       ด่าน 1 มอเตอร์ 3 เฟส : P = √3·V_LL·I·cosφ = Σ V_LN·I_k·PF  (V 400 V, I 69.2/66.8/68.9 A, PF 0.84 → 39.7 kW)
+               แคลมป์เฟสเดียว √3·V·I (ลืม PF) = 47.9 → สูงเกิน ~21 % · ตั้ง 1 เฟส ได้ ~1/3 · CT กลับด้าน → กำลังหักล้าง/ติดลบ
+       ด่าน 2 ไอเสีย : Siegert qA = (Tg − Ta)·(A2/(21 − O₂) + B) [น้ำมันเตา A2 0.68, B 0.007, CO₂max 15.8 %; NG A2 0.66, B 0.009, CO₂max 11.7 %]
+               Excess air = O₂/(21 − O₂)×100 · λ = 21/(21 − O₂) · tramp air ผสมแบบสัดส่วนปริมาตร: O₂mix = (1−f)·O₂ + 21f, Tmix = (1−f)·Tg + f·Ta
+       ด่าน 3 IR gun : T_read⁴ = (ε_true/ε_set)·(T_true⁴ − T_amb⁴) + T_amb⁴  (เคลวิน, reflected T = T_amb)
+               สแตนเลสเงา ε 0.2 จริง 150 °C ตั้ง ε 0.95 (T_amb 30 °C) → อ่าน ≈ 67 °C
+       ด่าน 4 พิโตต์ : v = √(2ΔP/ρ), ρ = 1.16 kg/m³ (30 °C) · โปรไฟล์ 1/7 power law v_max = v_avg/0.817 (กลางท่อสูงกว่าเฉลี่ย ~22 %)
+               traverse equal-area 2 แนว × 4 จุด (r/R = 0.5, 0.866) · ระยะตรง ≥ 7.5D ต้นน้ำ / ≥ 3D ท้ายน้ำ
+       ด่าน 5 อัลตราโซนิก : Q = v·πD_i²/4 · DN100 Sch40 OD 114.3 × 6.02 → ID 102.26 mm · Q จริง 50.0 m³/h (v 1.69 m/s)
+               แบบง่าย: Q_read = v_meas·A(ID ที่กรอก) · ท่อตรง ≥ 10D ต้นน้ำ ≥ 5D ท้ายน้ำ · ติดด้านข้าง 3/9 นาฬิกา
+     ดาว: ทำถูกทุกขั้นครั้งแรก = 3 · ผิดรวม 1 จุด = 2 · มากกว่านั้น = 1 · localStorage te_skill_measure_stars / _seen -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --mid:#f5a623; --warn:#f5a623; --bad:#ef4b4b;
+  --ind:#3f51b5; --cy:#00acc1;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#1f2d4a,#17223a 55%,#111a2d);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none; -webkit-user-select:none;
+}
+#app{width:100%;max-width:1080px;padding:10px 12px 22px;display:flex;flex-direction:column;gap:10px}
+#main{display:flex;flex-direction:column;gap:10px}
+#left{display:flex;flex-direction:column;gap:10px;min-width:0}
+@media (min-width:900px){
+  #main{display:grid;grid-template-columns:1.45fr 1fr;gap:12px;align-items:start}
+}
+
+/* HUD */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.93);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hud .lvl-name{font-weight:600;font-size:1rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 9px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:40px}
+#hud button.on{background:#213047;color:#fff}
+
+/* Task card */
+#task{background:#fff;border-radius:18px;padding:9px 12px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#taskTxt{font-weight:600;font-size:1rem;line-height:1.4}
+#taskTxt em{font-style:normal;color:var(--ind);background:#e8ebfb;border-radius:8px;padding:0 6px}
+#taskInfo{font-size:.8rem;color:#5a6b82;margin-top:3px;line-height:1.4}
+#steps{display:flex;gap:4px;margin-top:7px}
+#steps span{flex:1;text-align:center;font-size:.72rem;font-weight:600;background:#eef2f8;color:#8a97ab;border-radius:999px;padding:4px 2px;white-space:nowrap;transition:background .2s,color .2s}
+#steps span.on{background:var(--btn-grad);color:#fff}
+#steps span.done{background:#d9f3e4;color:#1a8a4b}
+
+/* Scene */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4);background:#26334a;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto;touch-action:manipulation}
+#hint{display:block;background:#0f1626;color:#e8eefc;padding:6px 12px;font-size:.86rem;text-align:center;line-height:1.4;min-height:2.1em;pointer-events:none;transition:opacity .25s}
+.hs{cursor:pointer}
+.hs .ring{fill:rgba(255,210,63,.18);stroke:#ffd23f;stroke-width:4;stroke-dasharray:9 6;transform-box:fill-box;transform-origin:center;animation:hsPulse 1.6s ease-in-out infinite}
+.hs .hit{fill:transparent}
+.hs .badge{fill:#ffd23f;stroke:#7a5b00;stroke-width:2}
+.hs .bl{font-size:17px;font-weight:700;fill:#213047;font-family:Mitr,sans-serif}
+.hs.over .ring,.hs.picked .ring{fill:rgba(0,172,193,.35);stroke:#00e5ff;stroke-dasharray:none}
+.hlab rect{fill:rgba(12,18,32,.82);stroke:#ffd23f;stroke-width:1.5}
+.hlab text{font-size:18px;fill:#fff;font-family:Mitr,sans-serif;font-weight:500}
+@keyframes hsPulse{0%,100%{transform:scale(.88)}50%{transform:scale(1.06)}}
+#placed .drop{animation:dropIn .35s cubic-bezier(.34,1.56,.64,1)}
+@keyframes dropIn{0%{transform:translateY(-40px);opacity:0}100%{transform:translateY(0);opacity:1}}
+
+/* scene anims */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{transform-box:fill-box;transform-origin:center;animation:spin .6s linear infinite}
+.spinS{transform-box:fill-box;transform-origin:center;animation:spin 1.4s linear infinite}
+@keyframes stripe{to{transform:translateY(-24px)}}
+.stripes{animation:stripe .25s linear infinite}
+@keyframes riseSm{0%{transform:translateY(0) scale(.6);opacity:.85}100%{transform:translateY(-58px) scale(1.5);opacity:0}}
+.plume{transform-box:fill-box;transform-origin:center;animation:riseSm 2.4s linear infinite}
+@keyframes ductPuff{0%{transform:translateX(0);opacity:0}15%{opacity:.75}85%{opacity:.75}100%{transform:translateX(150px);opacity:0}}
+.dPuff{animation:ductPuff 2s linear infinite}
+@keyframes suck{0%{transform:translate(0,0);opacity:0}25%{opacity:1}100%{transform:translate(0,-34px);opacity:0}}
+.suck{animation:suck 1.2s ease-in infinite}
+@keyframes flick{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.15)}}
+.flick{transform-box:fill-box;transform-origin:center bottom;animation:flick .45s ease-in-out infinite}
+@keyframes heat{0%{transform:translateY(0);opacity:0}30%{opacity:.85}100%{transform:translateY(-46px);opacity:0}}
+.heatL{animation:heat 1.6s ease-out infinite}
+@keyframes airFlow{0%{transform:translateX(0)}100%{transform:translateX(120px)}}
+.air{animation:airFlow .9s linear infinite}
+@keyframes waterDash{to{stroke-dashoffset:-60}}
+.water{animation:waterDash .7s linear infinite}
+@keyframes bub{0%{transform:translateX(0);opacity:0}10%{opacity:.95}90%{opacity:.95}100%{transform:translateX(440px);opacity:0}}
+.bub{animation:bub 4s linear infinite}
+@keyframes sedi{0%{transform:translateX(0)}100%{transform:translateX(30px)}}
+.sedi{animation:sedi 6s ease-in-out infinite alternate}
+@keyframes hum{0%,100%{opacity:.15}50%{opacity:.8}}
+.hum{animation:hum .5s linear infinite}
+@keyframes beam{0%,100%{opacity:.35}50%{opacity:1}}
+.beam{animation:beam .6s linear infinite}
+
+/* Panel */
+#panel{background:#fff;border-radius:20px;padding:12px 14px 14px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:10px;min-width:0}
+.ph{font-weight:700;font-size:1rem;display:flex;align-items:center;gap:6px}
+.ph small{font-weight:500;color:#6a7a90;font-size:.8rem}
+#tray{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.tool{border:3px solid #e2e9f2;background:#f7fafd;border-radius:14px;padding:5px 3px 4px;display:flex;flex-direction:column;align-items:center;gap:1px;
+  cursor:grab;touch-action:none;min-height:74px;font-family:inherit;color:var(--ink);transition:border-color .15s,transform .1s}
+.tool svg{width:42px;height:42px;pointer-events:none}
+.tool span{font-size:.74rem;font-weight:600;line-height:1.15;text-align:center;pointer-events:none}
+.tool.sel{border-color:var(--ind);background:#e8ebfb;transform:scale(1.03)}
+#ghost{position:fixed;left:0;top:0;width:62px;height:62px;z-index:70;pointer-events:none;display:none;filter:drop-shadow(0 6px 8px rgba(0,0,0,.45))}
+.setRow{display:flex;flex-direction:column;gap:5px}
+.setRow .lb{font-weight:600;font-size:.92rem}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1 1 30%;min-height:44px;border:3px solid #dfe6f0;background:#f6f9fc;border-radius:12px;font-family:inherit;font-size:.84rem;font-weight:600;color:var(--ink);cursor:pointer;padding:4px 6px;line-height:1.2}
+.seg button.on{border-color:var(--ind);background:#e8ebfb;color:#2c3a9e}
+.epsBox{display:flex;align-items:center;gap:10px}
+.epsBox b{font-size:1.4rem;min-width:56px;text-align:right;color:var(--ind)}
+input[type=range]{flex:1;height:44px;appearance:none;-webkit-appearance:none;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:16px;border-radius:10px;background:linear-gradient(90deg,#cfd8e3,#3f51b5)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:38px;height:38px;border-radius:50%;margin-top:-11px;background:#fff;border:6px solid #3f51b5;box-shadow:0 3px 8px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:16px;border-radius:10px;background:linear-gradient(90deg,#cfd8e3,#3f51b5)}
+input[type=range]::-moz-range-thumb{width:32px;height:32px;border-radius:50%;background:#fff;border:6px solid #3f51b5}
+.where{font-size:.85rem;background:#f1f5fb;border-radius:12px;padding:6px 10px;line-height:1.45}
+.btnRow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.clockPick{display:flex;gap:6px}
+.clockPick button{flex:1;min-height:70px;border:3px solid #dfe6f0;background:#f6f9fc;border-radius:12px;font-family:inherit;font-size:.78rem;font-weight:600;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;padding:3px}
+.clockPick button.on{border-color:var(--ind);background:#e8ebfb}
+.clockPick svg{width:38px;height:38px}
+
+/* LCD */
+.meter{background:linear-gradient(180deg,#3a4150,#252b36);border-radius:18px;padding:10px;box-shadow:inset 0 2px 0 rgba(255,255,255,.15),0 4px 10px rgba(0,0,0,.25)}
+.meter .mt{display:flex;justify-content:space-between;align-items:center;color:#cfd8e6;font-size:.78rem;font-weight:600;margin-bottom:6px;padding:0 4px}
+.meter .mt i{font-style:normal;background:var(--mcol,#00acc1);color:#fff;border-radius:6px;padding:1px 7px}
+.lcd{background:linear-gradient(180deg,#0e2a24,#0a1f1a);border-radius:10px;padding:8px 12px;border:2px solid #061411;min-height:90px;
+  font-family:'Courier New',Consolas,monospace;color:#7dffc3;text-shadow:0 0 6px rgba(125,255,195,.55)}
+.lcd .ln{display:flex;justify-content:space-between;align-items:baseline;gap:8px;line-height:1.5}
+.lcd .ln .k{font-family:Mitr,sans-serif;font-size:.8rem;color:#9fe8c8;white-space:nowrap}
+.lcd .ln .v{font-size:1.18rem;font-weight:700;white-space:nowrap}
+.lcd .ln .v small{font-size:.75rem;margin-left:3px;color:#9fe8c8}
+.lcd .ln.big .v{font-size:1.65rem}
+.lcd .ln.arr .v{font-size:.92rem}
+.lcd .msg{font-family:Mitr,sans-serif;font-size:.85rem;color:#ffd28a;text-align:center;padding-top:4px}
+.lcd.warn{color:#ffd28a}
+@keyframes blinkW{0%,100%{opacity:1}50%{opacity:.35}}
+.lcd .flag{font-family:Mitr,sans-serif;font-size:.78rem;color:#ffb36b;animation:blinkW .8s infinite;text-align:right}
+.q{font-weight:600;font-size:.98rem;line-height:1.45;background:#fff6d9;border:2px dashed #ffd23f;border-radius:14px;padding:8px 12px}
+.opts{display:flex;flex-direction:column;gap:7px}
+.opts button{min-height:48px;border:3px solid #dfe6f0;background:#f7fafd;border-radius:14px;font-family:inherit;font-size:1rem;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;padding:6px 14px}
+.opts button:active{background:#e8ebfb}
+
+.big-btn{border:none;border-radius:999px;padding:13px 30px;font-family:inherit;font-size:1.12rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #2a3785,0 10px 18px rgba(0,0,0,.2);transition:transform .1s;min-height:48px}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #2a3785}
+.big-btn.alt{background:linear-gradient(135deg,#7f8ea6,#5d6d86);box-shadow:0 6px 0 #3d4a5e,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #3d4a5e}
+.big-btn.small{font-size:.98rem;padding:10px 20px}
+.big-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+/* Overlays */
+.overlay{position:fixed;inset:0;background:rgba(10,18,32,.68);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:26px;max-width:480px;width:100%;padding:20px 16px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.4);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.35rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:2.8rem;letter-spacing:6px;margin:4px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e8f6f9;border-left:5px solid #00acc1;border-radius:12px;padding:8px 12px;font-weight:600;margin:8px 0;font-size:.92rem;text-align:left;line-height:1.5}
+.cmp{display:flex;gap:6px;justify-content:center;margin:6px 0;flex-wrap:wrap}
+.cmp div{flex:1;min-width:110px;background:#f4f7fb;border-radius:12px;padding:6px 8px;font-size:.8rem;color:#5a6b82}
+.cmp b{display:block;font-size:1.15rem;color:var(--ink)}
+.cmp .dev b{color:var(--bad)}
+.cmp .dev.ok b{color:var(--good)}
+.chk{display:flex;flex-direction:column;gap:6px;text-align:left;margin:8px 0}
+.chk .r{display:flex;gap:8px;background:#f4f7fb;border-radius:12px;padding:7px 10px;font-size:.88rem;line-height:1.45}
+.chk .r .ic{font-size:1.1rem;flex:0 0 auto;width:24px;text-align:center}
+.chk .r.bad{background:#fdecec}
+.chk .r.ok{background:#e6f7ee}
+.chk .r b{display:block;font-size:.9rem}
+.lvl-pick{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:6px 6px;font-family:inherit;cursor:pointer;min-width:76px;min-height:64px;color:var(--ink)}
+.lvl-pick .nm{font-size:.76rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.78rem;letter-spacing:1px}
+#startCard h1{font-size:1.95rem;line-height:1.2;background:var(--btn-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .en{font-weight:600;color:#6a7a90;font-size:.95rem}
+#startCard .sub{color:#4d5d74;margin:6px 0 4px;font-size:.93rem;line-height:1.5}
+.tg{display:inline-block;background:#e8ebfb;color:#2c3a9e;border-radius:999px;padding:3px 12px;font-size:.84rem;font-weight:600;margin-top:4px}
+.brand{font-size:.78rem;color:#8795a8;margin-top:12px}
+#helpStage{background:#eef4fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:340px;height:auto}
+#helpTxt{font-size:.98rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd9e6}
+.dots i.on{background:var(--ind)}
+.help-nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.fx{text-align:left;font-size:.88rem;line-height:1.55}
+.fx h3{font-size:.98rem;margin:10px 0 3px;color:var(--ind)}
+.fx .f{font-family:'Courier New',monospace;background:#f1f5fb;border-radius:8px;padding:4px 8px;display:block;margin:3px 0;font-weight:700;font-size:.86rem;overflow-wrap:anywhere}
+.fx .ref{color:#6a7a90;font-size:.8rem}
+.fx .cur{outline:3px solid #00acc1;border-radius:12px;padding:2px 8px;background:#f2fbfd}
+.sumList{display:flex;flex-direction:column;gap:5px;text-align:left;margin:8px 0}
+.sumList div{background:#f4f7fb;border-radius:10px;padding:6px 10px;font-size:.86rem;line-height:1.4}
+.sumList b{color:#b8860b}
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* tutorial anims */
+@keyframes tDrag{0%,10%{transform:translate(0,0)}55%,75%{transform:translate(118px,-78px)}100%{transform:translate(118px,-78px);opacity:0}}
+.tDrag{animation:tDrag 2.8s ease-in-out infinite}
+@keyframes tDrop{0%,20%{transform:translateY(-50px);opacity:0}45%{transform:translateY(0);opacity:1}100%{transform:translateY(0);opacity:1}}
+.tDrop{animation:tDrop 2.6s ease-out infinite}
+@keyframes tPop{0%,50%{transform:scale(0)}65%{transform:scale(1.3)}75%,100%{transform:scale(1)}}
+.tPop{transform-box:fill-box;transform-origin:center;animation:tPop 2.6s ease-out infinite}
+@keyframes tKnob{0%,15%{transform:translateX(0)}60%,100%{transform:translateX(-170px)}}
+.tKnob{animation:tKnob 3s ease-in-out infinite}
+@keyframes tF1{0%,24%{opacity:1}25%,100%{opacity:0}}
+@keyframes tF2{0%,24%{opacity:0}25%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes tF3{0%,49%{opacity:0}50%,69%{opacity:1}70%,100%{opacity:0}}
+@keyframes tF4{0%,69%{opacity:0}70%,100%{opacity:1}}
+.tF1{animation:tF1 2.6s steps(1) infinite}.tF2{animation:tF2 2.6s steps(1) infinite}
+.tF3{animation:tF3 2.6s steps(1) infinite}.tF4{animation:tF4 2.6s steps(1) infinite}
+@keyframes tShow{0%{opacity:0}100%{opacity:1}}
+.tS1{animation:tShow .3s .4s both}.tS2{animation:tShow .3s 1s both}.tS3{animation:tShow .3s 1.6s both}.tS4{animation:tShow .3s 2.2s both}
+@keyframes tSeg{0%,45%{fill:#f6f9fc;stroke:#dfe6f0}50%,100%{fill:#e8ebfb;stroke:#3f51b5}}
+.tSeg{animation:tSeg 3s steps(1) infinite}
+
+@media (prefers-reduced-motion:reduce){
+  .hs .ring,#placed .drop,.spin,.spinS,.stripes,.plume,.dPuff,.suck,.flick,.heatL,.air,.water,.bub,.sedi,.hum,.beam,
+  .tDrag,.tDrop,.tPop,.tKnob,.tF1,.tF2,.tF3,.tF4,.tSeg,.lcd .flag{animation:none}
+  .tF4{opacity:1}
+}
+@media (max-width:480px){
+  .card h2{font-size:1.2rem}
+  #taskTxt{font-size:.95rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ไอคอนเครื่องมือ (ใช้ซ้ำทั้งถาดและในฉาก) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ico_clamp" viewBox="0 0 64 64">
+      <path d="M20 26 C 12 4 52 4 44 26" stroke="#ef4b4b" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <rect x="17" y="24" width="30" height="36" rx="7" fill="#ffcc33" stroke="#8a6d00" stroke-width="2.5"/>
+      <rect x="22" y="30" width="20" height="11" rx="2" fill="#cfe8d4" stroke="#465" stroke-width="1"/>
+      <circle cx="32" cy="51" r="4.5" fill="#5d4a00"/>
+    </symbol>
+    <symbol id="ico_pa" viewBox="0 0 64 64">
+      <rect x="6" y="10" width="52" height="36" rx="6" fill="#455a64" stroke="#263238" stroke-width="2.5"/>
+      <rect x="11" y="15" width="42" height="21" rx="2" fill="#0f2a1f"/>
+      <path d="M13 26 q5 -9 10 0 t10 0 t10 0 t8 0" stroke="#7dffc3" stroke-width="2" fill="none"/>
+      <path d="M16 46 q-4 8 -8 12 M32 46 v12 M48 46 q4 8 8 12" stroke="#263238" stroke-width="2" fill="none"/>
+      <circle cx="8" cy="58" r="4" fill="#8d5524"/><circle cx="32" cy="59" r="4" fill="#222"/><circle cx="56" cy="58" r="4" fill="#9aa3ad"/>
+      <text x="32" y="43.5" font-size="6" fill="#ffd23f" text-anchor="middle" font-family="sans-serif" font-weight="700">3φ kW</text>
+    </symbol>
+    <symbol id="ico_fga" viewBox="0 0 64 64">
+      <path d="M40 44 Q56 44 56 30 L56 8" stroke="#555" stroke-width="3" fill="none"/>
+      <rect x="53" y="4" width="6" height="16" rx="2" fill="#b0bec5" stroke="#555" stroke-width="1.5"/>
+      <rect x="14" y="8" width="26" height="50" rx="8" fill="#ff8f1c" stroke="#9c4a00" stroke-width="2.5"/>
+      <rect x="18" y="13" width="18" height="16" rx="2" fill="#0f2a1f"/>
+      <text x="27" y="24" font-size="7" fill="#7dffc3" text-anchor="middle" font-family="monospace" font-weight="700">O2</text>
+      <circle cx="22" cy="38" r="3" fill="#fff"/><circle cx="32" cy="38" r="3" fill="#fff"/><rect x="20" y="45" width="14" height="5" rx="2" fill="#9c4a00"/>
+    </symbol>
+    <symbol id="ico_ir" viewBox="0 0 64 64">
+      <path d="M8 18 H46 a8 8 0 0 1 8 8 v4 a8 8 0 0 1 -8 8 H30 L24 58 H14 L18 38 H8 Z" fill="#ef4b4b" stroke="#8b1a1a" stroke-width="2.5"/>
+      <rect x="12" y="22" width="16" height="10" rx="2" fill="#0f2a1f"/>
+      <circle cx="52" cy="28" r="4" fill="#ffd23f"/>
+      <path d="M56 28 H63" stroke="#ff2222" stroke-width="2" stroke-dasharray="2 2"/>
+    </symbol>
+    <symbol id="ico_tc" viewBox="0 0 64 64">
+      <rect x="6" y="16" width="26" height="40" rx="6" fill="#ffd23f" stroke="#8a6d00" stroke-width="2.5"/>
+      <rect x="10" y="21" width="18" height="12" rx="2" fill="#0f2a1f"/>
+      <text x="19" y="30" font-size="6.5" fill="#7dffc3" text-anchor="middle" font-family="monospace" font-weight="700">TC</text>
+      <path d="M32 40 Q44 40 44 26 L44 18" stroke="#333" stroke-width="2.5" fill="none"/>
+      <rect x="41" y="10" width="6" height="10" rx="2" fill="#333"/>
+      <path d="M44 10 V2" stroke="#9aa6b4" stroke-width="3.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ico_pitot" viewBox="0 0 64 64">
+      <path d="M12 8 V40 H34" stroke="#9aa6b4" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M12 40 Q12 54 40 54" stroke="#4a8fe0" stroke-width="2" fill="none"/>
+      <path d="M42 18 V50 a5 5 0 0 0 10 0 V18" stroke="#455a64" stroke-width="3" fill="none"/>
+      <path d="M44 40 V50 a3 3 0 0 0 6 0 V30" stroke="#2196f3" stroke-width="4" fill="none"/>
+      <path d="M40 30 H54 M40 40 H54" stroke="#ef4b4b" stroke-width="1.2"/>
+    </symbol>
+    <symbol id="ico_usf" viewBox="0 0 64 64">
+      <rect x="2" y="40" width="60" height="14" rx="3" fill="#90a4ae" stroke="#455a64" stroke-width="2"/>
+      <rect x="10" y="32" width="12" height="9" rx="2" fill="#00acc1" stroke="#006978" stroke-width="1.5"/>
+      <rect x="40" y="32" width="12" height="9" rx="2" fill="#00acc1" stroke="#006978" stroke-width="1.5"/>
+      <path d="M16 32 Q16 22 26 22 M46 32 Q46 22 38 22" stroke="#333" stroke-width="2" fill="none"/>
+      <rect x="22" y="6" width="20" height="18" rx="3" fill="#3f51b5" stroke="#1a237e" stroke-width="2"/>
+      <rect x="25" y="9" width="14" height="7" rx="1" fill="#0f2a1f"/>
+      <path d="M17 44 L45 50" stroke="#ffd23f" stroke-width="1.6" stroke-dasharray="2 2"/>
+    </symbol>
+    <symbol id="ico_tacho" viewBox="0 0 64 64">
+      <path d="M38 24 L62 14 L62 42 L38 32 Z" fill="#ffd23f" opacity=".6"/>
+      <rect x="6" y="14" width="34" height="28" rx="7" fill="#3f51b5" stroke="#1a237e" stroke-width="2.5"/>
+      <rect x="10" y="19" width="20" height="10" rx="2" fill="#0f2a1f"/>
+      <text x="20" y="27" font-size="6" fill="#7dffc3" text-anchor="middle" font-family="monospace" font-weight="700">rpm</text>
+      <rect x="14" y="40" width="12" height="20" rx="4" fill="#283593"/>
+    </symbol>
+    <symbol id="ico_pg" viewBox="0 0 64 64">
+      <rect x="27" y="48" width="10" height="14" fill="#b8860b"/>
+      <circle cx="32" cy="28" r="23" fill="#fff" stroke="#39424f" stroke-width="4"/>
+      <path d="M17 38 A17 17 0 1 1 47 38" stroke="#1fb45f" stroke-width="3" fill="none"/>
+      <path d="M32 28 L44 17" stroke="#ef4b4b" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="32" cy="28" r="3.5" fill="#213047"/>
+      <text x="32" y="44" font-size="6" fill="#213047" text-anchor="middle" font-family="sans-serif" font-weight="700">bar g</text>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="app">
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">ช่างวัดมือทอง</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น" aria-label="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง" aria-label="เปิดปิดเสียง">🔊</button>
+    <button id="fxBtn" title="สูตร/ที่มา" aria-label="สูตรและที่มา">📐</button>
+  </div>
+
+  <div id="main">
+    <div id="left">
+      <div id="task">
+        <div id="taskTxt">—</div>
+        <div id="taskInfo">—</div>
+        <div id="steps"><span>①เครื่องมือ</span><span>②จุดวัด</span><span>③ตั้งค่า</span><span>④อ่านค่า</span><span>⑤บันทึก</span></div>
+      </div>
+      <div id="sceneWrap">
+        <svg id="scene" viewBox="0 0 720 400" xmlns="http://www.w3.org/2000/svg" aria-label="ฉากหน้างาน">
+          <g id="sceneArt"></g>
+          <g id="hsLayer"></g>
+          <g id="placed"></g>
+        </svg>
+        <div id="hint">ลากเครื่องมือจากถาด ไปวางที่จุดวัด</div>
+      </div>
+    </div>
+    <div id="panel"></div>
+  </div>
+</div>
+<div id="ghost"><svg viewBox="0 0 64 64" width="62" height="62"><use id="ghostUse" href="#ico_clamp" width="64" height="64"/></svg></div>
+
+<!-- Start -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.6rem">📏🔧</div>
+    <h1>ช่างวัดมือทอง</h1>
+    <div class="en">Measurement Master</div>
+    <div class="tg">สำหรับ: ช่าง ปวช./ปวส.</div>
+    <div class="sub">เลือกเครื่องมือให้ถูกชนิด · วัดให้ถูกจุด · ตั้งค่าให้ถูก<br>ไม่งั้น "ตัวเลขเพี้ยน" ทั้งรายงาน!</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- Help -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2 id="helpTitle">วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt">—</div>
+    <div class="dots" id="helpDots"></div>
+    <div class="help-nav">
+      <button class="big-btn small alt" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- Result / เฉลย -->
+<div class="overlay" id="resultOv">
+  <div class="card" id="resCard"></div>
+</div>
+
+<!-- สูตร/ที่มา -->
+<div class="overlay" id="fxOv">
+  <div class="card">
+    <h2>📐 สูตร / ที่มา</h2>
+    <div class="fx" id="fxBody"></div>
+    <div style="margin-top:12px"><button class="big-btn small" id="fxClose">ปิด</button></div>
+  </div>
+</div>
+
+<!-- End summary -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.4rem">🏅</div>
+    <h2>จบหลักสูตร ช่างวัดมือทอง!</h2>
+    <div class="result-stars" id="endStars" style="font-size:1.6rem;letter-spacing:2px"></div>
+    <div class="sumList" id="endList"></div>
+    <div class="lesson">💡 กฎทอง 3 ข้อ: เครื่องมือถูกชนิด · จุดวัดถูกตำแหน่ง · ตั้งค่าตรงกับหน้างาน — แล้วค่อยเชื่อตัวเลข</div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="endHome">🏠 หน้าแรก</button>
+      <button class="big-btn small" id="endReplay">↻ เล่นใหม่ทั้งหมด</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ ช่างวัดมือทอง v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var RM=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var SQ3=Math.sqrt(3);
+function fmt(n,d){if(typeof n!=='number'||!isFinite(n))return String(n);var s=n.toFixed(d==null?1:d);
+  var p=s.split('.');p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');return p.join('.');}
+function pct(got,tru){return (got-tru)/Math.abs(tru)*100;}
+function pctTxt(p){if(Math.abs(p)<0.5)return '0%';return (p>=0?'+':'−')+Math.abs(p).toFixed(0)+'%';}
+
+/* ── ฟิสิกส์ ── */
+function irRead(Tc,eTrue,eSet,Ta){var K=273.15,T4=Math.pow(Tc+K,4),A4=Math.pow(Ta+K,4);
+  var R4=eTrue/eSet*(T4-A4)+A4;return Math.pow(Math.max(R4,1),0.25)-K;}
+function siegert(Tg,Ta,O2,fuel){var c=FUEL[fuel]||FUEL.oil;return (Tg-Ta)*(c.A2/(21-O2)+c.B);}
+var FUEL={oil:{A2:0.68,B:0.007,co2:15.8,n:'น้ำมันเตา'},ng:{A2:0.66,B:0.009,co2:11.7,n:'ก๊าซธรรมชาติ'}};
+function mixAir(p,f,Ta){return {O2:(1-f)*p.O2+21*f,CO:(1-f)*p.CO,T:(1-f)*p.T+f*Ta};}
+var RHO=1.16;
+function vPitot(dp,rho){return Math.sqrt(2*Math.max(dp,0)/(rho||RHO));}
+
+/* ── เครื่องมือ ── */
+var TOOLS={
+ clamp:{n:'แคลมป์มิเตอร์',sh:'แคลมป์มิเตอร์',what:'กระแสไฟฟ้าทีละเส้น',col:'#c99a00'},
+ pa:{n:'Power analyzer',sh:'Power analyzer',what:'ปริมาณไฟฟ้า (V, I, PF, kW)',col:'#455a64'},
+ fga:{n:'เครื่องวิเคราะห์ไอเสีย',sh:'วิเคราะห์ไอเสีย',what:'ก๊าซไอเสีย O₂/CO/CO₂ และอุณหภูมิ',col:'#e67700'},
+ ir:{n:'IR gun',sh:'IR gun',what:'อุณหภูมิผิวแบบไม่สัมผัส',col:'#d32f2f'},
+ tc:{n:'Thermocouple',sh:'เทอร์โมคัปเปิล',what:'อุณหภูมิแบบสัมผัส',col:'#b8860b'},
+ pitot:{n:'Pitot + manometer',sh:'พิโตต์+มาโน',what:'แรงดันจลน์ของลม (→ ความเร็วลม)',col:'#546e7a'},
+ usf:{n:'Ultrasonic flowmeter',sh:'อัลตราโซนิก',what:'อัตราไหลของของเหลวในท่อเต็ม',col:'#00838f'},
+ tacho:{n:'Tachometer',sh:'วัดรอบ',what:'ความเร็วรอบ (rpm)',col:'#3f51b5'},
+ pg:{n:'Pressure gauge',sh:'เกจความดัน',what:'ความดันสถิตในท่อ (bar g)',col:'#6d4c41'}
+};
+var TOOL_ORDER=['clamp','pa','fga','ir','tc','pitot','usf','tacho','pg'];
+/* การตั้งค่าของเครื่องมือ (ตัวเลือกเริ่มว่าง = ต้องเลือกเอง · IR เริ่มที่ค่าโรงงาน 0.95) */
+var SETS={
+ clamp:[{k:'mode',l:'โหมดวัด',o:[['ac','AC A (ไฟสลับ)'],['dc','DC A (ไฟตรง)']]}],
+ pa:[{k:'sys',l:'ระบบไฟ (wiring)',o:[['1p','1 เฟส · 1 CT'],['3p','3 เฟส · 3 CT + แรงดัน 3 เฟส']]},
+     {k:'ct',l:'ทิศลูกศรบน CT',o:[['load','ทุกตัวชี้ไปทางโหลด'],['src','ทุกตัวชี้กลับทางแหล่งจ่าย'],['rev2','ตัว L2 กลับด้าน']]}],
+ fga:[{k:'fuel',l:'ชนิดเชื้อเพลิงในเครื่อง',o:[['oil','น้ำมันเตา'],['ng','ก๊าซธรรมชาติ']]},
+      {k:'probe',l:'ตำแหน่งปลายหัววัด',o:[['core','กลางกระแสไอเสีย'],['wall','ชิดผนังท่อ']]}],
+ ir:[{k:'eps',l:'ค่า emissivity (ε)',slider:true,min:0.10,max:1.00,step:0.05,def:0.95}],
+ tc:[{k:'probe',l:'ชนิดหัววัด',o:[['surf','หัวแบน (surface probe)'],['imm','หัวแหลม (immersion)']]}],
+ pitot:[{k:'pat',l:'รูปแบบการวัด',o:[['center','จุดกลางท่อจุดเดียว'],['trav','Traverse 2 แนว × 4 จุด']]},
+        {k:'face',l:'ทิศปลายหัวพิโตต์',o:[['up','หันสวนทางลม'],['side','หันตั้งฉากกับลม']]}],
+ usf:[{k:'size',l:'ขนาดท่อที่กรอก (OD × ความหนา)',o:[['s40','114.3 × 6.02 mm'],['g100','100 × 5.0 mm'],['t3','114.3 × 3.0 mm']]},
+      {k:'mat',l:'วัสดุท่อ',o:[['cs','เหล็กกล้า (CS)'],['pvc','PVC']]},
+      {k:'pos',l:'ตำแหน่งติดหัว (มองหน้าตัดท่อ)',clock:true,o:[['12','12 นาฬิกา'],['3','3 นาฬิกา'],['6','6 นาฬิกา']]}],
+ tacho:[], pg:[]
+};
+
+/* ═════════ ฉาก SVG ═════════ */
+function lab(x,y,t,id){var w=t.length*9.6+20;return '<g class="hlab" data-for="'+id+'"><rect x="'+(x-w/2).toFixed(0)+'" y="'+(y-15)+'" width="'+w.toFixed(0)+'" height="30" rx="8"/><text x="'+x+'" y="'+(y+6)+'" text-anchor="middle">'+t+'</text></g>';}
+var SCN=[];
+/* ด่าน 1 มอเตอร์ */
+SCN[0]=function(){return ''+
+'<defs><linearGradient id="g1w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34445f"/><stop offset="1" stop-color="#25324a"/></linearGradient>'+
+'<linearGradient id="g1m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a9be0"/><stop offset=".5" stop-color="#2f6db5"/><stop offset="1" stop-color="#1b4a84"/></linearGradient>'+
+'<clipPath id="c1s"><rect x="590" y="244" width="64" height="42" rx="5"/></clipPath></defs>'+
+'<rect width="720" height="400" fill="url(#g1w)"/><rect y="340" width="720" height="60" fill="#1b2433"/><rect y="336" width="720" height="6" fill="#4a5a75"/>'+
+'<rect x="24" y="28" width="180" height="308" rx="8" fill="#b8c3cf" stroke="#5d6b7d" stroke-width="4"/>'+
+'<rect x="38" y="44" width="152" height="278" rx="6" fill="#2e3a4a"/>'+
+'<text x="114" y="66" font-size="16" text-anchor="middle" fill="#ffd23f" font-family="Mitr,sans-serif" font-weight="600">MCC-01</text>'+
+'<rect x="64" y="78" width="100" height="46" rx="6" fill="#151b24" stroke="#596a80" stroke-width="2"/>'+
+'<rect x="76" y="86" width="16" height="30" rx="3" fill="#ef4b4b"/><rect x="106" y="86" width="16" height="30" rx="3" fill="#ef4b4b"/><rect x="136" y="86" width="16" height="30" rx="3" fill="#ef4b4b"/>'+
+'<path d="M84 124 V246 Q84 296 150 298" stroke="#8d5524" stroke-width="9" fill="none" stroke-linecap="round"/>'+
+'<path d="M114 124 V246 Q114 290 158 293" stroke="#1a1a1a" stroke-width="9" fill="none" stroke-linecap="round"/>'+
+'<path d="M144 124 V246 Q144 284 166 288" stroke="#a3acb6" stroke-width="9" fill="none" stroke-linecap="round"/>'+
+'<g font-size="12" fill="#fff" font-family="sans-serif" font-weight="700"><text x="64" y="150">L1</text><text x="95" y="150">L2</text><text x="150" y="150">L3</text></g>'+
+'<rect x="150" y="285" width="245" height="24" rx="5" fill="#6c7a8e" stroke="#4a5568" stroke-width="2"/>'+
+'<path d="M160 296 H372 Q392 296 392 278 V206 Q392 192 408 192 H458" stroke="#202833" stroke-width="13" fill="none" stroke-linecap="round"/>'+
+'<rect x="404" y="222" width="22" height="88" rx="6" fill="#244f86"/><g stroke="#1a3a63" stroke-width="2"><line x1="408" y1="230" x2="408" y2="302"/><line x1="415" y1="230" x2="415" y2="302"/><line x1="422" y1="230" x2="422" y2="302"/></g>'+
+'<rect x="420" y="212" width="172" height="108" rx="22" fill="url(#g1m)" stroke="#173d6b" stroke-width="4"/>'+
+'<g stroke="#1d4f8a" stroke-width="3" opacity=".8"><line x1="446" y1="218" x2="446" y2="314"/><line x1="464" y1="218" x2="464" y2="314"/><line x1="482" y1="218" x2="482" y2="314"/><line x1="500" y1="218" x2="500" y2="314"/><line x1="518" y1="218" x2="518" y2="314"/><line x1="536" y1="218" x2="536" y2="314"/><line x1="554" y1="218" x2="554" y2="314"/></g>'+
+'<rect x="454" y="184" width="62" height="30" rx="5" fill="#2f6db5" stroke="#173d6b" stroke-width="3"/>'+
+'<rect x="430" y="318" width="40" height="18" fill="#173d6b"/><rect x="545" y="318" width="40" height="18" fill="#173d6b"/>'+
+'<rect x="520" y="226" width="56" height="24" rx="3" fill="#dfe6ee" stroke="#8795a8" stroke-width="1.5"/>'+
+'<text x="548" y="242" font-size="11" text-anchor="middle" fill="#213047" font-family="sans-serif" font-weight="700">45 kW 400V</text>'+
+'<g clip-path="url(#c1s)"><rect x="590" y="244" width="64" height="42" fill="#9aa6b4"/>'+
+'<g class="stripes"><g stroke="#5d6b7d" stroke-width="6">'+
+'<line x1="586" y1="252" x2="660" y2="236"/><line x1="586" y1="264" x2="660" y2="248"/><line x1="586" y1="276" x2="660" y2="260"/><line x1="586" y1="288" x2="660" y2="272"/><line x1="586" y1="300" x2="660" y2="284"/><line x1="586" y1="312" x2="660" y2="296"/></g></g></g>'+
+'<rect x="590" y="255" width="32" height="20" fill="none" stroke="#5d6b7d" stroke-width="2"/>'+
+'<rect x="622" y="244" width="32" height="42" rx="5" fill="none" stroke="#c76b00" stroke-width="4"/>'+
+'<rect x="654" y="206" width="60" height="116" rx="10" fill="#1f9e8a" stroke="#0f6b5c" stroke-width="4"/>'+
+'<text x="684" y="268" font-size="15" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif" font-weight="600">FAN</text>'+
+'<g class="hum" stroke="#cfe0f5" stroke-width="3" fill="none" stroke-linecap="round"><path d="M436 200 q-8 -10 0 -20"/><path d="M576 200 q8 -10 0 -20"/></g>';};
+/* ด่าน 2 หม้อไอน้ำ + ท่อไอเสีย */
+SCN[1]=function(){return ''+
+'<defs><linearGradient id="g2w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3f4f"/><stop offset="1" stop-color="#262a36"/></linearGradient>'+
+'<linearGradient id="g2b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d3dbe6"/><stop offset=".5" stop-color="#9fadc1"/><stop offset="1" stop-color="#6d7c93"/></linearGradient>'+
+'<clipPath id="c2d"><rect x="172" y="142" width="160" height="36"/></clipPath></defs>'+
+'<rect width="720" height="400" fill="url(#g2w)"/><rect y="340" width="720" height="60" fill="#1b1e27"/><rect y="336" width="720" height="6" fill="#545a6c"/>'+
+'<rect x="20" y="150" width="160" height="176" rx="34" fill="url(#g2b)" stroke="#3a4456" stroke-width="5"/>'+
+'<rect x="6" y="218" width="22" height="44" rx="5" fill="#ff8f1c" stroke="#8a4a00" stroke-width="3"/>'+
+'<circle cx="92" cy="246" r="32" fill="#2a1a08" stroke="#ffb74d" stroke-width="4"/>'+
+'<g class="flick"><path d="M92 270 C 70 266 70 240 80 228 C 84 238 90 238 90 228 C 104 236 112 262 92 270 Z" fill="#ff8f1c"/>'+
+'<path d="M92 268 C 82 266 82 252 88 244 C 90 250 94 250 95 244 C 101 252 100 266 92 268 Z" fill="#ffd23f"/></g>'+
+'<text x="100" y="186" font-size="14" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif" font-weight="600">BOILER 10 t/h</text>'+
+'<rect x="40" y="326" width="120" height="12" fill="#3a4456"/>'+
+'<rect x="160" y="138" width="176" height="44" rx="4" fill="#7d8aa0" stroke="#4a5568" stroke-width="3"/>'+
+'<g clip-path="url(#c2d)" fill="#c9ced6"><circle class="dPuff" cx="180" cy="160" r="8"/><circle class="dPuff" style="animation-delay:.7s" cx="180" cy="154" r="6"/><circle class="dPuff" style="animation-delay:1.35s" cx="180" cy="166" r="7"/></g>'+
+'<rect x="286" y="180" width="28" height="18" rx="2" fill="#4a5568" stroke="#2c3542" stroke-width="2" transform="rotate(12 286 180)"/>'+
+'<g stroke="#a8e6ff" stroke-width="3" fill="none" stroke-linecap="round"><path class="suck" d="M292 236 v-16 m-5 5 l5 -5 l5 5"/><path class="suck" style="animation-delay:.4s" d="M306 238 v-16 m-5 5 l5 -5 l5 5"/><path class="suck" style="animation-delay:.8s" d="M320 236 v-16 m-5 5 l5 -5 l5 5"/></g>'+
+'<text x="306" y="258" font-size="12" text-anchor="middle" fill="#a8e6ff" font-family="Mitr,sans-serif">อากาศรั่วเข้า</text>'+
+'<rect x="336" y="108" width="70" height="150" rx="6" fill="#5d6b80" stroke="#3a4456" stroke-width="3"/>'+
+'<polyline points="348,126 394,126 394,146 348,146 348,166 394,166 394,186 348,186 348,206 394,206 394,226 348,226 348,244" stroke="#c0d0e0" stroke-width="5" fill="none"/>'+
+'<text x="371" y="122" font-size="11" text-anchor="middle" fill="#fff" font-family="sans-serif" font-weight="700">ECO</text>'+
+'<rect x="406" y="140" width="30" height="40" fill="#7d8aa0" stroke="#4a5568" stroke-width="3"/>'+
+'<rect x="436" y="108" width="70" height="150" rx="6" fill="#6b5d80" stroke="#3a4456" stroke-width="3"/>'+
+'<g stroke="#d5c8e8" stroke-width="3"><line x1="450" y1="128" x2="450" y2="248"/><line x1="464" y1="128" x2="464" y2="248"/><line x1="478" y1="128" x2="478" y2="248"/><line x1="492" y1="128" x2="492" y2="248"/></g>'+
+'<text x="471" y="122" font-size="11" text-anchor="middle" fill="#fff" font-family="sans-serif" font-weight="700">APH</text>'+
+'<rect x="506" y="140" width="56" height="40" fill="#7d8aa0" stroke="#4a5568" stroke-width="3"/>'+
+'<circle cx="596" cy="160" r="38" fill="#5a6983" stroke="#39424f" stroke-width="4"/>'+
+'<g class="spin"><path d="M596 160 L596 130 L606 134 Z M596 160 L626 160 L622 170 Z M596 160 L596 190 L586 186 Z M596 160 L566 160 L570 150 Z" fill="#cfd8df"/><circle cx="596" cy="160" r="7" fill="#39424f"/></g>'+
+'<text x="596" y="214" font-size="11" text-anchor="middle" fill="#cfd8e6" font-family="sans-serif" font-weight="700">ID FAN</text>'+
+'<rect x="630" y="146" width="20" height="30" fill="#7d8aa0" stroke="#4a5568" stroke-width="2"/>'+
+'<rect x="646" y="92" width="50" height="246" fill="#8b97ab" stroke="#4a5568" stroke-width="3"/>'+
+'<rect x="640" y="86" width="62" height="12" rx="4" fill="#4a5568"/>'+
+'<g stroke="#ef4b4b" stroke-width="5"><line x1="646" y1="120" x2="696" y2="120"/><line x1="646" y1="134" x2="696" y2="134"/></g>'+
+'<g fill="#d8dde3"><circle class="plume" cx="671" cy="74" r="11"/><circle class="plume" style="animation-delay:.8s" cx="662" cy="72" r="9"/><circle class="plume" style="animation-delay:1.6s" cx="680" cy="76" r="10"/></g>';};
+/* ด่าน 3 ท่อไอน้ำ */
+SCN[2]=function(){var h='';for(var x=270;x<=470;x+=50)h+='<path class="heatL" style="animation-delay:'+((x/50)%3*0.45).toFixed(2)+'s" d="M'+x+' 150 q7 -10 0 -20 q-7 -10 0 -20" />';
+return ''+
+'<defs><linearGradient id="g3w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3c4a5c"/><stop offset="1" stop-color="#2a3545"/></linearGradient>'+
+'<linearGradient id="g3al" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef2f6"/><stop offset=".45" stop-color="#c3ccd6"/><stop offset="1" stop-color="#8d99a8"/></linearGradient>'+
+'<linearGradient id="g3ss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9c3cc"/><stop offset=".18" stop-color="#ffffff"/><stop offset=".35" stop-color="#aab4be"/><stop offset=".7" stop-color="#dfe5eb"/><stop offset="1" stop-color="#7d8894"/></linearGradient></defs>'+
+'<rect width="720" height="400" fill="url(#g3w)"/><rect y="340" width="720" height="60" fill="#1d2532"/><rect y="336" width="720" height="6" fill="#4d5a6e"/>'+
+'<g stroke="#56657b" stroke-width="2" opacity=".6"><line x1="0" y1="80" x2="720" y2="80"/><line x1="240" y1="0" x2="240" y2="80"/><line x1="480" y1="0" x2="480" y2="80"/></g>'+
+'<rect x="0" y="160" width="222" height="70" fill="url(#g3al)" stroke="#6d7a8a" stroke-width="2"/>'+
+'<g stroke="#8d99a8" stroke-width="3"><line x1="50" y1="160" x2="50" y2="230"/><line x1="105" y1="160" x2="105" y2="230"/><line x1="160" y1="160" x2="160" y2="230"/><line x1="212" y1="160" x2="212" y2="230"/></g>'+
+'<rect x="498" y="160" width="222" height="70" fill="url(#g3al)" stroke="#6d7a8a" stroke-width="2"/>'+
+'<g stroke="#8d99a8" stroke-width="3"><line x1="508" y1="160" x2="508" y2="230"/><line x1="560" y1="160" x2="560" y2="230"/><line x1="660" y1="160" x2="660" y2="230"/></g>'+
+'<rect x="222" y="172" width="276" height="46" fill="url(#g3ss)" stroke="#6b7681" stroke-width="2"/>'+
+'<rect x="226" y="156" width="18" height="78" rx="3" fill="url(#g3ss)" stroke="#5d6873" stroke-width="2"/>'+
+'<rect x="476" y="156" width="18" height="78" rx="3" fill="url(#g3ss)" stroke="#5d6873" stroke-width="2"/>'+
+'<g fill="#5d6873"><circle cx="235" cy="164" r="3"/><circle cx="235" cy="226" r="3"/><circle cx="485" cy="164" r="3"/><circle cx="485" cy="226" r="3"/></g>'+
+'<rect x="418" y="178" width="30" height="34" fill="#141414" transform="rotate(-4 433 195)"/>'+
+'<g stroke="#ffcf8a" stroke-width="3.5" fill="none" stroke-linecap="round">'+h+'</g>'+
+'<rect x="600" y="230" width="30" height="110" fill="#b04a3a" stroke="#6d2a20" stroke-width="2"/>'+
+'<path d="M592 270 h46 l-6 40 h-34 z" fill="#2e7d32" stroke="#1b4d1e" stroke-width="3"/>'+
+'<line x1="638" y1="290" x2="664" y2="290" stroke="#5d6873" stroke-width="5"/>'+
+'<ellipse cx="668" cy="290" rx="7" ry="24" fill="none" stroke="#c62828" stroke-width="6"/>'+
+'<rect x="30" y="248" width="150" height="26" rx="6" fill="#ffd23f" stroke="#7a5b00" stroke-width="2"/>'+
+'<text x="105" y="266" font-size="13" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif" font-weight="600">STEAM ~3.8 bar g</text>'+
+'<path d="M190 261 h26 m-8 -6 l8 6 l-8 6" stroke="#ffd23f" stroke-width="3" fill="none"/>';};
+/* ด่าน 4 ท่อลม */
+SCN[3]=function(){var p='';for(var i=0;i<10;i++){var x=170+i*56,y=140+((i*7)%22);p+='<line class="air" style="animation-delay:-'+(i*0.09).toFixed(2)+'s" x1="'+x+'" y1="'+y+'" x2="'+(x+18)+'" y2="'+y+'"/>';}
+return ''+
+'<defs><linearGradient id="g4w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34465c"/><stop offset="1" stop-color="#253345"/></linearGradient>'+
+'<linearGradient id="g4d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7dee7"/><stop offset=".5" stop-color="#aab6c4"/><stop offset="1" stop-color="#7f8c9c"/></linearGradient>'+
+'<clipPath id="c4d"><rect x="162" y="132" width="558" height="36"/></clipPath></defs>'+
+'<rect width="720" height="400" fill="url(#g4w)"/><rect y="340" width="720" height="60" fill="#1b2433"/><rect y="336" width="720" height="6" fill="#4a5a75"/>'+
+'<g stroke="#5d6b7d" stroke-width="3"><line x1="260" y1="0" x2="260" y2="130"/><line x1="420" y1="0" x2="420" y2="130"/><line x1="580" y1="0" x2="580" y2="130"/></g>'+
+'<path d="M120 250 V170 Q120 130 160 130 H720 V170 H178 Q160 170 160 188 V250 Z" fill="url(#g4d)" stroke="#5d6b7d" stroke-width="3"/>'+
+'<g clip-path="url(#c4d)" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity=".75">'+p+'</g>'+
+'<circle cx="104" cy="290" r="62" fill="#5a6983" stroke="#39424f" stroke-width="5"/>'+
+'<g class="spin"><path d="M104 290 L104 240 L118 248 Z M104 290 L147 315 L134 324 Z M104 290 L61 315 L60 300 Z" fill="#cfd8df"/><circle cx="104" cy="290" r="10" fill="#39424f"/></g>'+
+'<text x="104" y="372" font-size="13" text-anchor="middle" fill="#cfd8e6" font-family="Mitr,sans-serif" font-weight="600">พัดลม</text>'+
+'<line x1="650" y1="134" x2="650" y2="166" stroke="#39424f" stroke-width="3"/>'+
+'<line x1="640" y1="162" x2="660" y2="138" stroke="#263238" stroke-width="6" stroke-linecap="round"/>'+
+'<path d="M650 172 v14 m-14 0 h28" stroke="#ef4b4b" stroke-width="4" fill="none"/>'+
+'<text x="650" y="204" font-size="12" text-anchor="middle" fill="#ffb3b3" font-family="Mitr,sans-serif">แดมเปอร์</text>'+
+'<g stroke="#ffd23f" stroke-width="2" fill="#ffd23f" font-family="Mitr,sans-serif" font-size="14">'+
+'<line x1="160" y1="232" x2="480" y2="232"/><line x1="160" y1="224" x2="160" y2="240"/><line x1="480" y1="224" x2="480" y2="240"/><line x1="650" y1="224" x2="650" y2="240"/><line x1="480" y1="232" x2="650" y2="232"/>'+
+'<text x="320" y="256" text-anchor="middle" stroke="none">≈ 8D จากข้องอ</text><text x="565" y="256" text-anchor="middle" stroke="none">≈ 4D</text></g>'+
+'<text x="260" y="300" font-size="14" fill="#cfe0f5" font-family="Mitr,sans-serif">ท่อกลม D = 0.60 m · ลม 30°C</text>'+
+'<path d="M690 300 h22 m-8 -7 l8 7 l-8 7" stroke="#cfe0f5" stroke-width="3" fill="none"/>';};
+/* ด่าน 5 ปั๊มน้ำ */
+SCN[4]=function(){var b='',s='';for(var i=0;i<6;i++)b+='<circle class="bub" style="animation-delay:-'+(i*0.66).toFixed(2)+'s" cx="'+(205+i*6)+'" cy="'+(159+(i%2))+'" r="'+(2.2+(i%3)*0.8)+'"/>';
+for(var j=0;j<16;j++)s+='<circle cx="'+(210+j*29)+'" cy="'+(182-(j%2))+'" r="'+(2+(j%3)*0.6)+'"/>';
+return ''+
+'<defs><linearGradient id="g5w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f4560"/><stop offset="1" stop-color="#22334a"/></linearGradient>'+
+'<linearGradient id="g5p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8d99a8"/><stop offset=".4" stop-color="#cfd6de"/><stop offset="1" stop-color="#5d6b7d"/></linearGradient>'+
+'<clipPath id="c5g"><rect x="200" y="157" width="480" height="26"/></clipPath></defs>'+
+'<rect width="720" height="400" fill="url(#g5w)"/><rect y="340" width="720" height="60" fill="#18222f"/><rect y="336" width="720" height="6" fill="#47586f"/>'+
+'<rect x="14" y="330" width="210" height="10" fill="#39424f"/>'+
+'<rect x="18" y="268" width="84" height="62" rx="12" fill="#2f6db5" stroke="#173d6b" stroke-width="3"/>'+
+'<g stroke="#1d4f8a" stroke-width="3"><line x1="36" y1="272" x2="36" y2="326"/><line x1="52" y1="272" x2="52" y2="326"/><line x1="68" y1="272" x2="68" y2="326"/><line x1="84" y1="272" x2="84" y2="326"/></g>'+
+'<rect x="102" y="292" width="12" height="14" fill="#9aa6b4"/>'+
+'<circle cx="150" cy="298" r="38" fill="#1f9e8a" stroke="#0f6b5c" stroke-width="4"/>'+
+'<g class="spin"><path d="M150 298 L150 268 L160 274 Z M150 298 L176 313 L166 319 Z M150 298 L124 313 L124 302 Z" fill="#c8f1ea"/><circle cx="150" cy="298" r="7" fill="#0f6b5c"/></g>'+
+'<rect x="135" y="185" width="30" height="80" fill="url(#g5p)" stroke="#4a5568" stroke-width="2"/>'+
+'<path d="M135 190 Q135 155 170 155 L170 185 Q165 185 165 190 Z" fill="url(#g5p)" stroke="#4a5568" stroke-width="2"/>'+
+'<rect x="168" y="155" width="34" height="30" fill="url(#g5p)" stroke="#4a5568" stroke-width="2"/>'+
+'<circle cx="118" cy="226" r="13" fill="#fff" stroke="#39424f" stroke-width="3"/><path d="M118 226 l6 -7" stroke="#ef4b4b" stroke-width="2.5"/><rect x="131" y="223" width="5" height="6" fill="#b8860b"/>'+
+'<rect x="200" y="155" width="480" height="30" fill="rgba(170,215,255,.28)" stroke="#9ec9ef" stroke-width="2"/>'+
+'<g clip-path="url(#c5g)"><rect x="200" y="157" width="480" height="26" fill="#2b7fd0" opacity=".55"/>'+
+'<g stroke="#bfe3ff" stroke-width="2.5" stroke-dasharray="22 38" opacity=".9"><line class="water" x1="200" y1="165" x2="680" y2="165"/><line class="water" style="animation-delay:-.3s" x1="200" y1="173" x2="680" y2="173"/></g>'+
+'<g fill="#e8f6ff" opacity=".95">'+b+'</g><g class="sedi" fill="#8a6a3a">'+s+'</g></g>'+
+'<rect x="200" y="155" width="480" height="5" fill="#fff" opacity=".25"/>'+
+'<rect x="680" y="155" width="40" height="30" fill="url(#g5p)" stroke="#4a5568" stroke-width="2"/>'+
+'<rect x="686" y="148" width="20" height="44" rx="3" fill="#c62828" stroke="#7f1d1d" stroke-width="2"/>'+
+'<line x1="696" y1="148" x2="696" y2="124" stroke="#5d6b7d" stroke-width="4"/><ellipse cx="696" cy="120" rx="18" ry="5" fill="none" stroke="#c62828" stroke-width="5"/>'+
+'<path d="M250 292 h40 m-9 -7 l9 7 l-9 7" stroke="#bfe3ff" stroke-width="3" fill="none"/>'+
+'<text x="300" y="298" font-size="15" fill="#bfe3ff" font-family="Mitr,sans-serif">ทิศการไหล · ท่อโปร่ง: ฟองบน / ตะกอนล่าง</text>'+
+'<text x="300" y="322" font-size="15" fill="#cfe0f5" font-family="Mitr,sans-serif">ท่อเหล็ก DN100 Sch40</text>';};
+
+/* ═════════ ด่าน ═════════ */
+function unmeas(title,msg){return {title:title,lines:[],msg:msg,errs:{},ans:false};}
+function otherTool(L,t,hs,set){
+  var r={title:TOOLS[t].n,lines:[],errs:{tool:TOOLS[t].n+' วัดได้แค่'+TOOLS[t].what+' — ไม่ใช่'+L.qty+' · '+L.rightTool},ans:false,irrelevant:true};
+  var sT=L.surfT&&L.surfT[hs];
+  if(t==='ir'){var e=set.eps||0.95;r.lines=[{l:'T ผิว',v:irRead(sT||30,0.9,e,30),u:'°C',d:1,big:1},{l:'ε ที่ตั้ง',v:e,u:'',d:2}];}
+  else if(t==='tc'){r.lines=[{l:'T สัมผัส',v:(sT||30)-1,u:'°C',d:1,big:1}];}
+  else if(t==='tacho'){var rp=L.rpm&&L.rpm[hs];if(rp)r.lines=[{l:'ความเร็วรอบ',v:rp,u:'rpm',d:0,big:1}];else r.msg='---- ไม่มีชิ้นส่วนหมุน/แถบสะท้อนแสงที่จุดนี้';}
+  else if(t==='pg'){var pv=L.pg&&L.pg[hs];if(pv!=null)r.lines=[{l:'ความดัน',v:pv,u:'bar g',d:2,big:1}];else r.msg='--- ไม่มีจุดต่อเกจที่ตำแหน่งนี้';}
+  else if(t==='clamp'){r.lines=[{l:'กระแส',v:0.0,u:'A',d:1,big:1}];r.msg='ไม่มีสายไฟให้คล้อง';}
+  else if(t==='usf'){r.msg='NO SIGNAL — ไม่ใช่ท่อของเหลวเต็มท่อ';}
+  else if(t==='fga'){r.msg='— ไม่มีไอเสียให้ดูด —';}
+  else if(t==='pitot'){r.msg='ΔP ≈ 0 Pa — ไม่มีลมไหลผ่านจุดนี้';}
+  else r.msg='--- วัดไม่ได้ที่จุดนี้';
+  return r;
+}
+
+var LV=[];
+/* ── ด่าน 1: มอเตอร์ 3 เฟส ── */
+LV[0]={name:'ด่าน 1 · มอเตอร์ 3 เฟส ⚡',icon:'⚡',sh:'มอเตอร์',
+ task:'วัด <em>กำลังไฟฟ้า (kW)</em> ของ <em>มอเตอร์ 3 เฟส</em> ที่กำลังขับพัดลม',
+ info:'ป้าย: 45 kW · 400 V · 50 Hz · PF 0.86 (ที่โหลดเต็ม) · ป้อนจากตู้ MCC-01',
+ qty:'กำลังไฟฟ้า',rightTool:'งานนี้ต้องใช้ Power analyzer',
+ hs:[{id:'A',x:114,y:200,lab:'A สายป้อน 3 เฟส',lx:114,ly:238},{id:'B',x:300,y:297,lab:'B มัดสายในราง',lx:290,ly:330},
+     {id:'C',x:505,y:268,lab:'C ตัวถังมอเตอร์',lx:500,ly:368},{id:'D',x:638,y:265,lab:'D เพลา/คัปปลิ้ง',lx:640,ly:368}],
+ surfT:{A:46,B:41,C:62,D:48},rpm:{D:1482},
+ I:[69.2,66.8,68.9],PF:0.84,V:400,
+ truth:function(){var L=this;return L.V/SQ3*(L.I[0]+L.I[1]+L.I[2])*L.PF/1000;},
+ measure:function(t,hs,s){var L=this,tru=L.truth(),VLN=L.V/SQ3,r;
+  if(t==='pa'){
+   if(hs!=='A'){r=unmeas('POWER ANALYZER','NO INPUT — ต่อ CT/สายแรงดันไม่ได้');
+     r.errs.point=hs==='B'?'จุด B สายทั้ง 3 เฟสมัดรวมกันในราง — คล้อง CT แยกทีละเฟสไม่ได้ และไม่มีขั้วให้ต่อสายวัดแรงดัน · ต้องต่อที่ขั้วสายป้อนใต้เบรกเกอร์ในตู้ MCC (จุด A)':
+       'จุด '+hs+' ไม่มีสายไฟให้คล้อง CT หรือต่อแรงดัน — Power analyzer ต้องต่อที่สายป้อนในตู้ MCC (จุด A)';return r;}
+   var sg=s.ct==='src'?[-1,-1,-1]:(s.ct==='rev2'?[1,-1,1]:[1,1,1]);
+   var ph=s.sys==='1p'?[0]:[0,1,2],P=0,S=0;
+   ph.forEach(function(k){P+=VLN*L.I[k]*L.PF*sg[k];S+=VLN*L.I[k];});
+   P/=1000;S/=1000;var pf=P/S;
+   r={title:'POWER ANALYZER · '+(s.sys==='1p'?'1P2W':'3P4W'),errs:{},ans:true,ctx:{P:P,S:S,pf:pf,kind:'pa'},
+      lines:s.sys==='1p'?[{l:'V (L1-N)',v:VLN,u:'V',d:1},{l:'I L1',v:L.I[0],u:'A',d:1},{l:'PF',v:pf,u:'',d:2},{l:'P',v:P,u:'kW',d:1,big:1},{l:'S',v:S,u:'kVA',d:1}]:
+        [{l:'V L-L',v:L.V,u:'V',d:1},{l:'I L1/L2/L3',v:L.I[0].toFixed(1)+' / '+L.I[1].toFixed(1)+' / '+L.I[2].toFixed(1),u:'A',arr:1},{l:'PF',v:pf,u:'',d:2},{l:'P',v:P,u:'kW',d:1,big:1},{l:'S',v:S,u:'kVA',d:1}]};
+   var m=[];
+   if(s.sys==='1p')m.push('ตั้งระบบเป็น 1 เฟส เครื่องคิดกำลังแค่เฟส L1 = '+fmt(P,1)+' kW (ราว 1/3 ของจริง) — มอเตอร์ 3 เฟสต้องตั้ง 3 เฟส คล้อง CT ครบ 3 เส้น + ต่อแรงดันครบ 3 เฟส');
+   if(s.ct==='src')m.push('ลูกศร CT ชี้กลับทางแหล่งจ่าย กำลังจึงติดลบ (เหมือนมอเตอร์จ่ายไฟกลับ) — ลูกศรบน CT ต้องชี้ไปทางโหลดเสมอ');
+   if(s.ct==='rev2'&&s.sys==='3p')m.push('CT เฟส L2 กลับด้าน กำลังเฟสนั้นกลายเป็นลบ หักล้างกัน รวมเหลือ '+fmt(P,1)+' kW และ PF โชว์ '+fmt(pf,2)+' ซึ่งผิดปกติชัด');
+   if(s.ct==='rev2'&&s.sys==='1p')m.push('และ CT L2 ก็กลับด้านอยู่ (ถ้าตั้ง 3 เฟสจะหักล้างกันทันที) — ลูกศรต้องชี้ไปทางโหลดทุกตัว');
+   if(m.length)r.errs.set=m.join(' · ');
+   r.cmpFromAns=true;return r;}
+  if(t==='clamp'){
+   if(hs==='B'){r={title:'CLAMP METER · '+(s.mode==='dc'?'DC A':'AC A'),lines:[{l:'กระแส',v:0.4,u:'A',d:1,big:1}],msg:'คล้องสายรวม 3 เส้น',errs:{tool:'แคลมป์มิเตอร์วัดได้แค่กระแส — งานวัดกำลังต้องใช้ Power analyzer',point:'คล้องสาย 3 เฟสพร้อมกัน กระแสหักล้างกันเหลือ ~0 A (ผลรวมเวกเตอร์ของ 3 เฟสสมดุล = 0) — ต้องคล้องทีละเส้น'},ans:false};return r;}
+   if(hs!=='A'){r=unmeas('CLAMP METER','ไม่มีสายไฟให้คล้องที่จุดนี้');r.errs.tool='แคลมป์มิเตอร์วัดได้แค่กระแส — งานวัดกำลังต้องใช้ Power analyzer';r.errs.point='จุด '+hs+' ไม่มีตัวนำให้คล้อง';return r;}
+   if(s.mode==='dc'){r={title:'CLAMP METER · DC A',lines:[{l:'กระแส',v:0.3,u:'A',d:1,big:1}],msg:'ตั้งโหมด DC กับไฟ AC',errs:{tool:'แคลมป์มิเตอร์วัดได้แค่กระแสเฟสเดียว — งานวัดกำลังต้องใช้ Power analyzer',set:'ตั้งโหมด DC — ไฟมอเตอร์เป็น AC 50 Hz ค่าเฉลี่ย DC เกือบ 0 A ต้องตั้ง AC A'},ans:false};return r;}
+   r={title:'CLAMP METER · AC A',lines:[{l:'I (L1)',v:L.I[0],u:'A',d:1,big:1},{l:'ความถี่',v:50.0,u:'Hz',d:1}],
+      errs:{tool:'แคลมป์มิเตอร์วัดได้แค่กระแสเฟสเดียว ไม่รู้ PF จริง และไม่เห็นว่ากระแส 3 เฟสไม่เท่ากัน — งานวัดกำลังต้องใช้ Power analyzer'},
+      ans:true,ctx:{I:L.I[0],kind:'clamp'},cmpFromAns:true};return r;}
+  return otherTool(L,t,hs,s);},
+ question:function(c){var tru=this.truth();
+  if(c.kind==='clamp'){var a=SQ3*400*c.I/1000;
+   return {q:'มีแค่กระแส L1 = '+fmt(c.I,1)+' A · V = 400 V · ป้าย PF 0.86 → คำนวณกำลังไฟฟ้า (kW)?',opts:[
+    {t:fmt(a,1)+' kW  (√3·V·I)',val:a,ok:false,why:'ลืม PF! √3·V·I คือ kVA (กำลังปรากฏ) ได้ '+fmt(a,1)+' สูงกว่าจริง '+pctTxt(pct(a,tru))},
+    {t:fmt(a*0.86,1)+' kW  (√3·V·I·0.86)',val:a*0.86,ok:true,why:'สูตรถูก แต่ PF ป้าย 0.86 คือที่โหลดเต็ม — จริงที่โหลดนี้ 0.84 และกระแส 3 เฟสไม่เท่ากัน จึงยังคลาด '+pctTxt(pct(a*0.86,tru))},
+    {t:fmt(400*c.I/1000,1)+' kW  (V·I)',val:400*c.I/1000,ok:false,why:'ลืม √3 ของระบบ 3 เฟส และลืม PF'}]};}
+  return {q:'จอโชว์ทั้ง kW และ kVA — ค่า "กำลังไฟฟ้าจริง (active power)" ที่ต้องบันทึกคือ?',opts:[
+    {t:fmt(c.P,1)+' kW',val:c.P,ok:true,why:'ถูก — P (kW) ของ analyzer คำนวณจาก V·I·PF ของแต่ละเฟสแล้ว'},
+    {t:fmt(c.S,1)+' kW',val:c.S,ok:false,why:'นั่นคือ S (kVA) กำลังปรากฏ = √3·V·I ไม่ได้คูณ PF — สูงเกินจริง'},
+    {t:fmt(c.P*Math.abs(c.pf),1)+' kW',val:c.P*Math.abs(c.pf),ok:false,why:'คูณ PF ซ้ำ — ค่า kW ของ analyzer รวม PF ไว้แล้ว'}]};},
+ cmp:function(r,opt){return {lab:'กำลังไฟฟ้า',got:opt?opt.val:null,tru:this.truth(),u:'kW',d:1};},
+ lesson:'P = √3·V·I·cosφ — มอเตอร์ 3 เฟสต้องใช้ Power analyzer คล้อง CT ครบ 3 เฟส (ลูกศรชี้ไปทางโหลด) + ต่อแรงดัน จึงได้ PF จริง',
+ okWhy:'Power analyzer ที่ตู้ MCC ตั้ง 3 เฟส CT ชี้ไปทางโหลด → ได้ P = Σ V·I·PF ของจริงทั้ง 3 เฟส'
+};
+/* ── ด่าน 2: ไอเสียหม้อไอน้ำ ── */
+LV[1]={name:'ด่าน 2 · ไอเสียหม้อไอน้ำ 🔥',icon:'🔥',sh:'ไอเสีย',
+ task:'วัด <em>O₂ / CO / อุณหภูมิไอเสีย</em> ของ <em>หม้อไอน้ำ</em> ที่ทางออกหม้อ ก่อนเข้า economizer',
+ info:'เชื้อเพลิง: น้ำมันเตา · อากาศเข้าเตา 32°C · ช่องตรวจบนท่อไอเสียปิดไม่สนิท',
+ qty:'O₂/CO/อุณหภูมิไอเสีย',rightTool:'ต้องใช้เครื่องวิเคราะห์ไอเสีย (วัด O₂/CO/T พร้อมกัน)',
+ hs:[{id:'A',x:208,y:160,lab:'A ทางออกหม้อ',lx:205,ly:112},{id:'B',x:300,y:160,lab:'B ข้างช่องตรวจ',lx:300,ly:290},
+     {id:'C',x:534,y:160,lab:'C หลัง APH',lx:540,ly:84},{id:'D',x:671,y:112,lab:'D ปลายปล่อง',lx:588,ly:250}],
+ surfT:{A:58,B:55,C:47,D:44},pg:{A:0.0,B:0.0,C:0.0,D:0.0},rpm:{},Ta:32,
+ pts:function(){var a={O2:4.0,CO:35,T:245},c={O2:4.8,CO:33,T:155};
+  return {A:a,B:mixAir(a,0.212,32),C:c,D:mixAir(c,0.352,32)};},
+ measure:function(t,hs,s){var L=this,P=L.pts(),r;
+  if(t==='fga'){var p=P[hs],O2=p.O2,T=p.T,CO=p.CO;
+   if(s.probe==='wall'){O2+=0.5;T-=25;}
+   var f=FUEL[s.fuel]||FUEL.oil,qA=siegert(T,L.Ta,O2,s.fuel),co2=f.co2*(1-O2/21);
+   r={title:'FLUE GAS ANALYZER · '+f.n,errs:{},ans:true,ctx:{O2:O2},
+     lines:[{l:'O₂',v:O2,u:'%',d:1,big:1},{l:'CO',v:CO,u:'ppm',d:0},{l:'CO₂ (คำนวณ)',v:co2,u:'%',d:1},{l:'T ไอเสีย',v:T,u:'°C',d:0},{l:'T อากาศ',v:L.Ta,u:'°C',d:0},{l:'qA (Siegert)',v:qA,u:'%',d:1},{l:'η เผาไหม้',v:100-qA,u:'%',d:1}]};
+   if(hs==='B')r.errs.point='จุด B อยู่ติดช่องตรวจที่รั่ว — อากาศภายนอก (tramp air) ถูกดูดเข้า O₂ จึงสูงเกิน ('+fmt(P.B.O2,1)+'% แทน 4.0%) และไอเสียเย็นลงเหลือ ~'+fmt(P.B.T,0)+'°C · ถ้าเชื่อค่านี้จะคิดว่าอากาศเกินเยอะ แล้วไปลดลม → CO พุ่ง เขม่าเกิด';
+   if(hs==='C')r.errs.point='จุด C อยู่หลัง air preheater — ไอเสียคายความร้อนไปแล้วเหลือ '+fmt(P.C.T,0)+'°C (ที่ทางออกหม้อ 245°C) และมีลมรั่วใน APH ทำ O₂ ขึ้นเป็น '+fmt(P.C.O2,1)+'% → ประเมินการเผาไหม้/stack loss ของตัวหม้อผิด';
+   if(hs==='D')r.errs.point='จุด D ปลายปล่อง — อากาศรอบข้างและลมรั่วตามทางผสมเข้า O₂ '+fmt(P.D.O2,1)+'% อุณหภูมิเหลือ ~'+fmt(P.D.T,0)+'°C ค่าเจือจาง ใช้ปรับการเผาไหม้ไม่ได้';
+   var m=[];
+   if(s.fuel==='ng')m.push('เลือกเชื้อเพลิงเป็นก๊าซธรรมชาติ — เครื่องใช้ CO₂max และสัมประสิทธิ์ Siegert ผิด: CO₂ โชว์ '+fmt(co2,1)+'% (น้ำมันเตาควร ~'+fmt(15.8*(1-O2/21),1)+'%) และ qA/η เพี้ยน');
+   if(s.probe==='wall')m.push('ปลายหัววัดชิดผนัง — ชั้นไอเสียริมผนังเย็นกว่าและมีลมรั่วซึม (O₂ +0.5, T −25°C) ต้องสอดถึงกลางกระแสไอเสีย (core) ที่อุณหภูมิสูงสุด');
+   if(m.length)r.errs.set=m.join(' · ');
+   r.cmpO2=O2;return r;}
+  if(t==='tc'){var q=P[hs];r={title:'THERMOCOUPLE',lines:[{l:'T ไอเสีย',v:q.T,u:'°C',d:0,big:1}],msg:'ได้แค่อุณหภูมิ — ไม่มี O₂/CO',errs:{tool:'เทอร์โมคัปเปิลวัดได้แค่อุณหภูมิ ไม่มี O₂/CO — ประเมินอากาศส่วนเกินและการเผาไหม้ไม่ได้ · ต้องใช้เครื่องวิเคราะห์ไอเสีย'},ans:false,irrelevant:true};return r;}
+  return otherTool(L,t,hs,s);},
+ question:function(c){var O2=c.O2,ea=O2/(21-O2)*100;
+  return {q:'จาก O₂ = '+fmt(O2,1)+'% ที่อ่านได้ — อากาศส่วนเกิน (excess air) เท่าไร?',opts:[
+   {t:fmt(ea,1)+' %',val:ea,ok:true,why:'ถูก — EA = O₂/(21 − O₂) × 100'},
+   {t:fmt(O2/21*100,1)+' %',val:O2/21*100,ok:false,why:'นั่นคือ O₂/21 — ต้องหารด้วย (21 − O₂) ไม่ใช่ 21'},
+   {t:fmt(21/(21-O2)*100,1)+' %',val:21/(21-O2)*100,ok:false,why:'นั่นคือ λ×100 (อากาศทั้งหมดเทียบทฤษฎี) — อากาศส่วนเกินต้องลบ 100 ออก'}]};},
+ cmp:function(r){return {lab:'O₂ ไอเสีย',got:r.cmpO2,tru:4.0,u:'%',d:1};},
+ lesson:'วัดไอเสียที่ทางออกหม้อ ก่อน ECO/APH สอดหัววัดถึงกลางกระแส ห่างจุดรั่ว — tramp air ทำให้ O₂ หลอกว่าอากาศเกิน',
+ okWhy:'จุด A ทางออกหม้อ ก่อน economizer หัววัดกลางกระแส เชื้อเพลิงตรง → O₂ 4.0% · T 245°C · EA ≈ 23.5% ของจริง'
+};
+/* ── ด่าน 3: อุณหภูมิผิวท่อ ── */
+LV[2]={name:'ด่าน 3 · อุณหภูมิผิวท่อไอน้ำ 🌡',icon:'🌡',sh:'ผิวท่อ',
+ task:'วัด <em>อุณหภูมิผิว</em> ของ <em>ท่อสแตนเลสเปลือย</em> ช่วงหน้าแปลน (ไม่หุ้มฉนวน)',
+ info:'ไอน้ำอิ่มตัว ~3.8 bar g (~150°C) · ห้อง 30°C · สแตนเลสเงา ε ≈ 0.2 · มีเทปดำ ε 0.95 แปะไว้บนท่อช่วงเดียวกัน',
+ qty:'อุณหภูมิผิว',rightTool:'ใช้ IR gun (ตั้ง ε ให้ตรง) หรือเทอร์โมคัปเปิลหัวแบบผิว',
+ hs:[{id:'C',x:110,y:195,lab:'C เปลือกอะลูมิเนียม',lx:112,ly:126},{id:'A',x:300,y:195,lab:'A สแตนเลสเปลือย',lx:300,ly:126},
+     {id:'B',x:433,y:195,lab:'B เทปดำ',lx:440,ly:126},{id:'D',x:615,y:290,lab:'D วาล์วทาสี',lx:615,ly:366}],
+ surf:{A:{T:150,e:0.20},B:{T:149,e:0.95},C:{T:44,e:0.10},D:{T:160,e:0.90}},Ta:30,
+ measure:function(t,hs,s){var L=this,sf=L.surf[hs],r;
+  if(t==='ir'){var e=s.eps,Tr=irRead(sf.T,sf.e,e,L.Ta);
+   r={title:'IR THERMOMETER',lines:[{l:'T ผิว',v:Tr,u:'°C',d:1,big:1},{l:'ε ที่ตั้ง',v:e,u:'',d:2},{l:'T แวดล้อม',v:L.Ta,u:'°C',d:0}],errs:{},ans:true,ctx:{},got:Tr};
+   if(hs==='C')r.errs.point='จุด C เป็นเปลือกอะลูมิเนียมหุ้มฉนวน ไม่ใช่ผิวสแตนเลสเปลือยตามโจทย์ (ผิวจริง ~44°C และ ε อะลูมิเนียม ~0.1 ยิ่งอ่านเพี้ยน)';
+   else if(hs==='D')r.errs.point='จุด D เป็นวาล์วทาสี ไม่ใช่ผิวสแตนเลสเป้าหมาย';
+   else if(hs==='A'&&Math.abs(e-0.20)>0.051)r.errs.set='ตั้ง ε = '+fmt(e,2)+' แต่สแตนเลสเงามี ε ≈ 0.2 → ปืนอ่าน '+fmt(Tr,0)+'°C ทั้งที่จริง 150°C ('+pctTxt(pct(Tr,150))+') · แก้: ตั้ง ε ≈ 0.20 หรือยิงบนเทปดำ (ε 0.95) หรือใช้เทอร์โมคัปเปิล';
+   else if(hs==='B'&&e<0.899)r.errs.set='ยิงบนเทปดำ (ε 0.95) แต่ตั้ง ε = '+fmt(e,2)+' → อ่าน '+fmt(Tr,0)+'°C สูงเกินจริง — บนเทปดำต้องตั้ง ε 0.95';
+   return r;}
+  if(t==='tc'){var Tt=s.probe==='imm'?L.Ta+0.75*(sf.T-L.Ta):sf.T-2;
+   r={title:'THERMOCOUPLE · TYPE K',lines:[{l:'T สัมผัส',v:Tt,u:'°C',d:1,big:1},{l:'หัววัด',v:s.probe==='imm'?'IMMERSION':'SURFACE',u:''}],errs:{},ans:true,ctx:{},got:Tt};
+   if(hs==='C')r.errs.point='จุด C เป็นเปลือกอะลูมิเนียมหุ้มฉนวน ไม่ใช่ผิวสแตนเลสเปลือยตามโจทย์';
+   else if(hs==='D')r.errs.point='จุด D เป็นวาล์วทาสี ไม่ใช่ผิวเป้าหมาย';
+   if(s.probe==='imm')r.errs.set='หัวแหลมแบบจุ่ม (immersion) แตะผิวโค้งได้จุดเล็ก ความร้อนรั่วออกทางก้าน → อ่านต่ำ ~'+fmt(Tt,0)+'°C · วัดผิวต้องใช้หัวแบบแบน (surface probe) กดให้แนบ';
+   return r;}
+  return otherTool(L,t,hs,s);},
+ question:function(){var v=irRead(150,0.2,0.95,30);
+  return {q:'ถ้าเพื่อนยิง IR ที่ผิวสแตนเลส A (จริง 150°C) โดยใช้ค่าโรงงาน ε = 0.95 จะอ่านได้ประมาณ?',opts:[
+   {t:'≈ '+fmt(v,0)+' °C',val:v,ok:true,why:'ถูก — ε จริงต่ำ ผิวแผ่รังสีน้อย ปืนที่ตั้ง 0.95 จึงคิดว่าผิวเย็น อ่านต่ำกว่าจริงมาก'},
+   {t:'≈ 150 °C (เท่าเดิม)',val:150,ok:false,why:'ε มีผลมาก — ปืน IR อ่านจากพลังงานรังสี ผิวเงา ε 0.2 แผ่รังสีแค่ 1/5 ของผิวดำ'},
+   {t:'≈ 205 °C (สูงกว่าจริง)',val:205,ok:false,why:'กลับทิศ — ตั้ง ε สูงกว่าผิวจริง ปืนจะอ่านต่ำกว่าจริง (ตั้งต่ำกว่าจริงถึงจะอ่านสูง)'}]};},
+ cmp:function(r){var tr=r._hs==='B'?149:150;return {lab:'อุณหภูมิผิว',got:r.got,tru:tr,u:'°C',d:1};},
+ lesson:'IR gun อ่านจากรังสี — ผิวโลหะเงา ε ต่ำ ต้องตั้ง ε ให้ตรง หรือแปะเทปดำ ε 0.95 หรือใช้เทอร์โมคัปเปิลหัวแบบผิว',
+ okWhy:'ยิงผิวเป้าหมายด้วย ε ที่ตรงกับผิว (หรือ TC หัวแบน) → ได้ ~150°C ของจริง'
+};
+/* ── ด่าน 4: ความเร็วลมในท่อ ── */
+var PROF_N=7,VAVG=12.0,VMAX=VAVG/(2*PROF_N*PROF_N/((PROF_N+1)*(2*PROF_N+1)));
+function vAt(rr){return VMAX*Math.pow(Math.max(0,1-Math.abs(rr)),1/PROF_N);}
+var TRAV_R=[-0.866,-0.5,0.5,0.866,-0.866,-0.5,0.5,0.866],TRAV_N=[1.01,0.99,1.02,0.98,0.99,1.01,0.98,1.02];
+var LOCF={B:[1,1,1,1,1,1,1,1],A:[1.42,1.30,0.95,0.70,1.38,1.22,1.02,0.78],C:[0.93,0.92,0.88,0.84,0.90,0.91,0.87,0.85]};
+var LOCC={A:1.25,B:1.0,C:0.93};
+LV[3]={name:'ด่าน 4 · ความเร็วลมในท่อ 🌬',icon:'🌬',sh:'ท่อลม',
+ task:'วัด <em>ความเร็วลมเฉลี่ย</em> ใน <em>ท่อลมกลม Ø 0.60 m</em> หลังพัดลม',
+ info:'อากาศ 30°C · ρ = 1.16 kg/m³ · มีข้องอหลังพัดลม และแดมเปอร์ใกล้ปลายท่อ',
+ qty:'ความเร็วลม',rightTool:'ต้องใช้พิโตต์ทิวบ์ + มาโนมิเตอร์',
+ hs:[{id:'A',x:200,y:150,lab:'A หลังข้องอ',lx:200,ly:100},{id:'B',x:480,y:150,lab:'B ท่อตรงยาว',lx:470,ly:100},{id:'C',x:612,y:150,lab:'C ชิดแดมเปอร์',lx:628,ly:66}],
+ surfT:{A:31,B:31,C:31},pg:{A:0.00,B:0.00,C:0.00},rpm:{},
+ measure:function(t,hs,s){var L=this,r;
+  if(t==='pitot'){var dps=[],vs=[];
+   if(s.pat==='trav'){for(var i=0;i<8;i++){var v=vAt(TRAV_R[i])*TRAV_N[i]*LOCF[hs][i];if(s.face==='side')v=1.6*TRAV_N[i];vs.push(v);dps.push(Math.round(0.5*RHO*v*v*10)/10);}}
+   else{var vc=VMAX*LOCC[hs];if(s.face==='side')vc=1.6;vs.push(vc);dps.push(Math.round(0.5*RHO*vc*vc*10)/10);}
+   var vm=0;dps.forEach(function(d){vm+=vPitot(d);});vm/=dps.length;
+   r={title:'MANOMETER · PITOT',errs:{},ans:true,ctx:{dps:dps},unstable:hs!=='B',
+     lines:dps.length>1?[{l:'ΔP จุด 1–4 (Pa)',v:dps.slice(0,4).map(function(d){return d.toFixed(1);}).join(' '),u:'',arr:1},{l:'ΔP จุด 5–8 (Pa)',v:dps.slice(4).map(function(d){return d.toFixed(1);}).join(' '),u:'',arr:1},{l:'ρ อากาศ',v:RHO,u:'kg/m³',d:2}]:
+       [{l:'ΔP (จุดกลาง)',v:dps[0],u:'Pa',d:1,big:1},{l:'ρ อากาศ',v:RHO,u:'kg/m³',d:2}],vMeas:vm};
+   if(hs==='A')r.errs.point='จุด A ห่างข้องอแค่ ~1D — ลมยังหมุนวนและเบ้ไปทางโค้งนอก ค่าแกว่งและเพี้ยน · ต้องมีท่อตรงต้นน้ำ ≥ 7.5D และท้ายน้ำ ≥ 3D (จุด B: 8D/4D)';
+   if(hs==='C')r.errs.point='จุด C ห่างแดมเปอร์ท้ายน้ำไม่ถึง 1D — แดมเปอร์ทำให้ลมดันย้อนและเบ้ ค่าต่ำและแกว่ง · ต้องเหลือระยะท้ายน้ำ ≥ 3D';
+   var m=[];
+   if(s.face==='side')m.push('ปลายหัวพิโตต์หันตั้งฉากกับลม — รูด้านหน้าไม่รับแรงดันจลน์ ΔP ≈ 0 · ต้องหันปลายสวนทางลมตรง ๆ (เอียงเกิน ~10° ค่าเริ่มเพี้ยน)');
+   if(s.pat==='center'&&s.face!=='side')m.push('วัดจุดกลางจุดเดียวได้ '+fmt(vm,1)+' m/s — ความเร็วกลางท่อสูงสุด (≈ 1.22 × ค่าเฉลี่ย) ต้องวัดหลายจุดแบบ equal-area traverse แล้วเฉลี่ย');
+   if(s.pat==='center'&&s.face==='side')m.push('และวัดจุดกลางจุดเดียว — ต้อง traverse หลายจุดตามหน้าตัด');
+   if(m.length)r.errs.set=m.join(' · ');
+   r.cmpFromAns=true;return r;}
+  return otherTool(L,t,hs,s);},
+ question:function(c){var d=c.dps,n=d.length,mS=0,mD=0;d.forEach(function(x){mS+=vPitot(x);mD+=x;});mS/=n;mD/=n;
+  var a=mS,b=Math.sqrt(mD/RHO),cc=Math.sqrt(2*mD/1000);
+  return {q:(n>1?'มี ΔP '+n+' จุด':'มี ΔP '+fmt(d[0],1)+' Pa')+' · ρ = 1.16 kg/m³ → ความเร็วลมเฉลี่ย?',opts:[
+   {t:fmt(a,1)+' m/s',val:a,ok:true,why:'ถูก — v = √(2ΔP/ρ) ทีละจุดแล้วเฉลี่ย (เฉลี่ย √ΔP ไม่ใช่เฉลี่ย ΔP)'},
+   {t:fmt(b,1)+' m/s',val:b,ok:false,why:'ลืมเลข 2 ในสูตร v = √(2ΔP/ρ) — ได้ต่ำไป ~29%'},
+   {t:fmt(cc,2)+' m/s',val:cc,ok:false,why:'ใช้ ρ ของน้ำ (1000) — ลม 30°C มี ρ ≈ 1.16 kg/m³'}]};},
+ cmp:function(r,opt){return {lab:'ความเร็วลมเฉลี่ย',got:opt?opt.val:r.vMeas,tru:VAVG,u:'m/s',d:1};},
+ lesson:'v = √(2ΔP/ρ) — ต้อง traverse หลายจุดตามหน้าตัด หันหัวสวนลม และห่างข้องอ ≥ 7.5D ต้นน้ำ / ≥ 3D ท้ายน้ำ',
+ okWhy:'จุด B มีท่อตรง 8D/4D · traverse 8 จุด equal-area · หัวสวนลม → v เฉลี่ย ≈ 12 m/s (Q ≈ 3.4 m³/s)'
+};
+/* ── ด่าน 5: อัตราการไหลน้ำ ── */
+var ID_OF={s40:102.26,g100:90.0,t3:108.3},Q_TRUE=50.0,ID_TRUE=102.26;
+var V_TRUE=Q_TRUE/3600/(Math.PI*Math.pow(ID_TRUE/1000,2)/4);
+LV[4]={name:'ด่าน 5 · อัตราการไหลน้ำ 💧',icon:'💧',sh:'ปั๊มน้ำ',
+ task:'วัด <em>อัตราการไหล</em> ของ <em>น้ำในท่อส่งหลังปั๊ม</em> ด้วยเครื่องแบบรัดท่อ (clamp-on)',
+ info:'ท่อเหล็ก DN100 Sch40 (OD 114.3 mm · หนา 6.02 mm) · มีข้องอหลังปั๊ม · วาล์วปลายท่อ',
+ qty:'อัตราการไหล',rightTool:'ต้องใช้ ultrasonic flowmeter แบบ clamp-on',
+ hs:[{id:'A',x:228,y:170,lab:'A หลังข้องอ 2D',lx:230,ly:225},{id:'B',x:520,y:170,lab:'B ท่อตรง 12D',lx:516,ly:225},{id:'C',x:664,y:170,lab:'C ชิดวาล์ว',lx:648,ly:262}],
+ surfT:{A:29,B:29,C:29},pg:{A:3.2,B:3.1,C:3.0},rpm:{},
+ measure:function(t,hs,s){var L=this,r;
+  if(t==='usf'){var f=1,sig=88,uns=false,m=[];
+   if(hs==='A'){f*=1.09;uns=true;}if(hs==='C'){f*=1.04;uns=true;}
+   if(s.mat==='pvc'){f*=0.93;sig=Math.min(sig,35);}
+   if(s.pos==='12'){f*=0.85;sig=Math.min(sig,18);uns=true;}
+   if(s.pos==='6'){f*=0.94;sig=Math.min(sig,42);}
+   var v=V_TRUE*f,ID=ID_OF[s.size]||ID_TRUE,Q=v*Math.PI*Math.pow(ID/1000,2)/4*3600;
+   r={title:'ULTRASONIC FLOW · CLAMP-ON',errs:{},ans:true,ctx:{v:v},unstable:uns,got:Q,
+     lines:[{l:'Q',v:Q,u:'m³/h',d:1,big:1},{l:'v',v:v,u:'m/s',d:2},{l:'ID ที่เครื่องคิด',v:ID,u:'mm',d:1},{l:'สัญญาณ (SQ)',v:sig,u:'%',d:0}]};
+   if(hs==='A')r.errs.point='จุด A ห่างข้องอแค่ ~2D — โปรไฟล์ความเร็วยังเบ้/หมุนวน อ่านสูงเกิน ~9% และแกว่ง · ต้องมีท่อตรงต้นน้ำ ≥ 10D (จุด B = 12D)';
+   if(hs==='C')r.errs.point='จุด C ชิดวาล์วท้ายน้ำ ~1D — การไหลถูกรบกวน ค่าแกว่ง · ต้องเหลือท่อตรงท้ายน้ำ ≥ 5D';
+   if(s.size==='g100')m.push('กรอก OD 100 × 5 (เดาจากชื่อ DN100) → ID 90 mm แทน 102.3 mm พื้นที่หน้าตัดเล็กไป 23% → Q ต่ำเกิน · ท่อ DN100 Sch40 จริง OD 114.3 หนา 6.02 mm');
+   if(s.size==='t3')m.push('กรอกความหนา 3.0 แทน 6.02 mm → ID 108.3 mm ใหญ่ไป → Q สูงเกิน ~12%');
+   if(s.mat==='pvc')m.push('เลือกวัสดุ PVC แต่ท่อเป็นเหล็ก — ความเร็วเสียงในผนังต่างกัน ระยะติดหัววัดผิด สัญญาณอ่อน (SQ 35%) ค่าเพี้ยน');
+   if(s.pos==='12')m.push('ติดด้านบน (12 นาฬิกา) — ฟองอากาศลอยสะสมบนท่อ บังคลื่นเสียง สัญญาณตก ค่ากระโดด · ติดด้านข้าง 3 หรือ 9 นาฬิกา');
+   if(s.pos==='6')m.push('ติดด้านล่าง (6 นาฬิกา) — ตะกอนสะสมก้นท่อ ดูดซับคลื่นเสียง สัญญาณอ่อน · ติดด้านข้าง 3 หรือ 9 นาฬิกา');
+   if(m.length)r.errs.set=m.join(' · ');
+   return r;}
+  if(t==='pg'){var pv=L.pg[hs];return {title:'PRESSURE GAUGE',lines:[{l:'ความดัน',v:pv,u:'bar g',d:2,big:1}],errs:{tool:'เกจวัดความดันบอกแค่ความดันในท่อ ('+fmt(pv,1)+' bar g) ไม่บอกอัตราการไหล — ต้องใช้ ultrasonic flowmeter แบบ clamp-on'},ans:false,irrelevant:true};}
+  return otherTool(L,t,hs,s);},
+ question:function(c){var v=c.v,A=function(D){return Math.PI*D*D/4;};
+  var a=v*A(0.10226)*3600,b=v*A(0.1143)*3600,cc=v*Math.PI*0.10226*0.10226*3600;
+  return {q:'ตรวจทานจอ: v = '+fmt(v,2)+' m/s ในท่อ ID 102.3 mm → Q (m³/h) = ?',opts:[
+   {t:fmt(a,1)+' m³/h',val:a,ok:true,why:'ถูก — Q = v·πD²/4 ใช้เส้นผ่านศูนย์กลางภายใน (ID)'},
+   {t:fmt(b,1)+' m³/h',val:b,ok:false,why:'ใช้ OD 114.3 แทน ID — น้ำไหลในรูท่อ ต้องใช้ ID = OD − 2×ความหนา'},
+   {t:fmt(cc,1)+' m³/h',val:cc,ok:false,why:'ลืมหาร 4 — พื้นที่วงกลม A = πD²/4'}]};},
+ cmp:function(r){return {lab:'อัตราการไหล',got:r.got,tru:Q_TRUE,u:'m³/h',d:1};},
+ lesson:'Ultrasonic clamp-on: กรอก OD/ความหนา/วัสดุให้ถูก · ท่อตรง ≥ 10D ต้นน้ำ ≥ 5D ท้ายน้ำ · ติดด้านข้าง 3/9 นาฬิกา',
+ okWhy:'จุด B ท่อตรง 12D/5.7D · ขนาด 114.3×6.02 เหล็ก · ติด 3 นาฬิกา → Q = 50.0 m³/h (v 1.69 m/s) สัญญาณดี'
+};
+
+/* ═════════ เสียง ═════════ */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;try{var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.16,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}catch(e){}}
+function sClick(){tone(620,0,0.06,'square',0.06);}
+function sDrop(){tone(330,0,0.08,'triangle',0.15);tone(495,0.06,0.1,'triangle',0.12);}
+function sGood(){tone(523,0,0.12);tone(659,0.1,0.12);tone(784,0.2,0.2);}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.1);tone(180,0.18,0.3,'sawtooth',0.1);}
+function sTick(){tone(1400+Math.random()*400,0,0.025,'square',0.03);}
+
+/* ═════════ localStorage ═════════ */
+var stars=[0,0,0,0,0];
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_skill_measure_stars')||'[]');for(var i=0;i<5;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_skill_measure_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_skill_measure_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_skill_measure_seen','1');}catch(e){}}
+function updateStarTotal(){var t=0;for(var i=0;i<5;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+
+/* ═════════ สถานะ ═════════ */
+var S={lv:0,step:'tray',sel:null,tool:null,hs:null,set:{},res:null,mist:0,attempt:0,lcdTimer:null,best:[]};
+
+function setSteps(n){var sp=$('steps').children;for(var i=0;i<5;i++){sp[i].className=i<n?'done':(i===n?'on':'');}}
+function hint(t){var h=$('hint');if(!t){h.style.opacity='0';return;}h.textContent=t;h.style.opacity='1';}
+
+function startLevel(i){
+  S.lv=i;S.mist=0;S.attempt=0;stopLCD();
+  var L=LV[i];
+  $('lvlName').textContent=L.name;
+  $('taskTxt').innerHTML='🎯 โจทย์: '+L.task;
+  $('taskInfo').textContent='📋 '+L.info;
+  $('sceneArt').innerHTML=SCN[i]();
+  buildHotspots();
+  resetAttempt();
+}
+function resetAttempt(){
+  stopLCD();S.sel=null;S.tool=null;S.hs=null;S.set={};S.res=null;
+  $('placed').innerHTML='';markHs(null);
+  showTray();
+}
+function buildHotspots(){
+  var L=LV[S.lv],g='';
+  L.hs.forEach(function(h){
+    g+=lab(h.lx,h.ly,h.lab,h.id);
+  });
+  L.hs.forEach(function(h){
+    g+='<g class="hs" data-hs="'+h.id+'"><circle class="hit" cx="'+h.x+'" cy="'+h.y+'" r="40"/>'+
+       '<circle class="ring" cx="'+h.x+'" cy="'+h.y+'" r="26"/>'+
+       '<circle class="badge" cx="'+(h.x+22)+'" cy="'+(h.y-22)+'" r="13"/>'+
+       '<text class="bl" x="'+(h.x+22)+'" y="'+(h.y-16)+'" text-anchor="middle">'+h.id+'</text></g>';
+  });
+  $('hsLayer').innerHTML=g;
+  var hsEls=$('hsLayer').querySelectorAll('.hs');
+  for(var k=0;k<hsEls.length;k++){(function(el){
+    el.addEventListener('click',function(){if(S.step!=='tray')return;
+      if(S.sel){placeTool(S.sel,el.getAttribute('data-hs'));}
+      else{hint('เลือกเครื่องมือจากถาดก่อน แล้วค่อยแตะจุดวัด');tone(300,0,0.1,'square',0.06);}});
+  })(hsEls[k]);}
+}
+function markHs(id,cls){if(cls!=='over'){var lb=$('hsLayer').querySelectorAll('.hlab');for(var q=0;q<lb.length;q++)lb[q].style.display=(id&&lb[q].getAttribute('data-for')===id)?'none':'inline';}
+  var els=$('hsLayer').querySelectorAll('.hs');for(var i=0;i<els.length;i++){
+  els[i].classList.remove('over');if(cls!=='over')els[i].classList.remove('picked');
+  if(id&&els[i].getAttribute('data-hs')===id)els[i].classList.add(cls||'picked');}}
+
+/* ── ถาดเครื่องมือ ── */
+function showTray(){
+  S.step='tray';setSteps(S.sel?1:0);
+  var h='<div class="ph">🧰 ถาดเครื่องมือ <small>ลากไปวาง หรือแตะเลือกแล้วแตะจุดวัด</small></div><div id="tray">';
+  TOOL_ORDER.forEach(function(t){h+='<button class="tool'+(S.sel===t?' sel':'')+'" data-t="'+t+'" aria-label="'+TOOLS[t].n+'"><svg viewBox="0 0 64 64"><use href="#ico_'+t+'" width="64" height="64"/></svg><span>'+TOOLS[t].sh+'</span></button>';});
+  h+='</div>';
+  if(S.attempt>0)h+='<div class="where">🔁 ครั้งที่ '+(S.attempt+1)+' · พลาดสะสมในด่านนี้ '+S.mist+' จุด</div>';
+  $('panel').innerHTML=h;
+  var cards=$('panel').querySelectorAll('.tool');
+  for(var i=0;i<cards.length;i++)bindDrag(cards[i]);
+  hint(S.sel?'แตะจุดวัด (A, B, C…) ในฉาก หรือลากไปวาง':'ลากเครื่องมือจากถาด ไปวางที่จุดวัด');
+}
+function selectTool(t){S.sel=t;audio();sClick();
+  var cards=$('panel').querySelectorAll('.tool');for(var i=0;i<cards.length;i++)cards[i].classList.toggle('sel',cards[i].getAttribute('data-t')===t);
+  setSteps(1);hint('เลือก '+TOOLS[t].n+' แล้ว → แตะจุดวัดในฉาก');}
+var drag=null;
+function bindDrag(el){
+  el.addEventListener('pointerdown',function(e){if(S.step!=='tray')return;audio();
+    drag={t:el.getAttribute('data-t'),x0:e.clientX,y0:e.clientY,moved:false,id:e.pointerId};
+    try{el.setPointerCapture(e.pointerId);}catch(er){}
+    e.preventDefault();});
+  el.addEventListener('pointermove',function(e){if(!drag||drag.id!==e.pointerId)return;
+    var dx=e.clientX-drag.x0,dy=e.clientY-drag.y0;
+    if(!drag.moved&&Math.sqrt(dx*dx+dy*dy)>8){drag.moved=true;$('ghostUse').setAttribute('href','#ico_'+drag.t);$('ghost').style.display='block';setSteps(1);hint('ปล่อยลงบนจุดวัด');}
+    if(drag.moved){var g=$('ghost');g.style.transform='translate('+(e.clientX-31)+'px,'+(e.clientY-50)+'px)';
+      var hs=hsAt(e.clientX,e.clientY);markHs(hs,'over');}});
+  var end=function(e){if(!drag||drag.id!==e.pointerId)return;var d=drag;drag=null;$('ghost').style.display='none';
+    try{el.releasePointerCapture(e.pointerId);}catch(er){}
+    if(!d.moved){selectTool(d.t);return;}
+    var hs=hsAt(e.clientX,e.clientY);markHs(null,'over');
+    if(hs)placeTool(d.t,hs);else{S.sel=d.t;selectTool(d.t);hint('ยังไม่โดนจุดวัด — ลากไปวางบนวงเหลือง หรือแตะจุดวัด');}};
+  el.addEventListener('pointerup',end);
+  el.addEventListener('pointercancel',function(e){if(drag&&drag.id===e.pointerId){drag=null;$('ghost').style.display='none';markHs(null,'over');}});
+}
+function hsAt(x,y){var els=$('hsLayer').querySelectorAll('.hs'),best=null,bd=1e9;
+  for(var i=0;i<els.length;i++){var r=els[i].querySelector('.hit').getBoundingClientRect();
+    var cx=r.left+r.width/2,cy=r.top+r.height/2,d=Math.hypot(x-cx,y-cy);
+    if(d<r.width/2+6&&d<bd){bd=d;best=els[i].getAttribute('data-hs');}}
+  return best;}
+
+/* ── วางเครื่องมือ ── */
+function placeTool(t,hs){
+  S.tool=t;S.hs=hs;S.sel=t;S.set={};
+  (SETS[t]||[]).forEach(function(d){if(d.slider)S.set[d.k]=d.def;});
+  var h=LV[S.lv].hs.filter(function(x){return x.id===hs;})[0];
+  var ix=Math.max(4,Math.min(660,h.x-28)),iy=Math.max(2,h.y-92);
+  $('placed').innerHTML='<g class="drop"><line x1="'+h.x+'" y1="'+(iy+52)+'" x2="'+h.x+'" y2="'+h.y+'" stroke="'+TOOLS[t].col+'" stroke-width="4" stroke-dasharray="6 4"/>'+
+    '<circle cx="'+h.x+'" cy="'+h.y+'" r="7" fill="'+TOOLS[t].col+'" stroke="#fff" stroke-width="2"/>'+
+    '<rect x="'+(ix-3)+'" y="'+(iy-3)+'" width="62" height="62" rx="14" fill="#fff" opacity=".92"/>'+
+    '<use href="#ico_'+t+'" x="'+ix+'" y="'+iy+'" width="56" height="56"/></g>';
+  markHs(hs,'picked');sDrop();
+  showSettings();
+}
+function hsName(id){var h=LV[S.lv].hs.filter(function(x){return x.id===id;})[0];return h?h.lab:id;}
+function clockSvg(p){var a={'12':[19,6],'3':[32,19],'6':[19,32]}[p];
+  return '<svg viewBox="0 0 38 38"><circle cx="19" cy="19" r="13" fill="#bfe3ff" stroke="#5d6b7d" stroke-width="3"/>'+
+   '<path d="M8 13 a13 13 0 0 1 22 0" fill="#e8f6ff" opacity=".9"/><path d="M9 26 a13 13 0 0 0 20 0 z" fill="#8a6a3a" opacity=".7"/>'+
+   '<rect x="'+(a[0]-5)+'" y="'+(a[1]-4)+'" width="10" height="8" rx="2" fill="#00acc1" stroke="#006978" stroke-width="1.5"/></svg>';}
+function showSettings(){
+  S.step='set';setSteps(2);
+  var t=S.tool,defs=SETS[t]||[];
+  var h='<div class="ph">⚙ ตั้งค่า '+TOOLS[t].n+'</div>'+
+    '<div class="where">📍 วางที่ <b>'+hsName(S.hs)+'</b></div>';
+  if(!defs.length)h+='<div class="where">เครื่องมือนี้ไม่ต้องตั้งค่า — กดอ่านค่าได้เลย</div>';
+  defs.forEach(function(d){
+    h+='<div class="setRow"><div class="lb">'+d.l+'</div>';
+    if(d.slider){h+='<div class="epsBox"><input type="range" id="sl_'+d.k+'" min="'+d.min+'" max="'+d.max+'" step="'+d.step+'" value="'+S.set[d.k]+'" aria-label="'+d.l+'"><b id="slv_'+d.k+'">'+(+S.set[d.k]).toFixed(2)+'</b></div>';}
+    else if(d.clock){h+='<div class="clockPick">';d.o.forEach(function(o){h+='<button data-k="'+d.k+'" data-v="'+o[0]+'"'+(S.set[d.k]===o[0]?' class="on"':'')+'>'+clockSvg(o[0])+o[1]+'</button>';});h+='</div>';}
+    else{h+='<div class="seg">';d.o.forEach(function(o){h+='<button data-k="'+d.k+'" data-v="'+o[0]+'"'+(S.set[d.k]===o[0]?' class="on"':'')+'>'+o[1]+'</button>';});h+='</div>';}
+    h+='</div>';});
+  h+='<div class="btnRow"><button class="big-btn small alt" id="backBtn">↩ เปลี่ยน</button><button class="big-btn small" id="readBtn">📟 อ่านค่า</button></div>';
+  $('panel').innerHTML=h;
+  var bs=$('panel').querySelectorAll('.seg button,.clockPick button');
+  for(var i=0;i<bs.length;i++)bs[i].addEventListener('click',function(){var k=this.getAttribute('data-k');S.set[k]=this.getAttribute('data-v');sClick();
+    var sib=this.parentNode.children;for(var j=0;j<sib.length;j++)sib[j].classList.toggle('on',sib[j]===this);checkReady();});
+  defs.forEach(function(d){if(d.slider){var sl=$('sl_'+d.k);sl.addEventListener('input',function(){S.set[d.k]=Math.round(+this.value*100)/100;$('slv_'+d.k).textContent=S.set[d.k].toFixed(2);});
+    sl.addEventListener('change',sClick);}});
+  $('backBtn').addEventListener('click',function(){sClick();S.tool=null;S.hs=null;$('placed').innerHTML='';markHs(null);showTray();});
+  $('readBtn').addEventListener('click',function(){audio();doRead();});
+  checkReady();
+  hint('ตั้งค่าให้ตรงหน้างาน แล้วกด 📟 อ่านค่า');
+}
+function checkReady(){var defs=SETS[S.tool]||[],ok=defs.every(function(d){return S.set[d.k]!=null;});
+  var b=$('readBtn');if(b)b.disabled=!ok;return ok;}
+
+/* ── อ่านค่า: จอวิ่งแล้วนิ่ง ── */
+function stopLCD(){if(S.lcdTimer){clearInterval(S.lcdTimer);S.lcdTimer=null;}}
+function doRead(){
+  if(!checkReady())return;
+  var L=LV[S.lv];S.res=L.measure(S.tool,S.hs,S.set);S.res._hs=S.hs;
+  S.step='read';setSteps(3);
+  var r=S.res,h='<div class="ph">📟 อ่านค่าที่จอ</div><div class="meter" style="--mcol:'+TOOLS[S.tool].col+'"><div class="mt"><span>'+r.title+'</span><i>'+S.hs+'</i></div><div class="lcd" id="lcd">';
+  r.lines.forEach(function(ln,i){h+='<div class="ln'+(ln.big?' big':'')+(ln.arr?' arr':'')+'"><span class="k">'+ln.l+'</span><span class="v"><span id="lv'+i+'">'+(typeof ln.v==='number'?'--':ln.v)+'</span><small>'+(ln.u||'')+'</small></span></div>';});
+  if(r.msg)h+='<div class="msg">'+r.msg+'</div>';
+  h+='<div class="flag" id="lcdFlag" style="display:none">⚠ ค่าแกว่ง ไม่นิ่ง</div></div></div>'+
+     '<div class="btnRow" id="readNext" style="visibility:hidden"><button class="big-btn small" id="goAns">'+(r.ans?'✍ บันทึกผล ➜':'ดูเฉลย ➜')+'</button></div>';
+  $('panel').innerHTML=h;
+  $('goAns').addEventListener('click',function(){sClick();stopLCD();if(S.res.ans)showAnswer();else finishAttempt(null);});
+  hint('รอให้ตัวเลขนิ่งก่อนจด…');
+  var dur=RM?250:1500,t0=performance.now(),last=0;
+  function frame(now){
+    if(S.step!=='read'||S.res!==r)return;
+    var k=Math.min(1,(now-t0)/dur);
+    if(now-last>70||k>=1){last=now;
+      r.lines.forEach(function(ln,i){if(typeof ln.v!=='number')return;var el=$('lv'+i);if(!el)return;
+        var amp=(1-k)*(1-k)*0.35,v=k>=1?ln.v:ln.v*(1+(Math.random()*2-1)*amp)+(Math.random()*2-1)*amp*3;
+        el.textContent=fmt(v,ln.d);});
+      if(k<1&&!RM)sTick();}
+    if(k<1)requestAnimationFrame(frame);
+    else{$('readNext').style.visibility='visible';hint(r.ans?'จดค่าแล้วไปบันทึกผล':'ดูเฉลยว่าทำไม');
+      if(r.unstable){$('lcdFlag').style.display='block';
+        if(!RM)S.lcdTimer=setInterval(function(){r.lines.forEach(function(ln,i){if(typeof ln.v!=='number'||ln.l.indexOf('ρ')===0||ln.l.indexOf('ID')===0)return;var el=$('lv'+i);if(el)el.textContent=fmt(ln.v*(1+(Math.random()*2-1)*0.12),ln.d);});},380);}}
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ── บันทึกผล ── */
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function showAnswer(){
+  S.step='ans';setSteps(4);
+  var Q=LV[S.lv].question(S.res.ctx),opts=shuffle(Q.opts.slice());S.opts=opts;
+  var h='<div class="ph">✍ บันทึกผลลงแบบฟอร์ม</div><div class="q">'+Q.q+'</div><div class="opts">';
+  opts.forEach(function(o,i){h+='<button data-i="'+i+'">'+o.t+'</button>';});
+  h+='</div>';
+  $('panel').innerHTML=h;
+  var bs=$('panel').querySelectorAll('.opts button');
+  for(var i=0;i<bs.length;i++)bs[i].addEventListener('click',function(){sClick();finishAttempt(S.opts[+this.getAttribute('data-i')]);});
+  hint('เลือกคำตอบที่ถูกต้อง');
+}
+
+/* ── จบหนึ่งครั้งการวัด → เฉลย ── */
+function finishAttempt(opt){
+  var L=LV[S.lv],r=S.res,e={};for(var k in r.errs)e[k]=r.errs[k];
+  if(r.ans&&opt&&!opt.ok)e.ans=opt.why;
+  var n=Object.keys(e).length;S.mist+=n;S.attempt++;S.lastErrs=e;S.lastOpt=opt;
+  var clean=n===0,st=0;
+  if(clean){st=S.mist===0?3:(S.mist===1?2:1);if(st>stars[S.lv]){stars[S.lv]=st;saveStars();}updateStarTotal();setSteps(5);}
+  var html='<div style="font-size:2.3rem">'+(clean?'✅':'🔧')+'</div><h2>'+(clean?(st===3?'วัดแม่นตั้งแต่ครั้งแรก!':'วัดถูกแล้ว!'):'ค่าเพี้ยน! ดูเฉลยแล้วแก้ใหม่')+'</h2>';
+  if(clean)html+='<div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>';
+  /* เทียบค่า */
+  if(!r.irrelevant){var c=L.cmp(r,opt);
+    if(c&&c.got!=null&&isFinite(c.got)){var p=pct(c.got,c.tru),okd=Math.abs(p)<=5;
+      html+='<div class="cmp"><div>ค่าที่คุณได้<b>'+fmt(c.got,c.d)+' '+c.u+'</b></div><div>ค่าจริง<b>'+fmt(c.tru,c.d)+' '+c.u+'</b></div><div class="dev'+(okd?' ok':'')+'">คลาด<b>'+pctTxt(p)+'</b></div></div>';}
+    else html+='<div class="cmp"><div>ค่าที่คุณได้<b>ใช้ไม่ได้</b></div><div>'+c.lab+' จริง<b>'+fmt(c.tru,c.d)+' '+c.u+'</b></div></div>';
+  }else html+='<div class="cmp"><div>เครื่องมือไม่ตรงงาน<b>ไม่มีค่าให้เทียบ</b></div></div>';
+  /* เช็กลิสต์รายขั้น */
+  var rows=[['tool','① เครื่องมือ',TOOLS[S.tool].n],['point','② จุดวัด',hsName(S.hs)],['set','③ การตั้งค่า',setSummary()],['ans','④ ผลที่บันทึก',opt?opt.t:'—']];
+  html+='<div class="chk">';
+  rows.forEach(function(rw){var k=rw[0],bad=e[k],skip=r.irrelevant&&k!=='tool';
+    if(k==='ans'&&!r.ans)skip=true;
+    html+='<div class="r '+(skip?'':(bad?'bad':'ok'))+'"><span class="ic">'+(skip?'➖':(bad?'❌':'✔️'))+'</span><div><b>'+rw[1]+': '+rw[2]+'</b>'+
+      (skip?'<span style="color:#7a879a">ไม่ได้ตรวจ — เครื่องมือ/จุดวัดยังไม่ถูก</span>':(bad?bad:(k==='ans'&&opt?opt.why:'ถูกต้อง')))+'</div></div>';});
+  html+='</div>';
+  html+='<div class="lesson">💡 '+(clean?L.okWhy+'<br>':'')+L.lesson+'</div>';
+  if(clean)html+='<div style="font-size:.85rem;color:#5a6b82">พลาดสะสมในด่านนี้: '+S.mist+' จุด · '+S.attempt+' ครั้งที่วัด</div>';
+  html+='<div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">';
+  if(clean)html+='<button class="big-btn small alt" id="rRetry">↻ เล่นด่านนี้ใหม่</button><button class="big-btn small" id="rNext">'+(S.lv<4?'ด่านต่อไป ➜':'🏅 สรุปผล')+'</button>';
+  else html+='<button class="big-btn small" id="rFix">🔧 แก้แล้ววัดใหม่</button>';
+  html+='</div><div class="brand">Energy Skills Lab · Triple E Technology</div>';
+  $('resCard').innerHTML=html;$('resCard').scrollTop=0;
+  $('resultOv').classList.add('show');
+  if(clean){sGood();var ss=$('resStars').children;for(let i=0;i<st;i++)setTimeout(function(){ss[i].classList.add('on');sStar(i);},350+i*380);if(st===3)confetti(30);
+    $('rRetry').addEventListener('click',function(){sClick();$('resultOv').classList.remove('show');startLevel(S.lv);});
+    $('rNext').addEventListener('click',function(){sClick();$('resultOv').classList.remove('show');if(S.lv<4)startLevel(S.lv+1);else showEnd();});}
+  else{sBad();var sw=$('sceneWrap');
+    $('rFix').addEventListener('click',function(){sClick();$('resultOv').classList.remove('show');resetAttempt();});}
+}
+function setSummary(){var defs=SETS[S.tool]||[];if(!defs.length)return 'ไม่มี';
+  return defs.map(function(d){var v=S.set[d.k];if(d.slider)return 'ε '+(+v).toFixed(2);var o=d.o.filter(function(x){return x[0]===v;})[0];return o?o[1]:'-';}).join(' · ');}
+
+/* ── สรุปจบเกม ── */
+function showEnd(){
+  var t=updateStarTotal(),h='';
+  LV.forEach(function(L,i){h+='<div><b>'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></b> '+L.name+'<br>'+L.lesson+'</div>';});
+  $('endList').innerHTML=h;$('endStars').textContent='รวม ⭐ '+t+' / 15';
+  $('endOv').classList.add('show');sGood();if(t>=13)confetti(40);
+}
+function confetti(n){if(RM)return;var cols=['#3f51b5','#ffd23f','#00acc1','#1fb45f','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3600);}}
+
+/* ═════════ คู่มือวิธีเล่น (5 ขั้น + SVG เคลื่อนไหว) ═════════ */
+var HELP=[
+ {txt:'① ลากเครื่องมือจากถาดด้านล่าง ขึ้นไปที่ฉาก (หรือแตะเลือกก่อนก็ได้) — ต้องเลือกให้ถูกชนิดกับสิ่งที่โจทย์ให้วัด',
+  svg:'<svg viewBox="0 0 340 170"><rect width="340" height="170" rx="12" fill="#2f3e57"/>'+
+   '<rect x="150" y="18" width="150" height="62" rx="10" fill="#3e5070"/><circle cx="200" cy="48" r="16" fill="rgba(255,210,63,.2)" stroke="#ffd23f" stroke-width="3" stroke-dasharray="6 4"/>'+
+   '<rect x="10" y="110" width="320" height="52" rx="10" fill="#fff"/>'+
+   '<g><rect x="20" y="116" width="44" height="40" rx="8" fill="#f7fafd" stroke="#e2e9f2" stroke-width="2"/><use href="#ico_clamp" x="24" y="118" width="36" height="36"/></g>'+
+   '<g><rect x="74" y="116" width="44" height="40" rx="8" fill="#e8ebfb" stroke="#3f51b5" stroke-width="3"/><use href="#ico_pa" x="78" y="118" width="36" height="36"/></g>'+
+   '<g><rect x="128" y="116" width="44" height="40" rx="8" fill="#f7fafd" stroke="#e2e9f2" stroke-width="2"/><use href="#ico_ir" x="132" y="118" width="36" height="36"/></g>'+
+   '<g><rect x="182" y="116" width="44" height="40" rx="8" fill="#f7fafd" stroke="#e2e9f2" stroke-width="2"/><use href="#ico_fga" x="186" y="118" width="36" height="36"/></g>'+
+   '<g class="tDrag"><use href="#ico_pa" x="78" y="104" width="36" height="36"/><path d="M104 138 q4 -10 10 -6 l4 14 q2 8 -6 10 l-10 2 q-6 0 -8 -6 z" fill="#ffd9b3" stroke="#c98d5a" stroke-width="2"/></g></svg>'},
+ {txt:'② ปล่อยลงบน "จุดวัด" (วงเหลือง A, B, C…) — จุดหลอกมีเสมอ ต้องเลือกจุดที่วัดได้ค่าจริง',
+  svg:'<svg viewBox="0 0 340 170"><rect width="340" height="170" rx="12" fill="#2f3e57"/>'+
+   '<rect x="20" y="84" width="300" height="30" rx="4" fill="#9aa6b4"/>'+
+   '<g fill="rgba(255,210,63,.2)" stroke="#ffd23f" stroke-width="3" stroke-dasharray="6 4"><circle cx="70" cy="99" r="18"/><circle cx="270" cy="99" r="18"/></g>'+
+   '<circle cx="170" cy="99" r="18" fill="rgba(0,172,193,.35)" stroke="#00e5ff" stroke-width="3"/>'+
+   '<g font-family="sans-serif" font-weight="700" font-size="14" fill="#ffd23f"><text x="64" y="140">A</text><text x="164" y="140">B</text><text x="264" y="140">C</text></g>'+
+   '<g class="tDrop"><line x1="170" y1="60" x2="170" y2="92" stroke="#00838f" stroke-width="3" stroke-dasharray="5 3"/><rect x="146" y="14" width="48" height="48" rx="10" fill="#fff"/><use href="#ico_usf" x="148" y="16" width="44" height="44"/></g>'+
+   '<g class="tPop"><circle cx="214" cy="60" r="14" fill="#1fb45f"/><path d="M207 60 l5 5 l9 -10" stroke="#fff" stroke-width="3.5" fill="none" stroke-linecap="round"/></g></svg>'},
+ {txt:'③ ตั้งค่าให้ตรงหน้างาน เช่น ค่า ε ของผิว · จำนวนเฟส · ชนิดเชื้อเพลิง · ขนาดท่อ — ตั้งผิด ตัวเลขก็ผิด',
+  svg:'<svg viewBox="0 0 340 170"><rect width="340" height="170" rx="12" fill="#fff"/>'+
+   '<text x="20" y="32" font-size="15" font-family="Mitr,sans-serif" font-weight="600" fill="#213047">ค่า emissivity (ε)</text>'+
+   '<rect x="40" y="52" width="230" height="14" rx="7" fill="#cfd8e3"/>'+
+   '<g class="tKnob"><circle cx="252" cy="59" r="15" fill="#fff" stroke="#3f51b5" stroke-width="5"/></g>'+
+   '<text x="290" y="66" font-size="16" font-family="monospace" font-weight="700" fill="#3f51b5" class="tF1">0.95</text>'+
+   '<text x="290" y="66" font-size="16" font-family="monospace" font-weight="700" fill="#3f51b5" class="tF2">0.70</text>'+
+   '<text x="290" y="66" font-size="16" font-family="monospace" font-weight="700" fill="#3f51b5" class="tF3">0.40</text>'+
+   '<text x="290" y="66" font-size="16" font-family="monospace" font-weight="700" fill="#3f51b5" class="tF4">0.20</text>'+
+   '<text x="20" y="104" font-size="15" font-family="Mitr,sans-serif" font-weight="600" fill="#213047">ระบบไฟ</text>'+
+   '<rect x="20" y="114" width="140" height="40" rx="10" fill="#f6f9fc" stroke="#dfe6f0" stroke-width="3"/><text x="90" y="139" text-anchor="middle" font-size="14" font-family="Mitr,sans-serif" fill="#213047">1 เฟส</text>'+
+   '<rect class="tSeg" x="176" y="114" width="144" height="40" rx="10" stroke-width="3"/><text x="248" y="139" text-anchor="middle" font-size="14" font-family="Mitr,sans-serif" fill="#213047">3 เฟส · 3 CT</text></svg>'},
+ {txt:'④ กด 📟 อ่านค่า — ตัวเลขบนจอจะวิ่งแล้วค่อยนิ่ง รอให้นิ่งก่อนจด (ถ้าขึ้น ⚠ ค่าแกว่ง แปลว่าจุดวัดมีปัญหา)',
+  svg:'<svg viewBox="0 0 340 170"><rect width="340" height="170" rx="12" fill="#eef4fb"/>'+
+   '<rect x="50" y="18" width="240" height="134" rx="16" fill="#2e3440"/><rect x="64" y="40" width="212" height="98" rx="8" fill="#0e2a24"/>'+
+   '<text x="70" y="34" font-size="11" fill="#cfd8e6" font-family="sans-serif" font-weight="700">IR THERMOMETER</text>'+
+   '<text x="76" y="68" font-size="14" fill="#9fe8c8" font-family="Mitr,sans-serif">T ผิว</text>'+
+   '<g font-family="monospace" font-size="34" font-weight="700" fill="#7dffc3" text-anchor="end">'+
+   '<text class="tF1" x="262" y="104">83.7</text><text class="tF2" x="262" y="104">171.2</text><text class="tF3" x="262" y="104">139.5</text><text class="tF4" x="262" y="104">149.6</text></g>'+
+   '<text x="262" y="128" font-size="12" fill="#9fe8c8" font-family="monospace" text-anchor="end">°C · ε 0.20</text></svg>'},
+ {txt:'⑤ เลือกผลลัพธ์ที่ถูก แล้วดูหน้า "เฉลย" รายข้อ — ทำถูกทุกขั้นครั้งแรก = ⭐⭐⭐ · พลาด 1 จุด = ⭐⭐',
+  svg:'<svg viewBox="0 0 340 170"><rect width="340" height="170" rx="12" fill="#fff"/>'+
+   '<g font-family="Mitr,sans-serif" font-size="14" fill="#213047">'+
+   '<g class="tS1"><rect x="20" y="14" width="300" height="28" rx="8" fill="#e6f7ee"/><text x="34" y="33">✔ เครื่องมือ: Power analyzer</text></g>'+
+   '<g class="tS2"><rect x="20" y="48" width="300" height="28" rx="8" fill="#e6f7ee"/><text x="34" y="67">✔ จุดวัด: A สายป้อน 3 เฟส</text></g>'+
+   '<g class="tS3"><rect x="20" y="82" width="300" height="28" rx="8" fill="#fdecec"/><text x="34" y="101">✘ ตั้งค่า: 1 เฟส → ได้แค่ 1/3!</text></g>'+
+   '<g class="tS4"><text x="170" y="150" text-anchor="middle" font-size="26">⭐⭐</text></g></g></svg>'}
+];
+var helpPg=0;
+function renderHelp(){
+  $('helpStage').innerHTML=HELP[helpPg].svg;
+  $('helpTxt').textContent=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';
+  for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';
+  $('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';
+}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){$('helpOv').classList.remove('show');markSeen();
+  if(start&&$('startOv').classList.contains('show')){$('startOv').classList.remove('show');startLevel(pickNext());}}
+function pickNext(){for(var i=0;i<5;i++)if(!stars[i])return i;return 0;}
+
+/* ═════════ สูตร/ที่มา ═════════ */
+function buildFx(){
+  var c=function(i){return S.lv===i&&!$('startOv').classList.contains('show')?' class="cur"':'';};
+  $('fxBody').innerHTML=
+  '<div'+c(0)+'><h3>⚡ ด่าน 1 กำลังไฟฟ้ามอเตอร์ 3 เฟส</h3><span class="f">P = √3 · V_LL · I · cosφ = Σ V_LN · I_k · PF_k</span>'+
+  'ตัวอย่าง: 400 V, I เฉลี่ย 68.3 A, PF 0.84 → P = 39.7 kW · ถ้าใช้แคลมป์เฟสเดียว √3·400·69.2 = 47.9 (คือ kVA) สูงเกิน ~21%<br>'+
+  'Power analyzer ต้องคล้อง CT ครบ 3 เฟส ลูกศรชี้ไปทางโหลด + ต่อแรงดันครบ<div class="ref">อ้างอิง: IEC 61557-12 / IEC 61000-4-30 (เครื่องวัดคุณภาพไฟฟ้า) · คู่มือการตรวจวัด พพ.</div></div>'+
+  '<div'+c(1)+'><h3>🔥 ด่าน 2 ไอเสียหม้อไอน้ำ (Siegert)</h3><span class="f">qA = (Tg − Ta) · ( A2/(21 − O₂) + B )</span><span class="f">EA = O₂/(21 − O₂) × 100 · λ = 21/(21 − O₂)</span>'+
+  'น้ำมันเตา A2 0.68, B 0.007 (CO₂max 15.8%) · ก๊าซธรรมชาติ A2 0.66, B 0.009 (CO₂max 11.7%)<br>'+
+  'Tramp air: O₂mix = (1−f)·O₂ + 21f · Tmix = (1−f)·Tg + f·Ta → ช่องรั่ว f ≈ 0.21 ทำ O₂ 4.0 → 7.6%'+
+  '<div class="ref">อ้างอิง: EN 50379 (เครื่องวิเคราะห์ไอเสีย) · ASME PTC 4 / EN 12952-15 (วัดที่ทางออกหม้อ ก่อนอุปกรณ์นำความร้อนกลับ)</div></div>'+
+  '<div'+c(2)+'><h3>🌡 ด่าน 3 IR gun กับ emissivity</h3><span class="f">T_read⁴ = (ε_true/ε_set)(T_true⁴ − T_amb⁴) + T_amb⁴  [K]</span>'+
+  'สแตนเลสเงา ε ≈ 0.1–0.3 · อะลูมิเนียมหุ้มฉนวน ≈ 0.05–0.1 · เทปพันสายไฟสีดำ ≈ 0.95 · สมมติ reflected T = T_amb<br>'+
+  'จริง 150°C, ε 0.2, ตั้ง 0.95, ห้อง 30°C → อ่าน ≈ '+fmt(irRead(150,0.2,0.95,30),0)+'°C'+
+  '<div class="ref">อ้างอิง: ASTM E1933 (วัด/ปรับ emissivity ด้วยเทปหรือหน้าสัมผัส) · กฎ Stefan-Boltzmann</div></div>'+
+  '<div'+c(3)+'><h3>🌬 ด่าน 4 พิโตต์ทิวบ์</h3><span class="f">v = √(2ΔP/ρ) · ρ = P/(R·T) ≈ 1.16 kg/m³ ที่ 30°C</span>'+
+  'โปรไฟล์ปั่นป่วน 1/7 power law: v_avg ≈ 0.817 v_max → วัดจุดกลางจุดเดียวสูงเกิน ~22%<br>'+
+  'Equal-area traverse 2 แนว × 4 จุด (r/R = 0.500, 0.866) · เฉลี่ย √ΔP ไม่ใช่เฉลี่ย ΔP · ระยะตรง ≥ 7.5D ต้นน้ำ / ≥ 3D ท้ายน้ำ'+
+  '<div class="ref">อ้างอิง: ISO 3966 · AMCA 203 · ASHRAE 111 · US EPA Method 1</div></div>'+
+  '<div'+c(4)+'><h3>💧 ด่าน 5 Ultrasonic clamp-on</h3><span class="f">Q = v · π·D_i²/4 · D_i = OD − 2t</span>'+
+  'DN100 Sch40: OD 114.3, t 6.02 → ID 102.26 mm · Q 50.0 m³/h ↔ v 1.69 m/s<br>'+
+  'แบบง่ายในเกม: Q_read = v_meas · A(ID ที่กรอก) · ท่อตรง ≥ 10D ต้นน้ำ / ≥ 5D ท้ายน้ำ · ติดหัวด้านข้าง 3/9 นาฬิกา (บน = ฟองอากาศ, ล่าง = ตะกอน)'+
+  '<div class="ref">อ้างอิง: คู่มือผู้ผลิต transit-time flowmeter (ระยะตรงทั่วไป 10D/5D) · ISO 20456 แนวทางการติดตั้ง · ASME B36.10M (ขนาดท่อ)</div></div>';
+}
+
+/* ═════════ ปุ่ม ═════════ */
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn2').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+$('playBtn').addEventListener('click',function(){audio();sGood();markSeen();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('fxBtn').addEventListener('click',function(){sClick();buildFx();$('fxOv').classList.add('show');this.classList.add('on');});
+$('fxClose').addEventListener('click',function(){sClick();$('fxOv').classList.remove('show');$('fxBtn').classList.remove('on');});
+$('endHome').addEventListener('click',function(){sClick();$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('endReplay').addEventListener('click',function(){sClick();$('endOv').classList.remove('show');startLevel(0);});
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<5;i++){var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.25rem">'+LV[i].icon+'</span><span class="nm">'+(i+1)+'. '+LV[i].sh+'</span><span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();markSeen();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);}
+}
+
+/* ── QA hook ── */
+window.TEM={S:S,LV:LV,irRead:irRead,siegert:siegert,vPitot:vPitot,startLevel:startLevel,placeTool:placeTool,doRead:doRead,
+  set:function(k,v){S.set[k]=v;if(S.step==='set'){var b=$('panel').querySelector('[data-k="'+k+'"][data-v="'+v+'"]');if(b)b.click();else checkReady();}},
+  measure:function(lv,t,hs,set){return LV[lv].measure(t,hs,set);},question:function(lv,ctx){return LV[lv].question(ctx);},
+  answer:function(okWanted){var i=S.opts.findIndex(function(o){return o.ok===okWanted;});finishAttempt(S.opts[i]);},stars:stars};
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();
+$('sceneArt').innerHTML=SCN[0]();
+$('taskTxt').innerHTML='🎯 '+LV[0].task;$('taskInfo').textContent='📋 '+LV[0].info;
+S.lv=0;buildHotspots();showTray();
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Carbon Trader — ภารกิจโรงงานคาร์บอนต่ำ · Energy Skills Lab</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "Carbon Trader — ภารกิจโรงงานคาร์บอนต่ำ" v0.1 — Energy Skills Lab · Triple E Technology
+     กลุ่มเป้าหมาย: มหาวิทยาลัย/วิศวกรใหม่
+     หลักที่สอน: การบริหารการลดก๊าซเรือนกระจกของโรงงาน — Scope 1/2 (GHG Protocol, ISO 14064-1),
+       Marginal Abatement Cost Curve (MACC), payback/NPV ของมาตรการ, การชดเชยด้วยคาร์บอนเครดิต T-VER (อบก.),
+       เป้าหมาย Net Zero แบบขั้นบันได (ลดจริงก่อน ชดเชยเฉพาะส่วนที่เหลือ)
+     โรงงานฐาน (สมมติ โรงงานขนาดกลางไทย):
+       ไฟฟ้า 6,000 MWh/ปี × 4.2 บาท/kWh · EF_GRID = 0.4999 kgCO₂e/kWh (TGO) → Scope 2 = 2,999.4 tCO₂e
+       ถ่านหิน 1,500 t/ปี × 3,500 บาท/t · NCV 25 GJ/t · EF 2.4 tCO₂/t (สมมติ sub-bituminous ≈ 25 GJ/t × ~96 kgCO₂/GJ IPCC 2006)
+       หม้อไอน้ำ η 75% → ความร้อนใช้งาน Q = 1,500×25×0.75 = 28,125 GJ/ปี · Scope 1 อื่น (ดีเซล/สารทำความเย็น) 150 t
+       ฐานรวม = 3,750 + 2,999.4 = 6,749.4 tCO₂e/ปี
+     สูตร:
+       Scope 1 = ถ่านหิน(t)×2.4 + GJชีวมวล×1.9 kgCO₂e/GJ (CH₄+N₂O; CO₂ ชีวมวลเป็น biogenic รายงานแยก) + 150
+       Scope 2 (location) = MWh × EF_GRID · (market-based) = (MWh − REC) × EF_GRID
+       เชื้อเพลิง(GJ) = Q×(1−0.15·HP)/η · η: ถ่านหิน 0.75 / ชีวมวล 0.72, +0.04 เมื่อจูนเผาไหม้ · ชีวมวล NCV 10.5 GJ/t 1,200 บาท/t
+       Heat pump: แทนความร้อน 15% ของ Q, COP 4 → ไฟฟ้าเพิ่ม = 0.15Q/3.6/4 MWh
+       CRF = r(1+r)^n/((1+r)^n−1), r = 8% · MACC = (I×CRF − S)/ΔtCO₂e (บาท/tCO₂e, ติดลบ = ได้กำไร)
+       NPV = −I/(1+r)^(y−1) + Σ S_t·a_t/(1+r)^t (a = (12−เดือนติดตั้ง)/12 ในปีติดตั้ง, 1 ปีถัดไปจนครบอายุ)
+       Payback = I/S · 1 เครดิต T-VER = 1 tCO₂e -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#fff; --good:#1fb45f; --mid:#f5a623; --warn:#f5a623; --bad:#ef4b4b;
+  --ind:#3f51b5; --cy:#00acc1; --s1:#ff8f1c; --s2:#3f8efc; --s12:#9c6ade;
+  --btn-grad:linear-gradient(135deg,#3f51b5,#00acc1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%}
+body{font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;background:linear-gradient(180deg,#e2eaf7,#f2f6fc);
+  color:var(--ink);display:flex;flex-direction:column;align-items:center;overflow-x:hidden;user-select:none;padding-bottom:150px}
+#app{width:100%;max-width:1180px;padding:10px 12px 16px;display:flex;flex-direction:column;gap:10px}
+
+/* HUD */
+#hud{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.9);border:3px solid #fff;border-radius:18px;
+  padding:7px 10px;box-shadow:0 4px 14px rgba(33,48,71,.15)}
+#hud .lvl-name{font-weight:600;font-size:.98rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ind)}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap;font-size:.92rem}
+#hud button{border:none;background:#eef1fb;border-radius:12px;padding:6px 8px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:40px}
+#hud button.on{background:var(--ind);color:#fff}
+
+/* layout */
+#main{display:flex;flex-direction:column;gap:10px}
+#left,#side{display:contents}
+#sceneWrap{order:1}#statusCard{order:2}#measWrap{order:3}#mktCard{order:4}#chartCard{order:5}#maccCard{order:6}
+@media(min-width:900px){
+  #main{display:grid;grid-template-columns:minmax(0,1.32fr) minmax(0,1fr);align-items:start;gap:12px}
+  #left,#side{display:flex;flex-direction:column;gap:10px}
+}
+.card2{background:#fff;border-radius:20px;padding:10px 12px;box-shadow:0 5px 16px rgba(33,48,71,.12)}
+.card2 h3{font-size:.95rem;font-weight:600;color:var(--ind);margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.card2 h3 small{font-weight:500;color:#7a879b;font-size:.72rem}
+
+/* scene */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(33,48,71,.18);border:4px solid #fff;background:#cfe8ff}
+#scene{display:block;width:100%;height:auto}
+#sceneInfo{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);white-space:nowrap;background:rgba(20,30,58,.82);color:#fff;border-radius:12px;padding:4px 9px;font-size:.74rem;line-height:1.4;pointer-events:none}
+#sceneInfo b{color:#ffd23f}
+#yearBanner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(20,30,70,.45);
+  color:#fff;font-weight:700;font-size:1.5rem;opacity:0;pointer-events:none;transition:opacity .25s;text-shadow:0 2px 8px rgba(0,0,0,.4)}
+#yearBanner.show{opacity:1}
+#yearBanner .yb-bar{width:60%;height:10px;border-radius:6px;background:rgba(255,255,255,.3);margin-top:8px;overflow:hidden}
+#yearBanner .yb-fill{height:100%;width:0;background:linear-gradient(90deg,#ffd23f,#00e0c0)}
+#yearBanner.show .yb-fill{animation:ybA 1.2s linear forwards}
+@keyframes ybA{to{width:100%}}
+#toast{position:absolute;left:50%;top:8px;transform:translateX(-50%);max-width:92%;background:#fff;border:3px solid var(--warn);border-radius:14px;
+  padding:6px 12px;font-size:.82rem;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.18);opacity:0;transition:opacity .25s;pointer-events:none;text-align:center}
+#toast.show{opacity:1}
+#toast.bad{border-color:var(--bad)}#toast.good{border-color:var(--good)}
+
+/* status */
+.yrline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.yrline b{font-size:1.05rem;color:var(--ind)}
+.pill{font-size:.72rem;font-weight:600;background:#eef1fb;color:#4a5a80;border-radius:999px;padding:2px 9px}
+.goal{font-size:.84rem;font-weight:500;background:#e8f6fb;border:2px dashed var(--cy);border-radius:14px;padding:6px 9px;margin:6px 0;line-height:1.45}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:.84rem}
+.kv span:nth-child(even){text-align:right;font-weight:600}
+.kv .hl{font-weight:700}
+.badge{display:inline-block;border-radius:999px;padding:1px 9px;font-size:.78rem;font-weight:700;color:#fff}
+.badge.ok{background:var(--good)}.badge.no{background:var(--bad)}
+.walletbar{height:10px;border-radius:6px;background:#e7ecf5;overflow:hidden;margin-top:5px}
+.walletbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3f51b5,#00acc1);transition:width .25s}
+.walletbar.over i{background:var(--bad)}
+
+/* measures */
+#measWrap .mhead{display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
+.ms{border:2px solid #e3e9f3;border-radius:16px;padding:7px 9px;margin-top:7px;background:#fafcff;transition:border-color .2s,background .2s}
+.ms.sel{border-color:var(--cy);background:#e9fbfd}
+.ms.done{border-color:#b9e8c9;background:#f0fbf3}
+.ms.off{opacity:.55}
+.mtop{display:flex;align-items:center;gap:8px}
+.mic{font-size:1.45rem;width:32px;text-align:center;flex:none}
+.mnm{flex:1;min-width:0;font-size:.86rem;font-weight:600;line-height:1.25}
+.tag{display:inline-block;font-size:.64rem;font-weight:600;border-radius:7px;padding:0 6px;color:#fff;vertical-align:1px}
+.tag.S1{background:var(--s1)}.tag.S2{background:var(--s2)}.tag.S12{background:var(--s12)}
+.mbtn{flex:none;border:none;border-radius:999px;min-height:44px;min-width:96px;padding:6px 12px;font-family:inherit;font-weight:600;font-size:.84rem;cursor:pointer;
+  background:var(--btn-grad);color:#fff;box-shadow:0 4px 0 #2b3a8a;transition:transform .08s}
+.mbtn:active{transform:translateY(3px);box-shadow:0 1px 0 #2b3a8a}
+.mbtn.sel{background:#fff;color:var(--cy);border:3px solid var(--cy);box-shadow:none}
+.mbtn.done{background:#d9f3e2;color:#16804a;box-shadow:none;cursor:default;font-size:.74rem}
+.mbtn.dis{background:#e3e8f0;color:#8592a6;box-shadow:none;cursor:not-allowed;font-size:.76rem}
+.mrow{font-size:.74rem;color:#4b5a72;line-height:1.5;margin-top:3px}
+.mrow b{color:var(--ink)}
+.neg{color:#16804a!important}.pos{color:#c0392b!important}
+.mnote{font-size:.7rem;color:#6a7890;margin-top:2px;line-height:1.4}
+.mnote.warn{color:#b26a00;font-weight:500}
+
+/* market */
+.mkt-top{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
+.price{flex:1;min-width:130px;background:#f2f6fc;border-radius:14px;padding:6px 9px}
+.price .lb{font-size:.72rem;color:#5b6a82;font-weight:500}
+.price .v{font-size:1.25rem;font-weight:700;color:var(--ink)}
+.price .v small{font-size:.7rem;font-weight:500;color:#6a7890}
+.price .d{font-size:.72rem;font-weight:600}
+.stepper{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+.stepper .sl{flex:1;min-width:120px;font-size:.8rem;font-weight:600;line-height:1.25}
+.stepper .sl small{display:block;font-weight:500;color:#6a7890;font-size:.7rem}
+.stepper button{border:none;border-radius:12px;min-width:44px;min-height:44px;font-size:1.2rem;font-weight:700;background:#eef1fb;color:var(--ind);cursor:pointer;font-family:inherit}
+.stepper button.fill{font-size:.78rem;padding:0 10px;background:var(--btn-grad);color:#fff}
+.stepper .q{min-width:74px;text-align:center;font-weight:700;font-size:1rem}
+.mktnote{font-size:.68rem;color:#7a879b;margin-top:6px;line-height:1.4}
+
+/* charts */
+.chart{display:block;width:100%;height:auto}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.7rem;color:#4b5a72;margin-top:2px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:3px}
+#maccLeg{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:.68rem;color:#4b5a72;margin-top:3px}
+#maccLeg span{background:#f2f6fc;border-radius:8px;padding:1px 6px}
+#maccLeg span.on{background:#e0f7fa;font-weight:600}
+
+/* bottom bar */
+#bar{position:fixed;left:8px;right:8px;bottom:62px;z-index:40;display:flex;justify-content:center;pointer-events:none}
+/* ลอยเหนือปุ่ม feedback ของ te-insight (มุมล่างขวา) */
+#barIn{width:100%;max-width:760px;display:flex;align-items:center;gap:8px;padding:7px 8px 7px 14px;pointer-events:auto;background:rgba(255,255,255,.97);border:3px solid #dfe6f1;border-radius:22px;box-shadow:0 8px 22px rgba(33,48,71,.22)}
+#barInfo{flex:1;min-width:0;font-size:.78rem;line-height:1.3}
+#barInfo b{font-size:.9rem}
+.big-btn{border:none;border-radius:999px;padding:13px 28px;font-family:inherit;font-size:1.1rem;font-weight:700;color:#fff;background:var(--btn-grad);
+  cursor:pointer;box-shadow:0 6px 0 #2b3a8a,0 10px 18px rgba(0,0,0,.2);transition:transform .1s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #2b3a8a}
+.big-btn.small{font-size:.98rem;padding:10px 20px}
+.big-btn.alt{background:linear-gradient(135deg,#1fb45f,#00acc1);box-shadow:0 6px 0 #138a49,0 10px 18px rgba(0,0,0,.2)}
+.big-btn[disabled]{filter:grayscale(.8);opacity:.6;cursor:not-allowed}
+.ghost-btn{border:3px solid #cfd9e6;background:#fff;border-radius:999px;padding:10px 18px;font-family:inherit;font-size:.98rem;font-weight:600;cursor:pointer;color:var(--ink);min-height:44px}
+#endYearBtn{flex:none;padding:12px 18px;font-size:1rem}
+
+/* overlays */
+.overlay{position:fixed;inset:0;background:rgba(18,28,56,.58);display:flex;align-items:center;justify-content:center;z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:26px;max-width:500px;width:100%;padding:20px 16px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.35);
+  transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.3rem;margin-bottom:6px;color:var(--ind)}
+.card p{font-size:.94rem;line-height:1.55}
+.result-stars{font-size:2.8rem;letter-spacing:6px;margin:6px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e8f6fb;border:2px solid #b5e3ef;border-radius:14px;padding:8px 12px;font-weight:600;margin:8px 0;font-size:.92rem}
+.statrow{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin:6px 0;font-size:.82rem;font-weight:600}
+.statrow span{background:#f1f5fb;border-radius:12px;padding:4px 10px}
+.statrow span.ok{background:#e3f7ea;color:#16804a}.statrow span.no{background:#fde8e8;color:#b52b2b}
+.fb{text-align:left;background:#fffaf0;border:2px solid #ffe0a3;border-radius:14px;padding:8px 10px;margin-top:8px}
+.fb h4{font-size:.9rem;margin-bottom:4px;color:#9a5b00}
+.fb ul{padding-left:18px}
+.fb li{font-size:.82rem;line-height:1.5;margin:3px 0}
+.lvl-pick{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e7f3;background:#f7f9fe;border-radius:14px;padding:6px 2px;font-family:inherit;cursor:pointer;min-height:64px}
+.lvl-pick .nm{font-size:.72rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.66rem;letter-spacing:0}
+#startCard h1{font-size:1.65rem;line-height:1.25;background:linear-gradient(135deg,#3f51b5,#00acc1);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#5f6d84;margin:4px 0 6px;font-size:.9rem;line-height:1.5}
+.tg{display:inline-block;background:#eef1fb;color:var(--ind);border-radius:999px;padding:3px 12px;font-size:.78rem;font-weight:600;margin:4px 0}
+.brand{font-size:.78rem;color:#8795a8;margin-top:12px}
+.ysum{text-align:left;font-size:.84rem}
+.ysum table{width:100%;border-collapse:collapse;margin:4px 0}
+.ysum td{padding:3px 4px;border-bottom:1px solid #eef1f6}
+.ysum td:last-child{text-align:right;font-weight:600}
+.ysum .tip{background:#eef1fb;border-radius:10px;padding:6px 9px;margin-top:6px;font-size:.8rem}
+#fxCard{text-align:left;max-width:640px}
+#fxCard h2{text-align:center}
+#fxCard h4{font-size:.92rem;color:var(--ind);margin:10px 0 3px}
+#fxCard p,#fxCard li{font-size:.8rem;line-height:1.55}
+#fxCard ul{padding-left:18px}
+#fxCard code{background:#f2f4fa;border-radius:6px;padding:1px 5px;font-family:inherit;font-weight:600;color:#33408f}
+#fxCard table{width:100%;border-collapse:collapse;font-size:.74rem;margin-top:4px}
+#fxCard th,#fxCard td{border:1px solid #e3e8f2;padding:3px 4px;text-align:right}
+#fxCard th:first-child,#fxCard td:first-child{text-align:left}
+#fxCard th{background:#eef1fb}
+
+/* guide */
+#guideOv{z-index:60}
+.gpage{display:none}.gpage.cur{display:block}
+.gfig{background:#eef3fb;border-radius:18px;padding:6px;margin-bottom:10px}
+.gfig svg{display:block;width:100%;height:auto}
+.gtxt{font-size:.98rem;font-weight:600;line-height:1.5;min-height:3em}
+.gdots{display:flex;gap:7px;justify-content:center;margin:10px 0}
+.gdots i{width:10px;height:10px;border-radius:50%;background:#d4dbeb}
+.gdots i.cur{background:var(--cy);transform:scale(1.25)}
+.gnav{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:70;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* scene animations */
+@keyframes spinA{to{transform:rotate(360deg)}}
+.spin{transform-box:fill-box;transform-origin:center;animation:spinA .55s linear infinite}
+@keyframes driftA{0%,100%{transform:translateX(0)}50%{transform:translateX(50px)}}
+.driftc{animation:driftA 34s ease-in-out infinite}
+@keyframes hissA{0%{transform:translate(0,0) scale(.4);opacity:.9}100%{transform:translate(14px,-16px) scale(1.4);opacity:0}}
+.hiss{transform-box:fill-box;transform-origin:center;animation:hissA .9s ease-out infinite}
+@keyframes flickA{0%,100%{opacity:1}47%{opacity:1}50%{opacity:.55}53%{opacity:1}}
+.flick{animation:flickA 2.4s steps(1) infinite}
+@keyframes flowA{to{stroke-dashoffset:-24px}}
+.wflow{stroke-dasharray:6 6;animation:flowA .9s linear infinite}
+@keyframes flameA{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.18)}}
+.flame{transform-box:fill-box;transform-origin:bottom;animation:flameA .5s ease-in-out infinite}
+@keyframes glintA{0%,100%{opacity:.1}50%{opacity:.85}}
+.glint{animation:glintA 2.4s ease-in-out infinite}
+@keyframes hpA{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-20px}}
+.hparrow{stroke-dasharray:5 5;animation:hpA .8s linear infinite}
+.panel{transition:transform .6s cubic-bezier(.34,1.4,.64,1),opacity .4s}
+.panel.hide{transform:translateY(-40px);opacity:0}
+.tree{transform-box:fill-box;transform-origin:bottom;transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
+.tree.hide{transform:scale(0)}
+.win{transition:fill .5s}
+#chBody,#pile,#flameP{transition:fill .6s}
+#hpG{transition:opacity .5s}
+
+/* guide animations */
+@keyframes gpuffA{0%{transform:translate(0,0) scale(.5);opacity:.9}100%{transform:translate(10px,-44px) scale(1.5);opacity:0}}
+.gpuff{transform-box:fill-box;transform-origin:center;animation:gpuffA 2.2s ease-out infinite}
+@keyframes ghlA{0%,10%{transform:translateX(0)}30%,40%{transform:translateX(44px)}60%,70%{transform:translateX(118px)}90%,100%{transform:translateX(200px)}}
+.ghl{animation:ghlA 5s ease-in-out infinite}
+@keyframes gcoinA{0%{transform:translateY(-30px);opacity:0}20%{opacity:1}45%,100%{transform:translateY(34px);opacity:0}}
+.gcoin{animation:gcoinA 3s ease-in infinite}
+@keyframes gpanelA{0%,40%{transform:translateY(-36px);opacity:0}60%,92%{transform:translateY(0);opacity:1}100%{opacity:0}}
+.gpanel{animation:gpanelA 3s ease-out infinite}
+@keyframes gshrinkA{0%,45%{transform:scale(1)}65%,92%{transform:scale(.45)}100%{transform:scale(1)}}
+.gshrink{transform-box:fill-box;transform-origin:bottom;animation:gshrinkA 3s ease-in-out infinite}
+@keyframes glineA{0%{stroke-dashoffset:260}70%,100%{stroke-dashoffset:0}}
+.gline{stroke-dasharray:260;animation:glineA 3.2s ease-out infinite}
+@keyframes gstarA{0%,10%{transform:scale(0)}22%,78%{transform:scale(1)}90%,100%{transform:scale(0)}}
+.gstar{transform-box:fill-box;transform-origin:center;animation:gstarA 3.8s cubic-bezier(.34,1.56,.64,1) infinite}
+.gstar.d2{animation-delay:.25s}.gstar.d3{animation-delay:.5s}
+@keyframes gbarA{0%,10%{transform:scaleY(1)}50%,85%{transform:scaleY(var(--s,.6))}100%{transform:scaleY(1)}}
+.gbar{transform-box:fill-box;transform-origin:bottom;animation:gbarA 3.8s ease-in-out infinite}
+@keyframes gtokA{0%{transform:translate(0,0);opacity:0}15%{opacity:1}80%{opacity:1}100%{transform:translate(-120px,8px);opacity:0}}
+.gtok{animation:gtokA 2.6s ease-in infinite}
+
+@media (prefers-reduced-motion:reduce){
+  .spin,.driftc,.hiss,.flick,.wflow,.flame,.glint,.hparrow,.gpuff,.ghl,.gcoin,.gpanel,.gshrink,.gline,.gstar,.gbar,.gtok{animation:none}
+  .panel,.tree{transition:none}
+}
+@media (max-width:480px){
+  .card h2{font-size:1.18rem}
+  #sceneInfo{font-size:.66rem;padding:3px 7px}
+  .lvl-pick .nm{font-size:.66rem}
+  #endYearBtn{padding:11px 14px;font-size:.95rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">Carbon Trader</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/15</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="fxBtn" title="สูตร/ที่มา">📐</button>
+  </div>
+
+  <div id="main">
+  <div id="left">
+    <!-- SCENE -->
+    <div id="sceneWrap">
+      <svg id="scene" viewBox="0 0 860 400" xmlns="http://www.w3.org/2000/svg" aria-label="โรงงานการ์ตูนกับปล่องควันและโรงไฟฟ้า">
+        <defs>
+          <linearGradient id="gSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fd0ff"/><stop offset="1" stop-color="#e2f3ff"/></linearGradient>
+          <linearGradient id="gPanel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a7bea"/><stop offset="1" stop-color="#1b3f9a"/></linearGradient>
+          <filter id="fGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
+        </defs>
+        <rect width="860" height="335" fill="url(#gSky)"/>
+        <g transform="translate(70,58)"><circle r="26" fill="#ffd23f" stroke="#ff9f1c" stroke-width="5"/></g>
+        <g class="driftc" opacity=".9"><ellipse cx="300" cy="62" rx="44" ry="14" fill="#fff"/><ellipse cx="336" cy="52" rx="30" ry="12" fill="#fff"/></g>
+        <g class="driftc" style="animation-delay:-15s" opacity=".85"><ellipse cx="560" cy="96" rx="38" ry="12" fill="#fff"/><ellipse cx="592" cy="88" rx="26" ry="10" fill="#fff"/></g>
+
+        <!-- โรงไฟฟ้าไกล (แหล่ง Scope 2) -->
+        <ellipse cx="790" cy="300" rx="150" ry="40" fill="#b9dca4"/>
+        <g id="farPlant">
+          <path d="M760 268 Q766 228 758 196 L800 196 Q792 228 800 268 Z" fill="#c4ccd6" stroke="#8c97a6" stroke-width="3"/>
+          <rect x="800" y="222" width="46" height="46" fill="#9aa5b4" stroke="#6f7b8c" stroke-width="3"/>
+          <rect x="818" y="150" width="14" height="74" fill="#a9b2bf" stroke="#6f7b8c" stroke-width="3"/>
+          <rect x="818" y="150" width="14" height="8" fill="#ef4b4b"/>
+          <text x="800" y="290" font-size="14" font-weight="600" fill="#2f5e86" text-anchor="middle" font-family="Mitr,sans-serif">โรงไฟฟ้า · Scope 2</text>
+        </g>
+        <!-- เสาไฟและสายส่ง -->
+        <g stroke="#6f7b8c" stroke-width="3" fill="none">
+          <path d="M700 300 L712 222 L724 300 M703 280 L721 280 M706 254 L718 254 M698 232 L726 232"/>
+        </g>
+        <path d="M824 230 Q770 240 712 232 Q630 226 542 214" stroke="#5b6675" stroke-width="2.5" fill="none"/>
+        <path id="wireFlow" class="wflow" d="M824 230 Q770 240 712 232 Q630 226 542 214" stroke="#ffb020" stroke-width="3.5" fill="none"/>
+        <path id="wireGreen" class="wflow" d="M824 230 Q770 240 712 232 Q630 226 542 214" stroke="#1fb45f" stroke-width="3.5" fill="none" opacity="0"/>
+        <g id="recBadge" opacity="0"><rect x="616" y="196" width="66" height="22" rx="11" fill="#1fb45f"/><text id="recTxt" x="649" y="212" font-size="13" font-weight="700" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">REC 0%</text></g>
+
+        <!-- พื้น -->
+        <rect x="0" y="330" width="860" height="70" fill="#9fd884"/>
+        <rect x="180" y="330" width="440" height="70" fill="#cfd6df"/>
+        <rect x="180" y="330" width="440" height="5" fill="#b4bdc9"/>
+
+        <!-- กองเชื้อเพลิง -->
+        <path id="pile" d="M6 332 Q20 296 40 300 Q56 292 66 332 Z" fill="#2b2b31" stroke="#18181c" stroke-width="2"/>
+        <text id="pileTxt" x="36" y="350" font-size="12" font-weight="600" fill="#2b3a4f" text-anchor="middle" font-family="Mitr,sans-serif">ถ่านหิน</text>
+
+        <!-- โรงหม้อไอน้ำ -->
+        <rect x="70" y="212" width="112" height="120" fill="#d6b48e" stroke="#8d6a46" stroke-width="4"/>
+        <rect x="64" y="204" width="124" height="12" rx="3" fill="#8d6a46"/>
+        <rect x="140" y="80" width="26" height="128" fill="#b4bcc8" stroke="#6f7a88" stroke-width="3"/>
+        <rect x="140" y="80" width="26" height="9" fill="#ef4b4b"/><rect x="140" y="98" width="26" height="7" fill="#ef4b4b"/>
+        <rect x="88" y="262" width="44" height="34" rx="4" fill="#3a2a24" stroke="#5c4033" stroke-width="3"/>
+        <path id="flameP" class="flame" d="M96 294 Q100 274 106 282 Q110 266 116 280 Q121 270 124 294 Z" fill="#ff7a1a"/>
+        <ellipse id="flameBlue" cx="110" cy="292" rx="12" ry="3" fill="#4aa8ff" opacity="0"/>
+        <text x="126" y="232" font-size="13" font-weight="600" fill="#5c4033" text-anchor="middle" font-family="Mitr,sans-serif">หม้อไอน้ำ</text>
+        <text x="134" y="150" font-size="13" font-weight="700" fill="#b4541a" text-anchor="end" font-family="Mitr,sans-serif">Scope 1</text>
+
+        <!-- โรงงานหลัก -->
+        <rect x="200" y="196" width="340" height="136" fill="#eaeff6" stroke="#8394ab" stroke-width="4"/>
+        <rect x="194" y="186" width="352" height="12" rx="3" fill="#8394ab"/>
+        <g id="solarG">
+          <!-- แถวหลัง 7 แผง -->
+          <g class="panel hide" data-i="7"><path d="M212 172 L220 158 L256 158 L248 172 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="8"><path d="M259 172 L267 158 L303 158 L295 172 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="9"><path d="M306 172 L314 158 L350 158 L342 172 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="10"><path d="M353 172 L361 158 L397 158 L389 172 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="11"><path d="M400 172 L408 158 L444 158 L436 172 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="12"><path d="M447 172 L455 158 L491 158 L483 172 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="13"><path d="M494 172 L502 158 L538 158 L530 172 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <!-- แถวหน้า 7 แผง -->
+          <g class="panel hide" data-i="0"><path d="M204 186 L212 172 L248 172 L240 186 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="1"><path d="M251 186 L259 172 L295 172 L287 186 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="2"><path d="M298 186 L306 172 L342 172 L334 186 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="3"><path d="M345 186 L353 172 L389 172 L381 186 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="4"><path d="M392 186 L400 172 L436 172 L428 186 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="5"><path d="M439 186 L447 172 L483 172 L475 186 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <g class="panel hide" data-i="6"><path d="M486 186 L494 172 L530 172 L522 186 Z" fill="url(#gPanel)" stroke="#173a8c" stroke-width="2"/></g>
+          <circle id="solGlint" class="glint" cx="318" cy="176" r="6" fill="#fff" opacity="0"/>
+        </g>
+        <text id="roofTxt" x="370" y="180" font-size="13" font-weight="600" fill="#7a879b" text-anchor="middle" font-family="Mitr,sans-serif">หลังคาว่าง</text>
+        <g id="winG" stroke="#7d8ea5" stroke-width="2.5">
+          <rect class="win flick" x="214" y="212" width="38" height="26" rx="3" fill="#dde8ff"/>
+          <rect class="win flick" x="268" y="212" width="38" height="26" rx="3" fill="#dde8ff" style="animation-delay:.7s"/>
+          <rect class="win flick" x="322" y="212" width="38" height="26" rx="3" fill="#dde8ff" style="animation-delay:1.3s"/>
+          <rect class="win flick" x="380" y="212" width="38" height="26" rx="3" fill="#dde8ff" style="animation-delay:.3s"/>
+          <rect class="win flick" x="434" y="212" width="38" height="26" rx="3" fill="#dde8ff" style="animation-delay:1.8s"/>
+          <rect class="win flick" x="488" y="212" width="38" height="26" rx="3" fill="#dde8ff" style="animation-delay:1s"/>
+        </g>
+        <text id="lampTxt" x="370" y="256" font-size="12" font-weight="600" fill="#5b6a82" text-anchor="middle" font-family="Mitr,sans-serif">💡 ฟลูออเรสเซนต์</text>
+        <rect x="340" y="272" width="60" height="60" fill="#a9b8cc" stroke="#7d8ea5" stroke-width="3"/>
+        <line x1="370" y1="272" x2="370" y2="332" stroke="#7d8ea5" stroke-width="2"/>
+        <text x="270" y="300" font-size="14" font-weight="700" fill="#3f51b5" text-anchor="middle" font-family="Mitr,sans-serif">โรงงาน TE</text>
+        <!-- ท่อลม + จุดรั่ว -->
+        <path d="M548 320 H430 V300" stroke="#7a8696" stroke-width="6" fill="none" stroke-linecap="round"/>
+        <g id="leaks" fill="#e9f4ff" stroke="#9fb4cc" stroke-width="1.5">
+          <circle class="hiss" cx="520" cy="314" r="6"/><circle class="hiss" cx="470" cy="314" r="6" style="animation-delay:.3s"/>
+          <circle class="hiss" cx="436" cy="302" r="6" style="animation-delay:.6s"/>
+        </g>
+        <g transform="translate(496,320)"><circle r="10" fill="#fff" stroke="#5b6675" stroke-width="2.5"/>
+          <line id="gaugeN" x1="0" y1="0" x2="0" y2="-7" stroke="#ef4b4b" stroke-width="2.5" stroke-linecap="round" transform="rotate(50)"/></g>
+        <text id="barTxtScene" x="496" y="347" font-size="11" font-weight="600" fill="#5b6675" text-anchor="middle" font-family="Mitr,sans-serif">7 bar g</text>
+        <!-- ห้องอัดอากาศ -->
+        <rect x="548" y="262" width="70" height="70" fill="#d6dde6" stroke="#7d8ea5" stroke-width="3"/>
+        <circle cx="580" cy="294" r="19" fill="#eef2f7" stroke="#7d8ea5" stroke-width="3"/>
+        <g id="fanBlades" class="spin"><path d="M580 294 L580 278 Q588 284 580 294 Z M580 294 L596 294 Q590 302 580 294 Z M580 294 L580 310 Q572 304 580 294 Z M580 294 L564 294 Q570 286 580 294 Z" fill="#5b6675"/></g>
+        <rect id="vfdBox" x="602" y="268" width="12" height="20" rx="2" fill="#9aa3ad" stroke="#5b6675" stroke-width="1.5"/>
+        <circle id="vfdLed" cx="608" cy="274" r="2.6" fill="#5b6675"/>
+        <text x="583" y="326" font-size="11" font-weight="600" fill="#43526b" text-anchor="middle" font-family="Mitr,sans-serif">อัดอากาศ</text>
+        <!-- ชิลเลอร์ -->
+        <rect id="chBody" x="630" y="290" width="88" height="42" rx="5" fill="#9aa3ad" stroke="#5b6675" stroke-width="3"/>
+        <g id="rust" fill="#b5651d" opacity=".8"><circle cx="646" cy="306" r="4"/><circle cx="700" cy="318" r="5"/><circle cx="676" cy="300" r="3"/></g>
+        <circle cx="652" cy="290" r="9" fill="#e6ebf1" stroke="#5b6675" stroke-width="2"/><circle cx="696" cy="290" r="9" fill="#e6ebf1" stroke="#5b6675" stroke-width="2"/>
+        <text id="chTxt" x="674" y="326" font-size="11" font-weight="600" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">ชิลเลอร์เก่า</text>
+        <!-- heat pump -->
+        <g id="hpG" opacity="0">
+          <rect x="250" y="342" width="62" height="34" rx="6" fill="#fff" stroke="#9c6ade" stroke-width="3"/>
+          <circle cx="268" cy="359" r="10" fill="#f1eafd" stroke="#9c6ade" stroke-width="2"/>
+          <path class="hparrow" d="M284 352 H306" stroke="#ef4b4b" stroke-width="3"/>
+          <path class="hparrow" d="M306 366 H284" stroke="#3f8efc" stroke-width="3"/>
+          <text x="281" y="390" font-size="11" font-weight="600" fill="#6d3fc0" text-anchor="middle" font-family="Mitr,sans-serif">Heat pump</text>
+        </g>
+        <!-- แปลงปลูกป่า (เครดิต) -->
+        <g id="treeG"></g>
+        <text id="treeTxt" x="740" y="396" font-size="11" font-weight="600" fill="#1d6b3a" text-anchor="middle" font-family="Mitr,sans-serif" opacity="0">🌳 เครดิต T-VER</text>
+        <!-- puffs (CO₂) -->
+        <g id="puffs"></g>
+        <rect id="haze" x="0" y="0" width="860" height="400" fill="#6d737c" opacity="0" pointer-events="none"/>
+      </svg>
+      <div id="sceneInfo">Scope 1 <b id="siS1">0</b> · Scope 2 <b id="siS2">0</b> tCO₂e/ปี</div>
+      <div id="yearBanner"><div id="ybTxt">สิ้นปี</div><div class="yb-bar"><div class="yb-fill"></div></div></div>
+      <div id="toast"></div>
+    </div>
+
+    <!-- MEASURES -->
+    <div class="card2" id="measWrap">
+      <div class="mhead"><h3>🛠 มาตรการลดก๊าซเรือนกระจก <small>เลือกลงทุนภายในงบ</small></h3><span class="pill" id="pickInfo"></span></div>
+      <div id="measList"></div>
+    </div>
+  </div>
+
+  <div id="side">
+    <div class="card2" id="statusCard">
+      <div class="yrline"><b id="yrTxt">ปี พ.ศ. 2570</b><span class="pill" id="yrProg">1/5</span><span class="pill" id="lvTag"></span></div>
+      <div class="goal" id="goalTxt">—</div>
+      <div class="kv" id="kv"></div>
+      <div style="margin-top:6px;font-size:.82rem;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap">
+        <span>💰 งบลงทุนคงเหลือ <b id="walTxt">0</b></span><span id="walSub" style="color:#6a7890"></span></div>
+      <div class="walletbar" id="walBar"><i></i></div>
+    </div>
+    <div class="card2" id="chartCard">
+      <h3>📊 Scope 1 / Scope 2 รายปี <small>tCO₂e · เส้นแดง = เป้า</small></h3>
+      <svg id="emChart" class="chart" viewBox="0 0 360 200" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="legend"><span><i style="background:var(--s1)"></i>Scope 1</span><span><i style="background:var(--s2)"></i>Scope 2 (market)</span>
+        <span><i style="background:repeating-linear-gradient(45deg,#1fb45f 0 3px,#bff0d0 3px 6px)"></i>เครดิตชดเชย</span><span>◆ Net</span><span><i style="background:#ef4b4b;height:3px"></i>เป้า</span></div>
+    </div>
+    <div class="card2" id="mktCard">
+      <h3>🏷 ตลาดคาร์บอนเครดิต &amp; REC <small>ราคาตัวอย่าง</small></h3>
+      <div class="mkt-top">
+        <div class="price"><div class="lb">T-VER ทั่วไป ปีนี้</div><div class="v" id="pCred">—</div><div class="d" id="pCredD"></div>
+          <svg id="spark" viewBox="0 0 120 30" style="width:100%;height:30px;display:block"></svg></div>
+        <div class="price"><div class="lb">Premium T-VER (อ้างอิง)</div><div class="v" id="pPrem">—</div>
+          <div class="lb" style="margin-top:4px">REC / ไฟฟ้าสีเขียว</div><div class="v" id="pRec" style="font-size:1rem">—</div>
+          <div class="lb" id="pTaxL" style="margin-top:4px;display:none">ภาษีคาร์บอน</div><div class="v" id="pTax" style="font-size:1rem;color:#c0392b;display:none">—</div></div>
+      </div>
+      <div class="stepper"><div class="sl">🌳 ซื้อเครดิต T-VER<small id="credSub">ชดเชยส่วนที่เกินเป้า</small></div>
+        <button id="credM" aria-label="ลดเครดิต">−</button><div class="q" id="credQ">0 t</div><button id="credP" aria-label="เพิ่มเครดิต">+</button>
+        <button class="fill" id="credFill">พอดีเป้า</button></div>
+      <div class="stepper" id="recRow"><div class="sl">🍃 ซื้อ REC<small id="recSub">ลด Scope 2 แบบ market-based</small></div>
+        <button id="recM" aria-label="ลด REC">−</button><div class="q" id="recQ">0 MWh</div><button id="recP" aria-label="เพิ่ม REC">+</button></div>
+      <div class="mktnote">ราคาเป็น<b>ตัวอย่างเพื่อการเรียนรู้</b>: T-VER ทั่วไป ~100–300 บาท/tCO₂e · Premium T-VER สูงกว่า (เกณฑ์เข้มกว่า ใช้อ้างสิทธิ์ระดับสากล) · ราคาเปลี่ยนทุกปีแบบสุ่มมีแนวโน้มขึ้น · REC ลด Scope 2 แบบ market-based เท่านั้น (ไม่ใช่การชดเชย)</div>
+    </div>
+    <div class="card2" id="maccCard">
+      <h3>📉 MACC — ต้นทุนการลด <small>กว้าง = tCO₂e/ปี · สูง = บาท/tCO₂e</small></h3>
+      <svg id="macc" class="chart" viewBox="0 0 360 228" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="maccLeg"></div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- bottom bar -->
+<div id="bar"><div id="barIn">
+  <div id="barInfo">—</div>
+  <button class="big-btn" id="endYearBtn">สิ้นปี ▶</button>
+</div></div>
+
+<!-- start -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:2.6rem">🏭📉🌳</div>
+    <h1>Carbon Trader<br><span style="font-size:1.15rem">ภารกิจโรงงานคาร์บอนต่ำ</span></h1>
+    <div class="tg">กลุ่ม: มหาวิทยาลัย / วิศวกรใหม่</div>
+    <div class="sub">คุณคือผู้จัดการพลังงานของโรงงาน — เลือกมาตรการด้วย <b>MACC</b> และ <b>NPV</b><br>ลด Scope 1/2 ให้ถึงเป้า Net Zero แบบขั้นบันได ใช้เครดิตเท่าที่จำเป็น</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="ghost-btn" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Skills Lab · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- guide -->
+<div class="overlay" id="guideOv">
+  <div class="card">
+    <h2>📖 วิธีเล่น</h2>
+    <div class="gpage" data-pg="0">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#dff1ff"/>
+        <rect x="0" y="122" width="320" height="28" fill="#9fd884"/>
+        <rect x="30" y="74" width="70" height="48" fill="#d6b48e" stroke="#8d6a46" stroke-width="3"/>
+        <rect x="74" y="34" width="14" height="42" fill="#b4bcc8" stroke="#6f7a88" stroke-width="2"/>
+        <g fill="#5d5f66"><circle class="gpuff" cx="81" cy="30" r="7"/><circle class="gpuff" cx="83" cy="30" r="6" style="animation-delay:.7s"/><circle class="gpuff" cx="79" cy="30" r="6" style="animation-delay:1.4s"/></g>
+        <text x="64" y="140" font-size="13" font-weight="700" fill="#b4541a" text-anchor="middle" font-family="Mitr,sans-serif">Scope 1 เผาเชื้อเพลิง</text>
+        <rect x="236" y="80" width="40" height="42" fill="#9aa5b4" stroke="#6f7b8c" stroke-width="2"/>
+        <rect x="262" y="44" width="10" height="38" fill="#a9b2bf" stroke="#6f7b8c" stroke-width="2"/>
+        <g fill="#9aa3ae"><circle class="gpuff" cx="267" cy="40" r="6"/><circle class="gpuff" cx="268" cy="40" r="5" style="animation-delay:1s"/></g>
+        <path class="wflow" d="M236 92 Q170 82 102 92" stroke="#ffb020" stroke-width="4" fill="none"/>
+        <text x="256" y="140" font-size="13" font-weight="700" fill="#2f5e86" text-anchor="middle" font-family="Mitr,sans-serif">Scope 2 ซื้อไฟฟ้า</text>
+      </svg></div>
+      <div class="gtxt">โรงงานปล่อยก๊าซ 2 ทาง: <b style="color:#b4541a">Scope 1</b> เผาถ่านหินเอง<br><b style="color:#2f5e86">Scope 2</b> ไฟฟ้าที่ซื้อจากกริด (EF 0.4999)</div>
+    </div>
+    <div class="gpage" data-pg="1">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#f6f8fc"/>
+        <line x1="20" y1="70" x2="304" y2="70" stroke="#213047" stroke-width="2"/>
+        <rect x="24" y="70" width="40" height="58" fill="#3f8efc"/><rect x="66" y="70" width="70" height="44" fill="#3f8efc"/>
+        <rect x="138" y="62" width="80" height="8" fill="#ff8f1c"/><rect x="220" y="30" width="58" height="40" fill="#ff8f1c"/><rect x="280" y="14" width="22" height="56" fill="#9c6ade"/>
+        <line x1="20" y1="50" x2="304" y2="50" stroke="#1fb45f" stroke-width="2.5" stroke-dasharray="6 4"/>
+        <text x="140" y="45" font-size="11" font-weight="600" fill="#1fb45f" text-anchor="start" font-family="Mitr,sans-serif">ราคาเครดิต</text>
+        <rect class="ghl" x="22" y="8" width="46" height="126" rx="8" fill="none" stroke="#ffd23f" stroke-width="4"/>
+        <text x="80" y="146" font-size="12" font-weight="600" fill="#16804a" text-anchor="middle" font-family="Mitr,sans-serif">ติดลบ = ได้กำไร</text>
+        <text x="250" y="146" font-size="12" font-weight="600" fill="#c0392b" text-anchor="middle" font-family="Mitr,sans-serif">บวก = มีต้นทุน</text>
+      </svg></div>
+      <div class="gtxt">อ่าน <b>MACC</b>: แท่งซ้าย (ติดลบ) ทำก่อน · แท่ง<b>กว้าง</b> = ลดได้มาก<br>แท่งที่ต่ำกว่าเส้นราคาเครดิต = ลงทุนถูกกว่าซื้อเครดิต</div>
+    </div>
+    <div class="gpage" data-pg="2">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#dff1ff"/>
+        <rect x="0" y="126" width="320" height="24" fill="#9fd884"/>
+        <rect x="150" y="76" width="140" height="50" fill="#eaeff6" stroke="#8394ab" stroke-width="3"/>
+        <g class="gpanel"><path d="M156 74 L164 60 L200 60 L192 74 Z" fill="#2d6cdf"/><path d="M198 74 L206 60 L242 60 L234 74 Z" fill="#2d6cdf"/><path d="M240 74 L248 60 L284 60 L276 74 Z" fill="#2d6cdf"/></g>
+        <rect x="30" y="74" width="60" height="44" rx="10" fill="#ffd23f" stroke="#c99a00" stroke-width="3"/>
+        <text x="60" y="102" font-size="15" font-weight="700" text-anchor="middle" fill="#7a5a00" font-family="Mitr,sans-serif">งบ</text>
+        <text class="gcoin" x="120" y="70" font-size="20" text-anchor="middle">🪙</text>
+        <text class="gcoin" x="128" y="62" font-size="16" text-anchor="middle" style="animation-delay:.4s">🪙</text>
+        <rect class="gshrink" x="104" y="96" width="30" height="26" rx="13" fill="#7d8088" opacity=".7"/>
+        <text x="60" y="140" font-size="12" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">ลงทุน → คืนทุน/NPV</text>
+      </svg></div>
+      <div class="gtxt">แต่ละปีกด <b>"+ ลงทุน"</b> ภายในงบ ดูเงินลงทุน คืนทุน และ MACC<br>ติดตั้งนาน = ได้ผลไม่เต็มปีแรก</div>
+    </div>
+    <div class="gpage" data-pg="3">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#f0fbf3"/>
+        <line x1="24" y1="122" x2="200" y2="122" stroke="#9fb4cc" stroke-width="2"/>
+        <polyline class="gline" points="24,112 60,104 96,98 132,84 168,70 196,52" fill="none" stroke="#1fb45f" stroke-width="4" stroke-linecap="round"/>
+        <text x="110" y="40" font-size="13" font-weight="700" fill="#16804a" text-anchor="middle" font-family="Mitr,sans-serif">ราคาเครดิตขึ้นทุกปี ↗</text>
+        <g class="gtok"><rect x="246" y="70" width="52" height="26" rx="13" fill="#1fb45f"/><text x="272" y="88" font-size="12" font-weight="700" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">T-VER</text></g>
+        <text x="160" y="142" font-size="12" font-weight="600" fill="#213047" text-anchor="middle" font-family="Mitr,sans-serif">1 เครดิต = 1 tCO₂e ชดเชยส่วนที่เหลือ</text>
+      </svg></div>
+      <div class="gtxt">ส่วนที่ยังเกินเป้า ซื้อ<b>เครดิต T-VER</b> ชดเชย (ปุ่ม "พอดีเป้า")<br>แต่ราคาขึ้นทุกปี — ลดจริงเร็ว มักถูกกว่า!</div>
+    </div>
+    <div class="gpage" data-pg="4">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#eef1fb"/>
+        <rect class="gbar" style="--s:.95" x="22" y="40" width="26" height="80" fill="#ff8f1c"/>
+        <rect class="gbar" style="--s:.8" x="58" y="40" width="26" height="80" fill="#ff8f1c"/>
+        <rect class="gbar" style="--s:.65" x="94" y="40" width="26" height="80" fill="#ff8f1c"/>
+        <rect class="gbar" style="--s:.5" x="130" y="40" width="26" height="80" fill="#ff8f1c"/>
+        <path d="M18 46 H52 V58 H88 V70 H124 V82 H160" stroke="#ef4b4b" stroke-width="3" fill="none"/>
+        <text class="gstar" x="200" y="72" font-size="30" text-anchor="middle">⭐</text>
+        <text class="gstar d2" x="244" y="64" font-size="36" text-anchor="middle">⭐</text>
+        <text class="gstar d3" x="288" y="72" font-size="30" text-anchor="middle">⭐</text>
+        <text x="244" y="104" font-size="12" font-weight="600" fill="#213047" text-anchor="middle" font-family="Mitr,sans-serif">ถึงเป้า + NPV ≥ 0</text>
+        <text x="244" y="122" font-size="12" font-weight="600" fill="#213047" text-anchor="middle" font-family="Mitr,sans-serif">+ ใช้เครดิตน้อย</text>
+      </svg></div>
+      <div class="gtxt">กด <b>"สิ้นปี"</b> ดูผล · ถึงเป้าทุกปี + NPV ≥ 0 + เครดิตน้อย = ⭐⭐⭐<br>ปุ่ม 📐 ดูสูตรและสมมติฐานทั้งหมด</div>
+    </div>
+    <div class="gdots" id="gDots"><i class="cur"></i><i></i><i></i><i></i><i></i></div>
+    <div class="gnav">
+      <button class="ghost-btn" id="gPrev">◀ ก่อนหน้า</button>
+      <button class="ghost-btn" id="gNext">ถัดไป ▶</button>
+      <button class="big-btn small" id="gPlay" style="display:none">เริ่มเล่นเลย! 🚀</button>
+    </div>
+  </div>
+</div>
+
+<!-- event -->
+<div class="overlay" id="evtOv"><div class="card">
+  <div style="font-size:2.4rem" id="evIc">📰</div><h2 id="evTitle">ข่าวด่วน</h2>
+  <p id="evText"></p><div class="lesson" id="evHint"></div>
+  <button class="big-btn small" id="evOk">รับทราบ วางแผนต่อ ▶</button>
+</div></div>
+
+<!-- year summary -->
+<div class="overlay" id="yearOv"><div class="card">
+  <h2 id="ysTitle">สรุปปี</h2>
+  <div class="ysum" id="ysBody"></div>
+  <div style="margin-top:10px"><button class="big-btn small" id="ysNext">ปีถัดไป ▶</button></div>
+</div></div>
+
+<!-- result -->
+<div class="overlay" id="resultOv"><div class="card">
+  <h2 id="resTitle">จบด่าน</h2>
+  <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+  <div class="statrow" id="resStats"></div>
+  <div class="lesson" id="resLesson">—</div>
+  <div class="fb"><h4>🧭 เฉลย / ข้อคิด</h4><ul id="resFb"></ul></div>
+  <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+    <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+    <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+  </div>
+</div></div>
+
+<!-- end -->
+<div class="overlay" id="endOv"><div class="card">
+  <div style="font-size:2.4rem">🏆🌏</div>
+  <h2>จบภารกิจ Carbon Trader!</h2>
+  <p>ได้ดาวทั้งหมด <b id="endStars">0</b> / 15 ดวง</p>
+  <div class="lesson">ลดจริงก่อน (เรียงตาม MACC) → ลงทุนเร็ว → ชดเชยเฉพาะส่วนที่เหลือ</div>
+  <div class="fb" style="background:#f2f6fc;border-color:#dbe3f2"><h4 style="color:var(--ind)">📚 สรุปบทเรียน</h4><ul>
+    <li><b>Scope 1</b> = เผาเชื้อเพลิงเอง · <b>Scope 2</b> = ไฟฟ้าที่ซื้อ (kWh × EF_GRID 0.4999) — มาตรการไฟฟ้าแตะ Scope 1 ไม่ได้</li>
+    <li><b>MACC</b> = (I×CRF − ผลประหยัด)/tCO₂e — แท่งซ้าย (ติดลบ) ได้กำไร แท่งกว้างลดได้มาก ต้องดูทั้งสองมิติ</li>
+    <li><b>NPV @8%</b>: มาตรการกำไรสูง (LED, VFD, โซลาร์) ช่วย "อุ้ม" มาตรการลดมากแต่แพง (ชีวมวล)</li>
+    <li><b>เครดิต T-VER</b> ราคาขึ้นทุกปี และไม่ลดการปล่อยจริง — ใช้ชดเชยเฉพาะส่วนที่ลดไม่ได้</li>
+    <li>ราคาพลังงาน/ภาษีคาร์บอนเปลี่ยน MACC ได้ — ทบทวนแผนทุกปี (ISO 50001 / ISO 14064-1)</li></ul></div>
+  <div style="margin-top:12px"><button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button></div>
+  <div class="brand">Energy Skills Lab · Triple E Technology</div>
+</div></div>
+
+<!-- formula panel -->
+<div class="overlay" id="fxOv"><div class="card" id="fxCard">
+  <h2>📐 สูตร / ที่มา / สมมติฐาน</h2>
+  <h4>1) ขอบเขตการปล่อย (GHG Protocol Corporate Standard · ISO 14064-1:2018)</h4>
+  <ul>
+    <li><b>Scope 1</b> (ทางตรง) = ถ่านหิน(t) × <code>2.4 tCO₂/t</code> + ชีวมวล(GJ) × <code>1.9 kgCO₂e/GJ</code> + อื่นๆ <code>150 t</code></li>
+    <li>EF ถ่านหิน 2.4 tCO₂/t = <b>สมมติ</b> sub-bituminous NCV ≈ 25 GJ/t × ~96 kgCO₂/GJ (ค่า default IPCC 2006)</li>
+    <li>CO₂ จากชีวมวลเป็น <b>biogenic</b> → รายงานแยก ไม่รวมใน Scope 1 · นับเฉพาะ CH₄+N₂O (≈30 และ 4 kg/TJ × GWP 28/265)</li>
+    <li><b>Scope 2</b> (ไฟฟ้าที่ซื้อ) location-based = MWh × <code>EF_GRID = 0.4999 kgCO₂e/kWh</code> (TGO) · market-based = (MWh − REC) × EF_GRID</li>
+    <li>เป้าและกราฟใช้ Scope 2 market-based · ไม่รวม Scope 3</li>
+  </ul>
+  <h4>2) เศรษฐศาสตร์มาตรการ (อัตราคิดลด r = 8%)</h4>
+  <ul>
+    <li><code>CRF = r(1+r)ⁿ / ((1+r)ⁿ − 1)</code> → ต้นทุนรายปีเทียบเท่า = I × CRF</li>
+    <li><code>MACC = (I×CRF − S) / ΔtCO₂e</code> บาท/tCO₂e · ติดลบ = ลดแล้วได้กำไร (คิดแยกเดี่ยวเทียบฐาน ณ ราคาปีนั้น ไม่รวมภาษีคาร์บอน)</li>
+    <li><code>NPV = −I/(1+r)^(y−1) + Σ S·a/(1+r)^t</code> — ลงทุนต้นปี y, ผลประหยัดสิ้นปี · ปีติดตั้ง a = (12 − เดือนติดตั้ง)/12 · อายุนับรวมปีติดตั้ง</li>
+    <li>NPV ในเกม = ผลประหยัดพลังงาน + ภาษีคาร์บอนที่เลี่ยงได้ (เทียบไม่ทำอะไร) − เงินลงทุน − ค่าเครดิต − ค่า REC · หลังจบด่านใช้ราคาปีสุดท้ายคงที่จนสิ้นอายุมาตรการ</li>
+    <li><code>Payback = I / S</code> (ปี) · ไม่คิดภาษีเงินได้/ค่าเสื่อม/เงินเฟ้อ</li>
+  </ul>
+  <h4>3) โรงงานฐาน (สมมติ — โรงงานขนาดกลางไทย)</h4>
+  <table><tr><th>รายการ</th><th>ค่า</th></tr>
+    <tr><td>ไฟฟ้า (แสง 480 · มอเตอร์ 1,800 · อากาศอัด 900 · ชิลเลอร์ 1,500 · อื่น 1,320)</td><td>6,000 MWh/ปี</td></tr>
+    <tr><td>ค่าไฟเฉลี่ย</td><td>4.2 บาท/kWh</td></tr>
+    <tr><td>ถ่านหิน 1,500 t/ปี · NCV 25 GJ/t · 3,500 บาท/t · หม้อไอน้ำ η 75%</td><td>Q = 28,125 GJ/ปี</td></tr>
+    <tr><td>ชีวมวล (wood chip) NCV 10.5 GJ/t · 1,200 บาท/t · η 72%</td><td>—</td></tr>
+    <tr><td>Scope 1 / Scope 2 / รวม (ปีฐาน 2569)</td><td>3,750 / 2,999 / 6,749 t</td></tr>
+  </table>
+  <h4>4) มาตรการ (ค่าที่ใช้คำนวณ ณ ราคาฐาน)</h4>
+  <div id="fxTable"></div>
+  <h4>5) คาร์บอนเครดิตและข้อกำกับ</h4>
+  <ul>
+    <li><b>T-VER</b> = โครงการลดก๊าซเรือนกระจกภาคสมัครใจของไทย ดูแลโดย อบก. (TGO) · 1 เครดิต = 1 tCO₂e · Premium T-VER มีเกณฑ์เข้มกว่า ราคาสูงกว่า</li>
+    <li>ราคาเครดิต/REC ในเกมเป็น<b>ตัวอย่าง</b> สุ่มขึ้นลงรายปีแบบมีแนวโน้มขึ้น ไม่ใช่ราคาตลาดจริง</li>
+    <li>เครดิตใช้ชดเชยเป้า "Net" แต่ไม่ลดการปล่อยจริง (Scope 1/2 ยังรายงานเต็ม) และไม่ลดภาษีคาร์บอนในเกม</li>
+    <li>โซลาร์ขนาดผลิต ≥ 200 kVA ต้องขอ<b>ใบอนุญาตผลิตพลังงานควบคุม (พค.2)</b> จาก พพ. — เกมรวมเวลาขออนุญาตไว้ในระยะติดตั้ง</li>
+    <li>ภาษีคาร์บอน/CBAM ในด่าน 4–5 เป็นค่าธรรมเนียมคาร์บอนแบบง่าย (บาท/tCO₂e ของ Scope 1+2 location-based) · CBAM ของ EU จริงครอบคลุมเฉพาะบางสินค้า</li>
+  </ul>
+  <div style="margin-top:12px;text-align:center"><button class="big-btn small" id="fxClose">ปิด</button></div>
+</div></div>
+
+<script>
+/* ═════════ Carbon Trader v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+function qsa(s){return document.querySelectorAll(s);}
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function num(v,d){d=d||0;var s=Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});return (v<0&&Math.abs(v)>=0.5*Math.pow(10,-d)?'−':'')+s;}
+function sgn(v,d){return (v>0?'+':'')+num(v,d);}
+function mb(v,d){return num(v/1e6,d===undefined?2:d);}           /* ล้านบาท */
+function smb(v){return (v>0?'+':'')+mb(v);}
+
+/* ── ค่าคงที่ทางวิศวกรรม ── */
+var EF_GRID=0.4999;      /* kgCO₂e/kWh = tCO₂e/MWh (TGO) */
+var EF_COAL=2.4;         /* tCO₂/t (สมมติ) */
+var NCV_COAL=25, NCV_BIO=10.5;  /* GJ/t */
+var EF_BIO_NC=1.9;       /* kgCO₂e/GJ (CH₄+N₂O) */
+var E0=6000;             /* MWh/ปี */
+var COAL0=1500, ETA_C=0.75, ETA_B=0.72, D_ETA=0.04;
+var Q_USE=COAL0*NCV_COAL*ETA_C;   /* 28,125 GJ/ปี */
+var S1_OTHER=150, HP_SHARE=0.15, HP_COP=4, R=0.08, BIO_OM=350000;
+var BASE_P={elec:4.2,coal:3500,bio:1200,tax:0,cred:200,rec:300};
+var YEAR0=2569;
+
+/* ── มาตรการ ── inv บาท · life ปี · inst เดือน · mwh ไฟฟ้าที่ลด/ผลิตได้ต่อปี · om บาท/ปี */
+var MS=[
+ {id:'air',ic:'💨',nm:'อุดลมรั่ว + ลดความดันลม',sc:'S2',inv:0.3e6,life:3,inst:1,mwh:180,
+  d:'สำรวจด้วย ultrasonic · ลมรั่ว 25%→10% · ความดัน 7→6 bar g (อากาศอัด 900 MWh/ปี) · รั่วซ้ำได้ อายุ 3 ปี'},
+ {id:'led',ic:'💡',nm:'เปลี่ยนหลอด LED',sc:'S2',inv:1.5e6,life:8,inst:1,mwh:240,
+  d:'แสงสว่าง 480 MWh/ปี (ฟลูออเรสเซนต์) ลด 50% · อายุ ~50,000 ชม.'},
+ {id:'vfd',ic:'🌀',nm:'VFD ปั๊ม/พัดลม (Variable Frequency Drive)',sc:'S2',inv:2.0e6,life:10,inst:2,mwh:270,
+  d:'มอเตอร์ภาระแปรผัน 900 MWh/ปี ลด 30% (Affinity law P ∝ N³)'},
+ {id:'solL',ic:'☀',nm:'โซลาร์รูฟท็อป L 800 kWp',sc:'S2',inv:16.8e6,life:25,inst:9,mwh:1080,om:168000,excl:'solS',permit:true,
+  d:'≈700 kVA · 1,350 kWh/kWp·ปี · O&M 1%/ปี · ⚠ ≥200 kVA ต้องขอใบอนุญาต พค.2 (รวมในเวลาติดตั้ง 9 ด.)'},
+ {id:'solS',ic:'🔆',nm:'โซลาร์รูฟท็อป S 150 kWp',sc:'S2',inv:3.6e6,life:25,inst:3,mwh:202.5,om:36000,excl:'solL',
+  d:'≈125 kVA < 200 kVA ไม่ต้อง พค.2 · 1,350 kWh/kWp·ปี · O&M 1%/ปี'},
+ {id:'chl',ic:'❄',nm:'ชิลเลอร์ประสิทธิภาพสูง',sc:'S2',inv:9e6,life:20,inst:6,mwh:440,
+  d:'500 RT · 0.95 → 0.60 kW/RT (คอมเพรสเซอร์ 1,200 MWh/ปี)'},
+ {id:'tune',ic:'🔥',nm:'ปรับจูนการเผาไหม้หม้อไอน้ำ (O₂ trim)',sc:'S1',inv:0.5e6,life:8,inst:2,
+  d:'ลด excess air · ประสิทธิภาพ η +4 จุด (75→79%) → เชื้อเพลิง −5%'},
+ {id:'bio',ic:'🌾',nm:'เปลี่ยนถ่านหิน → ชีวมวล (wood chip)',sc:'S1',inv:15e6,life:15,inst:9,om:BIO_OM,
+  d:'ดัดแปลงตะกรับ/ระบบป้อน/โรงเก็บ · ชีวมวล ~3,700 t/ปี · O&M +0.35 ล./ปี · CO₂ ชีวมวลเป็น biogenic'},
+ {id:'hp',ic:'♨',nm:'Heat pump ผลิตน้ำร้อน 60 °C',sc:'S12',inv:3.0e6,life:12,inst:4,
+  d:'แทนไอน้ำทำน้ำร้อน 15% ของภาระความร้อน · COP 4 · ลด Scope 1 แต่เพิ่ม Scope 2'}
+];
+var MM={};MS.forEach(function(m){MM[m.id]=m;});
+
+/* ── ด่าน ── */
+var LEVELS=[
+ {nm:'ด่าน 1 · อ่าน MACC ให้เป็น',ic:'📉',N:1,budget:20e6,goal:0.10,runRate:true,maxPick:3,market:false,credTrend:0,
+  goalTxt:'เลือก<b>ไม่เกิน 3 มาตรการ</b> (งบ 20 ล้าน) ให้ลดการปล่อย <b>≥ 10%</b> ของปีฐาน (คิดผลเต็มปี run-rate) — ดู MACC: ติดลบก่อน และอย่าลืมความกว้างของแท่ง',
+  lesson:'MACC: เริ่มจากแท่งติดลบ (ได้กำไร) แต่ต้องมี "แท่งกว้าง" ด้วยจึงถึงเป้า'},
+ {nm:'ด่าน 2 · Scope 1 vs Scope 2',ic:'🏭',N:5,budget:8e6,goal:0.15,s1goal:0.20,market:true,credTrend:0.10,
+  goalTxt:'5 ปี งบ 8 ล้าน/ปี (เหลือยกไปได้) · Net ลดขั้นบันไดถึง <b>−15%</b> และ <b>Scope 1 ปีสุดท้าย −20%</b> (เครดิตไม่ช่วย Scope 1)',
+  lesson:'มาตรการไฟฟ้าลดได้แค่ Scope 2 — จะลด Scope 1 ต้องแตะหม้อไอน้ำ'},
+ {nm:'ด่าน 3 · ลงทุนเอง vs ซื้อเครดิต',ic:'💸',N:5,budget:5e6,goal:0.30,market:true,credTrend:0.16,
+  goalTxt:'5 ปี งบจำกัด 5 ล้าน/ปี · Net ลดขั้นบันไดถึง <b>−30%</b> · ราคาเครดิตขึ้นเร็ว (~16%/ปี) — ลงทุนก่อนหรือซื้อเครดิต?',
+  lesson:'ราคาเครดิตขึ้นทุกปี — ลงทุนลดจริงให้เร็ว ถูกกว่าซื้อชดเชยไปเรื่อย ๆ'},
+ {nm:'ด่าน 4 · เหตุการณ์ไม่คาดฝัน',ic:'📰',N:5,budget:6e6,goal:0.25,market:true,credTrend:0.12,events:true,
+  goalTxt:'5 ปี งบ 6 ล้าน/ปี · Net ลดขั้นบันไดถึง <b>−25%</b> · ระวังข่าว: ถ่านหินพุ่ง / ค่าไฟขึ้น / ภาษีคาร์บอน (CBAM ส่งออก)',
+  lesson:'ราคาพลังงานและภาษีคาร์บอนเปลี่ยน MACC — มาตรการที่แพงวันนี้อาจกำไรพรุ่งนี้'},
+ {nm:'ด่าน 5 · Net Zero ฉบับย่อ 10 ปี',ic:'🌏',N:10,budget:6e6,goal:0.50,market:true,credTrend:0.12,drift:true,credCap:0.10,
+  goalTxt:'10 ปี งบ 6 ล้าน/ปี · Net ลดขั้นบันไดถึง <b>−50%</b> · <b>NPV ต้องเป็นบวก</b> · เครดิต<b>ไม่เกิน 10%</b> ของฐานต่อปี',
+  lesson:'Net Zero = ลดจริงเป็นขั้นบันได + พอร์ตกำไรอุ้มมาตรการแพง + เครดิตเฉพาะส่วนที่เหลือ'}
+];
+
+/* ── สถานะ ── */
+var G={lv:0,t:1,wallet:0,installs:[],pend:{},cred:0,rec:0,P:[],hist:[],ev:{},busy:false};
+var stars=[0,0,0,0,0];
+var rngState=1;
+function rng(){rngState|=0;rngState=rngState+0x6D2B79F5|0;var t=Math.imul(rngState^rngState>>>15,1|rngState);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}
+var GAME={MS:MS,MM:MM,LEVELS:LEVELS,G:G,fast:false,seed:null,EF_GRID:EF_GRID};
+window.GAME=GAME;
+function L(){return LEVELS[G.lv];}
+
+/* ── แบบจำลองโรงงาน ── af = สัดส่วนการทำงานของแต่ละมาตรการ (0–1) */
+function calc(af,P){
+  var save=0,om=0;
+  for(var i=0;i<MS.length;i++){var m=MS[i],a=af[m.id]||0;if(!a)continue;
+    if(m.mwh)save+=m.mwh*a; if(m.om)om+=m.om*a;}
+  var hp=af.hp||0,b=af.bio||0,tu=af.tune||0;
+  var hpE=HP_SHARE*Q_USE/3.6/HP_COP*hp;               /* MWh ไฟฟ้าที่ heat pump ใช้ */
+  var mwh=E0-save+hpE;
+  var useful=Q_USE*(1-HP_SHARE*hp);
+  var gjC=useful*(1-b)/(ETA_C+D_ETA*tu), gjB=useful*b/(ETA_B+D_ETA*tu);
+  var coalT=gjC/NCV_COAL, bioT=gjB/NCV_BIO;
+  var s1=coalT*EF_COAL+gjB*EF_BIO_NC/1000+S1_OTHER;
+  var s2=mwh*EF_GRID;
+  var cost=mwh*1000*P.elec+coalT*P.coal+bioT*P.bio+om;
+  return {mwh:mwh,coalT:coalT,bioT:bioT,gjB:gjB,s1:s1,s2:s2,gross:s1+s2,cost:cost};
+}
+var BASE=calc({},BASE_P);           /* ฐาน */
+var B0=BASE.gross, S1B=BASE.s1;
+function crf(n){return R*Math.pow(1+R,n)/(Math.pow(1+R,n)-1);}
+/* สถิติมาตรการแบบแยกเดี่ยวเทียบฐาน ณ ราคา P */
+function mStats(m,P){
+  var c0=calc({},P),o={};o[m.id]=1;var c1=calc(o,P);
+  var S=c0.cost-c1.cost, E=c0.gross-c1.gross, k=crf(m.life);
+  var f=(12-m.inst)/12, npv=-m.inv+S*f/(1+R);
+  for(var t=2;t<=m.life;t++)npv+=S/Math.pow(1+R,t);
+  return {S:S,E:E,crf:k,macc:(m.inv*k-S)/E,npv:npv,pb:S>0?m.inv/S:Infinity};
+}
+function fracOf(m,y,t,run){if(t<y)return 0;if(t===y)return run?1:(12-m.inst)/12;if(t<=y+m.life-1)return 1;return 0;}
+function afAt(t,list,run){var af={};list.forEach(function(x){var f=fracOf(MM[x.id],x.y,t,run);if(f>(af[x.id]||0))af[x.id]=f;});return af;}
+function activeAt(id,t){return G.installs.some(function(x){return x.id===id&&t>=x.y&&t<=x.y+MM[id].life-1;});}
+function installOf(id,t){var r=null;G.installs.forEach(function(x){if(x.id===id&&t>=x.y&&t<=x.y+MM[id].life-1)r=x;});return r;}
+function pendList(){var a=[];for(var k in G.pend)if(G.pend[k])a.push({id:k,y:G.t});return a;}
+function capexPend(){var s=0;for(var k in G.pend)if(G.pend[k])s+=MM[k].inv;return s;}
+function targetAt(t){var lv=L();return B0*(1-lv.goal*t/lv.N);}
+function credCap(){var lv=L();return lv.credCap?Math.floor(lv.credCap*B0):99999;}
+
+/* ── คาดการณ์ปีปัจจุบัน (รวมที่เลือกไว้) ── */
+function project(){
+  var lv=L(),P=G.P[G.t],list=G.installs.concat(pendList());
+  var af=afAt(G.t,list,!!lv.runRate),c=calc(af,P);
+  var rec=Math.min(G.rec,Math.max(0,Math.floor(c.mwh)));
+  var s2m=Math.max(0,c.mwh-rec)*EF_GRID, gross=c.s1+s2m, net=gross-G.cred;
+  var spend=capexPend()+G.cred*P.cred+rec*P.rec;
+  return {c:c,af:af,s2m:s2m,gross:gross,net:net,target:targetAt(G.t),spend:spend,rec:rec};
+}
+
+/* ── NPV ของการตัดสินใจทั้งหมดจนถึงปี upto (ตลอดอายุมาตรการ) ── */
+function npvAt(upto,extra,extraCost){
+  var v=0,list=G.installs.filter(function(x){return x.y<=upto;});
+  if(extra)list=list.concat(extra);
+  list.forEach(function(x){v-=MM[x.id].inv/Math.pow(1+R,x.y-1);});
+  for(var t=1;t<=upto;t++){var h=G.hist[t];if(h)v-=(h.credCost+h.recCost)/Math.pow(1+R,t);}
+  if(extraCost)v-=extraCost/Math.pow(1+R,upto);
+  var maxT=upto;list.forEach(function(x){maxT=Math.max(maxT,x.y+MM[x.id].life-1);});
+  for(t=1;t<=maxT;t++){
+    var P=G.P[Math.min(t,upto)];var af=afAt(t,list,false);
+    if(!Object.keys(af).length)continue;
+    var c0=calc({},P),c=calc(af,P);
+    v+=((c0.cost+P.tax*c0.gross)-(c.cost+P.tax*c.gross))/Math.pow(1+R,t);
+  }
+  return v;
+}
+function npvPreview(){var pr=project();return npvAt(G.t,pendList(),G.cred*G.P[G.t].cred+pr.rec*G.P[G.t].rec);}
+
+/* ── เสียง ── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.07,'square',0.08);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sCoin(){tone(988,0,0.07,'square',0.08);tone(1319,0.07,0.12,'square',0.08);}
+function sWarn(){tone(440,0,0.16,'triangle',0.13);tone(392,0.18,0.2,'triangle',0.13);}
+
+/* ── localStorage ── */
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_skill_carbon_stars')||'[]');for(var i=0;i<5;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_skill_carbon_stars',JSON.stringify(stars));}catch(e){}}
+function seenGuide(){try{return localStorage.getItem('te_skill_carbon_seen')==='1';}catch(e){return true;}}
+function setSeen(){try{localStorage.setItem('te_skill_carbon_seen','1');}catch(e){}}
+
+/* ── toast ── */
+var toT=null;
+function toast(txt,kind,ms){var t=$('toast');t.innerHTML=txt;t.className='show'+(kind?' '+kind:'');clearTimeout(toT);toT=setTimeout(function(){t.className='';},ms||2800);}
+
+/* ── ราคา/เหตุการณ์ ── */
+function initPrices(){
+  var p={elec:4.2,coal:3500,bio:1200,tax:0,cred:Math.round(180+rng()*40),rec:300};
+  G.P=[null,p];G.ev={};
+  var lv=L();
+  if(lv.events){
+    var yrs=[2,3,4],kinds=['coal','elec','tax'];
+    for(var i=yrs.length-1;i>0;i--){var j=Math.floor(rng()*(i+1));var tmp=kinds[i];kinds[i]=kinds[j];kinds[j]=tmp;}
+    for(i=0;i<3;i++){var k=kinds[i],v=k==='coal'?+(1.5+rng()*0.2).toFixed(2):(k==='elec'?+(0.5+rng()*0.3).toFixed(2):Math.round((300+rng()*200)/10)*10);
+      G.ev[yrs[i]]={k:k,v:v};}
+  }
+  if(lv.drift){G.ev[6]={k:'tax',v:Math.round((250+rng()*150)/10)*10};}
+}
+function nextPrices(t){
+  var lv=L(),a=G.P[t-1],p={elec:a.elec,coal:a.coal,bio:a.bio,tax:a.tax,cred:a.cred,rec:a.rec};
+  p.cred=Math.max(80,Math.round(a.cred*(1+lv.credTrend+(rng()*0.14-0.07))));
+  if(lv.drift){p.elec=+(a.elec*1.015).toFixed(3);p.coal=Math.round(a.coal*1.03);p.bio=Math.round(a.bio*1.02);p.rec=Math.round(a.rec*1.05);}
+  else p.rec=Math.round(a.rec*1.03);
+  var ev=G.ev[t];
+  if(ev){if(ev.k==='coal')p.coal=Math.round(a.coal*ev.v);if(ev.k==='elec')p.elec=+(a.elec+ev.v).toFixed(3);if(ev.k==='tax')p.tax=ev.v;}
+  G.P[t]=p;
+}
+
+/* ── เริ่มด่าน ── */
+function startLevel(i){
+  G.lv=i;var lv=L();
+  rngState=(GAME.seed!==null?GAME.seed+i*101:(Date.now()&0xffffff));
+  G.t=1;G.wallet=lv.budget;G.installs=[];G.pend={};G.cred=0;G.rec=0;G.hist=[];G.busy=false;
+  initPrices();
+  $('lvlName').textContent=lv.nm;
+  $('lvTag').textContent=lv.ic+' '+lv.nm.split('·')[0].trim();
+  $('goalTxt').innerHTML=lv.goalTxt;
+  $('mktCard').style.display=lv.market?'block':'none';
+  buildMeasures();
+  renderAll();
+  toast(i===0?'ดูกราฟ MACC ด้านขวา/ด้านล่าง แล้วเลือกมาตรการ 📉':(lv.events?'เหตุการณ์สุ่มจะเกิดระหว่างทาง — ทบทวนแผนทุกปี 📰':'วางแผนลงทุนปีแรกได้เลย 💰'),'good',3200);
+}
+
+/* ── สร้างการ์ดมาตรการ ── */
+function buildMeasures(){
+  var box=$('measList');box.innerHTML='';
+  MS.forEach(function(m){
+    var d=document.createElement('div');d.className='ms';d.id='ms_'+m.id;
+    d.innerHTML='<div class="mtop"><span class="mic">'+m.ic+'</span><div class="mnm">'+m.nm+' <span class="tag '+m.sc+'">'+
+      (m.sc==='S12'?'S1↓ S2↑':(m.sc==='S1'?'Scope 1':'Scope 2'))+'</span></div><button class="mbtn" id="mb_'+m.id+'">+ ลงทุน</button></div>'+
+      '<div class="mrow" id="mr_'+m.id+'"></div><div class="mnote" id="mn_'+m.id+'">'+m.d+'</div>';
+    box.appendChild(d);
+    $('mb_'+m.id).addEventListener('click',function(){togglePick(m.id);});
+  });
+}
+function pickCount(){var n=0;for(var k in G.pend)if(G.pend[k])n++;return n;}
+function blockedBy(m){
+  if(m.excl&&(G.pend[m.excl]||activeAt(m.excl,G.t)))return m.excl;
+  return null;
+}
+function togglePick(id){
+  if(G.busy)return;
+  var m=MM[id],lv=L();
+  if(activeAt(id,G.t))return;
+  if(G.pend[id]){delete G.pend[id];sClick();renderAll();return;}
+  if(blockedBy(m)){toast('หลังคามีพื้นที่จำกัด เลือกโซลาร์ได้ขนาดเดียว','bad');sBad();return;}
+  if(lv.maxPick&&pickCount()>=lv.maxPick){toast('ด่านนี้เลือกได้ไม่เกิน '+lv.maxPick+' มาตรการ — ยกเลิกอันเดิมก่อน','bad');sBad();return;}
+  var pr=project();
+  if(pr.spend+m.inv>G.wallet+1){toast('งบไม่พอ! เหลือ '+mb(G.wallet-pr.spend)+' ล้าน แต่ต้องใช้ '+mb(m.inv)+' ล้าน','bad');sBad();return;}
+  G.pend[id]=true;sCoin();
+  if(m.permit)toast('⚠ โซลาร์ 800 kWp (~700 kVA) ≥ 200 kVA — ต้องขอใบอนุญาต <b>พค.2</b> จาก พพ. ก่อนจ่ายไฟ','',4200);
+  else if(id==='hp'&&(G.pend.bio||activeAt('bio',G.t)))toast('⚠ ใช้ชีวมวลแล้ว Heat pump จะทำให้ CO₂ รวม<b>เพิ่ม</b> (แทนเชื้อเพลิง biogenic ด้วยไฟกริด)','bad',4200);
+  else if(id==='bio'&&(G.pend.hp||activeAt('hp',G.t)))toast('⚠ มี Heat pump อยู่ — หลังเปลี่ยนเป็นชีวมวล heat pump จะเพิ่ม Scope 2 แทน','',4000);
+  renderAll();
+}
+
+/* ── render: สถานะ ── */
+function renderStatus(pr){
+  var lv=L(),P=G.P[G.t];
+  $('yrTxt').textContent='ปี พ.ศ. '+(YEAR0+G.t);
+  $('yrProg').textContent='ปีที่ '+G.t+'/'+lv.N;
+  var ok=pr.net<=pr.target+0.5, s1ok=true;
+  var red=(1-pr.net/B0)*100;
+  var h='';
+  h+='<span>เป้าปีนี้ (Net ≤)</span><span>'+num(pr.target)+' t <small style="color:#6a7890">(−'+(lv.goal*G.t/lv.N*100).toFixed(0)+'%)</small></span>';
+  h+='<span>Scope 1'+(lv.runRate?' (เต็มปี)':'')+'</span><span style="color:#c4620c">'+num(pr.c.s1)+' t</span>';
+  h+='<span>Scope 2 market'+(pr.rec?' (หัก REC)':'')+'</span><span style="color:#2a6fd6">'+num(pr.s2m)+' t</span>';
+  if(lv.market)h+='<span>เครดิต T-VER</span><span style="color:#16804a">'+(G.cred?'−':'')+num(G.cred)+' t</span>';
+  h+='<span class="hl">Net</span><span class="hl">'+num(pr.net)+' t ('+sgn(-red,1)+'%) <span class="badge '+(ok?'ok':'no')+'">'+(ok?'ถึงเป้า':'ยังไม่ถึง')+'</span></span>';
+  if(lv.s1goal){var s1t=S1B*(1-lv.s1goal);s1ok=pr.c.s1<=s1t+0.5;
+    h+='<span>Scope 1 เป้าปีสุดท้าย ≤ '+num(s1t)+'</span><span>'+(((1-pr.c.s1/S1B)*100).toFixed(1))+'% <span class="badge '+(s1ok?'ok':'no')+'">'+(s1ok?'✓':'✗')+'</span></span>';}
+  var npv=npvPreview();
+  h+='<span>NPV สะสม (รวมแผนปีนี้) @8%</span><span class="'+(npv>=0?'neg':'pos')+'">'+smb(npv)+' ล้าน</span>';
+  if(P.tax>0)h+='<span>ภาษีคาร์บอนปีนี้ (คาด)</span><span class="pos">'+mb(P.tax*pr.c.gross)+' ล้าน</span>';
+  $('kv').innerHTML=h;
+  var left=G.wallet-pr.spend;
+  $('walTxt').textContent=mb(left)+' ล้าน';
+  $('walSub').textContent='ใช้ปีนี้ '+mb(pr.spend)+' / มี '+mb(G.wallet);
+  var wb=$('walBar');wb.classList.toggle('over',left<-1);
+  wb.firstElementChild.style.width=clamp(G.wallet>0?pr.spend/G.wallet*100:0,0,100)+'%';
+  $('pickInfo').textContent=lv.maxPick?('เลือกแล้ว '+pickCount()+'/'+lv.maxPick):('ปี '+(YEAR0+G.t));
+  /* bottom bar */
+  $('barInfo').innerHTML='💰 เหลือ <b>'+mb(left)+'</b> ล. · Net <b style="color:'+(ok?'#16804a':'#c0392b')+'">'+num(pr.net)+'</b> / เป้า '+num(pr.target)+' t '+(ok?'✓':'✗')+
+    (lv.s1goal?'<br>Scope 1 '+(((1-pr.c.s1/S1B)*100).toFixed(0))+'% / เป้า 20% '+(s1ok?'✓':'✗'):'');
+  var btn=$('endYearBtn');btn.disabled=left<-1||G.busy;
+  btn.textContent=lv.N===1?'ยืนยันแผน ▶':(G.t===lv.N?'สิ้นปีสุดท้าย ▶':'สิ้นปี ▶');
+}
+
+/* ── render: การ์ดมาตรการ ── */
+function renderMeasures(pr){
+  var P=G.P[G.t],lv=L();
+  var curList=G.installs.concat(pendList());
+  MS.forEach(function(m){
+    var st=mStats(m,P),card=$('ms_'+m.id),btn=$('mb_'+m.id);
+    var act=installOf(m.id,G.t),pend=!!G.pend[m.id],blk=blockedBy(m);
+    card.className='ms'+(pend?' sel':'')+(act?' done':'')+((blk&&!act&&!pend)?' off':'');
+    if(act){var endY=act.y+m.life-1;btn.className='mbtn done';btn.textContent='✓ ใช้งาน ('+(YEAR0+act.y)+')';
+      btn.title='หมดอายุสิ้นปี '+(YEAR0+endY);}
+    else if(pend){btn.className='mbtn sel';btn.textContent='✓ เลือกแล้ว';}
+    else if(blk){btn.className='mbtn dis';btn.textContent='เลือกโซลาร์แล้ว';}
+    else if(lv.maxPick&&pickCount()>=lv.maxPick){btn.className='mbtn dis';btn.textContent='ครบ '+lv.maxPick;}
+    else{btn.className='mbtn';btn.textContent='+ ลงทุน';}
+    var pb=isFinite(st.pb)?st.pb.toFixed(1)+' ปี':'ไม่คืนทุน';
+    $('mr_'+m.id).innerHTML='ลงทุน <b>'+mb(m.inv)+'</b> ล. · ประหยัด <b class="'+(st.S>=0?'neg':'pos')+'">'+smb(st.S)+'</b> ล./ปี · ลด <b>'+num(st.E)+'</b> tCO₂e/ปี<br>'+
+      'คืนทุน '+pb+' · อายุ '+m.life+' ปี · ติดตั้ง '+m.inst+' ด. · MACC <b class="'+(st.macc<0?'neg':'pos')+'">'+num(st.macc)+'</b> บาท/t';
+    /* ผลจริงเมื่อรวมกับมาตรการอื่น (interaction) */
+    var note=m.d,nt=$('mn_'+m.id);nt.className='mnote';
+    var others=afAt(G.t,curList.filter(function(x){return x.id!==m.id;}),true);
+    if(Object.keys(others).length){
+      var c0=calc(others,P),o2={};for(var k in others)o2[k]=others[k];o2[m.id]=1;var c1=calc(o2,P);
+      var Em=c0.gross-c1.gross;
+      if(Math.abs(Em-st.E)>Math.max(15,0.15*Math.abs(st.E))){
+        note='🔗 ผลจริงเมื่อรวมกับมาตรการที่มี: '+(Em>=0?'ลด ':'<b>เพิ่ม</b> ')+num(Math.abs(Em))+' tCO₂e/ปี (แยกเดี่ยว '+num(st.E)+')'+
+          (m.id==='hp'&&Em<0?' — ชีวมวล biogenic ถูกแทนด้วยไฟกริด':'')+(m.id==='tune'&&(others.bio||0)>0?' — หลังใช้ชีวมวล การจูนช่วยประหยัดเงินเป็นหลัก':'');
+        nt.className='mnote warn';}
+    }
+    if(act&&act.y+m.life-1===G.t&&lv.N>1){note='⏳ หมดอายุสิ้นปีนี้ — ปีหน้าต้องลงทุนซ้ำ · '+note;nt.className='mnote warn';}
+    nt.innerHTML=note;
+  });
+}
+
+/* ── render: ตลาด ── */
+function renderMarket(pr){
+  var lv=L(),P=G.P[G.t];if(!lv.market)return;
+  $('pCred').innerHTML=num(P.cred)+' <small>บาท/tCO₂e</small>';
+  var prev=G.P[G.t-1];
+  if(prev){var ch=(P.cred/prev.cred-1)*100;$('pCredD').innerHTML='<span style="color:'+(ch>=0?'#c0392b':'#16804a')+'">'+(ch>=0?'▲ ':'▼ ')+Math.abs(ch).toFixed(1)+'% จากปีก่อน</span>';}
+  else $('pCredD').textContent='แนวโน้ม ~+'+Math.round(lv.credTrend*100)+'%/ปี';
+  $('pPrem').innerHTML='~'+num(Math.round(P.cred*2.5/10)*10)+' <small>บาท/t</small>';
+  $('pRec').innerHTML=num(P.rec/1000,2)+' <small>บาท/kWh (≈'+num(P.rec/EF_GRID)+' บาท/t)</small>';
+  var tx=P.tax>0;$('pTaxL').style.display=tx?'block':'none';$('pTax').style.display=tx?'block':'none';
+  if(tx)$('pTax').innerHTML=num(P.tax)+' <small>บาท/tCO₂e</small>';
+  /* sparkline */
+  var pts=[],mx=0,mn=1e9;for(var t=1;t<=G.t;t++){mx=Math.max(mx,G.P[t].cred);mn=Math.min(mn,G.P[t].cred);}
+  var span=Math.max(1,mx-mn),n=Math.max(1,lv.N-1);
+  for(t=1;t<=G.t;t++)pts.push((4+(t-1)/n*112).toFixed(1)+','+(26-(G.P[t].cred-mn)/span*20).toFixed(1));
+  $('spark').innerHTML='<polyline points="'+pts.join(' ')+'" fill="none" stroke="#1fb45f" stroke-width="2.5" stroke-linecap="round"/>'+
+    '<circle cx="'+pts[pts.length-1].split(',')[0]+'" cy="'+pts[pts.length-1].split(',')[1]+'" r="3" fill="#1fb45f"/>';
+  var cap=credCap();
+  $('credQ').textContent=num(G.cred)+' t';
+  $('credSub').innerHTML='ค่าใช้จ่าย '+mb(G.cred*P.cred)+' ล.'+(lv.credCap?' · เพดาน '+num(cap)+' t/ปี':'')+
+    (pr.gross>pr.target?' · เกินเป้า '+num(Math.max(0,pr.gross-pr.target))+' t':'');
+  $('recQ').textContent=num(G.rec)+' MWh';
+  $('recSub').innerHTML='ค่าใช้จ่าย '+mb(G.rec*P.rec)+' ล. · ลด S2 '+num(pr.rec*EF_GRID)+' t';
+}
+
+/* ── render: กราฟการปล่อยรายปี ── */
+function renderEm(pr){
+  var lv=L(),N=lv.N,n=N+1,x0=40,x1=354,yT=12,yB=172,max=B0*1.08;
+  var slot=(x1-x0)/n,bw=Math.min(30,slot*0.6);
+  function Y(v){return yB-(v/max)*(yB-yT);}
+  var s='<defs><pattern id="hG" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#bff0d0"/><rect width="3" height="6" fill="#1fb45f"/></pattern></defs>';
+  [0,2000,4000,6000].forEach(function(v){s+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="#e6ebf3"/><text x="'+(x0-4)+'" y="'+(Y(v)+3)+'" font-size="9" fill="#7a879b" text-anchor="end" font-family="Mitr,sans-serif">'+(v/1000)+'k</text>';});
+  function bar(i,s1,s2,cred,net,ghost){
+    var cx=x0+slot*(i+0.5),x=cx-bw/2,op=ghost?0.5:1,o='';
+    o+='<rect x="'+x+'" y="'+Y(s1)+'" width="'+bw+'" height="'+(yB-Y(s1))+'" fill="#ff8f1c" opacity="'+op+'"/>';
+    o+='<rect x="'+x+'" y="'+Y(s1+s2)+'" width="'+bw+'" height="'+(Y(s1)-Y(s1+s2))+'" fill="#3f8efc" opacity="'+op+'"/>';
+    if(cred>0)o+='<rect x="'+x+'" y="'+Y(s1+s2)+'" width="'+bw+'" height="'+(Y(s1+s2-cred)-Y(s1+s2))+'" fill="url(#hG)" opacity="'+(ghost?0.7:0.95)+'"/>';
+    if(ghost)o+='<rect x="'+x+'" y="'+Y(s1+s2)+'" width="'+bw+'" height="'+(yB-Y(s1+s2))+'" fill="none" stroke="#213047" stroke-dasharray="3 3" stroke-width="1.2"/>';
+    if(i>0)o+='<path d="M'+cx+' '+(Y(net)-5)+' l5 5 l-5 5 l-5 -5 Z" fill="#213047"/>';
+    return o;
+  }
+  s+=bar(0,S1B,BASE.s2,0,B0,false);
+  for(var t=1;t<=N;t++){var h=G.hist[t];
+    if(h)s+=bar(t,h.s1,h.s2m,h.cred,h.net,false);
+    else if(t===G.t&&!G.done)s+=bar(t,pr.c.s1,pr.s2m,G.cred,pr.net,true);}
+  /* เส้นเป้าขั้นบันได */
+  var d='';for(t=1;t<=N;t++){var ty=Y(targetAt(t)),xa=x0+slot*t,xb=x0+slot*(t+1);d+=(t===1?'M':'L')+xa+' '+ty+' L'+xb+' '+ty+' ';}
+  s+='<path d="'+d+'" stroke="#ef4b4b" stroke-width="2.6" fill="none"/>';
+  if(lv.s1goal){var y1=Y(S1B*(1-lv.s1goal));s+='<line x1="'+(x0+slot*N)+'" x2="'+x1+'" y1="'+y1+'" y2="'+y1+'" stroke="#c4620c" stroke-width="2" stroke-dasharray="4 3"/><text x="'+(x1-2)+'" y="'+(y1-3)+'" font-size="8.5" fill="#c4620c" text-anchor="end" font-family="Mitr,sans-serif">เป้า S1</text>';}
+  /* x labels */
+  var step=N>6?2:1;
+  s+='<text x="'+(x0+slot*0.5)+'" y="'+(yB+13)+'" font-size="9" fill="#5b6a82" text-anchor="middle" font-family="Mitr,sans-serif">ฐาน</text>';
+  for(t=1;t<=N;t++){if(t%step&&t!==N)continue;s+='<text x="'+(x0+slot*(t+0.5))+'" y="'+(yB+13)+'" font-size="9" fill="'+(t===G.t?'#3f51b5':'#5b6a82')+'" font-weight="'+(t===G.t?'700':'400')+'" text-anchor="middle" font-family="Mitr,sans-serif">'+((YEAR0+t)%100)+'</text>';}
+  s+='<text x="'+x0+'" y="'+(yB+25)+'" font-size="8.5" fill="#7a879b" font-family="Mitr,sans-serif">พ.ศ. 25xx · แท่งเส้นประ = คาดการณ์ปีนี้</text>';
+  $('emChart').innerHTML=s;
+}
+
+/* ── render: MACC ── */
+function maccList(P){
+  var showS=!!(G.pend.solS||activeAt('solS',G.t));
+  return MS.filter(function(m){return m.id!==(showS?'solL':'solS');})
+    .map(function(m){return {m:m,st:mStats(m,P)};}).filter(function(o){return o.st.E>0;})
+    .sort(function(a,b){return a.st.macc-b.st.macc;});
+}
+function renderMacc(pr){
+  var lv=L(),P=G.P[G.t],x0=42,x1=354,yT=18,yB=184,POS=3000,NEG=8000;
+  var k=(yB-yT)/(Math.sqrt(POS)+Math.sqrt(NEG)),y0=yT+Math.sqrt(POS)*k;
+  function Y(v){v=clamp(v,-NEG,POS);return y0-(v>=0?1:-1)*Math.sqrt(Math.abs(v))*k;}
+  var list=maccList(P),tot=0;list.forEach(function(o){tot+=o.st.E;});
+  var sc=(x1-x0)/tot,s='<defs><pattern id="hM" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="5" fill="#fff" opacity=".55"/></pattern></defs>';
+  [2000,500,0,-1000,-4000,-8000].forEach(function(v){var y=Y(v);
+    s+='<line x1="'+x0+'" x2="'+x1+'" y1="'+y+'" y2="'+y+'" stroke="'+(v===0?'#213047':'#eef1f6')+'" stroke-width="'+(v===0?1.6:1)+'"/>'+
+       '<text x="'+(x0-3)+'" y="'+(y+3)+'" font-size="8.5" fill="#7a879b" text-anchor="end" font-family="Mitr,sans-serif">'+(v===0?'0':num(v))+'</text>';});
+  var x=x0,leg='',COL={S1:'#ff8f1c',S2:'#3f8efc',S12:'#9c6ade'};
+  list.forEach(function(o,i){
+    var m=o.m,w=Math.max(2.5,o.st.E*sc),yv=Y(o.st.macc),top=Math.min(yv,y0),h=Math.max(1.5,Math.abs(yv-y0));
+    var act=activeAt(m.id,G.t),pend=!!G.pend[m.id],on=act||pend;
+    s+='<rect x="'+x.toFixed(1)+'" y="'+top.toFixed(1)+'" width="'+(w-1).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="'+COL[m.sc]+'" opacity="'+(on?1:0.38)+'"'+(pend?' stroke="#213047" stroke-width="1.6"':'')+'/>';
+    if(act)s+='<rect x="'+x.toFixed(1)+'" y="'+top.toFixed(1)+'" width="'+(w-1).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="url(#hM)"/>';
+    var by=(o.st.macc<0?y0-9:top-9)-(w<14?(i%3)*13:0),bx=x+w/2;
+    s+='<circle cx="'+bx.toFixed(1)+'" cy="'+by.toFixed(1)+'" r="6.5" fill="'+(on?'#213047':'#fff')+'" stroke="#213047" stroke-width="1.2"/>'+
+       '<text x="'+bx.toFixed(1)+'" y="'+(by+3).toFixed(1)+'" font-size="8.5" font-weight="700" fill="'+(on?'#fff':'#213047')+'" text-anchor="middle" font-family="Mitr,sans-serif">'+(i+1)+'</text>';
+    leg+='<span class="'+(on?'on':'')+'">'+(i+1)+' '+m.ic+' '+num(o.st.macc)+'</span>';
+    x+=w;
+  });
+  /* เส้นราคาคาร์บอน */
+  function hline(v,col,txt,below){var y=Y(v);s+='<line x1="'+x0+'" x2="'+x1+'" y1="'+y+'" y2="'+y+'" stroke="'+col+'" stroke-width="1.8" stroke-dasharray="5 3"/>'+
+    '<text x="'+(x1-2)+'" y="'+(below?y+11:y-3)+'" font-size="9" font-weight="600" fill="'+col+'" text-anchor="end" font-family="Mitr,sans-serif">'+txt+'</text>';}
+  if(lv.market){hline(P.cred,'#16804a','T-VER '+num(P.cred),true);hline(P.rec/EF_GRID,'#7b5bff','REC '+num(P.rec/EF_GRID),false);}
+  if(P.tax>0)hline(P.tax,'#c0392b','ภาษี '+num(P.tax),P.tax<P.rec/EF_GRID);
+  /* ต้องลดเท่าไรปีนี้ */
+  var need=B0-pr.target;
+  if(need>0&&need<tot){var xn=x0+need*sc;s+='<line x1="'+xn+'" x2="'+xn+'" y1="'+yT+'" y2="'+yB+'" stroke="#ef4b4b" stroke-width="1.6" stroke-dasharray="3 3"/>'+
+    '<text x="'+(xn+3)+'" y="'+(yB-4)+'" font-size="9" font-weight="600" fill="#ef4b4b" font-family="Mitr,sans-serif">ต้องลด '+num(need)+' t</text>';}
+  s+='<text x="'+x0+'" y="'+(yB+14)+'" font-size="9" fill="#5b6a82" font-family="Mitr,sans-serif">0</text>'+
+     '<text x="'+x1+'" y="'+(yB+14)+'" font-size="9" fill="#5b6a82" text-anchor="end" font-family="Mitr,sans-serif">'+num(tot)+' tCO₂e/ปี →</text>'+
+     '<text x="'+((x0+x1)/2)+'" y="'+(yB+26)+'" font-size="8.5" fill="#7a879b" text-anchor="middle" font-family="Mitr,sans-serif">แกนตั้ง บาท/tCO₂e แบบย่อสเกล (√) · ทึบ = เลือก/ใช้งาน</text>';
+  $('macc').innerHTML=s;
+  $('maccLeg').innerHTML=leg;
+}
+
+/* ── render: ฉาก ── */
+var SC={s1:S1B,s2:BASE.s2};
+var TREE_POS=[[642,352],[668,358],[694,350],[720,357],[746,351],[772,358],[798,350],[824,357],[655,378],[690,382],[728,378],[766,382],[804,378],[840,380]];
+function buildTrees(){var g=$('treeG'),s='';
+  TREE_POS.forEach(function(p,i){s+='<g class="tree hide" data-i="'+i+'"><rect x="'+(p[0]-2)+'" y="'+(p[1]-2)+'" width="4" height="10" fill="#8a5a2b"/>'+
+    '<circle cx="'+p[0]+'" cy="'+(p[1]-8)+'" r="9" fill="#2e9e55"/><circle cx="'+(p[0]+4)+'" cy="'+(p[1]-12)+'" r="5" fill="#45c06d"/></g>';});
+  g.innerHTML=s;}
+function renderScene(pr){
+  var list=G.installs.filter(function(x){return activeAt(x.id,G.t);}).map(function(x){return x.id;}).concat(Object.keys(G.pend).filter(function(k){return G.pend[k];}));
+  function has(id){return list.indexOf(id)>=0;}
+  /* LED */
+  qsa('.win').forEach(function(w){w.setAttribute('fill',has('led')?'#fff2a8':'#dde8ff');w.classList.toggle('flick',!has('led'));});
+  $('lampTxt').textContent=has('led')?'💡 LED':'💡 ฟลูออเรสเซนต์';
+  /* VFD */
+  $('fanBlades').style.animationDuration=has('vfd')?'1.4s':'.55s';
+  $('vfdBox').setAttribute('fill',has('vfd')?'#1fb45f':'#9aa3ad');$('vfdLed').setAttribute('fill',has('vfd')?'#c8ffd8':'#5b6675');
+  /* ลมรั่ว */
+  $('leaks').setAttribute('opacity',has('air')?'0':'1');
+  $('gaugeN').setAttribute('transform','rotate('+(has('air')?20:50)+')');
+  $('barTxtScene').textContent=has('air')?'6 bar g':'7 bar g';
+  /* หม้อไอน้ำ */
+  var bio=has('bio'),tune=has('tune');
+  $('flameP').setAttribute('fill',bio?'#ffa040':(tune?'#ffb020':'#ff6a1a'));
+  $('flameBlue').setAttribute('opacity',tune?'0.9':'0');
+  $('pile').setAttribute('fill',bio?'#b98a4e':'#2b2b31');
+  $('pileTxt').textContent=bio?'ชีวมวล':'ถ่านหิน';
+  /* โซลาร์ */
+  var nP=has('solL')?14:(has('solS')?3:0);
+  qsa('.panel').forEach(function(p){p.classList.toggle('hide',+p.dataset.i>=nP);});
+  $('solGlint').setAttribute('opacity',nP?'1':'0');$('roofTxt').setAttribute('opacity',nP?'0':'1');
+  /* ชิลเลอร์ */
+  var ch=has('chl');$('chBody').setAttribute('fill',ch?'#00acc1':'#9aa3ad');$('rust').setAttribute('opacity',ch?'0':'.8');
+  $('chTxt').textContent=ch?'ชิลเลอร์ HE':'ชิลเลอร์เก่า';
+  /* heat pump */
+  $('hpG').setAttribute('opacity',has('hp')?'1':'0');
+  /* REC */
+  var share=pr.c.mwh>0?pr.rec/pr.c.mwh:0;
+  $('wireGreen').setAttribute('opacity',share>0?Math.max(0.35,share).toFixed(2):'0');
+  $('recBadge').setAttribute('opacity',share>0?'1':'0');$('recTxt').textContent='REC '+Math.round(share*100)+'%';
+  /* ต้นไม้ (เครดิต) */
+  var nT=G.cred>0?Math.min(TREE_POS.length,Math.ceil(G.cred/50)):0;
+  qsa('.tree').forEach(function(t){t.classList.toggle('hide',+t.dataset.i>=nT);});
+  $('treeTxt').setAttribute('opacity',nT?'1':'0');
+  /* หมอก + ปริมาณควัน */
+  $('haze').setAttribute('opacity',clamp((pr.gross/B0-0.35)*0.32,0,0.24).toFixed(3));
+  SC.s1=pr.c.s1;SC.s2=pr.s2m;SC.bio=bio;SC.tune=tune;
+  $('siS1').textContent=num(pr.c.s1);$('siS2').textContent=num(pr.s2m);
+}
+
+/* ── CO₂ puffs (rAF) — อัตราตามปริมาณปล่อยจริง ── */
+var puffs=[],acc1=0,acc2=0,lastTs=0,RM=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+var NS='http://www.w3.org/2000/svg';
+function spawn(x,y,col,r,lab){
+  var g=document.createElementNS(NS,'g');var c=document.createElementNS(NS,'circle');
+  c.setAttribute('r',r);c.setAttribute('fill',col);g.appendChild(c);
+  if(lab){var t=document.createElementNS(NS,'text');t.setAttribute('font-size',Math.round(r*0.8));t.setAttribute('text-anchor','middle');t.setAttribute('y',r*0.3);
+    t.setAttribute('fill','#fff');t.setAttribute('font-weight','700');t.setAttribute('font-family','Mitr,sans-serif');t.textContent='CO₂';g.appendChild(t);}
+  $('puffs').appendChild(g);puffs.push({g:g,x:x,y:y,age:0,life:3.2,dx:12+Math.random()*14,rise:62+Math.random()*10});
+}
+function tick(ts){
+  requestAnimationFrame(tick);
+  if(!lastTs)lastTs=ts;var dt=Math.min(0.1,(ts-lastTs)/1000);lastTs=ts;
+  if(RM)return;
+  var r1=2.4*SC.s1/S1B, r2=1.7*SC.s2/BASE.s2;
+  acc1+=dt*r1;acc2+=dt*r2;
+  var col1=SC.bio?'#d9d3c6':(SC.tune?'#80838b':'#5d5f66');
+  while(acc1>=1){acc1-=1;spawn(153+Math.random()*6-3,76,col1,9+Math.random()*6*clamp(SC.s1/S1B,0.4,1),Math.random()<0.4&&SC.s1>600);}
+  while(acc2>=1){acc2-=1;spawn(825,146,'#9aa3ae',7+Math.random()*4,Math.random()<0.35);}
+  for(var i=puffs.length-1;i>=0;i--){var p=puffs[i];p.age+=dt;var f=p.age/p.life;
+    if(f>=1){p.g.remove();puffs.splice(i,1);continue;}
+    p.g.setAttribute('transform','translate('+(p.x+p.dx*f).toFixed(1)+','+(p.y-p.rise*f).toFixed(1)+') scale('+(0.6+0.8*f).toFixed(2)+')');
+    p.g.setAttribute('opacity',(0.9*(1-f)).toFixed(2));}
+}
+
+function renderAll(){
+  var pr=project();
+  renderStatus(pr);renderMeasures(pr);renderMarket(pr);renderEm(pr);renderMacc(pr);renderScene(pr);
+}
+
+/* ── ตลาด: ปุ่ม ── */
+function setCred(v){var lv=L();if(!lv.market)return;var pr=project();
+  var cap=Math.min(credCap(),Math.ceil(pr.gross));v=clamp(Math.round(v),0,cap);
+  var P=G.P[G.t],spendNo=pr.spend-G.cred*P.cred,room=G.wallet-spendNo;
+  if(v*P.cred>room+1){v=Math.max(0,Math.floor(room/P.cred));toast('งบไม่พอซื้อเครดิตเพิ่ม','bad');}
+  if(lv.credCap&&v>=credCap())toast('ถึงเพดานเครดิต 10% ของฐาน ('+num(credCap())+' t/ปี)','');
+  G.cred=v;renderAll();}
+function setRec(v){var pr=project();v=clamp(Math.round(v/250)*250,0,Math.floor(pr.c.mwh/250)*250);
+  var P=G.P[G.t],spendNo=pr.spend-pr.rec*P.rec,room=G.wallet-spendNo;
+  if(v*P.rec>room+1){v=Math.max(0,Math.floor(room/P.rec/250)*250);toast('งบไม่พอซื้อ REC เพิ่ม','bad');}
+  G.rec=v;renderAll();}
+$('credP').addEventListener('click',function(){if(G.busy)return;sClick();setCred(G.cred+50);});
+$('credM').addEventListener('click',function(){if(G.busy)return;sClick();setCred(G.cred-50);});
+$('credFill').addEventListener('click',function(){if(G.busy)return;sCoin();var pr=project();setCred(Math.max(0,Math.ceil(pr.gross-pr.target)));});
+$('recP').addEventListener('click',function(){if(G.busy)return;sClick();setRec(G.rec+250);});
+$('recM').addEventListener('click',function(){if(G.busy)return;sClick();setRec(G.rec-250);});
+
+/* ── สิ้นปี ── */
+function endYear(){
+  if(G.busy)return;var pr=project();if(pr.spend>G.wallet+1){toast('ใช้เงินเกินงบ!','bad');return;}
+  var lv=L(),P=G.P[G.t],t=G.t;
+  G.busy=true;
+  pendList().forEach(function(x){G.installs.push({id:x.id,y:t,macc:mStats(MM[x.id],P).macc});});
+  G.pend={};
+  var af=afAt(t,G.installs,!!lv.runRate),c=calc(af,P),c0=calc({},P);
+  var rec=pr.rec,s2m=Math.max(0,c.mwh-rec)*EF_GRID,gross=c.s1+s2m,net=gross-G.cred;
+  var capex=G.installs.filter(function(x){return x.y===t;}).reduce(function(s,x){return s+MM[x.id].inv;},0);
+  var afE=afAt(t,G.installs,false),cE=calc(afE,P);
+  var sav=(c0.cost+P.tax*c0.gross)-(cE.cost+P.tax*cE.gross);
+  var h={t:t,s1:c.s1,s2:c.s2,s2m:s2m,gross:gross,cred:G.cred,rec:rec,net:net,target:targetAt(t),
+    capex:capex,credCost:G.cred*P.cred,recCost:rec*P.rec,tax:P.tax*cE.gross,sav:sav,coalT:c.coalT,mwh:c.mwh,
+    walletBefore:G.wallet};
+  h.met=net<=h.target+0.5;
+  if(lv.s1goal&&t===lv.N)h.s1met=c.s1<=S1B*(1-lv.s1goal)+0.5;
+  G.wallet-=capex+h.credCost+h.recCost;
+  G.hist[t]=h;
+  h.npv=npvAt(t);
+  sClick();
+  $('ybTxt').textContent='พ.ศ. '+(YEAR0+t)+' → สิ้นปี';
+  var yb=$('yearBanner');yb.classList.remove('show');void yb.offsetWidth;yb.classList.add('show');
+  renderAll();
+  setTimeout(function(){yb.classList.remove('show');showYearSummary(h);},GAME.fast?30:1300);
+}
+function showYearSummary(h){
+  var lv=L(),t=h.t;
+  $('ysTitle').textContent=(lv.N===1?'ผลแผนลงทุน พ.ศ. ':'สรุปปี พ.ศ. ')+(YEAR0+t)+(lv.N>1?' ('+t+'/'+lv.N+')':'');
+  var red=(1-h.net/B0)*100,s='';
+  s+='<div class="statrow"><span class="'+(h.met?'ok':'no')+'">Net '+num(h.net)+' / เป้า '+num(h.target)+' t '+(h.met?'✓':'✗')+'</span><span>ลด '+red.toFixed(1)+'% จากฐาน</span></div>';
+  s+='<table><tr><td>Scope 1'+(lv.runRate?' (เต็มปี)':'')+'</td><td>'+num(h.s1)+' t ('+sgn(-(1-h.s1/S1B)*100,1)+'%)</td></tr>'+
+    '<tr><td>Scope 2 location / market</td><td>'+num(h.s2)+' / '+num(h.s2m)+' t</td></tr>'+
+    (lv.market?'<tr><td>เครดิต T-VER ที่ใช้</td><td>'+num(h.cred)+' t</td></tr>':'')+
+    '<tr><td>ผลประหยัดพลังงาน'+(h.tax>0?'+ภาษีที่เลี่ยงได้':'')+' ปีนี้</td><td class="neg">'+smb(h.sav)+' ล้าน</td></tr>'+
+    '<tr><td>เงินลงทุนมาตรการ</td><td>'+mb(h.capex)+' ล้าน</td></tr>'+
+    (lv.market?'<tr><td>ค่าเครดิต + REC</td><td>'+mb(h.credCost+h.recCost)+' ล้าน</td></tr>':'')+
+    (h.tax>0?'<tr><td>ภาษีคาร์บอนที่จ่าย</td><td class="pos">'+mb(h.tax)+' ล้าน</td></tr>':'')+
+    '<tr><td><b>NPV สะสม @8% (ตลอดอายุมาตรการ)</b></td><td class="'+(h.npv>=0?'neg':'pos')+'">'+smb(h.npv)+' ล้าน</td></tr>'+
+    '<tr><td>งบยกไปปีหน้า</td><td>'+mb(G.wallet)+' ล้าน</td></tr></table>';
+  var tip='';
+  if(lv.s1goal&&t===lv.N)tip=h.s1met?'Scope 1 ถึงเป้า −20% แล้ว ✓':'Scope 1 ยังไม่ถึงเป้า −20% — ต้องแตะหม้อไอน้ำ';
+  else if(!h.met)tip='ปีนี้ Net เกินเป้า '+num(h.net-h.target)+' t — ปีหน้าลงทุนเพิ่ม หรือกด "พอดีเป้า" ในตลาดเครดิต';
+  else if(lv.market&&t<lv.N)tip='แนวโน้มราคาเครดิต ~+'+Math.round(lv.credTrend*100)+'%/ปี · เป้าปีหน้า ≤ '+num(targetAt(t+1))+' t';
+  else tip=lv.lesson;
+  s+='<div class="tip">💡 '+tip+'</div>';
+  $('ysBody').innerHTML=s;
+  $('ysNext').textContent=t>=lv.N?'ดูผลด่าน ▶':'ปีถัดไป ▶';
+  $('yearOv').classList.add('show');
+  if(h.met)sGood();else sWarn();
+}
+$('ysNext').addEventListener('click',function(){
+  $('yearOv').classList.remove('show');var lv=L();
+  if(G.t>=lv.N){finishLevel();return;}
+  G.t++;nextPrices(G.t);G.wallet+=lv.budget;G.cred=0;G.rec=0;G.busy=false;
+  renderAll();
+  var ev=G.ev[G.t];if(ev)showEvent(ev);
+});
+
+/* ── เหตุการณ์ ── */
+function showEvent(ev){
+  var P=G.P[G.t],prev=G.P[G.t-1],ic,ti,tx,hi;
+  if(ev.k==='coal'){ic='⛏📈';ti='ราคาถ่านหินพุ่ง!';tx='ราคาถ่านหินนำเข้าขึ้นจาก '+num(prev.coal)+' เป็น <b>'+num(P.coal)+' บาท/t</b> (+'+Math.round((ev.v-1)*100)+'%) ไปจนจบด่าน';
+    var sb=mStats(MM.bio,P);hi='ดู MACC ใหม่: ชีวมวลตอนนี้ '+num(sb.macc)+' บาท/t'+(sb.macc<0?' — กลายเป็น "ได้กำไร" แล้ว!':' — ถูกลงมาก');}
+  else if(ev.k==='elec'){ic='⚡📈';ti='ค่าไฟฟ้าขึ้น (ค่า Ft)';tx='ค่าไฟเฉลี่ยขึ้นจาก '+num(prev.elec,2)+' เป็น <b>'+num(P.elec,2)+' บาท/kWh</b>';
+    hi='มาตรการไฟฟ้า (LED, VFD, โซลาร์, ชิลเลอร์) คุ้มขึ้นทันที — Heat pump แย่ลง';}
+  else{ic='🏛🌍';ti='ภาษีคาร์บอนเริ่มเก็บ';tx='ลูกค้าส่งออก/ภาครัฐเริ่มเก็บค่าธรรมเนียมคาร์บอน (แนว CBAM) <b>'+num(P.tax)+' บาท/tCO₂e</b> ของ Scope 1+2 (location-based) — เครดิตไม่ช่วยลดภาษี';
+    hi='ทุกตันที่ลดได้จริง = ประหยัดภาษี '+num(P.tax)+' บาท/ปี · ภาษีปีนี้ถ้าไม่ทำอะไรเพิ่ม ≈ '+mb(P.tax*project().c.gross)+' ล้าน';}
+  $('evIc').textContent=ic;$('evTitle').textContent='📰 '+ti+' (พ.ศ. '+(YEAR0+G.t)+')';$('evText').innerHTML=tx;$('evHint').textContent=hi;
+  $('evtOv').classList.add('show');sWarn();
+}
+$('evOk').addEventListener('click',function(){sClick();$('evtOv').classList.remove('show');});
+
+/* ── จบด่าน: ดาว + เฉลย ── */
+function evalLevel(){
+  var lv=L(),N=lv.N,fin=G.hist[N],npv=npvAt(N);
+  var allMet=true,missed=[];for(var t=1;t<=N;t++){if(!G.hist[t].met){allMet=false;missed.push(YEAR0+t);}}
+  var met=allMet&&(!lv.s1goal||fin.s1met);
+  var totCred=0;for(t=1;t<=N;t++)totCred+=G.hist[t].cred;
+  var credShare=totCred/(B0*N);
+  var c2;
+  if(G.lv===0){c2=G.installs.length>0&&G.installs.every(function(x){return x.macc<0;});}
+  else if(lv.credCap)c2=credShare<=0.03;
+  else c2=credShare<=0.10;
+  var st=met?1+(npv>=0?1:0)+(c2?1:0):1;
+  return {met:met,allMet:allMet,missed:missed,npv:npv,totCred:totCred,credShare:credShare,c2:c2,stars:st,fin:fin};
+}
+function bestL1(){
+  var P=G.P[1],ids=MS.map(function(m){return m.id;}),best=null;
+  for(var a=0;a<ids.length;a++)for(var b=a+1;b<ids.length;b++)for(var c=b+1;c<ids.length;c++){
+    var set=[ids[a],ids[b],ids[c]];if(set.indexOf('solS')>=0&&set.indexOf('solL')>=0)continue;
+    var inv=0,af={},neg=true;set.forEach(function(id){inv+=MM[id].inv;af[id]=1;if(mStats(MM[id],P).macc>=0)neg=false;});
+    if(inv>LEVELS[0].budget||!neg)continue;
+    var red=B0-calc(af,P).gross;if(red<B0*0.1)continue;
+    var npv=0;set.forEach(function(id){npv+=mStats(MM[id],P).npv;});
+    if(!best||npv>best.npv)best={set:set,red:red,npv:npv,inv:inv};
+  }
+  return best;
+}
+function names(ids){return ids.map(function(id){return MM[id].ic+' '+MM[id].nm.split('(')[0].trim();}).join(', ');}
+function analyze(E){
+  var lv=L(),N=lv.N,fb=[],fin=E.fin,PN=G.P[N],P1=G.P[1];
+  var instIds=G.installs.map(function(x){return x.id;});
+  var everIds=instIds.filter(function(v,i,a){return a.indexOf(v)===i;});
+  var negLeft=MS.filter(function(m){var s=mStats(m,PN);return s.macc<0&&!activeAt(m.id,N)&&!(m.excl&&activeAt(m.excl,N));});
+  if(G.lv===0){
+    var red=B0-fin.gross,best=bestL1();
+    if(!E.met){
+      fb.push('คุณลดได้ <b>'+num(red)+' t ('+(red/B0*100).toFixed(1)+'%)</b> ยังไม่ถึง 10% ('+num(B0*0.1)+' t) — แท่งซ้ายสุดของ MACC ถูกที่สุดแต่ "แคบ" (ลดได้น้อย)');
+      if(best)fb.push('ชุดที่ถึงเป้าและติดลบทั้งหมด เช่น <b>'+names(best.set)+'</b> → ลด '+num(best.red)+' t · ลงทุน '+mb(best.inv)+' ล. · NPV '+smb(best.npv)+' ล.');
+      fb.push('อ่าน MACC ทั้ง 2 มิติ: <b>ความสูง</b> = ต้นทุนต่อตัน, <b>ความกว้าง</b> = ปริมาณที่ลดได้ ต้องหาแท่งที่ทั้งติดลบและกว้าง');
+    }else{
+      var pos=G.installs.filter(function(x){return x.macc>=0;});
+      if(pos.length){fb.push('ถึงเป้าแล้ว แต่ใช้ <b>'+names(pos.map(function(x){return x.id;}))+'</b> ซึ่ง MACC เป็นบวก ('+pos.map(function(x){return num(x.macc);}).join(', ')+' บาท/t) = จ่ายเงินเพื่อลด');
+        if(best)fb.push('มีชุดที่ติดลบทั้ง 3 มาตรการ: <b>'+names(best.set)+'</b> ลด '+num(best.red)+' t และ NPV '+smb(best.npv)+' ล. — ตามหลัก MACC ทำแท่งติดลบก่อน');}
+      else fb.push('ยอดเยี่ยม! ชุดของคุณ ('+names(everIds)+') ลด '+num(red)+' t ('+(red/B0*100).toFixed(1)+'%) และทุกมาตรการ MACC ติดลบ = ลดก๊าซแล้วได้เงิน');
+      if(E.npv<0)fb.push('NPV '+smb(E.npv)+' ล. ติดลบ — มาตรการ MACC บวกกินกำไรจากมาตรการอื่น');
+    }
+    if(everIds.indexOf('solL')>=0)fb.push('โซลาร์ 800 kWp (~700 kVA) ≥ 200 kVA ต้องมีใบอนุญาต พค.2 — ในงานจริงต้องเผื่อเวลาขออนุญาตในแผน');
+    return fb.slice(0,4);
+  }
+  /* ด่าน 2–5 */
+  if(E.missed.length)fb.push('ไม่ถึงเป้า Net ในปี <b>'+E.missed.join(', ')+'</b> — ปีที่ขาดควรซื้อเครดิตเติม (ปุ่ม "พอดีเป้า") หรือลงทุนให้เร็วกว่านี้');
+  if(G.lv===1){
+    var s1r=(1-fin.s1/S1B)*100,s2only=everIds.filter(function(id){return MM[id].sc==='S2';});
+    if(!fin.s1met){fb.push('Scope 1 ปีสุดท้ายลดได้แค่ <b>'+s1r.toFixed(1)+'%</b> (เป้า 20%)'+(s2only.length?' — '+names(s2only)+' ลดเฉพาะ Scope 2 ไม่แตะหม้อไอน้ำเลย':''));
+      fb.push('ทางเลือก Scope 1: จูนเผาไหม้ (~−5%), Heat pump (~−14%), รวมกันยัง ~−18% ไม่ถึง → <b>ต้องเปลี่ยนเป็นชีวมวล</b> (~−94%) และเก็บงบ 2 ปีเพื่อลงทุน 15 ล้าน');}
+    else fb.push('Scope 1 ลด '+s1r.toFixed(1)+'% ✓ — '+(everIds.indexOf('bio')>=0?'ชีวมวลลดได้มากเพราะ CO₂ ชีวมวลเป็น biogenic (รายงานแยก) เหลือเพียง CH₄/N₂O':'มาจากมาตรการฝั่งหม้อไอน้ำ'));
+  }
+  if(lv.market&&E.totCred>0){
+    var cost=0;for(var t=1;t<=N;t++)cost+=G.hist[t].credCost;
+    var avg=cost/E.totCred;
+    var msg='ใช้เครดิตรวม <b>'+num(E.totCred)+' t</b> ('+(E.credShare*100).toFixed(1)+'% ของการปล่อยฐานสะสม) จ่าย '+mb(cost)+' ล. เฉลี่ย '+num(avg)+' บาท/t · ราคาขึ้นจาก '+num(P1.cred)+' → '+num(PN.cred);
+    if(!E.c2)msg+=' — เกินเกณฑ์ดาว ('+(lv.credCap?'≤ 3%':'≤ 10%')+')';
+    fb.push(msg);
+    var cheap=MS.filter(function(m){return everIds.indexOf(m.id)<0&&!(m.excl&&everIds.indexOf(m.excl)>=0)&&mStats(m,PN).macc<PN.cred;});
+    if(cheap.some(function(m){return m.id==='solL';}))cheap=cheap.filter(function(m){return m.id!=='solS';});
+    if(cheap.length&&G.lv>=2)fb.push('มาตรการที่ MACC ต่ำกว่าราคาเครดิตปีสุดท้ายแต่ไม่ได้ทำ: <b>'+names(cheap.map(function(m){return m.id;}))+'</b> — ลงทุนปีแรก ๆ ถูกกว่าซื้อเครดิตปลายทาง');
+  }
+  var late=G.installs.filter(function(x){return x.y===N&&MM[x.id].inst>=3;});
+  if(late.length&&N>1)fb.push('ลงทุน <b>'+names(late.map(function(x){return x.id;}))+'</b> ในปีสุดท้าย — ติดตั้งนานจึงได้ผลไม่เต็มปี ('+late.map(function(x){return Math.round((12-MM[x.id].inst)/12*100)+'%';}).join(', ')+')');
+  if(E.npv<0){var posI=G.installs.filter(function(x){return x.macc>0;});
+    fb.push('NPV '+smb(E.npv)+' ล. ติดลบ'+(posI.length?' — ตัวกดคือ '+names(posI.map(function(x){return x.id;}))+' (MACC บวก)':'')+(negLeft.length?' · เพิ่มมาตรการกำไร: '+names(negLeft.map(function(m){return m.id;})):''));}
+  if(activeAt('hp',N)&&activeAt('bio',N))fb.push('Heat pump + ชีวมวล พร้อมกัน: heat pump ไปแทนเชื้อเพลิง biogenic ด้วยไฟกริด → CO₂ รวม<b>เพิ่ม</b> และเสียเงินเพิ่ม — ควรเลือกอย่างใดอย่างหนึ่ง');
+  if(G.lv===3){
+    for(var y=2;y<=4;y++){var ev=G.ev[y];if(!ev)continue;
+      if(ev.k==='coal'){var bi=G.installs.filter(function(x){return x.id==='bio';})[0];
+        fb.push('ถ่านหินพุ่งปี '+(YEAR0+y)+': '+(bi?(bi.y<y?'คุณเปลี่ยนเป็นชีวมวลไว้ก่อนแล้ว ได้ประโยชน์เต็ม ✓':'เปลี่ยนเป็นชีวมวลปี '+(YEAR0+bi.y)+' — MACC ชีวมวลติดลบทันทีหลังข่าว'):'ไม่ได้เปลี่ยนเป็นชีวมวล ทั้งที่หลังข่าว MACC ชีวมวลติดลบ ('+num(mStats(MM.bio,G.P[y]).macc)+' บาท/t)'));}
+      if(ev.k==='tax'){var tp=0;for(t=y;t<=N;t++)tp+=G.hist[t].tax;fb.push('ภาษีคาร์บอนจ่ายรวม <b>'+mb(tp)+' ล.</b> ตั้งแต่ปี '+(YEAR0+y)+' — เครดิตไม่ช่วยลดภาษี มีแต่ลดจริงเท่านั้น');}
+      if(ev.k==='elec')fb.push('ค่าไฟขึ้นปี '+(YEAR0+y)+' (+'+num(ev.v,2)+' บาท/kWh) ทำให้ LED/VFD/โซลาร์/ชิลเลอร์คุ้มขึ้น'+(everIds.indexOf('hp')>=0?' แต่ Heat pump ที่คุณติดตั้งแย่ลง':''));}
+  }
+  if(N>=5){var exp=MS.filter(function(m){return everIds.indexOf(m.id)>=0&&!activeAt(m.id,N)&&m.life<N;});
+    if(exp.length)fb.push('<b>'+names(exp.map(function(m){return m.id;}))+'</b> หมดอายุก่อนจบด่านแต่ไม่ได้ลงทุนซ้ำ'+(exp.some(function(m){return m.id==="air";})?' (ลมรั่วกลับมาใน ~3 ปี)':'')+' — ผลประหยัดและ CO₂ ที่ลดได้หายไป ต้องมีแผนบำรุงรักษา/ลงทุนทดแทน');}
+  var left=G.wallet;
+  if(left>3e6&&(E.totCred>0||!E.met))fb.push('เหลืองบไม่ได้ใช้ <b>'+mb(left)+' ล.</b> ขณะที่'+(E.met?'ยังซื้อเครดิต':'ไม่ถึงเป้า')+' — งบที่เหลือคือโอกาสลดจริงที่เสียไป');
+  if(E.stars===3)fb.unshift('ยอดเยี่ยม! ถึงเป้าทุกปี NPV '+smb(E.npv)+' ล. และใช้เครดิตเพียง '+(E.credShare*100).toFixed(1)+'% — พอร์ตที่สมดุลแบบวิศวกรพลังงานตัวจริง');
+  if(!fb.length)fb.push('ทบทวน MACC: ทำแท่งติดลบให้ครบก่อน แล้วค่อยลงทุนแท่งกว้าง');
+  return fb.slice(0,5);
+}
+function finishLevel(){
+  var E=evalLevel(),lv=L();
+  if(E.stars>stars[G.lv]){stars[G.lv]=E.stars;saveStars();}
+  updateStarTotal();buildLvlPick();
+  $('resTitle').textContent=lv.nm+(E.met?' — สำเร็จ!':' — ยังไม่ถึงเป้า');
+  var red=(1-E.fin.net/B0)*100,s='';
+  s+='<span class="'+(E.met?'ok':'no')+'">'+(G.lv===0?'ลด '+((1-E.fin.gross/B0)*100).toFixed(1)+'% / เป้า 10%':'เป้าทุกปี '+(lv.N-E.missed.length)+'/'+lv.N)+' '+(E.met?'✓':'✗')+'</span>';
+  if(lv.s1goal)s+='<span class="'+(E.fin.s1met?'ok':'no')+'">Scope 1 '+sgn(-(1-E.fin.s1/S1B)*100,1)+'%</span>';
+  s+='<span class="'+(E.npv>=0?'ok':'no')+'">NPV '+smb(E.npv)+' ล.</span>';
+  if(G.lv===0)s+='<span class="'+(E.c2?'ok':'no')+'">MACC ติดลบทุกตัว '+(E.c2?'✓':'✗')+'</span>';
+  else s+='<span class="'+(E.c2?'ok':'no')+'">เครดิต '+(E.credShare*100).toFixed(1)+'% '+(E.c2?'✓':'✗')+'</span>';
+  if(G.lv>0)s+='<span>Net ปีสุดท้าย '+sgn(-red,1)+'%</span>';
+  $('resStats').innerHTML=s;
+  $('resLesson').textContent='📌 '+lv.lesson;
+  $('resFb').innerHTML=analyze(E).map(function(x){return '<li>'+x+'</li>';}).join('');
+  var ss=$('resStars').children;for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(E.stars>=2)sGood();else sBad();
+  for(let k=0;k<E.stars;k++)setTimeout(function(){ss[k].classList.add('on');sStar(k);},350+k*380);
+  if(E.stars===3)confetti(30);
+  $('nextBtn').textContent=G.lv<4?'ด่านต่อไป ➜':'ดูสรุป 🏆';
+  G.done=true;GAME.lastEval=E;
+}
+function updateStarTotal(){var t=0;for(var i=0;i<5;i++)t+=stars[i];$('starTotal').textContent=t;return t;}
+function confetti(n){var cols=['#3f51b5','#00acc1','#ffd23f','#1fb45f','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ── ปุ่ม/overlay ── */
+$('endYearBtn').addEventListener('click',function(){audio();endYear();});
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');G.done=false;startLevel(G.lv);});
+$('nextBtn').addEventListener('click',function(){
+  $('resultOv').classList.remove('show');G.done=false;
+  if(G.lv<4)startLevel(G.lv+1);
+  else{$('endStars').textContent=updateStarTotal();$('endOv').classList.add('show');confetti(40);sGood();}
+});
+$('againBtn').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('fxBtn').addEventListener('click',function(){sClick();buildFx();$('fxOv').classList.add('show');});
+$('fxClose').addEventListener('click',function(){sClick();$('fxOv').classList.remove('show');});
+function buildFx(){
+  var h='<table><tr><th>มาตรการ</th><th>I (ล.)</th><th>S (ล./ปี)</th><th>tCO₂e/ปี</th><th>n</th><th>MACC</th><th>NPV (ล.)</th></tr>';
+  MS.forEach(function(m){var s=mStats(m,BASE_P);
+    h+='<tr><td>'+m.ic+' '+m.nm.split('(')[0]+'</td><td>'+mb(m.inv)+'</td><td>'+smb(s.S)+'</td><td>'+num(s.E)+'</td><td>'+m.life+'</td><td>'+num(s.macc)+'</td><td>'+smb(s.npv)+'</td></tr>';});
+  h+='</table><p style="margin-top:4px">S รวม O&amp;M แล้ว (โซลาร์ 1% ของเงินลงทุน/ปี, ชีวมวล +0.35 ล./ปี) · Heat pump: ถ่านหิน −225 t/ปี แต่ไฟฟ้า +293 MWh/ปี → ค่าใช้จ่ายเพิ่ม (ถ่านหินถูกกว่าไฟฟ้าต่อหน่วยความร้อน)</p>';
+  $('fxTable').innerHTML=h;
+}
+
+/* ── guide ── */
+var gPg=0,gFrom='start';
+function showGuide(from){gFrom=from||'start';gPg=0;gRender();$('guideOv').classList.add('show');}
+function gRender(){
+  qsa('.gpage').forEach(function(p,i){p.classList.toggle('cur',i===gPg);});
+  qsa('#gDots i').forEach(function(d,i){d.classList.toggle('cur',i===gPg);});
+  $('gPrev').style.visibility=gPg===0?'hidden':'visible';
+  $('gNext').style.display=gPg===4?'none':'inline-block';
+  $('gPlay').style.display=gPg===4?'inline-block':'none';
+}
+$('gPrev').addEventListener('click',function(){if(gPg>0){gPg--;sClick();gRender();}});
+$('gNext').addEventListener('click',function(){if(gPg<4){gPg++;sClick();gRender();}});
+$('gPlay').addEventListener('click',function(){audio();setSeen();$('guideOv').classList.remove('show');
+  if(gFrom!=='hud'){sGood();$('startOv').classList.remove('show');startLevel(0);}});
+$('helpBtn').addEventListener('click',function(){sClick();showGuide('hud');});
+$('helpBtn2').addEventListener('click',function(){sClick();showGuide('start');});
+
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<5;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.25rem">'+LEVELS[i].ic+'</span><span class="nm">ด่าน '+(i+1)+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── debug hooks (QA) ── */
+GAME.start=startLevel;GAME.calc=calc;GAME.mStats=mStats;GAME.npvAt=npvAt;GAME.crf=crf;GAME.project=project;
+GAME.pick=togglePick;GAME.setCred=setCred;GAME.setRec=setRec;GAME.endYear=endYear;GAME.BASE=BASE;GAME.B0=B0;
+GAME.next=function(){$('ysNext').click();};GAME.evalLevel=evalLevel;GAME.analyze=analyze;
+GAME.fill=function(){$('credFill').click();};
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();buildTrees();buildMeasures();
+startLevel(0);$('toast').className='';
+requestAnimationFrame(tick);
+if(!seenGuide())showGuide('auto');
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>
