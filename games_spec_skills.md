@@ -20,6 +20,7 @@
 6. ศัพท์บังคับ: **BHP = Boiler Horsepower (แรงม้าหม้อไอน้ำ)** · ความดัน bar g เป็นค่าตั้งต้น · วันที่ พ.ศ.
 7. localStorage key: `te_skill_<สั้น>_stars` และ `te_skill_<สั้น>_seen`
 8. footer/brand: "Energy Skills Lab · Triple E Technology"
+    **[บังคับ 27 ต.ค. 2569] ปุ่มลอย ⭐ Pro / 💬 ของ te-insight.js ต้องแสดงที่มุมขวาล่างในทุกหน้า ทุกแท็บ** — ห้ามใส่ `data-te-fab="off"`, ห้ามซ่อน/บังด้วย z-index; แถบปุ่มล่างของเกมต้องเว้นที่ให้ (padding-bottom หรือยกขึ้น ≥ 62px) ไม่ใช่ซ่อนปุ่มลอย
 
 ## QA/รายงาน — เหมือน games_spec.md ทุกข้อ (node --check, div สมดุล, playwright 420×900 เล่นครบทุกด่าน,
 pageerror ว่าง, เปิดดู screenshot เองด้วย Read, 1100×800 อีก 1 ภาพ, ตรวจตัวเลข) · ห้ามแตะไฟล์อื่น/index.html/git
