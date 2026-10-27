@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>เกมนักสืบพลังงาน — Energy Sense Games</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "นักสืบพลังงาน" (Energy Detective) v0.1 — Energy Sense Games · Triple E Technology
+     หลักที่สอน: driver identification — "ใหญ่ ≠ ตัวการ, ที่เปลี่ยนต่างหากคือตัวการ" + ปัจจัยภายนอก (baseline เปลี่ยน → regression)
+     ฟิสิกส์เบื้องหลัง: kWh/เดือน บ้านไทย — แอร์ 300, น้ำอุ่น 80, ตู้เย็น 60, หลอดไฟ 30, ทีวี 25, ซักผ้า 20
+     ค่าไฟ 4.5 บาท/kWh · ด่าน 4: sensitivity แอร์ +10%/°C (เมืองร้อนขึ้น +3°C → แอร์ +30%) · สุ่ม ±10% แต่ตัวการเด่นชัดเสมอ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sky2:#cdeaff;
+  --sun:#ffd23f; --sun2:#ff9f1c;
+  --grass:#7ed957;
+  --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff;
+  --good:#1fb45f; --mid:#f5a623; --bad:#ef4b4b;
+  --btn-grad:linear-gradient(135deg,#ff5d8f,#ff8f1c);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#5f72bd 0%,#7ec8ff 45%,#cdeaff 70%,#eafbe0 100%);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:860px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.88);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(33,48,71,.15);backdrop-filter:blur(4px)}
+#hud .lvl-name{font-weight:600;font-size:1.0rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 10px;min-height:36px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink)}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Bill board ───── */
+#billCard{background:#fff;border-radius:18px;padding:8px 10px 4px;box-shadow:0 5px 16px rgba(33,48,71,.14);border:3px solid #fff}
+#billTitle{text-align:center;font-weight:600;font-size:.95rem;margin-bottom:2px}
+#billSvg{display:block;width:100%;height:auto;max-height:132px}
+.adultTxt{display:none}
+body.adult .adultTxt{display:inline}
+.kidTxt{display:inline}
+body.adult .kidTxt{display:none}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(33,48,71,.18);background:#fdf1dc;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto}
+.appl{cursor:pointer}
+.appl:active .hit{opacity:.14}
+.hit{fill:#7b5bff;opacity:0;transition:opacity .15s}
+#adultBar{position:absolute;left:10px;bottom:10px;background:rgba(20,30,48,.84);color:#fff;border-radius:12px;
+  padding:6px 10px;font-size:.8rem;line-height:1.4;display:none;pointer-events:none;max-width:72%}
+#adultBar b{color:#ffd23f}
+body.adult #adultBar{display:block}
+#bubble{position:absolute;right:10px;top:10px;max-width:60%;background:#fff;border-radius:16px;border:3px solid #ffd23f;
+  padding:8px 12px;font-size:.92rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.12);transition:opacity .25s;opacity:0;pointer-events:none;z-index:5}
+#bubble.show{opacity:1}
+
+/* ───── Control panel ───── */
+#panel{background:#fff;border-radius:20px;padding:12px 14px;box-shadow:0 6px 18px rgba(33,48,71,.14);display:flex;flex-direction:column;gap:10px}
+.goal{font-size:.98rem;font-weight:600;text-align:center;background:#fff6d9;border:2px dashed #ffd23f;border-radius:14px;padding:8px 12px}
+.chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.chip{background:#eef3fa;border-radius:999px;padding:6px 14px;font-size:.92rem;font-weight:600;min-height:36px;display:flex;align-items:center;gap:6px}
+.chip.hot{background:#ffe3e3}
+
+/* big action buttons */
+.big-btn{border:none;border-radius:999px;padding:14px 32px;font-family:inherit;font-size:1.15rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #d14b76,0 10px 18px rgba(0,0,0,.2);transition:transform .1s;min-height:48px}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #d14b76}
+.big-btn.alt{background:linear-gradient(135deg,var(--teal),#19a0ff);box-shadow:0 6px 0 #0d8aa0,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #0d8aa0}
+.big-btn.gray{background:linear-gradient(135deg,#8ea4bd,#6a7a90);box-shadow:0 6px 0 #4d5d73,0 10px 18px rgba(0,0,0,.18)}
+.big-btn.gray:active{box-shadow:0 2px 0 #4d5d73}
+.big-btn.small{font-size:1rem;padding:10px 20px;min-height:44px}
+.big-btn:disabled{opacity:.5;cursor:default}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(18,28,46,.55);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+#helpOv{z-index:60}
+.card{background:#fff;border-radius:26px;max-width:470px;width:100%;padding:22px 18px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.45rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:3rem;letter-spacing:6px;margin:8px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#fff6d9;border-radius:14px;padding:10px 12px;font-weight:600;margin:8px 0}
+.lvl-pick{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:8px 12px;font-family:inherit;cursor:pointer;min-width:84px;min-height:44px}
+.lvl-pick .nm{font-size:.85rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.9rem;letter-spacing:1px}
+#startCard h1{font-size:1.85rem;line-height:1.25;background:linear-gradient(135deg,#ff5d8f,#ff8f1c);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#6a7a90;margin:4px 0 10px}
+.brand{font-size:.8rem;color:#8795a8;margin-top:12px}
+
+/* inspect popup */
+#inspTitle{font-size:1.3rem;display:flex;align-items:center;justify-content:center;gap:8px}
+#chartBox{display:flex;justify-content:center;align-items:flex-end;gap:34px;height:168px;margin:12px 0 4px;
+  background:linear-gradient(180deg,#f7fafd,#eef3fa);border-radius:16px;padding:12px 10px 34px;position:relative}
+.vcol{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative;width:86px}
+.vbar{width:62px;border-radius:10px 10px 4px 4px;height:0;transition:height .7s cubic-bezier(.3,.9,.4,1);min-height:4px}
+.vbar.b1{background:linear-gradient(180deg,#36d3bb,#00a28c)}
+.vbar.b2{background:linear-gradient(180deg,#ffb35c,#ff8f1c)}
+.vbar.b2.up{background:linear-gradient(180deg,#ff8a8a,#ef4b4b)}
+.vlab{position:absolute;bottom:-28px;font-size:.85rem;font-weight:600;white-space:nowrap}
+.vval{font-size:.85rem;font-weight:700;margin-bottom:4px;min-height:1.2em}
+#chartVerdict{font-size:1.06rem;font-weight:700;margin:12px 0 4px;min-height:1.4em}
+#chartVerdict.up{color:var(--bad)}
+#chartVerdict.flat{color:var(--good)}
+#inspAdult{font-size:.88rem;color:#51627a;min-height:1.2em}
+.insp-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+
+/* help overlay pager */
+.hp{display:none}
+.hp.show{display:block}
+.hp-svg{width:100%;max-width:290px;height:128px;margin:6px auto;display:block;background:#f2f7ff;border-radius:16px}
+.hp p{font-weight:500;min-height:3em}
+#hpDots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+#hpDots span{width:11px;height:11px;border-radius:50%;background:#d4deea;transition:background .2s,transform .2s}
+#hpDots span.on{background:var(--pink);transform:scale(1.25)}
+.hp-nav{display:flex;gap:10px;justify-content:center;margin-top:6px}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:70;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── Scene SVG animations ───── */
+@keyframes breeze{0%{opacity:0;transform:translateX(0)}30%{opacity:.85}100%{opacity:0;transform:translateX(-40px)}}
+.breezeln{animation:breeze 1.6s ease-out infinite}
+@keyframes humA{0%,86%,100%{transform:translateX(0)}88%{transform:translateX(-1.3px)}92%{transform:translateX(1.3px)}96%{transform:translateX(-1.3px)}}
+#fridgeBody{animation:humA 2.6s linear infinite}
+@keyframes flickA{0%,100%{opacity:1}6%{opacity:.68}9%{opacity:1}47%{opacity:.8}53%{opacity:1}}
+#tvScreen{animation:flickA 3.1s linear infinite}
+@keyframes drumA{to{transform:rotate(360deg)}}
+#drum{transform-box:fill-box;transform-origin:center;animation:drumA 2.4s linear infinite}
+@keyframes dropA{0%{transform:translateY(0);opacity:0}25%{opacity:1}100%{transform:translateY(26px);opacity:0}}
+.wdrop{animation:dropA 1.2s ease-in infinite}
+@keyframes steamA{0%{transform:translateY(0);opacity:.8}100%{transform:translateY(-16px);opacity:0}}
+.steam{animation:steamA 1.8s ease-out infinite}
+@keyframes glowP{0%,100%{opacity:.42}50%{opacity:.85}}
+#lampGlow{animation:glowP 2.6s ease-in-out infinite}
+@keyframes lensP{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+.lensBadge{transform-box:fill-box;transform-origin:center;animation:lensP 1.5s ease-in-out infinite;pointer-events:none}
+.lensBadge.seen{animation:none;opacity:.55}
+@keyframes tagPop{0%{transform:scale(0)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+.caughtTag{transform-box:fill-box;transform-origin:center;animation:tagPop .4s ease-out}
+@keyframes blinkA{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+.eye{transform-box:fill-box;transform-origin:center;animation:blinkA 4.2s infinite}
+@keyframes lensSwing{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
+#kidLens{transform-box:fill-box;transform-origin:top center;animation:lensSwing 2.8s ease-in-out infinite}
+@keyframes signSway{0%,100%{transform:rotate(-1.5deg)}50%{transform:rotate(1.5deg)}}
+#tempSign .swayG{transform-box:fill-box;transform-origin:top center;animation:signSway 3.4s ease-in-out infinite}
+@keyframes billArrowA{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+.billArrow{animation:billArrowA 1s ease-in-out infinite}
+
+/* ───── Help pictogram animations ───── */
+@keyframes hbArrow{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.hb-arrow{animation:hbArrow 1s ease-in-out infinite}
+@keyframes hbLens{0%,12%{transform:translate(0,0)}38%,52%{transform:translate(78px,0)}80%,100%{transform:translate(156px,0)}}
+.hb-lens{animation:hbLens 3.2s ease-in-out infinite}
+@keyframes hbBar{0%,15%{transform:scaleY(.38)}60%,100%{transform:scaleY(1)}}
+.hb-bar2{transform-box:fill-box;transform-origin:bottom;animation:hbBar 1.8s ease-in-out infinite alternate}
+@keyframes hbStar{0%,20%{transform:scale(0);opacity:0}50%,78%{transform:scale(1);opacity:1}100%{transform:scale(1);opacity:1}}
+.hb-star{transform-box:fill-box;transform-origin:center;animation:hbStar 2.4s ease-out infinite}
+@keyframes hbCoin{0%{transform:translateY(-10px);opacity:0}40%,100%{transform:translateY(0);opacity:1}}
+.hb-coin{animation:hbCoin 1.6s ease-out infinite}
+
+@media (prefers-reduced-motion:reduce){
+  .breezeln,#fridgeBody,#tvScreen,#drum,.wdrop,.steam,#lampGlow,.lensBadge,.caughtTag,.eye,#kidLens,
+  #tempSign .swayG,.billArrow,.hb-arrow,.hb-lens,.hb-bar2,.hb-star,.hb-coin{animation:none}
+}
+@media (max-width:480px){
+  #bubble{font-size:.84rem}
+  .card h2{font-size:1.25rem}
+  #chartBox{gap:20px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">นักสืบพลังงาน</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/12</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="adultBtn" title="โหมดผู้ใหญ่ แสดง kWh และบาท">👷</button>
+  </div>
+
+  <!-- BILL BOARD -->
+  <div id="billCard">
+    <div id="billTitle">💸 บิลค่าไฟบ้านนี้</div>
+    <svg id="billSvg" viewBox="0 0 420 118" xmlns="http://www.w3.org/2000/svg" aria-label="เปรียบเทียบบิลค่าไฟสองเดือน"></svg>
+  </div>
+
+  <!-- SCENE -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 860 500" xmlns="http://www.w3.org/2000/svg" aria-label="ห้องในบ้านการ์ตูน มีเครื่องใช้ไฟฟ้า 6 ชิ้น">
+      <!-- room -->
+      <rect x="0" y="0" width="860" height="372" fill="#fdf1dc"/>
+      <rect x="0" y="0" width="860" height="16" fill="#f3ddb7"/>
+      <rect x="0" y="356" width="860" height="16" fill="#eccf9e"/>
+      <rect x="0" y="372" width="860" height="128" fill="#e3b97f"/>
+      <g stroke="#d2a360" stroke-width="3">
+        <line x1="0" y1="414" x2="860" y2="414"/><line x1="0" y1="458" x2="860" y2="458"/>
+        <line x1="180" y1="372" x2="150" y2="500"/><line x1="470" y1="372" x2="460" y2="500"/><line x1="730" y1="372" x2="750" y2="500"/>
+      </g>
+      <ellipse cx="420" cy="452" rx="150" ry="28" fill="#9ad0f5" opacity=".8"/>
+      <ellipse cx="420" cy="452" rx="108" ry="19" fill="#c3e6fb"/>
+
+      <!-- window with city view -->
+      <g id="windowG">
+        <rect x="350" y="46" width="160" height="128" rx="10" fill="#aee3ff" stroke="#5d7ea8" stroke-width="6"/>
+        <circle id="citySun" cx="478" cy="76" r="14" fill="#ffd23f" stroke="#ff9f1c" stroke-width="3"/>
+        <g fill="#7fa8cc">
+          <rect x="362" y="108" width="24" height="62" rx="3"/>
+          <rect x="392" y="92" width="30" height="78" rx="3"/>
+          <rect x="428" y="118" width="22" height="52" rx="3"/>
+          <rect x="456" y="100" width="26" height="70" rx="3"/>
+        </g>
+        <g fill="#fff6d9" opacity=".9">
+          <rect x="397" y="100" width="7" height="7"/><rect x="410" y="100" width="7" height="7"/>
+          <rect x="397" y="114" width="7" height="7"/><rect x="462" y="108" width="7" height="7"/>
+        </g>
+        <line x1="430" y1="49" x2="430" y2="171" stroke="#5d7ea8" stroke-width="5"/>
+        <rect x="340" y="36" width="180" height="12" rx="6" fill="#9b6b3f"/>
+      </g>
+
+      <!-- city temperature sign (ด่าน 4) -->
+      <g id="tempSign" class="appl" data-id="sign" style="display:none">
+        <g class="swayG">
+          <rect x="356" y="118" width="4" height="22" fill="#8a5a28"/>
+          <rect x="500" y="118" width="4" height="22" fill="#8a5a28"/>
+          <rect x="336" y="124" width="188" height="48" rx="8" fill="#fff" stroke="#ff8f1c" stroke-width="4"/>
+          <text x="430" y="144" font-size="16" font-weight="700" text-anchor="middle" fill="#ef4b4b" font-family="Mitr,sans-serif">🌡 ป้ายอุณหภูมิเมือง</text>
+          <text x="430" y="164" font-size="15" font-weight="600" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">เดือนก่อน 30° → เดือนนี้ 33°</text>
+        </g>
+        <rect class="hit" x="336" y="34" width="188" height="142" rx="8"/>
+      </g>
+
+      <!-- AC -->
+      <g id="ap_ac" class="appl" data-id="ac">
+        <rect x="70" y="64" width="185" height="54" rx="14" fill="#fff" stroke="#9fb4cc" stroke-width="5"/>
+        <rect x="84" y="99" width="157" height="9" rx="4" fill="#cfe2f5"/>
+        <circle cx="236" cy="82" r="5" fill="#1fb45f"/>
+        <text x="100" y="92" font-size="22" font-weight="700" fill="#2d6cdf" font-family="Mitr,sans-serif">25°</text>
+        <g stroke="#7fd0ff" stroke-width="5" fill="none" stroke-linecap="round">
+          <path class="breezeln" d="M110 134 q-12 10 -24 8"/>
+          <path class="breezeln" style="animation-delay:.4s" d="M165 138 q-12 12 -26 10"/>
+          <path class="breezeln" style="animation-delay:.8s" d="M220 134 q-12 10 -24 8"/>
+        </g>
+        <text x="162" y="56" font-size="15" font-weight="600" text-anchor="middle" fill="#51627a" font-family="Mitr,sans-serif">แอร์ ❄</text>
+        <rect class="hit" x="58" y="40" width="210" height="112" rx="12"/>
+        <g class="lensBadge" id="badge_ac"><circle cx="258" cy="60" r="14" fill="#ffd23f" stroke="#ff9f1c" stroke-width="3"/><text x="258" y="66" font-size="15" text-anchor="middle">🔍</text></g>
+        <g id="tag_ac" style="display:none"><g class="caughtTag"><rect x="108" y="118" width="110" height="26" rx="13" fill="#ef4b4b"/><text x="163" y="136" font-size="14" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">🚨 ตัวการ!</text></g></g>
+      </g>
+
+      <!-- hanging lamp -->
+      <g id="ap_lamp" class="appl" data-id="lamp">
+        <line x1="305" y1="16" x2="305" y2="62" stroke="#5d7ea8" stroke-width="5"/>
+        <path d="M277 62 h56 l12 26 h-80 Z" fill="#ffb648" stroke="#d98a1f" stroke-width="4"/>
+        <circle cx="305" cy="100" r="12" fill="#fff2b8" stroke="#d9b21f" stroke-width="4"/>
+        <g id="lampGlow"><circle cx="305" cy="102" r="27" fill="#ffe27a" opacity=".5"/></g>
+        <text x="305" y="146" font-size="15" font-weight="600" text-anchor="middle" fill="#8a6d1a" font-family="Mitr,sans-serif">หลอดไฟ 💡</text>
+        <rect class="hit" x="259" y="30" width="92" height="124" rx="12"/>
+        <g class="lensBadge" id="badge_lamp"><circle cx="344" cy="52" r="14" fill="#ffd23f" stroke="#ff9f1c" stroke-width="3"/><text x="344" y="58" font-size="15" text-anchor="middle">🔍</text></g>
+        <g id="tag_lamp" style="display:none"><g class="caughtTag"><rect x="250" y="150" width="110" height="26" rx="13" fill="#ef4b4b"/><text x="305" y="168" font-size="14" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">🚨 ตัวการ!</text></g></g>
+      </g>
+
+      <!-- water heater + shower -->
+      <g id="ap_heater" class="appl" data-id="heater">
+        <rect x="548" y="52" width="122" height="156" rx="10" fill="#dff1fb" stroke="#b5d4e8" stroke-width="3"/>
+        <g stroke="#b5d4e8" stroke-width="2">
+          <line x1="548" y1="92" x2="670" y2="92"/><line x1="548" y1="132" x2="670" y2="132"/><line x1="548" y1="172" x2="670" y2="172"/>
+          <line x1="588" y1="52" x2="588" y2="208"/><line x1="628" y1="52" x2="628" y2="208"/>
+        </g>
+        <rect x="574" y="62" width="70" height="86" rx="12" fill="#fff" stroke="#9fb4cc" stroke-width="5"/>
+        <circle cx="609" cy="96" r="17" fill="#eef6ff" stroke="#9fb4cc" stroke-width="4"/>
+        <line x1="609" y1="96" x2="620" y2="86" stroke="#ef4b4b" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="592" cy="132" r="4" fill="#ff8f1c"/><circle cx="609" cy="132" r="4" fill="#1fb45f"/>
+        <path d="M574 112 h-14 v46 q0 6 6 6 h2" fill="none" stroke="#8fa8c2" stroke-width="6" stroke-linecap="round"/>
+        <path d="M556 164 q10 4 14 12" fill="none" stroke="#8fa8c2" stroke-width="6" stroke-linecap="round"/>
+        <ellipse cx="572" cy="180" rx="12" ry="6" fill="#8fa8c2"/>
+        <g fill="#4aa8ff">
+          <circle class="wdrop" cx="564" cy="190" r="3.4"/>
+          <circle class="wdrop" style="animation-delay:.4s" cx="574" cy="192" r="3.4"/>
+          <circle class="wdrop" style="animation-delay:.8s" cx="583" cy="190" r="3.4"/>
+        </g>
+        <g stroke="#cdd9e6" stroke-width="4" fill="none" stroke-linecap="round" opacity=".9">
+          <path class="steam" d="M600 58 q5 -8 0 -14"/>
+          <path class="steam" style="animation-delay:.7s" d="M622 60 q5 -8 0 -14"/>
+        </g>
+        <text x="609" y="226" font-size="15" font-weight="600" text-anchor="middle" fill="#51627a" font-family="Mitr,sans-serif">เครื่องทำน้ำอุ่น 🚿</text>
+        <rect class="hit" x="542" y="46" width="134" height="186" rx="12"/>
+        <g class="lensBadge" id="badge_heater"><circle cx="668" cy="52" r="14" fill="#ffd23f" stroke="#ff9f1c" stroke-width="3"/><text x="668" y="58" font-size="15" text-anchor="middle">🔍</text></g>
+        <g id="tag_heater" style="display:none"><g class="caughtTag"><rect x="554" y="232" width="110" height="26" rx="13" fill="#ef4b4b"/><text x="609" y="250" font-size="14" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">🚨 ตัวการ!</text></g></g>
+      </g>
+
+      <!-- TV -->
+      <g id="ap_tv" class="appl" data-id="tv">
+        <rect x="336" y="330" width="185" height="40" rx="8" fill="#a9703f" stroke="#7c4c24" stroke-width="5"/>
+        <rect x="350" y="338" width="60" height="24" rx="5" fill="#c08b57"/>
+        <rect x="446" y="338" width="60" height="24" rx="5" fill="#c08b57"/>
+        <line x1="400" y1="222" x2="382" y2="198" stroke="#51627a" stroke-width="4" stroke-linecap="round"/>
+        <line x1="420" y1="222" x2="444" y2="196" stroke="#51627a" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="382" cy="196" r="4" fill="#51627a"/><circle cx="446" cy="194" r="4" fill="#51627a"/>
+        <rect x="342" y="220" width="172" height="104" rx="12" fill="#2c3a52" stroke="#1a2436" stroke-width="5"/>
+        <g id="tvScreen">
+          <rect x="352" y="230" width="152" height="84" rx="7" fill="#9be0ff"/>
+          <circle cx="398" cy="262" r="14" fill="#ffd23f"/>
+          <path d="M360 300 q22 -24 44 -6 q20 16 42 -8 q18 -18 38 -2 l0 16 l-124 0 Z" fill="#7ed957"/>
+        </g>
+        <text x="428" y="212" font-size="15" font-weight="600" text-anchor="middle" fill="#51627a" font-family="Mitr,sans-serif">ทีวี 📺</text>
+        <rect class="hit" x="330" y="190" width="196" height="186" rx="12"/>
+        <g class="lensBadge" id="badge_tv"><circle cx="518" cy="226" r="14" fill="#ffd23f" stroke="#ff9f1c" stroke-width="3"/><text x="518" y="232" font-size="15" text-anchor="middle">🔍</text></g>
+        <g id="tag_tv" style="display:none"><g class="caughtTag"><rect x="373" y="266" width="110" height="26" rx="13" fill="#ef4b4b"/><text x="428" y="284" font-size="14" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">🚨 ตัวการ!</text></g></g>
+      </g>
+
+      <!-- washing machine -->
+      <g id="ap_wash" class="appl" data-id="wash">
+        <rect x="85" y="244" width="128" height="130" rx="14" fill="#fff" stroke="#9fb4cc" stroke-width="5"/>
+        <rect x="95" y="254" width="108" height="22" rx="8" fill="#e3edf8"/>
+        <circle cx="118" cy="265" r="6" fill="#ff5d8f"/><circle cx="136" cy="265" r="6" fill="#00c2a8"/>
+        <rect x="168" y="260" width="28" height="10" rx="5" fill="#9fb4cc"/>
+        <circle cx="149" cy="320" r="38" fill="#cfe9fb" stroke="#6fa9d8" stroke-width="6"/>
+        <g id="drum">
+          <circle cx="149" cy="320" r="27" fill="#aee0ff"/>
+          <path d="M149 293 a27 27 0 0 1 0 54" fill="#8fd2ff"/>
+          <circle cx="149" cy="303" r="5" fill="#fff" opacity=".9"/>
+          <circle cx="136" cy="330" r="6" fill="#fff" opacity=".9"/>
+          <circle cx="162" cy="328" r="4" fill="#fff" opacity=".9"/>
+        </g>
+        <text x="149" y="396" font-size="15" font-weight="600" text-anchor="middle" fill="#51627a" font-family="Mitr,sans-serif">เครื่องซักผ้า 🧺</text>
+        <rect class="hit" x="77" y="236" width="144" height="168" rx="12"/>
+        <g class="lensBadge" id="badge_wash"><circle cx="212" cy="246" r="14" fill="#ffd23f" stroke="#ff9f1c" stroke-width="3"/><text x="212" y="252" font-size="15" text-anchor="middle">🔍</text></g>
+        <g id="tag_wash" style="display:none"><g class="caughtTag"><rect x="94" y="300" width="110" height="26" rx="13" fill="#ef4b4b"/><text x="149" y="318" font-size="14" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">🚨 ตัวการ!</text></g></g>
+      </g>
+
+      <!-- fridge -->
+      <g id="ap_fridge" class="appl" data-id="fridge">
+        <g id="fridgeBody">
+          <rect x="695" y="178" width="98" height="196" rx="12" fill="#bfe8ff" stroke="#6fa9d8" stroke-width="6"/>
+          <line x1="695" y1="242" x2="793" y2="242" stroke="#6fa9d8" stroke-width="5"/>
+          <rect x="705" y="196" width="8" height="26" rx="4" fill="#4d7ba8"/>
+          <rect x="705" y="258" width="8" height="46" rx="4" fill="#4d7ba8"/>
+          <circle cx="744" cy="212" r="10" fill="#fff" opacity=".65"/>
+          <path d="M700 358 q6 6 14 6" stroke="#4d7ba8" stroke-width="3" fill="none"/>
+        </g>
+        <text x="744" y="396" font-size="15" font-weight="600" text-anchor="middle" fill="#51627a" font-family="Mitr,sans-serif">ตู้เย็น 🧊</text>
+        <rect class="hit" x="687" y="170" width="116" height="232" rx="12"/>
+        <g class="lensBadge" id="badge_fridge"><circle cx="792" cy="178" r="14" fill="#ffd23f" stroke="#ff9f1c" stroke-width="3"/><text x="792" y="184" font-size="15" text-anchor="middle">🔍</text></g>
+        <g id="tag_fridge" style="display:none"><g class="caughtTag"><rect x="689" y="276" width="110" height="26" rx="13" fill="#ef4b4b"/><text x="744" y="294" font-size="14" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">🚨 ตัวการ!</text></g></g>
+      </g>
+
+      <!-- detective kid -->
+      <g id="kidG">
+        <ellipse cx="282" cy="478" rx="52" ry="9" fill="#000" opacity=".1"/>
+        <rect x="258" y="408" width="48" height="56" rx="16" fill="#7b5bff"/>
+        <rect x="258" y="458" width="19" height="22" rx="8" fill="#3f51b5"/>
+        <rect x="287" y="458" width="19" height="22" rx="8" fill="#3f51b5"/>
+        <circle cx="282" cy="378" r="36" fill="#ffd9b3" stroke="#e8b27f" stroke-width="3"/>
+        <path d="M248 368 q10 -28 34 -28 q24 0 34 28 q-16 -11 -34 -11 q-18 0 -34 11" fill="#5d4037"/>
+        <path d="M242 352 q40 -18 80 0 l-6 -14 q-34 -14 -68 0 Z" fill="#b9763f" stroke="#8a5a28" stroke-width="3"/>
+        <ellipse cx="282" cy="338" rx="26" ry="10" fill="#b9763f" stroke="#8a5a28" stroke-width="3"/>
+        <g class="eye"><circle cx="269" cy="376" r="4.6" fill="#213047"/></g>
+        <g class="eye"><circle cx="295" cy="376" r="4.6" fill="#213047"/></g>
+        <path d="M270 392 Q282 402 294 392" stroke="#b34a4a" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <g id="kidLens">
+          <rect x="318" y="398" width="9" height="34" rx="4.5" fill="#8a5a28" transform="rotate(-34 322 400)"/>
+          <circle cx="336" cy="382" r="20" fill="#cdeaff" opacity=".82" stroke="#7b5bff" stroke-width="6"/>
+          <path d="M328 374 q6 -5 12 -1" stroke="#fff" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        </g>
+      </g>
+    </svg>
+
+    <div id="adultBar">—</div>
+    <div id="bubble"></div>
+  </div>
+
+  <!-- CONTROL PANEL -->
+  <div id="panel">
+    <div class="goal" id="goalTxt">—</div>
+    <div class="chips">
+      <div class="chip" id="viewChip">🔍 ส่องแล้ว <b>&nbsp;0&nbsp;</b> ชิ้น</div>
+      <div class="chip" id="caseChip">🕵 คดีที่ 1</div>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Overlays ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:3rem">🕵🔍⚡</div>
+    <h1>นักสืบพลังงาน</h1>
+    <div class="sub">บิลค่าไฟพุ่ง! ใครคือ "ตัวการ"? 🤔</div>
+    <p>จำไว้นะนักสืบ: ตัวที่ "ใหญ่" อาจไม่ใช่ตัวการ…<br>ตัวที่ <b>"เปลี่ยน"</b> ต่างหาก!</p>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="howBtn">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มสืบ!</button>
+    </div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- วิธีเล่น -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2>📖 วิธีเล่น</h2>
+    <div class="hp" id="hp0">
+      <svg class="hp-svg" viewBox="0 0 260 110" xmlns="http://www.w3.org/2000/svg">
+        <rect x="34" y="42" width="56" height="60" rx="6" fill="#fff" stroke="#9fb4cc" stroke-width="3"/>
+        <text x="62" y="60" font-size="11" text-anchor="middle" font-family="Mitr,sans-serif" fill="#51627a">เดือนก่อน</text>
+        <g fill="#ffd23f" stroke="#d9a21f" stroke-width="2">
+          <ellipse cx="62" cy="94" rx="15" ry="4.5"/><ellipse cx="62" cy="87" rx="15" ry="4.5"/><ellipse cx="62" cy="80" rx="15" ry="4.5"/>
+        </g>
+        <rect x="150" y="22" width="56" height="80" rx="6" fill="#fff" stroke="#ef4b4b" stroke-width="3"/>
+        <text x="178" y="40" font-size="11" text-anchor="middle" font-family="Mitr,sans-serif" fill="#ef4b4b">เดือนนี้</text>
+        <g fill="#ffd23f" stroke="#d9a21f" stroke-width="2">
+          <ellipse cx="178" cy="94" rx="15" ry="4.5"/><ellipse cx="178" cy="87" rx="15" ry="4.5"/><ellipse cx="178" cy="80" rx="15" ry="4.5"/>
+          <ellipse cx="178" cy="73" rx="15" ry="4.5"/><ellipse cx="178" cy="66" rx="15" ry="4.5"/>
+          <ellipse class="hb-coin" cx="178" cy="59" rx="15" ry="4.5"/>
+        </g>
+        <g class="hb-arrow"><text x="224" y="56" font-size="30" fill="#ef4b4b">⬆</text></g>
+        <text x="120" y="70" font-size="20" text-anchor="middle">😱</text>
+      </svg>
+      <p>บิลเดือนนี้พุ่ง! 😱<br>ภารกิจนักสืบ: หาว่าเครื่องไหนคือ "ตัวการ"</p>
+    </div>
+    <div class="hp" id="hp1">
+      <svg class="hp-svg" viewBox="0 0 260 110" xmlns="http://www.w3.org/2000/svg">
+        <g font-size="26" text-anchor="middle">
+          <rect x="22" y="38" width="48" height="48" rx="10" fill="#fff" stroke="#9fb4cc" stroke-width="3"/><text x="46" y="72">❄</text>
+          <rect x="100" y="38" width="48" height="48" rx="10" fill="#fff" stroke="#9fb4cc" stroke-width="3"/><text x="124" y="72">🧊</text>
+          <rect x="178" y="38" width="48" height="48" rx="10" fill="#fff" stroke="#9fb4cc" stroke-width="3"/><text x="202" y="72">📺</text>
+        </g>
+        <g class="hb-lens">
+          <circle cx="46" cy="60" r="20" fill="#cdeaff" opacity=".75" stroke="#7b5bff" stroke-width="5"/>
+          <rect x="58" y="72" width="7" height="24" rx="3.5" fill="#8a5a28" transform="rotate(-40 61 74)"/>
+        </g>
+      </svg>
+      <p>ถือแว่นขยาย 🔍 จิ้มเครื่องใช้ไฟฟ้า<br>เพื่อ "ส่อง" ดูการใช้ไฟของมัน</p>
+    </div>
+    <div class="hp" id="hp2">
+      <svg class="hp-svg" viewBox="0 0 260 110" xmlns="http://www.w3.org/2000/svg">
+        <line x1="40" y1="96" x2="220" y2="96" stroke="#9fb4cc" stroke-width="3"/>
+        <rect x="70" y="56" width="34" height="40" rx="5" fill="#00c2a8"/>
+        <text x="87" y="107" font-size="10" text-anchor="middle" font-family="Mitr,sans-serif" fill="#51627a">เดือนก่อน</text>
+        <rect class="hb-bar2" x="150" y="26" width="34" height="70" rx="5" fill="#ef4b4b"/>
+        <text x="167" y="107" font-size="10" text-anchor="middle" font-family="Mitr,sans-serif" fill="#ef4b4b">เดือนนี้</text>
+        <g class="hb-arrow"><text x="206" y="48" font-size="24" fill="#ef4b4b">⬆</text></g>
+        <text x="40" y="34" font-size="22">🧐</text>
+      </svg>
+      <p>เทียบ "เดือนก่อน vs เดือนนี้"<br>ตัวที่ <b>เปลี่ยน</b> คือผู้ต้องสงสัย — ไม่ใช่ตัวที่ใหญ่!</p>
+    </div>
+    <div class="hp" id="hp3">
+      <svg class="hp-svg" viewBox="0 0 260 110" xmlns="http://www.w3.org/2000/svg">
+        <g font-size="34" text-anchor="middle">
+          <text class="hb-star" x="76" y="62">⭐</text>
+          <text class="hb-star" style="animation-delay:.3s" x="130" y="62">⭐</text>
+          <text class="hb-star" style="animation-delay:.6s" x="184" y="62">⭐</text>
+        </g>
+        <text x="130" y="96" font-size="15" font-weight="600" text-anchor="middle" font-family="Mitr,sans-serif" fill="#51627a">🔍 ส่องน้อย = ดาวเยอะ</text>
+      </svg>
+      <p>ทายเร็ว! ส่องไม่เกิน 3 ชิ้นแล้วทายถูก = ⭐⭐⭐<br>ทายผิดไม่เป็นไร สืบต่อจนจับได้</p>
+    </div>
+    <div id="hpDots"><span></span><span></span><span></span><span></span></div>
+    <div class="hp-nav">
+      <button class="big-btn gray small" id="hpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn alt small" id="hpNext">ถัดไป ▶</button>
+      <button class="big-btn small" id="hpGo" style="display:none">เริ่มเล่นเลย! 🕵</button>
+    </div>
+  </div>
+</div>
+
+<!-- popup ส่องอุปกรณ์ -->
+<div class="overlay" id="inspOv">
+  <div class="card">
+    <div id="inspTitle"><span id="inspIcon">❄</span><span id="inspName">แอร์</span></div>
+    <div id="chartBox">
+      <div class="vcol">
+        <div class="vval adultTxt" id="val1">—</div>
+        <div class="vbar b1" id="bar1"></div>
+        <div class="vlab">เดือนก่อน</div>
+      </div>
+      <div class="vcol">
+        <div class="vval adultTxt" id="val2">—</div>
+        <div class="vbar b2" id="bar2"></div>
+        <div class="vlab">เดือนนี้</div>
+      </div>
+    </div>
+    <div id="chartVerdict">—</div>
+    <div id="inspAdult" class="adultTxt">—</div>
+    <div class="insp-btns">
+      <button class="big-btn small" id="accuseBtn">ใช่ตัวนี้! 🚨</button>
+      <button class="big-btn gray small" id="laterBtn">ดูตัวอื่นก่อน 👀</button>
+    </div>
+  </div>
+</div>
+
+<!-- popup ป้ายอุณหภูมิเมือง (ด่าน 4) -->
+<div class="overlay" id="tempOv">
+  <div class="card">
+    <h2>🌡 อุณหภูมิเมืองเรา</h2>
+    <div id="chartBoxT" style="display:flex;justify-content:center;align-items:flex-end;gap:34px;height:150px;margin:12px 0 4px;background:linear-gradient(180deg,#fff3e6,#ffe3c2);border-radius:16px;padding:12px 10px 34px;position:relative">
+      <div class="vcol">
+        <div class="vval">30°</div>
+        <div class="vbar b1" id="tbar1"></div>
+        <div class="vlab">เดือนก่อน</div>
+      </div>
+      <div class="vcol">
+        <div class="vval" style="color:#ef4b4b">33° 🥵</div>
+        <div class="vbar b2 up" id="tbar2"></div>
+        <div class="vlab">เดือนนี้</div>
+      </div>
+    </div>
+    <p>เดือนนี้อากาศ "ร้อนขึ้น" ทั้งเมือง 🥵<br>บ้านข้าง ๆ บิลก็ขึ้นเหมือนกันหมดเลยนะ…</p>
+    <p class="adultTxt" style="font-size:.85rem;color:#51627a">เมืองร้อนขึ้น +3 °C · แอร์ไวต่ออากาศ ≈ +10%/°C → แอร์ใช้ไฟเพิ่ม ~30%</p>
+    <div style="margin-top:12px"><button class="big-btn alt small" id="tempOkBtn">เข้าใจแล้ว ✔</button></div>
+  </div>
+</div>
+
+<!-- คำถามท้ายด่าน 4 -->
+<div class="overlay" id="quizOv">
+  <div class="card">
+    <div style="font-size:2.4rem">🕵🌡</div>
+    <h2>คำถามนักสืบ</h2>
+    <p>จับได้แล้วว่า "แอร์" ใช้ไฟเพิ่มขึ้นจริง<br>แต่ป้ายเมืองบอกว่า เดือนนี้ร้อนขึ้น (30°→33°)<br>และบ้านอื่นบิลก็ขึ้นเหมือนกันหมด…</p>
+    <p style="font-weight:700;margin-top:8px">สรุปแล้ว แอร์ "ผิด" ไหม?</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px">
+      <button class="big-btn small" id="qWrong">😠 ผิด! แอร์เปลือง</button>
+      <button class="big-btn alt small" id="qRight">😌 ไม่ผิด อากาศร้อนขึ้น</button>
+    </div>
+  </div>
+</div>
+
+<!-- สรุปด่าน -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <h2 id="resTitle">ปิดคดี!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <p id="resDetail"></p>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ สืบใหม่</button>
+      <button class="big-btn small" id="nextBtn">คดีต่อไป ➜</button>
+    </div>
+  </div>
+</div>
+
+<!-- จบเกม -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.6rem">🏆🕵</div>
+    <h2>สุดยอดนักสืบพลังงาน!</h2>
+    <p>ได้ดาวทั้งหมด <b id="endStars">0</b> / 12 ดวง</p>
+    <div class="lesson">กฎทองของนักสืบ: "ใหญ่ ≠ ตัวการ — ตัวที่ <u>เปลี่ยน</u> ต่างหากคือตัวการ"</div>
+    <div style="text-align:left;font-size:.92rem;line-height:1.7;background:#f4f8fd;border-radius:14px;padding:10px 14px">
+      <div>🔍 คดี 1: หาตัวที่ "พุ่ง" ให้เจอจากกราฟเทียบ 2 เดือน</div>
+      <div>🧊 คดี 2: ตัวใหญ่สุดใช้ไฟเยอะสุด… แต่ถ้า "เท่าเดิม" ก็ไม่ใช่ตัวการ</div>
+      <div>🚨 คดี 3: ตัวการมีได้หลายตัว ต้องสืบให้ครบ</div>
+      <div>🌡 คดี 4: บางทีไม่มีใครผิด — อากาศเปลี่ยน เงื่อนไขก็เปลี่ยน</div>
+    </div>
+    <p style="margin-top:10px;font-size:.9rem">ผู้ใหญ่ก็ใช้วิธีนี้หาตัวการในโรงงานนะ — เทียบกับเงื่อนไขที่เปลี่ยน เรียกว่า <b>"สมการพยากรณ์พลังงาน (Regression)"</b> 📈</p>
+    <div style="margin-top:12px"><button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button></div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ นักสืบพลังงาน v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+
+/* ── ข้อมูลจริงเชิงสัดส่วน (kWh/เดือน บ้านไทย · Triple E) ── */
+var TARIFF=4.5;                 /* บาท/kWh */
+var AC_SENS=0.10;               /* แอร์ +10% ต่ออุณหภูมิเมือง +1°C (ด่าน 4) */
+var APPL=[
+ {id:'ac',     name:'แอร์',              icon:'❄',  base:300},
+ {id:'heater', name:'เครื่องทำน้ำอุ่น',  icon:'🚿', base:80},
+ {id:'fridge', name:'ตู้เย็น',           icon:'🧊', base:60},
+ {id:'lamp',   name:'หลอดไฟ',           icon:'💡', base:30},
+ {id:'tv',     name:'ทีวี',              icon:'📺', base:25},
+ {id:'wash',   name:'เครื่องซักผ้า',     icon:'🧺', base:20}
+];
+function applById(id){for(var i=0;i<APPL.length;i++)if(APPL[i].id===id)return APPL[i];return null;}
+
+/* ── ด่าน (คดี) ── */
+var LEVELS=[
+ {name:'คดี 1 · ใครทำบิลพุ่ง? 🔍', icon:'🚿',
+  culprits:['heater'], factor:{heater:2.2},
+  goal:'บิลเดือนนี้พุ่ง! 🔍 จิ้มเครื่องใช้ไฟฟ้าเพื่อส่องหา "ตัวการ" — ยิ่งส่องน้อยชิ้น ยิ่งได้ดาวเยอะ',
+  intro:'บิลพุ่งเลย! ช่วยสืบหน่อยนักสืบ 🕵',
+  story:'เฉลย: เดือนนี้อากาศเย็น ทุกคนอาบน้ำอุ่นนานขึ้นมาก เครื่องทำน้ำอุ่นเลยกินไฟพุ่ง',
+  lesson:'ส่องกราฟเทียบ 2 เดือน — ตัวที่ "พุ่งขึ้น" คือตัวการ!'},
+ {name:'คดี 2 · ตัวหลอก! 🧊', icon:'🧊',
+  culprits:['fridge'], factor:{fridge:1.8},
+  goal:'บิลพุ่งอีกแล้ว! ระวังนะนักสืบ… ตัวที่ "ใหญ่" อาจไม่ใช่ "ตัวการ" 🤔',
+  intro:'แอร์ใช้ไฟเยอะสุดเลย… แต่ใช่ตัวการจริงหรือ? 🤔',
+  story:'เฉลย: แอร์ใช้ไฟเยอะที่สุดก็จริง แต่ "เท่าเดิม" — ตัวการคือตู้เย็นที่ยางขอบประตูเสื่อม ความเย็นรั่วตลอดเวลา',
+  lesson:'ใหญ่ ≠ ตัวการ! ตัวที่ "เปลี่ยน" ต่างหากคือตัวการ'},
+ {name:'คดี 3 · ตัวการคู่ 🚨🚨', icon:'🧺',
+  culprits:['wash','lamp'], factor:{wash:2.5,lamp:2.2},
+  goal:'คดีใหญ่! รอบนี้ตัวการมี 2 ตัว ต้องจับให้ครบคู่ 🚨🚨',
+  intro:'รอบนี้มีตัวการ 2 ตัวนะ จับให้ครบล่ะ!',
+  story:'เฉลย: เครื่องซักผ้าถูกใช้ซักน้ำร้อนบ่อยขึ้น + หลอดไฟถูกเปิดทิ้งไว้ทั้งคืน — ตัวการ 2 ตัวพร้อมกัน!',
+  lesson:'ตัวการมีได้มากกว่า 1 — นักสืบต้องเช็กให้ครบทุกตัวที่เปลี่ยน'},
+ {name:'คดี 4 · เมืองร้อน 🌡', icon:'🌡',
+  culprits:['ac'], factor:{}, dT:3,
+  goal:'บ้านทั้งเมืองบิลขึ้นพร้อมกัน?! อย่าลืมดู "ป้ายอุณหภูมิเมือง" ที่หน้าต่างด้วยนะ 🌡',
+  intro:'เอ๊ะ บ้านข้าง ๆ บิลก็ขึ้นเหมือนกันหมดเลย! 🌡',
+  story:'เฉลย: เมืองร้อนขึ้น +3° แอร์ทุกบ้านเลยทำงานหนักขึ้น — เงื่อนไขตั้งต้น (baseline) เปลี่ยน ไม่ใช่ความผิดของใคร',
+  lesson:'แอร์ไม่ผิด! อากาศร้อนขึ้น = เงื่อนไขเปลี่ยน ต้องเทียบอย่างยุติธรรม'}
+];
+
+/* ── สถานะ ── */
+var level=0, stars=[0,0,0,0], LD={}, viewed={}, caught={}, wrong=false, locked=false, curId=null;
+
+/* ── เสียง Web Audio ── */
+var AC_CTX=null, sndOn=true;
+function audio(){if(!AC_CTX){try{AC_CTX=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC_CTX&&AC_CTX.state==='suspended')AC_CTX.resume();return AC_CTX;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.07,'square',0.08);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sLens(){tone(740,0,0.08,'triangle',0.1);tone(980,0.07,0.1,'triangle',0.1);}
+
+/* ── localStorage ── */
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_game_detect_stars')||'[]');for(var i=0;i<4;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_game_detect_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_game_detect_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_game_detect_seen','1');}catch(e){}}
+
+/* ── สุ่มข้อมูลด่าน (±10% แต่ตัวการเด่นชัดเสมอ) ── */
+function rnd(a,b){return a+Math.random()*(b-a);}
+function genData(i){
+  var LV=LEVELS[i]; LD={};
+  APPL.forEach(function(a){
+    var last=a.base*rnd(0.9,1.1), f;
+    if(LV.culprits.indexOf(a.id)>=0){
+      f=(i===3&&a.id==='ac')?(1+AC_SENS*LV.dT):LV.factor[a.id];   /* ด่าน 4: +10%/°C × 3°C = ×1.30 */
+    }else if(i===1&&a.id==='ac'){ f=rnd(0.99,1.01); }             /* ตัวหลอก: แอร์ใหญ่แต่เท่าเดิม */
+    else{ f=rnd(0.94,1.06); }
+    LD[a.id]={last:Math.round(last),now:Math.round(last*f)};
+  });
+}
+function totals(){var L=0,N=0;APPL.forEach(function(a){L+=LD[a.id].last;N+=LD[a.id].now;});return {last:L,now:N};}
+
+/* ── บิลสองใบ (กองเหรียญ) ── */
+function drawBills(){
+  var t=totals(), s='';
+  function stack(cx,total,col,label,alert){
+    var coins=Math.min(12,Math.max(4,Math.round(total/55)));
+    var h=coins*5.5;
+    var ry=94-h-26;
+    s+='<rect x="'+(cx-44)+'" y="'+ry.toFixed(1)+'" width="88" height="'+(h+36).toFixed(1)+'" rx="7" fill="#fff" stroke="'+(alert?'#ef4b4b':'#9fb4cc')+'" stroke-width="3"/>';
+    s+='<text x="'+cx+'" y="'+(ry+15).toFixed(1)+'" font-size="12" font-weight="600" text-anchor="middle" fill="'+(alert?'#ef4b4b':'#51627a')+'" font-family="Mitr,sans-serif">'+label+'</text>';
+    for(var i=0;i<coins;i++){
+      s+='<ellipse cx="'+cx+'" cy="'+(94-i*5.5).toFixed(1)+'" rx="22" ry="5" fill="'+col+'" stroke="#d9a21f" stroke-width="2"/>';
+    }
+    s+='<text class="adultTxt" x="'+cx+'" y="116" font-size="12" font-weight="700" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">'+Math.round(total*TARIFF).toLocaleString()+' บาท ('+total+' kWh)</text>';
+    s+='<text class="kidTxt" x="'+cx+'" y="116" font-size="14" text-anchor="middle">'+(alert?'😱':'🙂')+'</text>';
+  }
+  stack(110,t.last,'#ffe27a','เดือนก่อน',false);
+  stack(310,t.now,'#ffd23f','เดือนนี้',true);
+  var up=Math.round((t.now/t.last-1)*100);
+  s+='<g class="billArrow"><text x="210" y="62" font-size="34" text-anchor="middle" fill="#ef4b4b">⬆</text></g>';
+  s+='<text x="210" y="86" font-size="13" font-weight="700" text-anchor="middle" fill="#ef4b4b" font-family="Mitr,sans-serif"><tspan class="kidTxt">พุ่ง!</tspan><tspan class="adultTxt">+'+up+'%</tspan></text>';
+  $('billSvg').innerHTML=s;
+  $('adultBar').innerHTML='เดือนก่อน <b>'+t.last+'</b> kWh ≈ '+Math.round(t.last*TARIFF).toLocaleString()+' บาท<br>เดือนนี้ <b>'+t.now+'</b> kWh ≈ <b>'+Math.round(t.now*TARIFF).toLocaleString()+'</b> บาท (ค่าไฟ '+TARIFF+' บาท/kWh)';
+}
+
+/* ── speech bubble ── */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');
+  clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2800);}
+
+/* ── render badges / tags / chips ── */
+function render(){
+  var n=0;
+  APPL.forEach(function(a){
+    var bd=$('badge_'+a.id), tg=$('tag_'+a.id);
+    if(viewed[a.id])n++;
+    bd.classList.toggle('seen',!!viewed[a.id]);
+    bd.querySelector('text').textContent=caught[a.id]?'✔':(viewed[a.id]?'👁':'🔍');
+    bd.querySelector('circle').setAttribute('fill',caught[a.id]?'#1fb45f':'#ffd23f');
+    bd.querySelector('circle').setAttribute('stroke',caught[a.id]?'#148a47':'#ff9f1c');
+    tg.style.display=caught[a.id]?'':'none';
+  });
+  $('viewChip').innerHTML='🔍 ส่องแล้ว <b>&nbsp;'+n+'&nbsp;</b> ชิ้น';
+  $('viewChip').classList.toggle('hot',n>3);
+  $('caseChip').textContent='🕵 '+LEVELS[level].name;
+  $('tempSign').style.display=(level===3)?'':'none';
+  return n;
+}
+function viewedCount(){var n=0;APPL.forEach(function(a){if(viewed[a.id])n++;});return n;}
+
+/* ── เริ่มด่าน ── */
+function startLevel(i){
+  level=i; viewed={}; caught={}; wrong=false; locked=false; curId=null;
+  genData(i);
+  $('lvlName').textContent=LEVELS[i].name;
+  $('goalTxt').textContent=LEVELS[i].goal;
+  drawBills(); render();
+  say(LEVELS[i].intro,3400);
+}
+
+/* ── popup ส่อง ── */
+function tween(el,h){el.style.height='0px';requestAnimationFrame(function(){requestAnimationFrame(function(){el.style.height=h+'px';});});}
+function openInspect(id){
+  if(locked)return;
+  var a=applById(id), d=LD[id];
+  curId=id;
+  if(!viewed[id]){viewed[id]=1;}
+  sLens(); render();
+  $('inspIcon').textContent=a.icon; $('inspName').textContent=a.name;
+  var mx=Math.max(d.last,d.now,1), H=118;
+  tween($('bar1'),Math.max(6,d.last/mx*H));
+  tween($('bar2'),Math.max(6,d.now/mx*H));
+  var ch=d.now/d.last-1, v=$('chartVerdict');
+  $('bar2').classList.toggle('up',ch>=0.12);
+  if(ch>=0.5){v.textContent='พุ่งขึ้นแรงมาก! 😱';v.className='up';}
+  else if(ch>=0.12){v.textContent='เพิ่มขึ้นชัดเลย! 🤨';v.className='up';}
+  else if(ch<=-0.12){v.textContent='ลดลงนิดหน่อย 😊';v.className='flat';}
+  else{v.textContent='เท่า ๆ เดิมเลย 😌';v.className='flat';}
+  $('val1').textContent=d.last+' kWh';
+  $('val2').textContent=d.now+' kWh';
+  var dB=Math.round((d.now-d.last)*TARIFF);
+  $('inspAdult').textContent='เปลี่ยนแปลง '+(ch>=0?'+':'')+Math.round(ch*100)+'% ≈ '+(dB>=0?'+':'')+dB.toLocaleString()+' บาท/เดือน';
+  $('accuseBtn').disabled=!!caught[id];
+  $('accuseBtn').textContent=caught[id]?'จับแล้ว ✔':'ใช่ตัวนี้! 🚨';
+  $('inspOv').classList.add('show');
+}
+function closeInspect(){$('inspOv').classList.remove('show');}
+
+/* ── กล่าวหา ── */
+function accuse(){
+  if(!curId||locked)return;
+  var LV=LEVELS[level];
+  if(LV.culprits.indexOf(curId)>=0&&!caught[curId]){
+    caught[curId]=1; sGood(); closeInspect(); render();
+    var left=LV.culprits.filter(function(c){return !caught[c];});
+    if(left.length>0){ say('จับได้ 1 ตัว! แต่ยังมีอีกตัวนะ หาต่อ! 🚨',3200); }
+    else if(level===3){ setTimeout(function(){$('quizOv').classList.add('show');},550); }
+    else{ setTimeout(finishLevel,550); }
+  }else{
+    wrong=true; sBad();
+    var v=$('chartVerdict'); v.textContent='ยังไม่ใช่ตัวการ! ดูสิ แทบไม่เปลี่ยนเลย 🙅'; v.className='up';
+    say('ทายผิด ไม่เป็นไร สืบต่อ! 🔍',2600);
+    setTimeout(closeInspect,1100);
+  }
+}
+
+/* ── ให้ดาว ── */
+function evalStars(){
+  var n=viewedCount();
+  return wrong?1:(n<=3?3:(n<=5?2:1));
+}
+
+/* ── จบด่าน ── */
+function finishLevel(extra){
+  if(locked)return; locked=true;
+  var st=evalStars(), LV=LEVELS[level];
+  if(st>stars[level]){stars[level]=st;saveStars();}
+  updateStarTotal();
+  $('resTitle').textContent='ปิดคดี! '+LV.name;
+  $('resLesson').textContent=LV.lesson;
+  $('resDetail').textContent='🔍 ส่องไป '+viewedCount()+' ชิ้น'+(wrong?' · มีทายผิด':'')+' — '+LV.story+(extra?' '+extra:'');
+  var ss=$('resStars').children;
+  for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(st>=2)sGood();else sBad();
+  for(let i=0;i<st;i++)setTimeout(function(){ss[i].classList.add('on');sStar(i);},350+i*380);
+  if(st===3)confetti(26);
+  $('nextBtn').textContent=level<3?'คดีต่อไป ➜':'ดูสรุป 🏆';
+}
+function updateStarTotal(){var t=stars[0]+stars[1]+stars[2]+stars[3];$('starTotal').textContent=t;return t;}
+
+/* ── confetti ── */
+function confetti(n){var cols=['#ff5d8f','#ffd23f','#00c2a8','#7b5bff','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ── วิธีเล่น pager ── */
+var hpIdx=0;
+function showHp(i){
+  hpIdx=i;
+  for(var k=0;k<4;k++)$('hp'+k).classList.toggle('show',k===i);
+  var dots=$('hpDots').children;
+  for(var k2=0;k2<4;k2++)dots[k2].classList.toggle('on',k2===i);
+  $('hpPrev').style.visibility=i===0?'hidden':'visible';
+  $('hpNext').style.display=i<3?'':'none';
+  $('hpGo').style.display=i===3?'':'none';
+}
+function openHelp(){showHp(0);$('helpOv').classList.add('show');}
+
+/* ── อีเวนต์อุปกรณ์ ── */
+APPL.forEach(function(a){
+  $('ap_'+a.id).addEventListener('click',function(){audio();openInspect(a.id);});
+});
+$('tempSign').addEventListener('click',function(){
+  audio();sLens();
+  tween($('tbar1'),78);tween($('tbar2'),100);
+  $('tempOv').classList.add('show');
+});
+$('tempOkBtn').addEventListener('click',function(){sClick();$('tempOv').classList.remove('show');});
+$('accuseBtn').addEventListener('click',function(){audio();accuse();});
+$('laterBtn').addEventListener('click',function(){sClick();closeInspect();});
+
+/* คำถามด่าน 4 */
+$('qRight').addEventListener('click',function(){
+  sGood();$('quizOv').classList.remove('show');
+  finishLevel('✔ ตอบถูก: แอร์ไม่ผิด — ผู้ใหญ่ใช้ "สมการพยากรณ์" เทียบกับอากาศแบบยุติธรรม');
+});
+$('qWrong').addEventListener('click',function(){
+  wrong=true;sBad();$('quizOv').classList.remove('show');
+  finishLevel('✘ จริง ๆ แอร์ไม่ผิดนะ — อากาศร้อนขึ้น เงื่อนไขก็เปลี่ยน ต้องเทียบอย่างยุติธรรม');
+});
+
+/* overlay ปุ่มทั่วไป */
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(level);});
+$('nextBtn').addEventListener('click',function(){
+  $('resultOv').classList.remove('show');
+  if(level<3)startLevel(level+1);
+  else{$('endStars').textContent=updateStarTotal();$('endOv').classList.add('show');confetti(40);sGood();}
+});
+$('againBtn').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('playBtn').addEventListener('click',function(){audio();sGood();markSeen();$('startOv').classList.remove('show');startLevel(0);});
+$('howBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('hpPrev').addEventListener('click',function(){sClick();showHp(Math.max(0,hpIdx-1));});
+$('hpNext').addEventListener('click',function(){sClick();showHp(Math.min(3,hpIdx+1));});
+$('hpGo').addEventListener('click',function(){
+  audio();sGood();markSeen();$('helpOv').classList.remove('show');
+  if($('startOv').classList.contains('show')){$('startOv').classList.remove('show');startLevel(0);}
+});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('adultBtn').addEventListener('click',function(){document.body.classList.toggle('adult');this.classList.toggle('on');sClick();});
+
+/* เลือกด่านจากหน้าแรก */
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<4;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.3rem">'+LEVELS[i].icon+'</span><span class="nm">คดี '+(i+1)+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();markSeen();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── debug/QA hook ── */
+window.TE_DEBUG={APPL:APPL,LEVELS:LEVELS,TARIFF:TARIFF,AC_SENS:AC_SENS,
+  data:function(){return LD;},state:function(){return {level:level,viewed:viewed,caught:caught,wrong:wrong,stars:stars};},
+  gen:genData,start:startLevel};
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();
+genData(0);drawBills();render();
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

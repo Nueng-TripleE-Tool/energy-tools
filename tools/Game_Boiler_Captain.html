@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>กัปตันหม้อไอน้ำ — Energy Sense Games</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "กัปตันหม้อไอน้ำ" (Boiler Captain) v0.1 — Energy Sense Games · Triple E Technology
+     หลักที่สอน: สมรรถนะการเผาไหม้ — เชื้อเพลิงกับอากาศต้อง "พอดีกัน" ตามโหลด (excess air ratio λ)
+     ฟิสิกส์เบื้องหลัง (Siegert อย่างง่าย):
+       λ = air / (fuel×0.9)  — จุดดีสุด λ≈1.2
+       eff = 88 − 14×max(0,1.05−λ)×8 − 9×max(0,λ−1.25)×2.2   (clamp 40–88 %)
+       steamGen ∝ fuel × eff/88 × ค่าความชื้นเชื้อเพลิง · pressure += (steamGen − load)×dt
+       O₂ ปล่อง ≈ 21×(1−1/λ) % · λ<1.05 ควันดำ/CO สูง · λ>1.6 ความร้อนหนีปล่อง (stack loss ∝ (λ−1)(Tg−Ta)) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff; --good:#1fb45f; --mid:#f5a623; --bad:#ef4b4b;
+  --steel1:#46536b; --steel2:#2c3542;
+  --btn-grad:linear-gradient(135deg,#ff5d8f,#ff8f1c);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#3b475c,#2c3542 60%,#232a35);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:860px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.9);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hud .lvl-name{font-weight:600;font-size:1.02rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 10px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:38px}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4);background:#39424f;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto}
+#adultBar{position:absolute;left:10px;top:10px;background:rgba(10,16,28,.85);color:#fff;border-radius:12px;
+  padding:6px 10px;font-size:.8rem;line-height:1.45;display:none;pointer-events:none;max-width:62%}
+#adultBar b{color:#ffd23f}
+body.adult #adultBar{display:block}
+#bubble{position:absolute;right:10px;top:10px;max-width:56%;background:#fff;border-radius:16px;border:3px solid #ffd23f;
+  padding:8px 12px;font-size:.92rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.25);transition:opacity .25s;opacity:0;pointer-events:none}
+#bubble.show{opacity:1}
+body.adult #bubble{top:84px;max-width:70%}
+#warnBar{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);width:min(92%,420px);
+  background:rgba(60,8,8,.92);border:3px solid #ef4b4b;border-radius:14px;padding:6px 12px;color:#fff;
+  font-weight:600;text-align:center;display:none;font-size:.95rem}
+#warnBar .tr{background:#3a1212;border-radius:8px;height:12px;margin-top:4px;overflow:hidden}
+#warnBar .fl{height:100%;background:linear-gradient(90deg,#ff8f1c,#ef4b4b);width:100%}
+#wetChip{position:absolute;left:10px;bottom:10px;background:#5d4037;color:#ffe0b2;border:2px solid #ffb74d;
+  border-radius:12px;padding:4px 10px;font-size:.85rem;font-weight:600;display:none}
+@keyframes shakeS{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+#sceneWrap.shake{animation:shakeS .3s linear 3}
+
+/* ───── Control panel ───── */
+#panel{background:#fff;border-radius:20px;padding:12px 16px 14px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:10px}
+.goal{font-size:.98rem;font-weight:600;text-align:center;background:#fff6d9;border:2px dashed #ffd23f;border-radius:14px;padding:7px 12px}
+#chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;font-weight:600;font-size:.92rem}
+#chips span{background:#f1f5fb;border-radius:999px;padding:4px 12px}
+#chipValve{display:none;background:#ffe3e3!important;color:#b3261e}
+.sld{display:flex;flex-direction:column;gap:2px}
+.sld .lab{display:flex;justify-content:space-between;align-items:baseline;font-weight:600;font-size:1rem;padding:0 4px}
+.sld .lab .v{font-size:1.3rem;font-weight:700;min-width:48px;text-align:right}
+input[type=range]{width:100%;height:44px;appearance:none;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:18px;border-radius:10px;background:var(--trk,#ccc)}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:40px;height:40px;border-radius:50%;margin-top:-11px;
+  background:#fff;border:6px solid var(--thm,#555);box-shadow:0 3px 8px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:18px;border-radius:10px;background:var(--trk,#ccc)}
+input[type=range]::-moz-range-thumb{width:34px;height:34px;border-radius:50%;background:#fff;border:6px solid var(--thm,#555)}
+#fuelSld{--trk:linear-gradient(90deg,#d7ccc8,#a9703f 55%,#ff8f1c);--thm:#ff8f1c}
+#airSld{--trk:linear-gradient(90deg,#e3f2fd,#7fd0ff 55%,#19a0ff);--thm:#19a0ff}
+
+.big-btn{border:none;border-radius:999px;padding:14px 34px;font-family:inherit;font-size:1.2rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #d14b76,0 10px 18px rgba(0,0,0,.2);transition:transform .1s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #d14b76}
+.big-btn.alt{background:linear-gradient(135deg,var(--teal),#19a0ff);box-shadow:0 6px 0 #0d8aa0,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #0d8aa0}
+.big-btn.small{font-size:1rem;padding:10px 22px}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(10,18,32,.65);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:16px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:26px;max-width:470px;width:100%;padding:22px 18px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.4);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.45rem;margin-bottom:6px}
+.card p{font-size:1rem;line-height:1.55}
+.result-stars{font-size:3rem;letter-spacing:6px;margin:8px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#fff6d9;border-radius:14px;padding:10px 12px;font-weight:600;margin:8px 0;font-size:.95rem}
+.stat-tbl{display:flex;flex-direction:column;gap:5px;margin:8px 0;text-align:left;font-size:.95rem}
+.stat-tbl div{display:flex;justify-content:space-between;background:#f4f7fb;border-radius:10px;padding:6px 12px}
+.stat-tbl b{color:#2d6cdf}
+.lvl-pick{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:8px 10px;font-family:inherit;cursor:pointer;min-width:82px}
+.lvl-pick .nm{font-size:.82rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.85rem;letter-spacing:1px}
+#startCard h1{font-size:1.9rem;line-height:1.25;background:linear-gradient(135deg,#ff5d8f,#ff8f1c);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#6a7a90;margin:4px 0 8px;font-size:.95rem}
+.brand{font-size:.8rem;color:#8795a8;margin-top:12px}
+
+/* help overlay */
+#helpStage{background:#eef4fb;border-radius:18px;padding:8px;margin:6px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#helpStage svg{width:100%;max-width:340px;height:auto}
+#helpTxt{font-size:1rem;font-weight:500;min-height:3em;line-height:1.5}
+.dots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+.dots i{width:10px;height:10px;border-radius:50%;background:#cfd9e6}
+.dots i.on{background:var(--orange)}
+.help-nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── SVG scene animations ───── */
+@keyframes flick{0%,100%{transform:scaleY(1) scaleX(1)}50%{transform:scaleY(1.12) scaleX(.95)}}
+#flameFlick{transform-box:fill-box;transform-origin:center bottom;animation:flick .5s ease-in-out infinite}
+@keyframes riseSm{0%{transform:translateY(0) scale(.6);opacity:.9}100%{transform:translateY(-70px) scale(1.5);opacity:0}}
+.smokeP{animation:riseSm 2.2s linear infinite}
+@keyframes riseHt{0%{transform:translateY(0);opacity:0}30%{opacity:.8}100%{transform:translateY(-55px);opacity:0}}
+.heatL{animation:riseHt 1.5s ease-out infinite}
+@keyframes puffMove{0%{transform:translateX(0);opacity:0}15%{opacity:.9}85%{opacity:.9}100%{transform:translateX(185px);opacity:0}}
+.pipePuff{animation:puffMove 1.8s linear infinite}
+@keyframes blinkA{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+.eye{transform-box:fill-box;transform-origin:center;animation:blinkA 4.2s infinite}
+@keyframes sweatA{0%{transform:translateY(0);opacity:0}25%{opacity:1}100%{transform:translateY(14px);opacity:0}}
+.sweatd{animation:sweatA 1.1s ease-in infinite;opacity:0}
+@keyframes gearSp{to{transform:rotate(360deg)}}
+#factGear{transform-box:fill-box;transform-origin:center;animation:gearSp 3s linear infinite}
+@keyframes lampFl{0%,100%{opacity:1}50%{opacity:.15}}
+.flashing{animation:lampFl .35s linear 4}
+@keyframes valveJet{0%{transform:scale(.3);opacity:0}25%{opacity:1}100%{transform:scale(1.6) translateY(-26px);opacity:0}}
+#valveSteamG.go circle{animation:valveJet 1s ease-out}
+/* tutorial anims */
+@keyframes tutPuff{0%{transform:translateX(0);opacity:0}20%{opacity:1}100%{transform:translateX(120px);opacity:0}}
+.tPuff{animation:tutPuff 1.6s linear infinite}
+@keyframes tutThumb{0%,100%{transform:translateX(0)}50%{transform:translateX(130px)}}
+.tThumb{animation:tutThumb 2.4s ease-in-out infinite}
+@keyframes tutFlame{0%,100%{transform:scale(.5)}50%{transform:scale(1.15)}}
+.tFlame{transform-box:fill-box;transform-origin:center bottom;animation:tutFlame 2.4s ease-in-out infinite}
+@keyframes tutNeedle{0%{transform:rotate(-100deg)}35%{transform:rotate(85deg)}70%,100%{transform:rotate(0deg)}}
+.tNeedle{transform-box:fill-box;transform-origin:center 92%;animation:tutNeedle 3s ease-in-out infinite}
+@keyframes tutCol{0%,15%{fill:#c0392b}35%,60%{fill:#ff9f1c}80%,100%{fill:#cfe6f7}}
+.tColFlame{animation:tutCol 3.6s ease-in-out infinite alternate}
+@media (prefers-reduced-motion:reduce){
+  #flameFlick,.smokeP,.heatL,.pipePuff,.eye,.sweatd,#factGear,.flashing,#valveSteamG.go circle,
+  .tPuff,.tThumb,.tFlame,.tNeedle,.tColFlame{animation:none}
+}
+@media (max-width:480px){
+  #bubble{font-size:.84rem}
+  .card h2{font-size:1.25rem}
+  #adultBar{font-size:.72rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">กัปตันหม้อไอน้ำ</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/12</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="adultBtn" title="โหมดผู้ใหญ่ แสดงตัวเลขจริง">👷</button>
+  </div>
+
+  <!-- SCENE -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 860 520" xmlns="http://www.w3.org/2000/svg" aria-label="ห้องหม้อไอน้ำการ์ตูน">
+      <defs>
+        <linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#4a5870"/><stop offset="1" stop-color="#333d4d"/>
+        </linearGradient>
+        <linearGradient id="boilG" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#8fa0bd"/><stop offset=".5" stop-color="#c4d0e4"/><stop offset="1" stop-color="#6e7f9c"/>
+        </linearGradient>
+        <linearGradient id="stackG" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#5a6983"/><stop offset=".5" stop-color="#8b9bb8"/><stop offset="1" stop-color="#4a5870"/>
+        </linearGradient>
+        <radialGradient id="glassBg" cx=".5" cy=".6" r=".7">
+          <stop offset="0" stop-color="#2a1a08"/><stop offset="1" stop-color="#120b04"/>
+        </radialGradient>
+      </defs>
+
+      <!-- wall & floor -->
+      <rect x="0" y="0" width="860" height="470" fill="url(#wallG)"/>
+      <rect x="0" y="470" width="860" height="50" fill="#232a35"/>
+      <rect x="0" y="466" width="860" height="8" fill="#55617a"/>
+      <g stroke="#3e4a60" stroke-width="2" opacity=".6">
+        <line x1="0" y1="110" x2="860" y2="110"/><line x1="0" y1="230" x2="860" y2="230"/>
+        <line x1="430" y1="0" x2="430" y2="110"/><line x1="215" y1="110" x2="215" y2="230"/><line x1="645" y1="110" x2="645" y2="230"/>
+      </g>
+
+      <!-- stack -->
+      <g id="stackGrp">
+        <rect x="150" y="18" width="52" height="160" rx="8" fill="url(#stackG)" stroke="#39424f" stroke-width="4"/>
+        <rect x="142" y="12" width="68" height="16" rx="7" fill="#39424f"/>
+        <rect x="150" y="92" width="52" height="10" fill="#4a5870"/>
+        <!-- grey smoke -->
+        <g id="smokeGreyG" opacity="0" fill="#cfd8df">
+          <circle class="smokeP" cx="176" cy="6" r="11"/>
+          <circle class="smokeP" style="animation-delay:.7s" cx="166" cy="4" r="9"/>
+          <circle class="smokeP" style="animation-delay:1.4s" cx="186" cy="8" r="10"/>
+        </g>
+        <!-- black smoke -->
+        <g id="smokeBlackG" opacity="0" fill="#23272b">
+          <circle class="smokeP" cx="176" cy="4" r="14"/>
+          <circle class="smokeP" style="animation-delay:.55s" cx="162" cy="2" r="12"/>
+          <circle class="smokeP" style="animation-delay:1.1s" cx="190" cy="6" r="13"/>
+          <circle class="smokeP" style="animation-delay:1.65s" cx="176" cy="0" r="11"/>
+        </g>
+        <!-- heat shimmer (excess air) -->
+        <g id="heatWaveG" opacity="0" stroke="#ffd9a0" stroke-width="4" fill="none" stroke-linecap="round">
+          <path class="heatL" d="M162 8 q6 -10 0 -20 q-6 -10 0 -20"/>
+          <path class="heatL" style="animation-delay:.5s" d="M176 10 q6 -10 0 -20 q-6 -10 0 -20"/>
+          <path class="heatL" style="animation-delay:1s" d="M190 8 q6 -10 0 -20 q-6 -10 0 -20"/>
+        </g>
+      </g>
+
+      <!-- boiler body -->
+      <g id="boilerGrp">
+        <rect x="120" y="150" width="300" height="312" rx="34" fill="url(#boilG)" stroke="#39424f" stroke-width="6"/>
+        <rect x="134" y="166" width="272" height="16" rx="8" fill="#ffffff" opacity=".25"/>
+        <g fill="#5a6983">
+          <circle cx="142" cy="172" r="4"/><circle cx="270" cy="168" r="4"/><circle cx="398" cy="172" r="4"/>
+          <circle cx="142" cy="448" r="4"/><circle cx="270" cy="452" r="4"/><circle cx="398" cy="448" r="4"/>
+        </g>
+        <!-- name plate -->
+        <rect x="205" y="290" width="130" height="24" rx="8" fill="#39424f"/>
+        <text x="270" y="307" font-size="14" font-weight="600" text-anchor="middle" fill="#ffd23f" font-family="Mitr,sans-serif">BOILER No.1</text>
+
+        <!-- safety valve -->
+        <g id="valveGrp">
+          <rect x="366" y="122" width="22" height="34" rx="5" fill="#b3261e" stroke="#7a140e" stroke-width="3"/>
+          <rect x="356" y="114" width="42" height="12" rx="5" fill="#8b9bb8" stroke="#39424f" stroke-width="3"/>
+          <g id="valveSteamG" fill="#ffffff" opacity=".95">
+            <circle cx="377" cy="104" r="10" opacity="0"/>
+            <circle cx="366" cy="98" r="8" opacity="0"/>
+            <circle cx="388" cy="98" r="8" opacity="0"/>
+          </g>
+        </g>
+
+        <!-- pressure gauge -->
+        <g id="gaugeGrp">
+          <circle cx="270" cy="215" r="74" fill="#f4f7fb" stroke="#39424f" stroke-width="7"/>
+          <path d="M221.5 243 A56 56 0 0 1 216.7 197.7" stroke="#ef4b4b" stroke-width="13" fill="none"/>
+          <path d="M216.7 197.7 A56 56 0 0 1 231.7 174.2" stroke="#f5a623" stroke-width="13" fill="none"/>
+          <path d="M231.7 174.2 A56 56 0 0 1 321.6 193.3" stroke="#1fb45f" stroke-width="13" fill="none"/>
+          <path d="M321.6 193.3 A56 56 0 0 1 325.7 220.9" stroke="#f5a623" stroke-width="13" fill="none"/>
+          <path d="M325.7 220.9 A56 56 0 0 1 318.5 243" stroke="#ef4b4b" stroke-width="13" fill="none"/>
+          <text x="270" y="252" font-size="13" font-weight="600" text-anchor="middle" fill="#6a7a90" font-family="Mitr,sans-serif">แรงดันไอน้ำ</text>
+          <g id="needleG">
+            <line x1="270" y1="232" x2="270" y2="168" stroke="#213047" stroke-width="7" stroke-linecap="round"/>
+            <circle cx="270" cy="215" r="9" fill="#213047"/>
+          </g>
+        </g>
+
+        <!-- firebox + sight glass -->
+        <g id="fireboxGrp">
+          <circle cx="270" cy="392" r="70" fill="#39424f"/>
+          <circle cx="270" cy="392" r="60" fill="url(#glassBg)" stroke="#ffb74d" stroke-width="5"/>
+          <g id="flameSize" transform="translate(270 436) scale(0.8)">
+            <g id="flameFlick">
+              <path id="flOut" d="M0 0 C -34 -6 -34 -46 -18 -62 C -12 -46 -8 -44 -6 -56 C 4 -78 18 -72 14 -52 C 24 -58 30 -44 26 -30 C 34 -18 20 2 0 0 Z" fill="#ff6a1f"/>
+              <path id="flMid" d="M0 -2 C -20 -4 -22 -30 -10 -44 C -6 -32 0 -32 2 -44 C 12 -52 18 -36 12 -24 C 18 -14 10 -2 0 -2 Z" fill="#ff9f1c"/>
+              <path id="flCore" d="M0 -4 C -10 -6 -12 -20 -4 -30 C 0 -22 4 -22 6 -30 C 12 -20 8 -6 0 -4 Z" fill="#ffd23f"/>
+            </g>
+          </g>
+          <g id="glassSmoke" opacity="0" fill="#1b1b1b">
+            <circle cx="248" cy="352" r="13"/><circle cx="276" cy="344" r="11"/><circle cx="298" cy="356" r="10"/>
+          </g>
+          <circle cx="270" cy="392" r="60" fill="#fff" opacity=".06"/>
+        </g>
+      </g>
+
+      <!-- steam pipe to factory -->
+      <g id="pipeGrp">
+        <rect x="420" y="238" width="230" height="26" rx="10" fill="#8b9bb8" stroke="#39424f" stroke-width="4"/>
+        <rect x="438" y="234" width="12" height="34" rx="4" fill="#5a6983"/>
+        <rect x="560" y="234" width="12" height="34" rx="4" fill="#5a6983"/>
+        <g id="pipePuffG" opacity="0" fill="#eaf4ff">
+          <circle class="pipePuff" cx="445" cy="251" r="8"/>
+          <circle class="pipePuff" style="animation-delay:.6s" cx="445" cy="251" r="7"/>
+          <circle class="pipePuff" style="animation-delay:1.2s" cx="445" cy="251" r="8"/>
+        </g>
+      </g>
+
+      <!-- factory -->
+      <g id="factGrp">
+        <path d="M640 262 L640 236 L672 258 L672 236 L704 258 L704 236 L736 258 L736 262 Z" fill="#9c5a3c"/>
+        <rect x="636" y="262" width="150" height="204" fill="#b2744e" stroke="#7a4a2a" stroke-width="5"/>
+        <rect x="636" y="262" width="150" height="14" fill="#8a5432"/>
+        <g id="factWinG" fill="#ffe082">
+          <rect x="652" y="294" width="30" height="26" rx="4"/>
+          <rect x="696" y="294" width="30" height="26" rx="4"/>
+          <rect x="652" y="338" width="30" height="26" rx="4"/>
+          <rect x="696" y="338" width="30" height="26" rx="4"/>
+        </g>
+        <rect x="660" y="398" width="58" height="68" rx="6" fill="#6b4226"/>
+        <g id="factGear" fill="#cfd8df">
+          <circle cx="751" cy="300" r="14"/>
+          <rect x="747" y="280" width="8" height="40" rx="3"/>
+          <rect x="731" y="296" width="40" height="8" rx="3"/>
+          <circle cx="751" cy="300" r="5" fill="#6b4226"/>
+        </g>
+        <circle id="loadLamp" cx="711" cy="248" r="8" fill="#ffd23f" stroke="#b8860b" stroke-width="3"/>
+        <text x="711" y="488" font-size="15" font-weight="600" text-anchor="middle" fill="#cfe0f5" font-family="Mitr,sans-serif">โรงงาน</text>
+        <!-- demand bar -->
+        <g id="demandGrp">
+          <rect x="800" y="250" width="30" height="180" rx="9" fill="#1a202b" stroke="#55617a" stroke-width="3"/>
+          <rect id="demandFill" x="804" y="340" width="22" height="86" rx="6" fill="#00c2a8"/>
+          <rect id="steamFill" x="793" y="340" width="6" height="86" rx="3" fill="#7fd0ff"/>
+          <text x="815" y="446" font-size="13" font-weight="600" text-anchor="middle" fill="#cfe0f5" font-family="Mitr,sans-serif">โหลด</text>
+        </g>
+      </g>
+
+      <!-- operator -->
+      <g id="opG">
+        <ellipse cx="520" cy="462" rx="44" ry="8" fill="#000" opacity=".2"/>
+        <rect x="496" y="376" width="48" height="60" rx="16" fill="#2d6cdf"/>
+        <rect x="496" y="430" width="19" height="32" rx="8" fill="#1b4ba8"/>
+        <rect x="525" y="430" width="19" height="32" rx="8" fill="#1b4ba8"/>
+        <rect x="488" y="384" width="12" height="34" rx="6" fill="#2d6cdf"/>
+        <rect x="540" y="384" width="12" height="34" rx="6" fill="#2d6cdf"/>
+        <circle cx="520" cy="344" r="34" fill="#ffd9b3" stroke="#e8b27f" stroke-width="3"/>
+        <path d="M486 334 a34 34 0 0 1 68 0 Z" fill="#ffd23f" stroke="#d9a800" stroke-width="3"/>
+        <rect x="482" y="330" width="76" height="9" rx="4.5" fill="#ffd23f" stroke="#d9a800" stroke-width="2.5"/>
+        <g class="eye"><circle cx="508" cy="346" r="4.4" fill="#213047"/></g>
+        <g class="eye"><circle cx="532" cy="346" r="4.4" fill="#213047"/></g>
+        <path id="opMouth" d="M509 360 Q520 370 531 360" stroke="#b34a4a" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <g id="opSweat" opacity="0">
+          <path class="sweatd" d="M486 326 q-5 9 0 12 q6 -3 0 -12" fill="#4aa8ff"/>
+          <path class="sweatd" style="animation-delay:.5s" d="M556 322 q-5 9 0 12 q6 -3 0 -12" fill="#4aa8ff"/>
+        </g>
+        <g id="opAlert" opacity="0"><text x="548" y="312" font-size="26">❗</text></g>
+      </g>
+    </svg>
+
+    <div id="adultBar">λ = <b id="abLam">—</b> · O₂ปล่อง <b id="abO2">—</b>%<br>
+      ประสิทธิภาพ <b id="abEff">—</b>% · ไอน้ำ <b id="abSteam">—</b>/<b id="abLoad">—</b> t/h<br>
+      แรงดัน <b id="abP">—</b> bar · เชื้อเพลิง <b id="abFuel">—</b> kg/h</div>
+    <div id="bubble"></div>
+    <div id="wetChip">💧 เชื้อเพลิงชื้น! ไอน้ำได้น้อยลง</div>
+    <div id="warnBar">⚠ ควันดำ! เพิ่มอากาศด่วน — เหลือ <span id="warnSec">10</span> วิ
+      <div class="tr"><div class="fl" id="warnFill"></div></div>
+    </div>
+  </div>
+
+  <!-- CONTROL PANEL -->
+  <div id="panel">
+    <div class="goal" id="goalTxt">—</div>
+    <div id="chips">
+      <span>⏱ <span id="chipTime">0</span> วิ</span>
+      <span>🔥 <span id="chipFlame">—</span></span>
+      <span id="chipValve">♨ วาล์วระบาย <span id="chipValveN">0</span>/3</span>
+    </div>
+    <div class="sld">
+      <div class="lab"><span>🪵 เชื้อเพลิง</span><span class="v" id="fuelVal">35</span></div>
+      <input type="range" id="fuelSld" min="0" max="100" step="1" value="35" aria-label="เชื้อเพลิง">
+    </div>
+    <div class="sld">
+      <div class="lab"><span>💨 อากาศ</span><span class="v" id="airVal">38</span></div>
+      <input type="range" id="airSld" min="0" max="100" step="1" value="38" aria-label="อากาศ">
+    </div>
+  </div>
+</div>
+
+<!-- ───── Start overlay ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:3rem">🔥♨️</div>
+    <h1>กัปตันหม้อไอน้ำ</h1>
+    <div class="sub">คุม 🪵 เชื้อเพลิง กับ 💨 อากาศ ให้ "พอดีกัน"<br>ส่งไอน้ำให้โรงงานผลิตของได้ไม่หยุด!</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── Help overlay (คู่มือวิธีเล่น) ───── -->
+<div class="overlay" id="helpOv">
+  <div class="card">
+    <h2 id="helpTitle">วิธีเล่น</h2>
+    <div id="helpStage"></div>
+    <div id="helpTxt">—</div>
+    <div class="dots" id="helpDots"></div>
+    <div class="help-nav">
+      <button class="big-btn small alt" id="helpPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="helpNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Result overlay (จบด่านฝึก / ตาย) ───── -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <div id="resEmoji" style="font-size:2.4rem">🏁</div>
+    <h2 id="resTitle">จบด่าน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <div class="stat-tbl" id="resStats"></div>
+    <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ กัปตันหม้อไอน้ำ v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+
+/* ── ฟิสิกส์ (Siegert อย่างง่าย) ──
+   λ = air/(fuel×0.9) · ดีสุด λ=1.2
+   eff = 88 − 14·max(0,1.05−λ)·8 − 9·max(0,λ−1.25)·2.2 (clamp 40–88)
+   steam = fuel·(eff/88)·wet · P += (steam−load)·K·dt */
+var PK=0.30, CAP_TPH=0.1, FUEL_KGH=25;   /* สเกลผู้ใหญ่: หม้อ 10 t/h, เชื้อเพลิงเต็มสเกล 2,500 kg/h */
+function physics(fuel,air,wet){
+  var lam=fuel>2?air/(fuel*0.9):0;
+  var eff=88-14*Math.max(0,1.05-lam)*8-9*Math.max(0,lam-1.25)*2.2;
+  eff=Math.max(40,Math.min(88,eff));
+  var steam=fuel<=2?0:fuel*(eff/88)*(wet||1);
+  return {lam:lam,eff:eff,steam:steam};
+}
+
+/* ── สถานะเกม ── */
+var MODE_T1=0,MODE_T2=1,MODE_T3=2,MODE_END=3;
+var G={mode:0,running:false,t:0,P:55,load:40,target:40,nextChg:8,valveN:0,smokeT:0,
+       effSum:0,fuelSum:0,wet:1,over:'',valveAnimT:0,beepT:0};
+var fuel=35,air=38;
+var stars=[0,0,0,0], lastTs=0;
+
+var LV=[
+ {name:'ฝึก 1 · โหลดนิ่ง ๆ 🎯',icon:'🎯',dur:30,
+  goal:'โรงงานต้องการไอน้ำคงที่ — เลื่อน 🪵 กับ 💨 ให้เข็มอยู่โซนเขียว เปลวไฟสีส้มสด 30 วิ!'},
+ {name:'ฝึก 2 · โหลดขยับขึ้น 📈',icon:'📈',dur:36,
+  goal:'โหลดจะเพิ่มทีละขั้น! เพิ่มเชื้อเพลิงก่อน แล้วขยับอากาศตามให้ทัน'},
+ {name:'ฝึก 3 · เชื้อเพลิงชื้น 💧',icon:'💧',dur:40,
+  goal:'กลางด่านเชื้อเพลิงจะ "ชื้น" ให้ไอน้ำน้อยลง — ต้องเร่งชดเชยให้ไว!'},
+ {name:'โหมดท้าทาย · กัปตันตัวจริง 🏆',icon:'🏆',dur:0,
+  goal:'โหลดแกว่งแรงขึ้นเรื่อย ๆ! อยู่รอดให้นานที่สุด อย่าให้ควันดำ–แรงดันพัง'}
+];
+
+/* ── เสียง Web Audio ── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.06,'square',0.07);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sLoad(){tone(740,0,0.09,'square',0.1);tone(988,0.1,0.12,'square',0.1);}
+function sAlarm(){tone(950,0,0.1,'square',0.12);tone(700,0.12,0.1,'square',0.12);}
+function sHiss(){var a=audio();if(!a||!sndOn)return;
+  var len=a.sampleRate*0.8,buf=a.createBuffer(1,len,a.sampleRate),d=buf.getChannelData(0);
+  for(var i=0;i<len;i++)d[i]=(Math.random()*2-1)*(1-i/len);
+  var src=a.createBufferSource(),g=a.createGain();src.buffer=buf;
+  g.gain.setValueAtTime(0.22,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.8);
+  src.connect(g);g.connect(a.destination);src.start();}
+
+/* ── localStorage ── */
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_game_boiler_stars')||'[]');for(var i=0;i<4;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_game_boiler_stars',JSON.stringify(stars));}catch(e){}}
+function seenHelp(){try{return localStorage.getItem('te_game_boiler_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_game_boiler_seen','1');}catch(e){}}
+
+/* ── speech bubble ── */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');
+  clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2800);}
+
+/* ── เริ่มด่าน ── */
+function startLevel(i){
+  G.mode=i;G.running=true;G.t=0;G.P=55;G.valveN=0;G.smokeT=0;G.effSum=0;G.fuelSum=0;
+  G.wet=1;G.over='';G.valveAnimT=0;G.beepT=0;
+  if(i===MODE_T1){G.load=40;G.target=40;}
+  else if(i===MODE_T2){G.load=32;G.target=32;}
+  else if(i===MODE_T3){G.load=45;G.target=45;}
+  else {G.load=42;G.target=42;G.nextChg=8;}
+  fuel=35;air=38;$('fuelSld').value=35;$('airSld').value=38;
+  $('lvlName').textContent=LV[i].name;
+  $('goalTxt').textContent=LV[i].goal;
+  $('chipValve').style.display='none';$('chipValveN').textContent='0';
+  $('wetChip').style.display='none';$('warnBar').style.display='none';
+  say(i===MODE_END?'โหลดจะแกว่งแรงขึ้นเรื่อย ๆ สู้ ๆ กัปตัน! 💪':'ดูเข็มแรงดัน แล้วเลื่อนให้ไฟพอดีนะ 🔥',3200);
+}
+
+/* ── โหลดตามเวลา ── */
+function updateLoad(dt){
+  if(G.mode===MODE_T1){G.target=40;}
+  else if(G.mode===MODE_T2){
+    var tg=G.t<12?32:(G.t<24?48:64);
+    if(tg!==G.target){G.target=tg;loadFlash();}
+  }else if(G.mode===MODE_T3){
+    G.target=45;
+    var wasWet=G.wet<1, nowWet=(G.t>=12&&G.t<28);
+    G.wet=nowWet?0.65:1;
+    if(nowWet&&!wasWet){$('wetChip').style.display='inline-block';say('ฝนตก! เชื้อเพลิงชื้น ไอน้ำหดไปเยอะ — เร่งชดเชย! 💧',3200);sAlarm();}
+    if(!nowWet&&wasWet){$('wetChip').style.display='none';say('เชื้อเพลิงแห้งแล้ว ปรับกลับลงได้ ☀',2600);}
+  }else{
+    G.nextChg-=dt;
+    if(G.nextChg<=0){
+      var amp=Math.min(34,12+G.t*0.3);
+      var d=(8+Math.random()*amp)*(Math.random()<0.5?-1:1);
+      var tg=Math.max(22,Math.min(88,G.target+d));
+      if(Math.abs(tg-G.target)<10)tg=Math.max(22,Math.min(88,G.target-d));
+      G.target=Math.round(tg);
+      G.nextChg=Math.max(3.5,9-G.t*0.045);
+      loadFlash();
+    }
+  }
+  G.load+=(G.target-G.load)*Math.min(1,dt*0.9);
+}
+function loadFlash(){
+  sLoad();
+  var w=$('factWinG'),l=$('loadLamp');
+  w.classList.remove('flashing');l.classList.remove('flashing');
+  void w.getBBox;  /* reflow hint */
+  requestAnimationFrame(function(){w.classList.add('flashing');l.classList.add('flashing');});
+  say('โรงงานเปลี่ยนความต้องการ! ดูแถบโหลด 👉',2200);
+}
+
+/* ── ก้าวเวลา ── */
+function step(dt){
+  if(!G.running)return;
+  G.t+=dt;
+  updateLoad(dt);
+  var ph=physics(fuel,air,G.wet);
+  G.P+=(ph.steam-G.load)*PK*dt;
+  G.effSum+=ph.eff*dt;
+  G.fuelSum+=fuel*dt;
+  /* ควันดำสะสม */
+  if(fuel>5&&ph.lam>0&&ph.lam<1.05)G.smokeT+=dt;
+  else G.smokeT=Math.max(0,G.smokeT-dt*2);
+  if(G.smokeT>=10){gameOver('smoke');return;}
+  /* วาล์วนิรภัย */
+  if(G.P>=100){
+    G.valveN++;G.P=80;G.valveAnimT=1.1;sHiss();
+    $('chipValve').style.display='inline-block';$('chipValveN').textContent=G.valveN;
+    var sw=$('sceneWrap');sw.classList.remove('shake');requestAnimationFrame(function(){sw.classList.add('shake');});
+    say('ปี๊ดดด! วาล์วนิรภัยระบายไอทิ้ง ครั้งที่ '+G.valveN+'/3 😱',2600);
+    var vg=$('valveSteamG');vg.classList.remove('go');requestAnimationFrame(function(){vg.classList.add('go');});
+    if(G.valveN>=3){gameOver('valve');return;}
+  }
+  if(G.valveAnimT>0)G.valveAnimT-=dt;
+  if(G.P<=0){G.P=0;gameOver('empty');return;}
+  /* เสียงเตือน */
+  G.beepT-=dt;
+  if(G.beepT<=0){
+    if(G.smokeT>1.5){sAlarm();G.beepT=0.85;}
+    else if(G.P<18||G.P>88){tone(G.P<18?440:1100,0,0.1,'square',0.1);G.beepT=1;}
+  }
+  /* จบด่านฝึกตามเวลา */
+  if(G.mode!==MODE_END&&G.t>=LV[G.mode].dur){trainingDone();}
+}
+
+/* ── render ── */
+function render(){
+  var ph=physics(fuel,air,G.wet);
+  $('fuelVal').textContent=fuel;$('airVal').textContent=air;
+  /* เข็มเกจ */
+  var p=Math.max(0,Math.min(100,G.P)), ang=-120+2.4*p;
+  $('needleG').setAttribute('transform','rotate('+ang.toFixed(1)+' 270 215)');
+  /* เปลวไฟ */
+  var fg=$('flameSize'), sc=(0.45+fuel/100*0.95);
+  var oC,mC,cC,flameTxt;
+  if(fuel<=2){sc=0.05;oC='#3a2a12';mC='#3a2a12';cC='#3a2a12';flameTxt='ดับ 💤';}
+  else if(ph.lam<1.05){oC='#b32b12';mC='#e3542b';cC='#ff8c42';flameTxt='แดงมีควัน ⚠';}
+  else if(ph.lam<1.45){oC='#ff6a1f';mC='#ff9f1c';cC='#ffd23f';flameTxt='ส้มสด เยี่ยม! ✔';}
+  else if(ph.lam<1.6){oC='#f0b429';mC='#ffd666';cC='#fff3b8';flameTxt='เหลืองซีด';}
+  else {oC='#9fc8e8';mC='#cfe6f7';cC='#eef7ff';sc*=0.8;flameTxt='ซีดฟ้า — ลมแรงไป 💨';}
+  fg.setAttribute('transform','translate(270 436) scale('+sc.toFixed(2)+')');
+  $('flOut').setAttribute('fill',oC);$('flMid').setAttribute('fill',mC);$('flCore').setAttribute('fill',cC);
+  $('chipFlame').textContent=flameTxt;
+  /* ควันในกระจก + ปล่อง */
+  var blk=(fuel>5&&ph.lam>0&&ph.lam<1.05)?Math.min(1,(1.05-ph.lam)*5+0.3):0;
+  $('glassSmoke').setAttribute('opacity',(blk*0.8).toFixed(2));
+  $('smokeBlackG').setAttribute('opacity',blk.toFixed(2));
+  $('smokeGreyG').setAttribute('opacity',fuel>2&&blk===0?'0.55':'0');
+  var hw=(fuel>2&&ph.lam>1.55)?Math.min(1,(ph.lam-1.55)*1.6):0;
+  $('heatWaveG').setAttribute('opacity',hw.toFixed(2));
+  /* ไอในท่อ */
+  $('pipePuffG').setAttribute('opacity',Math.min(1,ph.steam/35).toFixed(2));
+  /* วาล์ว */
+  var vs=$('valveSteamG').querySelectorAll('circle');
+  for(var i=0;i<vs.length;i++)vs[i].setAttribute('opacity',G.valveAnimT>0?'1':'0');
+  if(G.valveAnimT<=0)$('valveSteamG').classList.remove('go');
+  /* แถบโหลด + ไอที่ผลิตได้ */
+  var lh=Math.max(3,G.load*1.7), sh=Math.max(3,Math.min(100,ph.steam)*1.7);
+  $('demandFill').setAttribute('y',(426-lh).toFixed(1));$('demandFill').setAttribute('height',lh.toFixed(1));
+  $('steamFill').setAttribute('y',(426-sh).toFixed(1));$('steamFill').setAttribute('height',sh.toFixed(1));
+  $('demandFill').setAttribute('fill',ph.steam>=G.load-3?'#00c2a8':'#ef4b4b');
+  /* หน้าคนคุม */
+  var m=$('opMouth'),sweat=0,alert=0;
+  if(G.smokeT>1.5||G.valveAnimT>0){m.setAttribute('d','M512 362 a8 7 0 1 0 16 0 a8 7 0 1 0 -16 0');alert=1;sweat=1;}
+  else if(G.P<25||G.P>80){m.setAttribute('d','M509 366 Q520 356 531 366');sweat=1;}
+  else if(G.P>=35&&G.P<=75&&ph.lam>=1.05&&ph.lam<1.45&&fuel>2){m.setAttribute('d','M509 358 Q520 371 531 358');}
+  else {m.setAttribute('d','M510 362 L530 362');}
+  $('opSweat').setAttribute('opacity',sweat?'1':'0');
+  $('opAlert').setAttribute('opacity',alert?'1':'0');
+  /* ควันดำ countdown */
+  if(G.smokeT>1.5&&G.running){
+    $('warnBar').style.display='block';
+    var left=Math.max(0,10-G.smokeT);
+    $('warnSec').textContent=Math.ceil(left);
+    $('warnFill').style.width=(left/10*100)+'%';
+  }else $('warnBar').style.display='none';
+  /* chips */
+  $('chipTime').textContent=Math.floor(G.t);
+  /* adult bar */
+  if(document.body.classList.contains('adult')){
+    $('abLam').textContent=fuel>2?ph.lam.toFixed(2):'—';
+    $('abO2').textContent=(fuel>2&&ph.lam>=1)?(21*(1-1/ph.lam)).toFixed(1):(fuel>2?'0.0':'—');
+    $('abEff').textContent=fuel>2?ph.eff.toFixed(1):'—';
+    $('abSteam').textContent=(ph.steam*CAP_TPH).toFixed(1);
+    $('abLoad').textContent=(G.load*CAP_TPH).toFixed(1);
+    $('abP').textContent=(G.P*0.1).toFixed(1);
+    $('abFuel').textContent=Math.round(fuel*FUEL_KGH);
+  }
+}
+
+/* ── จบด่านฝึก (รอด) ── */
+function trainingDone(){
+  G.running=false;
+  var avg=G.effSum/Math.max(0.01,G.t);
+  var st=(avg>=83&&G.valveN===0)?3:(avg>=74?2:1);
+  var lessons=[
+    'เชื้อเพลิงเท่าไหร่ อากาศต้องตามให้พอดี — เปลวส้มสดคือจุดประหยัดสุด',
+    'โหลดขึ้น → เพิ่มเชื้อเพลิงก่อน แล้วขยับอากาศตามทันที อย่าให้ควันดำ',
+    'เชื้อเพลิงชื้นให้ไอน้ำน้อยลง ต้องเติมทั้งเชื้อเพลิงและอากาศชดเชย'];
+  showResult({pass:true,st:st,title:LV[G.mode].name,emoji:'🏁',
+    lesson:lessons[G.mode],avg:avg});
+}
+
+/* ── game over ── */
+function gameOver(why){
+  G.running=false;G.over=why;
+  var avg=G.effSum/Math.max(0.01,G.t);
+  var titles={empty:'ไอน้ำหมด โรงงานหยุด! 🏭💤',valve:'วาล์วระบายครบ 3 ครั้ง! ♨',smoke:'ควันดำเกิน 10 วิ โดนสั่งหยุด! 🖤'};
+  var hints={empty:'แรงดันตกถึงศูนย์ — โหลดขึ้นต้องรีบเติมเชื้อเพลิง (และอากาศตาม)',
+    valve:'แรงดันทะลุเพดานบ่อยไป — โหลดลดลงต้องรีบหรี่ไฟ',
+    smoke:'อากาศน้อยกว่าเชื้อเพลิง = เผาไหม้ไม่หมด ควันดำ เปลืองและอันตราย'};
+  var st;
+  if(G.mode===MODE_END){st=(G.t>=60&&avg>=80)?3:(G.t>=40?2:1);}
+  else st=0;
+  showResult({pass:false,st:st,title:titles[why],emoji:why==='smoke'?'🌫':'💥',
+    lesson:hints[why],avg:avg});
+  sBad();
+}
+
+/* ── หน้าสรุปผล ── */
+function showResult(r){
+  var avg=r.avg, adult=document.body.classList.contains('adult');
+  if(r.st>stars[G.mode]){stars[G.mode]=r.st;saveStars();}
+  updateStarTotal();
+  $('resEmoji').textContent=r.emoji;
+  $('resTitle').textContent=r.title;
+  $('resLesson').textContent=r.lesson;
+  var effTxt=adult?avg.toFixed(1)+' %':(avg>=83?'เยี่ยม 🔥🔥🔥':(avg>=74?'ดี 🔥🔥':'ฝึกอีกนิด 🔥'));
+  var fuelTxt=adult?Math.round(G.fuelSum*FUEL_KGH/3600)+' kg':'~'+Math.max(1,Math.round(G.fuelSum/60))+' เข่ง';
+  var score=Math.round(avg*G.t);
+  var html='<div><span>⏱ เวลา</span><b>'+Math.floor(G.t)+' วิ</b></div>'+
+    '<div><span>🔥 การเผาไหม้เฉลี่ย</span><b>'+effTxt+'</b></div>'+
+    '<div><span>🪵 เชื้อเพลิงที่ใช้</span><b>'+fuelTxt+'</b></div>';
+  if(G.mode===MODE_END)html+='<div><span>💯 คะแนน</span><b>'+score+'</b></div>';
+  $('resStats').innerHTML=html;
+  var ss=$('resStars').children;
+  for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(r.st>=2)sGood();
+  for(let i=0;i<r.st;i++)setTimeout(function(){ss[i].classList.add('on');sStar(i);},350+i*380);
+  if(r.st===3)confetti(28);
+  $('nextBtn').textContent=G.mode<3?'ด่านต่อไป ➜':'🏠 หน้าแรก';
+  $('retryBtn').textContent=r.pass?'↻ เล่นซ้ำ':'↻ ลองใหม่';
+}
+function updateStarTotal(){var t=stars[0]+stars[1]+stars[2]+stars[3];$('starTotal').textContent=t;return t;}
+
+/* ── confetti ── */
+function confetti(n){var cols=['#ff5d8f','#ffd23f','#00c2a8','#7b5bff','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ── animation loop ── */
+function loop(ts){
+  if(!lastTs)lastTs=ts;
+  var dt=Math.min(0.08,(ts-lastTs)/1000);lastTs=ts;
+  step(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+/* ── คู่มือวิธีเล่น (5 ขั้น + SVG เคลื่อนไหว) ── */
+var HELP=[
+ {txt:'① ภารกิจ: เป็น "กัปตันหม้อไอน้ำ" ส่งไอน้ำให้โรงงานผลิตของได้ไม่หยุด!',
+  svg:'<svg viewBox="0 0 340 160"><rect x="0" y="0" width="340" height="160" rx="12" fill="#39424f"/>'+
+   '<rect x="20" y="52" width="80" height="88" rx="12" fill="#c4d0e4" stroke="#39424f" stroke-width="3"/>'+
+   '<rect x="30" y="16" width="18" height="44" fill="#8b9bb8"/>'+
+   '<circle cx="60" cy="108" r="22" fill="#2a1a08" stroke="#ffb74d" stroke-width="3"/>'+
+   '<path class="tFlame" d="M60 122 C 48 118 48 104 54 96 C 56 102 60 102 61 96 C 68 102 70 116 60 122 Z" fill="#ff9f1c"/>'+
+   '<rect x="100" y="86" width="130" height="12" rx="5" fill="#8b9bb8"/>'+
+   '<circle class="tPuff" cx="108" cy="92" r="6" fill="#eaf4ff"/>'+
+   '<circle class="tPuff" style="animation-delay:.55s" cx="108" cy="92" r="5" fill="#eaf4ff"/>'+
+   '<circle class="tPuff" style="animation-delay:1.1s" cx="108" cy="92" r="6" fill="#eaf4ff"/>'+
+   '<path d="M232 86 L232 66 L252 80 L252 66 L272 80 L272 86 Z" fill="#9c5a3c"/>'+
+   '<rect x="230" y="86" width="86" height="56" fill="#b2744e" stroke="#7a4a2a" stroke-width="3"/>'+
+   '<rect class="flashing" style="animation-iteration-count:infinite;animation-duration:1s" x="242" y="98" width="20" height="16" rx="3" fill="#ffe082"/>'+
+   '<rect x="278" y="98" width="20" height="16" rx="3" fill="#ffe082"/></svg>'},
+ {txt:'② สไลเดอร์ 🪵 เชื้อเพลิง = ความแรงของไฟ — ยิ่งมาก ไอน้ำยิ่งเยอะ',
+  svg:'<svg viewBox="0 0 340 160"><rect x="0" y="0" width="340" height="160" rx="12" fill="#eef4fb"/>'+
+   '<path class="tFlame" d="M170 100 C 136 94 136 54 152 34 C 158 52 166 52 168 36 C 186 54 196 88 170 100 Z" fill="#ff9f1c"/>'+
+   '<path class="tFlame" style="animation-delay:.1s" d="M170 98 C 152 94 152 70 162 58 C 165 68 170 68 172 58 C 182 70 184 92 170 98 Z" fill="#ffd23f"/>'+
+   '<rect x="70" y="124" width="200" height="12" rx="6" fill="#d7ccc8"/>'+
+   '<circle class="tThumb" cx="105" cy="130" r="16" fill="#fff" stroke="#ff8f1c" stroke-width="6"/>'+
+   '<text x="48" y="137" font-size="20">🪵</text></svg>'},
+ {txt:'③ 💨 อากาศน้อยไป → ควันดำ! · อากาศมากไป → ความร้อนหนีขึ้นปล่อง',
+  svg:'<svg viewBox="0 0 340 160"><rect x="0" y="0" width="340" height="160" rx="12" fill="#39424f"/>'+
+   '<rect x="60" y="60" width="34" height="90" rx="6" fill="#8b9bb8"/>'+
+   '<circle class="smokeP" cx="77" cy="52" r="12" fill="#23272b"/>'+
+   '<circle class="smokeP" style="animation-delay:.7s" cx="70" cy="50" r="10" fill="#23272b"/>'+
+   '<circle class="smokeP" style="animation-delay:1.4s" cx="86" cy="54" r="11" fill="#23272b"/>'+
+   '<text x="77" y="146" font-size="13" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">อากาศน้อย 💨</text>'+
+   '<rect x="240" y="60" width="34" height="90" rx="6" fill="#8b9bb8"/>'+
+   '<g stroke="#ffd9a0" stroke-width="4" fill="none" stroke-linecap="round">'+
+   '<path class="heatL" d="M248 52 q5 -9 0 -18 q-5 -9 0 -18"/>'+
+   '<path class="heatL" style="animation-delay:.5s" d="M258 54 q5 -9 0 -18 q-5 -9 0 -18"/>'+
+   '<path class="heatL" style="animation-delay:1s" d="M268 52 q5 -9 0 -18 q-5 -9 0 -18"/></g>'+
+   '<text x="257" y="146" font-size="13" fill="#fff" text-anchor="middle" font-family="Mitr,sans-serif">อากาศมากไป 💨💨💨</text></svg>'},
+ {txt:'④ ดูเกจแรงดันให้เข็มอยู่ "โซนเขียว" — ตกถึงศูนย์โรงงานหยุด ชนแดงบนวาล์วระบาย!',
+  svg:'<svg viewBox="0 0 340 160"><rect x="0" y="0" width="340" height="160" rx="12" fill="#eef4fb"/>'+
+   '<circle cx="170" cy="92" r="62" fill="#fff" stroke="#39424f" stroke-width="5"/>'+
+   '<path d="M129 126 A54 54 0 0 1 124 82" stroke="#ef4b4b" stroke-width="11" fill="none"/>'+
+   '<path d="M124 82 A54 54 0 0 1 216 55" stroke="#1fb45f" stroke-width="11" fill="none"/>'+
+   '<path d="M216 55 A54 54 0 0 1 224 118" stroke="#ef4b4b" stroke-width="11" fill="none"/>'+
+   '<g class="tNeedle"><line x1="170" y1="108" x2="170" y2="46" stroke="#213047" stroke-width="6" stroke-linecap="round"/></g>'+
+   '<circle cx="170" cy="92" r="8" fill="#213047"/></svg>'},
+ {txt:'⑤ ตาอยู่ที่เปลวไฟ — สีบอกทุกอย่าง: แดงควัน=ขาดอากาศ · ส้มสด=พอดี · ซีดฟ้า=อากาศเกิน',
+  svg:'<svg viewBox="0 0 340 160"><rect x="0" y="0" width="340" height="160" rx="12" fill="#2a1a08"/>'+
+   '<path class="tFlame tColFlame" d="M170 120 C 128 112 128 62 148 36 C 155 58 165 58 167 38 C 190 60 202 104 170 120 Z"/>'+
+   '<text x="60" y="146" font-size="14" fill="#ff8a7a" text-anchor="middle" font-family="Mitr,sans-serif">แดงควัน</text>'+
+   '<text x="170" y="146" font-size="14" fill="#ffd23f" text-anchor="middle" font-family="Mitr,sans-serif">ส้มสด ✔</text>'+
+   '<text x="282" y="146" font-size="14" fill="#cfe6f7" text-anchor="middle" font-family="Mitr,sans-serif">ซีดฟ้า</text></svg>'}
+];
+var helpPg=0;
+function renderHelp(){
+  $('helpStage').innerHTML=HELP[helpPg].svg;
+  $('helpTxt').textContent=HELP[helpPg].txt;
+  var d=$('helpDots');d.innerHTML='';
+  for(var i=0;i<HELP.length;i++){var e=document.createElement('i');if(i===helpPg)e.className='on';d.appendChild(e);}
+  $('helpPrev').style.visibility=helpPg===0?'hidden':'visible';
+  $('helpNext').textContent=helpPg===HELP.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';
+}
+function openHelp(){helpPg=0;renderHelp();$('helpOv').classList.add('show');}
+function closeHelp(start){
+  $('helpOv').classList.remove('show');markSeen();
+  if(start&&!G.running){$('startOv').classList.remove('show');startLevel(pickNext());}
+}
+function pickNext(){for(var i=0;i<3;i++)if(!stars[i])return i;return MODE_END;}
+
+/* ── ปุ่ม / อีเวนต์ ── */
+$('fuelSld').addEventListener('input',function(){fuel=+this.value;sClick();render();});
+$('airSld').addEventListener('input',function(){air=+this.value;sClick();render();});
+$('helpBtn').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpBtn2').addEventListener('click',function(){audio();sClick();openHelp();});
+$('helpPrev').addEventListener('click',function(){sClick();if(helpPg>0){helpPg--;renderHelp();}});
+$('helpNext').addEventListener('click',function(){audio();sClick();
+  if(helpPg<HELP.length-1){helpPg++;renderHelp();}else closeHelp(true);});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(pickNext());});
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(G.mode);});
+$('nextBtn').addEventListener('click',function(){
+  $('resultOv').classList.remove('show');
+  if(G.mode<3)startLevel(G.mode+1);
+  else{buildLvlPick();$('startOv').classList.add('show');}
+});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('adultBtn').addEventListener('click',function(){document.body.classList.toggle('adult');this.classList.toggle('on');sClick();render();});
+
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  var nm=['ฝึก 1','ฝึก 2','ฝึก 3','ท้าทาย'];
+  for(let i=0;i<4;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.3rem">'+LV[i].icon+'</span><span class="nm">'+nm[i]+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── debug hook สำหรับ QA ── */
+window.TEG={G:G,physics:physics,startLevel:startLevel,setCtl:function(f,a){fuel=f;air=a;$('fuelSld').value=f;$('airSld').value=a;render();},
+  getCtl:function(){return {fuel:fuel,air:air};},stars:stars};
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();
+render();
+requestAnimationFrame(loop);
+if(!seenHelp())openHelp();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>โรงงานหรรษา — Energy Sense Games</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "โรงงานหรรษา" (Factory Fun) v0.1 — Energy Sense Games · Triple E Technology
+     สอนหลัก sensitivity ในโรงงาน: มาตรการไหน "แรง" มาตรการไหน "เบา" (VFD ปั๊ม > อุดลมรั่ว > หุ้มฉนวน)
+     ฟิสิกส์เบื้องหลัง:
+       · ปั๊ม 45 kW กฎ affinity P ∝ n³ → ลดรอบเหลือ 80% ที่ flow เท่าเดิม เหลือ 45×0.8³ = 23.0 kW (~51%)
+         ขณะที่หรี่วาล์วที่ flow เดียวกันลดได้ไม่ถึง ~10%
+       · เครื่องอัดอากาศ 75 kW รั่ว 3 จุด จุดละ 7.3 kW รวม 21.9 kW (≈30% ของ 75 kW)
+       · ท่อไอน้ำเปลือย 3 ช่วง ช่วงละ 4 kW_th (เปลือย ≈10 เท่าของหุ้มฉนวน 0.4 kW_th)
+         คิดเป็นเชื้อเพลิงที่หม้อไอน้ำ η=80% · ค่าไฟ 4.0 บาท/kWh · 6,000 ชม./ปี -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sky2:#cdeaff;
+  --sun:#ffd23f; --sun2:#ff9f1c;
+  --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff;
+  --good:#1fb45f; --mid:#f5a623; --bad:#ef4b4b;
+  --steel:#8a97a8; --steel2:#5d6b7d;
+  --btn-grad:linear-gradient(135deg,#ff5d8f,#ff8f1c);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,var(--sky1),var(--sky2) 50%,#e3e9f0 51%,#cdd6e0);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:860px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.88);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(33,48,71,.15);backdrop-filter:blur(4px)}
+#hud .lvl-name{font-weight:600;font-size:1.02rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 10px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink)}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(33,48,71,.18);background:#bfe6ff;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto}
+#adultBar{background:rgba(20,30,48,.92);color:#fff;border-radius:14px;
+  padding:7px 12px;font-size:.8rem;line-height:1.45;display:none;text-align:center}
+#adultBar b{color:#ffd23f;font-size:1rem}
+body.adult #adultBar{display:block}
+.adnum{display:none;font-weight:500;color:#5d6b7d;font-size:.82rem}
+body.adult .adnum{display:inline}
+
+#bubble{position:absolute;right:10px;top:10px;max-width:56%;background:#fff;border-radius:16px;border:3px solid #ffd23f;
+  padding:8px 12px;font-size:.95rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.12);transition:opacity .25s;opacity:0;pointer-events:none}
+#bubble.show{opacity:1}
+#prodWarn{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:#ef4b4b;color:#fff;
+  border-radius:12px;padding:5px 14px;font-weight:700;font-size:.95rem;display:none;box-shadow:0 4px 10px rgba(0,0,0,.25)}
+#prodWarn.show{display:block;animation:popWarn .5s ease infinite alternate}
+@keyframes popWarn{from{transform:translateX(-50%) scale(1)}to{transform:translateX(-50%) scale(1.06)}}
+
+/* ───── Control panel ───── */
+#panel{background:#fff;border-radius:20px;padding:14px 16px;box-shadow:0 6px 18px rgba(33,48,71,.14);display:flex;flex-direction:column;gap:12px}
+.ctl-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center}
+.goal{font-size:1rem;font-weight:600;text-align:center;background:#fff6d9;border:2px dashed #ffd23f;border-radius:14px;padding:8px 12px}
+
+/* method choice */
+.mth{display:flex;flex-direction:column;align-items:center;gap:4px;border:3px solid #cfd9e6;background:#f7fafd;border-radius:18px;
+  padding:10px 16px;font-family:inherit;cursor:pointer;min-width:130px;transition:transform .12s,border-color .2s,background .2s}
+.mth:active{transform:scale(.94)}
+.mth .ic{font-size:1.8rem;line-height:1}
+.mth .nm{font-size:.95rem;font-weight:600}
+.mth .st{font-size:.78rem;color:#6a7a90}
+.mth.sel{border-color:var(--purple);background:#efe9ff}
+
+/* slider */
+.spd-box{flex:1 1 100%;display:none;flex-direction:column;gap:6px;align-items:center}
+.spd-box.show{display:flex}
+.spd-val{font-size:1.6rem;font-weight:700;line-height:1}
+.spd-val small{font-size:.95rem;font-weight:500;color:#6a7a90}
+#flowTxt{font-size:.98rem;font-weight:600;border-radius:12px;padding:3px 14px;background:#eef3fa}
+#flowTxt.ok{background:#e1f8ea;color:#117a3d}
+#flowTxt.low{background:#ffe3e3;color:#c0392b}
+#flowTxt.high{background:#fff3d6;color:#9c6b00}
+input[type=range]{width:min(92%,460px);height:40px;appearance:none;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:16px;border-radius:10px;
+  background:linear-gradient(90deg,#9be37a,#ffd23f 60%,#ef4b4b)}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:38px;height:38px;border-radius:50%;margin-top:-11px;
+  background:#fff;border:5px solid var(--purple);box-shadow:0 3px 8px rgba(0,0,0,.25)}
+input[type=range]::-moz-range-track{height:16px;border-radius:10px;
+  background:linear-gradient(90deg,#9be37a,#ffd23f 60%,#ef4b4b)}
+input[type=range]::-moz-range-thumb{width:34px;height:34px;border-radius:50%;background:#fff;border:5px solid var(--purple)}
+
+.big-btn{border:none;border-radius:999px;padding:14px 34px;font-family:inherit;font-size:1.2rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #d14b76,0 10px 18px rgba(0,0,0,.2);transition:transform .1s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #d14b76}
+.big-btn.alt{background:linear-gradient(135deg,var(--teal),#19a0ff);box-shadow:0 6px 0 #0d8aa0,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #0d8aa0}
+.big-btn.small{font-size:1rem;padding:10px 22px}
+.big-btn.ghost{background:#eef3fa;color:var(--ink);box-shadow:0 4px 0 #c6d2e2}
+.big-btn.ghost:active{box-shadow:0 1px 0 #c6d2e2}
+
+#hintTxt{text-align:center;font-size:.92rem;color:#6a7a90}
+
+/* timer */
+#timerWrap{display:none;width:100%;background:#eef3fa;border-radius:10px;height:18px;overflow:hidden}
+#timerBar{height:100%;width:100%;background:linear-gradient(90deg,#00c2a8,#19a0ff);transition:width .2s linear}
+#timerTxt{display:none;text-align:center;font-weight:700;font-size:1.1rem}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(18,28,46,.55);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:16px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:26px;max-width:460px;width:100%;padding:24px 20px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.5rem;margin-bottom:6px}
+.card p{font-size:1rem;line-height:1.55}
+.result-stars{font-size:3rem;letter-spacing:6px;margin:10px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#fff6d9;border-radius:14px;padding:10px 12px;font-weight:600;margin:8px 0}
+.rankbar{display:flex;align-items:center;gap:8px;margin:7px 0;text-align:left}
+.rankbar .lb{width:118px;font-size:.88rem;font-weight:600;flex:none;line-height:1.25}
+.rankbar .tr{flex:1;background:#eef3fa;border-radius:9px;height:22px;overflow:hidden}
+.rankbar .fl{height:100%;width:0;border-radius:9px;transition:width 1s cubic-bezier(.3,.9,.4,1);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:#fff;font-size:.76rem;font-weight:700;white-space:nowrap}
+.lvl-pick{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:8px 12px;font-family:inherit;cursor:pointer;min-width:84px}
+.lvl-pick .nm{font-size:.85rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.9rem;letter-spacing:1px}
+#startCard h1{font-size:1.9rem;line-height:1.25;background:linear-gradient(135deg,#ff5d8f,#ff8f1c);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#6a7a90;margin:4px 0 10px}
+.brand{font-size:.8rem;color:#8795a8;margin-top:12px}
+
+/* tutorial */
+#tutSvgBox{background:#f2f7fd;border-radius:18px;padding:8px;margin:8px 0}
+#tutSvgBox svg{display:block;width:100%;height:auto}
+#tutTxt{font-size:1.02rem;font-weight:600;min-height:3em;display:flex;align-items:center;justify-content:center}
+#tutDots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+#tutDots span{width:11px;height:11px;border-radius:50%;background:#d4dfeb;transition:background .2s,transform .2s}
+#tutDots span.on{background:var(--orange);transform:scale(1.25)}
+#tutNav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── SVG animations ───── */
+@keyframes blinkA{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+.eye{transform-box:fill-box;transform-origin:center;animation:blinkA 4.2s infinite}
+@keyframes sweatA{0%{transform:translateY(0);opacity:0}25%{opacity:1}100%{transform:translateY(16px);opacity:0}}
+.sweatd{animation:sweatA 1.1s ease-in infinite;opacity:0}
+@keyframes smokeA{0%{transform:translateY(0) scale(.8);opacity:.8}100%{transform:translateY(-34px) scale(1.5);opacity:0}}
+.smokep{animation:smokeA 2.4s ease-out infinite}
+@keyframes hissA{0%{opacity:.95;transform:translate(0,0) scale(.7)}100%{opacity:0;transform:translate(10px,-16px) scale(1.5)}}
+.hissp{animation:hissA .5s ease-out infinite}
+@keyframes steamA{0%{transform:translateY(0) scale(.7);opacity:.85}100%{transform:translateY(-22px) scale(1.4);opacity:0}}
+.steamp{animation:steamA 1.1s ease-out infinite}
+@keyframes glowA{0%,100%{opacity:.45}50%{opacity:.9}}
+.hotglow{animation:glowA 1.4s ease-in-out infinite}
+@keyframes flameA{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.25)}}
+.flame{transform-box:fill-box;transform-origin:center bottom;animation:flameA .5s ease-in-out infinite}
+@keyframes fanA{to{transform:rotate(360deg)}}
+.fanspin{transform-box:fill-box;transform-origin:center;animation:fanA 1s linear infinite}
+@keyframes tapHereA{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.3);opacity:.4}}
+.taphint{transform-box:fill-box;transform-origin:center;animation:tapHereA 1s ease-in-out infinite;pointer-events:none}
+.leakHit,.pipeHit{cursor:pointer}
+@media (prefers-reduced-motion:reduce){
+  .eye,.sweatd,.smokep,.hissp,.steamp,.hotglow,.flame,.fanspin,.taphint,#prodWarn.show{animation:none}
+}
+@media (max-width:480px){
+  .mth{min-width:104px;padding:8px 10px}
+  #bubble{font-size:.85rem}
+  .card h2{font-size:1.3rem}
+  .rankbar .lb{width:96px;font-size:.8rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">โรงงานหรรษา</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/12</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="adultBtn" title="โหมดผู้ใหญ่ แสดง kW และ บาท">👷</button>
+  </div>
+
+  <div id="adultBar">ไฟฟ้ารวม <b id="abKW">0.0</b> kW · สูญเสียความร้อน <b id="abTH">0.0</b> kW<sub>th</sub> · ค่าพลังงาน ≈ <b id="abBaht">0</b> บาท/ชม <span style="opacity:.8">(≈ <span id="abYear">0</span> บาท/ปี @6,000 ชม.)</span></div>
+
+  <!-- SCENE -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 860 470" xmlns="http://www.w3.org/2000/svg" aria-label="โรงงานการ์ตูนตัดขวาง">
+      <!-- sky -->
+      <rect x="0" y="0" width="860" height="100" fill="#bfe6ff"/>
+      <ellipse cx="640" cy="40" rx="44" ry="15" fill="#fff" opacity=".9"/>
+      <ellipse cx="700" cy="32" rx="30" ry="12" fill="#fff" opacity=".85"/>
+      <circle cx="800" cy="38" r="22" fill="#ffd23f" stroke="#ff9f1c" stroke-width="4"/>
+      <!-- chimney + smoke -->
+      <rect x="64" y="18" width="34" height="80" fill="#a8554a" stroke="#7c3a32" stroke-width="4"/>
+      <rect x="58" y="12" width="46" height="12" rx="5" fill="#7c3a32"/>
+      <g fill="#e8eef5">
+        <circle class="smokep" cx="81" cy="6" r="9"/>
+        <circle class="smokep" style="animation-delay:.8s" cx="90" cy="2" r="7"/>
+        <circle class="smokep" style="animation-delay:1.6s" cx="74" cy="0" r="6"/>
+      </g>
+      <!-- factory shell: sawtooth roof + wall + floor -->
+      <path d="M30 98 L130 58 L130 98 L280 58 L280 98 L430 58 L430 98 L580 58 L580 98 L730 58 L730 98 L830 58 L830 98 Z"
+            fill="#7b8ea6" stroke="#5d6b7d" stroke-width="5" stroke-linejoin="round"/>
+      <rect x="30" y="98" width="800" height="306" fill="#f7f3ea" stroke="#d9d2c2" stroke-width="5"/>
+      <rect x="30" y="98" width="800" height="14" fill="#e6dfd0"/>
+      <rect x="30" y="398" width="800" height="48" fill="#b8c2cf"/>
+      <rect x="0" y="444" width="860" height="26" fill="#8f9dad"/>
+
+      <!-- ═══ มิเตอร์ไฟโรงงาน ═══ -->
+      <g id="meterG">
+        <rect x="50" y="138" width="106" height="126" rx="13" fill="#2c3a52" stroke="#1a2436" stroke-width="5"/>
+        <rect x="62" y="150" width="82" height="28" rx="6" fill="#0e1622"/>
+        <text id="meterDigits" x="103" y="171" font-size="17" font-weight="700" text-anchor="middle" fill="#7CFC9A" font-family="'IBM Plex Mono',monospace">00000</text>
+        <circle cx="103" cy="212" r="27" fill="#e8eef7" stroke="#9fb4cc" stroke-width="4"/>
+        <g id="meterDisc">
+          <circle cx="103" cy="212" r="20" fill="#fff" stroke="#c4d2e4" stroke-width="2"/>
+          <rect x="84" y="209.8" width="38" height="4.4" rx="2.2" fill="#ef4b4b"/>
+          <circle cx="103" cy="212" r="4" fill="#395a86"/>
+        </g>
+        <text x="103" y="254" font-size="12" font-weight="600" text-anchor="middle" fill="#cfe0f5" font-family="Mitr,sans-serif">มิเตอร์ไฟโรงงาน</text>
+        <g id="speedZap" opacity="0">
+          <text x="34" y="206" font-size="20">⚡</text><text x="158" y="186" font-size="20">⚡</text>
+        </g>
+      </g>
+
+      <!-- ═══ ท่อลมอัด (บนสุด) ═══ -->
+      <g id="airSysG">
+        <rect x="540" y="136" width="10" height="212" fill="#8a97a8" stroke="#5d6b7d" stroke-width="2"/>
+        <rect x="180" y="126" width="640" height="12" rx="6" fill="#8a97a8" stroke="#5d6b7d" stroke-width="2"/>
+        <text x="186" y="120" font-size="13" font-weight="600" fill="#5d6b7d" font-family="Mitr,sans-serif">ท่อลมอัด</text>
+      </g>
+
+      <!-- ═══ ท่อไอน้ำ (กลาง) ═══ -->
+      <g id="steamSysG">
+        <rect x="750" y="190" width="12" height="120" fill="#b45309" stroke="#8a3d05" stroke-width="2"/>
+        <rect x="180" y="180" width="580" height="14" rx="7" fill="#b45309" stroke="#8a3d05" stroke-width="2"/>
+        <!-- ช่วงที่หุ้มฉนวนอยู่แล้ว -->
+        <g fill="#e8e2d4" stroke="#b9b09a" stroke-width="2.5">
+          <rect x="176" y="175" width="44" height="24" rx="9"/>
+          <rect x="280" y="175" width="100" height="24" rx="9"/>
+          <rect x="440" y="175" width="100" height="24" rx="9"/>
+          <rect x="600" y="175" width="156" height="24" rx="9"/>
+        </g>
+        <g stroke="#b9b09a" stroke-width="2" opacity=".8">
+          <line x1="196" y1="176" x2="196" y2="198"/><line x1="310" y1="176" x2="310" y2="198"/>
+          <line x1="350" y1="176" x2="350" y2="198"/><line x1="470" y1="176" x2="470" y2="198"/>
+          <line x1="510" y1="176" x2="510" y2="198"/><line x1="630" y1="176" x2="630" y2="198"/>
+          <line x1="672" y1="176" x2="672" y2="198"/><line x1="714" y1="176" x2="714" y2="198"/>
+        </g>
+        <text x="186" y="168" font-size="13" font-weight="600" fill="#a24a1f" font-family="Mitr,sans-serif">ท่อไอน้ำร้อน</text>
+      </g>
+
+      <!-- ═══ ท่อน้ำเย็น (ตัวหลอก) ═══ -->
+      <g id="coldSysG">
+        <rect x="220" y="228" width="490" height="10" rx="5" fill="#4aa8ff" stroke="#2d6cdf" stroke-width="2"/>
+        <text x="226" y="224" font-size="12" font-weight="600" fill="#2d6cdf" font-family="Mitr,sans-serif">ท่อน้ำเย็น</text>
+      </g>
+
+      <!-- ═══ ปั๊มน้ำ + วาล์ว + มอเตอร์ ═══ -->
+      <g id="pumpG">
+        <rect x="56" y="382" width="172" height="14" rx="5" fill="#8a97a8"/>
+        <rect x="64" y="330" width="60" height="52" rx="8" fill="#ff8f1c" stroke="#d9720e" stroke-width="4"/>
+        <line x1="74" y1="340" x2="74" y2="372" stroke="#d9720e" stroke-width="3"/>
+        <line x1="86" y1="340" x2="86" y2="372" stroke="#d9720e" stroke-width="3"/>
+        <line x1="98" y1="340" x2="98" y2="372" stroke="#d9720e" stroke-width="3"/>
+        <g id="pumpFan" class="fanspin">
+          <circle cx="112" cy="356" r="9" fill="#ffd23f" stroke="#d9720e" stroke-width="2"/>
+          <line x1="112" y1="348" x2="112" y2="364" stroke="#d9720e" stroke-width="2.5"/>
+          <line x1="104" y1="356" x2="120" y2="356" stroke="#d9720e" stroke-width="2.5"/>
+        </g>
+        <rect x="124" y="348" width="14" height="16" fill="#5d6b7d"/>
+        <circle cx="162" cy="358" r="24" fill="#00c2a8" stroke="#0a8f7c" stroke-width="5"/>
+        <circle cx="162" cy="358" r="9" fill="#bff5ec" stroke="#0a8f7c" stroke-width="3"/>
+        <g id="vfdBox" opacity="0">
+          <rect x="58" y="296" width="52" height="26" rx="6" fill="#7b5bff" stroke="#5a3fe0" stroke-width="3"/>
+          <text x="84" y="315" font-size="14" font-weight="700" text-anchor="middle" fill="#fff" font-family="Mitr,sans-serif">VFD</text>
+        </g>
+        <text x="140" y="416" font-size="13" font-weight="600" text-anchor="middle" fill="#5d6b7d" font-family="Mitr,sans-serif">ปั๊มน้ำ 🚰</text>
+        <!-- ท่อส่งน้ำ + วาล์ว + มาตรวัด -->
+        <rect x="154" y="296" width="16" height="42" fill="#4f9fe0" stroke="#2d6cdf" stroke-width="2"/>
+        <rect x="154" y="290" width="236" height="16" rx="8" fill="#4f9fe0" stroke="#2d6cdf" stroke-width="2"/>
+        <g id="flowArrows" fill="#dff0ff">
+          <path d="M190 293 l8 5 l-8 5 Z"/><path d="M250 293 l8 5 l-8 5 Z"/><path d="M310 293 l8 5 l-8 5 Z"/>
+        </g>
+        <g id="valveG">
+          <path d="M212 288 l20 10 l-20 10 Z" fill="#c0392b"/>
+          <path d="M252 288 l-20 10 l20 10 Z" fill="#c0392b"/>
+          <rect x="229" y="270" width="6" height="20" fill="#7c3a32"/>
+          <circle id="valveWheel" cx="232" cy="266" r="11" fill="#ef4b4b" stroke="#a83232" stroke-width="3"/>
+          <line x1="232" y1="258" x2="232" y2="274" stroke="#a83232" stroke-width="2.5"/>
+          <line x1="224" y1="266" x2="240" y2="266" stroke="#a83232" stroke-width="2.5"/>
+          <text id="valveTag" x="232" y="248" font-size="12" font-weight="600" text-anchor="middle" fill="#a83232" font-family="Mitr,sans-serif">วาล์วหรี่ 50%</text>
+        </g>
+        <g id="flowGaugeG">
+          <text x="378" y="222" font-size="12" font-weight="600" text-anchor="middle" fill="#5d6b7d" font-family="Mitr,sans-serif">มาตรวัดน้ำ</text>
+          <circle cx="378" cy="256" r="25" fill="#fff" stroke="#5d7ea8" stroke-width="4"/>
+          <path d="M378 256 L390.5 234.4 A25 25 0 0 1 397.2 239.9 Z" fill="#9be37a" opacity=".9"/>
+          <line id="flowNeedle" x1="378" y1="256" x2="378" y2="235" stroke="#ef4b4b" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="378" cy="256" r="4.5" fill="#395a86"/>
+        </g>
+      </g>
+
+      <!-- ═══ เครื่องอัดอากาศ + ถังลม ═══ -->
+      <g id="compG">
+        <rect x="390" y="396" width="172" height="10" rx="4" fill="#8a97a8"/>
+        <rect x="396" y="336" width="80" height="62" rx="10" fill="#7b5bff" stroke="#5a3fe0" stroke-width="4"/>
+        <g id="compFan" class="fanspin">
+          <circle cx="436" cy="366" r="15" fill="#efe9ff" stroke="#5a3fe0" stroke-width="3"/>
+          <line x1="436" y1="353" x2="436" y2="379" stroke="#5a3fe0" stroke-width="3"/>
+          <line x1="423" y1="366" x2="449" y2="366" stroke="#5a3fe0" stroke-width="3"/>
+        </g>
+        <rect x="486" y="346" width="72" height="50" rx="24" fill="#9fb4cc" stroke="#5d6b7d" stroke-width="4"/>
+        <rect x="498" y="396" width="8" height="8" fill="#5d6b7d"/><rect x="538" y="396" width="8" height="8" fill="#5d6b7d"/>
+        <circle cx="522" cy="356" r="6" fill="#e8eef7" stroke="#5d6b7d" stroke-width="2"/>
+        <text x="476" y="428" font-size="13" font-weight="600" text-anchor="middle" fill="#5d6b7d" font-family="Mitr,sans-serif">เครื่องอัดอากาศ 💨 + ถังลม</text>
+      </g>
+
+      <!-- ═══ หม้อไอน้ำ ═══ -->
+      <g id="boilerG">
+        <rect x="700" y="306" width="116" height="94" rx="12" fill="#b06a5a" stroke="#7c3a32" stroke-width="5"/>
+        <rect x="716" y="320" width="84" height="12" rx="6" fill="#8a4a3c"/>
+        <circle cx="758" cy="368" r="18" fill="#3a2420" stroke="#7c3a32" stroke-width="4"/>
+        <path id="boilFlame" class="flame" d="M758 378 q-9 -8 -4 -18 q3 -6 4 -10 q1 4 4 10 q5 10 -4 18 Z" fill="#ff9f1c" stroke="#ff5d3c" stroke-width="2"/>
+        <text x="758" y="428" font-size="13" font-weight="600" text-anchor="middle" fill="#5d6b7d" font-family="Mitr,sans-serif">หม้อไอน้ำ 🔥</text>
+      </g>
+
+      <!-- ═══ ผู้จัดการโรงงาน ═══ -->
+      <g id="mgrG">
+        <ellipse cx="320" cy="402" rx="44" ry="8" fill="#000" opacity=".1"/>
+        <rect x="292" y="330" width="56" height="68" rx="17" fill="#00c2a8"/>
+        <rect x="286" y="336" width="14" height="44" rx="7" fill="#00c2a8"/>
+        <rect x="340" y="336" width="14" height="44" rx="7" fill="#00c2a8"/>
+        <rect x="300" y="352" width="40" height="8" rx="4" fill="#ff8f1c"/>
+        <circle cx="320" cy="296" r="32" fill="#ffd9b3" stroke="#e8b27f" stroke-width="3"/>
+        <path d="M288 284 a32 32 0 0 1 64 0 Z" fill="#ffd23f" stroke="#d9a40e" stroke-width="3"/>
+        <rect x="282" y="280" width="76" height="9" rx="4.5" fill="#ffd23f" stroke="#d9a40e" stroke-width="2.5"/>
+        <g class="eye"><circle cx="308" cy="298" r="4.6" fill="#213047"/></g>
+        <g class="eye"><circle cx="332" cy="298" r="4.6" fill="#213047"/></g>
+        <path id="mgrMouth" d="M308 312 Q320 322 332 312" stroke="#b34a4a" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <g id="mgrSweat" opacity="0">
+          <path class="sweatd" d="M284 282 q-5 9 0 12 q6 -3 0 -12" fill="#4aa8ff"/>
+          <path class="sweatd" style="animation-delay:.5s" d="M358 278 q-5 9 0 12 q6 -3 0 -12" fill="#4aa8ff"/>
+        </g>
+        <text x="320" y="260" font-size="12" font-weight="600" text-anchor="middle" fill="#5d6b7d" font-family="Mitr,sans-serif">ผู้จัดการ</text>
+      </g>
+
+      <!-- ═══ สายพานผลิต (หน้าสุด) ═══ -->
+      <g id="convG">
+        <g id="boxesG"></g>
+        <rect x="56" y="420" width="748" height="20" rx="10" fill="#5d6b7d" stroke="#46525f" stroke-width="4"/>
+        <g fill="#2c3a52">
+          <circle cx="86" cy="430" r="6"/><circle cx="196" cy="430" r="6"/><circle cx="306" cy="430" r="6"/>
+          <circle cx="416" cy="430" r="6"/><circle cx="526" cy="430" r="6"/><circle cx="636" cy="430" r="6"/>
+          <circle cx="746" cy="430" r="6"/>
+        </g>
+        <text x="430" y="462" font-size="13" font-weight="600" text-anchor="middle" fill="#eef3fa" font-family="Mitr,sans-serif">สายพานผลิต — ของต้องออกเท่าเดิมเสมอ!</text>
+      </g>
+
+      <!-- ═══ จุดรั่วลมอัด (วางทับท่อลม) ═══ -->
+      <g id="leaksG"></g>
+      <!-- ═══ ช่วงท่อให้หุ้มฉนวน ═══ -->
+      <g id="pipesG"></g>
+    </svg>
+
+    <div id="bubble"></div>
+    <div id="prodWarn">⚠ ผลิตไม่ทัน! ของบนสายพานช้าลง</div>
+  </div>
+
+  <!-- CONTROL PANEL -->
+  <div id="panel">
+    <div class="goal" id="goalTxt">—</div>
+    <div id="timerTxt">⏱ <span id="timeLeft">20</span> วิ</div>
+    <div id="timerWrap"><div id="timerBar"></div></div>
+
+    <div class="ctl-row" id="methodRow" style="display:none">
+      <button class="mth" id="mthValve"><span class="ic">🎛</span><span class="nm">หรี่วาล์ว</span><span class="st">บีบท่อให้น้ำน้อยลง</span></button>
+      <button class="mth" id="mthVfd"><span class="ic">⚙️</span><span class="nm">ลดรอบมอเตอร์ (VFD)</span><span class="st">หมุนช้าลงทั้งตัว</span></button>
+    </div>
+
+    <div class="spd-box" id="spdBox">
+      <div class="spd-val"><span id="spdVal">100</span><small> % — <span id="spdLabel">รอบมอเตอร์</span></small></div>
+      <input type="range" id="spdSlider" min="40" max="100" step="1" value="100" aria-label="ปรับรอบมอเตอร์หรือวาล์ว">
+      <div id="flowTxt">น้ำไหล: —</div>
+    </div>
+
+    <div id="hintTxt"></div>
+
+    <div class="ctl-row">
+      <button class="big-btn" id="okBtn">โอเค! ✔</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Overlays ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:3rem">🏭⚡</div>
+    <h1>โรงงานหรรษา</h1>
+    <div class="sub">มาตรการไหน "แรง" มาตรการไหน "เบา"? มาหากันในโรงงาน! 🔍</div>
+    <p>ทำให้มิเตอร์โรงงานหมุนช้าที่สุด โดย<b>ของบนสายพานต้องผลิตได้เท่าเดิม</b> 😊</p>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn ghost small" id="howBtn">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- คู่มือวิธีเล่น -->
+<div class="overlay" id="tutOv">
+  <div class="card">
+    <h2>📖 วิธีเล่น</h2>
+    <div id="tutSvgBox">
+      <svg id="tutSvg" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+        <!-- step 1: ผลิตเท่าเดิม ไฟน้อยลง -->
+        <g id="tut0">
+          <rect x="20" y="96" width="260" height="14" rx="7" fill="#5d6b7d"/>
+          <g id="tutBoxes">
+            <rect x="30" y="78" width="26" height="18" rx="3" fill="#d9a05b" stroke="#a8713a" stroke-width="2"/>
+            <rect x="120" y="78" width="26" height="18" rx="3" fill="#d9a05b" stroke="#a8713a" stroke-width="2"/>
+            <rect x="210" y="78" width="26" height="18" rx="3" fill="#d9a05b" stroke="#a8713a" stroke-width="2"/>
+          </g>
+          <text x="150" y="132" font-size="13" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">ของออกเท่าเดิม ✔</text>
+          <text x="60" y="30" font-size="22" text-anchor="middle">⚡</text>
+          <g id="tutShrink"><rect x="90" y="14" width="120" height="20" rx="10" fill="#ef4b4b"/></g>
+          <text x="150" y="52" font-size="12" text-anchor="middle" fill="#1fb45f" font-weight="600" font-family="Mitr,sans-serif">ใช้ไฟน้อยลง!</text>
+        </g>
+        <!-- step 2: มิเตอร์+หน้าผู้จัดการ -->
+        <g id="tut1" style="display:none">
+          <circle cx="80" cy="75" r="34" fill="#e8eef7" stroke="#9fb4cc" stroke-width="4"/>
+          <g id="tutDisc"><rect x="52" y="72" width="56" height="6" rx="3" fill="#ef4b4b"/><circle cx="80" cy="75" r="5" fill="#395a86"/></g>
+          <text x="80" y="128" font-size="12" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">มิเตอร์หมุนช้า = เก่ง</text>
+          <circle cx="215" cy="72" r="30" fill="#ffd9b3" stroke="#e8b27f" stroke-width="3"/>
+          <path d="M186 62 a30 30 0 0 1 58 0 Z" fill="#ffd23f" stroke="#d9a40e" stroke-width="3"/>
+          <circle cx="204" cy="74" r="4" fill="#213047"/><circle cx="226" cy="74" r="4" fill="#213047"/>
+          <path id="tutMouth" d="M204 86 Q215 95 226 86" stroke="#b34a4a" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <text x="215" y="128" font-size="12" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">ผู้จัดการยิ้ม = ผ่าน</text>
+        </g>
+        <!-- step 3: ด่านละอุปกรณ์เดียว -->
+        <g id="tut2" style="display:none">
+          <g id="tutHero0">
+            <circle cx="60" cy="70" r="24" fill="#00c2a8" stroke="#0a8f7c" stroke-width="4"/>
+            <rect x="34" y="48" width="18" height="26" rx="4" fill="#ff8f1c"/>
+            <text x="60" y="118" font-size="12" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">ปั๊มน้ำ</text>
+          </g>
+          <g id="tutHero1">
+            <rect x="120" y="60" width="70" height="10" rx="5" fill="#8a97a8"/>
+            <path class="hissp" d="M152 56 q4 -8 10 -10" stroke="#9fd8ff" stroke-width="3" fill="none"/>
+            <text x="155" y="118" font-size="12" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">ลมรั่ว</text>
+          </g>
+          <g id="tutHero2">
+            <rect x="215" y="60" width="64" height="12" rx="6" fill="#b45309"/>
+            <rect x="228" y="55" width="26" height="22" rx="8" fill="#e8e2d4" stroke="#b9b09a" stroke-width="2"/>
+            <text x="247" y="118" font-size="12" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">ฉนวนท่อ</text>
+          </g>
+          <circle id="tutRing" cx="60" cy="70" r="34" fill="none" stroke="#ff5d8f" stroke-width="4" stroke-dasharray="8 6"/>
+          <text x="150" y="22" font-size="13" text-anchor="middle" fill="#213047" font-weight="600" font-family="Mitr,sans-serif">ด่านละ 1 พระเอก</text>
+        </g>
+        <!-- step 4: โหมดผู้ใหญ่ -->
+        <g id="tut3" style="display:none">
+          <rect x="40" y="40" width="70" height="46" rx="12" fill="#eef3fa" stroke="#9fb4cc" stroke-width="3"/>
+          <text x="75" y="72" font-size="26" text-anchor="middle">👷</text>
+          <g id="tutTap" class="taphint"><circle cx="100" cy="82" r="12" fill="#ff5d8f" opacity=".7"/></g>
+          <rect x="140" y="36" width="130" height="54" rx="10" fill="#14202e"/>
+          <text id="tutBahtTxt" x="205" y="60" font-size="15" font-weight="700" text-anchor="middle" fill="#ffd23f" font-family="Mitr,sans-serif">527,000</text>
+          <text x="205" y="80" font-size="12" text-anchor="middle" fill="#9fd8ff" font-family="Mitr,sans-serif">บาท/ปี</text>
+          <text x="150" y="122" font-size="13" text-anchor="middle" fill="#213047" font-family="Mitr,sans-serif">กด 👷 ดู kW และ บาท/ปี ของจริง</text>
+        </g>
+      </svg>
+    </div>
+    <div id="tutTxt">—</div>
+    <div id="tutDots"><span class="on"></span><span></span><span></span><span></span></div>
+    <div id="tutNav">
+      <button class="big-btn ghost small" id="tutPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="tutNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <h2 id="resTitle">จบด่าน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <p id="resDetail"></p>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.6rem">🏆</div>
+    <h2>เก่งมาก! จบทุกด่านแล้ว</h2>
+    <p>ได้ดาวทั้งหมด <b id="endStars">0</b> / 12 ดวง</p>
+    <div class="lesson">สรุป: มาตรการไหน "แรง" ที่สุดในโรงงาน?</div>
+    <div id="rankBox">
+      <div class="rankbar"><span class="lb">⚙️ VFD ปั๊มน้ำ<br><span class="adnum">22.0 kW ≈ 527,000 บ./ปี</span></span><div class="tr"><div class="fl" data-w="100" style="background:#ef4b4b">แรงสุด!</div></div></div>
+      <div class="rankbar"><span class="lb">💨 อุดลมรั่ว<br><span class="adnum">21.9 kW ≈ 526,000 บ./ปี</span></span><div class="tr"><div class="fl" data-w="99" style="background:#ff8f1c">สูสีมาก!</div></div></div>
+      <div class="rankbar"><span class="lb">🧣 หุ้มฉนวนท่อ<br><span class="adnum">10.8 kWth ≈ 81,000 บ./ปี</span></span><div class="tr"><div class="fl" data-w="22" style="background:#1fb45f">เบากว่า</div></div></div>
+    </div>
+    <p style="margin-top:8px;font-size:.92rem">จำไว้นะ: ก่อนลงมือประหยัด ต้องรู้ก่อนว่า<b>มาตรการไหนแรง</b> — และของต้อง<b>ผลิตได้เท่าเดิม</b>เสมอ!</p>
+    <div style="margin-top:12px"><button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button></div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<style>
+/* tutorial mini-animations */
+@keyframes tutMoveA{from{transform:translateX(0)}to{transform:translateX(90px)}}
+#tutBoxes{animation:tutMoveA 2.2s linear infinite}
+@keyframes tutShrinkA{0%,15%{transform:scaleX(1)}60%,100%{transform:scaleX(.4)}}
+#tutShrink{transform-box:fill-box;transform-origin:left center;animation:tutShrinkA 2.6s ease-in-out infinite alternate}
+@keyframes tutSpinA{to{transform:rotate(360deg)}}
+#tutDisc{transform-box:fill-box;transform-origin:center;animation:tutSpinA 3.2s linear infinite}
+@keyframes tutRingA{0%,28%{transform:translateX(0)}38%,61%{transform:translateX(95px)}71%,100%{transform:translateX(187px)}}
+#tutRing{animation:tutRingA 3.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){#tutBoxes,#tutShrink,#tutDisc,#tutRing{animation:none}}
+</style>
+
+<script>
+/* ═════════ โรงงานหรรษา v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var SVGNS='http://www.w3.org/2000/svg';
+
+/* ── ฟิสิกส์ (สัดส่วนสมจริง อ้างอิงงานตรวจวัด Triple E) ──
+   ปั๊ม 45 kW: affinity P∝n³ → VFD 80% = 45×0.512 = 23.04 kW · หรี่วาล์วที่ flow เดิม ≈ 40.5 kW (ลด ~10%)
+   เครื่องอัดอากาศ: งานจริง 53.1 kW + รั่ว 3×7.3 = 21.9 kW → รวม 75 kW (รั่ว ≈30%)
+   ท่อไอน้ำเปลือย 4 kW_th/ช่วง · หุ้มแล้ว 0.4 (10 เท่า) · หม้อไอน้ำ η 80% · เชื้อเพลิง 1.0 บ./kWh_th
+   ค่าไฟ TOU เฉลี่ย 4.0 บ./kWh · 6,000 ชม./ปี · โหลดอื่น (สายพาน+ไฟแสงสว่าง) 10 kW */
+var PH={PUMP:45,COMP_USE:53.1,LEAK:7.3,NLEAK:3,BARE:4,INS:0.4,NBARE:3,
+        OTHER:10,BOIL_EFF:0.8,FUELP:1.0,TARIFF:4.0,HOURS:6000};
+
+/* ── สถานะเกม ── */
+var S={method:null,spd:100,vlv:50,leaks:[true,true,true],bare:[true,true,true],decoyWrapped:false,
+       canPump:false,canLeak:false,canWrap:false,decoyEver:false};
+function pumpKW(){
+  if(S.method==='vfd')return PH.PUMP*Math.pow(S.spd/100,3);
+  if(S.method==='valve')return PH.PUMP*(0.90+0.10*S.vlv/100);
+  return PH.PUMP;                                  /* สภาพเดิม: วาล์วหรี่ มอเตอร์เต็มสปีด */
+}
+function pumpFlow(){
+  if(S.method==='vfd')return S.spd;                /* วาล์วเปิดเต็ม flow ∝ รอบ */
+  if(S.method==='valve')return Math.min(120,30+S.vlv);
+  return 80;                                        /* สภาพเดิมได้ flow เป้าพอดี (แต่เปลืองไฟ) */
+}
+function leakKW(){var n=0;for(var i=0;i<3;i++)if(S.leaks[i])n++;return n*PH.LEAK;}
+function compKW(){return PH.COMP_USE+leakKW();}
+function heatTH(){var h=0;for(var i=0;i<3;i++)h+=S.bare[i]?PH.BARE:PH.INS;return h;}
+function elecKW(){return pumpKW()+compKW()+PH.OTHER;}
+function totalEq(){return elecKW()+heatTH();}
+function bahtHr(){return elecKW()*PH.TARIFF+heatTH()/PH.BOIL_EFF*PH.FUELP;}
+var EQ_MIN=PH.PUMP*0.512+PH.COMP_USE+PH.OTHER+3*PH.INS;      /* ≈ 87.3 ทำดีทุกอย่าง */
+var EQ_MAX=PH.PUMP+PH.COMP_USE+3*PH.LEAK+PH.OTHER+3*PH.BARE; /* = 142 พังทุกอย่าง */
+function prodOK(){var f=pumpFlow();return f>=78;}
+function flowGood(){var f=pumpFlow();return f>=78&&f<=82;}
+
+var level=0, stars=[0,0,0,0], locked=false, started=false;
+var bonus={on:false,t:40,used:0,best:0,worst:0};
+var l2={t:20,elapsed:0,int:null};
+var discAng=0, kwhShown=0, lastTs=0, boxOff=0, arrowOff=0;
+
+/* ── เสียง Web Audio ── */
+var AC=null, sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.07,'square',0.08);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sTick(){tone(1000,0,0.04,'square',0.05);}
+function sPlug(){tone(300,0,0.08,'square',0.12);tone(600,0.07,0.1,'sine',0.15);}
+function sHiss(){var a=audio();if(!a||!sndOn)return;var len=a.sampleRate*0.18,buf=a.createBuffer(1,len,a.sampleRate),d=buf.getChannelData(0);
+  for(var i=0;i<len;i++)d[i]=(Math.random()*2-1)*(1-i/len)*0.25;
+  var src=a.createBufferSource(),g=a.createGain();g.gain.value=0.07;src.buffer=buf;src.connect(g);g.connect(a.destination);src.start();}
+
+/* ── localStorage ── */
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_game_factory_stars')||'[]');for(var i=0;i<4;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_game_factory_stars',JSON.stringify(stars));}catch(e){}}
+function seenTut(){try{return localStorage.getItem('te_game_factory_seen')==='1';}catch(e){return true;}}
+function markTut(){try{localStorage.setItem('te_game_factory_seen','1');}catch(e){}}
+
+/* ── สร้างจุดรั่ว / ช่วงท่อ / กล่องสายพาน (dynamic SVG) ── */
+var LEAK_X=[250,450,680], leakEls=[];
+function buildLeaks(){
+  var g=$('leaksG');
+  LEAK_X.forEach(function(x,i){
+    var grp=document.createElementNS(SVGNS,'g');
+    grp.innerHTML=
+      '<rect x="'+(x-9)+'" y="125" width="18" height="14" rx="3" fill="#46525f"/>'+
+      '<g class="hissG" stroke="#4da3e8" stroke-width="5" fill="none" stroke-linecap="round">'+
+        '<path class="hissp" d="M'+(x-6)+' 122 q-4 -10 -10 -14"/>'+
+        '<path class="hissp" style="animation-delay:.17s" d="M'+x+' 120 q0 -12 -2 -18"/>'+
+        '<path class="hissp" style="animation-delay:.34s" d="M'+(x+6)+' 122 q6 -10 12 -13"/>'+
+      '</g>'+
+      '<g class="plugG" opacity="0"><rect x="'+(x-13)+'" y="119" width="26" height="26" rx="7" fill="#ff8f1c" stroke="#d9720e" stroke-width="3"/>'+
+        '<line x1="'+(x-6)+'" y1="132" x2="'+(x-1)+'" y2="138" stroke="#fff" stroke-width="3" stroke-linecap="round"/>'+
+        '<line x1="'+(x-1)+'" y1="138" x2="'+(x+8)+'" y2="126" stroke="#fff" stroke-width="3" stroke-linecap="round"/></g>'+
+      '<circle class="taphint" cx="'+x+'" cy="132" r="22" fill="none" stroke="#ff5d8f" stroke-width="4" stroke-dasharray="7 5"/>'+
+      '<circle class="leakHit" data-i="'+i+'" cx="'+x+'" cy="132" r="48" fill="#fff" opacity="0"/>';
+    g.appendChild(grp);leakEls.push(grp);
+  });
+}
+var BARE_SEG=[{x:220,w:60},{x:380,w:60},{x:540,w:60}], bareEls=[];
+var DECOY={x:600,w:70};
+function buildPipes(){
+  var g=$('pipesG');
+  BARE_SEG.forEach(function(sg,i){
+    var grp=document.createElementNS(SVGNS,'g'),x=sg.x,w=sg.w;
+    grp.innerHTML=
+      '<g class="bareG"><rect class="hotglow" x="'+x+'" y="178" width="'+w+'" height="18" rx="8" fill="#ff5d3c"/>'+
+        '<rect x="'+x+'" y="181" width="'+w+'" height="5" rx="2.5" fill="#ffd23f" opacity=".7"/>'+
+        '<g stroke="#ffb38a" stroke-width="4" fill="none" stroke-linecap="round">'+
+          '<path class="steamp" d="M'+(x+14)+' 174 q4 -10 0 -18"/>'+
+          '<path class="steamp" style="animation-delay:.4s" d="M'+(x+w/2)+' 172 q-4 -10 0 -18"/>'+
+          '<path class="steamp" style="animation-delay:.8s" d="M'+(x+w-14)+' 174 q4 -10 0 -18"/></g></g>'+
+      '<g class="wrapG" opacity="0"><rect x="'+(x-5)+'" y="173" width="'+(w+10)+'" height="28" rx="10" fill="#e8e2d4" stroke="#b9b09a" stroke-width="3"/>'+
+        '<line x1="'+(x+12)+'" y1="174" x2="'+(x+12)+'" y2="200" stroke="#b9b09a" stroke-width="2.5"/>'+
+        '<line x1="'+(x+w-12)+'" y1="174" x2="'+(x+w-12)+'" y2="200" stroke="#b9b09a" stroke-width="2.5"/></g>'+
+      '<circle class="taphint" cx="'+(x+w/2)+'" cy="187" r="24" fill="none" stroke="#ff5d8f" stroke-width="4" stroke-dasharray="7 5"/>'+
+      '<rect class="pipeHit" data-p="'+i+'" x="'+(x-10)+'" y="150" width="'+(w+20)+'" height="72" fill="#fff" opacity="0"/>';
+    g.appendChild(grp);bareEls.push(grp);
+  });
+  var d=document.createElementNS(SVGNS,'g'),dx=DECOY.x,dw=DECOY.w;
+  d.innerHTML=
+    '<rect x="'+dx+'" y="226" width="'+dw+'" height="14" rx="7" fill="#9fd8ff" stroke="#4aa8ff" stroke-width="2"/>'+
+    '<g class="dropG" fill="#2d8fe0">'+
+      '<path class="sweatd" d="M'+(dx+16)+' 243 q-6 11 0 15 q7 -4 0 -15"/>'+
+      '<path class="sweatd" style="animation-delay:.6s" d="M'+(dx+dw/2)+' 245 q-6 11 0 15 q7 -4 0 -15"/>'+
+      '<path class="sweatd" style="animation-delay:1.1s" d="M'+(dx+dw-16)+' 243 q-6 11 0 15 q7 -4 0 -15"/></g>'+
+    '<g class="wrapG" opacity="0"><rect x="'+(dx-5)+'" y="222" width="'+(dw+10)+'" height="24" rx="10" fill="#dfe6ee" stroke="#9fb4cc" stroke-width="3"/>'+
+      '<line x1="'+(dx+14)+'" y1="223" x2="'+(dx+14)+'" y2="245" stroke="#9fb4cc" stroke-width="2.5"/>'+
+      '<line x1="'+(dx+dw-14)+'" y1="223" x2="'+(dx+dw-14)+'" y2="245" stroke="#9fb4cc" stroke-width="2.5"/></g>'+
+    '<rect class="pipeHit" data-p="d" x="'+(dx-10)+'" y="208" width="'+(dw+20)+'" height="54" fill="#fff" opacity="0"/>';
+  $('pipesG').appendChild(d);bareEls.decoy=d;
+}
+var NBOX=6;
+function buildBoxes(){
+  var g=$('boxesG');
+  for(var i=0;i<NBOX;i++){
+    var b=document.createElementNS(SVGNS,'g');
+    b.innerHTML='<rect x="-15" y="-22" width="30" height="22" rx="4" fill="#d9a05b" stroke="#a8713a" stroke-width="3"/>'+
+      '<line x1="0" y1="-22" x2="0" y2="0" stroke="#a8713a" stroke-width="2.5"/>';
+    g.appendChild(b);
+  }
+}
+
+/* ── render: ผูกสถานะเกม → ภาพ ── */
+function nLeakOpen(){var n=0;for(var i=0;i<3;i++)if(S.leaks[i])n++;return n;}
+function nBareOpen(){var n=0;for(var i=0;i<3;i++)if(S.bare[i])n++;return n;}
+function render(){
+  var fl=pumpFlow(),ek=elecKW(),ht=heatTH(),eq=totalEq();
+  /* ปั๊ม: วาล์ว + VFD + พัดลม */
+  var vOpen=(S.method==='vfd')?100:(S.method==='valve'?S.vlv:50);
+  $('valveTag').textContent=(S.method==='vfd')?'วาล์วเปิดเต็ม':'วาล์วหรี่ '+(100-vOpen)+'%';
+  $('valveWheel').setAttribute('fill',vOpen>=95?'#1fb45f':'#ef4b4b');
+  $('vfdBox').setAttribute('opacity',S.method==='vfd'?'1':'0');
+  var spd=(S.method==='vfd')?S.spd:100;
+  $('pumpFan').style.animationDuration=(60/spd).toFixed(2)+'s';
+  /* มาตรวัดน้ำ: 0–120 → −120°..+120° */
+  $('flowNeedle').setAttribute('transform','rotate('+(-120+Math.min(120,fl)*2)+' 378 256)');
+  /* จุดรั่วลม */
+  for(var i=0;i<3;i++){
+    var le=leakEls[i];
+    le.querySelector('.hissG').setAttribute('opacity',S.leaks[i]?'1':'0');
+    le.querySelector('.plugG').setAttribute('opacity',S.leaks[i]?'0':'1');
+    le.querySelector('.taphint').style.display=(S.leaks[i]&&S.canLeak)?'':'none';
+    le.querySelector('.leakHit').style.pointerEvents=(S.leaks[i]&&S.canLeak)?'auto':'none';
+    var be=bareEls[i];
+    be.querySelector('.bareG').setAttribute('opacity',S.bare[i]?'1':'0');
+    be.querySelector('.wrapG').setAttribute('opacity',S.bare[i]?'0':'1');
+    be.querySelector('.taphint').style.display=(S.bare[i]&&S.canWrap)?'':'none';
+    be.querySelector('.pipeHit').style.pointerEvents=(S.bare[i]&&S.canWrap)?'auto':'none';
+  }
+  var de=bareEls.decoy;
+  de.querySelector('.wrapG').setAttribute('opacity',S.decoyWrapped?'1':'0');
+  de.querySelector('.dropG').setAttribute('opacity',S.decoyWrapped?'0':'1');
+  de.querySelector('.pipeHit').style.pointerEvents=S.canWrap?'auto':'none';
+  $('compFan').style.animationDuration=(1.25-0.25*nLeakOpen()).toFixed(2)+'s';
+  /* หม้อไอน้ำ: เปลวสีแดงจัดเมื่อสูญความร้อนมาก */
+  $('boilFlame').setAttribute('fill',ht>6?'#ff5d3c':'#ff9f1c');
+  /* สีหน้าผู้จัดการ */
+  var frac=Math.max(0,Math.min(1,(eq-EQ_MIN)/(EQ_MAX-EQ_MIN)));
+  var pOK=prodOK(), m=$('mgrMouth');
+  if(!pOK){ m.setAttribute('d','M306 318 Q320 306 334 318'); $('mgrSweat').setAttribute('opacity','1'); }
+  else if(frac<0.25){ m.setAttribute('d','M306 310 Q320 324 334 310'); $('mgrSweat').setAttribute('opacity','0'); }
+  else if(frac<0.6){ m.setAttribute('d','M308 314 L332 314'); $('mgrSweat').setAttribute('opacity','0'); }
+  else { m.setAttribute('d','M306 318 Q320 308 334 318'); $('mgrSweat').setAttribute('opacity','1'); }
+  $('prodWarn').classList.toggle('show',!pOK);
+  /* มิเตอร์: สี + zap */
+  $('meterDigits').setAttribute('fill',frac<0.33?'#7CFC9A':(frac<0.66?'#ffd23f':'#ff7a7a'));
+  $('speedZap').setAttribute('opacity',frac>0.72?'1':'0');
+  /* flow text */
+  var ftx=$('flowTxt');
+  if(S.method===null){ftx.textContent='น้ำไหล: ตามเดิม (เป้า)';ftx.className='';}
+  else if(fl<78){ftx.textContent='น้ำไหล: น้อยไป! ของจะผลิตไม่ทัน ⚠';ftx.className='low';}
+  else if(fl<=82){ftx.textContent='น้ำไหล: พอดีเป้า ✔';ftx.className='ok';}
+  else {ftx.textContent='น้ำไหล: เกินเป้า — เปลืองเปล่า ๆ';ftx.className='high';}
+  /* adult bar */
+  $('abKW').textContent=ek.toFixed(1);
+  $('abTH').textContent=ht.toFixed(1);
+  var bh=bahtHr();
+  $('abBaht').textContent=bh.toFixed(0);
+  $('abYear').textContent=Math.round(bh*PH.HOURS).toLocaleString('en-US');
+  return {eq:eq,frac:frac,fl:fl,pOK:pOK};
+}
+
+/* ── animation loop: มิเตอร์หมุน + สายพานวิ่ง ── */
+function loop(ts){
+  if(!lastTs)lastTs=ts;
+  var dt=Math.min(0.1,(ts-lastTs)/1000); lastTs=ts;
+  var eq=totalEq();
+  discAng=(discAng+eq*2.4*dt)%360;
+  $('meterDisc').setAttribute('transform','rotate('+discAng.toFixed(1)+' 103 212)');
+  kwhShown+=eq*dt*0.12;
+  $('meterDigits').textContent=('00000'+Math.floor(kwhShown)).slice(-5);
+  /* สายพาน: ช้าลงถ้าผลิตไม่ทัน */
+  var spd=prodOK()?52:14;
+  boxOff=(boxOff+spd*dt)%130;
+  var boxes=$('boxesG').children;
+  for(var i=0;i<boxes.length;i++){
+    var x=66+((i*130+boxOff)%(130*NBOX));
+    if(x<790)boxes[i].setAttribute('transform','translate('+x.toFixed(1)+' 420)');
+    else boxes[i].setAttribute('transform','translate(-99 -99)');
+  }
+  /* ลูกศรน้ำในท่อ: เร็วตาม flow */
+  arrowOff=(arrowOff+pumpFlow()*0.5*dt)%60;
+  $('flowArrows').setAttribute('transform','translate('+arrowOff.toFixed(1)+' 0)');
+  if(bonus.on){ bonus.used+=eq*dt; }
+  requestAnimationFrame(loop);
+}
+
+/* ── speech bubble ── */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');
+  clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2600);}
+
+function show(id,on){$(id).style.display=on?'':'none';}
+
+/* ── ด่าน ── */
+function resetAllGood(){S.method='vfd';S.spd=80;S.vlv=50;S.leaks=[false,false,false];S.bare=[false,false,false];
+  S.decoyWrapped=false;S.decoyEver=false;S.canPump=false;S.canLeak=false;S.canWrap=false;}
+var LEVELS=[
+ {name:'ด่าน 1 · ปั๊มน้ำจอมพลัง 🚰', icon:'🚰',
+  goal:'ปั๊มเดิม "วาล์วหรี่ แต่มอเตอร์เต็มสปีด" — เลือกวิธีประหยัด แล้วเลื่อนให้เข็มน้ำชี้แถบเขียวพอดี จากนั้นกด โอเค!',
+  setup:function(){resetAllGood();S.method=null;S.spd=100;S.canPump=true;
+    show('methodRow',true);$('spdBox').classList.remove('show');show('okBtn',true);
+    $('mthValve').classList.remove('sel');$('mthVfd').classList.remove('sel');
+    $('hintTxt').textContent='คิดดูนะ: บีบท่อ กับ หมุนช้าลงทั้งตัว อันไหนประหยัดกว่ากัน?';}},
+ {name:'ด่าน 2 · ตามล่าลมรั่ว 💨', icon:'💨',
+  goal:'ฟังเสียงฟู่! ท่อลมรั่ว 3 จุด 👆 จิ้มอุดให้ครบภายใน 20 วินาที!',
+  setup:function(){resetAllGood();S.leaks=[true,true,true];S.canLeak=true;
+    show('methodRow',false);$('spdBox').classList.remove('show');show('okBtn',false);
+    $('hintTxt').textContent='ลมอัดแพงมาก — รูเล็กนิดเดียวก็กินไฟทั้งวันทั้งคืน';startL2Timer();}},
+ {name:'ด่าน 3 · หุ้มฉนวนท่อร้อน 🧣', icon:'🧣',
+  goal:'ท่อไอน้ำเปลือย 3 ช่วงร้อนแดง 👆 จิ้มหุ้มฉนวน — แต่ระวัง! ท่อน้ำเย็นไม่ต้องหุ้มนะ',
+  setup:function(){resetAllGood();S.bare=[true,true,true];S.canWrap=true;
+    show('methodRow',false);$('spdBox').classList.remove('show');show('okBtn',false);
+    $('hintTxt').textContent='ท่อเปลือยปล่อยความร้อนทิ้งมากกว่าท่อหุ้มฉนวนถึง ~10 เท่า';}},
+ {name:'ด่านโบนัส · ผู้จัดการมือทอง 🦸', icon:'🦸',
+  goal:'มี 40 วินาที! ทั้งสามระบบรวนพร้อมกัน — จัดการให้มิเตอร์ช้าสุด โดยสายพานต้องวิ่งเท่าเดิม!',
+  setup:function(){resetAllGood();S.method=null;S.spd=100;S.leaks=[true,true,true];S.bare=[true,true,true];
+    S.canPump=true;S.canLeak=true;S.canWrap=true;
+    show('methodRow',true);$('spdBox').classList.remove('show');show('okBtn',false);
+    $('mthValve').classList.remove('sel');$('mthVfd').classList.remove('sel');
+    $('hintTxt').textContent='เริ่มจากมาตรการที่ "แรง" ที่สุดก่อน!';startBonus();}}
+];
+
+/* ── timer ด่าน 2 (20 วิ 3 ดาว · เพดาน 40 วิ) ── */
+function startL2Timer(){
+  l2.t=20;l2.elapsed=0;clearInterval(l2.int);
+  $('timerWrap').style.display='block';$('timerTxt').style.display='block';
+  $('timeLeft').textContent='20';$('timerBar').style.width='100%';
+  l2.int=setInterval(function(){
+    l2.elapsed++;var left=Math.max(0,20-l2.elapsed);
+    $('timeLeft').textContent=left;$('timerBar').style.width=(left/20*100)+'%';
+    if(left<=5&&left>0)sTick();
+    if(nLeakOpen()>0&&sndOn)sHiss();
+    if(l2.elapsed>=40){clearInterval(l2.int);finishLevel();}
+  },1000);
+}
+/* ── timer โบนัส 40 วิ ── */
+var bonusInt=null;
+function startBonus(){
+  bonus.on=true;bonus.t=40;bonus.used=0;
+  bonus.best=EQ_MIN*40;bonus.worst=EQ_MAX*40;
+  $('timerWrap').style.display='block';$('timerTxt').style.display='block';
+  $('timeLeft').textContent='40';$('timerBar').style.width='100%';
+  clearInterval(bonusInt);
+  bonusInt=setInterval(function(){
+    bonus.t--;$('timeLeft').textContent=bonus.t;
+    $('timerBar').style.width=(bonus.t/40*100)+'%';
+    if(bonus.t<=5&&bonus.t>0)sTick();
+    if(bonus.t<=0){clearInterval(bonusInt);finishLevel();}
+  },1000);
+}
+
+function startLevel(i){
+  level=i;locked=false;bonus.on=false;clearInterval(bonusInt);clearInterval(l2.int);
+  show('timerWrap',false);$('timerTxt').style.display='none';
+  LEVELS[i].setup();
+  $('lvlName').textContent=LEVELS[i].name;
+  $('goalTxt').textContent=LEVELS[i].goal;
+  render();
+  say(i===0?'มอเตอร์คำรามเต็มสปีด แต่วาล์วบีบไว้ครึ่งเดียว!? 🤔':
+      i===1?'ฟู่ว~ ฟู่ว~ ได้ยินไหม ลมรั่ว 3 จุด! 💸':
+      i===2?'ท่อร้อนแดงเถือก ความร้อนลอยหนีไปหมด! 🥵':'ทุกอย่างรวนพร้อมกัน ช่วยด้วย! 🚨',3200);
+}
+
+/* ── ให้ดาว ── */
+function evalStars(){
+  var r=render();
+  if(level===0){
+    if(S.method==='vfd'&&flowGood())return {st:3,lesson:'สุดยอด! ลดรอบมอเตอร์เหลือ 80% น้ำไหลเท่าเดิม แต่ไฟเหลือแค่ครึ่งเดียว!',
+      detail:'กฎกำลังสาม: รอบ 80% → ไฟ 0.8×0.8×0.8 ≈ 51% (45 → 23 kW) ส่วนหรี่วาล์วลดได้ไม่ถึง 10%'};
+    if(S.method==='vfd'&&r.fl>82)return {st:2,lesson:'เลือก VFD ถูกแล้ว! แต่รอบยังสูงไป น้ำไหลเกินเป้า — ลดให้เข็มชี้แถบเขียวพอดี',detail:''};
+    if(S.method==='vfd')return {st:1,lesson:'ประหยัดเกินไปจนน้ำไม่พอ ของผลิตไม่ทัน! ประหยัดได้ แต่ต้องผลิตเท่าเดิมนะ',detail:'เลื่อนรอบขึ้นให้เข็มชี้แถบเขียว'};
+    if(S.method==='valve'&&flowGood())return {st:2,lesson:'น้ำพอดีเป้า แต่หรี่วาล์วก็เหมือนบีบสายยางทั้งที่เครื่องยังวิ่งเต็มแรง — ลดไฟได้นิดเดียว',
+      detail:'ลอง "ลดรอบมอเตอร์ (VFD)" ดูสิ ไฟจะลดฮวบเลย'};
+    return {st:1,lesson:'ยังไม่เข้าเป้า — เลือกวิธี แล้วเลื่อนให้เข็มชี้แถบเขียวพอดี',detail:'ตัวช่วย: วิธีที่ "แรง" คือลดรอบมอเตอร์'};
+  }
+  if(level===1){
+    var plugged=nLeakOpen()===0;
+    if(plugged&&l2.elapsed<=20)return {st:3,lesson:'ไวมาก! อุดครบ 3 จุด — ลมรั่วกินไฟเกือบ 1 ใน 3 ของเครื่องอัดอากาศเลยนะ',
+      detail:'รั่ว 3 จุด ≈ 21.9 kW จากทั้งหมด 75 kW (~30%) ทั้งที่ไม่ได้ใช้งานอะไรเลย'};
+    if(plugged)return {st:2,lesson:'อุดครบแล้ว! แต่ช้าไปหน่อย — ทุกวินาทีที่รั่ว เงินไหลทิ้งตลอด',detail:'ลองใหม่ให้ทันใน 20 วิ'};
+    return {st:1,lesson:'หมดเวลา! ยังรั่วอยู่ '+nLeakOpen()+' จุด — ลมรั่วคือเงินที่หายไปเงียบ ๆ ทุกวัน',detail:'จิ้มตรงวงสีชมพูให้ครบ'};
+  }
+  if(level===2){
+    var done=nBareOpen()===0;
+    if(done&&!S.decoyEver)return {st:3,lesson:'เยี่ยม! หุ้มถูกเส้น — ท่อร้อนเปลือยสูญความร้อน ~10 เท่าของท่อหุ้มฉนวน',
+      detail:'และไม่หลงหุ้มท่อน้ำเย็น ซึ่งไม่ช่วยประหยัดเชื้อเพลิงเลย'};
+    if(done)return {st:2,lesson:'หุ้มท่อร้อนครบแล้ว แต่เผลอหุ้มท่อน้ำเย็นด้วย — เสียเงินฉนวนฟรี ไม่ได้ลดเชื้อเพลิง',
+      detail:'ฉนวนกันความร้อน ใช้กับ "ท่อร้อน" เป็นหลัก'};
+    return {st:1,lesson:'ยังมีท่อร้อนเปลือยอยู่ '+nBareOpen()+' ช่วง — ความร้อนกำลังลอยหนี!',detail:'จิ้มช่วงที่เรืองแดงให้ครบ'};
+  }
+  var saveFrac=(bonus.worst-bonus.used)/(bonus.worst-bonus.best);
+  saveFrac=Math.max(0,Math.min(1,saveFrac));
+  var perfect=saveFrac>0.78&&flowGood()&&!S.decoyWrapped&&nLeakOpen()===0&&nBareOpen()===0;
+  var st=perfect?3:(saveFrac>0.5&&prodOK()?2:1);
+  return {st:st,lesson:st===3?'ผู้จัดการมือทองตัวจริง! ประหยัดเกือบเต็มที่ และสายพานยังวิ่งฉิว 😊':
+    (st===2?'เยี่ยม! จำลำดับไว้นะ: VFD ปั๊ม → อุดลมรั่ว → หุ้มฉนวน':'หมดเวลา! เริ่มจากมาตรการแรงสุดก่อน: VFD ปั๊ม → อุดลมรั่ว → หุ้มฉนวน'),
+    detail:'คะแนนประหยัด: '+Math.round(saveFrac*100)+'%'+(prodOK()?'':' · แต่ของผลิตไม่ทัน!')};
+}
+
+/* ── จบด่าน ── */
+function finishLevel(){
+  if(locked)return; locked=true; bonus.on=false;
+  clearInterval(bonusInt);clearInterval(l2.int);
+  var r=evalStars();
+  if(r.st>stars[level]){stars[level]=r.st;saveStars();}
+  updateStarTotal();
+  $('resTitle').textContent=LEVELS[level].name;
+  $('resLesson').textContent=r.lesson;
+  $('resDetail').textContent=r.detail||'';
+  var ss=$('resStars').children;
+  for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(r.st>=2)sGood();else sBad();
+  for(let i=0;i<r.st;i++)setTimeout(function(){ss[i].classList.add('on');sStar(i);},350+i*380);
+  if(r.st===3)confetti(26);
+  $('nextBtn').textContent=level<3?'ด่านต่อไป ➜':'ดูสรุป 🏆';
+}
+function updateStarTotal(){var t=stars[0]+stars[1]+stars[2]+stars[3];$('starTotal').textContent=t;return t;}
+
+function confetti(n){var cols=['#ff5d8f','#ffd23f','#00c2a8','#7b5bff','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ── ปุ่ม / อีเวนต์ ── */
+function chooseMethod(mth){
+  if(!S.canPump||locked)return;
+  S.method=mth;sClick();
+  $('mthValve').classList.toggle('sel',mth==='valve');
+  $('mthVfd').classList.toggle('sel',mth==='vfd');
+  var sl=$('spdSlider');
+  if(mth==='vfd'){sl.min=40;sl.max=100;sl.value=S.spd;$('spdLabel').textContent='รอบมอเตอร์';$('spdVal').textContent=S.spd;
+    say('ติด VFD แล้ว! ลองลดรอบดู มิเตอร์จะช้าลงฮวบ ๆ ⚙️');}
+  else{sl.min=30;sl.max=100;sl.value=S.vlv;$('spdLabel').textContent='เปิดวาล์ว';$('spdVal').textContent=S.vlv;
+    say('หมุนวาล์วดู… เอ๊ะ มิเตอร์แทบไม่เปลี่ยนเลยนะ 🤔');}
+  $('spdBox').classList.add('show');render();
+}
+$('mthValve').addEventListener('click',function(){chooseMethod('valve');});
+$('mthVfd').addEventListener('click',function(){chooseMethod('vfd');});
+$('spdSlider').addEventListener('input',function(){
+  var v=+this.value;if(S.method==='vfd')S.spd=v;else S.vlv=v;
+  $('spdVal').textContent=v;sClick();render();});
+
+$('scene').addEventListener('click',function(e){
+  var t=e.target;
+  if(t.classList&&t.classList.contains('leakHit')){
+    var i=+t.dataset.i;
+    if(!S.canLeak||locked||!S.leaks[i])return;
+    S.leaks[i]=false;sPlug();render();
+    var left=nLeakOpen();
+    say(left?'อุดได้ 1 จุด! เหลืออีก '+left+' จุด 💪':'อุดครบแล้ว! มิเตอร์ช้าลงเห็น ๆ ✔');
+    if(left===0&&level===1)setTimeout(finishLevel,600);
+  }
+  if(t.classList&&t.classList.contains('pipeHit')){
+    if(!S.canWrap||locked)return;
+    var p=t.dataset.p;
+    if(p==='d'){
+      if(!S.decoyWrapped){S.decoyWrapped=true;S.decoyEver=true;sBad();
+        say('โอ๊ะ! นั่นท่อน้ำเย็น ไม่ได้ร้อน หุ้มไปก็ไม่ช่วยประหยัด — จิ้มอีกทีเพื่อเอาออก',3400);}
+      else{S.decoyWrapped=false;sClick();say('เอาฉนวนออกจากท่อน้ำเย็นแล้ว ถูกต้อง ✔');}
+      render();return;
+    }
+    var bi=+p;if(!S.bare[bi])return;
+    S.bare[bi]=false;sPlug();render();
+    var bleft=nBareOpen();
+    say(bleft?'หุ้มแล้ว 1 ช่วง! เหลืออีก '+bleft+' ช่วง 🧣':'หุ้มครบทุกช่วง! ความร้อนไม่หนีแล้ว ✔');
+    if(bleft===0&&level===2)setTimeout(finishLevel,600);
+  }
+});
+
+$('okBtn').addEventListener('click',function(){audio();if(level===0)finishLevel();});
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(level);});
+$('nextBtn').addEventListener('click',function(){
+  $('resultOv').classList.remove('show');
+  if(level<3)startLevel(level+1);
+  else{$('endStars').textContent=updateStarTotal();$('endOv').classList.add('show');
+    setTimeout(function(){var fs=document.querySelectorAll('#rankBox .fl');
+      fs.forEach(function(f){f.style.width=f.dataset.w+'%';});},250);
+    confetti(40);sGood();}
+});
+$('againBtn').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('playBtn').addEventListener('click',function(){audio();sGood();started=true;$('startOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('adultBtn').addEventListener('click',function(){document.body.classList.toggle('adult');this.classList.toggle('on');sClick();});
+
+/* ── คู่มือวิธีเล่น ── */
+var TUT=[
+ 'โรงงานเราต้องผลิตของได้ "เท่าเดิม" 📦 แต่ใช้พลังงานให้น้อยลง!',
+ 'มิเตอร์หมุนช้า + ผู้จัดการยิ้ม 😊 = เราทำถูกทาง',
+ 'แต่ละด่านมี "พระเอก" เครื่องเดียว: ปั๊มน้ำ → ลมรั่ว → ฉนวนท่อ แล้วค่อยรวมร่างด่านโบนัส',
+ 'กดปุ่ม 👷 มุมขวาบน ดูตัวเลขจริง: kW และ บาท/ปี ของแต่ละมาตรการ'];
+var tutStep=0;
+function showTutStep(i){
+  tutStep=i;
+  for(var k=0;k<4;k++)$('tut'+k).style.display=(k===i)?'':'none';
+  var dots=$('tutDots').children;
+  for(var d=0;d<4;d++)dots[d].classList.toggle('on',d===i);
+  $('tutTxt').textContent=TUT[i];
+  $('tutPrev').style.visibility=i===0?'hidden':'visible';
+  $('tutNext').textContent=i===3?'เริ่มเล่นเลย! 🚀':'ถัดไป ▶';
+}
+function openTut(){showTutStep(0);$('tutOv').classList.add('show');}
+$('tutPrev').addEventListener('click',function(){sClick();if(tutStep>0)showTutStep(tutStep-1);});
+$('tutNext').addEventListener('click',function(){
+  audio();sClick();
+  if(tutStep<3){showTutStep(tutStep+1);return;}
+  markTut();$('tutOv').classList.remove('show');
+  if(!started){started=true;$('startOv').classList.remove('show');sGood();startLevel(0);}
+});
+$('helpBtn').addEventListener('click',function(){audio();sClick();openTut();});
+$('howBtn').addEventListener('click',function(){audio();sClick();openTut();});
+
+/* เลือกด่านจากหน้าแรก */
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<4;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.3rem">'+LEVELS[i].icon+'</span><span class="nm">ด่าน '+(i<3?(i+1):'โบนัส')+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();started=true;$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();
+buildLeaks();buildPipes();buildBoxes();
+resetAllGood();S.method=null;render();
+show('methodRow',false);show('okBtn',false);$('hintTxt').textContent='';
+requestAnimationFrame(loop);
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+if(!seenTut())setTimeout(openTut,500);
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

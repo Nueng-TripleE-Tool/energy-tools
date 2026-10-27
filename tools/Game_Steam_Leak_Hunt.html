@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>เกมล่าไอน้ำรั่ว — Energy Sense Games</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "ล่าไอน้ำรั่ว" (Steam Leak Hunt) v0.1 — Energy Sense Games · Triple E Technology
+     หลักที่สอน: ไอน้ำรั่วและกับดักไอน้ำ (steam trap) เสีย = เงินที่ลอยหายไปทุกนาที ยิ่งเจอเร็วยิ่งประหยัด
+     วิธีตรวจจริงของช่าง: หูฟัง/ultrasonic ไล่เสียงฟู่ + กล้องความร้อนหาจุดร้อน(รั่ว/trap เปิดค้าง) และจุดเย็น(trap ตัน)
+     ฟิสิกส์เบื้องหลัง (สูตร Napier สำหรับไอน้ำไหลผ่านรูสู่บรรยากาศ):
+       ṁ [kg/h] = 0.5245 × A[mm²] × P_abs[bar]   (จาก ṁ[lb/s] = A[in²]·P[psia]/70)
+       รูรั่ว 3 มม. ที่ 7 bar g (P_abs=8.013 bar): A=7.0686 mm² → ṁ ≈ 29.7 ≈ 30 kg/h
+       ไอน้ำ ~1.2 บาท/kg → 30 kg/h × 8,760 ชม./ปี × 1.2 ≈ 315,000 บาท/ปี (≈ 3 แสนบาท/รูเดียว)
+       trap เปิดค้าง (failed open) เสียไอน้ำ ~15–50 kg/h · trap ตัน (blocked) = น้ำขัง เสี่ยง water hammer -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sky2:#cdeaff;
+  --sun:#ffd23f; --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff;
+  --good:#1fb45f; --mid:#f5a623; --bad:#ef4b4b;
+  --steel:#9fb4cc; --wall:#eef4fa;
+  --btn-grad:linear-gradient(135deg,#ff5d8f,#ff8f1c);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,var(--sky1),var(--sky2) 48%,#dde8f2 49%,#c7d6e6);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:860px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.88);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(33,48,71,.15);backdrop-filter:blur(4px)}
+#hud .lvl-name{font-weight:600;font-size:1.0rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 10px;min-height:38px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink)}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Scene (scrollable factory) ───── */
+#sceneOuter{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(33,48,71,.18);border:4px solid #fff;background:#dfe9f3}
+#sceneWrap{overflow-x:auto;overflow-y:hidden;touch-action:none;scrollbar-width:none;-ms-overflow-style:none}
+#sceneWrap::-webkit-scrollbar{display:none}
+#scene{display:block;width:1405px;height:430px}
+@media (max-width:480px){ #scene{width:1150px;height:352px} }
+
+.scrollArrow{position:absolute;top:50%;transform:translateY(-50%);z-index:6;border:none;cursor:pointer;
+  width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.85);color:var(--ink);
+  font-size:1.2rem;box-shadow:0 3px 10px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center}
+#arrL{left:8px} #arrR{right:8px}
+.scrollArrow:active{transform:translateY(-50%) scale(.9)}
+
+/* money meter (มิเตอร์เงินไหล) */
+#coinBox{position:absolute;right:10px;top:10px;z-index:5;background:rgba(255,255,255,.92);border:3px solid var(--sun);
+  border-radius:14px;padding:5px 12px;font-weight:700;font-size:1.15rem;pointer-events:none;box-shadow:0 3px 8px rgba(0,0,0,.15)}
+#coinBox.drain{animation:coinShake .5s infinite}
+@keyframes coinShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-1.5px)}75%{transform:translateX(1.5px)}}
+#coinBox small{font-size:.75rem;font-weight:500;color:#6a7a90;display:block;line-height:1;text-align:center}
+
+#adultBar{position:absolute;left:10px;top:10px;z-index:5;background:rgba(20,30,48,.84);color:#fff;border-radius:12px;
+  padding:6px 10px;font-size:.82rem;line-height:1.4;display:none;pointer-events:none}
+#adultBar b{color:#ffd23f;font-size:1rem}
+body.adult #adultBar{display:block}
+.adult-only{display:none}
+body.adult .adult-only{display:initial}
+
+/* listening meter */
+#listenBox{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:5;width:min(78%,320px);
+  background:rgba(20,30,48,.88);border-radius:16px;padding:8px 14px;color:#fff;display:none;pointer-events:none;text-align:center}
+#listenBox.show{display:block}
+#listenBox .lb-t{font-size:.85rem;font-weight:600;margin-bottom:4px}
+#listenTrack{background:#3a4a63;border-radius:8px;height:16px;overflow:hidden}
+#listenFill{height:100%;width:0%;border-radius:8px;background:linear-gradient(90deg,#1fb45f,#ffd23f 55%,#ef4b4b);transition:width .12s}
+
+/* bubble */
+#bubble{position:absolute;left:50%;top:56px;transform:translateX(-50%);max-width:70%;z-index:5;background:#fff;border-radius:16px;border:3px solid #ffd23f;
+  padding:7px 12px;font-size:.92rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.12);transition:opacity .25s;opacity:0;pointer-events:none;text-align:center}
+#bubble.show{opacity:1}
+
+/* thermal vignette */
+#sceneOuter.thermalOn{box-shadow:0 0 0 4px #ff8f1c,0 8px 24px rgba(33,48,71,.3)}
+#thermLegend{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:5;display:none;
+  background:rgba(10,18,48,.92);color:#fff;border-radius:12px;padding:5px 12px;font-size:.82rem;font-weight:500;
+  white-space:nowrap;pointer-events:none}
+#sceneOuter.thermalOn #thermLegend{display:block}
+
+/* ───── Control panel ───── */
+#panel{background:#fff;border-radius:20px;padding:12px 14px;box-shadow:0 6px 18px rgba(33,48,71,.14);display:flex;flex-direction:column;gap:10px}
+.goal{font-size:.98rem;font-weight:600;text-align:center;background:#fff6d9;border:2px dashed #ffd23f;border-radius:14px;padding:8px 12px}
+#timerTxt{display:none;text-align:center;font-weight:700;font-size:1.05rem}
+#timerWrap{display:none;width:100%;background:#eef3fa;border-radius:10px;height:16px;overflow:hidden}
+#timerBar{height:100%;width:100%;background:linear-gradient(90deg,#00c2a8,#19a0ff);transition:width .2s linear}
+
+/* tool buttons */
+.tool-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.toolBtn{display:flex;flex-direction:column;align-items:center;gap:2px;border:3px solid #cfd9e6;background:#f1f5fb;border-radius:18px;
+  padding:8px 18px;min-width:128px;min-height:64px;font-family:inherit;cursor:pointer;transition:transform .12s,border-color .2s,background .2s}
+.toolBtn:active{transform:scale(.94)}
+.toolBtn .ic{font-size:1.7rem;line-height:1.1}
+.toolBtn .nm{font-size:.88rem;font-weight:600}
+.toolBtn.sel{background:#e7e0ff;border-color:var(--purple)}
+.toolBtn:disabled{opacity:.4;cursor:default}
+.toolBtn.hot{background:#ffe9d6;border-color:var(--orange)}
+
+.big-btn{border:none;border-radius:999px;padding:14px 34px;font-family:inherit;font-size:1.2rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #d14b76,0 10px 18px rgba(0,0,0,.2);transition:transform .1s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #d14b76}
+.big-btn.alt{background:linear-gradient(135deg,var(--teal),#19a0ff);box-shadow:0 6px 0 #0d8aa0,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #0d8aa0}
+.big-btn.small{font-size:1rem;padding:10px 22px}
+.big-btn.gray{background:linear-gradient(135deg,#8795a8,#6a7a90);box-shadow:0 6px 0 #55657c,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.gray:active{box-shadow:0 2px 0 #55657c}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(18,28,46,.55);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:16px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:26px;max-width:470px;width:100%;padding:22px 18px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.4rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:3rem;letter-spacing:6px;margin:10px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#fff6d9;border-radius:14px;padding:10px 12px;font-weight:600;margin:8px 0;font-size:.95rem}
+.lvl-pick{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:8px 12px;font-family:inherit;cursor:pointer;min-width:84px;min-height:44px}
+.lvl-pick .nm{font-size:.85rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.9rem;letter-spacing:1px}
+#startCard h1{font-size:1.8rem;line-height:1.25;background:linear-gradient(135deg,#ff5d8f,#ff8f1c);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#6a7a90;margin:4px 0 10px}
+.brand{font-size:.8rem;color:#8795a8;margin-top:12px}
+.rankbar{display:flex;align-items:center;gap:8px;margin:7px 0;text-align:left}
+.rankbar .lb{width:128px;font-size:.88rem;font-weight:600;flex:none}
+.rankbar .tr{flex:1;background:#eef3fa;border-radius:9px;height:22px;overflow:hidden}
+.rankbar .fl{height:100%;width:0;border-radius:9px;transition:width 1s cubic-bezier(.3,.9,.4,1);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:#fff;font-size:.76rem;font-weight:700}
+
+/* ───── Tutorial ───── */
+#tutPic{background:#f2f7fd;border-radius:18px;padding:8px;margin:8px 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+#tutTxt{font-size:1rem;font-weight:600;min-height:3em;display:flex;align-items:center;justify-content:center}
+#tutDots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+#tutDots .d{width:11px;height:11px;border-radius:50%;background:#d4dfeb}
+#tutDots .d.on{background:var(--pink)}
+#tutNav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* ───── Mini-action ───── */
+#miniPic{background:#f2f7fd;border-radius:18px;padding:6px;margin:8px 0}
+#wrDots{display:flex;gap:7px;justify-content:center;margin:8px 0}
+#wrDots .d{width:14px;height:14px;border-radius:50%;background:#d4dfeb}
+#wrDots .d.on{background:var(--good)}
+#swapArea{position:relative;height:216px;background:#f2f7fd;border-radius:18px;margin:8px 0;overflow:hidden}
+#swapTargetZone{position:absolute;right:12%;top:26%;width:96px;height:110px;z-index:3}
+#newTrap{position:absolute;left:6%;bottom:8%;width:84px;height:96px;z-index:4;cursor:grab;touch-action:none;
+  filter:drop-shadow(0 4px 6px rgba(0,0,0,.25));transition:filter .2s}
+#newTrap.sel{filter:drop-shadow(0 0 10px #ffd23f)}
+#newTrap svg{width:100%;height:100%;pointer-events:none}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── SVG animations ───── */
+@keyframes jetPuff{0%{opacity:.95;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-30px) scale(1.5)}}
+.jetp{animation:jetPuff 1s ease-out infinite;transform-box:fill-box;transform-origin:center bottom}
+@keyframes jetSide{0%{opacity:.95;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(26px,10px) scale(1.5)}}
+.jetps{animation:jetSide .9s ease-out infinite;transform-box:fill-box;transform-origin:left center}
+@keyframes dripA{0%{transform:translateY(0);opacity:0}25%{opacity:1}100%{transform:translateY(22px);opacity:0}}
+.dripd{animation:dripA 1.4s ease-in infinite}
+@keyframes ringPulse{0%{transform:scale(.85);opacity:1}100%{transform:scale(1.25);opacity:.15}}
+.ringP{animation:ringPulse 1s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes flameFlick{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.25)}}
+.flameF{animation:flameFlick .5s ease-in-out infinite;transform-box:fill-box;transform-origin:center bottom}
+@keyframes puffUp{0%{opacity:.7;transform:translateY(0) scale(.8)}100%{opacity:0;transform:translateY(-34px) scale(1.6)}}
+.puffU{animation:puffUp 2.4s ease-out infinite}
+@keyframes blobHotA{0%,100%{opacity:.85}50%{opacity:.5}}
+.blobHot{animation:blobHotA 1.1s ease-in-out infinite}
+@keyframes blobColdA{0%,100%{opacity:.8}50%{opacity:.55}}
+.blobCold{animation:blobColdA 1.4s ease-in-out infinite}
+@keyframes coinFloat{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-55px)}}
+.coinF{animation:coinFloat 1.4s ease-out forwards;font-size:26px}
+@keyframes blinkA{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+.eyeB{transform-box:fill-box;transform-origin:center;animation:blinkA 4.4s infinite}
+@keyframes sparkA{0%{opacity:0;transform:scale(.3)}40%{opacity:1;transform:scale(1.15)}100%{opacity:0;transform:scale(.6)}}
+.sparkS{animation:sparkA 1.2s ease-out infinite}
+/* tutorial pictogram anims */
+@keyframes tCoinUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-44px)}}
+.tcoin{animation:tCoinUp 1.5s ease-out infinite}
+@keyframes tMeterW{0%,20%{width:18%}60%,80%{width:88%}100%{width:18%}}
+#tMeterFill{animation:tMeterW 2.4s ease-in-out infinite;height:100%;border-radius:6px;background:linear-gradient(90deg,#1fb45f,#ffd23f,#ef4b4b)}
+@keyframes tHandMove{0%,20%{transform:translateX(0)}60%,80%{transform:translateX(96px)}100%{transform:translateX(0)}}
+.tHand{animation:tHandMove 2.4s ease-in-out infinite}
+@keyframes tWrenchTurn{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-38deg)}}
+.tWrench{animation:tWrenchTurn .8s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes tStarPop{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
+.tStar{animation:tStarPop 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes tTrapSlide{0%,15%{transform:translateX(0);opacity:1}55%,80%{transform:translateX(104px);opacity:1}100%{transform:translateX(104px);opacity:0}}
+.tTrapNew{animation:tTrapSlide 2.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .jetp,.jetps,.dripd,.ringP,.flameF,.puffU,.blobHot,.blobCold,.coinF,.eyeB,.sparkS,
+  .tcoin,#tMeterFill,.tHand,.tWrench,.tStar,.tTrapNew{animation:none}
+  #coinBox.drain{animation:none}
+}
+@media (max-width:480px){
+  .card h2{font-size:1.25rem}
+  #coinBox{font-size:1rem}
+  .toolBtn{min-width:112px;padding:7px 12px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">ล่าไอน้ำรั่ว</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/12</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="adultBtn" title="โหมดผู้ใหญ่ แสดง kg/h และ บาท">👷</button>
+  </div>
+
+  <!-- SCENE -->
+  <div id="sceneOuter">
+    <div id="sceneWrap">
+      <svg id="scene" viewBox="0 0 1700 520" xmlns="http://www.w3.org/2000/svg" aria-label="โรงงานตัดขวาง มีท่อไอน้ำและกับดักไอน้ำ">
+        <defs>
+          <linearGradient id="wallGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f3f8fd"/><stop offset="1" stop-color="#dfe9f3"/>
+          </linearGradient>
+          <linearGradient id="steelV" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#c3d2e4"/><stop offset=".5" stop-color="#9fb4cc"/><stop offset="1" stop-color="#7d93ad"/>
+          </linearGradient>
+          <linearGradient id="pipeG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#d5e1ef"/><stop offset=".45" stop-color="#a8bdd4"/><stop offset="1" stop-color="#7d93ad"/>
+          </linearGradient>
+          <linearGradient id="boilerG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#b8c6d8"/><stop offset=".6" stop-color="#8ba0ba"/><stop offset="1" stop-color="#6b8099"/>
+          </linearGradient>
+          <filter id="blurF" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="9"/></filter>
+          <radialGradient id="hotR"><stop offset="0" stop-color="#fff6c8"/><stop offset=".4" stop-color="#ffb347"/><stop offset="1" stop-color="#ff4d2e" stop-opacity="0"/></radialGradient>
+          <radialGradient id="coldR"><stop offset="0" stop-color="#bfe3ff"/><stop offset=".5" stop-color="#3f7ae0"/><stop offset="1" stop-color="#1b2f8f" stop-opacity="0"/></radialGradient>
+        </defs>
+
+        <!-- โรงงาน: ผนัง หลังคา พื้น -->
+        <rect x="0" y="0" width="1700" height="520" fill="url(#wallGrad)"/>
+        <rect x="0" y="0" width="1700" height="34" fill="#8ba0ba"/>
+        <path d="M0 34 L1700 34 L1700 44 L0 44 Z" fill="#6b8099"/>
+        <g fill="#d7ecff" stroke="#9fb4cc" stroke-width="4">
+          <rect x="420" y="58" width="120" height="56" rx="8"/>
+          <rect x="860" y="58" width="120" height="56" rx="8"/>
+          <rect x="1300" y="58" width="120" height="56" rx="8"/>
+        </g>
+        <rect x="0" y="430" width="1700" height="90" fill="#c3cfdd"/>
+        <rect x="0" y="430" width="1700" height="10" fill="#9fb0c4"/>
+
+        <!-- หม้อไอน้ำ (ซ้าย) -->
+        <g id="boilerG2">
+          <rect x="92" y="92" width="34" height="110" fill="#7d93ad" stroke="#5d7ea8" stroke-width="4"/>
+          <g class="puffU"><ellipse cx="109" cy="84" rx="16" ry="11" fill="#eef3f8" opacity=".8"/></g>
+          <g class="puffU" style="animation-delay:1.2s"><ellipse cx="116" cy="78" rx="12" ry="9" fill="#fff" opacity=".7"/></g>
+          <rect x="60" y="196" width="190" height="234" rx="18" fill="url(#boilerG)" stroke="#51657e" stroke-width="5"/>
+          <ellipse cx="155" cy="200" rx="95" ry="22" fill="#b8c6d8" stroke="#51657e" stroke-width="5"/>
+          <circle cx="90" cy="250" r="4" fill="#51657e"/><circle cx="130" cy="250" r="4" fill="#51657e"/>
+          <circle cx="170" cy="250" r="4" fill="#51657e"/><circle cx="210" cy="250" r="4" fill="#51657e"/>
+          <circle cx="155" cy="360" r="34" fill="#39465a" stroke="#2a3443" stroke-width="5"/>
+          <g class="flameF"><path d="M140 374 q4 -22 15 -30 q11 8 15 30 q-8 9 -15 9 q-7 0 -15 -9Z" fill="#ff8f1c"/></g>
+          <g class="flameF" style="animation-delay:.25s"><path d="M148 374 q3 -13 7 -18 q4 5 7 18 q-3 5 -7 5 q-4 0 -7 -5Z" fill="#ffd23f"/></g>
+          <rect x="196" y="150" width="22" height="50" fill="url(#pipeG)" stroke="#5d7ea8" stroke-width="3"/>
+          <path d="M196 150 h22 v-20 q0 -8 8 -8 h30 v30 Z" fill="url(#pipeG)" stroke="#5d7ea8" stroke-width="3"/>
+          <text x="155" y="462" font-size="20" font-weight="600" text-anchor="middle" fill="#55657c" font-family="Mitr,sans-serif">หม้อไอน้ำ</text>
+        </g>
+
+        <!-- ท่อไอน้ำหลัก (header) -->
+        <rect x="248" y="152" width="1256" height="16" fill="url(#pipeG)" stroke="#5d7ea8" stroke-width="3"/>
+        <rect x="1498" y="150" width="10" height="20" rx="3" fill="#7d93ad" stroke="#5d7ea8" stroke-width="3"/>
+        <g stroke="#8ba0ba" stroke-width="6">
+          <line x1="350" y1="44" x2="350" y2="152"/><line x1="720" y1="44" x2="720" y2="152"/>
+          <line x1="1030" y1="44" x2="1030" y2="152"/><line x1="1430" y1="44" x2="1430" y2="152"/>
+        </g>
+
+        <!-- วาล์วหลัก + เกจ บนหม้อไอน้ำ -->
+        <g id="mainValve">
+          <rect x="280" y="146" width="36" height="28" rx="6" fill="#7d93ad" stroke="#5d7ea8" stroke-width="3"/>
+          <rect x="294" y="120" width="8" height="30" fill="#5d7ea8"/>
+          <ellipse cx="298" cy="116" rx="18" ry="7" fill="#ef4b4b" stroke="#b83535" stroke-width="3"/>
+        </g>
+        <g id="gauge1">
+          <line x1="352" y1="152" x2="352" y2="132" stroke="#5d7ea8" stroke-width="5"/>
+          <circle cx="352" cy="112" r="22" fill="#fff" stroke="#5d7ea8" stroke-width="4"/>
+          <line x1="352" y1="112" x2="364" y2="100" stroke="#ef4b4b" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="352" cy="112" r="3" fill="#213047"/>
+          <text x="352" y="90" font-size="14" font-weight="600" text-anchor="middle" fill="#55657c" font-family="Mitr,sans-serif" class="adult-only">7 bar g</text>
+        </g>
+        <g id="gauge2">
+          <line x1="1252" y1="152" x2="1252" y2="132" stroke="#5d7ea8" stroke-width="5"/>
+          <circle cx="1252" cy="112" r="22" fill="#fff" stroke="#5d7ea8" stroke-width="4"/>
+          <line x1="1252" y1="112" x2="1262" y2="99" stroke="#ef4b4b" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="1252" cy="112" r="3" fill="#213047"/>
+        </g>
+
+        <!-- เครื่องจักร (ฉากหลัง) -->
+        <g id="vesselA">
+          <rect x="636" y="238" width="128" height="166" rx="26" fill="url(#steelV)" stroke="#51657e" stroke-width="5"/>
+          <rect x="652" y="256" width="96" height="10" rx="5" fill="#d5e1ef"/>
+          <rect x="682" y="214" width="36" height="26" rx="6" fill="#7d93ad" stroke="#51657e" stroke-width="4"/>
+          <circle cx="700" cy="318" r="30" fill="#cfe0f0" stroke="#51657e" stroke-width="4"/>
+          <path d="M688 318 q12 -14 24 0 q-12 14 -24 0" fill="#9fd0ff"/>
+          <rect x="648" y="404" width="16" height="26" fill="#51657e"/><rect x="736" y="404" width="16" height="26" fill="#51657e"/>
+          <text x="700" y="462" font-size="20" font-weight="600" text-anchor="middle" fill="#55657c" font-family="Mitr,sans-serif">หม้อต้ม</text>
+        </g>
+        <g id="dryerA">
+          <rect x="1206" y="244" width="140" height="160" rx="14" fill="url(#steelV)" stroke="#51657e" stroke-width="5"/>
+          <rect x="1222" y="264" width="108" height="86" rx="10" fill="#39465a"/>
+          <circle cx="1276" cy="307" r="30" fill="#55657c" stroke="#9fb4cc" stroke-width="3"/>
+          <path d="M1276 307 m-20 0 a20 20 0 1 0 40 0" fill="none" stroke="#ffd23f" stroke-width="4"/>
+          <circle cx="1240" cy="376" r="7" fill="#1fb45f"/><circle cx="1262" cy="376" r="7" fill="#ffd23f"/>
+          <rect x="1214" y="404" width="16" height="26" fill="#51657e"/><rect x="1316" y="404" width="16" height="26" fill="#51657e"/>
+          <text x="1276" y="462" font-size="20" font-weight="600" text-anchor="middle" fill="#55657c" font-family="Mitr,sans-serif">เครื่องอบแห้ง</text>
+        </g>
+
+        <!-- ท่อคอนเดนเสทกลับ -->
+        <rect x="560" y="411" width="990" height="9" fill="#8ba0ba" stroke="#6b8099" stroke-width="2"/>
+
+        <!-- ถังคอนเดนเสท (ขวา) -->
+        <g id="condTank">
+          <rect x="1548" y="330" width="130" height="80" rx="28" fill="url(#steelV)" stroke="#51657e" stroke-width="5"/>
+          <rect x="1560" y="410" width="14" height="22" fill="#51657e"/><rect x="1652" y="410" width="14" height="22" fill="#51657e"/>
+          <rect x="1642" y="290" width="12" height="42" fill="#8ba0ba" stroke="#6b8099" stroke-width="2"/>
+          <g class="puffU"><ellipse cx="1648" cy="282" rx="12" ry="8" fill="#fff" opacity=".65"/></g>
+          <rect x="1566" y="350" width="52" height="24" rx="6" fill="#cfe0f0" stroke="#51657e" stroke-width="3"/>
+          <rect x="1568" y="356" width="30" height="12" rx="4" fill="#4aa8ff"/>
+          <text x="1613" y="462" font-size="20" font-weight="600" text-anchor="middle" fill="#55657c" font-family="Mitr,sans-serif">ถังคอนเดนเสท</text>
+        </g>
+
+        <!-- ป้ายโซน -->
+        <text x="440" y="500" font-size="17" font-weight="500" text-anchor="middle" fill="#8795a8" font-family="Mitr,sans-serif">โซนผลิต A</text>
+        <text x="980" y="500" font-size="17" font-weight="500" text-anchor="middle" fill="#8795a8" font-family="Mitr,sans-serif">โซนผลิต B</text>
+        <text x="1430" y="500" font-size="17" font-weight="500" text-anchor="middle" fill="#8795a8" font-family="Mitr,sans-serif">ปลายท่อ</text>
+
+        <!-- ชิ้นส่วนที่สร้างด้วย JS: หน้าแปลน วาล์ว trap -->
+        <g id="slotsG"></g>
+        <!-- เหรียญลอย -->
+        <g id="coinsG"></g>
+        <!-- โหมดกล้องความร้อน -->
+        <g id="thermalG" style="display:none"></g>
+      </svg>
+    </div>
+    <button class="scrollArrow" id="arrL" aria-label="เลื่อนซ้าย">◀</button>
+    <button class="scrollArrow" id="arrR" aria-label="เลื่อนขวา">▶</button>
+    <div id="coinBox"><small>เหรียญที่เหลือ</small>🪙 <span id="coinN">100</span></div>
+    <div id="adultBar">กำลังรั่ว <b id="abKg">0</b> kg/h ≈ <b id="abBt">0</b> บาท/ชม.<br>หยุดได้แล้ว <b id="abFix">0</b> kg/h</div>
+    <div id="listenBox"><div class="lb-t" id="listenTxt">🎧 กำลังฟัง…</div><div id="listenTrack"><div id="listenFill"></div></div></div>
+    <div id="thermLegend">🌡 <b style="color:#ffb347">ส้มแดง = ร้อนจัด</b> · <b style="color:#9fd0ff">ฟ้า = เย็นผิดปกติ</b></div>
+    <div id="bubble"></div>
+  </div>
+
+  <!-- CONTROL PANEL -->
+  <div id="panel">
+    <div class="goal" id="goalTxt">—</div>
+    <div id="timerTxt">⏱ <span id="timeLeft">45</span> วิ</div>
+    <div id="timerWrap"><div id="timerBar"></div></div>
+    <div class="tool-row">
+      <button class="toolBtn sel" id="toolSteth"><span class="ic">🔊</span><span class="nm">หูฟังช่าง</span></button>
+      <button class="toolBtn" id="toolTherm"><span class="ic">🌡</span><span class="nm" id="thermLbl">กล้องความร้อน ×0</span></button>
+    </div>
+  </div>
+  <div class="brand" style="text-align:center">Energy Sense Games · Triple E Technology</div>
+</div>
+
+<!-- ───── Start overlay ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:3rem">💨🔧</div>
+    <h1>ล่าไอน้ำรั่ว</h1>
+    <div class="sub">เสียงฟู่ที่ได้ยิน… คือเงินที่กำลังลอยหายไป! 🪙</div>
+    <p>ใช้หูฟังช่างและกล้องความร้อน ตามหาจุดรั่วกับ trap เสีย แล้วซ่อมให้เร็วที่สุด!</p>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn alt small" id="howBtn">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── Tutorial overlay ───── -->
+<div class="overlay" id="tutOv">
+  <div class="card">
+    <h2>📖 วิธีเล่น</h2>
+    <div id="tutPic"></div>
+    <div id="tutTxt">—</div>
+    <div id="tutDots"></div>
+    <div id="tutNav">
+      <button class="big-btn small gray" id="tutPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="tutNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Mini-action: ขันหน้าแปลน ───── -->
+<div class="overlay" id="wrOv">
+  <div class="card">
+    <h2>🔧 ขันหน้าแปลนให้แน่น!</h2>
+    <p>แตะปุ่มรัว ๆ ให้ครบ จนไอน้ำหยุดพุ่ง</p>
+    <div id="miniPic">
+      <svg id="wrSvg" viewBox="0 0 280 190" width="100%" style="max-height:180px">
+        <rect x="0" y="108" width="280" height="22" fill="url(#pipeG)" stroke="#5d7ea8" stroke-width="3"/>
+        <rect x="126" y="92" width="10" height="54" rx="3" fill="#8fa6c0" stroke="#5d7ea8" stroke-width="3"/>
+        <rect x="144" y="92" width="10" height="54" rx="3" fill="#8fa6c0" stroke="#5d7ea8" stroke-width="3"/>
+        <g id="wrJets">
+          <path class="jetp" d="M136 88 q-5 -16 -11 -24" stroke="#7fa3c4" stroke-width="12" fill="none" stroke-linecap="round" opacity=".9"/>
+          <path class="jetp" d="M136 88 q-5 -16 -11 -24" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <path class="jetp" style="animation-delay:.3s" d="M141 86 q0 -18 2 -28" stroke="#7fa3c4" stroke-width="13" fill="none" stroke-linecap="round" opacity=".9"/>
+          <path class="jetp" style="animation-delay:.3s" d="M141 86 q0 -18 2 -28" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <path class="jetp" style="animation-delay:.6s" d="M146 88 q6 -16 12 -22" stroke="#7fa3c4" stroke-width="12" fill="none" stroke-linecap="round" opacity=".9"/>
+          <path class="jetp" style="animation-delay:.6s" d="M146 88 q6 -16 12 -22" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round"/>
+        </g>
+        <g id="wrWrench">
+          <rect x="150" y="128" width="78" height="13" rx="6" fill="#55657c" transform="rotate(32 150 134)"/>
+          <circle cx="146" cy="130" r="16" fill="none" stroke="#55657c" stroke-width="10" stroke-dasharray="70 30"/>
+        </g>
+        <g id="wrSpark" style="display:none">
+          <text x="118" y="80" font-size="22" class="sparkS">✨</text>
+          <text x="156" y="72" font-size="18" class="sparkS" style="animation-delay:.4s">✨</text>
+        </g>
+      </svg>
+    </div>
+    <div id="wrDots"></div>
+    <button class="big-btn" id="wrHit">🔧 ขัน!</button>
+  </div>
+</div>
+
+<!-- ───── Mini-action: เปลี่ยน steam trap ───── -->
+<div class="overlay" id="swOv">
+  <div class="card">
+    <h2>🔄 เปลี่ยนกับดักไอน้ำ (Steam Trap)</h2>
+    <p id="swHint">ลากกระปุกตัวใหม่ 🙂 ไปวางในกรอบเส้นประ</p>
+    <div id="swapArea">
+      <svg viewBox="0 0 320 216" width="100%" height="100%" style="position:absolute;inset:0">
+        <rect x="262" y="0" width="12" height="58" fill="#a8bdd4" stroke="#5d7ea8" stroke-width="2"/>
+        <rect x="262" y="168" width="12" height="48" fill="#a8bdd4" stroke="#5d7ea8" stroke-width="2"/>
+        <g id="swOld">
+          <rect x="234" y="60" width="68" height="64" rx="12" fill="#c9c2bd" stroke="#8a8078" stroke-width="4"/>
+          <circle cx="256" cy="84" r="4" fill="#55657c"/><circle cx="280" cy="84" r="4" fill="#55657c"/>
+          <path id="swOldMouth" d="M250 104 q18 -10 36 0" stroke="#8a5050" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <line x1="230" y1="56" x2="306" y2="128" stroke="#ef4b4b" stroke-width="7" stroke-linecap="round"/>
+          <line x1="306" y1="56" x2="230" y2="128" stroke="#ef4b4b" stroke-width="7" stroke-linecap="round"/>
+        </g>
+        <rect id="swTargetBox" x="228" y="54" width="80" height="76" rx="14" fill="none" stroke="#7b5bff" stroke-width="4" stroke-dasharray="10 8"/>
+        <g id="swDone" style="display:none">
+          <rect x="234" y="60" width="68" height="64" rx="12" fill="#9be8c8" stroke="#1fb45f" stroke-width="4"/>
+          <circle cx="256" cy="84" r="4" fill="#213047"/><circle cx="280" cy="84" r="4" fill="#213047"/>
+          <path d="M250 98 q18 14 36 0" stroke="#1a7a46" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <text x="214" y="56" font-size="22" class="sparkS">✨</text>
+        </g>
+      </svg>
+      <div id="swapTargetZone"></div>
+      <div id="newTrap">
+        <svg viewBox="0 0 84 96">
+          <rect x="8" y="14" width="68" height="64" rx="12" fill="#9be8c8" stroke="#1fb45f" stroke-width="4"/>
+          <rect x="30" y="4" width="24" height="12" rx="4" fill="#1fb45f"/>
+          <circle cx="30" cy="38" r="4" fill="#213047"/><circle cx="54" cy="38" r="4" fill="#213047"/>
+          <path d="M26 52 q16 14 32 0" stroke="#1a7a46" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <text x="42" y="94" font-size="12" font-weight="600" text-anchor="middle" fill="#1a7a46" font-family="Mitr,sans-serif">ตัวใหม่</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Result overlay ───── -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <h2 id="resTitle">จบด่าน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <p id="resDetail"></p>
+    <p class="adult-only" id="resAdult" style="font-size:.88rem;color:#55657c"></p>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── End overlay ───── -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.6rem">🏆</div>
+    <h2>สุดยอดนักล่าไอน้ำรั่ว!</h2>
+    <p>ได้ดาวทั้งหมด <b id="endStars">0</b> / 12 ดวง</p>
+    <div class="lesson">ใครกินเงินโรงงานมากที่สุด? (ต่อ 1 จุด)</div>
+    <div id="rankBox">
+      <div class="rankbar"><span class="lb">💨 trap เปิดค้าง (ใหญ่)</span><div class="tr"><div class="fl" data-w="100" style="background:#ef4b4b">แรงมาก!</div></div></div>
+      <div class="rankbar"><span class="lb">💥 รูรั่ว 3 มม.</span><div class="tr"><div class="fl" data-w="75" style="background:#ff8f1c">แรง</div></div></div>
+      <div class="rankbar"><span class="lb">💨 trap เปิดค้าง (เล็ก)</span><div class="tr"><div class="fl" data-w="63" style="background:#f5a623">แรง</div></div></div>
+      <div class="rankbar"><span class="lb">💧 รูรั่ว 2 มม.</span><div class="tr"><div class="fl" data-w="33" style="background:#f5c518">กลาง</div></div></div>
+      <div class="rankbar"><span class="lb">🧊 trap ตัน (น้ำขัง)</span><div class="tr"><div class="fl" data-w="38" style="background:#4aa8ff">อันตรายแฝง!</div></div></div>
+    </div>
+    <p class="adult-only" style="font-size:.85rem;color:#55657c;margin-top:6px">
+      Napier: รู 3 มม. @7 bar g ≈ 30 kg/h · ไอน้ำ ~1.2 บาท/kg → ≈ 315,000 บาท/ปี ต่อรูเดียว · trap เปิดค้าง ~15–50 kg/h</p>
+    <p style="margin-top:8px;font-size:.92rem">จำไว้นะ: <b>เดินสำรวจท่อไอน้ำทุกเดือน</b> — เจอเร็ว ซ่อมเร็ว = ประหยัดที่สุด!</p>
+    <div style="margin-top:12px"><button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button></div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ ล่าไอน้ำรั่ว v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var SVGNS='http://www.w3.org/2000/svg';
+
+/* ── ฟิสิกส์ (สมจริง — สูตร Napier) ──
+   ṁ[kg/h] = 0.5245 × A[mm²] × P_abs[bar]  · P = 7 bar g → P_abs = 8.013 bar
+   รู 3 มม. → 29.7 ≈ 30 kg/h · ไอน้ำ 1.2 บาท/kg · 8,760 ชม./ปี */
+var PH={P_BARG:7,PRICE:1.2,HRS:8760,COLD_UNIT:15};
+function napier(dmm,pbarg){var A=Math.PI/4*dmm*dmm;return 0.5245*A*(pbarg+1.013);}
+function bahtYr(kgph){return kgph*PH.PRICE*PH.HRS;}
+function fmtSaen(b){return (b/100000).toFixed(1)+' แสนบาท/ปี';}
+
+/* ── ตำแหน่งอุปกรณ์บนฉาก (SVG coords) ── */
+var SLOTS={
+  F1:{kind:'flange',x:480,y:160},  F2:{kind:'flange',x:780,y:160},
+  F3:{kind:'flange',x:1080,y:160}, F4:{kind:'flange',x:1380,y:160},
+  V1:{kind:'valve', x:950,y:160},
+  T1:{kind:'trap',x:600,y:345}, T2:{kind:'trap',x:870,y:345},
+  T3:{kind:'trap',x:1170,y:345}, T4:{kind:'trap',x:1470,y:345}
+};
+
+/* ── ด่าน ── */
+var LEVELS=[
+ {name:'ด่าน 1 · เสียงฟู่ปริศนา 🔊', icon:'🔊', time:45, drainT:110, thermal:0, jetScale:1.25,
+  goal:'มีจุดรั่ว 2 จุด! แตะค้างบนท่อด้วย 🔊 หูฟังช่าง ไล่ฟังเสียงฟู่ — เจอแล้วแตะที่จุดนั้นเพื่อซ่อม!',
+  faults:[{s:'F1',type:'leak',mm:3},{s:'V1',type:'leak',mm:2}],
+  lesson:function(st){return st>=3?'เยี่ยม! รูรั่วเล็กแค่ 3 มม. ก็ปล่อยไอน้ำ ~30 กก./ชม. — เสียงฟู่คือเงินที่ลอยหนี!':
+    (st===2?'ดีมาก! ซ่อมได้ครบ — คราวหน้าไล่เสียงให้เร็วขึ้น เหรียญจะเหลือเยอะกว่านี้':
+    'อย่าปล่อยจุดรั่วไว้นาน! เสียงฟู่ = เงินกำลังลอยหายไปทุกนาที');}},
+ {name:'ด่าน 2 · ตามล่าด้วยกล้องร้อน 🌡', icon:'🌡', time:50, drainT:135, thermal:2, jetScale:0.7,
+  goal:'3 จุดเสีย! trap เปิดค้างหายากด้วยตาเปล่า — กด 🌡 กล้องความร้อน แล้วมองหา "จุดร้อนจัด" สีส้มแดง',
+  faults:[{s:'F2',type:'leak',mm:3},{s:'T1',type:'open',kgph:25},{s:'T3',type:'open',kgph:40}],
+  lesson:function(st){return st>=3?'สุดยอด! trap เปิดค้างทิ้งไอน้ำ 15–50 กก./ชม. — กล้องความร้อนเห็นจุดร้อนผิดปกติทันที':
+    (st===2?'ดี! trap เปิดค้าง = ไอน้ำไหลทิ้งตลอดเวลา กล้องความร้อนช่วยชี้เป้าได้ไว':
+    'trap เปิดค้างมองไม่ค่อยเห็น — ใช้กล้องความร้อนหา "จุดร้อนจัด" จะเร็วกว่ามาก');}},
+ {name:'ด่าน 3 · จุดเย็นต้องสงสัย 🧊', icon:'🧊', time:50, drainT:135, thermal:2, jetScale:0.7,
+  goal:'ระวัง! บางจุดเสียแบบ "เงียบและเย็น" — trap ตัน ไม่มีเสียงฟู่เลย ใช้ 🌡 หา "จุดเย็นสีฟ้า" น้ำขัง!',
+  faults:[{s:'T2',type:'cold'},{s:'F3',type:'leak',mm:2},{s:'T4',type:'open',kgph:25}],
+  lesson:function(st){return st>=3?'ฉลาดมาก! ผิดปกติไม่ได้แปลว่าร้อนเสมอ — trap ตัน = จุดเย็น น้ำขัง เสี่ยง water hammer':
+    (st===2?'ดีมาก! trap ตันไม่มีเสียง ต้องดูจุดเย็นผิดปกติ — หูฟังอย่างเดียวหาไม่เจอ':
+    'trap ตันเงียบสนิท! หูฟังหาไม่เจอ ต้องใช้กล้องความร้อนดู "จุดเย็น" สีฟ้า');}},
+ {name:'ด่าน 4 · ล่าทั่วโรงงาน 60 วิ 🏭', icon:'🏭', time:60, drainT:200, thermal:3, jetScale:0.7,
+  goal:'ด่านสุดท้าย! 6 จุดเสียทั่วโรงงาน ใน 60 วิ — เลื่อนฉากซ้ายขวา ใช้ทุกเครื่องมือ ลุย!',
+  faults:[{s:'F1',type:'leak',mm:2},{s:'F4',type:'leak',mm:3},{s:'T1',type:'open',kgph:25},
+          {s:'T3',type:'open',kgph:40},{s:'T2',type:'cold'},{s:'V1',type:'leak',mm:2}],
+  lesson:function(st){return st>=3?'นักล่าตัวจริง! เดินสำรวจสม่ำเสมอ เจอเร็ว ซ่อมเร็ว = ประหยัดที่สุด':
+    (st===2?'เก่งมาก! โรงงานจริงมีจุดแบบนี้ซ่อนอยู่เสมอ — ต้องเดินสำรวจประจำ':
+    'โรงงานใหญ่ จุดเสียเยอะ — วางแผนไล่ทีละโซน แล้วจะทันเวลา');}}
+];
+
+/* ── สถานะเกม ── */
+var level=0, stars=[0,0,0,0], faults=[], running=false, tEl=0, lastTs=0;
+var tool='steth', therm={uses:0,active:false,t:0}, miniFault=null;
+var scene=null, wrap=null;
+
+/* ── เสียง Web Audio ── */
+var AC=null, sndOn=true, noiseSrc=null, noiseGain=null;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.07,'square',0.08);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sTick(){tone(1000,0,0.04,'square',0.05);}
+function sClank(){tone(170,0,0.08,'square',0.16);tone(95,0.02,0.12,'square',0.12);}
+function sSweep(){tone(300,0,0.25,'sine',0.1);tone(900,0.08,0.3,'sine',0.08);}
+function sFound(){tone(988,0,0.1,'triangle',0.16);tone(1319,0.09,0.16,'triangle',0.16);}
+function ensureNoise(){var a=audio();if(!a||noiseSrc)return;
+  try{var len=a.sampleRate,buf=a.createBuffer(1,len,a.sampleRate),d=buf.getChannelData(0);
+  for(var i=0;i<len;i++)d[i]=Math.random()*2-1;
+  noiseSrc=a.createBufferSource();noiseSrc.buffer=buf;noiseSrc.loop=true;
+  var fl=a.createBiquadFilter();fl.type='bandpass';fl.frequency.value=4200;fl.Q.value=0.7;
+  noiseGain=a.createGain();noiseGain.gain.value=0;
+  noiseSrc.connect(fl);fl.connect(noiseGain);noiseGain.connect(a.destination);noiseSrc.start();}catch(e){}}
+function setHiss(v){if(!noiseGain)return;var g=(sndOn?v:0)*0.22;
+  try{noiseGain.gain.setTargetAtTime(g,AC.currentTime,0.05);}catch(e){noiseGain.gain.value=g;}}
+
+/* ── localStorage ── */
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_game_leak_stars')||'[]');for(var i=0;i<4;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_game_leak_stars',JSON.stringify(stars));}catch(e){}}
+function seenTut(){try{return localStorage.getItem('te_game_leak_seen')==='1';}catch(e){return true;}}
+function markSeen(){try{localStorage.setItem('te_game_leak_seen','1');}catch(e){}}
+var reduceMotion=false;
+try{reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){}
+
+/* ── สร้างอุปกรณ์ในฉาก ── */
+function el(tag,attrs,parent){var e=document.createElementNS(SVGNS,tag);
+  for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function buildScene(){
+  var g=$('slotsG');g.innerHTML='';
+  for(var key in SLOTS){var s=SLOTS[key],grp=el('g',{id:'slot_'+key},g);
+    if(s.kind==='flange')buildFlange(key,s,grp);
+    else if(s.kind==='valve')buildValve(key,s,grp);
+    else buildTrap(key,s,grp);
+    /* วงแหวนชี้เป้า + ป้ายซ่อมแล้ว (ทุก slot) */
+    var ringY=s.kind==='trap'?s.y:s.y;
+    el('circle',{id:'ring_'+key,cx:s.x,cy:ringY,r:58,fill:'none',stroke:'#ffd23f','stroke-width':6,
+      'stroke-dasharray':'14 10','class':'ringP',style:'display:none'},grp);
+    var fl=el('g',{id:'fix_'+key,style:'display:none'},grp);
+    el('circle',{cx:s.x,cy:ringY-(s.kind==='trap'?62:46),r:16,fill:'#1fb45f',stroke:'#fff','stroke-width':3},fl);
+    var ck=el('text',{x:s.x,y:ringY-(s.kind==='trap'?56:40),'font-size':20,'text-anchor':'middle',fill:'#fff','font-weight':'700'},fl);
+    ck.textContent='✔';
+    var lb=el('text',{id:'fixlbl_'+key,x:s.x,y:ringY+(s.kind==='trap'?84:68),'font-size':15,'font-weight':'600',
+      'text-anchor':'middle',fill:'#1a7a46','font-family':'Mitr,sans-serif','class':'adult-only'},fl);
+    lb.textContent='';
+  }
+}
+function buildFlange(key,s,grp){
+  el('rect',{x:s.x-11,y:s.y-24,width:9,height:48,rx:3,fill:'#8fa6c0',stroke:'#5d7ea8','stroke-width':3},grp);
+  el('rect',{x:s.x+2,y:s.y-24,width:9,height:48,rx:3,fill:'#8fa6c0',stroke:'#5d7ea8','stroke-width':3},grp);
+  el('circle',{cx:s.x-6.5,cy:s.y-17,r:2.5,fill:'#55657c'},grp);el('circle',{cx:s.x+6.5,cy:s.y-17,r:2.5,fill:'#55657c'},grp);
+  el('circle',{cx:s.x-6.5,cy:s.y+17,r:2.5,fill:'#55657c'},grp);el('circle',{cx:s.x+6.5,cy:s.y+17,r:2.5,fill:'#55657c'},grp);
+  buildJetUp(key,s.x,s.y-24,grp);
+}
+function buildValve(key,s,grp){
+  el('rect',{x:s.x-20,y:s.y-15,width:40,height:30,rx:7,fill:'#7d93ad',stroke:'#5d7ea8','stroke-width':3},grp);
+  el('rect',{x:s.x-4,y:s.y-40,width:8,height:26,fill:'#5d7ea8'},grp);
+  el('ellipse',{cx:s.x,cy:s.y-44,rx:17,ry:7,fill:'#7b5bff',stroke:'#5a3fd4','stroke-width':3},grp);
+  buildJetUp(key,s.x+8,s.y-38,grp);
+}
+function jetPath(parent,d,w,delay,side){
+  /* เส้นหลังสีเทาฟ้า (ให้เห็นชัดบนผนังสว่าง) + เส้นหน้าสีขาว */
+  var cls=side?'jetps':'jetp';
+  var back=el('path',{'class':cls,d:d,stroke:'#7fa3c4','stroke-width':w+5,fill:'none','stroke-linecap':'round',opacity:.9},parent);
+  var front=el('path',{'class':cls,d:d,stroke:'#ffffff','stroke-width':w,fill:'none','stroke-linecap':'round'},parent);
+  if(delay){back.style.animationDelay=delay;front.style.animationDelay=delay;}
+}
+function buildJetUp(key,jx,jy,grp){
+  var j=el('g',{id:'jet_'+key,style:'display:none'},grp);
+  jetPath(j,'M'+(jx-6)+' '+jy+' q-7 -22 -15 -32',8,'',false);
+  jetPath(j,'M'+jx+' '+(jy-3)+' q0 -26 3 -38',9,'.3s',false);
+  jetPath(j,'M'+(jx+6)+' '+jy+' q8 -22 16 -30',8,'.6s',false);
+}
+function buildTrap(key,s,grp){
+  /* drip leg จาก header ลงมา */
+  el('rect',{x:s.x-6,y:168,width:12,height:151,fill:'url(#pipeG)',stroke:'#5d7ea8','stroke-width':2.5},grp);
+  /* overlay ท่อเย็น (cold) */
+  el('rect',{id:'coldpipe_'+key,x:s.x-6,y:230,width:12,height:89,fill:'#cfe8ff',stroke:'#7fb7e8','stroke-width':2.5,style:'display:none'},grp);
+  /* ตัวกระปุก */
+  el('rect',{id:'body_'+key,x:s.x-29,y:319,width:58,height:54,rx:12,fill:'#cfd8e3',stroke:'#5d7ea8','stroke-width':4},grp);
+  el('rect',{x:s.x-12,y:311,width:24,height:12,rx:4,fill:'#5d7ea8'},grp);
+  /* หน้า */
+  var face=el('g',{id:'face_'+key},grp);
+  var eL=el('circle',{cx:s.x-10,cy:338,r:4,fill:'#213047','class':'eyeB'},face);
+  var eR=el('circle',{cx:s.x+10,cy:338,r:4,fill:'#213047','class':'eyeB'},face);
+  el('path',{id:'mouth_'+key,d:'M'+(s.x-11)+' 352 q11 9 22 0',stroke:'#4a6a8a','stroke-width':3.5,fill:'none','stroke-linecap':'round'},face);
+  /* ตาป่วยแบบ X (ซ่อนไว้) */
+  var xg=el('g',{id:'xeyes_'+key,stroke:'#b83535','stroke-width':3,'stroke-linecap':'round',style:'display:none'},grp);
+  el('line',{x1:s.x-14,y1:334,x2:s.x-6,y2:342},xg);el('line',{x1:s.x-6,y1:334,x2:s.x-14,y2:342},xg);
+  el('line',{x1:s.x+6,y1:334,x2:s.x+14,y2:342},xg);el('line',{x1:s.x+14,y1:334,x2:s.x+6,y2:342},xg);
+  /* ท่อออกลงท่อคอนเดนเสท */
+  el('rect',{x:s.x-5,y:373,width:10,height:38,fill:'url(#pipeG)',stroke:'#5d7ea8','stroke-width':2.5},grp);
+  /* ไอพ่นของ trap เปิดค้าง (พ่นข้างท่อออก) */
+  var j=el('g',{id:'jet_'+key,style:'display:none'},grp);
+  jetPath(j,'M'+(s.x+5)+' 385 q18 -4 30 -10',8,'',true);
+  jetPath(j,'M'+(s.x+5)+' 393 q20 2 34 0',9,'.3s',true);
+  jetPath(j,'M'+(s.x+5)+' 401 q18 8 30 12',8,'.6s',true);
+  /* ชุดอาการ trap ตัน: น้ำแข็ง + หยดน้ำ + แอ่งน้ำ */
+  var cg=el('g',{id:'coldG_'+key,style:'display:none'},grp);
+  var ic=el('text',{x:s.x-40,y:330,'font-size':22},cg);ic.textContent='❄';
+  var ic2=el('text',{x:s.x+26,y:316,'font-size':16},cg);ic2.textContent='❄';
+  el('path',{'class':'dripd',d:'M'+(s.x-20)+' 376 q-4 7 0 10 q5 -3 0 -10',fill:'#4aa8ff'},cg);
+  var d2=el('path',{'class':'dripd',d:'M'+(s.x+20)+' 380 q-4 7 0 10 q5 -3 0 -10',fill:'#4aa8ff'},cg);
+  d2.style.animationDelay='.6s';
+  el('ellipse',{cx:s.x,cy:424,rx:38,ry:7,fill:'#9fd0ff',opacity:.85},cg);
+  el('ellipse',{cx:s.x,cy:423,rx:26,ry:4,fill:'#cfe8ff',opacity:.9},cg);
+}
+
+/* ── render สถานะ fault ลงฉาก ── */
+function faultOf(slot){for(var i=0;i<faults.length;i++)if(faults[i].s===slot)return faults[i];return null;}
+function renderScene(){
+  var js=LEVELS[level].jetScale;
+  for(var key in SLOTS){var s=SLOTS[key],f=faultOf(key);
+    var jet=$('jet_'+key),ring=$('ring_'+key),fix=$('fix_'+key);
+    if(jet){jet.style.display='none';}
+    if(ring)ring.style.display='none';
+    if(fix)fix.style.display='none';
+    if(s.kind==='trap'){
+      $('xeyes_'+key).style.display='none';$('face_'+key).style.display='';
+      $('coldG_'+key).style.display='none';$('coldpipe_'+key).style.display='none';
+      $('body_'+key).setAttribute('fill','#cfd8e3');$('body_'+key).setAttribute('stroke','#5d7ea8');
+      $('mouth_'+key).setAttribute('d','M'+(s.x-11)+' 352 q11 9 22 0');
+    }
+    if(!f)continue;
+    if(f.fixed){
+      fix.style.display='';
+      if(s.kind==='trap'){$('body_'+key).setAttribute('fill','#9be8c8');$('body_'+key).setAttribute('stroke','#1fb45f');}
+      continue;
+    }
+    if(f.revealed)ring.style.display='';
+    if(f.type==='leak'){jet.style.display='';
+      jet.setAttribute('transform','translate('+s.x+' '+s.y+') scale('+js+') translate('+(-s.x)+' '+(-s.y)+')');}
+    else if(f.type==='open'){jet.style.display='';
+      $('xeyes_'+key).style.display='';$('face_'+key).style.display='none';
+      $('body_'+key).setAttribute('fill','#ffd9d9');$('body_'+key).setAttribute('stroke','#ef4b4b');}
+    else if(f.type==='cold'){
+      $('coldG_'+key).style.display='';$('coldpipe_'+key).style.display='';
+      $('body_'+key).setAttribute('fill','#bfe6ff');$('body_'+key).setAttribute('stroke','#4aa8ff');
+      $('mouth_'+key).setAttribute('d','M'+(s.x-11)+' 356 q11 -9 22 0');
+    }
+  }
+}
+
+/* ── โหมดกล้องความร้อน ── */
+function buildThermal(){
+  var g=$('thermalG');g.innerHTML='';
+  el('rect',{x:0,y:0,width:1700,height:520,fill:'#0a1230',opacity:.9},g);
+  /* ท่อไอน้ำร้อนปกติ (อุ่นทั้งเส้น) */
+  el('rect',{x:248,y:146,width:1256,height:28,rx:12,fill:'#b65a2e',opacity:.8,filter:'url(#blurF)'},g);
+  el('rect',{x:60,y:196,width:190,height:234,rx:18,fill:'#c1662e',opacity:.7,filter:'url(#blurF)'},g);
+  el('rect',{x:560,y:405,width:990,height:18,rx:8,fill:'#8a5a30',opacity:.6,filter:'url(#blurF)'},g);
+  /* trap ปกติ = อุ่นนิด ๆ */
+  for(var key in SLOTS){var s=SLOTS[key];if(SLOTS[key].kind!=='trap')continue;
+    var f=faultOf(key);if(f&&!f.fixed)continue;
+    el('circle',{cx:s.x,cy:346,r:26,fill:'#b65a2e',opacity:.45,filter:'url(#blurF)'},g);}
+  /* จุดผิดปกติ */
+  for(var i=0;i<faults.length;i++){var f=faults[i];if(f.fixed)continue;var s=SLOTS[f.s];
+    if(f.type==='cold'){
+      el('rect',{x:s.x-62,y:280,width:124,height:152,rx:20,fill:'url(#coldR)','class':'blobCold'},g);
+      el('circle',{cx:s.x,cy:346,r:30,fill:'#9fd0ff',opacity:.85,'class':'blobCold'},g);
+      var t=el('text',{x:s.x,y:262,'font-size':24,'text-anchor':'middle'},g);t.textContent='🧊';
+    }else{
+      var cy=s.kind==='trap'?390:s.y-18;
+      el('circle',{cx:s.x,cy:cy,r:62,fill:'url(#hotR)','class':'blobHot'},g);
+      el('circle',{cx:s.x,cy:cy,r:22,fill:'#fff6c8',opacity:.95,'class':'blobHot'},g);
+    }
+  }
+}
+function fireThermal(){
+  if(therm.active||therm.uses<=0||!running)return;
+  therm.uses--;therm.active=true;therm.t=5;
+  buildThermal();$('thermalG').style.display='';$('sceneOuter').classList.add('thermalOn');
+  sSweep();updateToolUI();
+  say('มองหาจุด "ร้อนจัด" สีส้มแดง และจุด "เย็น" สีฟ้า!',2800);
+}
+function endThermal(){
+  therm.active=false;$('thermalG').style.display='none';
+  $('sceneOuter').classList.remove('thermalOn');updateToolUI();
+}
+function updateToolUI(){
+  var b=$('toolTherm');
+  if(therm.active){$('thermLbl').textContent='กำลังส่อง… '+Math.ceil(therm.t)+' วิ';b.classList.add('hot');}
+  else{$('thermLbl').textContent='กล้องความร้อน ×'+therm.uses;b.classList.remove('hot');}
+  b.disabled=(therm.uses<=0&&!therm.active)||LEVELS[level].thermal===0;
+  $('toolSteth').classList.toggle('sel',tool==='steth');
+}
+
+/* ── เศรษฐกิจเหรียญ ── */
+function totalUnits(){var u=0;for(var i=0;i<faults.length;i++)u+=faults[i].unit;return u;}
+function coinsNow(){
+  var T=LEVELS[level].drainT,tot=totalUnits(),lost=0;
+  for(var i=0;i<faults.length;i++){var f=faults[i];
+    var t=f.fixed?f.tFix:tEl;lost+=f.unit/tot*Math.min(1,t/T);}
+  return Math.max(0,100*(1-lost));
+}
+function coinsFinal(){
+  var T=LEVELS[level].drainT,tot=totalUnits(),lost=0;
+  for(var i=0;i<faults.length;i++){var f=faults[i];
+    lost+=f.fixed?f.unit/tot*Math.min(1,f.tFix/T):f.unit/tot;}
+  return Math.max(0,100*(1-lost));
+}
+function activeKgph(){var k=0;for(var i=0;i<faults.length;i++){var f=faults[i];if(!f.fixed&&f.type!=='cold')k+=f.kgph;}return k;}
+function fixedKgph(){var k=0;for(var i=0;i<faults.length;i++){var f=faults[i];if(f.fixed&&f.type!=='cold')k+=f.kgph;}return k;}
+
+/* ── speech bubble ── */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');
+  clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2600);}
+
+/* ── overlay helpers ── */
+function overlayOpen(){var os=document.querySelectorAll('.overlay');
+  for(var i=0;i<os.length;i++)if(os[i].classList.contains('show'))return true;return false;}
+
+/* ── เริ่มด่าน ── */
+function startLevel(i){
+  level=i;tEl=0;running=true;miniFault=null;
+  endThermal();stopListen();
+  var L=LEVELS[i];
+  faults=L.faults.map(function(d){
+    var kg=d.type==='leak'?napier(d.mm,PH.P_BARG):(d.type==='open'?d.kgph:0);
+    return {s:d.s,type:d.type,mm:d.mm||0,kgph:kg,
+      unit:d.type==='cold'?PH.COLD_UNIT:kg,
+      fixed:false,tFix:0,revealed:false,coinT:Math.random()*1.2+0.4};
+  });
+  therm.uses=L.thermal;therm.active=false;
+  tool='steth';
+  $('lvlName').textContent=L.name;
+  $('goalTxt').textContent=L.goal;
+  $('timerTxt').style.display='block';$('timerWrap').style.display='block';
+  $('timeLeft').textContent=L.time;$('timerBar').style.width='100%';
+  $('coinN').textContent='100';
+  $('coinsG').innerHTML='';
+  wrap.scrollLeft=0;
+  renderScene();updateToolUI();
+  say(i===0?'ได้ยินเสียงฟู่ไหม? กดค้างบนท่อแล้วไล่หาเลย! 🎧':
+      i===1?'มี trap ป่วยซ่อนอยู่ ลองใช้กล้องความร้อนสิ! 🌡':
+      i===2?'จุดเสียบางจุด "เย็นและเงียบ"… ระวังนะ 🧊':
+      'โรงงานเต็มรูปแบบ! เลื่อนฉากหาให้ทั่วเลย 🏭',3200);
+}
+
+/* ── เหรียญลอยหนี ── */
+function spawnCoin(f){
+  if(reduceMotion)return;
+  var s=SLOTS[f.s],y=s.kind==='trap'?390:s.y-30;
+  var t=document.createElementNS(SVGNS,'text');
+  t.setAttribute('x',s.x-13+Math.random()*26);t.setAttribute('y',y);
+  t.setAttribute('class','coinF');t.textContent='🪙';
+  $('coinsG').appendChild(t);
+  setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},1500);
+}
+
+/* ── main loop ── */
+function loop(ts){
+  if(!lastTs)lastTs=ts;
+  var dt=Math.min(0.1,(ts-lastTs)/1000);lastTs=ts;
+  if(running&&!overlayOpen()){
+    tEl+=dt;
+    var L=LEVELS[level];
+    var left=Math.max(0,L.time-tEl);
+    $('timeLeft').textContent=Math.ceil(left);
+    $('timerBar').style.width=(left/L.time*100)+'%';
+    if(left<=5&&Math.ceil(left)!==loop._lastTick){loop._lastTick=Math.ceil(left);if(left>0)sTick();}
+    /* thermal countdown */
+    if(therm.active){therm.t-=dt;updateToolUI();if(therm.t<=0)endThermal();}
+    /* เหรียญ */
+    var c=coinsNow();
+    $('coinN').textContent=Math.round(c);
+    var anyActive=false;
+    for(var i=0;i<faults.length;i++){var f=faults[i];
+      if(f.fixed)continue;anyActive=true;
+      f.coinT-=dt;if(f.coinT<=0){spawnCoin(f);f.coinT=1.1+Math.random()*0.6;}}
+    $('coinBox').classList.toggle('drain',anyActive);
+    /* adult bar */
+    $('abKg').textContent=activeKgph().toFixed(0);
+    $('abBt').textContent=(activeKgph()*PH.PRICE).toFixed(0);
+    $('abFix').textContent=fixedKgph().toFixed(0);
+    if(tEl>=L.time)finishLevel();
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ── pointer: ลากเลื่อน / ฟังเสียง / แตะ ── */
+var ptr={down:false,sx:0,sy:0,sl:0,moved:0,listening:false,lt:null,cx:0,cy:0};
+function svgPt(cx,cy){var p=scene.createSVGPoint();p.x=cx;p.y=cy;
+  try{return p.matrixTransform(scene.getScreenCTM().inverse());}catch(e){return {x:0,y:0};}}
+function startListen(){ptr.listening=true;ensureNoise();$('listenBox').classList.add('show');updateListen();}
+function updateListen(){
+  if(!ptr.listening)return;
+  var pt=svgPt(ptr.cx,ptr.cy),best=1e9;
+  for(var i=0;i<faults.length;i++){var f=faults[i];
+    if(f.fixed||f.type==='cold')continue;
+    var s=SLOTS[f.s],jy=s.kind==='trap'?390:s.y;
+    var d=Math.hypot(pt.x-s.x,pt.y-jy);if(d<best){best=d;updateListen._f=f;}}
+  var val=best>=1e9?0:Math.max(0,Math.min(1,1-best/420));
+  $('listenFill').style.width=(val*100)+'%';
+  $('listenTxt').textContent=val>0.8?'🎧 ดังมาก! ตรงนี้แหละ!!':val>0.45?'🎧 ได้ยินชัดขึ้น… ใกล้แล้ว':val>0.12?'🎧 ได้ยินแว่ว ๆ…':'🎧 เงียบ… ลองเลื่อนที่อื่น';
+  setHiss(val*val);
+  if(val>0.8&&updateListen._f&&!updateListen._f.revealed){
+    updateListen._f.revealed=true;sFound();renderScene();
+    say('เจอแล้ว! แตะที่จุดนั้นเพื่อซ่อมเลย ✨',2600);
+  }
+}
+function stopListen(){ptr.listening=false;$('listenBox').classList.remove('show');setHiss(0);}
+function handleTap(cx,cy){
+  if(!running||overlayOpen())return;
+  var pt=svgPt(cx,cy),hit=null,hd=1e9;
+  for(var i=0;i<faults.length;i++){var f=faults[i];if(f.fixed)continue;
+    var s=SLOTS[f.s],cyy=s.kind==='trap'?358:s.y;
+    var d=Math.hypot(pt.x-s.x,pt.y-cyy);
+    var r=f.revealed?115:85;
+    if(d<r&&d<hd){hd=d;hit=f;}}
+  if(hit){openMini(hit);}
+  else{sClick();say('ตรงนี้เรียบร้อยดี ✔ ลองหาที่อื่นดู',1600);}
+}
+function bindPointer(){
+  wrap.addEventListener('pointerdown',function(e){
+    if(overlayOpen())return;
+    ptr.down=true;ptr.sx=e.clientX;ptr.sy=e.clientY;ptr.cx=e.clientX;ptr.cy=e.clientY;
+    ptr.sl=wrap.scrollLeft;ptr.moved=0;ptr.listening=false;
+    clearTimeout(ptr.lt);
+    if(tool==='steth'&&running){ptr.lt=setTimeout(startListen,180);}
+    try{wrap.setPointerCapture(e.pointerId);}catch(err){}
+  });
+  wrap.addEventListener('pointermove',function(e){
+    if(!ptr.down)return;
+    ptr.cx=e.clientX;ptr.cy=e.clientY;
+    var dx=e.clientX-ptr.sx,dy=e.clientY-ptr.sy;
+    ptr.moved=Math.max(ptr.moved,Math.abs(dx),Math.abs(dy));
+    if(ptr.listening){updateListen();return;}
+    if(ptr.moved>10){clearTimeout(ptr.lt);wrap.scrollLeft=ptr.sl-dx;}
+  });
+  function up(e){
+    if(!ptr.down)return;ptr.down=false;clearTimeout(ptr.lt);
+    if(ptr.listening){stopListen();}
+    else if(ptr.moved<8){handleTap(e.clientX,e.clientY);}
+  }
+  wrap.addEventListener('pointerup',up);
+  wrap.addEventListener('pointercancel',function(){ptr.down=false;clearTimeout(ptr.lt);stopListen();});
+}
+
+/* ── mini-action: ขันหน้าแปลน ── */
+var wrN=0,WR_NEED=6;
+function openMini(f){
+  miniFault=f;audio();
+  if(f.type==='leak')openWrench();else openSwap(f);
+}
+function openWrench(){
+  wrN=0;
+  var box=$('wrDots');box.innerHTML='';
+  for(var i=0;i<WR_NEED;i++){var d=document.createElement('div');d.className='d';box.appendChild(d);}
+  $('wrJets').style.opacity='1';
+  $('wrJets').style.transform='';
+  $('wrSpark').style.display='none';
+  $('wrHit').disabled=false;
+  $('wrOv').classList.add('show');
+}
+function wrTap(){
+  if(!miniFault||wrN>=WR_NEED)return;
+  wrN++;sClank();
+  var w=$('wrWrench');
+  w.setAttribute('transform','rotate(-26 146 130)');
+  setTimeout(function(){w.removeAttribute('transform');},110);
+  var p=wrN/WR_NEED;
+  $('wrJets').style.opacity=String(1-p);
+  $('wrJets').style.transform='scale('+(1-p*0.6)+')';
+  var ds=$('wrDots').children;
+  if(ds[wrN-1])ds[wrN-1].classList.add('on');
+  if(wrN>=WR_NEED){
+    $('wrSpark').style.display='';$('wrHit').disabled=true;sGood();
+    setTimeout(function(){$('wrOv').classList.remove('show');applyFix(miniFault);},650);
+  }
+}
+/* ── mini-action: เปลี่ยน trap ── */
+var swDrag={on:false,ox:0,oy:0,sx:0,sy:0,selMode:false};
+function openSwap(f){
+  $('swOld').style.display='';$('swDone').style.display='none';
+  $('swTargetBox').style.display='';
+  var nt=$('newTrap');
+  nt.style.left='6%';nt.style.bottom='8%';nt.style.top='auto';nt.style.display='';
+  nt.classList.remove('sel');swDrag.selMode=false;
+  $('swHint').textContent='ลากกระปุกตัวใหม่ 🙂 ไปวางในกรอบเส้นประ (หรือแตะตัวใหม่ แล้วแตะกรอบ)';
+  $('swOv').classList.add('show');
+}
+function swSuccess(){
+  if(!miniFault)return;
+  $('newTrap').style.display='none';
+  $('swOld').style.display='none';$('swTargetBox').style.display='none';
+  $('swDone').style.display='';sGood();
+  var f=miniFault;
+  setTimeout(function(){$('swOv').classList.remove('show');applyFix(f);},700);
+}
+function swCheckDrop(){
+  var nt=$('newTrap').getBoundingClientRect(),tz=$('swapTargetZone').getBoundingClientRect();
+  var cx=nt.left+nt.width/2,cy=nt.top+nt.height/2;
+  var tx=tz.left+tz.width/2,ty=tz.top+tz.height/2;
+  if(Math.hypot(cx-tx,cy-ty)<Math.max(tz.width,60)){swSuccess();return true;}
+  return false;
+}
+function bindSwap(){
+  var nt=$('newTrap');
+  nt.addEventListener('pointerdown',function(e){
+    e.preventDefault();swDrag.on=true;
+    var r=nt.getBoundingClientRect(),ar=$('swapArea').getBoundingClientRect();
+    swDrag.ox=e.clientX-r.left;swDrag.oy=e.clientY-r.top;
+    swDrag.sx=e.clientX;swDrag.sy=e.clientY;
+    nt.style.bottom='auto';
+    nt.style.left=(r.left-ar.left)+'px';nt.style.top=(r.top-ar.top)+'px';
+    try{nt.setPointerCapture(e.pointerId);}catch(err){}
+  });
+  nt.addEventListener('pointermove',function(e){
+    if(!swDrag.on)return;
+    var ar=$('swapArea').getBoundingClientRect();
+    nt.style.left=(e.clientX-ar.left-swDrag.ox)+'px';
+    nt.style.top=(e.clientY-ar.top-swDrag.oy)+'px';
+  });
+  nt.addEventListener('pointerup',function(e){
+    if(!swDrag.on)return;swDrag.on=false;
+    var moved=Math.hypot(e.clientX-swDrag.sx,e.clientY-swDrag.sy);
+    if(moved<6){ /* แตะเลือก (fallback) */
+      swDrag.selMode=!swDrag.selMode;nt.classList.toggle('sel',swDrag.selMode);sClick();
+      if(swDrag.selMode)$('swHint').textContent='เลือกแล้ว! ทีนี้แตะที่กรอบเส้นประเลย';
+      return;
+    }
+    if(!swCheckDrop()){sBad();say2('#swHint','ยังไม่ตรงกรอบ ลองลากใหม่อีกครั้ง');}
+  });
+  $('swapTargetZone').addEventListener('pointerup',function(){
+    if(swDrag.selMode){swSuccess();}
+  });
+}
+function say2(sel,txt){var e=document.querySelector(sel);if(e)e.textContent=txt;}
+
+/* ── ซ่อมสำเร็จ ── */
+function applyFix(f){
+  if(!f||f.fixed)return;
+  f.fixed=true;f.tFix=tEl;miniFault=null;
+  renderScene();
+  var lb=$('fixlbl_'+f.s);
+  if(lb){
+    if(f.type==='leak')lb.textContent='รู '+f.mm+' มม. ≈ '+f.kgph.toFixed(0)+' kg/h ≈ '+fmtSaen(bahtYr(f.kgph));
+    else if(f.type==='open')lb.textContent='trap เปิดค้าง ≈ '+f.kgph.toFixed(0)+' kg/h ≈ '+fmtSaen(bahtYr(f.kgph));
+    else lb.textContent='trap ตัน: น้ำขัง เสี่ยง water hammer';
+  }
+  say(f.type==='cold'?'เปลี่ยน trap แล้ว! น้ำขังระบายได้ ปลอดภัยขึ้น 🧊→✔':
+      f.type==='open'?'เปลี่ยน trap แล้ว! ไอน้ำไม่ไหลทิ้งอีกต่อไป ✔':
+      'ขันแน่นแล้ว! เสียงฟู่หายไปเลย ✔',2400);
+  if(therm.active){buildThermal();}
+  var allFixed=true;
+  for(var i=0;i<faults.length;i++)if(!faults[i].fixed)allFixed=false;
+  if(allFixed)setTimeout(finishLevel,850);
+}
+
+/* ── จบด่าน ── */
+var lvlDone=false;
+function finishLevel(){
+  if(!running)return;running=false;
+  stopListen();endThermal();$('coinBox').classList.remove('drain');
+  var kept=coinsFinal();
+  var st=kept>=85?3:(kept>=60?2:1);
+  var unfixed=0;for(var i=0;i<faults.length;i++)if(!faults[i].fixed)unfixed++;
+  if(st>stars[level]){stars[level]=st;saveStars();}
+  updateStarTotal();
+  var L=LEVELS[level];
+  $('resTitle').textContent=L.name;
+  $('resLesson').textContent=L.lesson(st);
+  $('resDetail').textContent='เก็บเหรียญได้ '+Math.round(kept)+'/100 🪙'+
+    (unfixed>0?' — มี '+unfixed+' จุดยังไม่ได้ซ่อม ปล่อยไว้ = จ่ายทั้งปี!':' — ซ่อมครบทุกจุด!');
+  var fk=fixedKgph();
+  $('resAdult').textContent='👷 หยุดการรั่วได้ '+fk.toFixed(0)+' kg/h ≈ '+(fk*PH.PRICE).toFixed(0)+' บาท/ชม. ≈ '+
+    Math.round(bahtYr(fk)/1000).toLocaleString()+',000 บาท/ปี (ไอน้ำ 1.2 บาท/kg)';
+  var ss=$('resStars').children;
+  for(var j=0;j<3;j++)ss[j].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(st>=2)sGood();else sBad();
+  for(let k=0;k<st;k++)setTimeout(function(){ss[k].classList.add('on');sStar(k);},350+k*380);
+  if(st===3)confetti(26);
+  $('nextBtn').textContent=level<3?'ด่านต่อไป ➜':'ดูสรุป 🏆';
+}
+function updateStarTotal(){var t=stars[0]+stars[1]+stars[2]+stars[3];$('starTotal').textContent=t;return t;}
+
+/* ── confetti ── */
+function confetti(n){var cols=['#ff5d8f','#ffd23f','#00c2a8','#7b5bff','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ── คู่มือวิธีเล่น ── */
+var TUT=[
+ {txt:'ท่อไอน้ำรั่ว = เหรียญลอยหนีไปทุกนาที! ยิ่งปล่อยนาน ยิ่งเสียเงิน',
+  svg:'<svg viewBox="0 0 320 160" width="100%" style="max-height:165px">'+
+   '<rect x="20" y="92" width="280" height="20" fill="#a8bdd4" stroke="#5d7ea8" stroke-width="3"/>'+
+   '<rect x="150" y="78" width="9" height="48" rx="3" fill="#8fa6c0" stroke="#5d7ea8" stroke-width="3"/>'+
+   '<rect x="163" y="78" width="9" height="48" rx="3" fill="#8fa6c0" stroke="#5d7ea8" stroke-width="3"/>'+
+   '<path class="jetp" d="M158 74 q-6 -18 -12 -26" stroke="#9fb4cc" stroke-width="7" fill="none" stroke-linecap="round"/>'+
+   '<path class="jetp" style="animation-delay:.4s" d="M165 72 q2 -20 4 -28" stroke="#c4d2e4" stroke-width="8" fill="none" stroke-linecap="round"/>'+
+   '<text class="tcoin" x="140" y="60" font-size="26">🪙</text>'+
+   '<text class="tcoin" style="animation-delay:.5s" x="172" y="66" font-size="26">🪙</text>'+
+   '<text class="tcoin" style="animation-delay:1s" x="156" y="54" font-size="22">🪙</text>'+
+   '<text x="40" y="146" font-size="18" font-family="Mitr,sans-serif" fill="#55657c">ฟู่ววว… 💸</text></svg>'},
+ {txt:'กด 🔊 หูฟังช่าง แล้ว "แตะค้าง" บนท่อ — ยิ่งใกล้จุดรั่ว มิเตอร์ยิ่งพุ่ง!',
+  svg:'<svg viewBox="0 0 320 160" width="100%" style="max-height:165px">'+
+   '<rect x="20" y="70" width="280" height="20" fill="#a8bdd4" stroke="#5d7ea8" stroke-width="3"/>'+
+   '<path class="jetp" d="M250 66 q0 -16 3 -24" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round"/>'+
+   '<g class="tHand"><text x="118" y="64" font-size="34">👆</text></g>'+
+   '<rect x="40" y="112" width="240" height="22" rx="8" fill="#3a4a63"/>'+
+   '<rect x="44" y="116" width="232" height="14" rx="6" fill="#2a3850"/>'+
+   '<g><rect x="44" y="116" height="14" rx="6" id="tMeterFill" width="40"/></g>'+
+   '<text x="160" y="155" font-size="15" text-anchor="middle" font-family="Mitr,sans-serif" fill="#55657c">🎧 เงียบ → ดังมาก!</text></svg>'},
+ {txt:'กด 🌡 กล้องความร้อน: จุด "ร้อนจัด" สีส้ม = รั่ว/trap เปิดค้าง · จุด "เย็น" สีฟ้า = trap ตัน',
+  svg:'<svg viewBox="0 0 320 160" width="100%" style="max-height:165px">'+
+   '<rect x="8" y="8" width="304" height="144" rx="14" fill="#0a1230"/>'+
+   '<rect x="24" y="72" width="272" height="16" rx="8" fill="#b65a2e" opacity=".85"/>'+
+   '<circle class="blobHot" cx="110" cy="78" r="30" fill="#ffb347" opacity=".9"/>'+
+   '<circle class="blobHot" cx="110" cy="78" r="12" fill="#fff6c8"/>'+
+   '<rect class="blobCold" x="212" y="88" width="56" height="52" rx="12" fill="#3f7ae0" opacity=".85"/>'+
+   '<text x="110" y="40" font-size="16" text-anchor="middle" font-family="Mitr,sans-serif" fill="#ffb347" font-weight="600">ร้อนจัด!</text>'+
+   '<text x="240" y="70" font-size="16" text-anchor="middle" font-family="Mitr,sans-serif" fill="#9fd0ff" font-weight="600">เย็น+น้ำขัง</text></svg>'},
+ {txt:'เจอแล้วแตะที่จุดนั้น → ขันหน้าแปลนด้วยประแจ หรือลาก trap ตัวใหม่ไปเปลี่ยน!',
+  svg:'<svg viewBox="0 0 320 160" width="100%" style="max-height:165px">'+
+   '<rect x="14" y="66" width="130" height="18" fill="#a8bdd4" stroke="#5d7ea8" stroke-width="3"/>'+
+   '<rect x="66" y="52" width="8" height="44" rx="3" fill="#8fa6c0" stroke="#5d7ea8" stroke-width="2.5"/>'+
+   '<rect x="78" y="52" width="8" height="44" rx="3" fill="#8fa6c0" stroke="#5d7ea8" stroke-width="2.5"/>'+
+   '<g class="tWrench"><rect x="80" y="100" width="56" height="10" rx="5" fill="#55657c" transform="rotate(28 80 105)"/>'+
+   '<circle cx="76" cy="102" r="11" fill="none" stroke="#55657c" stroke-width="8" stroke-dasharray="48 22"/></g>'+
+   '<g class="tTrapNew"><rect x="176" y="84" width="46" height="42" rx="9" fill="#9be8c8" stroke="#1fb45f" stroke-width="3"/>'+
+   '<circle cx="190" cy="100" r="3" fill="#213047"/><circle cx="208" cy="100" r="3" fill="#213047"/>'+
+   '<path d="M188 110 q11 9 22 0" stroke="#1a7a46" stroke-width="3" fill="none" stroke-linecap="round"/></g>'+
+   '<rect x="276" y="80" width="54" height="50" rx="10" fill="none" stroke="#7b5bff" stroke-width="3.5" stroke-dasharray="8 7"/>'+
+   '<text x="70" y="36" font-size="16" font-family="Mitr,sans-serif" fill="#55657c" font-weight="600">🔧 ขันรัว ๆ</text>'+
+   '<text x="226" y="62" font-size="16" font-family="Mitr,sans-serif" fill="#55657c" font-weight="600">🔄 ลากไปวาง</text></svg>'},
+ {txt:'ยิ่งซ่อมเร็ว ยิ่งเก็บเหรียญได้มาก → ดาวก็ยิ่งเยอะ! พร้อมหรือยัง?',
+  svg:'<svg viewBox="0 0 320 160" width="100%" style="max-height:165px">'+
+   '<text x="60" y="76" font-size="44" text-anchor="middle">⏱</text>'+
+   '<text x="124" y="72" font-size="30" text-anchor="middle">➜</text>'+
+   '<text x="180" y="76" font-size="44" text-anchor="middle">🪙</text>'+
+   '<g class="tStar"><text x="256" y="78" font-size="44" text-anchor="middle">⭐</text></g>'+
+   '<text x="160" y="130" font-size="19" text-anchor="middle" font-family="Mitr,sans-serif" fill="#55657c" font-weight="600">ซ่อมเร็ว = 🪙 เยอะ = ⭐⭐⭐</text></svg>'}
+];
+var tutPage=0, tutFromStart=false;
+function openTut(fromStart){
+  tutFromStart=!!fromStart;tutPage=0;renderTut();
+  $('tutOv').classList.add('show');
+}
+function renderTut(){
+  $('tutPic').innerHTML=TUT[tutPage].svg;
+  $('tutTxt').textContent=TUT[tutPage].txt;
+  var d=$('tutDots');d.innerHTML='';
+  for(var i=0;i<TUT.length;i++){var dd=document.createElement('div');
+    dd.className='d'+(i===tutPage?' on':'');d.appendChild(dd);}
+  $('tutPrev').style.visibility=tutPage===0?'hidden':'visible';
+  $('tutNext').textContent=tutPage===TUT.length-1?'เริ่มเล่นเลย! 🚀':'ถัดไป ▶';
+}
+function tutNextFn(){
+  sClick();
+  if(tutPage<TUT.length-1){tutPage++;renderTut();}
+  else{
+    markSeen();$('tutOv').classList.remove('show');
+    if(tutFromStart||$('startOv').classList.contains('show')){
+      $('startOv').classList.remove('show');audio();startLevel(0);
+    }
+  }
+}
+
+/* ── ปุ่ม / อีเวนต์ ── */
+function bindUI(){
+  $('toolSteth').addEventListener('click',function(){tool='steth';sClick();updateToolUI();
+    say('แตะค้างบนท่อ แล้วเลื่อนนิ้วไล่ฟังเสียงได้เลย 🎧',2200);});
+  $('toolTherm').addEventListener('click',function(){audio();fireThermal();});
+  $('arrL').addEventListener('click',function(){wrap.scrollBy({left:-330,behavior:reduceMotion?'auto':'smooth'});sClick();});
+  $('arrR').addEventListener('click',function(){wrap.scrollBy({left:330,behavior:reduceMotion?'auto':'smooth'});sClick();});
+  $('wrHit').addEventListener('click',wrTap);
+  $('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(0);});
+  $('howBtn').addEventListener('click',function(){audio();sClick();openTut(false);});
+  $('helpBtn').addEventListener('click',function(){audio();sClick();openTut(false);});
+  $('tutPrev').addEventListener('click',function(){if(tutPage>0){tutPage--;renderTut();sClick();}});
+  $('tutNext').addEventListener('click',tutNextFn);
+  $('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(level);});
+  $('nextBtn').addEventListener('click',function(){
+    $('resultOv').classList.remove('show');
+    if(level<3)startLevel(level+1);
+    else{$('endStars').textContent=updateStarTotal();$('endOv').classList.add('show');
+      setTimeout(function(){var fs=document.querySelectorAll('#rankBox .fl');
+        fs.forEach(function(f){f.style.width=f.dataset.w+'%';});},250);
+      confetti(40);sGood();}
+  });
+  $('againBtn').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+  $('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(!sndOn)setHiss(0);if(sndOn)sClick();});
+  $('adultBtn').addEventListener('click',function(){document.body.classList.toggle('adult');this.classList.toggle('on');sClick();});
+  bindPointer();bindSwap();
+  document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+}
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<4;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.3rem">'+LEVELS[i].icon+'</span><span class="nm">ด่าน '+(i+1)+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── init ── */
+scene=$('scene');wrap=$('sceneWrap');
+loadStars();updateStarTotal();buildLvlPick();buildScene();renderScene();bindUI();
+updateToolUI();
+requestAnimationFrame(loop);
+if(!seenTut())setTimeout(function(){openTut(true);},500);
+
+/* ── debug/QA API ── */
+window.GAME={
+  napier:napier,bahtYr:bahtYr,PH:PH,LEVELS:LEVELS,SLOTS:SLOTS,
+  startLevel:startLevel,fireThermal:fireThermal,finish:finishLevel,
+  state:function(){return {level:level,tEl:tEl,running:running,coins:coinsNow(),
+    thermUses:therm.uses,faults:faults.map(function(f){return {s:f.s,type:f.type,kgph:f.kgph,fixed:f.fixed,tFix:f.tFix,revealed:f.revealed};})};},
+  fix:function(slot){var f=faultOf(slot);if(f&&!f.fixed)applyFix(f);},
+  reveal:function(slot){var f=faultOf(slot);if(f){f.revealed=true;renderScene();}},
+  openMini:function(slot){var f=faultOf(slot);if(f&&!f.fixed)openMini(f);},
+  screenPos:function(slot){var s=SLOTS[slot];var p=scene.createSVGPoint();
+    p.x=s.x;p.y=s.kind==='trap'?358:s.y;
+    var m=p.matrixTransform(scene.getScreenCTM());return {x:m.x,y:m.y};}
+};
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

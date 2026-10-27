@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ปราบแอร์ตัวร้าย — Energy Sense Games</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "ปราบแอร์ตัวร้าย (AC Rescue)" v0.1 — Energy Sense Games · Triple E Technology
+     หลักที่สอน: นิสัยใช้แอร์ที่ดี — ล้างฟิลเตอร์ / ปิดแอร์ห้องว่าง / ตั้งเวลาปิด + 26°C — ช่วยลดบิลได้จริง
+     ฟิสิกส์เบื้องหลัง: แอร์ 12,000 BTU ≈ 1.0 kW · ฟิลเตอร์ตัน +12% · ลดอุณหภูมิ 1°C ≈ +10%
+     เปิดแอร์ห้องว่าง 4 ชม./วัน ≈ 120 kWh/เดือน · ตั้งเวลาปิดตี 3 + 26°C ≈ ประหยัด ~25% ของคืน (~60 kWh/เดือน)
+     ค่าไฟ 4.5 บาท/kWh → นิสัยดีครบ 3 ข้อ ≈ 208.8 kWh ≈ 940 บาท/เดือน -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sky2:#cdeaff;
+  --sun:#ffd23f; --sun2:#ff9f1c;
+  --grass:#7ed957;
+  --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff;
+  --good:#1fb45f; --mid:#f5a623; --bad:#ef4b4b;
+  --btn-grad:linear-gradient(135deg,#ff5d8f,#ff8f1c);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,var(--sky1),var(--sky2) 55%,#eafbe0 56%,#d8f5c8);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:860px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(33,48,71,.15);backdrop-filter:blur(4px)}
+#hud .lvl-name{font-weight:600;font-size:1.02rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 10px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink)}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Bill strip (ตัวร้าย + บิลสะสม) ───── */
+#billStrip{position:relative;display:flex;align-items:center;gap:8px;background:#fff;border:3px solid #fff;
+  border-radius:18px;padding:6px 12px 6px 6px;box-shadow:0 4px 14px rgba(33,48,71,.15)}
+#vSvg{width:92px;height:84px;flex:none;transition:filter .3s}
+#vSvg.munch{animation:vwob .5s ease-in-out}
+@keyframes vwob{0%,100%{transform:scale(1)}30%{transform:scale(1.1,.92)}60%{transform:scale(.95,1.06)}}
+#billBox{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.billTop{display:flex;justify-content:space-between;align-items:baseline;font-size:.85rem;font-weight:600}
+#billLbl{color:#b8550f;font-size:.82rem;white-space:nowrap}
+#billBar{position:relative;height:26px;background:#eef3fa;border-radius:13px;overflow:hidden;border:2px solid #dde6f0}
+#billFill{height:100%;width:0%;border-radius:13px;background:linear-gradient(90deg,#ffd23f,#ff8f1c);
+  transition:width .4s linear,background .4s;display:flex;align-items:center;justify-content:flex-end;
+  font-size:.85rem;overflow:hidden;white-space:nowrap}
+#nbMark{position:absolute;right:4px;top:0;font-size:.95rem;line-height:26px;pointer-events:none}
+#vSay{font-size:.78rem;color:#6a7a90;min-height:1.1em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.coinfly{position:absolute;left:84px;top:34px;font-size:1.05rem;z-index:5;pointer-events:none;animation:coinGo .85s ease-in forwards}
+@keyframes coinGo{0%{transform:translate(72px,-12px) scale(1);opacity:1}70%{transform:translate(8px,2px) scale(.95);opacity:1}100%{transform:translate(-14px,8px) scale(.3);opacity:0}}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(33,48,71,.18);background:#eef6fd;border:4px solid #fff}
+#sceneWrap svg{display:block;width:100%;height:auto;touch-action:none}
+#adultBar{position:absolute;left:10px;top:10px;background:rgba(20,30,48,.82);color:#fff;border-radius:12px;
+  padding:6px 10px;font-size:.82rem;line-height:1.35;display:none;pointer-events:none;max-width:70%}
+#adultBar b{color:#ffd23f;font-size:1rem}
+body.adult #adultBar{display:block}
+.adult-only{display:none}
+body.adult .adult-only{display:block}
+
+/* ───── Panel ───── */
+#panel{background:#fff;border-radius:20px;padding:12px 14px;box-shadow:0 6px 18px rgba(33,48,71,.14);display:flex;flex-direction:column;gap:10px}
+.goal{font-size:.98rem;font-weight:600;text-align:center;background:#fff6d9;border:2px dashed #ffd23f;border-radius:14px;padding:8px 12px}
+#timerWrap{display:none;width:100%;background:#eef3fa;border-radius:10px;height:18px;overflow:hidden}
+#timerBar{height:100%;width:100%;background:linear-gradient(90deg,#00c2a8,#19a0ff);transition:width .2s linear}
+#timerTxt{display:none;text-align:center;font-weight:700;font-size:1.05rem}
+.ctl-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center}
+.temp-val{font-size:1.8rem;font-weight:700;line-height:1}
+.temp-val small{font-size:.95rem;font-weight:500;color:#6a7a90}
+.tbtn{border:none;width:54px;height:54px;border-radius:50%;font-family:inherit;font-size:1.7rem;font-weight:700;
+  color:#fff;background:linear-gradient(135deg,var(--teal),#19a0ff);cursor:pointer;
+  box-shadow:0 4px 0 #0d8aa0;transition:transform .1s}
+.tbtn:active{transform:translateY(3px);box-shadow:0 1px 0 #0d8aa0}
+.big-btn{border:none;border-radius:999px;padding:14px 34px;font-family:inherit;font-size:1.2rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #d14b76,0 10px 18px rgba(0,0,0,.2);transition:transform .1s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #d14b76}
+.big-btn.alt{background:linear-gradient(135deg,var(--teal),#19a0ff);box-shadow:0 6px 0 #0d8aa0,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #0d8aa0}
+.big-btn.small{font-size:1rem;padding:10px 22px}
+.big-btn.ghost{background:#eef3fa;color:var(--ink);box-shadow:0 4px 0 #c9d6e6}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(18,28,46,.55);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:16px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:26px;max-width:470px;width:100%;padding:22px 18px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.45rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:3rem;letter-spacing:6px;margin:10px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#fff6d9;border-radius:14px;padding:10px 12px;font-weight:600;margin:8px 0;font-size:.95rem}
+.rankbar{display:flex;align-items:center;gap:8px;margin:7px 0;text-align:left}
+.rankbar .lb{width:118px;font-size:.9rem;font-weight:600;flex:none}
+.rankbar .tr{flex:1;background:#eef3fa;border-radius:9px;height:24px;overflow:hidden}
+.rankbar .fl{height:100%;width:0;border-radius:9px;transition:width 1s cubic-bezier(.3,.9,.4,1);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:#fff;font-size:.78rem;font-weight:700;white-space:nowrap}
+.lvl-pick{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:8px 10px;font-family:inherit;cursor:pointer;min-width:80px}
+.lvl-pick .nm{font-size:.82rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.88rem;letter-spacing:1px}
+#startCard h1{font-size:1.85rem;line-height:1.25;background:linear-gradient(135deg,#ff5d8f,#ff8f1c);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#6a7a90;margin:4px 0 10px;font-size:.95rem}
+.brand{font-size:.78rem;color:#8795a8;margin-top:12px}
+#footBrand{text-align:center;font-size:.78rem;color:#8795a8}
+
+/* ───── Tutorial ───── */
+#howPic{background:#f2f7fd;border-radius:18px;margin:10px auto;max-width:360px;overflow:hidden}
+#howPic svg{display:block;width:100%;height:auto}
+#howTxt{font-weight:600;min-height:3em}
+#howDots{display:flex;gap:7px;justify-content:center;margin:10px 0}
+#howDots .d{width:11px;height:11px;border-radius:50%;background:#d5dfeb;transition:background .2s,transform .2s}
+#howDots .d.on{background:var(--pink);transform:scale(1.25)}
+.hownav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:60;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── Game SVG animations ───── */
+@keyframes breeze{0%{opacity:0;transform:translateX(0)}30%{opacity:.85}100%{opacity:0;transform:translateX(-30px)}}
+.breezeln{animation:breeze 1.5s ease-out infinite}
+@keyframes bigbreeze{0%{opacity:0;transform:translateY(0)}30%{opacity:.9}100%{opacity:0;transform:translateY(60px)}}
+.bigbz{animation:bigbreeze 1.3s ease-out infinite}
+@keyframes sweatA{0%{transform:translateY(0);opacity:0}25%{opacity:1}100%{transform:translateY(14px);opacity:0}}
+.sweatd{animation:sweatA 1.1s ease-in infinite;opacity:0}
+@keyframes floatyA{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.floaty{animation:floatyA 1s ease-in-out infinite}
+@keyframes zfl{0%{transform:translateY(0);opacity:0}25%{opacity:.9}100%{transform:translateY(-34px);opacity:0}}
+.zz{animation:zfl 2.6s ease-out infinite}
+@keyframes alertA{0%,100%{transform:scale(1)}50%{transform:scale(1.35)}}
+.alertp{animation:alertA .7s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes hintA{0%,100%{transform:translate(0,0)}25%{transform:translate(70px,14px)}50%{transform:translate(140px,-6px)}75%{transform:translate(60px,-16px)}}
+#wipeHint{animation:hintA 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes streakF{to{opacity:0;transform:scale(1.8)}}
+.streak{animation:streakF .45s ease-out forwards;transform-box:fill-box;transform-origin:center}
+@keyframes blinkA{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+.eye{transform-box:fill-box;transform-origin:center;animation:blinkA 4.2s infinite}
+@keyframes twinkA{0%,100%{opacity:.25}50%{opacity:1}}
+.twink{animation:twinkA 2.2s ease-in-out infinite}
+.personG{transition:transform .6s cubic-bezier(.4,.8,.4,1)}
+.roomG{cursor:pointer}
+
+/* ───── tutorial svg anims ───── */
+@keyframes howCoin{0%{transform:translate(120px,-20px);opacity:0}15%{opacity:1}60%{transform:translate(0,0);opacity:1}75%{transform:translate(0,0) scale(.3);opacity:0}100%{opacity:0}}
+.howCoin{animation:howCoin 1.8s ease-in infinite;transform-box:fill-box;transform-origin:center}
+@keyframes howChew{0%,55%,100%{transform:scale(1)}65%{transform:scale(1.12,.9)}80%{transform:scale(.96,1.05)}}
+.howChew{animation:howChew 1.8s ease-in-out infinite;transform-box:fill-box;transform-origin:center bottom}
+@keyframes howWipe{0%{transform:translate(0,0)}45%{transform:translate(150px,8px)}55%{transform:translate(150px,24px)}100%{transform:translate(0,32px)}}
+.howHand{animation:howWipe 2.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes howDust{0%,20%{opacity:.9}45%,100%{opacity:0}}
+.howDust{animation:howDust 2.6s ease-in-out infinite}
+@keyframes howTap{0%,100%{transform:scale(1)}15%{transform:scale(.78)}30%{transform:scale(1)}}
+.howTap{animation:howTap 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes howOff{0%,25%{opacity:1}45%,80%{opacity:.15}100%{opacity:1}}
+.howOff{animation:howOff 3.2s ease-in-out infinite}
+@keyframes howDial{0%,15%{transform:rotate(-120deg)}55%,85%{transform:rotate(30deg)}100%{transform:rotate(-120deg)}}
+.howNeedle{animation:howDial 3s ease-in-out infinite;transform-box:view-box}
+@keyframes howPulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.15);opacity:1}}
+.howPulse{animation:howPulse 1.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+
+@media (prefers-reduced-motion:reduce){
+  .breezeln,.bigbz,.sweatd,.floaty,.zz,.alertp,#wipeHint,.streak,.eye,.twink,
+  .howCoin,.howChew,.howHand,.howDust,.howTap,.howOff,.howNeedle,.howPulse,
+  #vSvg.munch,.coinfly{animation:none}
+}
+@media (max-width:480px){
+  .card h2{font-size:1.25rem}
+  #vSvg{width:80px;height:74px}
+  .goal{font-size:.9rem}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">ปราบแอร์ตัวร้าย</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/12</div>
+    <button id="howBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="adultBtn" title="โหมดผู้ใหญ่ แสดง kW และ บาท">👷</button>
+  </div>
+
+  <!-- BILL STRIP : villain + bill -->
+  <div id="billStrip">
+    <svg id="vSvg" viewBox="0 0 150 128" aria-label="เจ้าแอร์จอมตะกละ">
+      <g id="vBody">
+        <rect x="50" y="106" width="15" height="16" rx="6" fill="#5d7ea8"/>
+        <rect x="85" y="106" width="15" height="16" rx="6" fill="#5d7ea8"/>
+        <rect id="vShell" x="30" y="22" width="90" height="88" rx="22" fill="#cfe9fb" stroke="#5d7ea8" stroke-width="5"/>
+        <rect x="42" y="32" width="66" height="9" rx="4.5" fill="#eaf6ff"/>
+        <rect x="44" y="92" width="62" height="8" rx="4" fill="#9fc3de"/>
+        <circle id="vChL" cx="44" cy="72" r="7" fill="#ff9d9d" opacity=".8"/>
+        <circle id="vChR" cx="106" cy="72" r="7" fill="#ff9d9d" opacity=".8"/>
+        <path id="vBrL" d="M42 46 L64 54" stroke="#213047" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+        <path id="vBrR" d="M108 46 L86 54" stroke="#213047" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+        <g class="eye"><circle cx="57" cy="60" r="8" fill="#fff" stroke="#213047" stroke-width="2"/><circle id="vPuL" cx="58" cy="61" r="3.6" fill="#213047"/></g>
+        <g class="eye"><circle cx="93" cy="60" r="8" fill="#fff" stroke="#213047" stroke-width="2"/><circle id="vPuR" cx="92" cy="61" r="3.6" fill="#213047"/></g>
+        <path id="vMouth" d="M54 78 Q75 96 96 78 Q75 86 54 78" fill="#b3404f" stroke="#7c2d3e" stroke-width="3"/>
+        <path id="vArmL" d="M32 70 Q14 62 12 48" stroke="#5d7ea8" stroke-width="7" fill="none" stroke-linecap="round"/>
+        <path id="vArmR" d="M118 70 Q136 62 138 48" stroke="#5d7ea8" stroke-width="7" fill="none" stroke-linecap="round"/>
+        <path id="vSweat" d="M120 36 q-5 9 0 13 q6 -4 0 -13" fill="#4aa8ff" opacity="0"/>
+        <g id="vTear" opacity="0" fill="#4aa8ff">
+          <path class="sweatd" d="M52 70 q-4 8 0 11 q5 -3 0 -11"/>
+          <path class="sweatd" style="animation-delay:.5s" d="M98 70 q-4 8 0 11 q5 -3 0 -11"/>
+        </g>
+        <g id="vFlag" opacity="0">
+          <line x1="132" y1="30" x2="132" y2="74" stroke="#8a5a28" stroke-width="4"/>
+          <path d="M132 30 L112 38 L132 46 Z" fill="#fff" stroke="#c4d2e4" stroke-width="2"/>
+        </g>
+      </g>
+      <text id="vZap" x="116" y="26" font-size="17" opacity="0">⚡</text>
+    </svg>
+    <div id="billBox">
+      <div class="billTop"><span>💸 บิลไฟบ้านเรา</span><span id="billLbl">ยังไม่เริ่ม</span></div>
+      <div id="billBar"><div id="billFill"><span id="coinRow"></span></div><div id="nbMark">🏠💰</div></div>
+      <div id="vSay">ฮ่า ๆ ข้าคือเจ้าแอร์จอมตะกละ จะกินค่าไฟบ้านนี้ให้หมด!</div>
+    </div>
+  </div>
+
+  <!-- SCENES -->
+  <div id="sceneWrap">
+
+    <!-- ด่าน 1 : ล้างฟิลเตอร์ -->
+    <svg id="sc1" viewBox="0 0 860 470" aria-label="ล้างฟิลเตอร์แอร์">
+      <rect width="860" height="470" fill="#eef6fd"/>
+      <rect y="420" width="860" height="50" fill="#e4cfa4"/>
+      <rect y="414" width="860" height="8" fill="#caa06a"/>
+      <rect x="170" y="36" width="520" height="206" rx="26" fill="#fff" stroke="#9fb4cc" stroke-width="6"/>
+      <rect x="205" y="56" width="450" height="15" rx="7" fill="#e7f0fa"/>
+      <circle cx="640" cy="63" r="5" fill="#1fb45f"/>
+      <rect x="200" y="90" width="460" height="134" rx="12" fill="#f2f7fc" stroke="#b9cde2" stroke-width="4"/>
+      <g stroke="#d7e4f0" stroke-width="4">
+        <line x1="208" y1="118" x2="652" y2="118"/><line x1="208" y1="144" x2="652" y2="144"/>
+        <line x1="208" y1="170" x2="652" y2="170"/><line x1="208" y1="196" x2="652" y2="196"/>
+      </g>
+      <g id="dustG"></g>
+      <g id="streakG"></g>
+      <g id="windG" stroke="#7fd0ff" fill="none" stroke-linecap="round" opacity=".25">
+        <path class="bigbz" stroke-width="9" d="M300 268 q-14 36 6 70"/>
+        <path class="bigbz" style="animation-delay:.3s" stroke-width="9" d="M430 272 q14 38 -4 74"/>
+        <path class="bigbz" style="animation-delay:.6s" stroke-width="9" d="M560 268 q-12 36 8 70"/>
+        <path class="bigbz" style="animation-delay:.9s" stroke-width="7" d="M365 276 q10 34 -4 62"/>
+        <path class="bigbz" style="animation-delay:1.1s" stroke-width="7" d="M495 276 q-10 34 4 62"/>
+      </g>
+      <g id="sparkG" opacity="0">
+        <text x="230" y="90" font-size="30">✨</text><text x="600" y="110" font-size="26">✨</text>
+        <text x="420" y="78" font-size="24">✨</text>
+      </g>
+      <text id="wipeHint" x="380" y="170" font-size="48">👆</text>
+      <text x="430" y="452" font-size="22" text-anchor="middle" fill="#8a6d3f" font-weight="600" font-family="Mitr,sans-serif">ถูฝุ่นออกจากฟิลเตอร์ให้หมด!</text>
+    </svg>
+
+    <!-- ด่าน 2 : ปิดแอร์ห้องว่าง -->
+    <svg id="sc2" viewBox="0 0 860 470" style="display:none" aria-label="บ้าน 4 ห้อง ปิดแอร์ห้องว่าง">
+      <rect width="860" height="470" fill="#d9ecff"/>
+      <rect x="10" y="12" width="840" height="446" rx="18" fill="#b98b55"/>
+      <g id="roomsG2"></g>
+      <g id="pplG2"></g>
+    </svg>
+
+    <!-- ด่าน 3 : ตั้งเวลานอน -->
+    <svg id="sc3" viewBox="0 0 860 470" style="display:none" aria-label="ตั้งเวลาปิดแอร์ตอนนอน">
+      <rect width="860" height="470" fill="#16233f"/>
+      <circle cx="520" cy="46" r="22" fill="#fff6c9"/><circle cx="512" cy="40" r="19" fill="#16233f"/>
+      <g fill="#fff">
+        <circle class="twink" cx="60" cy="40" r="3"/><circle class="twink" style="animation-delay:.6s" cx="150" cy="70" r="2.5"/>
+        <circle class="twink" style="animation-delay:1.1s" cx="300" cy="36" r="3"/><circle class="twink" style="animation-delay:.3s" cx="420" cy="80" r="2.5"/>
+      </g>
+      <!-- AC -->
+      <g>
+        <rect x="60" y="92" width="190" height="52" rx="14" fill="#f4f9ff" stroke="#9fb4cc" stroke-width="4"/>
+        <rect x="74" y="126" width="162" height="8" rx="4" fill="#cfe2f5"/>
+        <text id="ac3T" x="100" y="122" font-size="25" font-weight="700" fill="#2d6cdf" font-family="Mitr,sans-serif">22°</text>
+        <g stroke="#7fd0ff" stroke-width="4" fill="none" stroke-linecap="round">
+          <path class="breezeln" d="M95 152 q-10 10 -20 9"/>
+          <path class="breezeln" style="animation-delay:.5s" d="M170 155 q-10 11 -22 10"/>
+        </g>
+      </g>
+      <!-- bed + kid -->
+      <g>
+        <rect x="80" y="246" width="280" height="64" rx="14" fill="#5a4a8f"/>
+        <rect x="80" y="226" width="80" height="40" rx="12" fill="#efe6ff"/>
+        <circle cx="128" cy="228" r="24" fill="#ffd9b3" stroke="#e8b27f" stroke-width="3"/>
+        <path d="M104 220 q8 -18 24 -18 q16 0 24 18 q-12 -8 -24 -8 q-12 0 -24 8" fill="#5d4037"/>
+        <path d="M118 226 q4 3 8 0 M130 226 q4 3 8 0" stroke="#213047" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path id="k3m" d="M122 238 Q128 243 134 238" stroke="#b34a4a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <rect x="150" y="236" width="216" height="52" rx="16" fill="#ff8fb0"/>
+        <text class="zz" x="170" y="205" font-size="22" fill="#cfe2ff">z</text>
+        <text class="zz" style="animation-delay:.9s" x="192" y="192" font-size="27" fill="#cfe2ff">Z</text>
+        <text id="k3ind" x="300" y="218" font-size="28"> </text>
+      </g>
+      <!-- night temperature graph -->
+      <g font-family="Mitr,sans-serif">
+        <rect x="34" y="330" width="492" height="128" rx="12" fill="#1e2f52"/>
+        <rect id="nShade" x="350" y="334" width="172" height="104" rx="8" fill="#1fb45f" opacity="0"/>
+        <line x1="50" y1="407" x2="500" y2="407" stroke="#ffd23f" stroke-width="2.5" stroke-dasharray="7 6"/>
+        <text x="505" y="411" font-size="15" fill="#ffd23f">26°C</text>
+        <polyline points="50,351 100,360 150,370 200,380 250,390 300,400 350,409 400,417 450,423 500,427"
+          fill="none" stroke="#7fd0ff" stroke-width="5" stroke-linecap="round"/>
+        <line id="nMark" x1="350" y1="334" x2="350" y2="438" stroke="#fff" stroke-width="3" stroke-dasharray="4 5" opacity="0"/>
+        <text id="nMarkTx" x="350" y="350" font-size="15" fill="#aef3c9" text-anchor="middle" opacity="0">ปิดแอร์ ✔</text>
+        <text x="50" y="454" font-size="14" fill="#9fb4d8">3 ทุ่ม</text>
+        <text x="200" y="454" font-size="14" fill="#9fb4d8" text-anchor="middle">เที่ยงคืน</text>
+        <text x="350" y="454" font-size="14" fill="#9fb4d8" text-anchor="middle">ตี 3</text>
+        <text x="500" y="454" font-size="14" fill="#9fb4d8" text-anchor="end">6 โมง</text>
+        <text x="44" y="346" font-size="14" fill="#ff9d9d">ร้อน</text>
+        <text x="44" y="434" font-size="14" fill="#9ee8ff">เย็น</text>
+        <text x="285" y="372" font-size="15" fill="#aef3c9">หลังตี 3 อากาศเย็นสบายแล้ว</text>
+      </g>
+      <!-- timer dial -->
+      <g id="dialG" style="cursor:pointer">
+        <circle cx="688" cy="158" r="104" fill="#1e2f52"/>
+        <circle cx="688" cy="158" r="72" fill="#f4f9ff" stroke="#9fb4cc" stroke-width="5"/>
+        <g id="dialStops"></g>
+        <line id="needle" x1="688" y1="158" x2="688" y2="100" stroke="#ff5d8f" stroke-width="9" stroke-linecap="round"/>
+        <circle cx="688" cy="158" r="13" fill="#213047"/>
+        <text x="688" y="318" font-size="17" fill="#ffd23f" text-anchor="middle" font-weight="600" font-family="Mitr,sans-serif">⏰ หมุนตั้งเวลา "ปิดแอร์"</text>
+        <text id="dialVal" x="688" y="344" font-size="19" fill="#fff" text-anchor="middle" font-weight="600" font-family="Mitr,sans-serif">ยังไม่ตั้งเวลา</text>
+      </g>
+    </svg>
+
+    <!-- ด่าน 4 : บอสไฟต์ -->
+    <svg id="sc4" viewBox="0 0 860 470" style="display:none" aria-label="บอสไฟต์ เจ้าแอร์จอมตะกละ">
+      <rect width="860" height="470" fill="#ffe9e0"/>
+      <rect x="20" y="16" width="540" height="32" rx="16" fill="#2c3a52"/>
+      <rect id="hpFill" x="24" y="20" width="532" height="24" rx="12" fill="#ef4b4b"/>
+      <text x="30" y="39" font-size="17" fill="#fff" font-weight="600" font-family="Mitr,sans-serif">พลังเจ้าตะกละ</text>
+      <g id="roomsG4"></g>
+      <g id="pplG4"></g>
+      <!-- thermostat card -->
+      <g id="bThermo" style="cursor:pointer">
+        <rect x="575" y="70" width="265" height="180" rx="18" fill="#fff" stroke="#9fb4cc" stroke-width="5"/>
+        <text x="707" y="104" font-size="20" text-anchor="middle" font-weight="600" fill="#6a7a90" font-family="Mitr,sans-serif">รีโมทแอร์</text>
+        <text id="bTemp" x="707" y="178" font-size="58" text-anchor="middle" font-weight="700" fill="#2d6cdf" font-family="Mitr,sans-serif">26°</text>
+        <text id="bTok" x="707" y="222" font-size="17" text-anchor="middle" fill="#1fb45f" font-family="Mitr,sans-serif">กำลังดี ✔</text>
+        <g id="bTbad" opacity="0"><circle class="alertp" cx="810" cy="92" r="17" fill="#ef4b4b"/><text x="810" y="100" font-size="20" text-anchor="middle" fill="#fff">!</text></g>
+      </g>
+      <!-- filter card -->
+      <g id="bFilter" style="cursor:pointer">
+        <rect x="575" y="268" width="265" height="186" rx="18" fill="#fff" stroke="#9fb4cc" stroke-width="5"/>
+        <text x="707" y="300" font-size="20" text-anchor="middle" font-weight="600" fill="#6a7a90" font-family="Mitr,sans-serif">ฟิลเตอร์แอร์</text>
+        <rect x="605" y="314" width="205" height="106" rx="10" fill="#f2f7fc" stroke="#b9cde2" stroke-width="4"/>
+        <g stroke="#d7e4f0" stroke-width="3">
+          <line x1="612" y1="340" x2="802" y2="340"/><line x1="612" y1="366" x2="802" y2="366"/><line x1="612" y1="392" x2="802" y2="392"/>
+        </g>
+        <g id="bDust" opacity="0" fill="#8d959d">
+          <ellipse cx="640" cy="340" rx="24" ry="14"/><ellipse cx="700" cy="358" rx="28" ry="16" fill="#6b7178"/>
+          <ellipse cx="762" cy="336" rx="22" ry="13"/><ellipse cx="672" cy="392" rx="26" ry="14" fill="#6b7178"/>
+          <ellipse cx="748" cy="390" rx="24" ry="13"/>
+        </g>
+        <text id="bFok" x="707" y="444" font-size="17" text-anchor="middle" fill="#1fb45f" font-family="Mitr,sans-serif">สะอาด ✔</text>
+        <g id="bFbad" opacity="0"><circle class="alertp" cx="810" cy="290" r="17" fill="#ef4b4b"/><text x="810" y="298" font-size="20" text-anchor="middle" fill="#fff">!</text></g>
+      </g>
+    </svg>
+
+    <div id="adultBar"></div>
+  </div>
+
+  <!-- PANEL -->
+  <div id="panel">
+    <div class="goal" id="goalTxt">—</div>
+    <div id="timerTxt">⏱ <span id="timeLeft">15</span> วิ</div>
+    <div id="timerWrap"><div id="timerBar"></div></div>
+    <div class="ctl-row" id="l3Ctl" style="display:none">
+      <button class="tbtn" id="tMinus" aria-label="ลดอุณหภูมิ">−</button>
+      <div class="temp-val"><span id="tempVal">22</span><small> °C</small></div>
+      <button class="tbtn" id="tPlus" aria-label="เพิ่มอุณหภูมิ">+</button>
+      <button class="big-btn small" id="l3Ok">ตั้งเสร็จแล้ว ✔</button>
+    </div>
+  </div>
+
+  <div id="footBrand">Energy Sense Games · Triple E Technology</div>
+</div>
+
+<!-- ───── Start overlay ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:3rem">🥶⚡</div>
+    <h1>ปราบแอร์ตัวร้าย</h1>
+    <div class="sub">"เจ้าแอร์จอมตะกละ" แอบกินค่าไฟบ้านเรา!<br>ใช้นิสัยดี 4 อย่าง ทำให้มันผอมจนยอมแพ้ 💪</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+      <button class="big-btn small ghost" id="howBtn2">📖 วิธีเล่น</button>
+    </div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── Tutorial overlay ───── -->
+<div class="overlay" id="howOv">
+  <div class="card">
+    <h2>📖 วิธีเล่น</h2>
+    <div id="howPic"></div>
+    <p id="howTxt">—</p>
+    <div id="howDots"></div>
+    <div class="hownav">
+      <button class="big-btn small ghost" id="howPrev">◀ ก่อนหน้า</button>
+      <button class="big-btn small" id="howNext">ถัดไป ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Result overlay ───── -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <h2 id="resTitle">จบด่าน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="lesson" id="resLesson">—</div>
+    <p id="resDetail" class="adult-only" style="font-size:.9rem;color:#5c6b80"></p>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── End overlay ───── -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.4rem">🏆</div>
+    <h2>เจ้าแอร์จอมตะกละยอมแพ้แล้ว!</h2>
+    <svg viewBox="0 0 150 120" style="width:110px;margin:4px auto;display:block" aria-hidden="true">
+      <g transform="translate(75,116) scale(.72,1.0) translate(-75,-116)">
+        <rect x="50" y="98" width="14" height="14" rx="6" fill="#5d7ea8"/>
+        <rect x="86" y="98" width="14" height="14" rx="6" fill="#5d7ea8"/>
+        <rect x="32" y="18" width="86" height="82" rx="20" fill="#cfe9fb" stroke="#5d7ea8" stroke-width="5"/>
+        <rect x="44" y="28" width="62" height="8" rx="4" fill="#eaf6ff"/>
+        <path d="M46 46 L64 40 M104 46 L86 40" stroke="#213047" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="57" cy="54" r="7" fill="#fff" stroke="#213047" stroke-width="2"/><circle cx="57" cy="56" r="3" fill="#213047"/>
+        <circle cx="93" cy="54" r="7" fill="#fff" stroke="#213047" stroke-width="2"/><circle cx="93" cy="56" r="3" fill="#213047"/>
+        <path d="M58 82 Q75 70 92 82" stroke="#7c2d3e" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <line x1="124" y1="24" x2="124" y2="66" stroke="#8a5a28" stroke-width="4"/>
+        <path d="M124 24 L102 33 L124 42 Z" fill="#fff" stroke="#c4d2e4" stroke-width="2"/>
+      </g>
+    </svg>
+    <p>ได้ดาวทั้งหมด <b id="endStars">0</b> / 12 ดวง</p>
+    <div class="lesson">เทียบบิลสิ้นเดือน 🧾</div>
+    <div id="cmpBox">
+      <div class="rankbar"><span class="lb">🏡 บ้านเรา</span><div class="tr"><div class="fl" id="cmpOur" style="background:#1fb45f">😊</div></div></div>
+      <div class="rankbar"><span class="lb">🏠 บ้านข้างบ้าน</span><div class="tr"><div class="fl" id="cmpNb" style="background:#ef4b4b">😓</div></div></div>
+    </div>
+    <p id="cmpTxt" style="font-size:.95rem;font-weight:600;margin-top:4px">—</p>
+    <div class="adult-only" style="text-align:left;background:#f2f7fd;border-radius:14px;padding:10px 12px;margin-top:8px;font-size:.85rem;line-height:1.6">
+      <b>👷 ตัวเลขจริง (แอร์ 12,000 BTU ≈ 1.0 kW · ค่าไฟ 4.5 บาท/kWh)</b><br>
+      🧽 ล้างฟิลเตอร์ (ตันแล้วกินไฟ +12%) ≈ <b id="aFil">—</b> บาท/เดือน<br>
+      🚪 ปิดแอร์ห้องว่าง (4 ชม./วัน = 120 kWh/เดือน) ≈ <b id="aEmp">—</b> บาท/เดือน<br>
+      🌙 ตั้งเวลาปิดตี 3 + 26°C (~25% ของคืน) ≈ <b id="aNig">—</b> บาท/เดือน<br>
+      <span style="color:#1fb45f">รวมประหยัดได้ ≈ <b id="aTot">—</b> บาท/เดือน</span> · ลด 1°C ≈ กินไฟเพิ่ม ~10%
+    </div>
+    <p style="margin-top:8px;font-size:.92rem">จำ 4 นิสัยดีไว้นะ: <b>ล้างฟิลเตอร์ · ปิดห้องว่าง · ตั้งเวลา · 26°C</b></p>
+    <div style="margin-top:12px"><button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button></div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ ปราบแอร์ตัวร้าย (AC Rescue) v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var SVGNS='http://www.w3.org/2000/svg';
+
+/* ── ฟิสิกส์ (สัดส่วนสมจริง อ้างอิงงานตรวจวัด Triple E) ──
+   แอร์ 12,000 BTU ≈ 1.0 kW · ฟิลเตอร์ตัน +12% · ลด 1°C ≈ +10% · ค่าไฟ 4.5 บาท/kWh
+   เปิดห้องว่าง 4 ชม./วัน ≈ 120 kWh/เดือน · ตั้งเวลาปิดตี 3 + 26°C ≈ 25% ของคืน (8 ชม.) */
+var PH={KW_AC:1.0,FILTER_PCT:12,DEG_PCT:10,EMPTY_H:4,NIGHT_PCT:25,NIGHT_H:8,RUN_H:8,TARIFF:4.5,NB_BILL:2400};
+var SAVE={
+  filterKwh:PH.KW_AC*PH.RUN_H*30*PH.FILTER_PCT/100,     /* 28.8 kWh/เดือน */
+  emptyKwh:PH.KW_AC*PH.EMPTY_H*30,                      /* 120 kWh/เดือน */
+  nightKwh:PH.KW_AC*PH.NIGHT_H*30*PH.NIGHT_PCT/100      /* 60 kWh/เดือน */
+};
+SAVE.totalKwh=SAVE.filterKwh+SAVE.emptyKwh+SAVE.nightKwh;        /* 208.8 */
+SAVE.totalBaht=SAVE.totalKwh*PH.TARIFF;                          /* 939.6 ≈ 940 */
+
+/* ── เสียง Web Audio ── */
+var AC_=null,sndOn=true;
+function audio(){if(!AC_){try{AC_=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC_&&AC_.state==='suspended')AC_.resume();return AC_;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.07,'square',0.08);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sTick(){tone(1000,0,0.04,'square',0.05);}
+function sWipe(){tone(1500+Math.random()*500,0,0.05,'triangle',0.04);}
+function sMunch(){tone(160,0,0.12,'square',0.1);tone(120,0.1,0.12,'square',0.1);}
+function sPunch(){tone(420,0,0.08,'square',0.14);tone(240,0.07,0.14,'sawtooth',0.12);}
+
+/* ── ดาว + localStorage ── */
+var stars=[0,0,0,0];
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_game_ac_stars')||'[]');for(var i=0;i<4;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_game_ac_stars',JSON.stringify(stars));}catch(e){}}
+function seenHow(){try{return !!localStorage.getItem('te_game_ac_seen');}catch(e){return true;}}
+function setSeen(){try{localStorage.setItem('te_game_ac_seen','1');}catch(e){}}
+function updateStarTotal(){var t=stars[0]+stars[1]+stars[2]+stars[3];$('starTotal').textContent=t;return t;}
+
+/* ── สถานะรวม ── */
+var G={lvl:0,locked:false,running:false,t:0,tMax:15,waste:1,kwNow:0,
+  contrib:[0,0,0,0],nbc:[0,0,0,0],
+  vfat:0.8,vtarget:0.8,vmood:'evil',lastTs:0,coinT:0};
+
+/* ── ตัวร้าย: หน้า/ความอ้วน ── */
+function setMood(m){
+  if(G.vmood===m)return;G.vmood=m;
+  var M=$('vMouth'),BL=$('vBrL'),BR=$('vBrR');
+  $('vTear').setAttribute('opacity','0');$('vSweat').setAttribute('opacity','0');$('vFlag').setAttribute('opacity','0');
+  if(m==='evil'){M.setAttribute('d','M54 78 Q75 96 96 78 Q75 86 54 78');
+    BL.setAttribute('d','M42 46 L64 54');BR.setAttribute('d','M108 46 L86 54');}
+  else if(m==='worried'){M.setAttribute('d','M68 82 a7 6 0 1 0 14 0 a7 6 0 1 0 -14 0');
+    BL.setAttribute('d','M44 52 L64 46');BR.setAttribute('d','M106 52 L86 46');
+    $('vSweat').setAttribute('opacity','1');}
+  else if(m==='sad'){M.setAttribute('d','M56 90 Q75 76 94 90');
+    BL.setAttribute('d','M44 50 L62 44');BR.setAttribute('d','M106 50 L88 44');
+    $('vTear').setAttribute('opacity','1');}
+  else{/* ko */ M.setAttribute('d','M58 86 Q75 80 92 86');
+    BL.setAttribute('d','M44 48 L62 44');BR.setAttribute('d','M106 48 L88 44');
+    $('vFlag').setAttribute('opacity','1');}
+}
+function applyFat(){
+  var f=G.vfat,sx=0.72+0.55*f,sy=1.06-0.12*f;
+  $('vBody').setAttribute('transform','translate(75,118) scale('+sx.toFixed(3)+','+sy.toFixed(3)+') translate(-75,-118)');
+  $('vChL').setAttribute('opacity',(0.3+0.6*f).toFixed(2));
+  $('vChR').setAttribute('opacity',(0.3+0.6*f).toFixed(2));
+}
+var vSayT=null;
+function vSay(txt,ms){$('vSay').textContent=txt;clearTimeout(vSayT);
+  vSayT=setTimeout(function(){$('vSay').textContent=' ';},ms||3200);}
+function coinFly(){
+  var sp=document.createElement('span');sp.className='coinfly';sp.textContent='🪙';
+  $('billStrip').appendChild(sp);
+  setTimeout(function(){sp.remove();},900);
+  $('vSvg').classList.remove('munch');void $('vSvg').offsetWidth;$('vSvg').classList.add('munch');
+  $('vZap').setAttribute('opacity','1');setTimeout(function(){$('vZap').setAttribute('opacity','0');},500);
+}
+
+/* ── แถบบิล ── */
+function billPct(){
+  var o=0,n=0;for(var i=0;i<4;i++){o+=G.contrib[i];n+=G.nbc[i];}
+  return n>2?Math.max(0,Math.min(1,o/n)):null;
+}
+function updateStrip(){
+  var p=billPct();
+  if(p===null){$('billFill').style.width='0%';$('billLbl').textContent='ยังไม่เริ่ม';$('coinRow').textContent='';return;}
+  $('billFill').style.width=(p*100).toFixed(1)+'%';
+  $('billFill').style.background=p<0.35?'linear-gradient(90deg,#8fe3a8,#1fb45f)':
+    (p<0.65?'linear-gradient(90deg,#ffd23f,#ff8f1c)':'linear-gradient(90deg,#ff8f1c,#ef4b4b)');
+  var nc=Math.min(9,Math.max(1,Math.round(p*10)));
+  var s='';for(var i=0;i<nc;i++)s+='🪙';
+  $('coinRow').textContent=s;
+  $('billLbl').textContent=document.body.classList.contains('adult')?
+    ('≈ '+Math.round(PH.NB_BILL-(1-p)*SAVE.totalBaht)+' บาท/เดือน (ข้างบ้าน '+PH.NB_BILL+')'):
+    ('เล็กกว่าบ้านข้างบ้าน '+Math.round((1-p)*100)+'%');
+}
+
+/* ── loop หลัก: ตัวร้ายอ้วน-ผอม + บิลสะสม ── */
+function loop(ts){
+  if(!G.lastTs)G.lastTs=ts;
+  var dt=Math.min(0.1,(ts-G.lastTs)/1000);G.lastTs=ts;
+  G.vtarget=0.12+0.88*Math.max(0,Math.min(1,G.waste));
+  var d=G.vtarget-G.vfat;G.vfat+=Math.max(-1.2*dt,Math.min(1.2*dt,d));
+  applyFat();
+  if(G.vmood!=='ko'){setMood(G.waste>0.55?'evil':(G.waste>0.25?'worried':'sad'));}
+  if(G.running){
+    var rate=30/G.tMax;
+    G.contrib[G.lvl]+=G.waste*rate*dt;
+    G.nbc[G.lvl]+=rate*dt;
+    updateStrip();
+    G.coinT+=dt;
+    if(G.waste>0.4&&G.coinT>1.4){G.coinT=0;coinFly();if(G.waste>0.7)sMunch();}
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ── ตัวจับเวลา ── */
+var tickInt=null;
+function startTimer(sec,onEnd){
+  G.t=sec;G.tMax=sec;G.running=true;
+  $('timerWrap').style.display='block';$('timerTxt').style.display='block';
+  $('timeLeft').textContent=sec;$('timerBar').style.width='100%';
+  clearInterval(tickInt);
+  tickInt=setInterval(function(){
+    G.t--;$('timeLeft').textContent=G.t;
+    $('timerBar').style.width=(G.t/G.tMax*100)+'%';
+    if(G.t<=5&&G.t>0)sTick();
+    if(G.t<=0){clearInterval(tickInt);onEnd();}
+  },1000);
+}
+function stopTimer(){clearInterval(tickInt);G.running=false;}
+
+/* ── ยูทิล SVG ── */
+function svgPt(svg,ev){var p=svg.createSVGPoint();p.x=ev.clientX;p.y=ev.clientY;
+  var m=svg.getScreenCTM();if(!m)return null;return p.matrixTransform(m.inverse());}
+function mkEl(parent,tag,at){var e=document.createElementNS(SVGNS,tag);
+  for(var k in at)e.setAttribute(k,at[k]);parent.appendChild(e);return e;}
+
+/* ═════════ ด่าน 1 : ล้างฟิลเตอร์ ═════════ */
+var L1={cells:[],total:0,gone:0,wiping:false,streakT:0,hinted:false};
+function buildDust(){
+  var g=$('dustG');g.innerHTML='';L1.cells=[];
+  var r,c,i;
+  for(r=0;r<5;r++)for(c=0;c<12;c++){
+    var cx=222+c*38+(Math.random()*10-5),cy=112+r*24+(Math.random()*8-4);
+    var e=mkEl(g,'ellipse',{cx:cx,cy:cy,rx:17+Math.random()*6,ry:10+Math.random()*4,
+      fill:'#9aa3ab',opacity:0.85});
+    L1.cells.push({el:e,x:cx,y:cy,hp:1});
+  }
+  for(i=0;i<42;i++){
+    var cx2=225+Math.random()*415,cy2=108+Math.random()*106;
+    var e2=mkEl(g,'ellipse',{cx:cx2,cy:cy2,rx:10+Math.random()*9,ry:7+Math.random()*5,
+      fill:'#6b7178',opacity:0.9});
+    L1.cells.push({el:e2,x:cx2,y:cy2,hp:1});
+  }
+  L1.total=L1.cells.length;L1.gone=0;
+}
+function cleanFrac(){return L1.total?L1.gone/L1.total:0;}
+function wipeAt(x,y){
+  if(G.lvl!==0||!G.running)return;
+  var n=0;
+  for(var i=0;i<L1.cells.length;i++){var c=L1.cells[i];
+    if(c.hp>0){var dx=c.x-x,dy=c.y-y;
+      if(dx*dx+dy*dy<1296){c.hp=0;c.el.setAttribute('opacity','0');L1.gone++;n++;}}}
+  if(n>0){
+    var f=cleanFrac();
+    $('windG').setAttribute('opacity',(0.25+0.75*f).toFixed(2));
+    G.waste=1-f;renderAdult();
+    L1.streakT++;if(L1.streakT%3===0)sWipe();
+    if(f>=0.98)finishLevel();
+  }
+}
+function wipeStreak(x,y){
+  var sg=$('streakG');if(sg.childNodes.length>14)return;
+  var c=mkEl(sg,'circle',{cx:x,cy:y,r:26,fill:'#fff',opacity:0.55});
+  c.setAttribute('class','streak');setTimeout(function(){c.remove();},500);
+}
+(function(){
+  var sc=$('sc1');
+  sc.addEventListener('pointerdown',function(ev){audio();L1.wiping=true;
+    if(!L1.hinted){L1.hinted=true;$('wipeHint').style.display='none';}
+    var p=svgPt(sc,ev);if(p){wipeAt(p.x,p.y);wipeStreak(p.x,p.y);}ev.preventDefault();});
+  sc.addEventListener('pointermove',function(ev){if(!L1.wiping)return;
+    var p=svgPt(sc,ev);if(p){wipeAt(p.x,p.y);wipeStreak(p.x,p.y);}ev.preventDefault();});
+  window.addEventListener('pointerup',function(){L1.wiping=false;});
+})();
+
+/* ═════════ ห้อง (ใช้ร่วมด่าน 2 และบอส) ═════════ */
+function makeRoom(layer,prefix,i,x,y,w,h){
+  var g=document.createElementNS(SVGNS,'g');
+  g.setAttribute('class','roomG');g.dataset.i=i;g.dataset.prefix=prefix;
+  function el(t,at){return mkEl(g,t,at);}
+  el('rect',{id:prefix+'bg'+i,x:x,y:y,width:w,height:h,rx:14,fill:'#eaf6ff',stroke:'#8f6c3f','stroke-width':5});
+  el('rect',{x:x+4,y:y+h-16,width:w-8,height:12,rx:5,fill:'#e4cfa4'});
+  var acw=Math.min(150,w*0.52),acx=x+w/2-acw/2,acy=y+10;
+  el('rect',{id:prefix+'ac'+i,x:acx,y:acy,width:acw,height:32,rx:10,fill:'#fff',stroke:'#9fb4cc','stroke-width':4});
+  el('rect',{x:acx+10,y:acy+21,width:acw-20,height:6,rx:3,fill:'#cfe2f5'});
+  el('circle',{id:prefix+'led'+i,cx:acx+acw-13,cy:acy+10,r:4.5,fill:'#1fb45f'});
+  var bz=el('g',{id:prefix+'bz'+i,stroke:'#7fd0ff','stroke-width':4,fill:'none','stroke-linecap':'round'});
+  for(var k=0;k<3;k++){var p=document.createElementNS(SVGNS,'path');
+    p.setAttribute('d','M'+(acx+22+k*(acw-44)/2)+' '+(acy+42)+' q-8 10 -16 12');
+    p.setAttribute('class','breezeln');p.style.animationDelay=(k*0.4)+'s';bz.appendChild(p);}
+  var ws=el('text',{id:prefix+'ws'+i,x:x+w-46,y:y+62,'font-size':26,opacity:0});
+  ws.textContent='💸';ws.setAttribute('class','floaty');
+  var ok=el('text',{id:prefix+'ok'+i,x:x+12,y:y+h-26,'font-size':22,opacity:0});ok.textContent='✅';
+  layer.appendChild(g);
+  return {x:x,y:y,w:w,h:h,cx:x+w/2,cy:y+h-62};
+}
+function renderRoom(prefix,i,ac,occ){
+  $(prefix+'bg'+i).setAttribute('fill',ac?'#eaf6ff':'#fff2dc');
+  $(prefix+'led'+i).setAttribute('fill',ac?'#1fb45f':'#8a93a3');
+  $(prefix+'ac'+i).setAttribute('fill',ac?'#fff':'#dfe6ee');
+  $(prefix+'bz'+i).setAttribute('opacity',ac?'1':'0');
+  $(prefix+'ws'+i).setAttribute('opacity',(ac&&!occ)?'1':'0');
+  $(prefix+'ok'+i).setAttribute('opacity',(!ac&&!occ)?'1':'0');
+}
+function makePerson(layer,id,shirt){
+  var g=document.createElementNS(SVGNS,'g');
+  g.setAttribute('id',id);g.setAttribute('class','personG');
+  g.innerHTML=
+   '<ellipse cx="0" cy="52" rx="30" ry="6" fill="#000" opacity=".12"/>'+
+   '<rect x="-16" y="16" width="13" height="32" rx="6" fill="#39518f"/>'+
+   '<rect x="3" y="16" width="13" height="32" rx="6" fill="#39518f"/>'+
+   '<rect x="-22" y="-14" width="44" height="36" rx="14" fill="'+shirt+'"/>'+
+   '<circle cx="0" cy="-34" r="19" fill="#ffd9b3" stroke="#e8b27f" stroke-width="2.5"/>'+
+   '<path d="M-17 -40 q6 -16 17 -16 q11 0 17 16 q-9 -7 -17 -7 q-8 0 -17 7" fill="#5d4037"/>'+
+   '<circle cx="-7" cy="-36" r="2.6" fill="#213047"/><circle cx="7" cy="-36" r="2.6" fill="#213047"/>'+
+   '<path id="'+id+'m" d="M-6 -27 Q0 -21 6 -27" stroke="#b34a4a" stroke-width="2.8" fill="none" stroke-linecap="round"/>'+
+   '<g id="'+id+'sw" opacity="0"><path class="sweatd" d="M-24 -44 q-4 7 0 10 q5 -3 0 -10" fill="#4aa8ff"/>'+
+   '<path class="sweatd" style="animation-delay:.4s" d="M24 -46 q-4 7 0 10 q5 -3 0 -10" fill="#4aa8ff"/></g>';
+  g.style.pointerEvents='none';
+  layer.appendChild(g);return g;
+}
+function setFace(pid,mode){ /* mode: happy | hot */
+  $(pid+'m').setAttribute('d',mode==='happy'?'M-6 -27 Q0 -21 6 -27':'M-6 -24 Q0 -30 6 -24');
+  $(pid+'sw').setAttribute('opacity',mode==='hot'?'1':'0');
+}
+
+/* ═════════ ด่าน 2 : ปิดห้องว่าง ═════════ */
+var L2={rooms:[],geo:[],ppl:[],score:0,elapsed:0,scInt:null,mvTo:null,built:false};
+function buildL2(){
+  if(L2.built)return;L2.built=true;
+  var layer=$('roomsG2'),pos=[[25,27],[435,27],[25,242],[435,242]];
+  for(var i=0;i<4;i++){
+    L2.geo.push(makeRoom(layer,'r',i,pos[i][0],pos[i][1],400,200));
+  }
+  layer.addEventListener('pointerdown',function(ev){
+    var g=ev.target;while(g&&g!==layer&&!(g.dataset&&g.dataset.i!==undefined&&g.classList.contains('roomG')))g=g.parentNode;
+    if(g&&g.dataset&&g.dataset.i!==undefined)tapRoom2(+g.dataset.i);
+  });
+  makePerson($('pplG2'),'p0','#ff5d8f');
+  makePerson($('pplG2'),'p1','#00c2a8');
+}
+function placePerson2(pi){
+  var p=L2.ppl[pi],g=L2.geo[p.room],off=(pi===0?-55:55);
+  $('p'+pi).style.transform='translate('+(g.cx+off)+'px,'+g.cy+'px)';
+}
+function occRooms2(){var o=[false,false,false,false];L2.ppl.forEach(function(p){o[p.room]=true;});return o;}
+function renderL2(){
+  var occ=occRooms2(),wrong=0,on=0;
+  for(var i=0;i<4;i++){
+    renderRoom('r',i,L2.rooms[i],occ[i]);
+    if(L2.rooms[i])on++;
+    if(L2.rooms[i]!==occ[i])wrong++;
+  }
+  L2.ppl.forEach(function(p,pi){setFace('p'+pi,L2.rooms[p.room]?'happy':'hot');});
+  G.waste=Math.min(1,wrong/2);
+  G.kwNow=on*PH.KW_AC;
+  renderAdult();
+  return wrong;
+}
+function tapRoom2(i){
+  if(G.lvl!==1||!G.running)return;
+  L2.rooms[i]=!L2.rooms[i];sClick();
+  var occ=occRooms2();
+  if(!L2.rooms[i]&&occ[i]){vSay('โอ๊ย ร้อน! ห้องนี้มีคนอยู่นะ 🥵');sBad();}
+  else if(!L2.rooms[i])vSay('ฮึ่ย! ปิดห้องว่าง ข้าอดกิน! 😤');
+  renderL2();
+}
+function movePerson2(){
+  if(G.lvl!==1||!G.running)return;
+  var pi=Math.random()<0.5?0:1,p=L2.ppl[pi],to;
+  do{to=Math.floor(Math.random()*4);}while(to===p.room);
+  p.room=to;placePerson2(pi);sClick();
+  renderL2();
+  L2.mvTo=setTimeout(movePerson2,4200+Math.random()*2600);
+}
+function setupL2(){
+  buildL2();
+  L2.rooms=[true,true,true,true];
+  L2.ppl=[{room:0},{room:2}];
+  placePerson2(0);placePerson2(1);
+  L2.score=0;L2.elapsed=0;
+  renderL2();
+  clearTimeout(L2.mvTo);L2.mvTo=setTimeout(movePerson2,3800);
+  clearInterval(L2.scInt);
+  L2.scInt=setInterval(function(){
+    if(!G.running)return;
+    var occ=occRooms2(),c=0;
+    for(var i=0;i<4;i++)if(L2.rooms[i]===occ[i])c++;
+    L2.score+=(c/4)*0.25;L2.elapsed+=0.25;
+  },250);
+}
+
+/* ═════════ ด่าน 3 : ตั้งเวลานอน ═════════ */
+var L3={pos:0,temp:22,drag:false,built:false};
+var DIAL={cx:688,cy:158,labels:['ไม่ตั้ง','ตี 1','ตี 2','ตี 3','ตี 4','ตี 5']};
+function dialAngle(i){return i*60-150;}
+function buildDial(){
+  if(L3.built)return;L3.built=true;
+  var g=$('dialStops');
+  for(var i=0;i<6;i++){
+    var a=dialAngle(i)*Math.PI/180,c=Math.cos(a),s=Math.sin(a);
+    mkEl(g,'line',{x1:DIAL.cx+c*78,y1:DIAL.cy+s*78,x2:DIAL.cx+c*94,y2:DIAL.cy+s*94,
+      stroke:'#9fb4cc','stroke-width':5,'stroke-linecap':'round'});
+    var t=mkEl(g,'text',{x:DIAL.cx+c*122,y:DIAL.cy+s*122+6,'font-size':17,fill:'#cfe2ff',
+      'text-anchor':'middle','font-weight':600,'font-family':'Mitr,sans-serif',id:'dlb'+i});
+    t.textContent=DIAL.labels[i];
+  }
+  var sc=$('sc3');
+  $('dialG').addEventListener('pointerdown',function(ev){audio();L3.drag=true;dialDrag(ev);ev.preventDefault();});
+  sc.addEventListener('pointermove',function(ev){if(L3.drag){dialDrag(ev);ev.preventDefault();}});
+  window.addEventListener('pointerup',function(){L3.drag=false;});
+}
+function dialDrag(ev){
+  var p=svgPt($('sc3'),ev);if(!p)return;
+  var dx=p.x-DIAL.cx,dy=p.y-DIAL.cy;
+  if(dx*dx+dy*dy<270)return;
+  var deg=Math.atan2(dy,dx)*180/Math.PI,best=0,bd=999;
+  for(var i=0;i<6;i++){
+    var d=Math.abs(((deg-dialAngle(i))%360+540)%360-180);
+    if(d<bd){bd=d;best=i;}
+  }
+  if(best!==L3.pos){L3.pos=best;sClick();renderL3();}
+}
+function renderL3(){
+  var a=dialAngle(L3.pos);
+  $('needle').setAttribute('transform','rotate('+(a+90)+' '+DIAL.cx+' '+DIAL.cy+')');
+  $('dialVal').textContent=L3.pos===0?'ยังไม่ตั้งเวลา':'ปิดแอร์ตอน '+DIAL.labels[L3.pos];
+  for(var i=0;i<6;i++)$('dlb'+i).setAttribute('fill',i===L3.pos?'#ffd23f':'#cfe2ff');
+  if(L3.pos>0){
+    var x=50+(L3.pos+3)*50;
+    $('nShade').setAttribute('x',x);$('nShade').setAttribute('width',Math.max(0,500-x));
+    $('nShade').setAttribute('opacity','0.22');
+    $('nMark').setAttribute('x1',x);$('nMark').setAttribute('x2',x);$('nMark').setAttribute('opacity','1');
+    $('nMarkTx').setAttribute('x',x);$('nMarkTx').setAttribute('opacity','1');
+  }else{
+    $('nShade').setAttribute('opacity','0');$('nMark').setAttribute('opacity','0');$('nMarkTx').setAttribute('opacity','0');
+  }
+  $('ac3T').textContent=L3.temp+'°';
+  $('tempVal').textContent=L3.temp;
+  $('k3ind').textContent=L3.temp<=23?'🥶':(L3.temp<=27?'😴':'🥵');
+  $('k3m').setAttribute('d',L3.temp>=24&&L3.temp<=27?'M122 238 Q128 243 134 238':'M122 241 Q128 236 134 241');
+  G.waste=(L3.temp===26?0:0.4)+(L3.pos===3?0:0.4);
+  renderAdult();
+}
+function l3Score(){
+  var tp=L3.pos===3?2:((L3.pos===2||L3.pos===4)?1:0);
+  var tt=L3.temp===26?2:((L3.temp===25||L3.temp===27)?1:0);
+  return tp+tt;  /* 0–4 */
+}
+function setupL3(){
+  buildDial();
+  L3.pos=0;L3.temp=22;
+  $('l3Ctl').style.display='';
+  renderL3();
+}
+
+/* ═════════ ด่าน 4 : บอสไฟต์ ═════════ */
+var L4={hp:100,ac:[],occ:[true,false,false,false],temp:26,dust:false,
+  probT:{},spawnTo:null,chkInt:null,fixes:0,built:false,geo:[]};
+function buildL4(){
+  if(L4.built)return;L4.built=true;
+  var layer=$('roomsG4'),pos=[[20,70],[290,70],[20,268],[290,268]];
+  for(var i=0;i<4;i++)L4.geo.push(makeRoom(layer,'b',i,pos[i][0],pos[i][1],260,186));
+  layer.addEventListener('pointerdown',function(ev){
+    var g=ev.target;while(g&&g!==layer&&!(g.dataset&&g.dataset.i!==undefined&&g.classList.contains('roomG')))g=g.parentNode;
+    if(g&&g.dataset&&g.dataset.i!==undefined)bossTapRoom(+g.dataset.i);
+  });
+  var pg=makePerson($('pplG4'),'p2','#7b5bff');
+  pg.style.transform='translate('+L4.geo[0].cx+'px,'+L4.geo[0].cy+'px) scale(.92)';
+  $('bThermo').addEventListener('pointerdown',function(){bossFixTemp();});
+  $('bFilter').addEventListener('pointerdown',function(){bossFixDust();});
+}
+function renderL4(){
+  for(var i=0;i<4;i++)renderRoom('b',i,L4.ac[i],L4.occ[i]);
+  setFace('p2',L4.ac[0]?'happy':'hot');
+  $('bTemp').textContent=L4.temp+'°';
+  $('bTemp').setAttribute('fill',L4.temp<26?'#ef4b4b':'#2d6cdf');
+  $('bTok').textContent=L4.temp===26?'กำลังดี ✔':'เย็นเกิน! แตะเพื่อแก้';
+  $('bTok').setAttribute('fill',L4.temp===26?'#1fb45f':'#ef4b4b');
+  $('bTbad').setAttribute('opacity',L4.temp===26?'0':'1');
+  $('bDust').setAttribute('opacity',L4.dust?'1':'0');
+  $('bFok').textContent=L4.dust?'ฝุ่นเกาะ! แตะเพื่อปัด':'สะอาด ✔';
+  $('bFok').setAttribute('fill',L4.dust?'#ef4b4b':'#1fb45f');
+  $('bFbad').setAttribute('opacity',L4.dust?'1':'0');
+  $('hpFill').setAttribute('width',Math.max(0,532*L4.hp/100));
+  var pend=pendCount();
+  G.waste=Math.min(1,pend/3);
+  G.kwNow=PH.KW_AC*((L4.ac[0]?1:0)+(L4.ac[1]?1:0)+(L4.ac[2]?1:0)+(L4.ac[3]?1:0))
+          *(L4.temp<26?(1+PH.DEG_PCT/100*(26-L4.temp)):1)*(L4.dust?1+PH.FILTER_PCT/100:1);
+  renderAdult();
+}
+function pendCount(){
+  var n=0;for(var i=1;i<4;i++)if(L4.ac[i])n++;
+  n=Math.min(n,1);  /* นับกลุ่มห้องว่างเป็น 1 ปัญหา */
+  if(L4.temp<26)n++;if(L4.dust)n++;return n;
+}
+function bossHit(){
+  L4.fixes++;L4.hp-=13;sPunch();
+  vSay(['โอ๊ะ!','อ๊าก โดนแก้!','ฮึ่ย เก่งนักนะ!','ไม่นะ ข้าหิว!'][L4.fixes%4]);
+  if(L4.hp<=0){L4.hp=0;renderL4();bossKO();return;}
+  renderL4();
+}
+function bossTapRoom(i){
+  if(G.lvl!==3||!G.running)return;
+  if(L4.ac[i]&&!L4.occ[i]){L4.ac[i]=false;delete L4.probT['room'+i];bossHit();}
+  else sClick();
+}
+function bossFixTemp(){
+  if(G.lvl!==3||!G.running)return;
+  if(L4.temp<26){L4.temp=26;delete L4.probT.temp;bossHit();}else sClick();
+}
+function bossFixDust(){
+  if(G.lvl!==3||!G.running)return;
+  if(L4.dust){L4.dust=false;delete L4.probT.dust;bossHit();}else sClick();
+}
+function bossSpawn(){
+  if(G.lvl!==3||!G.running)return;
+  var opts=[];
+  for(var i=1;i<4;i++)if(!L4.ac[i])opts.push('room'+i);
+  if(L4.temp===26)opts.push('temp');
+  if(!L4.dust)opts.push('dust');
+  if(opts.length){
+    var pick=opts[Math.floor(Math.random()*opts.length)];
+    if(pick==='temp'){L4.temp=20;vSay('ฮ่า ๆ ลดเหลือ 20° ซะเลย! 🥶');}
+    else if(pick==='dust'){L4.dust=true;vSay('คืนฝุ่นให้ฟิลเตอร์ ฮิ ๆ 🌫');}
+    else{var ri=+pick.slice(4);L4.ac[ri]=true;vSay('เปิดแอร์ห้องว่างอีกแล้ว แหะ ๆ 💸');}
+    L4.probT[pick]=G.t;sMunch();renderL4();
+  }else vSay('แฮ่! ก่อกวนไม่ทันแล้ว');
+  L4.spawnTo=setTimeout(bossSpawn,1900+Math.random()*1100);
+}
+function bossKO(){
+  stopTimer();clearTimeout(L4.spawnTo);clearInterval(L4.chkInt);
+  setMood('ko');G.waste=0;
+  vSay('ยอมแพ้แล้ว… บ้านนี้ประหยัดเก่งเกินไป 😭',6000);
+  setTimeout(finishLevel,700);
+}
+function setupL4(){
+  buildL4();
+  L4.hp=100;L4.ac=[true,false,false,false];L4.temp=26;L4.dust=false;
+  L4.probT={};L4.fixes=0;
+  renderL4();
+  clearTimeout(L4.spawnTo);L4.spawnTo=setTimeout(bossSpawn,1200);
+  clearInterval(L4.chkInt);
+  L4.chkInt=setInterval(function(){   /* ปัญหาค้างเกิน 5 วิ → บอสฟื้นพลัง */
+    if(!G.running)return;
+    for(var k in L4.probT){
+      if(L4.probT[k]-G.t>=5){L4.probT[k]=G.t;L4.hp=Math.min(100,L4.hp+5);
+        vSay('หึ ๆ กินไฟเพิ่มแล้ว อ้วนขึ้นอีก! 🪙');coinFly();renderL4();}
+    }
+  },1000);
+}
+
+/* ═════════ นิยามด่าน ═════════ */
+var LEVELS=[
+ {name:'ด่าน 1 · ล้างฟิลเตอร์ 🧽',icon:'🧽',
+  goal:'ใช้นิ้ว "ถู" ฝุ่นออกจากฟิลเตอร์ให้หมดใน 15 วิ — ลมจะแรงขึ้น!',
+  setup:function(){showScene(1);buildDust();G.waste=1;L1.hinted=false;
+    $('wipeHint').style.display='';$('windG').setAttribute('opacity','0.25');
+    $('sparkG').setAttribute('opacity','0');
+    vSay('ฟิลเตอร์ตัน ๆ แบบนี้แหละ ข้ากินไฟเพิ่มสบายเลย! 😈');
+    startTimer(15,finishLevel);},
+  eval:function(){var f=cleanFrac();
+    if(f>=0.98)return{st:3,lesson:'ฟิลเตอร์สะอาดเอี่ยม! ลมแรงขึ้น แอร์ไม่ต้องเหนื่อย ไฟไม่เปลือง 🧽✨',
+      detail:'ฟิลเตอร์ตันทำให้แอร์กินไฟเพิ่ม ~10–15% (เกมใช้ +12% ≈ 28.8 kWh ≈ 130 บาท/เดือน) — ควรล้างทุก 1–3 เดือน'};
+    if(f>=0.7)return{st:2,lesson:'เกือบหมดแล้ว! ยังมีฝุ่นเหลือ ลมยังไม่แรงเต็มที่ ลองถูให้ทั่วกว่านี้',
+      detail:'ฝุ่นที่เหลือยังขวางลม แอร์ยังกินไฟเกินจำเป็น'};
+    return{st:1,lesson:'ฝุ่นยังหนาอยู่เลย! ฟิลเตอร์ตันทำให้แอร์เหนื่อยและกินไฟเพิ่ม',
+      detail:'ฟิลเตอร์ตัน = ลมอ่อน แอร์ทำงานหนักขึ้น ~12%'};}},
+ {name:'ด่าน 2 · ปิดห้องว่าง 🚪',icon:'🚪',
+  goal:'แตะห้องเพื่อ เปิด/ปิด แอร์ — เปิดเฉพาะห้องที่ "มีคน" (คนย้ายห้องไปเรื่อย ๆ!)',
+  setup:function(){showScene(2);setupL2();
+    vSay('เปิดแอร์ทิ้งไว้ทุกห้องเลย อิ่มจัง 🪙🪙');
+    startTimer(30,finishLevel);},
+  eval:function(){var pct=L2.elapsed>0?L2.score/L2.elapsed:0;
+    if(pct>=0.85)return{st:3,lesson:'สุดยอด! แอร์เปิดเฉพาะห้องที่มีคน — ห้องว่างไม่มีใครได้เย็น เปิดไว้ก็เปลืองฟรี',
+      detail:'ทำถูก '+Math.round(pct*100)+'% ของเวลา · แอร์ห้องว่าง 4 ชม./วัน ≈ 120 kWh/เดือน ≈ 540 บาท/เดือน'};
+    if(pct>=0.6)return{st:2,lesson:'ดีมาก! แต่ยังมีช่วงที่แอร์เปิดในห้องว่าง (หรือคนต้องนั่งร้อน) — ตาไวกว่านี้อีกนิด',
+      detail:'ทำถูก '+Math.round(pct*100)+'% ของเวลา'};
+    return{st:1,lesson:'แอร์ห้องว่างเปิดทิ้งไว้นาน เจ้าตะกละกินอิ่มเลย! จำไว้: คนอยู่ห้องไหน แอร์เปิดห้องนั้น',
+      detail:'ทำถูก '+Math.round(pct*100)+'% ของเวลา'};}},
+ {name:'ด่าน 3 · ตั้งเวลานอน 🌙',icon:'🌙',
+  goal:'คืนนี้น้องนอนแล้ว — หมุนหน้าปัดตั้งเวลา "ปิดแอร์" และตั้งอุณหภูมิให้พอดี ดูกราฟช่วยได้!',
+  setup:function(){showScene(3);setupL3();G.running=false;
+    $('timerWrap').style.display='none';$('timerTxt').style.display='none';
+    vSay('ตั้ง 20° เปิดยันเช้าเลยสิ ข้าจะได้อ้วน ๆ 😈');},
+  eval:function(){var s=l3Score();
+    G.contrib[2]=30*(1-0.85*s/4);G.nbc[2]=30;updateStrip();
+    if(s>=4)return{st:3,lesson:'เพอร์เฟกต์! ตั้งปิดตี 3 + 26°C — หลังตี 3 อากาศเย็นแล้ว ไม่ต้องใช้แอร์ก็หลับสบาย 🌙',
+      detail:'ตั้งเวลาปิดตี 3 + 26°C ≈ ประหยัด ~25% ของคืน ≈ 60 kWh ≈ 270 บาท/เดือน · ลด 1°C ≈ กินไฟเพิ่ม ~10%'};
+    if(s>=2)return{st:2,lesson:'ใกล้แล้ว! จุดที่พอดีคือ "ปิดตี 3 + 26°C" — ดูกราฟ: หลังตี 3 เส้นอุณหภูมิลงต่ำกว่า 26° พอดี',
+      detail:'ตั้งเร็วไปน้องอาจร้อน ตั้งช้าไปเปลืองไฟ · ลด 1°C ≈ +10%'};
+    return{st:1,lesson:'แอร์เปิดเย็นจัดยันเช้า = จ่ายฟรีช่วงที่อากาศเย็นอยู่แล้ว! ลองตั้งปิดตี 3 + 26°C',
+      detail:'ไม่ตั้งเวลา = ใช้ไฟเต็มคืน · 26°C คืออุณหภูมิที่สบายและประหยัด'};}},
+ {name:'ด่านบอส · ปราบเจ้าตะกละ 🥊',icon:'🥊',
+  goal:'เจ้าตะกละแอบก่อกวน 30 วิ! แตะแก้ให้ทัน: ปิดแอร์ห้องว่าง · รีโมทกลับ 26° · ปัดฝุ่นฟิลเตอร์',
+  setup:function(){showScene(4);setupL4();
+    vSay('รอบสุดท้าย! ข้าจะกวนจนบิลพุ่ง ฮ่า ๆ 😈');
+    startTimer(30,finishLevel);},
+  eval:function(){
+    clearTimeout(L4.spawnTo);clearInterval(L4.chkInt);
+    if(L4.hp<=0)return{st:3,lesson:'น็อกเอาต์! เจ้าตะกละผอมจนยอมแพ้ — นิสัยดีทั้ง 4 อย่างอยู่ในมือเราแล้ว 🏆',
+      detail:'แก้ทัน '+L4.fixes+' ครั้ง · นิสัยดีครบ ≈ ประหยัด 940 บาท/เดือน (บ้านตัวอย่าง)'};
+    if(L4.hp<=48)return{st:2,lesson:'เกือบน็อก! เจ้าตะกละผอมลงมาก แก้ให้ไวกว่านี้อีกนิดเดียว',
+      detail:'พลังเหลือ '+L4.hp+'% · แก้ทัน '+L4.fixes+' ครั้ง'};
+    return{st:1,lesson:'เจ้าตะกละยังอ้วนอยู่! เคล็ดลับ: เห็นเครื่องหมาย ❗ ตรงไหน รีบแตะตรงนั้น',
+      detail:'พลังเหลือ '+L4.hp+'% · แก้ทัน '+L4.fixes+' ครั้ง'};}}
+];
+
+function showScene(n){
+  for(var i=1;i<=4;i++)$('sc'+i).style.display=(i===n)?'':'none';
+  $('l3Ctl').style.display=(n===3)?'':'none';
+}
+
+/* ── adult bar ── */
+function renderAdult(){
+  if(!document.body.classList.contains('adult'))return;
+  var h='';
+  if(G.lvl===0){var kw=PH.KW_AC*(1+PH.FILTER_PCT/100*(1-cleanFrac()));
+    h='แอร์กิน <b>'+kw.toFixed(2)+'</b> kW (ฟิลเตอร์ตัน +'+PH.FILTER_PCT+'%)<br>สะอาดแล้ว '+Math.round(cleanFrac()*100)+'%';}
+  else if(G.lvl===1){var on=0,wasteKw=0,occ=occRooms2();
+    for(var i=0;i<4;i++){if(L2.rooms[i]){on++;if(!occ[i])wasteKw+=PH.KW_AC;}}
+    h='เปิดแอร์ '+on+' เครื่อง ≈ <b>'+(on*PH.KW_AC).toFixed(1)+'</b> kW<br>สูญเปล่า (ห้องว่าง) <b>'+wasteKw.toFixed(1)+'</b> kW<br>ห้องว่าง 4 ชม./วัน ≈ 120 kWh/เดือน';}
+  else if(G.lvl===2){h='ลด 1°C ≈ กินไฟเพิ่ม ~'+PH.DEG_PCT+'%<br>ปิดตี 3 + 26°C ≈ ประหยัด ~'+PH.NIGHT_PCT+'% ของคืน<br>(≈ '+SAVE.nightKwh.toFixed(0)+' kWh ≈ '+Math.round(SAVE.nightKwh*PH.TARIFF)+' บาท/เดือน)';}
+  else{h='กำลังไฟขณะนี้ ≈ <b>'+G.kwNow.toFixed(2)+'</b> kW<br>ปัญหาค้าง '+pendCount()+' จุด · ฟิลเตอร์ตัน +'+PH.FILTER_PCT+'% · 20°C แทน 26°C ≈ +'+(PH.DEG_PCT*6)+'%';}
+  $('adultBar').innerHTML=h;
+}
+
+/* ── เริ่มด่าน / จบด่าน ── */
+function startLevel(i){
+  G.lvl=i;G.locked=false;G.vmood='';setMood('evil');
+  G.contrib[i]=0;G.nbc[i]=0;
+  stopTimer();clearTimeout(L2.mvTo);clearInterval(L2.scInt);clearTimeout(L4.spawnTo);clearInterval(L4.chkInt);
+  $('timerWrap').style.display='none';$('timerTxt').style.display='none';
+  $('lvlName').textContent=LEVELS[i].name;
+  $('goalTxt').textContent=LEVELS[i].goal;
+  LEVELS[i].setup();
+  renderAdult();updateStrip();
+}
+function finishLevel(){
+  if(G.locked)return;G.locked=true;
+  stopTimer();clearTimeout(L2.mvTo);clearInterval(L2.scInt);clearTimeout(L4.spawnTo);clearInterval(L4.chkInt);
+  var r=LEVELS[G.lvl].eval();
+  if(r.st>stars[G.lvl]){stars[G.lvl]=r.st;saveStars();}
+  updateStarTotal();
+  if(r.st>=2){G.waste=0.05;}else{G.waste=0.5;}
+  $('resTitle').textContent=LEVELS[G.lvl].name;
+  $('resLesson').textContent=r.lesson;
+  $('resDetail').textContent=r.detail||'';
+  var ss=$('resStars').children;
+  for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(r.st>=2)sGood();else sBad();
+  for(let k=0;k<r.st;k++)setTimeout(function(){ss[k].classList.add('on');sStar(k);},350+k*380);
+  if(r.st===3)confetti(26);
+  $('nextBtn').textContent=G.lvl<3?'ด่านต่อไป ➜':'ดูสรุป 🏆';
+}
+
+/* ── จบเกม ── */
+function showEnd(){
+  $('endStars').textContent=updateStarTotal();
+  var p=billPct();if(p===null)p=0.5;
+  var ourB=Math.round(PH.NB_BILL-(1-p)*SAVE.totalBaht);
+  $('cmpTxt').textContent=document.body.classList.contains('adult')?
+    ('บ้านเรา ≈ '+ourB+' บาท/เดือน · บ้านข้างบ้าน ≈ '+PH.NB_BILL+' บาท/เดือน'):
+    ('บิลบ้านเราถูกกว่าบ้านข้างบ้าน '+Math.round((1-ourB/PH.NB_BILL)*100)+'%! 🎉');
+  $('aFil').textContent=Math.round(SAVE.filterKwh*PH.TARIFF);
+  $('aEmp').textContent=Math.round(SAVE.emptyKwh*PH.TARIFF);
+  $('aNig').textContent=Math.round(SAVE.nightKwh*PH.TARIFF);
+  $('aTot').textContent=Math.round(SAVE.totalBaht);
+  $('endOv').classList.add('show');
+  setMood('ko');G.waste=0;
+  setTimeout(function(){
+    $('cmpOur').style.width=(ourB/PH.NB_BILL*100).toFixed(0)+'%';
+    $('cmpNb').style.width='100%';
+  },250);
+  confetti(40);sGood();
+}
+
+/* ── confetti ── */
+function confetti(n){var cols=['#ff5d8f','#ffd23f','#00c2a8','#7b5bff','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ═════════ คู่มือวิธีเล่น ═════════ */
+var HOW=[
+ {txt:'นี่คือ "เจ้าแอร์จอมตะกละ" 🥶 มันแอบกินค่าไฟบ้านเรา — ยิ่งเราเผลอ มันยิ่งอ้วน! เป้าหมาย: ทำให้มันผอมจนยอมแพ้',
+  svg:'<svg viewBox="0 0 360 180"><rect width="360" height="180" fill="#f2f7fd"/>'+
+   '<g class="howChew"><rect x="110" y="40" width="110" height="100" rx="24" fill="#cfe9fb" stroke="#5d7ea8" stroke-width="5"/>'+
+   '<rect x="126" y="52" width="78" height="10" rx="5" fill="#eaf6ff"/>'+
+   '<path d="M126 72 L150 80 M204 72 L180 80" stroke="#213047" stroke-width="4" stroke-linecap="round"/>'+
+   '<circle cx="143" cy="90" r="8" fill="#fff" stroke="#213047" stroke-width="2"/><circle cx="144" cy="91" r="3.5" fill="#213047"/>'+
+   '<circle cx="187" cy="90" r="8" fill="#fff" stroke="#213047" stroke-width="2"/><circle cx="186" cy="91" r="3.5" fill="#213047"/>'+
+   '<path d="M138 108 Q165 128 192 108 Q165 118 138 108" fill="#b3404f" stroke="#7c2d3e" stroke-width="3"/></g>'+
+   '<text class="howCoin" x="150" y="118" font-size="26">🪙</text>'+
+   '<text x="285" y="100" font-size="30">💸</text>'+
+   '<text x="30" y="36" font-size="17" font-weight="600" fill="#ef4b4b" font-family="Mitr,sans-serif">กินค่าไฟ = อ้วนขึ้น!</text></svg>'},
+ {txt:'ด่าน 1: ใช้นิ้ว "ถู" ฝุ่นออกจากฟิลเตอร์แอร์ให้หมด — ฟิลเตอร์สะอาด ลมแรง ไฟไม่เปลือง',
+  svg:'<svg viewBox="0 0 360 180"><rect width="360" height="180" fill="#f2f7fd"/>'+
+   '<rect x="50" y="40" width="260" height="92" rx="12" fill="#fff" stroke="#9fb4cc" stroke-width="4"/>'+
+   '<line x1="60" y1="70" x2="300" y2="70" stroke="#d7e4f0" stroke-width="3"/>'+
+   '<line x1="60" y1="100" x2="300" y2="100" stroke="#d7e4f0" stroke-width="3"/>'+
+   '<g fill="#8d959d"><ellipse class="howDust" cx="90" cy="66" rx="20" ry="11"/>'+
+   '<ellipse class="howDust" style="animation-delay:.3s" cx="150" cy="84" rx="23" ry="13" fill="#6b7178"/>'+
+   '<ellipse class="howDust" style="animation-delay:.6s" cx="215" cy="64" rx="20" ry="11"/>'+
+   '<ellipse class="howDust" style="animation-delay:.9s" cx="265" cy="92" rx="21" ry="12" fill="#6b7178"/></g>'+
+   '<text class="howHand" x="70" y="100" font-size="40">👆</text>'+
+   '<g stroke="#7fd0ff" stroke-width="6" fill="none" stroke-linecap="round">'+
+   '<path class="bigbz" d="M140 142 q-8 14 2 26"/><path class="bigbz" style="animation-delay:.4s" d="M220 142 q8 14 -2 26"/></g></svg>'},
+ {txt:'ด่าน 2: บ้านมี 4 ห้อง — แตะห้องเพื่อเปิด/ปิดแอร์ ให้เปิด "เฉพาะห้องที่มีคน" (คนเดินย้ายห้องนะ!)',
+  svg:'<svg viewBox="0 0 360 180"><rect width="360" height="180" fill="#f2f7fd"/>'+
+   '<rect x="30" y="30" width="140" height="120" rx="10" fill="#eaf6ff" stroke="#8f6c3f" stroke-width="4"/>'+
+   '<rect x="70" y="38" width="60" height="18" rx="6" fill="#fff" stroke="#9fb4cc" stroke-width="3"/>'+
+   '<g stroke="#7fd0ff" stroke-width="3" fill="none" stroke-linecap="round">'+
+   '<path class="breezeln" d="M85 62 q-5 7 -11 8"/><path class="breezeln" style="animation-delay:.5s" d="M115 62 q-5 7 -11 8"/></g>'+
+   '<circle cx="100" cy="106" r="13" fill="#ffd9b3" stroke="#e8b27f" stroke-width="2"/>'+
+   '<rect x="86" y="120" width="28" height="22" rx="8" fill="#ff5d8f"/>'+
+   '<text x="100" y="170" font-size="14" text-anchor="middle" fill="#1fb45f" font-weight="600" font-family="Mitr,sans-serif">มีคน = เปิด ✔</text>'+
+   '<rect x="190" y="30" width="140" height="120" rx="10" fill="#fff2dc" stroke="#8f6c3f" stroke-width="4"/>'+
+   '<g class="howOff"><rect x="230" y="38" width="60" height="18" rx="6" fill="#fff" stroke="#9fb4cc" stroke-width="3"/>'+
+   '<text x="310" y="60" font-size="20">💸</text></g>'+
+   '<text class="howTap" x="240" y="115" font-size="38">👆</text>'+
+   '<text x="260" y="170" font-size="14" text-anchor="middle" fill="#ef4b4b" font-weight="600" font-family="Mitr,sans-serif">ห้องว่าง = ปิด!</text></svg>'},
+ {txt:'ด่าน 3: กลางคืนหมุนหน้าปัดตั้งเวลา "ปิดแอร์ตี 3" + ตั้ง 26°C — หลังตี 3 อากาศเย็นเองแล้ว · ด่านบอส: แตะแก้ทุกจุดที่มี ❗ ให้ทัน!',
+  svg:'<svg viewBox="0 0 360 180"><rect width="360" height="180" fill="#16233f"/>'+
+   '<circle cx="320" cy="34" r="14" fill="#fff6c9"/><circle cx="314" cy="30" r="12" fill="#16233f"/>'+
+   '<circle cx="110" cy="92" r="52" fill="#1e2f52"/><circle cx="110" cy="92" r="38" fill="#f4f9ff" stroke="#9fb4cc" stroke-width="3"/>'+
+   '<g class="howNeedle" style="transform-origin:110px 92px"><line x1="110" y1="92" x2="110" y2="62" stroke="#ff5d8f" stroke-width="6" stroke-linecap="round"/></g>'+
+   '<circle cx="110" cy="92" r="7" fill="#213047"/>'+
+   '<text x="110" y="166" font-size="16" text-anchor="middle" fill="#ffd23f" font-weight="600" font-family="Mitr,sans-serif">ปิดตอน ตี 3</text>'+
+   '<g class="howPulse"><rect x="210" y="62" width="110" height="60" rx="12" fill="#f4f9ff"/>'+
+   '<text x="265" y="104" font-size="30" text-anchor="middle" font-weight="700" fill="#2d6cdf" font-family="Mitr,sans-serif">26°C</text></g>'+
+   '<text class="zz" x="180" y="56" font-size="20" fill="#cfe2ff">Z</text>'+
+   '<text x="265" y="156" font-size="15" text-anchor="middle" fill="#aef3c9" font-family="Mitr,sans-serif">เย็นสบาย + ประหยัด</text></svg>'}
+];
+var howPage=0;
+function renderHow(){
+  $('howPic').innerHTML=HOW[howPage].svg;
+  $('howTxt').textContent=HOW[howPage].txt;
+  var d=$('howDots');d.innerHTML='';
+  for(var i=0;i<HOW.length;i++){var s=document.createElement('span');
+    s.className='d'+(i===howPage?' on':'');d.appendChild(s);}
+  $('howPrev').style.visibility=howPage===0?'hidden':'visible';
+  $('howNext').textContent=howPage===HOW.length-1?'เริ่มเล่นเลย! ▶':'ถัดไป ▶';
+}
+function openHow(){howPage=0;renderHow();$('howOv').classList.add('show');}
+$('howPrev').addEventListener('click',function(){if(howPage>0){howPage--;sClick();renderHow();}});
+$('howNext').addEventListener('click',function(){
+  audio();
+  if(howPage<HOW.length-1){howPage++;sClick();renderHow();}
+  else{setSeen();$('howOv').classList.remove('show');sGood();
+    if($('startOv').classList.contains('show')){$('startOv').classList.remove('show');startLevel(0);}}
+});
+$('howBtn').addEventListener('click',function(){audio();sClick();openHow();});
+$('howBtn2').addEventListener('click',function(){audio();sClick();openHow();});
+
+/* ── ปุ่มหลัก ── */
+$('tMinus').addEventListener('click',function(){audio();if(L3.temp>20){L3.temp--;sClick();renderL3();}});
+$('tPlus').addEventListener('click',function(){audio();if(L3.temp<28){L3.temp++;sClick();renderL3();}});
+$('l3Ok').addEventListener('click',function(){audio();finishLevel();});
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(G.lvl);});
+$('nextBtn').addEventListener('click',function(){
+  $('resultOv').classList.remove('show');
+  if(G.lvl<3)startLevel(G.lvl+1);else showEnd();
+});
+$('againBtn').addEventListener('click',function(){
+  $('endOv').classList.remove('show');
+  G.contrib=[0,0,0,0];G.nbc=[0,0,0,0];updateStrip();
+  buildLvlPick();$('startOv').classList.add('show');
+});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('adultBtn').addEventListener('click',function(){document.body.classList.toggle('adult');this.classList.toggle('on');sClick();renderAdult();updateStrip();});
+
+/* ── เลือกด่านจากหน้าแรก ── */
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<4;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.3rem">'+LEVELS[i].icon+'</span><span class="nm">'+(i<3?'ด่าน '+(i+1):'บอส')+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();
+applyFat();setMood('evil');
+showScene(1);buildDust();
+requestAnimationFrame(loop);
+if(!seenHow())openHow();
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+
+/* ── API สำหรับทดสอบอัตโนมัติ ── */
+window.__acr={PH:PH,SAVE:SAVE,G:G,stars:stars,L1:L1,L2:L2,L3:L3,L4:L4,
+  cleanFrac:cleanFrac,wipeAt:wipeAt,startLevel:startLevel,finishLevel:finishLevel,
+  tapRoom:tapRoom2,occRooms:occRooms2,
+  setDial:function(i){L3.pos=i;renderL3();},
+  setTemp:function(t){L3.temp=t;renderL3();},
+  bossAutoFix:function(){
+    if(G.lvl!==3||!G.running)return 0;var n=0;
+    for(var i=1;i<4;i++)if(L4.ac[i]){bossTapRoom(i);n++;}
+    if(L4.temp<26){bossFixTemp();n++;}
+    if(L4.dust){bossFixDust();n++;}
+    return n;},
+  autoFixRooms:function(){
+    if(G.lvl!==1||!G.running)return;
+    var occ=occRooms2();
+    for(var i=0;i<4;i++)if(L2.rooms[i]!==occ[i])tapRoom2(i);}
+};
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

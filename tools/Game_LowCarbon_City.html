@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>เกมเมืองคาร์บอนต่ำ — Energy Sense Games</title>
+<!-- [สร้าง 27 ต.ค. 2569] เกม "เมืองคาร์บอนต่ำ" (Low Carbon City) v0.1 — Energy Sense Games · Triple E Technology
+     หลักที่สอน: ไฟฟ้าต้องผลิต = ใช้ ทุกวินาที · แต่ละแหล่งมีข้อเด่น-ข้อจำกัด (โซลาร์มีเฉพาะกลางวัน/หายตอนเมฆ,
+     ถ่านหินถูกแต่ CO₂ สูงและปรับช้า, ก๊าซปรับเร็ว) · ธีม Carbon Neutrality ของไทย
+     ฟิสิกส์เบื้องหลัง (โหมดผู้ใหญ่ 👷 สมจริงเชิงสัดส่วน):
+       CO₂ จำเพาะ kgCO₂/kWh — ถ่านหิน 0.95 · ก๊าซ 0.45 · ชีวมวล 0.08 · โซลาร์/น้ำ ≈ 0
+       ต้นทุน บาท/kWh — ถ่านหิน 2.2 · ก๊าซ 3.2 · ชีวมวล 2.8 · โซลาร์ 1.8 · น้ำ 1.5
+       ดีมานด์เมือง 10–25 MW (พีคเย็น ~19:30) · tCO₂ = Σ MWᵢ·EFᵢ·ชม. · บาท = Σ MWᵢ·ต้นทุนᵢ·1000·ชม.
+       โซลาร์: P = Pตั้ง·sin(π(h−6)/12)·เมฆ (06–18 น.) · 1 วันเกม = 40 วินาทีจริง -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky1:#7ec8ff; --sky2:#cdeaff;
+  --sun:#ffd23f; --sun2:#ff9f1c;
+  --grass:#7ed957;
+  --pink:#ff5d8f; --purple:#7b5bff; --teal:#00c2a8; --orange:#ff8f1c;
+  --ink:#213047; --paper:#ffffff;
+  --good:#1fb45f; --mid:#f5a623; --bad:#ef4b4b;
+  --btn-grad:linear-gradient(135deg,#ff5d8f,#ff8f1c);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Mitr','IBM Plex Sans Thai',system-ui,sans-serif;
+  background:linear-gradient(180deg,#bdf0dd,#d9f6ff 55%,#eafbe0 56%,#d8f5c8);
+  color:var(--ink); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  overflow-x:hidden; user-select:none;
+}
+#app{width:100%;max-width:860px;padding:10px 12px 26px;display:flex;flex-direction:column;gap:10px}
+
+/* ───── HUD ───── */
+#hud{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);
+  border:3px solid #fff;border-radius:18px;padding:8px 12px;box-shadow:0 4px 14px rgba(33,48,71,.15);backdrop-filter:blur(4px)}
+#hud .lvl-name{font-weight:600;font-size:1.0rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .stars-total{font-weight:600;color:#b8860b;white-space:nowrap}
+#hud button{border:none;background:#eef3fa;border-radius:12px;padding:6px 10px;font-family:inherit;font-size:.95rem;cursor:pointer;color:var(--ink);min-width:44px;min-height:38px}
+#hud button.on{background:#213047;color:#fff}
+
+/* ───── Scene ───── */
+#sceneWrap{position:relative;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(33,48,71,.18);background:#0d1f42;border:4px solid #fff}
+#scene{display:block;width:100%;height:auto}
+#adultBar{position:absolute;left:8px;top:8px;background:rgba(20,30,48,.84);color:#fff;border-radius:12px;
+  padding:5px 10px;font-size:.8rem;line-height:1.4;display:none;pointer-events:none;z-index:3}
+#adultBar b{color:#ffd23f}
+body.adult #adultBar{display:block}
+.adult-only{display:none}
+body.adult .adult-only{display:inline}
+#bubble{position:absolute;right:8px;top:8px;max-width:56%;background:#fff;border-radius:14px;border:3px solid #ffd23f;
+  padding:6px 10px;font-size:.88rem;font-weight:500;box-shadow:0 4px 10px rgba(0,0,0,.12);transition:opacity .25s;opacity:0;pointer-events:none;z-index:3}
+#bubble.show{opacity:1}
+#sceneWrap.flash::after{content:'';position:absolute;inset:0;background:rgba(239,75,75,.35);animation:flashA .5s ease-out forwards;pointer-events:none}
+@keyframes flashA{0%{opacity:1}100%{opacity:0}}
+
+/* ───── Meters strip ───── */
+#metersWrap{background:#fff;border-radius:18px;padding:4px 6px;box-shadow:0 5px 16px rgba(33,48,71,.13)}
+#meters{display:block;width:100%;height:auto}
+
+/* ───── Control panel ───── */
+#panel{background:#fff;border-radius:20px;padding:12px 12px;box-shadow:0 6px 18px rgba(33,48,71,.14);display:flex;flex-direction:column;gap:8px}
+.goal{font-size:.95rem;font-weight:600;text-align:center;background:#e8fbf2;border:2px dashed #00c2a8;border-radius:14px;padding:7px 10px}
+
+.plant{display:flex;align-items:center;gap:8px;background:#f4f8fc;border-radius:16px;padding:6px 10px;border:2px solid transparent}
+.plant.alert{border-color:#ffd23f;background:#fffbe8}
+.plant .pic{font-size:1.5rem;width:38px;text-align:center;flex:none}
+.plant .pmid{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.plant .pname{font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.15}
+.plant .ptag{font-size:.68rem;font-weight:500;background:#e3ebf5;color:#51627a;border-radius:8px;padding:1px 7px}
+.plant .pavail{font-size:.72rem;font-weight:600;color:#c77700;margin-left:auto}
+.plant input[type=range]{width:100%;height:34px;appearance:none;background:transparent;cursor:pointer}
+.plant input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:8px;background:#dde7f2}
+.plant input[type=range]::-webkit-slider-thumb{appearance:none;width:30px;height:30px;border-radius:50%;margin-top:-9px;
+  background:#fff;border:5px solid var(--pc,#7b5bff);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.plant input[type=range]::-moz-range-track{height:12px;border-radius:8px;background:#dde7f2}
+.plant input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:5px solid var(--pc,#7b5bff)}
+.plant .pbar{height:7px;border-radius:5px;background:#e3ebf5;overflow:hidden}
+.plant .pbar .pfill{height:100%;width:0;border-radius:5px;background:var(--pc,#7b5bff);transition:width .15s linear}
+.plant .pout{width:62px;text-align:right;font-weight:700;font-size:.95rem;flex:none;display:none;line-height:1.1}
+.plant .pout small{display:block;font-size:.62rem;font-weight:500;color:#6a7a90}
+body.adult .plant .pout{display:block}
+#rw_solar{--pc:#f5a623}#rw_hydro{--pc:#4aa8ff}#rw_bio{--pc:#1fb45f}#rw_gas{--pc:#ff8f1c}#rw_coal{--pc:#6a7a90}
+
+/* big action buttons */
+.big-btn{border:none;border-radius:999px;padding:14px 34px;font-family:inherit;font-size:1.2rem;font-weight:700;color:#fff;
+  background:var(--btn-grad);cursor:pointer;box-shadow:0 6px 0 #d14b76,0 10px 18px rgba(0,0,0,.2);transition:transform .1s}
+.big-btn:active{transform:translateY(4px);box-shadow:0 2px 0 #d14b76}
+.big-btn.alt{background:linear-gradient(135deg,var(--teal),#19a0ff);box-shadow:0 6px 0 #0d8aa0,0 10px 18px rgba(0,0,0,.2)}
+.big-btn.alt:active{box-shadow:0 2px 0 #0d8aa0}
+.big-btn.small{font-size:1rem;padding:10px 22px}
+.ghost-btn{border:3px solid #cfd9e6;background:#fff;border-radius:999px;padding:10px 20px;font-family:inherit;font-size:1rem;font-weight:600;cursor:pointer;color:var(--ink)}
+
+/* ───── Overlays ───── */
+.overlay{position:fixed;inset:0;background:rgba(18,28,46,.55);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:16px;opacity:0;pointer-events:none;transition:opacity .3s}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{background:#fff;border-radius:26px;max-width:470px;width:100%;padding:22px 18px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .3s;max-height:92vh;overflow:auto}
+.overlay.show .card{transform:translateY(0)}
+.card h2{font-size:1.4rem;margin-bottom:6px}
+.card p{font-size:.98rem;line-height:1.55}
+.result-stars{font-size:3rem;letter-spacing:6px;margin:8px 0;min-height:1.2em}
+.result-stars .s{display:inline-block;opacity:.22;transform:scale(.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .3s}
+.result-stars .s.on{opacity:1;transform:scale(1)}
+.lesson{background:#e8fbf2;border:2px solid #b2ecd4;border-radius:14px;padding:9px 12px;font-weight:600;margin:8px 0;font-size:.95rem}
+.statrow{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:6px 0;font-size:.92rem;font-weight:600}
+.statrow span{background:#f1f5fb;border-radius:12px;padding:5px 12px}
+.rankbar{display:flex;align-items:center;gap:8px;margin:7px 0;text-align:left}
+.rankbar .lb{width:118px;font-size:.88rem;font-weight:600;flex:none}
+.rankbar .tr{flex:1;background:#eef3fa;border-radius:9px;height:22px;overflow:hidden}
+.rankbar .fl{height:100%;width:0;border-radius:9px;transition:width 1s cubic-bezier(.3,.9,.4,1)}
+.rankbar .rv{width:96px;flex:none;font-size:.74rem;font-weight:700;color:#51627a;text-align:left;line-height:1.1}
+.lvl-pick{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.lvl-pick button{border:3px solid #e2e9f2;background:#f7fafd;border-radius:16px;padding:8px 10px;font-family:inherit;cursor:pointer;min-width:82px}
+.lvl-pick .nm{font-size:.8rem;font-weight:600;display:block}
+.lvl-pick .st{font-size:.85rem;letter-spacing:1px}
+#startCard h1{font-size:1.8rem;line-height:1.25;background:linear-gradient(135deg,#00a884,#19a0ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+#startCard .sub{color:#6a7a90;margin:4px 0 10px;font-size:.95rem}
+.brand{font-size:.8rem;color:#8795a8;margin-top:12px}
+
+/* ───── Guide (วิธีเล่น) ───── */
+#guideOv{z-index:60}
+.gpage{display:none}
+.gpage.cur{display:block}
+.gpage .gfig{background:#eef6ff;border-radius:18px;padding:6px;margin-bottom:10px}
+.gpage .gfig svg{display:block;width:100%;height:auto}
+.gpage .gtxt{font-size:1.02rem;font-weight:600;line-height:1.5;min-height:3.2em}
+.gdots{display:flex;gap:7px;justify-content:center;margin:10px 0}
+.gdots i{width:10px;height:10px;border-radius:50%;background:#d4dfeb}
+.gdots i.cur{background:var(--teal);transform:scale(1.25)}
+.gnav{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+
+/* confetti */
+.confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:70;pointer-events:none;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+/* ───── Scene SVG animations ───── */
+.sunray{transform-box:fill-box;transform-origin:center;animation:spinray 16s linear infinite}
+@keyframes spinray{to{transform:rotate(360deg)}}
+@keyframes smokeA{0%{transform:translateY(0) scale(.6);opacity:.85}100%{transform:translateY(-54px) scale(1.5);opacity:0}}
+.smk{animation:smokeA 2.4s ease-out infinite}
+@keyframes twinkA{0%,100%{opacity:.9}50%{opacity:.25}}
+.twk{animation:twinkA 2.6s ease-in-out infinite}
+@keyframes driftA{0%{transform:translateX(0)}50%{transform:translateX(60px)}100%{transform:translateX(0)}}
+.driftc{animation:driftA 36s ease-in-out infinite}
+@keyframes birdA{0%{transform:translateX(0) translateY(0)}50%{transform:translateX(130px) translateY(-14px)}100%{transform:translateX(260px) translateY(0)}}
+.birdfly{animation:birdA 11s linear infinite}
+@keyframes flapA{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.4)}}
+.flap{transform-box:fill-box;transform-origin:center;animation:flapA .5s ease-in-out infinite}
+@keyframes flowA{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-28px}}
+.hflow{stroke-dasharray:7 7;animation:flowA .8s linear infinite}
+@keyframes glintA{0%,100%{opacity:.15}50%{opacity:.8}}
+.glint{animation:glintA 2.2s ease-in-out infinite}
+
+/* ───── Guide SVG animations ───── */
+@keyframes gdotA{0%{transform:translate(0,0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translate(170px,-6px);opacity:0}}
+.gdot{animation:gdotA 2.2s linear infinite}
+@keyframes gwinA{0%,45%{fill:#2a3550}55%,100%{fill:#ffd76a}}
+.gwin{animation:gwinA 2.2s steps(1) infinite}
+@keyframes gswingA{0%,12%{transform:rotate(-46deg)}38%,62%{transform:rotate(0deg)}82%,96%{transform:rotate(46deg)}100%{transform:rotate(-46deg)}}
+.gneedle{transform-box:view-box;transform-origin:160px 118px;animation:gswingA 4.5s ease-in-out infinite}
+@keyframes gdarkA{0%,12%{opacity:.85}30%,100%{opacity:0}}
+.gdark{animation:gdarkA 4.5s steps(1) infinite}
+@keyframes gcoinA{0%,80%{opacity:0;transform:translateY(0)}84%{opacity:1}100%{opacity:0;transform:translateY(16px)}}
+.gcoin{animation:gcoinA 4.5s ease-in infinite}
+@keyframes gcloudA{0%{transform:translateX(-95px)}45%,60%{transform:translateX(0)}100%{transform:translateX(105px)}}
+.gcloud{animation:gcloudA 5s ease-in-out infinite}
+@keyframes gbarA{0%,8%{transform:scaleY(1)}45%,60%{transform:scaleY(.14)}92%,100%{transform:scaleY(1)}}
+.gbar{transform-box:fill-box;transform-origin:bottom;animation:gbarA 5s ease-in-out infinite}
+@keyframes gfillA{0%{transform:scaleX(.08)}100%{transform:scaleX(1)}}
+.gfill{transform-box:fill-box;transform-origin:left;animation:gfillA 3.6s linear infinite}
+@keyframes gstarA{0%,10%{transform:scale(0)}22%,78%{transform:scale(1)}90%,100%{transform:scale(0)}}
+.gstar{transform-box:fill-box;transform-origin:center;animation:gstarA 3.8s cubic-bezier(.34,1.56,.64,1) infinite}
+.gstar.d2{animation-delay:.25s}.gstar.d3{animation-delay:.5s}
+
+@media (prefers-reduced-motion:reduce){
+  .sunray,.smk,.twk,.driftc,.birdfly,.flap,.hflow,.glint,
+  .gdot,.gwin,.gneedle,.gdark,.gcoin,.gcloud,.gbar,.gfill,.gstar{animation:none}
+}
+@media (max-width:480px){
+  .card h2{font-size:1.25rem}
+  #bubble{font-size:.8rem}
+  .plant .ptag{display:none}
+  .plant .pic{font-size:1.3rem;width:30px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="lvl-name" id="lvlName">เมืองคาร์บอนต่ำ</div>
+    <div class="stars-total">⭐ <span id="starTotal">0</span>/12</div>
+    <button id="helpBtn" title="วิธีเล่น">📖</button>
+    <button id="sndBtn" class="on" title="เสียง">🔊</button>
+    <button id="adultBtn" title="โหมดผู้ใหญ่ แสดง MW และ tCO₂">👷</button>
+  </div>
+
+  <!-- SCENE -->
+  <div id="sceneWrap">
+    <svg id="scene" viewBox="0 0 860 430" xmlns="http://www.w3.org/2000/svg" aria-label="เมืองการ์ตูนกับโรงไฟฟ้า">
+      <rect id="skyR" x="0" y="0" width="860" height="310" fill="#7ec8ff"/>
+      <g id="starsG" opacity="0" fill="#fff">
+        <circle class="twk" cx="90" cy="46" r="2.4"/><circle class="twk" cx="210" cy="84" r="1.8" style="animation-delay:.5s"/>
+        <circle class="twk" cx="330" cy="38" r="2.2" style="animation-delay:1s"/><circle class="twk" cx="470" cy="70" r="1.8" style="animation-delay:1.4s"/>
+        <circle class="twk" cx="585" cy="40" r="2.4" style="animation-delay:.8s"/><circle class="twk" cx="700" cy="88" r="1.9" style="animation-delay:.2s"/>
+        <circle class="twk" cx="790" cy="50" r="2.2" style="animation-delay:1.7s"/><circle class="twk" cx="150" cy="120" r="1.6" style="animation-delay:2s"/>
+        <circle class="twk" cx="640" cy="130" r="1.6" style="animation-delay:1.2s"/><circle class="twk" cx="400" cy="110" r="1.7" style="animation-delay:.9s"/>
+      </g>
+      <!-- sun -->
+      <g id="cSun" transform="translate(-80,-80)">
+        <g class="sunray" stroke="#ffd23f" stroke-width="6" stroke-linecap="round" opacity=".85">
+          <line x1="0" y1="-38" x2="0" y2="-48"/><line x1="0" y1="38" x2="0" y2="48"/>
+          <line x1="-38" y1="0" x2="-48" y2="0"/><line x1="38" y1="0" x2="48" y2="0"/>
+          <line x1="-27" y1="-27" x2="-34" y2="-34"/><line x1="27" y1="-27" x2="34" y2="-34"/>
+          <line x1="-27" y1="27" x2="-34" y2="34"/><line x1="27" y1="27" x2="34" y2="34"/>
+        </g>
+        <circle r="28" fill="#ffd23f" stroke="#ff9f1c" stroke-width="5"/>
+        <circle cx="-9" cy="-5" r="3.6" fill="#213047"/><circle cx="9" cy="-5" r="3.6" fill="#213047"/>
+        <path d="M-9 7 Q0 14 9 7" stroke="#213047" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+      </g>
+      <!-- moon -->
+      <g id="cMoon" transform="translate(-80,-80)">
+        <circle r="22" fill="#f3efd8" stroke="#cfc8a2" stroke-width="4"/>
+        <circle cx="-7" cy="-4" r="4.5" fill="#dcd5b0"/><circle cx="7" cy="7" r="3" fill="#dcd5b0"/>
+        <circle cx="-6" cy="2" r="2.6" fill="#213047"/><circle cx="8" cy="-2" r="2.6" fill="#213047" opacity="0"/>
+        <path d="M-10 9 Q-3 13 4 9" stroke="#8d8763" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+      </g>
+      <!-- ambient clouds -->
+      <g class="driftc" opacity=".9">
+        <ellipse cx="150" cy="70" rx="46" ry="15" fill="#fff"/><ellipse cx="190" cy="60" rx="32" ry="12" fill="#fff"/>
+      </g>
+      <g class="driftc" style="animation-delay:-14s" opacity=".8">
+        <ellipse cx="560" cy="110" rx="40" ry="13" fill="#fff"/><ellipse cx="596" cy="100" rx="28" ry="10" fill="#fff"/>
+      </g>
+      <!-- event cloud (บังแดด) -->
+      <g id="evCloud" opacity="0">
+        <ellipse cx="0" cy="8" rx="62" ry="22" fill="#dfe7ee"/><ellipse cx="-42" cy="16" rx="36" ry="15" fill="#cdd8e2"/>
+        <ellipse cx="44" cy="16" rx="38" ry="16" fill="#cdd8e2"/><ellipse cx="4" cy="-8" rx="40" ry="17" fill="#eef3f7"/>
+      </g>
+      <!-- birds -->
+      <g id="birdsG" opacity="0" stroke="#3a4a63" stroke-width="3.4" fill="none" stroke-linecap="round">
+        <g class="birdfly"><path class="flap" d="M250 96 q7 -9 14 0 q7 -9 14 0"/></g>
+        <g class="birdfly" style="animation-delay:-5s"><path class="flap" style="animation-delay:.2s" d="M320 122 q6 -8 12 0 q6 -8 12 0"/></g>
+      </g>
+
+      <!-- hills + ground + road -->
+      <ellipse cx="180" cy="312" rx="260" ry="34" fill="#5cb746"/>
+      <ellipse cx="660" cy="314" rx="300" ry="36" fill="#67c24f"/>
+      <rect x="0" y="302" width="860" height="128" fill="#7ed957"/>
+      <rect x="0" y="396" width="860" height="22" fill="#5b6775"/>
+      <g fill="#fff" opacity=".85">
+        <rect x="30" y="405" width="36" height="4" rx="2"/><rect x="130" y="405" width="36" height="4" rx="2"/>
+        <rect x="230" y="405" width="36" height="4" rx="2"/><rect x="330" y="405" width="36" height="4" rx="2"/>
+        <rect x="430" y="405" width="36" height="4" rx="2"/><rect x="530" y="405" width="36" height="4" rx="2"/>
+        <rect x="630" y="405" width="36" height="4" rx="2"/><rect x="730" y="405" width="36" height="4" rx="2"/>
+      </g>
+
+      <!-- เขื่อนเล็ก (ซ้ายสุด) -->
+      <g id="damG">
+        <rect x="0" y="352" width="52" height="44" fill="#4aa8ff"/>
+        <path d="M52 348 L74 396 L52 396 Z" fill="#8a97a8" stroke="#5f6c7d" stroke-width="3"/>
+        <path id="hydroFlow" class="hflow" d="M60 372 Q72 384 84 394" stroke="#bfe8ff" stroke-width="5" fill="none" opacity="0"/>
+        <text x="26" y="346" font-size="16" text-anchor="middle">💧</text>
+      </g>
+
+      <!-- buildings (bodies) -->
+      <g id="cityBodies">
+        <!-- b0 บ้าน -->
+        <rect x="88" y="330" width="76" height="66" fill="#ffd9a0" stroke="#d9a860" stroke-width="4"/>
+        <path d="M82 332 L126 296 L170 332 Z" fill="#e2725b" stroke="#b8503c" stroke-width="4" stroke-linejoin="round"/>
+        <rect x="114" y="360" width="24" height="36" rx="3" fill="#a9703f"/>
+        <!-- b1 ตึกสำนักงาน + โซลาร์บนหลังคา -->
+        <rect x="184" y="208" width="86" height="188" fill="#9fd3e8" stroke="#5d7ea8" stroke-width="4"/>
+        <rect x="180" y="200" width="94" height="10" rx="3" fill="#5d7ea8"/>
+        <g id="roofSolar">
+          <rect x="188" y="188" width="24" height="11" rx="2" fill="#2d6cdf" stroke="#1a4a9e" stroke-width="2" transform="rotate(-10 200 193)"/>
+          <rect x="216" y="188" width="24" height="11" rx="2" fill="#2d6cdf" stroke="#1a4a9e" stroke-width="2" transform="rotate(-10 228 193)"/>
+          <rect x="244" y="188" width="24" height="11" rx="2" fill="#2d6cdf" stroke="#1a4a9e" stroke-width="2" transform="rotate(-10 256 193)"/>
+          <circle id="solGlint" class="glint" cx="228" cy="189" r="5" fill="#fff" opacity="0"/>
+        </g>
+        <!-- b2 โรงเรียน -->
+        <rect x="286" y="300" width="124" height="96" fill="#ffe9b8" stroke="#dbb86a" stroke-width="4"/>
+        <rect x="280" y="288" width="136" height="16" rx="4" fill="#e2725b"/>
+        <line x1="296" y1="288" x2="296" y2="254" stroke="#8a97a8" stroke-width="4"/>
+        <path d="M296 254 L322 261 L296 268 Z" fill="#ef4b4b"/>
+        <rect x="334" y="352" width="28" height="44" rx="3" fill="#a9703f"/>
+        <!-- b3 โรงพยาบาล -->
+        <rect x="428" y="252" width="110" height="144" fill="#f7fbff" stroke="#9fb4cc" stroke-width="4"/>
+        <rect x="468" y="266" width="12" height="34" fill="#ef4b4b"/><rect x="457" y="277" width="34" height="12" fill="#ef4b4b"/>
+        <!-- b4 คอนโด -->
+        <rect x="556" y="232" width="78" height="164" fill="#c9b8f5" stroke="#7b5bff" stroke-width="4"/>
+        <rect x="552" y="224" width="86" height="10" rx="3" fill="#7b5bff"/>
+        <!-- b5 บ้าน 2 -->
+        <rect x="648" y="338" width="72" height="58" fill="#ffc4d1" stroke="#d98aa0" stroke-width="4"/>
+        <path d="M642 340 L684 306 L726 340 Z" fill="#d96a8a" stroke="#b04e6e" stroke-width="4" stroke-linejoin="round"/>
+        <!-- โรงไฟฟ้าโซนขวา -->
+        <rect x="738" y="378" width="118" height="18" fill="#8a97a8"/>
+        <rect x="742" y="356" width="30" height="40" fill="#2e9e63" stroke="#1d7547" stroke-width="3"/>
+        <text x="757" y="382" font-size="15" text-anchor="middle">🌿</text>
+        <rect x="782" y="318" width="20" height="78" fill="#9fb4cc" stroke="#6f84a0" stroke-width="3"/>
+        <text x="792" y="390" font-size="14" text-anchor="middle">🔥</text>
+        <rect x="818" y="300" width="24" height="96" fill="#6a7a90" stroke="#4c5a6d" stroke-width="3"/>
+        <text x="830" y="390" font-size="14" text-anchor="middle">⛏</text>
+      </g>
+
+      <!-- night dim -->
+      <rect id="cityDim" x="0" y="0" width="860" height="430" fill="#0b1b3a" opacity="0" pointer-events="none"/>
+
+      <!-- windows (เหนือ dim เพื่อให้สว่างตอนกลางคืน) -->
+      <g id="winsG" stroke="#5d7ea8" stroke-width="2">
+        <g><rect class="w0" x="98" y="344" width="16" height="16" fill="#cfe8ff"/><rect class="w0" x="140" y="344" width="16" height="16" fill="#cfe8ff"/></g>
+        <g>
+          <rect class="w1" x="192" y="220" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="218" y="220" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="244" y="220" width="16" height="14" fill="#cfe8ff"/>
+          <rect class="w1" x="192" y="248" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="218" y="248" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="244" y="248" width="16" height="14" fill="#cfe8ff"/>
+          <rect class="w1" x="192" y="276" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="218" y="276" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="244" y="276" width="16" height="14" fill="#cfe8ff"/>
+          <rect class="w1" x="192" y="304" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="218" y="304" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="244" y="304" width="16" height="14" fill="#cfe8ff"/>
+          <rect class="w1" x="192" y="332" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="218" y="332" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="244" y="332" width="16" height="14" fill="#cfe8ff"/>
+          <rect class="w1" x="192" y="360" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="218" y="360" width="16" height="14" fill="#cfe8ff"/><rect class="w1" x="244" y="360" width="16" height="14" fill="#cfe8ff"/>
+        </g>
+        <g>
+          <rect class="w2" x="298" y="316" width="22" height="18" fill="#cfe8ff"/><rect class="w2" x="376" y="316" width="22" height="18" fill="#cfe8ff"/>
+          <rect class="w2" x="298" y="356" width="22" height="18" fill="#cfe8ff"/><rect class="w2" x="376" y="356" width="22" height="18" fill="#cfe8ff"/>
+        </g>
+        <g>
+          <rect class="w3" x="440" y="312" width="20" height="14" fill="#cfe8ff"/><rect class="w3" x="492" y="312" width="20" height="14" fill="#cfe8ff"/>
+          <rect class="w3" x="440" y="340" width="20" height="14" fill="#cfe8ff"/><rect class="w3" x="492" y="340" width="20" height="14" fill="#cfe8ff"/>
+          <rect class="w3" x="440" y="368" width="20" height="14" fill="#cfe8ff"/><rect class="w3" x="492" y="368" width="20" height="14" fill="#cfe8ff"/>
+        </g>
+        <g>
+          <rect class="w4" x="564" y="244" width="14" height="12" fill="#cfe8ff"/><rect class="w4" x="588" y="244" width="14" height="12" fill="#cfe8ff"/><rect class="w4" x="612" y="244" width="14" height="12" fill="#cfe8ff"/>
+          <rect class="w4" x="564" y="270" width="14" height="12" fill="#cfe8ff"/><rect class="w4" x="588" y="270" width="14" height="12" fill="#cfe8ff"/><rect class="w4" x="612" y="270" width="14" height="12" fill="#cfe8ff"/>
+          <rect class="w4" x="564" y="296" width="14" height="12" fill="#cfe8ff"/><rect class="w4" x="588" y="296" width="14" height="12" fill="#cfe8ff"/><rect class="w4" x="612" y="296" width="14" height="12" fill="#cfe8ff"/>
+          <rect class="w4" x="564" y="322" width="14" height="12" fill="#cfe8ff"/><rect class="w4" x="588" y="322" width="14" height="12" fill="#cfe8ff"/><rect class="w4" x="612" y="322" width="14" height="12" fill="#cfe8ff"/>
+          <rect class="w4" x="564" y="348" width="14" height="12" fill="#cfe8ff"/><rect class="w4" x="588" y="348" width="14" height="12" fill="#cfe8ff"/><rect class="w4" x="612" y="348" width="14" height="12" fill="#cfe8ff"/>
+        </g>
+        <g><rect class="w5" x="660" y="352" width="16" height="16" fill="#cfe8ff"/><rect class="w5" x="692" y="352" width="16" height="16" fill="#cfe8ff"/></g>
+        <g><rect class="w6" x="748" y="364" width="18" height="12" fill="#cfe8ff"/></g>
+      </g>
+
+      <!-- plant smoke (ผูกกับกำลังผลิตจริง) -->
+      <g id="smkBio" opacity="0" fill="#a8d8b8">
+        <circle class="smk" cx="757" cy="352" r="6"/><circle class="smk" style="animation-delay:.8s" cx="761" cy="352" r="5"/>
+      </g>
+      <g id="smkGas" opacity="0" fill="#c9d4de">
+        <circle class="smk" cx="792" cy="312" r="7"/><circle class="smk" style="animation-delay:.7s" cx="796" cy="314" r="6"/>
+        <circle class="smk" style="animation-delay:1.5s" cx="789" cy="313" r="5"/>
+      </g>
+      <g id="smkCoal" opacity="0" fill="#6f6f74">
+        <circle class="smk" cx="830" cy="294" r="9"/><circle class="smk" style="animation-delay:.6s" cx="836" cy="296" r="7"/>
+        <circle class="smk" style="animation-delay:1.3s" cx="825" cy="295" r="7"/><circle class="smk" style="animation-delay:1.9s" cx="832" cy="294" r="6"/>
+      </g>
+
+      <!-- CO₂ haze -->
+      <rect id="hazeR" x="0" y="0" width="860" height="430" fill="#7d838c" opacity="0" pointer-events="none"/>
+    </svg>
+
+    <div id="adultBar">ผลิต <b id="abGen">0.0</b> MW · ใช้ <b id="abDem">0.0</b> MW<br>
+      CO₂ <b id="abCO2">0.0</b> tCO₂ (EF <b id="abMix">0.00</b> kg/kWh)<br>ค่าไฟสะสม <b id="abCost">0</b> บาท</div>
+    <div id="bubble"></div>
+  </div>
+
+  <!-- METERS -->
+  <div id="metersWrap">
+    <svg id="meters" viewBox="0 0 860 178" xmlns="http://www.w3.org/2000/svg" aria-label="เข็มสมดุล หลอด CO₂ นาฬิกา">
+      <!-- balance gauge -->
+      <path d="M70.1 90.9 A85 85 0 0 1 120.9 40.1" stroke="#ef4b4b" stroke-width="18" fill="none" stroke-linecap="round"/>
+      <path d="M120.9 40.1 A85 85 0 0 1 179.1 40.1" stroke="#1fb45f" stroke-width="18" fill="none"/>
+      <path d="M179.1 40.1 A85 85 0 0 1 229.9 90.9" stroke="#ff8f1c" stroke-width="18" fill="none" stroke-linecap="round"/>
+      <text x="66" y="124" font-size="19" font-weight="600" fill="#ef4b4b" text-anchor="middle" font-family="Mitr,sans-serif">ขาด</text>
+      <text x="236" y="124" font-size="19" font-weight="600" fill="#e07a00" text-anchor="middle" font-family="Mitr,sans-serif">เกิน</text>
+      <text x="150" y="24" font-size="17" font-weight="600" fill="#1fb45f" text-anchor="middle" font-family="Mitr,sans-serif">พอดี</text>
+      <g id="needleG" transform="rotate(0 150 120)">
+        <line x1="150" y1="120" x2="150" y2="46" stroke="#213047" stroke-width="7" stroke-linecap="round"/>
+        <circle cx="150" cy="120" r="10" fill="#213047"/>
+      </g>
+      <text id="balTxt" x="150" y="160" font-size="22" font-weight="700" fill="#1fb45f" text-anchor="middle" font-family="Mitr,sans-serif">พอดี ✔</text>
+      <!-- twin bars ผลิต/ใช้ -->
+      <rect x="296" y="40" width="30" height="102" rx="6" fill="#eef3fa"/>
+      <rect x="340" y="40" width="30" height="102" rx="6" fill="#eef3fa"/>
+      <rect id="barGen" x="296" y="142" width="30" height="0" rx="6" fill="#00c2a8"/>
+      <rect id="barDem" x="340" y="142" width="30" height="0" rx="6" fill="#7b5bff"/>
+      <text x="311" y="166" font-size="18" font-weight="600" fill="#00927e" text-anchor="middle" font-family="Mitr,sans-serif">ผลิต</text>
+      <text x="355" y="166" font-size="18" font-weight="600" fill="#7b5bff" text-anchor="middle" font-family="Mitr,sans-serif">ใช้</text>
+      <!-- CO2 tube -->
+      <text x="523" y="34" font-size="19" font-weight="600" fill="#213047" text-anchor="middle" font-family="Mitr,sans-serif">หลอด CO₂ สะสม 🌫</text>
+      <rect x="398" y="48" width="250" height="34" rx="17" fill="#eef3fa" stroke="#9fb4cc" stroke-width="3"/>
+      <rect id="co2Fill" x="402" y="52" width="0" height="26" rx="13" fill="#1fb45f"/>
+      <line id="co2Mark" x1="554" y1="42" x2="554" y2="88" stroke="#213047" stroke-width="3" stroke-dasharray="5 4"/>
+      <text x="554" y="106" font-size="15" font-weight="600" fill="#51627a" text-anchor="middle" font-family="Mitr,sans-serif">เกณฑ์</text>
+      <text id="co2Txt" x="523" y="136" font-size="20" font-weight="700" fill="#1fb45f" text-anchor="middle" font-family="Mitr,sans-serif">ฟ้าใส 🕊</text>
+      <!-- clock + day bar + money -->
+      <text id="clkTxt" x="762" y="56" font-size="37" font-weight="700" fill="#213047" text-anchor="middle" font-family="Mitr,sans-serif">06:00</text>
+      <rect x="687" y="70" width="150" height="10" rx="5" fill="#eef3fa"/>
+      <rect id="dayFill" x="687" y="70" width="0" height="10" rx="5" fill="#19a0ff"/>
+      <text id="monTxt" x="762" y="116" font-size="20" font-weight="600" fill="#213047" text-anchor="middle" font-family="Mitr,sans-serif">💰 กระเป๋าเมือง</text>
+      <text id="wasteT" x="762" y="150" font-size="17" font-weight="700" fill="#ff8f1c" text-anchor="middle" font-family="Mitr,sans-serif" opacity="0">💸 ผลิตเกิน เสียเงินเปล่า!</text>
+    </svg>
+  </div>
+
+  <!-- CONTROL PANEL -->
+  <div id="panel">
+    <div class="goal" id="goalTxt">—</div>
+
+    <div class="plant" id="rw_solar">
+      <span class="pic">☀</span>
+      <div class="pmid">
+        <div class="pname">โซลาร์ <span class="ptag">ฟรี CO₂ 0 · ตามแดด</span><span class="pavail" id="av_solar"></span></div>
+        <input type="range" id="sl_solar" min="0" max="100" value="0" aria-label="กำลังโซลาร์">
+        <div class="pbar"><div class="pfill" id="pf_solar"></div></div>
+      </div>
+      <div class="pout"><span id="po_solar">0.0</span><small>MW</small></div>
+    </div>
+    <div class="plant" id="rw_hydro">
+      <span class="pic">💧</span>
+      <div class="pmid">
+        <div class="pname">เขื่อนเล็ก <span class="ptag">คงที่ · จำกัด</span></div>
+        <input type="range" id="sl_hydro" min="0" max="100" value="0" aria-label="กำลังเขื่อน">
+        <div class="pbar"><div class="pfill" id="pf_hydro"></div></div>
+      </div>
+      <div class="pout"><span id="po_hydro">0.0</span><small>MW</small></div>
+    </div>
+    <div class="plant" id="rw_bio">
+      <span class="pic">🌿</span>
+      <div class="pmid">
+        <div class="pname">ชีวมวล <span class="ptag">CO₂ ต่ำ · ปรับช้า</span></div>
+        <input type="range" id="sl_bio" min="0" max="100" value="0" aria-label="กำลังชีวมวล">
+        <div class="pbar"><div class="pfill" id="pf_bio"></div></div>
+      </div>
+      <div class="pout"><span id="po_bio">0.0</span><small>MW</small></div>
+    </div>
+    <div class="plant" id="rw_gas">
+      <span class="pic">🔥</span>
+      <div class="pmid">
+        <div class="pname">ก๊าซ <span class="ptag">ปรับเร็ว · CO₂ กลาง</span></div>
+        <input type="range" id="sl_gas" min="0" max="100" value="0" aria-label="กำลังก๊าซ">
+        <div class="pbar"><div class="pfill" id="pf_gas"></div></div>
+      </div>
+      <div class="pout"><span id="po_gas">0.0</span><small>MW</small></div>
+    </div>
+    <div class="plant" id="rw_coal">
+      <span class="pic">⛏</span>
+      <div class="pmid">
+        <div class="pname">ถ่านหิน <span class="ptag">ถูก · แรง · CO₂ สูง · ช้า</span></div>
+        <input type="range" id="sl_coal" min="0" max="100" value="0" aria-label="กำลังถ่านหิน">
+        <div class="pbar"><div class="pfill" id="pf_coal"></div></div>
+      </div>
+      <div class="pout"><span id="po_coal">0.0</span><small>MW</small></div>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Start overlay ───── -->
+<div class="overlay show" id="startOv">
+  <div class="card" id="startCard">
+    <div style="font-size:3rem">🏙🌱</div>
+    <h1>เมืองคาร์บอนต่ำ</h1>
+    <div class="sub">คุณคือผู้คุมไฟฟ้าของเมือง — ผลิตให้ "พอ" ทุกวินาที<br>แต่ปล่อย CO₂ ให้น้อยที่สุด! 🇹🇭</div>
+    <div class="lvl-pick" id="lvlPick"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="ghost-btn" id="helpBtn2">📖 วิธีเล่น</button>
+      <button class="big-btn" id="playBtn">▶ เริ่มเล่น</button>
+    </div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<!-- ───── Guide overlay (วิธีเล่น) ───── -->
+<div class="overlay" id="guideOv">
+  <div class="card">
+    <h2>📖 วิธีเล่น</h2>
+
+    <div class="gpage" data-pg="0">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#bfe6ff"/>
+        <circle cx="286" cy="28" r="16" fill="#ffd23f" stroke="#ff9f1c" stroke-width="3"/>
+        <rect x="190" y="60" width="44" height="74" fill="#9fd3e8" stroke="#5d7ea8" stroke-width="3"/>
+        <rect class="gwin" x="198" y="70" width="10" height="9"/><rect class="gwin" style="animation-delay:.3s" x="216" y="70" width="10" height="9"/>
+        <rect class="gwin" style="animation-delay:.6s" x="198" y="88" width="10" height="9"/><rect class="gwin" style="animation-delay:.9s" x="216" y="88" width="10" height="9"/>
+        <rect x="244" y="86" width="40" height="48" fill="#ffd9a0" stroke="#d9a860" stroke-width="3"/>
+        <path d="M240 88 L264 68 L288 88 Z" fill="#e2725b"/>
+        <rect class="gwin" style="animation-delay:.45s" x="256" y="98" width="12" height="11"/>
+        <rect x="22" y="78" width="40" height="56" fill="#8a97a8" stroke="#5f6c7d" stroke-width="3"/>
+        <rect x="32" y="52" width="12" height="26" fill="#6a7a90"/>
+        <path d="M66 110 C110 92 150 92 186 104" stroke="#51627a" stroke-width="4" fill="none"/>
+        <circle class="gdot" cx="70" cy="108" r="6" fill="#ffd23f" stroke="#ff9f1c" stroke-width="2"/>
+        <circle class="gdot" style="animation-delay:.7s" cx="70" cy="108" r="6" fill="#ffd23f" stroke="#ff9f1c" stroke-width="2"/>
+        <circle class="gdot" style="animation-delay:1.4s" cx="70" cy="108" r="6" fill="#ffd23f" stroke="#ff9f1c" stroke-width="2"/>
+        <rect x="0" y="134" width="320" height="16" fill="#7ed957"/>
+      </svg></div>
+      <div class="gtxt">เมืองต้องมีไฟฟ้าใช้ "พอ" ทุกวินาที ⚡<br>คุณคือคนคุมโรงไฟฟ้าทั้งเมือง!</div>
+    </div>
+
+    <div class="gpage" data-pg="1">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#f4f8fc"/>
+        <path d="M96 85 A72 72 0 0 1 134 46" stroke="#ef4b4b" stroke-width="13" fill="none" stroke-linecap="round"/>
+        <path d="M134 46 A72 72 0 0 1 186 46" stroke="#1fb45f" stroke-width="13" fill="none"/>
+        <path d="M186 46 A72 72 0 0 1 224 85" stroke="#ff8f1c" stroke-width="13" fill="none" stroke-linecap="round"/>
+        <g class="gneedle"><line x1="160" y1="118" x2="160" y2="58" stroke="#213047" stroke-width="6" stroke-linecap="round"/></g>
+        <circle cx="160" cy="118" r="8" fill="#213047"/>
+        <rect x="18" y="58" width="42" height="60" fill="#9fd3e8" stroke="#5d7ea8" stroke-width="3"/>
+        <rect x="26" y="68" width="10" height="9" fill="#ffd76a"/><rect x="42" y="68" width="10" height="9" fill="#ffd76a"/>
+        <rect x="26" y="86" width="10" height="9" fill="#ffd76a"/><rect x="42" y="86" width="10" height="9" fill="#ffd76a"/>
+        <rect class="gdark" x="18" y="58" width="42" height="60" fill="#0b1b3a" opacity="0"/>
+        <text x="39" y="138" font-size="15" font-weight="600" text-anchor="middle" fill="#ef4b4b" font-family="Mitr,sans-serif">ขาด=ไฟดับ</text>
+        <text class="gcoin" x="282" y="80" font-size="22" text-anchor="middle">💸</text>
+        <text class="gcoin" x="266" y="64" font-size="16" text-anchor="middle" style="animation-delay:.2s">💸</text>
+        <text x="278" y="138" font-size="15" font-weight="600" text-anchor="middle" fill="#e07a00" font-family="Mitr,sans-serif">เกิน=เสียเงิน</text>
+      </svg></div>
+      <div class="gtxt">ดู "เข็มสมดุล" ให้อยู่โซนเขียว<br>ขาด = ไฟดับทีละตึก ⚡ · เกิน = เสียเงินเปล่า 💸</div>
+    </div>
+
+    <div class="gpage" data-pg="2">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#bfe6ff"/>
+        <circle cx="110" cy="44" r="20" fill="#ffd23f" stroke="#ff9f1c" stroke-width="4"/>
+        <g class="gcloud">
+          <ellipse cx="110" cy="42" rx="34" ry="14" fill="#dfe7ee"/><ellipse cx="88" cy="48" rx="20" ry="10" fill="#cdd8e2"/>
+          <ellipse cx="132" cy="48" rx="22" ry="11" fill="#cdd8e2"/>
+        </g>
+        <rect x="62" y="104" width="34" height="16" rx="3" fill="#2d6cdf" stroke="#1a4a9e" stroke-width="2.5" transform="rotate(-12 79 112)"/>
+        <rect x="104" y="104" width="34" height="16" rx="3" fill="#2d6cdf" stroke="#1a4a9e" stroke-width="2.5" transform="rotate(-12 121 112)"/>
+        <rect x="0" y="126" width="320" height="24" fill="#7ed957"/>
+        <rect x="222" y="30" width="44" height="92" rx="8" fill="#eef3fa" stroke="#9fb4cc" stroke-width="3"/>
+        <rect class="gbar" x="228" y="36" width="32" height="80" rx="6" fill="#f5a623"/>
+        <text x="244" y="144" font-size="15" font-weight="600" text-anchor="middle" fill="#c77700" font-family="Mitr,sans-serif">ไฟจากโซลาร์</text>
+      </svg></div>
+      <div class="gtxt">โซลาร์ ☀ ฟรีและสะอาด แต่…<br>เมฆบัง หรือ กลางคืน = หายฮวบทันที!</div>
+    </div>
+
+    <div class="gpage" data-pg="3">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#e8eef5"/>
+        <rect x="36" y="96" width="70" height="40" fill="#6a7a90" stroke="#4c5a6d" stroke-width="3"/>
+        <rect x="52" y="44" width="18" height="52" fill="#6a7a90" stroke="#4c5a6d" stroke-width="3"/>
+        <text x="71" y="128" font-size="18" text-anchor="middle">⛏</text>
+        <g fill="#6f6f74">
+          <circle class="smk" cx="61" cy="40" r="8"/><circle class="smk" style="animation-delay:.8s" cx="66" cy="42" r="6"/>
+          <circle class="smk" style="animation-delay:1.5s" cx="57" cy="41" r="6"/>
+        </g>
+        <text x="150" y="52" font-size="16" font-weight="600" fill="#51627a" font-family="Mitr,sans-serif">หลอด CO₂</text>
+        <rect x="148" y="64" width="150" height="28" rx="14" fill="#fff" stroke="#9fb4cc" stroke-width="3"/>
+        <rect class="gfill" x="152" y="68" width="142" height="20" rx="10" fill="#ef4b4b"/>
+        <text x="223" y="124" font-size="15" font-weight="600" text-anchor="middle" fill="#ef4b4b" font-family="Mitr,sans-serif">ควันเยอะ เมืองหม่น 😷</text>
+      </svg></div>
+      <div class="gtxt">ถ่านหิน ⛏ แรงและถูก แต่ควัน CO₂ เยอะมาก<br>คอยดูหลอด CO₂ อย่าให้เกินเกณฑ์!</div>
+    </div>
+
+    <div class="gpage" data-pg="4">
+      <div class="gfig"><svg viewBox="0 0 320 150" xmlns="http://www.w3.org/2000/svg">
+        <rect width="320" height="150" rx="12" fill="#e8fbf2"/>
+        <text class="gstar" x="92" y="70" font-size="44" text-anchor="middle">⭐</text>
+        <text class="gstar d2" x="160" y="58" font-size="52" text-anchor="middle">⭐</text>
+        <text class="gstar d3" x="228" y="70" font-size="44" text-anchor="middle">⭐</text>
+        <text x="160" y="108" font-size="19" font-weight="700" text-anchor="middle" fill="#1fb45f" font-family="Mitr,sans-serif">ไฟไม่ดับ ✓ CO₂ ต่ำ ✓</text>
+        <text x="160" y="136" font-size="15" font-weight="600" text-anchor="middle" fill="#51627a" font-family="Mitr,sans-serif">= เมืองคาร์บอนต่ำตัวจริง 🇹🇭</text>
+      </svg></div>
+      <div class="gtxt">เก่งจริงคือ: ไฟไม่ดับทั้งวัน <b>และ</b> CO₂ ต่ำกว่าเกณฑ์<br>ทำได้ครบ = ⭐⭐⭐</div>
+    </div>
+
+    <div class="gdots" id="gDots"><i class="cur"></i><i></i><i></i><i></i><i></i></div>
+    <div class="gnav">
+      <button class="ghost-btn" id="gPrev">◀ ก่อนหน้า</button>
+      <button class="ghost-btn" id="gNext">ถัดไป ▶</button>
+      <button class="big-btn small" id="gPlay" style="display:none">เริ่มเล่นเลย! 🚀</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Result overlay ───── -->
+<div class="overlay" id="resultOv">
+  <div class="card">
+    <h2 id="resTitle">จบวัน!</h2>
+    <div class="result-stars" id="resStars"><span class="s">⭐</span><span class="s">⭐</span><span class="s">⭐</span></div>
+    <div class="statrow" id="resStats"></div>
+    <div class="lesson" id="resLesson">—</div>
+    <p id="resDetail" style="font-size:.9rem"></p>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="big-btn small alt" id="retryBtn">↻ เล่นซ้ำ</button>
+      <button class="big-btn small" id="nextBtn">ด่านต่อไป ➜</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───── End overlay ───── -->
+<div class="overlay" id="endOv">
+  <div class="card">
+    <div style="font-size:2.6rem">🏆🌏</div>
+    <h2>สุดยอด! จบภารกิจเมืองคาร์บอนต่ำ</h2>
+    <p>ได้ดาวทั้งหมด <b id="endStars">0</b> / 12 ดวง</p>
+    <div class="lesson">สรุป: ไฟฟ้า 1 หน่วยเท่ากัน แต่ "ควัน" ไม่เท่ากัน!</div>
+    <div id="rankBox">
+      <div class="rankbar"><span class="lb">⛏ ถ่านหิน</span><div class="tr"><div class="fl" data-w="100" style="background:#6a7a90"></div></div><span class="rv">ควันเยอะมาก<span class="adult-only"> 0.95</span></span></div>
+      <div class="rankbar"><span class="lb">🔥 ก๊าซ</span><div class="tr"><div class="fl" data-w="47" style="background:#ff8f1c"></div></div><span class="rv">ปานกลาง<span class="adult-only"> 0.45</span></span></div>
+      <div class="rankbar"><span class="lb">🌿 ชีวมวล</span><div class="tr"><div class="fl" data-w="9" style="background:#1fb45f"></div></div><span class="rv">น้อยมาก<span class="adult-only"> 0.08</span></span></div>
+      <div class="rankbar"><span class="lb">☀💧 โซลาร์/น้ำ</span><div class="tr"><div class="fl" data-w="2" style="background:#19a0ff"></div></div><span class="rv">แทบไม่มี<span class="adult-only"> ≈0</span></span></div>
+    </div>
+    <p class="adult-only" style="font-size:.78rem;color:#8795a8">หน่วย: kgCO₂/kWh (ค่า EF เชิงสัดส่วนอิง grid ไทย)</p>
+    <p style="margin-top:8px;font-size:.92rem">ใช้พลังงานสะอาดให้มากที่สุด เสริมด้วยโรงไฟฟ้าเร็วตอนเมฆมา/พีคเย็น<br>— นี่คือเส้นทาง <b>Carbon Neutrality</b> ของประเทศไทย 🇹🇭</p>
+    <div style="margin-top:12px"><button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button></div>
+    <div class="brand">Energy Sense Games · Triple E Technology</div>
+  </div>
+</div>
+
+<script>
+/* ═════════ เมืองคาร์บอนต่ำ v0.1 — game core ═════════ */
+'use strict';
+var $=function(id){return document.getElementById(id);};
+function qsa(s){return document.querySelectorAll(s);}
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+
+/* ── ค่าฟิสิกส์ (โหมดผู้ใหญ่สมจริงเชิงสัดส่วน อิง grid ไทย) ──
+   EF kgCO₂/kWh = tCO₂/MWh · ต้นทุน บาท/kWh · cap MW · ramp MW/วินาทีจริง (1 วันเกม = 40 วิ) */
+var DAY_REAL=40;
+var PLANTS=[
+ {id:'solar',nm:'โซลาร์',ic:'☀',cap:8, ef:0,   cost:1.8,ramp:99},
+ {id:'hydro',nm:'เขื่อนเล็ก',ic:'💧',cap:3, ef:0,   cost:1.5,ramp:99},
+ {id:'bio',  nm:'ชีวมวล',ic:'🌿',cap:7, ef:0.08,cost:2.8,ramp:1.2},
+ {id:'gas',  nm:'ก๊าซ',ic:'🔥',cap:10,ef:0.45,cost:3.2,ramp:8},
+ {id:'coal', nm:'ถ่านหิน',ic:'⛏',cap:12,ef:0.95,cost:2.2,ramp:1.0}
+];
+/* ดีมานด์ฐานของเมือง (ชม.→MW) 10–25 MW พีคเย็น ~19:30 */
+var DEMPTS=[[0,11],[3,10],[6,11],[8,15],[10,17],[12,18],[14,17],[16,18],[18,23],[19.5,25],[21,19],[23,13],[24,11]];
+function demandBase(h){h=((h%24)+24)%24;
+  for(var i=0;i<DEMPTS.length-1;i++){var a=DEMPTS[i],b=DEMPTS[i+1];
+    if(h>=a[0]&&h<=b[0]){var f=(h-a[0])/(b[0]-a[0]||1);return a[1]+(b[1]-a[1])*f;}}
+  return 11;}
+function sunAt(h){h=((h%24)+24)%24;return(h>6&&h<18)?Math.sin(Math.PI*(h-6)/12):0;}
+
+/* ── ด่าน ── */
+var LEVELS=[
+ {name:'ด่าน 1 · วันแดดดี ☀',icon:'☀',h0:6,h1:18,scale:0.4,limit:24,
+  plants:['solar','gas'],
+  clouds:[{at:10.5,dur:1.5,depth:0.55}],
+  goal:'เมืองเล็ก กลางวันล้วน — ใช้โซลาร์ให้คุ้ม เสริมก๊าซให้เข็มอยู่ "พอดี" ตลอดวัน!',
+  lesson3:'เยี่ยม! โซลาร์ช่วยลด CO₂ ได้มากตอนแดดจัด แต่ต้องมีก๊าซคอยรับช่วงเสมอ',
+  lessonX:'จำไว้: ผลิตต้องเท่าใช้ทุกวินาที — แดดอ่อนเมื่อไร ต้องรีบเร่งก๊าซ'},
+ {name:'ด่าน 2 · พีคเย็นมาแล้ว 🌆',icon:'🌆',h0:6,h1:30,scale:1,limit:110,
+  plants:['solar','hydro','bio','gas','coal'],
+  clouds:[{at:9.5,dur:1.5,depth:0.6},{at:14,dur:2,depth:0.7}],
+  goal:'ครบ 5 โรงไฟฟ้า เล่นเต็ม 24 ชม. — ระวังพีคเย็น 1 ทุ่มครึ่ง โรงไฟฟ้าช้าต้องเร่งล่วงหน้า!',
+  lesson3:'สุดยอด! พีคเย็นคือช่วงยากสุด เพราะโซลาร์หมดพอดี — ใครวางแผนล่วงหน้าคือผู้ชนะ',
+  lessonX:'พีคเย็น (19:30) โซลาร์ = 0 แล้ว! ต้องเร่งชีวมวล/ถ่านหินไว้ก่อนตั้งแต่บ่าย'},
+ {name:'ด่าน 3 · วันเมฆมาก ☁',icon:'☁',h0:6,h1:30,scale:1,limit:120,
+  plants:['solar','hydro','bio','gas','coal'],
+  clouds:[{at:8,dur:2,depth:0.8},{at:11,dur:2.5,depth:0.75},{at:14.5,dur:2,depth:0.85},{at:16.5,dur:1.5,depth:0.7}],
+  goal:'วันนี้เมฆเพียบ โซลาร์แกว่งทั้งวัน — เตรียมก๊าซ/น้ำเป็น "กองหนุนเร็ว" ให้พร้อม!',
+  lesson3:'เก่งมาก! โซลาร์ผลิตไม่สม่ำเสมอ (intermittency) จึงต้องมีโรงไฟฟ้าเร็วสแตนด์บายเสมอ',
+  lessonX:'เมฆมา = โซลาร์ตกฮวบใน 2–3 วินาที — ก๊าซปรับเร็วสุด ใช้มันรับมือเมฆ'},
+ {name:'ด่าน 4 · ภารกิจ Carbon Neutrality 🌏',icon:'🌏',h0:6,h1:30,scale:1,limit:77,strict:true,
+  plants:['solar','hydro','bio','gas','coal'],
+  clouds:[{at:10,dur:2,depth:0.65},{at:15,dur:2,depth:0.7}],
+  goal:'ภารกิจชาติ: ลด CO₂ ลง 30% จากด่าน 2 (เกณฑ์ 77 tCO₂) โดยไฟห้ามดับแม้แต่ครั้งเดียว!',
+  lesson3:'คุณคือฮีโร่ Carbon Neutrality! สะอาดให้มาก + วางแผนดี = ไฟไม่ดับและโลกไม่ร้อน',
+  lessonX:'ลำดับที่ดี: น้ำ+ชีวมวลเดินฐาน · โซลาร์เต็มที่ตอนแดด · ก๊าซรับพีค · ถ่านหินน้อยสุด'}
+];
+
+/* ── สถานะ ── */
+var S={hour:6,sun:0,cloud:1,gen:0,dem:0,diff:0,co2:0,cost:0,waste:0,wasteB:0,
+       black:0,dark:0,defT:0,okT:0,warm:2,co2rate:0,done:false};
+var level=0,stars=[0,0,0,0],running=false,lastTs=0;
+var GAME={PLANTS:PLANTS,LEVELS:LEVELS,S:S,speed:1,DAY_REAL:DAY_REAL};
+window.GAME=GAME;
+
+/* ── เสียง Web Audio ── */
+var AC=null,sndOn=true;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,t,dur,type,vol){var a=audio();if(!a||!sndOn)return;var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,a.currentTime+t);
+  g.gain.setValueAtTime(0.0001,a.currentTime+t);g.gain.exponentialRampToValueAtTime(vol||0.18,a.currentTime+t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+(dur||0.15));
+  o.connect(g);g.connect(a.destination);o.start(a.currentTime+t);o.stop(a.currentTime+t+(dur||0.15)+0.05);}
+function sClick(){tone(620,0,0.07,'square',0.08);}
+function sGood(){tone(523,0,0.12,'sine');tone(659,0.1,0.12,'sine');tone(784,0.2,0.2,'sine');}
+function sStar(i){tone(880+i*160,0,0.18,'triangle',0.2);}
+function sBad(){tone(220,0,0.25,'sawtooth',0.12);tone(180,0.18,0.3,'sawtooth',0.12);}
+function sAlarm(){tone(760,0,0.12,'square',0.14);tone(560,0.14,0.12,'square',0.14);tone(760,0.28,0.12,'square',0.14);}
+function sWarn(){tone(440,0,0.16,'triangle',0.13);tone(392,0.18,0.2,'triangle',0.13);}
+function sRelight(){tone(660,0,0.1,'sine',0.1);tone(880,0.1,0.12,'sine',0.1);}
+
+/* ── localStorage ── */
+function loadStars(){try{var v=JSON.parse(localStorage.getItem('te_game_city_stars')||'[]');for(var i=0;i<4;i++)stars[i]=v[i]|0;}catch(e){}}
+function saveStars(){try{localStorage.setItem('te_game_city_stars',JSON.stringify(stars));}catch(e){}}
+function seenGuide(){try{return localStorage.getItem('te_game_city_seen')==='1';}catch(e){return true;}}
+function setSeen(){try{localStorage.setItem('te_game_city_seen','1');}catch(e){}}
+
+/* ── เมฆ ── */
+function cloudAt(h){var f=1,LV=LEVELS[level];
+  for(var i=0;i<LV.clouds.length;i++){var c=LV.clouds[i];
+    if(h>=c.at&&h<=c.at+c.dur){f*=1-c.depth*Math.sin(Math.PI*(h-c.at)/c.dur);}}
+  return clamp(f,0,1);}
+
+/* ── สีท้องฟ้า ── */
+var SKY=[[0,13,31,66],[4.8,13,31,66],[6,242,149,109],[7.5,143,208,255],[16.5,126,200,255],[18,255,158,109],[19.3,51,64,110],[20.5,13,31,66],[24,13,31,66]];
+function skyAt(h){h=((h%24)+24)%24;
+  for(var i=0;i<SKY.length-1;i++){var a=SKY[i],b=SKY[i+1];
+    if(h>=a[0]&&h<=b[0]){var f=(h-a[0])/(b[0]-a[0]||1);
+      return 'rgb('+Math.round(a[1]+(b[1]-a[1])*f)+','+Math.round(a[2]+(b[2]-a[2])*f)+','+Math.round(a[3]+(b[3]-a[3])*f)+')';}}
+  return 'rgb(13,31,66)';}
+function nightAt(h){h=((h%24)+24)%24;
+  if(h>=7&&h<=17)return 0;
+  if(h>5.5&&h<7)return (7-h)/1.5;
+  if(h>17&&h<19)return (h-17)/2;
+  return 1;}
+
+/* ── speech bubble ── */
+var bubT=null;
+function say(txt,ms){var b=$('bubble');b.textContent=txt;b.classList.add('show');
+  clearTimeout(bubT);bubT=setTimeout(function(){b.classList.remove('show');},ms||2800);}
+
+/* ── เริ่มด่าน ── */
+function startLevel(i){
+  level=i;var LV=LEVELS[i];
+  S.hour=LV.h0;S.co2=0;S.cost=0;S.waste=0;S.wasteB=0;S.black=0;S.dark=0;
+  S.defT=0;S.okT=0;S.warm=2;S.done=false;
+  LV.clouds.forEach(function(c){c.w=0;});
+  /* ตั้งต้นให้สมดุลพอดี (ไม่เริ่มมาก็ไฟดับ) */
+  var d0=demandBase(LV.h0)*LV.scale;
+  PLANTS.forEach(function(p){p.inLv=LV.plants.indexOf(p.id)>=0;p.set=0;p.out=0;});
+  var bio=PLANTS[2],gas=PLANTS[3];
+  if(bio.inLv){bio.set=bio.out=Math.min(bio.cap,d0*0.5);}
+  gas.set=gas.out=clamp(d0-(bio.inLv?bio.out:0),0,gas.cap);
+  PLANTS.forEach(function(p){
+    $('rw_'+p.id).style.display=p.inLv?'':'none';
+    $('sl_'+p.id).value=Math.round(p.set/p.cap*100);
+  });
+  $('lvlName').textContent=LV.name;
+  $('goalTxt').textContent=LV.goal;
+  /* ขีดเกณฑ์ CO₂ ที่ 1/1.6 ของหลอด (คงที่ทุกด่าน เพราะสเกลหลอด = limit*1.6) */
+  running=true;
+  say(i===0?'สวัสดีตอนเช้า! แดดกำลังมา ลองดันโซลาร์ดูสิ ☀':
+      i===1?'วันนี้เล่นยาว 24 ชม. — อย่าลืมเตรียมรับพีคเย็นนะ 🌆':
+      i===2?'เมฆเยอะมากวันนี้ ระวังโซลาร์ตกฮวบ! ☁':'ภารกิจชาติ! CO₂ ต้องต่ำ และไฟห้ามดับ 🌏',3400);
+  renderAll();
+}
+
+/* ── ไฟดับ ── */
+var DARKORDER=[5,0,6,2,4,1,3]; /* บ้านดับก่อน โรงพยาบาลดับท้ายสุด */
+function blackout(){
+  S.black++;S.dark=Math.min(S.dark+1,7);
+  sAlarm();say('ไฟดับ! ผลิตไฟไม่พอ รีบเร่งโรงไฟฟ้า ⚡',2200);
+  var w=$('sceneWrap');w.classList.remove('flash');void w.offsetWidth;w.classList.add('flash');
+}
+
+/* ── simulation step (dtReal = วินาทีจริงที่ speed 1) ── */
+function step(dt){
+  var LV=LEVELS[level];
+  S.hour+=dt*24/DAY_REAL;
+  var h=S.hour;
+  S.sun=sunAt(h);S.cloud=cloudAt(h);
+  var gen=0,co2r=0,costr=0;
+  for(var i=0;i<PLANTS.length;i++){var p=PLANTS[i];
+    if(!p.inLv){p.out=0;p.eff=0;continue;}
+    var mx=p.ramp*dt;
+    p.out+=clamp(p.set-p.out,-mx,mx);
+    p.eff=(p.id==='solar')?p.out*S.sun*S.cloud:p.out;
+    gen+=p.eff;co2r+=p.eff*p.ef;costr+=p.eff*p.cost*1000;
+  }
+  S.gen=gen;S.dem=demandBase(h)*LV.scale;
+  var diff=gen-S.dem;S.diff=diff;
+  var dtH=dt*24/DAY_REAL;
+  S.co2+=co2r*dtH;S.cost+=costr*dtH;S.co2rate=co2r;
+  var tol=1.0;
+  if(S.warm>0){S.warm-=dt;}
+  else if(diff<-tol){
+    S.defT+=dt*(1+Math.min(2,(-diff-tol)/2));S.okT=0;
+    if(S.defT>=1.5){S.defT=0;blackout();}
+  }else{
+    S.defT=Math.max(0,S.defT-dt*2);
+    if(Math.abs(diff)<=tol){S.okT+=dt;
+      if(S.okT>2&&S.dark>0){S.dark--;S.okT=0.8;sRelight();}}
+  }
+  if(diff>tol){S.waste+=(diff-tol)*dtH;S.wasteB+=(diff-tol)*dtH*2500;}
+  /* เตือนเมฆล่วงหน้า */
+  for(i=0;i<LV.clouds.length;i++){var c=LV.clouds[i];
+    if(!c.w&&h>c.at-0.6&&h<c.at){c.w=1;sWarn();say('☁ เมฆกำลังมา! โซลาร์จะตก — เตรียมเร่งก๊าซ 🔥',2600);}}
+  if(h>=LV.h1&&!S.done){S.done=true;endDay();}
+}
+
+/* ── render: ฉากเมือง ── */
+var WINS=[];
+function cacheWins(){for(var i=0;i<7;i++)WINS[i]=qsa('.w'+i);}
+function renderScene(){
+  var h=S.hour,nf=nightAt(h),LV=LEVELS[level];
+  $('skyR').setAttribute('fill',skyAt(h));
+  $('starsG').setAttribute('opacity',(nf*0.95).toFixed(2));
+  /* ดวงอาทิตย์/จันทร์ */
+  var hh=((h%24)+24)%24;
+  if(hh>5.4&&hh<18.6){var sf=(hh-6)/12;
+    $('cSun').setAttribute('transform','translate('+(40+780*sf).toFixed(0)+','+(185-135*Math.sin(Math.PI*clamp(sf,0,1))).toFixed(0)+')');
+  }else $('cSun').setAttribute('transform','translate(-120,-120)');
+  if(hh>=17.6||hh<6.4){var mh=((hh>=17.6?hh:hh+24)-18)/12;
+    $('cMoon').setAttribute('transform','translate('+(40+780*mh).toFixed(0)+','+(175-125*Math.sin(Math.PI*clamp(mh,0,1))).toFixed(0)+')');
+  }else $('cMoon').setAttribute('transform','translate(-120,-120)');
+  /* เมฆบังแดด */
+  var ev=null;
+  for(var i=0;i<LV.clouds.length;i++){var c=LV.clouds[i];if(h>=c.at-0.3&&h<=c.at+c.dur+0.3){ev=c;break;}}
+  if(ev&&S.sun>0){var pr=clamp((h-ev.at)/ev.dur,-0.2,1.2);
+    var sf2=clamp((hh-6)/12,0,1),sx=40+780*sf2,sy=185-135*Math.sin(Math.PI*sf2);
+    $('evCloud').setAttribute('opacity',clamp(1.1-Math.abs(pr-0.5)*2,0,1).toFixed(2));
+    $('evCloud').setAttribute('transform','translate('+(sx+120-240*clamp(pr,0,1)).toFixed(0)+','+(sy-6).toFixed(0)+')');
+  }else $('evCloud').setAttribute('opacity','0');
+  /* แสงเมือง + ไฟดับ */
+  $('cityDim').setAttribute('opacity',(nf*0.42).toFixed(2));
+  var lit=nf>0.5;
+  for(i=0;i<7;i++){
+    var isDark=DARKORDER.indexOf(i)<S.dark;
+    var f=isDark?'#141b2b':(lit?'#ffd76a':'#cfe8ff');
+    for(var k=0;k<WINS[i].length;k++)WINS[i][k].setAttribute('fill',f);
+  }
+  /* ควัน/หมอก CO₂ */
+  var co2f=clamp(S.co2/(LV.limit*1.6),0,1);
+  $('hazeR').setAttribute('opacity',(co2f*0.42).toFixed(2));
+  var pb=PLANTS[2],pg=PLANTS[3],pc=PLANTS[4];
+  $('smkBio').setAttribute('opacity',pb.inLv?(pb.out/pb.cap*0.8).toFixed(2):'0');
+  $('smkGas').setAttribute('opacity',(pg.out/pg.cap*0.8).toFixed(2));
+  $('smkCoal').setAttribute('opacity',pc.inLv?(pc.out/pc.cap*0.95).toFixed(2):'0');
+  /* นก (CO₂ ต่ำ + กลางวันฟ้าใส) */
+  $('birdsG').setAttribute('opacity',(co2f<0.45&&nf<0.3&&S.cloud>0.7)?'1':'0');
+  /* โซลาร์ glint + น้ำไหลเขื่อน */
+  $('solGlint').setAttribute('opacity',(PLANTS[0].eff||0)>0.5?'1':'0');
+  $('hydroFlow').setAttribute('opacity',(PLANTS[1].eff||0)>0.3?'1':'0');
+}
+
+/* ── render: มิเตอร์ ── */
+function renderMeters(){
+  var LV=LEVELS[level];
+  var ang=clamp(S.diff/5,-1,1)*62;
+  if(S.diff>1)ang+=Math.sin(performance.now()/55)*4;  /* มิเตอร์เหวี่ยงตอนผลิตเกิน */
+  $('needleG').setAttribute('transform','rotate('+ang.toFixed(1)+' 150 120)');
+  var bt=$('balTxt');
+  if(S.diff<-1){bt.textContent='ขาดไฟ! ⚡';bt.setAttribute('fill','#ef4b4b');}
+  else if(S.diff>1){bt.textContent='ผลิตเกิน 💸';bt.setAttribute('fill','#e07a00');}
+  else{bt.textContent='พอดี ✔';bt.setAttribute('fill','#1fb45f');}
+  var hG=clamp(S.gen/28,0,1)*102,hD=clamp(S.dem/28,0,1)*102;
+  $('barGen').setAttribute('y',(142-hG).toFixed(1));$('barGen').setAttribute('height',hG.toFixed(1));
+  $('barDem').setAttribute('y',(142-hD).toFixed(1));$('barDem').setAttribute('height',hD.toFixed(1));
+  /* CO₂ */
+  var co2f=clamp(S.co2/(LV.limit*1.6),0,1);
+  $('co2Fill').setAttribute('width',(co2f*242).toFixed(1));
+  $('co2Fill').setAttribute('fill',co2f<0.45?'#1fb45f':(co2f<=1/1.6?'#f5a623':'#ef4b4b'));
+  var ct=$('co2Txt');
+  if(S.co2<=LV.limit*0.5){ct.textContent='ฟ้าใส 🕊';ct.setAttribute('fill','#1fb45f');}
+  else if(S.co2<=LV.limit*0.85){ct.textContent='กำลังดี 🙂';ct.setAttribute('fill','#1fb45f');}
+  else if(S.co2<=LV.limit){ct.textContent='ใกล้เกณฑ์แล้ว 😟';ct.setAttribute('fill','#e07a00');}
+  else{ct.textContent='เกินเกณฑ์! เมืองหม่น 😷';ct.setAttribute('fill','#ef4b4b');}
+  /* นาฬิกา */
+  var hh=((S.hour%24)+24)%24,mm=Math.floor((hh%1)*60);
+  $('clkTxt').textContent=('0'+Math.floor(hh)).slice(-2)+':'+('0'+mm).slice(-2);
+  $('dayFill').setAttribute('width',(clamp((S.hour-LEVELS[level].h0)/(LEVELS[level].h1-LEVELS[level].h0),0,1)*150).toFixed(1));
+  $('monTxt').textContent=document.body.classList.contains('adult')?
+    '💰 '+Math.round(S.cost).toLocaleString('en-US')+' บาท':'💰 กระเป๋าเมือง'+(S.waste>0.5?' รั่ว!':'');
+  $('wasteT').setAttribute('opacity',S.diff>1?'1':'0');
+  /* adult bar */
+  $('abGen').textContent=S.gen.toFixed(1);$('abDem').textContent=S.dem.toFixed(1);
+  $('abCO2').textContent=S.co2.toFixed(1);
+  $('abMix').textContent=S.gen>0.1?(S.co2rate/S.gen).toFixed(2):'0.00';
+  $('abCost').textContent=Math.round(S.cost).toLocaleString('en-US');
+}
+
+/* ── render: แถวโรงไฟฟ้า ── */
+function renderRows(){
+  for(var i=0;i<PLANTS.length;i++){var p=PLANTS[i];if(!p.inLv)continue;
+    $('pf_'+p.id).style.width=((p.eff||0)/p.cap*100).toFixed(0)+'%';
+    $('po_'+p.id).textContent=(p.eff||0).toFixed(1);
+  }
+  var av=$('av_solar');
+  if(document.body.classList.contains('adult'))av.textContent='แดด '+Math.round(S.sun*S.cloud*100)+'%';
+  else av.textContent=S.sun<=0?'🌙':(S.cloud<0.6?'☁':'☀');
+  $('rw_solar').classList.toggle('alert',S.sun>0&&S.cloud<0.6);
+}
+function renderAll(){renderScene();renderMeters();renderRows();}
+
+/* ── main loop ── */
+function tick(ts){
+  requestAnimationFrame(tick);
+  if(!lastTs)lastTs=ts;
+  var dtRaw=Math.min(0.1,(ts-lastTs)/1000);lastTs=ts;
+  if(!running)return;
+  var d=dtRaw*GAME.speed;
+  var guard=0;
+  while(d>1e-6&&running&&!S.done&&guard<400){var st=Math.min(d,0.05);step(st);d-=st;guard++;}
+  renderAll();
+}
+
+/* ── จบวัน / ให้ดาว ── */
+function evalStars(){
+  var LV=LEVELS[level],lim=LV.limit;
+  if(LV.strict){
+    if(S.black===0&&S.co2<=lim)return 3;
+    if(S.black===0&&S.co2<=lim*1.15)return 2;
+    return 1;
+  }
+  if(S.black===0&&S.co2<=lim)return 3;
+  if((S.black<=2&&S.co2<=lim)||(S.black===0&&S.co2<=lim*1.35))return 2;
+  return 1;
+}
+function endDay(){
+  running=false;
+  var LV=LEVELS[level],st=evalStars();
+  if(st>stars[level]){stars[level]=st;saveStars();}
+  updateStarTotal();
+  $('resTitle').textContent=LV.name+' — จบวันแล้ว!';
+  var co2Kid=S.co2<=LV.limit*0.6?'น้อย 🕊':(S.co2<=LV.limit?'กำลังดี 🙂':'เยอะไป 😷');
+  $('resStats').innerHTML=
+    '<span>⚡ ไฟดับ '+S.black+' ครั้ง</span>'+
+    '<span>🌫 CO₂ '+co2Kid+'<span class="adult-only"> · '+S.co2.toFixed(1)+' / เกณฑ์ '+LV.limit+' tCO₂</span></span>'+
+    '<span>💰<span class="adult-only"> '+Math.round(S.cost).toLocaleString('en-US')+' บาท'+
+      (S.wasteB>1000?' (เสียเปล่า '+Math.round(S.wasteB).toLocaleString('en-US')+')':'')+'</span>'+
+      (S.waste>0.5?' มีเงินรั่ว 💸':' ใช้เงินคุ้ม ✔')+'</span>';
+  $('resLesson').textContent=st===3?LV.lesson3:LV.lessonX;
+  $('resDetail').textContent=st===3?'':(S.black>0?'ไฟดับเพราะผลิตน้อยกว่าใช้ — ดูเข็มให้อยู่โซนเขียวตลอด':
+    (S.co2>LV.limit?'CO₂ เกินเกณฑ์ — ลดถ่านหิน/ก๊าซ แล้วใช้โซลาร์ น้ำ ชีวมวล ให้มากขึ้น':''));
+  var ss=$('resStars').children;
+  for(var i=0;i<3;i++)ss[i].classList.remove('on');
+  $('resultOv').classList.add('show');
+  if(st>=2)sGood();else sBad();
+  for(let k=0;k<st;k++)setTimeout(function(){ss[k].classList.add('on');sStar(k);},350+k*380);
+  if(st===3)confetti(26);
+  $('nextBtn').textContent=level<3?'ด่านต่อไป ➜':'ดูสรุป 🏆';
+}
+function updateStarTotal(){var t=stars[0]+stars[1]+stars[2]+stars[3];$('starTotal').textContent=t;return t;}
+
+/* ── confetti ── */
+function confetti(n){var cols=['#ff5d8f','#ffd23f','#00c2a8','#7b5bff','#ff8f1c'];
+  for(var i=0;i<n;i++){var e=document.createElement('div');e.className='confetti';
+    e.style.left=(Math.random()*100)+'vw';e.style.background=cols[i%cols.length];
+    e.style.animationDuration=(1.6+Math.random()*1.4)+'s';e.style.animationDelay=(Math.random()*0.5)+'s';
+    document.body.appendChild(e);setTimeout(function(ee){return function(){ee.remove();};}(e),3500);}}
+
+/* ── sliders ── */
+var lastSnd=0;
+PLANTS.forEach(function(p){
+  $('sl_'+p.id).addEventListener('input',function(){
+    p.set=(+this.value)/100*p.cap;
+    var n=performance.now();if(n-lastSnd>140){lastSnd=n;sClick();}
+    renderRows();
+  });
+});
+
+/* ── overlays / ปุ่ม ── */
+$('retryBtn').addEventListener('click',function(){$('resultOv').classList.remove('show');startLevel(level);});
+$('nextBtn').addEventListener('click',function(){
+  $('resultOv').classList.remove('show');
+  if(level<3)startLevel(level+1);
+  else{$('endStars').textContent=updateStarTotal();$('endOv').classList.add('show');
+    setTimeout(function(){qsa('#rankBox .fl').forEach(function(f){f.style.width=f.dataset.w+'%';});},250);
+    confetti(40);sGood();}
+});
+$('againBtn').addEventListener('click',function(){$('endOv').classList.remove('show');buildLvlPick();$('startOv').classList.add('show');});
+$('playBtn').addEventListener('click',function(){audio();sGood();$('startOv').classList.remove('show');startLevel(0);});
+$('sndBtn').addEventListener('click',function(){sndOn=!sndOn;this.textContent=sndOn?'🔊':'🔇';this.classList.toggle('on',sndOn);if(sndOn)sClick();});
+$('adultBtn').addEventListener('click',function(){document.body.classList.toggle('adult');this.classList.toggle('on');sClick();renderAll();});
+
+/* ── guide ── */
+var gPg=0,gFrom='start';
+function showGuide(from){gFrom=from||'start';gPg=0;gRender();$('guideOv').classList.add('show');}
+function gRender(){
+  qsa('.gpage').forEach(function(p,i){p.classList.toggle('cur',i===gPg);});
+  qsa('#gDots i').forEach(function(d,i){d.classList.toggle('cur',i===gPg);});
+  $('gPrev').style.visibility=gPg===0?'hidden':'visible';
+  $('gNext').style.display=gPg===4?'none':'';
+  $('gPlay').style.display=gPg===4?'':'none';
+}
+$('gPrev').addEventListener('click',function(){if(gPg>0){gPg--;sClick();gRender();}});
+$('gNext').addEventListener('click',function(){if(gPg<4){gPg++;sClick();gRender();}});
+$('gPlay').addEventListener('click',function(){audio();setSeen();$('guideOv').classList.remove('show');
+  if(gFrom!=='hud'){sGood();$('startOv').classList.remove('show');startLevel(0);}});
+$('helpBtn').addEventListener('click',function(){sClick();showGuide('hud');});
+$('helpBtn2').addEventListener('click',function(){sClick();showGuide('start');});
+
+/* เลือกด่านจากหน้าแรก */
+function buildLvlPick(){
+  var box=$('lvlPick');box.innerHTML='';
+  for(let i=0;i<4;i++){
+    var b=document.createElement('button');
+    b.innerHTML='<span style="font-size:1.3rem">'+LEVELS[i].icon+'</span><span class="nm">ด่าน '+(i+1)+'</span>'+
+      '<span class="st">'+'⭐'.repeat(stars[i])+'<span style="opacity:.25">'+'⭐'.repeat(3-stars[i])+'</span></span>';
+    b.addEventListener('click',function(){audio();sClick();$('startOv').classList.remove('show');startLevel(i);});
+    box.appendChild(b);
+  }
+}
+
+/* ── debug hooks (QA) ── */
+GAME.start=startLevel;GAME.endDay=endDay;GAME.evalStars=evalStars;
+GAME.demandBase=demandBase;GAME.sunAt=sunAt;GAME.cloudAt=cloudAt;
+
+/* ── init ── */
+loadStars();updateStarTotal();buildLvlPick();cacheWins();
+S.hour=12;renderAll(); /* พรีวิวตอนเที่ยงหลังเมนู */
+requestAnimationFrame(tick);
+if(!seenGuide())showGuide('auto');
+document.addEventListener('touchstart',function once(){audio();document.removeEventListener('touchstart',once);},{passive:true});
+</script>
+<!-- [สร้าง 27 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>
