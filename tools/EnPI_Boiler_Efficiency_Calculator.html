@@ -621,27 +621,13 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             </table>
         </div>
 
-        <div class="card" id="fuelPredictCard" style="border-left:4px solid #145a32;">
-            <span class="card-header" style="color:#145a32;"><i class="fas fa-gas-pump"></i>&nbsp;อัตราป้อนเชื้อเพลิงทำนาย ($F^*$) — จุดที่ Direct = Indirect</span>
-            <p style="font-size:0.85rem; color:#555; margin:6px 0 10px;">
-                $F^*$ คืออัตราป้อนเชื้อเพลิงที่ทำให้ประสิทธิภาพทางตรง (Input–Output) เท่ากับประสิทธิภาพทางอ้อม (Heat Loss) ของแต่ละมาตรฐานพอดี
-                จากสมการ \( F^* = \dfrac{Q_{out}}{(\eta_{indirect}/100) \times HV} \) —
-                ใช้<b>ทำนายเชื้อเพลิง</b>เมื่อไม่ทราบค่าป้อนจริง หรือใช้<b>เปรียบเทียบ</b>กับค่าที่ตรวจวัดได้
-                กดปุ่ม "ใช้ค่านี้" เพื่อนำค่าไปใส่ช่อง $F$ แล้วคำนวณใหม่อัตโนมัติ (เลือกได้ตามบริบทที่ต้องการ)
+        <div class="card" style="border-left:4px solid #b7950b; background:#fffdf7;">
+            <span class="card-header" style="color:#9a7d0a;"><i class="fas fa-gas-pump"></i>&nbsp;อัตราป้อนเชื้อเพลิงทำนาย (F*) — จุดที่ Direct = Indirect</span>
+            <p style="font-size:0.85rem; color:#6b5b1e; margin:6px 0 2px;">
+                ฟีเจอร์คำนวณย้อนหาอัตราป้อนเชื้อเพลิง F* เทียบสามมาตรฐาน (ASME PTC 4 · BS 845-1 · JIS B 8222)
+                พร้อมเปรียบเทียบกับค่าตรวจวัดจริงและปุ่มนำค่าไปคำนวณต่อ — เปิดให้ใช้ในรุ่น <b>Pro (TH-BLR-01 Boiler Efficiency)</b>
+                &nbsp;<a href="../app/th-blr-01-boiler-efficiency.html" style="color:#145a32; font-weight:bold;">ดูตัวอย่างรุ่น Pro →</a>
             </p>
-            <table class="res-table">
-                <thead>
-                    <tr>
-                        <th style="text-align:left; width:24%;">มาตรฐาน</th>
-                        <th>η<sub>indirect</sub> (HHV)</th>
-                        <th>F* ฐาน HHV <span style="font-size:0.8em; font-weight:normal;">(kg/h)</span></th>
-                        <th>η<sub>indirect</sub> (LHV)</th>
-                        <th>F* ฐาน LHV <span style="font-size:0.8em; font-weight:normal;">(kg/h)</span></th>
-                    </tr>
-                </thead>
-                <tbody id="fuelPredictBody"></tbody>
-            </table>
-            <div id="fuelPredictNote" style="font-size:0.82rem; color:#555; margin-top:8px;"></div>
         </div>
 
         <div class="calc-steps-container">
@@ -1312,67 +1298,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         addRow('Efficiency (HHV Basis)', dH, dH, dH, 'dir');
         addRow('Efficiency (LHV Basis)', dL, dL, dL, 'dir');
 
-        // == PREDICTED FUEL RATE (F* ที่ทำให้ Direct = Indirect) ==
-        // Q_pred: ความร้อนใช้ประโยชน์ ไม่ขึ้นกับค่า F ที่กรอก (ใช้ทำนาย F ได้แม้ไม่ทราบเชื้อเพลิงจริง)
-        let Q_pred = 0;
-        if(isOilMode) {
-            let q_kcal_p = parseFloat(document.getElementById('oil_q_kcal').value);
-            if(isNaN(q_kcal_p) || q_kcal_p <= 0) { q_kcal_p = estOilQ(); }
-            if(q_kcal_p > 0) Q_pred = q_kcal_p * 4.1868; // [แก้ไข 3 ต.ค. 2569 audit]
-        } else {
-            const W2_p = parseFloat(document.getElementById('steam_flow').value);
-            const hx_p = parseFloat(document.getElementById('h_steam').value);
-            const h1_p = parseFloat(document.getElementById('h_water').value) || 0;
-            if(W2_p > 0 && hx_p > 0 && hx_p > h1_p) Q_pred = (W2_p * 1000) * (hx_p - h1_p);
-        }
-
-        const predCard = document.getElementById('fuelPredictCard');
-        const predBody = document.getElementById('fuelPredictBody');
-        const predNote = document.getElementById('fuelPredictNote');
-        predBody.innerHTML = '';
-        predNote.innerHTML = '';
-
-        const predRows = [];
-        if(runASME) predRows.push({name:'ASME PTC 4', effH: asme_Eff, effL: mix.lhv > 0 ? asme_Eff * mix.hhv / mix.lhv : 0});
-        if(runBS)   predRows.push({name:'BS 845-1',  effH: bs_Eff_G, effL: bs_Eff_N});
-        if(runJIS)  predRows.push({name:'JIS B 8222', effH: jis_Eff_H, effL: jis_Eff_L});
-
-        predCard.style.display = predRows.length ? 'block' : 'none';
-
-        if(predRows.length) {
-            const predF = (effPct, hv_MJ) => (Q_pred > 0 && effPct > 0 && hv_MJ > 0) ? Q_pred / ((effPct/100) * hv_MJ * 1000) : 0;
-            const fmtF = v => v > 0 ? v.toLocaleString('en-US', {minimumFractionDigits:1, maximumFractionDigits:1}) : '-';
-
-            const predCell = (fStar) => {
-                if(fStar <= 0) return '<td>-</td>';
-                let devHtml = '';
-                if(F > 0) {
-                    const dev = (F - fStar) / fStar * 100;
-                    const col = Math.abs(dev) <= 5 ? '#1e8449' : '#c0392b';
-                    devHtml = `<div class="pred-dev" style="color:${col};">F จริงต่าง ${dev >= 0 ? '+' : ''}${dev.toFixed(1)}%</div>`;
-                }
-                return `<td><span class="pred-f-val">${fmtF(fStar)}</span><br><button type="button" class="btn-apply-f" onclick="applyPredictedFuel(${fStar.toFixed(1)})"><i class="fas fa-arrow-up"></i> ใช้ค่านี้</button>${devHtml}</td>`;
-            };
-
-            predRows.forEach(r => {
-                const fH = predF(r.effH, mix.hhv);
-                const fL = predF(r.effL, mix.lhv);
-                predBody.insertAdjacentHTML('beforeend',
-                    `<tr><td style="text-align:left; font-weight:bold;">${r.name}</td>` +
-                    `<td>${r.effH > 0 ? r.effH.toFixed(2)+'%' : '-'}</td>` + predCell(fH) +
-                    `<td>${r.effL > 0 ? r.effL.toFixed(2)+'%' : '-'}</td>` + predCell(fL) + `</tr>`);
-            });
-
-            if(Q_pred <= 0) {
-                predNote.innerHTML = `<span style="color:#c0392b;"><i class="fas fa-exclamation-triangle"></i> ยังคำนวณ F* ไม่ได้ — กรุณากรอกข้อมูลด้านการผลิต (${isOilMode ? 'Q<sub>useful</sub> หรือข้อมูลน้ำมันร้อน' : 'W<sub>2</sub>, ความดัน/เอนทัลปีไอน้ำ'}) ให้ครบก่อน</span>`;
-            } else {
-                let noteParts = [`Q<sub>out</sub> = <b>${Q_pred.toLocaleString('en-US',{maximumFractionDigits:0})}</b> kJ/h`];
-                if(F > 0) noteParts.push(`F ที่กรอกปัจจุบัน = <b>${F.toLocaleString('en-US',{maximumFractionDigits:1})}</b> kg/h (Δ เทียบ F* แสดงใต้ปุ่ม — ถ้าทราบเชื้อเพลิงจริง ใช้เทียบความสอดคล้อง Direct/Indirect ได้เลย)`);
-                else noteParts.push(`ยังไม่ได้กรอก F — เลือกใช้ F* ตามมาตรฐาน/ฐานค่าความร้อนที่ต้องการได้เลย`);
-                noteParts.push(`หมายเหตุ: ASME และ BS 845-1 ค่า F* ฐาน HHV = ฐาน LHV โดยนิยาม (η<sub>LHV</sub> = η<sub>HHV</sub> × HHV/LHV) ส่วน JIS อาจต่างเล็กน้อยเพราะคำนวณสองฐานแยกกัน`);
-                predNote.innerHTML = noteParts.join('<br>');
-            }
-        }
+        /* [3 พ.ย. 2569] F* (อัตราป้อนเชื้อเพลิงทำนาย) ย้ายไปรุ่น Pro — TH-BLR-01 */
 
         document.getElementById('results').style.display = 'block';
         window.teBoilerWarn([], boilerWarns); // [แก้ไข 3 ต.ค. 2569 audit]
@@ -1746,16 +1672,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         if(window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
     };
 
-    window.applyPredictedFuel = function(val) {
-        const el = document.getElementById('fuel_flow');
-        el.value = val;
-        el.style.transition = 'background 0.4s';
-        el.style.background = '#d4efdf';
-        setTimeout(() => { el.style.background = ''; }, 1600);
-        calculateAll();
-        const card = document.getElementById('fuelPredictCard');
-        if(card) card.scrollIntoView({behavior:'smooth', block:'center'});
-    };
+    /* applyPredictedFuel: ย้ายไปรุ่น Pro */
 
     // ===================== JSON Save / Load (Input Data) =====================
     const JSON_NUM_FIELDS = ['ta','tg','o2','co_ppm','rad_loss','fuel_flow',
