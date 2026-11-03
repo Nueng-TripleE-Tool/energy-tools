@@ -5,33 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cooling Tower Audit Tool — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
-<script>/* TE_PSY */
-/* ══ TE_PSY — Psychrometric engine กลางของ Triple E (ระยะ 4, 10 ก.ย. 2569) — ASHRAE Fundamentals, Hyland–Wexler; คัดจาก Tool_Psychrometric_Chart
-   หน่วย public: °C, kPa, kg/kg_da, kJ/kg_da, m³/kg_da ══ */
-var TE_PSY=(function(){
-  function pwsPa(TK){ if(TK<173.15)TK=173.15; var l;
-    if(TK<273.15){ l=-5.6745359e3/TK+6.3925247-9.677843e-3*TK+6.2215701e-7*TK*TK+2.0747825e-9*Math.pow(TK,3)-9.484024e-13*Math.pow(TK,4)+4.1635019*Math.log(TK); }
-    else { l=-5.8002206e3/TK+1.3914993-4.8640239e-2*TK+4.1764768e-5*TK*TK-1.4452093e-8*Math.pow(TK,3)+6.5459673*Math.log(TK); }
-    return Math.exp(l); }
-  function Pws(t){return pwsPa(t+273.15)/1000;}                                   // kPa
-  function Ws(t,p){var s=Pws(t);return s>=p?1e6:0.621945*s/(p-s);}
-  function W_rh(t,rh,p){var pw=Math.min(rh*Pws(t),p*0.9999);return 0.621945*pw/(p-pw);}   // rh เป็นสัดส่วน 0–1
-  function Pw_W(W,p){return p*W/(0.621945+W);}
-  function RH_W(t,W,p){return Pw_W(W,p)/Pws(t);}                                  // สัดส่วน 0–1
-  function Hda(t,W){return 1.006*t+W*(2501+1.86*t);}                              // kJ/kg_da
-  function Vda(t,W,p){return 0.287042*(t+273.15)*(1+1.607858*W)/p;}               // m³/kg_da
-  function Tdp(W,p){var pw=Pw_W(W,p);if(pw<=0)return NaN;var lo=-90,hi=200;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(Pws(m)<pw)lo=m;else hi=m;}return (lo+hi)/2;}
-  function W_wb(t,twb,p){var ws=Ws(twb,p);return twb>=0?((2501-2.326*twb)*ws-1.006*(t-twb))/(2501+1.86*t-4.186*twb):((2830-0.24*twb)*ws-1.006*(t-twb))/(2830+1.86*t-2.1*twb);}
-  function Twb(t,W,p){var lo=-90,hi=t;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(W_wb(t,m,p)<W)lo=m;else hi=m;}return (lo+hi)/2;}
-  function Palt(z){return 101.325*Math.pow(1-2.25577e-5*z,5.2559);}
-  function state(t,W,p){W=Math.max(0,Math.min(W,Ws(t,p)));var h=Hda(t,W),v=Vda(t,W,p),pw=Pw_W(W,p),ws=Ws(t,p);
-    return{t:t,W:W,p:p,h:h,v:v,rh:100*pw/Pws(t),pw:pw,tdp:Tdp(W,p),twb:Twb(t,W,p),rho:(1+W)/v,mu:100*W/ws,ws:ws};}
-  function fromRH(t,rhPct,p){return state(t,W_rh(t,rhPct/100,p||101.325),p||101.325);}
-  function fromWB(t,twb,p){return state(t,W_wb(t,twb,p||101.325),p||101.325);}
-  return{Pws:Pws,Ws:Ws,W_rh:W_rh,Pw_W:Pw_W,RH_W:RH_W,Hda:Hda,Vda:Vda,Tdp:Tdp,W_wb:W_wb,Twb:Twb,Palt:Palt,state:state,fromRH:fromRH,fromWB:fromWB,_ver:'TE_PSY HW r4-2569'};
-})();
-
-</script>
+<!-- [แก้ไข 3 พ.ย. 2569 ระยะ 2] TE_PSY ย้ายออกจากไฟล์ → ../lib/te-core.js (r2b, ล็อกโดเมน) · โค้ดเดิมตรงกับ engine ทุกตัวอักษร -->
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
+<script src="../lib/te-core.js"></script>
 <style>
 :root{
   --bg:#f0f6fb;--bg2:#fff;--bg3:#e2eff8;--bg4:#f4f9fd;

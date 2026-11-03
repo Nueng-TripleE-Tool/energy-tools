@@ -210,6 +210,22 @@
             .tab-btn { font-size: 0.82em; padding: 8px 12px; }
         }
     </style>
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
 </head>
 <body>
 
@@ -883,6 +899,8 @@
     </div>
 </div>
 
+<!-- ระยะ 2-13: เครื่องยนต์กลาง Triple E -->
+<script src="../lib/te-core.js"></script>
 <script>
     // ====== STATE ======
     let dataRecords = [];
@@ -1568,88 +1586,14 @@
     }
 
     // VIF ต่อคอลัมน์ — rows: n × (1+k) รวม intercept คอลัมน์ 0; คืน array ยาว 1+k, ช่อง 0 = null
-    function computeVIFArray(rows) {
-        const kk = rows[0].length - 1;
-        const out = [null];
-        if (kk <= 1) { if (kk === 1) out.push(1.0); return out; }
-        for (let c = 1; c <= kk; c++) {
-            try {
-                const yv = rows.map(r => r[c]);
-                const Xa = rows.map(r => r.filter((_, ci) => ci !== c));
-                const X = math.matrix(Xa), Y = math.matrix(yv.map(v => [v]));
-                const XT = math.transpose(X);
-                const B = math.multiply(math.multiply(math.inv(math.multiply(XT, X)), XT), Y);
-                const Yp = math.multiply(X, B).toArray();
-                let sse = 0, sy = 0;
-                for (let i = 0; i < yv.length; i++) { sse += Math.pow(yv[i] - Yp[i][0], 2); sy += yv[i]; }
-                const my = sy / yv.length;
-                let sst = 0;
-                for (let i = 0; i < yv.length; i++) sst += Math.pow(yv[i] - my, 2);
-                const r2a = sst === 0 ? 1 : 1 - sse / sst;
-                out.push(r2a >= 0.9999 ? Infinity : 1 / (1 - r2a));
-            } catch (e) { out.push(Infinity); }
-        }
-        return out;
-    }
+
+/* ระยะ 2-13: แกนถดถอยย้ายเข้า te-core — TE.MLR */
+var mlrCore=TE.MLR.mlrCore, computeVIFArray=TE.MLR.computeVIFArray;
+
 
     // Core MLR บนข้อมูลจัดแนวแล้ว: X5 = n×5, yArr = n ค่า, activeIdx ⊆ [1..5]
     // คืนสถิติครบ + LOOCV residual (PRESS) ผ่าน hat matrix — แม่นยำเท่ารัน leave-one-out จริงสำหรับ OLS
-    function mlrCore(X5, yArr, activeIdx) {
-        const n = yArr.length;
-        let rows = X5.map(r => [1].concat(activeIdx.map(j => r[j-1])));
-        let keep = [0], kept = [];
-        for (let c = 1; c <= activeIdx.length; c++) {
-            let s0 = 0;
-            for (const r of rows) s0 += Math.abs(r[c]);
-            if (s0 > 0) { keep.push(c); kept.push(activeIdx[c-1]); }
-        }
-        rows = rows.map(r => keep.map(c => r[c]));
-        const k = kept.length, df = n - k - 1;
-        if (df < 1) throw new Error('จำนวนจุดข้อมูล (' + n + ') น้อยเกินไปสำหรับตัวแปร ' + k + ' ตัว');
-        const X = math.matrix(rows), Y = math.matrix(yArr.map(v => [v]));
-        const XT = math.transpose(X);
-        const XTXinv = math.inv(math.multiply(XT, X));
-        const Beta = math.multiply(math.multiply(XTXinv, XT), Y).toArray();
-        const Yp = math.multiply(X, Beta).toArray().map(r => r[0]);
-        let SSE = 0, sumY = 0;
-        const resid = [];
-        for (let i = 0; i < n; i++) { const e0 = yArr[i] - Yp[i]; resid.push(e0); SSE += e0 * e0; sumY += yArr[i]; }
-        const meanY = sumY / n;
-        let SST = 0;
-        for (let i = 0; i < n; i++) SST += Math.pow(yArr[i] - meanY, 2);
-        const R2 = SST === 0 ? 0 : 1 - SSE / SST;
-        const AdjR2 = 1 - (1 - R2) * (n - 1) / df;
-        const MSE = SSE / df;
-        const Cov = math.multiply(XTXinv, MSE).toArray();
-        const SE = Beta.map((b, i) => Math.sqrt(Math.abs(Cov[i][i])));
-        const inv = XTXinv.toArray();
-        const loocv = [];
-        for (let i = 0; i < n; i++) {
-            const xi = rows[i];
-            let h = 0;
-            for (let a = 0; a < xi.length; a++) for (let b2 = 0; b2 < xi.length; b2++) h += xi[a] * inv[a][b2] * xi[b2];
-            loocv.push(h < 0.9999 ? resid[i] / (1 - h) : resid[i]);
-        }
-        const vifArr = computeVIFArray(rows);
-        const betaFull = [Beta[0][0], 0, 0, 0, 0, 0];
-        const seFull = [SE[0], 0, 0, 0, 0, 0];
-        const tFull = [SE[0] === 0 ? 0 : Beta[0][0] / SE[0], 0, 0, 0, 0, 0];
-        const pFull = [jStat.studentt.cdf(-Math.abs(tFull[0]), df) * 2, 0, 0, 0, 0, 0];
-        const vifFull = [null, null, null, null, null, null];
-        kept.forEach((idx, i) => {
-            const b = Beta[i+1][0], se = SE[i+1];
-            betaFull[idx] = b; seFull[idx] = se;
-            tFull[idx] = se === 0 ? 0 : b / se;
-            pFull[idx] = jStat.studentt.cdf(-Math.abs(tFull[idx]), df) * 2;
-            vifFull[idx] = vifArr[i+1];
-        });
-        let ssLoo = 0;
-        for (const e1 of loocv) ssLoo += e1 * e1;
-        return { betaFull, seFull, tFull, pFull, vifFull, kept, n, k, df, R2, AdjR2,
-                 RMSE: Math.sqrt(SSE / n), meanY, pred: Yp, resid, loocv,
-                 loocvRMSE: Math.sqrt(ssLoo / n),
-                 RMSEg14: Math.sqrt(SSE / df), SSE }; // [แก้ไข 3 ต.ค. 2569 audit] RMSE แบบ ASHRAE G14 = √(SSE/(n−p)), p = k+1
-    }
+
 
     function buildEquationString(yLabel, betaFull, labels) {
         let eq = yLabel + ' = ' + betaFull[0].toFixed(4);

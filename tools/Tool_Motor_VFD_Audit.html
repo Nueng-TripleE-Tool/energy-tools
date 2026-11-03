@@ -176,7 +176,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
   <span class="te-json">
   <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
   <label><span>📂 โหลด JSON</span><input type="file" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
-  <!-- [แก้ไข 3 ต.ค. 2569] ปุ่มส่งออกมาตรการ TE_ECM -->
+  <!-- [แก้ไข 3 ต.ค. 2569] ปุ่มส่งออกมาตรการ TE_ECM_IO -->
   <button type="button" onclick="teExportECM()" title="ส่งออกมาตรการเป็นไฟล์ TE_ECM เพื่อนำเข้า Tool_ECM_Portfolio">📤 ส่งไป ECM Portfolio</button>
 </span>
 </div>
@@ -1518,49 +1518,36 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
   <span style="font-size:10px;opacity:0.6;">Motor & VFD Energy Audit Tool v2.0 (AC+DC) · Reference: IEC 60034-2-1 · IEEE 112-B (AC) · IEEE 113 (DC) · IEC 60034-30-1 · NEMA MG 1 · IPMVP Option B</span>
 </div>
 
+<!-- [แก้ไข 3 พ.ย. 2569 ระยะ 2-6] ตารางเกณฑ์ IE (IEC 60034-30-1:2014) และตัวช่วยคำนวณ ย้ายออกจากไฟล์ → TE.MOTORAUD ใน ../lib/te-core.js -->
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
+<script src="../lib/te-core.js"></script>
 <script>
 // ═══════════════════════════════════════════════
 //  IE CLASS DATA (IEC 60034-30-1:2014, 4-pole, 50Hz)
 // ═══════════════════════════════════════════════
-const IE_DATA = [
-  [0.75, 77.4, 80.7, 82.5, 85.7],
-  [1.1,  79.6, 82.7, 84.1, 87.0],
-  [1.5,  81.0, 84.1, 85.6, 88.0],
-  [2.2,  83.2, 85.9, 87.4, 89.5],
-  [3.0,  84.6, 87.1, 88.7, 90.6],
-  [4.0,  85.8, 88.1, 89.8, 91.5],
-  [5.5,  87.0, 89.2, 90.8, 92.3],
-  [7.5,  88.1, 90.1, 91.7, 93.1],
-  [11,   89.4, 91.2, 92.7, 93.9],
-  [15,   90.3, 91.9, 93.3, 94.4],
-  [18.5, 90.9, 92.4, 93.7, 94.8],
-  [22,   91.3, 92.7, 94.0, 95.1],
-  [30,   92.0, 93.2, 94.5, 95.5],
-  [37,   92.5, 93.6, 94.8, 95.7],
-  [45,   92.9, 94.0, 95.1, 95.9],
-  [55,   93.2, 94.3, 95.4, 96.1],
-  [75,   93.8, 94.7, 95.8, 96.5],
-  [90,   94.1, 95.0, 96.1, 96.7],
-  [110,  94.3, 95.2, 96.2, 96.9],
-  [132,  94.6, 95.4, 96.4, 97.0],
-  [160,  94.8, 95.6, 96.5, 97.2],
-  [200,  95.0, 95.8, 96.7, 97.3],
-  [250,  95.2, 96.0, 96.9, 97.5],
-  [315,  95.4, 96.1, 97.0, 97.6],
-];
+/* ระยะ 2-6: ตาราง IE + benchmark + stray loss + correctRcu ย้ายเข้า TE.MOTORAUD (../lib/te-core.js) */
+Object.defineProperty(window,'IE_DATA',{get:function(){return TE.MOTORAUD.IE_DATA;}});
+function getIEBenchmark(kW){return TE.MOTORAUD.getIEBenchmark(kW);}
+function strayPct(P_kW){return TE.MOTORAUD.strayPct(P_kW);}
+function correctRcu(R25, T_hot){return TE.MOTORAUD.correctRcu(R25, T_hot);}
 
-function getIEBenchmark(kW) {
-  let lo = IE_DATA[0], hi = IE_DATA[IE_DATA.length-1];
-  if (kW <= lo[0]) return lo;
-  if (kW >= hi[0]) return hi;
-  for (let i=0; i<IE_DATA.length-1; i++) {
-    if (kW >= IE_DATA[i][0] && kW <= IE_DATA[i+1][0]) {
-      const f = (kW - IE_DATA[i][0]) / (IE_DATA[i+1][0] - IE_DATA[i][0]);
-      return IE_DATA[i].map((v,j) => v + f*(IE_DATA[i+1][j]-v));
-    }
-  }
-  return lo;
-}
+
+
 
 // ═══════════════════════════════════════════════
 //  TAB SWITCHING
@@ -1641,106 +1628,25 @@ function clearM1() {
   document.getElementById('m1Result').style.display='none';
 }
 
-function calcFieldM1() {
-  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
-  const Prated=g('m1_prated'), Irated=g('m1_irated'), etaFL=g('m1_etafl');
-  const Nrated=g('m1_nrated'), freq=g('m1_freq'), Vrated=g('m1_vrated');
-  const IL1=g('m1_il1'), IL2=g('m1_il2'), IL3=g('m1_il3');
-  const Pin_input=g('m1_pin'), PF=g('m1_pf'), Vmeas=g('m1_vmeas');
 
-  if (!Prated||!Irated||!etaFL) { alert('กรุณากรอก Nameplate ให้ครบ'); return; }
+/* ระยะ 2-9: แกนคำนวณย้ายเข้า te-core — TE.MOTCALC (ห้ามแก้ตัวเลขในหน้านี้) */
+function __mEnv(){return {buildIETable:buildIETable,linkTab1ToDownstream:linkTab1ToDownstream,drawVFDChart:drawVFDChart,getIEBenchmark:getIEBenchmark,strayPct:strayPct,correctRcu:correctRcu};}
+function calcMotorEff(){return TE.MOTCALC.make(__mEnv()).calcMotorEff();}
+function calcFieldM1(){return TE.MOTCALC.make(__mEnv()).calcFieldM1();}
+function calcFieldM2(){return TE.MOTCALC.make(__mEnv()).calcFieldM2();}
+function calcVFD(){return TE.MOTCALC.make(__mEnv()).calcVFD();}
+function calcMotorSizing(){return TE.MOTCALC.make(__mEnv()).calcMotorSizing();}
+function calcRewinding(){return TE.MOTCALC.make(__mEnv()).calcRewinding();}
+function calcFieldWeakening(){return TE.MOTCALC.make(__mEnv()).calcFieldWeakening();}
+function calcDCEfficiency(){return TE.MOTCALC.make(__mEnv()).calcDCEfficiency();}
+function calcDCDrive(){return TE.MOTCALC.make(__mEnv()).calcDCDrive();}
+function calcDCLab(){return TE.MOTCALC.make(__mEnv()).calcDCLab();}
+function calcDCLoss(){return TE.MOTCALC.make(__mEnv()).calcDCLoss();}
+function calcDCTorque(){return TE.MOTCALC.make(__mEnv()).calcDCTorque();}
+function calcBrushLife(){return TE.MOTCALC.make(__mEnv()).calcBrushLife();}
+function runMotorDiag(){return TE.MOTCALC.make(__mEnv()).runMotorDiag();}
+function genReport(){return TE.MOTCALC.make(__mEnv()).genReport();}
 
-  // Average current
-  const Iavg = (IL1+IL2+IL3) / (IL1&&IL2&&IL3 ? 3 : IL1 ? 1 : 1);
-  const IavgSingle = IL1 || Irated * 0.85;
-  const Iuse = (IL1&&IL2&&IL3) ? (IL1+IL2+IL3)/3 : IL1 || g('m1_irated')*0.85;
-
-  // [แก้ไข 10 ก.ย. 2569] แก้ comment: ค่านี้คือ Current Unbalance (คำนวณจากกระแส 3 เฟส) ไม่ใช่ Voltage
-  let vUnbal = 0;  // Current Unbalance %
-  if (IL1&&IL2&&IL3) {
-    const Imax = Math.max(Math.abs(Iuse-IL1), Math.abs(Iuse-IL2), Math.abs(Iuse-IL3));
-    vUnbal = Iuse > 0 ? Imax/Iuse*100 : 0;
-  }
-
-  // Load Factor by Current Ratio
-  const LF = Irated > 0 ? Iuse / Irated * 100 : 0;
-
-  // Input Power: use measured if available, else estimate
-  const Pin_est = (Vmeas > 0 && PF > 0) ? Math.sqrt(3)*Vmeas*Iuse*PF/1000 : Prated/(etaFL/100);
-  const Pin = Pin_input > 0 ? Pin_input : Pin_est;
-  const usedEstimate = Pin_input <= 0;
-
-  // Efficiency correction (DOE MotorMaster quadratic correction)
-  // η_op ≈ η_FL × [1 − 0.2 × (1 − LF/100)²]
-  const k = 0.2;
-  const eta_op = etaFL * (1 - k * Math.pow(1 - LF/100, 2));
-
-  // Output power
-  const Pout = Pin * eta_op / 100;
-
-  // IE Class
-  const IE_ref = getIEBenchmark(Prated);
-  const ieClass = eta_op>=IE_ref[4]?'IE4':eta_op>=IE_ref[3]?'IE3':eta_op>=IE_ref[2]?'IE2':'IE1';
-  const ieColor = eta_op>=IE_ref[3]?'var(--green)':eta_op>=IE_ref[2]?'var(--amber)':'var(--red)';
-  const lfClass = LF>100?'s-bad':LF>70?'s-good':LF>40?'s-warn':'s-bad';
-
-  // KPIs
-  document.getElementById('m1Kpi').innerHTML = `
-    <div class="kpi-card ${LF>100?'red':LF>70?'green':'amber'}">
-      <div class="kpi-label">Load Factor (I)</div>
-      <div class="kpi-value" style="font-size:28px;color:${LF>100?'var(--red)':LF>70?'var(--green)':'var(--amber)'}">${LF.toFixed(1)}</div>
-      <div class="kpi-unit">% (I_avg=${Iuse.toFixed(1)} / I_rated=${Irated} A)</div>
-      <div class="kpi-status ${lfClass}">${LF>100?'🔴 Overload':LF>90?'✅ Full Load':LF>70?'✅ Normal':LF>40?'⚠ Low':'✗ Very Low'}</div>
-    </div>
-    <div class="kpi-card blue">
-      <div class="kpi-label">η Operating</div>
-      <div class="kpi-value" style="font-size:26px;color:${ieColor}">${eta_op.toFixed(2)}</div>
-      <div class="kpi-unit">% (η_FL=${etaFL}%)</div>
-      <div class="kpi-status ${eta_op>=IE_ref[3]?'s-good':eta_op>=IE_ref[2]?'s-warn':'s-bad'}">${ieClass} · ${eta_op>=IE_ref[3]?'✓ Premium':'⚠ Check'}</div>
-    </div>
-    <div class="kpi-card green">
-      <div class="kpi-label">P_output</div>
-      <div class="kpi-value" style="font-size:28px;color:var(--green)">${Pout.toFixed(2)}</div>
-      <div class="kpi-unit">kW</div>
-      <div class="kpi-status s-na">P_in=${Pin.toFixed(2)} kW</div>
-    </div>`;
-
-  // Detail calculation steps
-  document.getElementById('m1Detail').innerHTML = `
-    <div style="font-family:var(--mono);font-size:12px;line-height:2.2;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;">
-      <strong style="color:var(--blue);">การคำนวณ — Current Ratio Method:</strong><br>
-      I_avg = (${IL1}+${IL2}+${IL3})/3 = <strong>${Iuse.toFixed(2)} A</strong><br>
-      <strong style="color:var(--blue);">LF</strong> = I_avg/I_rated = ${Iuse.toFixed(2)}/${Irated} = <strong>${LF.toFixed(1)}%</strong><br>
-      ${usedEstimate ? `P_in (ประมาณ) = √3×${Vmeas}×${Iuse.toFixed(1)}×${PF} = <strong>${Pin_est.toFixed(2)} kW</strong> ⚠️ ประมาณการ<br>` :
-        `P_in (วัดจริง) = <strong>${Pin.toFixed(2)} kW</strong> ✅<br>`}
-      <strong style="color:var(--blue);">η_op</strong> = η_FL × [1 − 0.2×(1−LF/100)²]<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;= ${etaFL} × [1 − 0.2×(1−${(LF/100).toFixed(3)})²] = <strong>${eta_op.toFixed(2)}%</strong><br>
-      P_out = ${Pin.toFixed(2)} × ${eta_op.toFixed(2)}/100 = <strong>${Pout.toFixed(2)} kW</strong><br>
-      ${vUnbal>0?`Current Unbalance = <span style="color:${vUnbal>5?'var(--red)':vUnbal>2?'var(--amber)':'var(--green)'}"><strong>${vUnbal.toFixed(2)}%</strong></span> ${vUnbal>5?'🔴 ต้องแก้ไขด่วน':vUnbal>2?'⚠️ Monitor':'✅ OK'}<br>`:''} 
-    </div>
-    <div class="alert ${usedEstimate?'alert-warn':'alert-info'}" style="font-size:11px;">
-      <span>${usedEstimate?'⚠️':'ℹ️'}</span>
-      <div>${usedEstimate
-        ? '<strong>P_in ไม่ได้วัดโดยตรง</strong> — ค่าถูกประมาณจาก V, I, PF · ความแม่นยำ ±5–10% · แนะนำใช้ Power Meter สำหรับผลที่น่าเชื่อถือ'
-        : '<strong>P_in วัดโดยตรงจาก Power Meter</strong> — ผลลัพธ์มีความแม่นยำสูงกว่า (±3%)'
-      }</div>
-    </div>
-    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">
-      ⚠️ <strong>ความแม่นยำโดยรวม: ±3–5%</strong> — เหมาะสำหรับ Quick Screening ไม่ใช่ M&V อย่างเป็นทางการ
-    </div>`;
-
-  // IE highlight
-  buildIETable(Prated, eta_op);
-  linkTab1ToDownstream(Pin, Nrated, Prated);  // [แก้ไข 10 ก.ย. 2569] Field M1 ไม่มีรอบวัดจริง ใช้ N_rated เป็น N₁
-  document.getElementById('m1IERow').innerHTML = `<div style="font-size:12px;font-family:var(--mono);padding:8px 12px;background:var(--blue-lt);border-radius:6px;border:1px solid var(--border);">
-    ประสิทธิภาพที่ประเมินได้ <strong>${eta_op.toFixed(2)}%</strong> → เทียบกับ IE Benchmark: 
-    IE1=${IE_ref[1].toFixed(1)}% · IE2=${IE_ref[2].toFixed(1)}% · <span style="color:var(--green)">IE3=${IE_ref[3].toFixed(1)}%</span> · IE4=${IE_ref[4].toFixed(1)}%
-    → <strong style="color:${ieColor};">Class: ${ieClass}</strong>
-  </div>`;
-
-  document.getElementById('m1Result').style.display='block';
-  document.getElementById('m1Result').scrollIntoView({behavior:'smooth',block:'start'});
-}
 
 // ═══════════════════════════════════════════════
 //  FIELD MODE 2: Slip Method
@@ -1757,110 +1663,7 @@ function clearM2() {
   document.getElementById('m2Result').style.display='none';
 }
 
-function calcFieldM2() {
-  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
-  const Prated=g('m2_prated'), Nrated=g('m2_nrated'), freq=g('m2_freq');
-  const etaFL=g('m2_etafl'), Irated=g('m2_irated'), Vrated=g('m2_vrated');
-  const Nactual=g('m2_nactual'), Pin_input=g('m2_pin');
-  const Iload=g('m2_iload'), PF=g('m2_pf');
 
-  if (!Prated||!Nrated||!Nactual||!freq) { alert('กรุณากรอกอย่างน้อย Nameplate + N_actual'); return; }
-
-  // Determine poles and Nsync
-  let poles = 4;
-  if (Nrated > 2800) poles=2;
-  else if (Nrated > 1400) poles=4;
-  else if (Nrated > 900) poles=6;
-  else if (Nrated > 700) poles=8;
-  else poles=10;
-  const Nsync = 120 * freq / poles;
-
-  // Slips
-  const s_rated  = Nsync > 0 ? (Nsync - Nrated)  / Nsync : 0;
-  const s_actual = Nsync > 0 ? (Nsync - Nactual) / Nsync : 0;
-
-  // Load Factor
-  const LF = s_rated > 0 ? (s_actual / s_rated) * 100 : 0;
-
-  // Output power = Prated × LF/100
-  const Pout = Prated * LF / 100;
-
-  // Input power: use measured if available, else estimate
-  const Pin_est = etaFL > 0 ? Pout / (etaFL/100) : Pout;
-  const Pin = Pin_input > 0 ? Pin_input : Pin_est;
-  const usedEstimate = Pin_input <= 0;
-
-  // Operating efficiency
-  const eta_op = Pin > 0 ? Pout / Pin * 100 : etaFL;
-
-  // Cross-check: LF from current if available
-  const LF_current = (Iload>0&&Irated>0) ? Iload/Irated*100 : 0;
-  const deviation = LF_current > 0 ? Math.abs(LF-LF_current) : 0;
-
-  const IE_ref = getIEBenchmark(Prated);
-  const ieClass = eta_op>=IE_ref[4]?'IE4':eta_op>=IE_ref[3]?'IE3':eta_op>=IE_ref[2]?'IE2':'IE1';
-  const ieColor = eta_op>=IE_ref[3]?'var(--green)':eta_op>=IE_ref[2]?'var(--amber)':'var(--red)';
-  const lfClass = LF>100?'s-bad':LF>70?'s-good':LF>40?'s-warn':'s-bad';
-
-  // KPIs
-  document.getElementById('m2Kpi').innerHTML = `
-    <div class="kpi-card ${LF>100?'red':LF>70?'green':'amber'}">
-      <div class="kpi-label">Load Factor (Slip)</div>
-      <div class="kpi-value" style="font-size:28px;color:${LF>100?'var(--red)':LF>70?'var(--green)':'var(--amber)'}">${LF.toFixed(1)}</div>
-      <div class="kpi-unit">% (s_act/s_rated)</div>
-      <div class="kpi-status ${lfClass}">${LF>100?'🔴 Overload':LF>90?'✅ Full':LF>70?'✅ Normal':LF>40?'⚠ Low':'✗ Very Low'}</div>
-    </div>
-    <div class="kpi-card blue">
-      <div class="kpi-label">P_output</div>
-      <div class="kpi-value" style="font-size:28px;color:var(--blue)">${Pout.toFixed(2)}</div>
-      <div class="kpi-unit">kW = P_rated × LF%</div>
-    </div>
-    <div class="kpi-card green">
-      <div class="kpi-label">η Operating</div>
-      <div class="kpi-value" style="font-size:26px;color:${ieColor}">${eta_op.toFixed(2)}</div>
-      <div class="kpi-unit">%</div>
-      <div class="kpi-status ${eta_op>=IE_ref[3]?'s-good':eta_op>=IE_ref[2]?'s-warn':'s-bad'}">${ieClass}</div>
-    </div>`;
-
-  // Detail
-  document.getElementById('m2Detail').innerHTML = `
-    <div style="font-family:var(--mono);font-size:12px;line-height:2.2;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;">
-      <strong style="color:var(--blue);">การคำนวณ — Slip Method:</strong><br>
-      N_sync = 120×${freq}/${poles} = <strong>${Nsync} rpm</strong> (${poles} poles)<br>
-      s_rated = (${Nsync}−${Nrated})/${Nsync} = <strong>${(s_rated*100).toFixed(3)}%</strong> (= ${Nsync-Nrated} rpm)<br>
-      s_actual = (${Nsync}−${Nactual})/${Nsync} = <strong>${(s_actual*100).toFixed(3)}%</strong> (= ${Nsync-Nactual} rpm)<br>
-      <strong style="color:var(--blue);">LF</strong> = s_actual/s_rated = ${(s_actual*100).toFixed(4)}/${(s_rated*100).toFixed(4)} = <strong>${LF.toFixed(1)}%</strong><br>
-      P_out = ${Prated} × ${LF.toFixed(1)}/100 = <strong>${Pout.toFixed(2)} kW</strong><br>
-      ${Pin_input>0
-        ? `η_op = ${Pout.toFixed(2)}/${Pin.toFixed(2)} = <strong>${eta_op.toFixed(2)}%</strong> (P_in วัดจริง ✅)<br>`
-        : `P_in ≈ P_out/η_FL = ${Pout.toFixed(2)}/${(etaFL/100).toFixed(4)} = <strong>${Pin_est.toFixed(2)} kW</strong> ⚠️ ประมาณการ<br>`}
-    </div>
-    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">
-      ⚠️ <strong>ความแม่นยำ ±5–8%</strong> · Slip ต่างกัน 1 rpm → LF เปลี่ยน ~${(100/(Nsync-Nrated)||10).toFixed(0)}% · วัด RPM ให้แม่นยำที่สุด
-    </div>`;
-
-  // Cross-check with Current
-  let crossHtml = '';
-  if (LF_current > 0) {
-    const devColor = deviation > 15 ? 'var(--red)' : deviation > 8 ? 'var(--amber)' : 'var(--green)';
-    crossHtml = `
-      <div style="margin-top:12px;padding:12px 14px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;line-height:2;">
-        <strong style="color:var(--blue);">🔁 Cross-Check กับ Current Method:</strong><br>
-        LF (Slip Method) = <strong>${LF.toFixed(1)}%</strong><br>
-        LF (Current Method) = <strong>${LF_current.toFixed(1)}%</strong> &nbsp;(I_load/I_rated = ${Iload}/${Irated})<br>
-        ส่วนต่าง = <span style="color:${devColor};font-weight:600;">${deviation.toFixed(1)}%</span>
-        ${deviation<=8 ? ' ✅ <span style="color:var(--green)">สอดคล้องกัน — ผลน่าเชื่อถือ</span>' :
-          deviation<=15 ? ' ⚠️ <span style="color:var(--amber)">ต่างพอสมควร — ตรวจสอบ RPM และ Current อีกครั้ง</span>' :
-          ' 🔴 <span style="color:var(--red)">ต่างมาก — อาจมีปัญหา Slip หรือ V Unbalance</span>'}
-      </div>`;
-  }
-  document.getElementById('m2CrossCheck').innerHTML = crossHtml;
-
-  buildIETable(Prated, eta_op);
-  linkTab1ToDownstream(Pin, Nactual, Prated);  // [แก้ไข 10 ก.ย. 2569] เติมค่าจาก Field M2 ลงแท็บถัดไป
-  document.getElementById('m2Result').style.display='block';
-  document.getElementById('m2Result').scrollIntoView({behavior:'smooth',block:'start'});
-}
 
 // ═══════════════════════════════════════════════
 //  TAB 1: MOTOR EFFICIENCY (IEC 60034-2-1 Method B)
@@ -1878,139 +1681,8 @@ function clearMotor() {
 }
 
 // [แก้ไข 10 ก.ย. 2569] IEC 60034-2-1 assigned stray-load-loss: 2.5% ที่ ≤1 kW ลดเชิงเส้น (log P) ถึง 0.5% ที่ ≥10,000 kW
-function strayPct(P_kW){ if(!(P_kW>0)||P_kW<=1) return 2.5; if(P_kW>=10000) return 0.5; return 2.5-0.5*Math.log10(P_kW); }
-function calcMotorEff() {
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const Prated=g('p_rated'), Nrated=g('n_rated'), f=g('freq');
-  const Pnl=g('p_nl'), Inl=g('i_nl'), Rcold=g('r_cold');
-  const T_cold=g('t_cold')||20, T_hot=g('t_hot')||75;
-  const Pin_kW=g('p_in'), Iload=g('i_load'), Nload=g('n_load');
-  const Irated=g('i_rated'), eta_plate=g('eta_plate');
 
-  if (!Prated || !Pin_kW || !Pnl) { alert('กรุณากรอก Nameplate, No-Load Test และ Operating Data'); return; }
 
-  const Pin_W = Pin_kW * 1000;
-
-  // Temperature correction for R: R_hot = R_cold × (235 + T_hot)/(235 + T_cold) [IEC standard]
-  const Rhot = Rcold > 0 ? Rcold * (235 + T_hot) / (235 + T_cold) : Rcold * 1.25;
-
-  // Poles and synchronous speed
-  let poles = 4;
-  if (Nrated > 2800) poles=2;
-  else if (Nrated > 1400) poles=4;
-  else if (Nrated > 900) poles=6;
-  else if (Nrated > 700) poles=8;
-  else poles=10;
-  const Nsync = 120 * f / poles;
-  const slip = Nsync > 0 ? (Nsync - Nload) / Nsync : 0;
-
-  // Losses
-  const Pcu_nl = Rcold > 0 ? 3 * Inl * Inl * Rcold : 0;   // No-load stator copper loss
-  const Pk = Math.max(0, Pnl - Pcu_nl);                    // Core + F&W (constant loss)
-  const Pcu_st = Rhot > 0 ? 3 * Iload * Iload * Rhot : 0; // Load stator copper loss
-  // Air gap power → Rotor copper loss
-  const Pfe_est = Pk * 0.55;   // ~55% of Pk = Iron loss (remainder = F&W)
-  const Pgap = Math.max(0, Pin_W - Pcu_st - Pfe_est);
-  const Pcu_rot = Pgap * slip;                              // Rotor copper loss = Pgap × slip
-  const strayP = strayPct(Pin_kW);                          // [แก้ไข 10 ก.ย. 2569] IEC 60034-2-1 assigned SLL (% ของ P_in ตามขนาด)
-  const Pstray = Pin_W * strayP / 100;                      // เดิม 0.5% คงที่
-  const TotalLoss = Pcu_st + Pcu_rot + Pk + Pstray;
-  const Pout = Math.max(0, Pin_W - TotalLoss);
-  let Eff = Pout / Pin_W * 100;
-  if (Eff > 99.5) Eff = 99.5;
-
-  const LF = Prated > 0 ? (Pout/1000) / Prated * 100 : 0;
-  const IE_ref = getIEBenchmark(Prated);
-  const ieClass = Eff >= IE_ref[4] ? 'IE4' : Eff >= IE_ref[3] ? 'IE3' : Eff >= IE_ref[2] ? 'IE2' : 'IE1';
-  const ieColor = Eff >= IE_ref[3] ? 'var(--green)' : Eff >= IE_ref[2] ? 'var(--amber)' : 'var(--red)';
-
-  // Gauge
-  const pct = Math.min(Math.max((Eff-70)/30, 0), 1);
-  const pathLen = 251.2;
-  const offset = pathLen * (1 - pct);
-  const gColor = Eff >= IE_ref[3] ? 'var(--green)' : Eff >= IE_ref[2] ? 'var(--amber)' : 'var(--red)';
-  document.getElementById('gaugePath').style.stroke = gColor;
-  document.getElementById('gaugePath').style.strokeDashoffset = offset;
-  document.getElementById('gaugeText').textContent = Eff.toFixed(1) + '%';
-  document.getElementById('gaugeText').style.fill = gColor;
-
-  // KPIs
-  const lfClass = LF>90?'s-bad':LF>70?'s-good':LF>40?'s-warn':'s-bad';
-  document.getElementById('motorKpi').innerHTML = `
-    <div class="kpi-card green">
-      <div class="kpi-label">P_output</div>
-      <div class="kpi-value" style="color:var(--green);font-size:28px;">${(Pout/1000).toFixed(2)}</div>
-      <div class="kpi-unit">kW (${TotalLoss.toFixed(0)} W loss)</div>
-    </div>
-    <div class="kpi-card amber">
-      <div class="kpi-label">Load Factor</div>
-      <div class="kpi-value" style="color:var(--amber);font-size:28px;">${LF.toFixed(1)}</div>
-      <div class="kpi-unit">% (target 70–90%)</div>
-      <div class="kpi-status ${lfClass}">${LF>90?'🔴 Overload':LF>70?'✓ Normal':LF>40?'⚠ Low':'✗ Very Low'}</div>
-    </div>
-    <div class="kpi-card purple">
-      <div class="kpi-label">IE Class</div>
-      <div class="kpi-value" style="color:${ieColor};font-size:28px;">${ieClass}</div>
-      <div class="kpi-unit">η = ${Eff.toFixed(2)}%</div>
-      <div class="kpi-status ${Eff>=IE_ref[3]?'s-good':Eff>=IE_ref[2]?'s-warn':'s-bad'}">${Eff>=IE_ref[3]?'✓ Premium':Eff>=IE_ref[2]?'⚠ Standard':'✗ Low'}</div>
-    </div>`;
-
-  // Loss bar
-  const losses = [
-    {name:'Cu Stator', val:Pcu_st, color:'#1a4fa0'},
-    {name:'Cu Rotor',  val:Pcu_rot, color:'#2e6fd4'},
-    {name:'Core+F&W',  val:Pk, color:'#b06a00'},
-    {name:'Stray',     val:Pstray, color:'#5c35a0'},
-    {name:'Output',    val:Pout, color:'#176b3c'},
-  ];
-  const lossBar = document.getElementById('lossBar');
-  const lossLeg = document.getElementById('lossLegend');
-  lossBar.innerHTML = '';
-  lossLeg.innerHTML = '';
-  losses.forEach(({name,val,color}) => {
-    const pctSeg = val/Pin_W*100;
-    lossBar.insertAdjacentHTML('beforeend', `<div class="loss-seg" style="width:${pctSeg}%;background:${color};" title="${name}: ${pctSeg.toFixed(1)}%">${pctSeg>5?pctSeg.toFixed(0)+'%':''}</div>`);
-    lossLeg.insertAdjacentHTML('beforeend', `<span style="color:${color};font-family:var(--mono);font-size:10px;">■ ${name} ${pctSeg.toFixed(1)}%</span>`);
-  });
-
-  // Loss detail table
-  const tbody = document.getElementById('lossBody');
-  const rows = [
-    ['P_cu,st — Stator Copper Loss', Pcu_st, 3*Iload*Iload*Rhot, 'I²R ที่ Stator (Hot Resistance)'],
-    ['P_cu,rot — Rotor Copper Loss', Pcu_rot, 0, `P_gap × slip = ${Pgap.toFixed(0)}×${slip.toFixed(4)}`],
-    ['P_k — Core + F&W (Constant)', Pk, 0, `P_nl − P_cu,nl = ${Pnl}−${Pcu_nl.toFixed(0)}`],
-    ['P_stray — Stray Load Loss', Pstray, 0, `IEC 60034-2-1 assigned: ${strayP.toFixed(2)}% × P_in`],
-    ['Σ Total Losses', TotalLoss, 0, ''],
-    ['P_output', Pout, 0, `Pin − ΣLoss`],
-  ];
-  tbody.innerHTML = rows.map(([n,v,,d]) => `
-    <tr>
-      <td class="${n.includes('Total')||n.includes('output')?'hi':''}">${n}</td>
-      <td class="${n.includes('Total')||n.includes('output')?'hi':''}">${v.toFixed(1)}</td>
-      <td>${(v/Pin_W*100).toFixed(2)}</td>
-      <td style="font-size:11px;">${d}</td>
-    </tr>`).join('');
-
-  // Formula steps
-  document.getElementById('formulaSteps').innerHTML = `
-    <div style="background:var(--bg2);border-radius:8px;padding:14px;font-family:var(--mono);font-size:12px;line-height:2;border:1px solid var(--border);">
-      <strong style="color:var(--blue);">Key Calculation Steps (IEC 60034-2-1 Method B):</strong><br>
-      R_hot = R_cold × (235+T_hot)/(235+T_cold) = ${Rcold}×(235+${T_hot})/(235+${T_cold}) = <strong>${Rhot.toFixed(5)} Ω</strong><br>
-      P_cu,nl = 3×I_nl²×R_cold = 3×${Inl}²×${Rcold} = <strong>${Pcu_nl.toFixed(1)} W</strong><br>
-      P_k = P_nl − P_cu,nl = ${Pnl} − ${Pcu_nl.toFixed(1)} = <strong>${Pk.toFixed(1)} W</strong><br>
-      N_sync = 120f/p = 120×${f}/${poles} = <strong>${Nsync} rpm</strong> → slip = <strong>${(slip*100).toFixed(2)}%</strong><br>
-      P_cu,st = 3×I_load²×R_hot = 3×${Iload}²×${Rhot.toFixed(5)} = <strong>${Pcu_st.toFixed(1)} W</strong><br>
-      P_cu,rot = P_gap×slip = ${Pgap.toFixed(1)}×${slip.toFixed(4)} = <strong>${Pcu_rot.toFixed(1)} W</strong><br>
-      P_stray = ${strayP.toFixed(2)}% × P_in = <strong>${Pstray.toFixed(1)} W</strong> (IEC 60034-2-1 assigned SLL: 2.5% @≤1 kW → 0.5% @≥10 MW)<br>
-      η = (P_in−ΣLoss)/P_in = (${Pin_W}−${TotalLoss.toFixed(1)})/${Pin_W} × 100 = <strong style="color:${gColor};">${Eff.toFixed(2)}%</strong>
-    </div>`;
-
-  document.getElementById('motorResult').style.display = 'block';
-  buildIETable(Prated, Eff);
-  linkTab1ToDownstream(Pin_kW, Nload, Prated);  // [แก้ไข 10 ก.ย. 2569] เติม vfd_p1/vfd_n1/*_prated จากผลแท็บนี้
-  document.getElementById('motorResult').scrollIntoView({behavior:'smooth',block:'start'});
-  if (window.MathJax) MathJax.typesetPromise();
-}
 
 // [แก้ไข 10 ก.ย. 2569] เก็บค่า kW/η ล่าสุดที่คำนวณได้ เพื่อใช้ highlight ตาราง IE ซ้ำเมื่อสลับแท็บ
 const LAST_IE = {kw:null, eff:null};
@@ -2093,82 +1765,7 @@ function buildAffinityTable() {
   });
 }
 
-function calcVFD() {
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const Prated=g('vfd_prated'), eta=g('vfd_eta')/100||0.94;
-  const N1=g('vfd_n1'), N2=g('vfd_n2'), P1=g('vfd_p1');
-  // [แก้ไข 10 ก.ย. 2569] ใช้ P_rated/η แสดง Load Factor เพลาเป็นข้อมูลประกอบเท่านั้น (ไม่กระทบสูตรผลประหยัด)
-  const shaftLF = Prated > 0 ? P1 * eta / Prated * 100 : 0;
-  const EF_GRID = g('ef_grid') || 0.4750;  // [แก้ไข 10 ก.ย. 2569] Grid EF จากช่องกรอก (TGO ปัจจุบัน 0.4750)
-  const hrs=g('vfd_hrs'), rate=g('vfd_rate'), cost=g('vfd_cost');
-  const demandRate=g('vfd_demand');
-  const loadType = document.getElementById('vfd_loadtype').value;
 
-  if (!N1||!N2||!P1) { alert('กรอก N1, N2 และ P1 ก่อน'); return; }
-
-  const speedRatio = N2/N1;
-  let P2;
-  if (loadType === 'centrifugal') P2 = P1 * Math.pow(speedRatio, 3);
-  else if (loadType === 'positive') P2 = P1 * speedRatio;
-  else P2 = P1; // constant torque
-
-  // VFD loss ~3.5%
-  const VFD_LOSS = 0.035;
-  const P2_actual = P2 * (1 + VFD_LOSS);  // add VFD loss
-
-  const saving_kW = P1 - P2_actual;
-  const saving_kWh = saving_kW * hrs;
-  const saving_thb = saving_kWh * rate;
-  const demand_save = saving_kW * demandRate * 12;  // annual
-  const total_save = saving_thb + demand_save;
-  const payback = cost > 0 && total_save > 0 ? cost / total_save : 0;
-  const co2 = saving_kWh * EF_GRID;  // kg CO2 — [แก้ไข 10 ก.ย. 2569] เดิม 0.4999 คงที่ → ใช้ ef_grid
-  // [แก้ไข 3 ต.ค. 2569 audit] ผลประหยัด ≤ 0 (constant torque / N₂ ≥ N₁) เดิมแสดง "0.0 ปี ✓ ดีมาก" → แสดงคำเตือน ไม่ให้ป้ายดี
-  const noSave = !(saving_kW > 0);
-
-  // KPIs
-  const pbClass = noSave ? 's-bad' : payback < 2 ? 's-good' : payback < 4 ? 's-warn' : 's-bad';
-  document.getElementById('vfdKpi').innerHTML = `
-    <div class="kpi-card green">
-      <div class="kpi-label">Power Saving</div>
-      <div class="kpi-value" style="color:var(--green);font-size:28px;">${saving_kW.toFixed(1)}</div>
-      <div class="kpi-unit">kW (${((1-P2_actual/P1)*100).toFixed(1)}% reduction)</div>
-    </div>
-    <div class="kpi-card blue">
-      <div class="kpi-label">Energy Saving</div>
-      <div class="kpi-value" style="color:var(--blue);font-size:28px;">${(saving_kWh/1000).toFixed(0)}</div>
-      <div class="kpi-unit">MWh/year</div>
-    </div>
-    <div class="kpi-card amber">
-      <div class="kpi-label">Cost Saving</div>
-      <div class="kpi-value" style="color:var(--amber);font-size:24px;">${(total_save/1000).toFixed(0)}k</div>
-      <div class="kpi-unit">บาท/year (Energy+Demand)</div>
-    </div>
-    <div class="kpi-card ${noSave?'red':payback<2?'green':payback<4?'amber':'red'}">
-      <div class="kpi-label">Simple Payback</div>
-      <div class="kpi-value" style="font-size:28px;">${noSave?'—':payback.toFixed(1)}</div>
-      <div class="kpi-unit">ปี</div>
-      <div class="kpi-status ${pbClass}">${noSave?'✗ ไม่ประหยัด':payback<2?'✓ ดีมาก':payback<4?'⚠ ยอมรับได้':'✗ นาน'}</div>
-    </div>
-    ${noSave?`<div style="grid-column:1/-1;background:var(--red-lt,#fde8e8);border:1px solid #f5a0a0;border-radius:8px;padding:10px 12px;color:var(--red,#c0292b);font-size:13px;">⚠️ <b>ไม่มีผลประหยัด</b> — P₂ หลังติด VFD (${P2_actual.toFixed(2)} kW รวม VFD loss 3.5 %) ≥ P₁ ${P1} kW ${loadType==='constant_torque'?'(โหลดแรงบิดคงที่ที่รอบเท่าเดิมไม่ลดกำลัง)':N2>=N1?'(N₂ ≥ N₁)':''} — ไม่ควรเสนอเป็นมาตรการ (ค่าติดลบไม่ใช่ผลประหยัด)</div>`:''}`;
-
-  document.getElementById('vfdDetail').innerHTML = `
-    <div style="font-family:var(--mono);font-size:12px;line-height:2;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);">
-      <strong>Speed Ratio:</strong> N₂/N₁ = ${N2}/${N1} = ${speedRatio.toFixed(4)} (${(speedRatio*100).toFixed(1)}%)<br>
-      <strong>P₂ (Affinity, N³):</strong> ${P1} × ${speedRatio.toFixed(4)}³ = <strong>${P2.toFixed(2)} kW</strong><br>
-      <strong>P₂ actual (+VFD loss 3.5%):</strong> <strong>${P2_actual.toFixed(2)} kW</strong><br>
-      <strong>Energy saving:</strong> ${saving_kW.toFixed(2)} kW × ${hrs} h = <strong>${saving_kWh.toFixed(0)} kWh/year</strong><br>
-      <strong>Energy cost saving:</strong> ${saving_kWh.toFixed(0)} × ฿${rate} = <strong>฿${saving_thb.toLocaleString('th-TH',{maximumFractionDigits:0})}/year</strong><br>
-      <strong>Demand saving:</strong> ${saving_kW.toFixed(2)} kW × ฿${demandRate}×12 = <strong>฿${demand_save.toLocaleString('th-TH',{maximumFractionDigits:0})}/year</strong><br>
-      <strong>CO₂ Reduction:</strong> ${(co2/1000).toFixed(2)} tCO₂/year (Grid EF ${EF_GRID} kgCO₂e/kWh)<br>
-      ${shaftLF>0?`<strong>Shaft Load Factor (ข้อมูลประกอบ):</strong> P₁×η/P_rated = ${P1}×${eta.toFixed(3)}/${Prated} = <strong>${shaftLF.toFixed(1)}%</strong><br>`:''}
-      <strong>Simple Payback:</strong> ฿${cost.toLocaleString()} ÷ ฿${total_save.toLocaleString('th-TH',{maximumFractionDigits:0})} = <strong>${noSave?'— (ไม่ประหยัด)':payback.toFixed(2)+' ปี'}</strong><br>
-      <span style="color:var(--text3,#8a97b0);font-size:11px;">สมมติฐาน: กฎ Affinity ${loadType==='centrifugal'?'P∝N³ ไม่มี static head — ระบบที่มี static head สูง (ปั๊มส่งขึ้นที่สูง/หม้อไอน้ำ) ผลประหยัดจริงต่ำกว่านี้ ควรตรวจกับ system curve':'ตามชนิดโหลดที่เลือก'}</span><!-- [แก้ไข 3 ต.ค. 2569 audit] แจ้งสมมติฐาน -->
-    </div>`;
-
-  drawVFDChart(N1, P1, speedRatio, loadType);
-  document.getElementById('vfdResult').style.display = 'block';
-}
 
 function drawVFDChart(N1, P1, ratio, loadType) {
   const canvas = document.getElementById('vfdChart');
@@ -2244,39 +1841,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.head.appendChild(style);
 });
 
-function runMotorDiag() {
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const Pin=g('d_pin'), Iload=g('d_iload'), Irated=g('d_irated');
-  const Vmeas=g('d_vmeas'), Vrated=g('d_vrated');
-  const Vunbal=g('d_vunbal'), PF=g('d_pf');
-  const Temp=g('d_temp'), Vib=g('d_vib'), Prated=g('d_prated');
 
-  const LF = Irated>0 ? Iload/Irated*100 : 0;
-  const Vdev = Vrated>0 ? Math.abs(Vmeas-Vrated)/Vrated*100 : 0;
-  const pfClass = PF>0.9?'s-good':PF>0.8?'s-warn':'s-bad';
-  const lfClass = LF>100?'s-bad':LF>70?'s-good':LF>40?'s-warn':'s-bad';
-
-  document.getElementById('diagKpi').innerHTML = `
-    <div class="kpi-card blue"><div class="kpi-label">Load Factor (I)</div><div class="kpi-value" style="color:var(--blue);font-size:28px;">${LF.toFixed(1)}</div><div class="kpi-unit">% of Rated Current</div><div class="kpi-status ${lfClass}">${LF>100?'🔴 Overload':LF>70?'✓ Normal':LF>40?'⚠ Low':'✗ Very Low'}</div></div>
-    <div class="kpi-card teal"><div class="kpi-label">Power Factor</div><div class="kpi-value" style="color:var(--teal);font-size:28px;">${PF.toFixed(3)}</div><div class="kpi-unit">—</div><div class="kpi-status ${pfClass}">${PF>0.9?'✓ Good':PF>0.8?'⚠ Fair':'✗ Poor — ติด Capacitor'}</div></div>
-    <div class="kpi-card ${Vib>7?'red':Vib>4.5?'amber':'green'}"><div class="kpi-label">Vibration</div><div class="kpi-value" style="font-size:28px;">${Vib.toFixed(1)}</div><div class="kpi-unit">mm/s RMS</div><div class="kpi-status ${Vib>7?'s-bad':Vib>4.5?'s-warn':'s-good'}">${Vib>7?'🚨 Critical':Vib>4.5?'⚠ High':'✓ Normal'}</div></div>`;
-
-  let alerts = '';
-  if (LF > 100) alerts += `<div class="alert alert-danger">⚡ <div><strong>Overload (${LF.toFixed(1)}%)</strong> — กระแสเกินพิกัด อาจทำให้ Winding ไหม้ ตรวจ Thermal Relay</div></div>`;
-  if (LF < 40 && LF > 0) alerts += `<div class="alert alert-warn">📉 <div><strong>Underload (${LF.toFixed(1)}%)</strong> — Motor Oversized → Efficiency ต่ำ, PF ต่ำ พิจารณาเปลี่ยน Motor ขนาดเล็กหรือติด VFD</div></div>`;
-  if (Vunbal > 2) alerts += `<div class="alert alert-danger">⚠️ <div><strong>Voltage Unbalance สูง (${Vunbal.toFixed(1)}%)</strong> — กระแสไม่สมดุล → ความร้อนเพิ่ม +${(Vunbal*Vunbal*2).toFixed(0)}% พิจารณา Derate</div></div>`;
-  else if (Vunbal > 1) alerts += `<div class="alert alert-warn">⚠️ <div><strong>Voltage Unbalance (${Vunbal.toFixed(1)}%)</strong> — ตรวจ Fuse, Connection, Load Balance บน 3 Phase</div></div>`;
-  if (Vdev > 5) alerts += `<div class="alert alert-warn">🔌 <div><strong>Supply Voltage ผิดปกติ (${Vmeas}V vs ${Vrated}V)</strong> — ตรวจ Transformer Tap, Cable Voltage Drop</div></div>`;
-  if (PF < 0.8 && PF > 0) alerts += `<div class="alert alert-warn">⚡ <div><strong>Power Factor ต่ำ (${PF.toFixed(3)})</strong> — ค่าปรับ PF Penalty จาก MEA/PEA ติด Capacitor Bank</div></div>`;
-  if (Temp > 130) alerts += `<div class="alert alert-danger">🌡️ <div><strong>Winding Temp สูงมาก (${Temp}°C)</strong> — เกิน Class B (130°C) หยุดเครื่องตรวจ Cooling</div></div>`;
-  else if (Temp > 105) alerts += `<div class="alert alert-warn">🌡️ <div><strong>Winding Temp สูง (${Temp}°C)</strong> — ตรวจ Fan, Filter, Ambient Temp</div></div>`;
-  if (Vib > 7) alerts += `<div class="alert alert-danger">📳 <div><strong>Vibration Critical (${Vib} mm/s)</strong> — หยุดเครื่องทันที ตรวจ Bearing, Alignment, Unbalance</div></div>`;
-  else if (Vib > 4.5) alerts += `<div class="alert alert-warn">📳 <div><strong>Vibration สูง (${Vib} mm/s)</strong> — ISO 10816-3: เกิน Limit วางแผน Maintenance</div></div>`;
-  if (!alerts) alerts = `<div class="alert alert-success">✅ <div><strong>ค่าวัดอยู่ในเกณฑ์ปกติ</strong> — ไม่พบความผิดปกติที่ชัดเจน</div></div>`;
-
-  document.getElementById('diagAlerts').innerHTML = alerts;
-  document.getElementById('diagResult').style.display = 'block';
-}
 
 // ═══════════════════════════════════════════════
 //  TAB 4: INSPECTION CHECKLIST
@@ -2363,155 +1928,17 @@ function clearAudit() {
   updateCheck();
 }
 
-function genReport() {
-  const v = id => document.getElementById(id)?.value || '—';
-  const all = document.querySelectorAll('[id^="chk_"]');
-  const done = document.querySelectorAll('[id^="chk_"]:checked');
-  const pct = all.length>0 ? Math.round(done.length/all.length*100) : 0;
-  const pcolor = pct>=80?'var(--green)':pct>=60?'var(--amber)':'var(--red)';
 
-  // Compute unbalance from 3-phase voltage
-  const v12=parseFloat(v('m_v12'))||0, v23=parseFloat(v('m_v23'))||0, v31=parseFloat(v('m_v31'))||0;
-  let vUnbalLine='';
-  if (v12&&v23&&v31) {
-    const vavg=(v12+v23+v31)/3;
-    const vmax=Math.max(Math.abs(v12-vavg),Math.abs(v23-vavg),Math.abs(v31-vavg));
-    const unbal = vmax/vavg*100;
-    vUnbalLine=`<tr><td style="color:var(--text3)">Voltage Unbalance</td><td class="${unbal>2?'bad':unbal>1?'warn':'good'}">${unbal.toFixed(2)}%</td></tr>`;
-  }
-
-  document.getElementById('reportContent').innerHTML = `
-    <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
-      <div style="background:var(--bg3);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-family:var(--display);font-size:22px;color:var(--blue);letter-spacing:2px;">MOTOR AUDIT REPORT</div>
-          <div style="font-size:11px;color:var(--text3);font-family:var(--mono);">${v('a_plant')} · ${v('a_date')}</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:10px;color:var(--text3);">ผู้ตรวจ</div>
-          <div style="font-family:var(--mono);font-weight:600;">${v('a_auditor')}</div>
-        </div>
-      </div>
-      <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-        <table class="data-table">
-          <tr><td style="color:var(--text3)">Tag</td><td class="hi">${v('a_tag')}</td></tr>
-          <tr><td style="color:var(--text3)">Brand / Model</td><td>${v('a_brand')} / ${v('a_model')}</td></tr>
-          <tr><td style="color:var(--text3)">Rating / IE</td><td>${v('a_kw')}</td></tr>
-          <tr><td style="color:var(--text3)">Application</td><td>${v('a_app')}</td></tr>
-          <tr><td style="color:var(--text3)">Power Input</td><td>${v('m_pin')} kW</td></tr>
-          <tr><td style="color:var(--text3)">Power Factor</td><td>${v('m_pf')}</td></tr>
-          <tr><td style="color:var(--text3)">Speed</td><td>${v('m_rpm')} RPM</td></tr>
-          <tr><td style="color:var(--text3)">Vibration</td><td>${v('m_vib')} mm/s</td></tr>
-          <tr><td style="color:var(--text3)">Winding Temp</td><td>${v('m_twin')} °C</td></tr>
-          <tr><td style="color:var(--text3)">Insulation R</td><td>${v('m_ir')} MΩ</td></tr>
-          ${vUnbalLine}
-        </table>
-        <div>
-          <div style="text-align:center;padding:20px;background:var(--bg);border-radius:8px;margin-bottom:12px;">
-            <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:4px;letter-spacing:1px;">CHECKLIST SCORE</div>
-            <div style="font-family:var(--display);font-size:52px;color:${pcolor};line-height:1;">${pct}%</div>
-            <div style="font-size:11px;color:var(--text3);font-family:var(--mono);">${done.length}/${all.length} passed</div>
-          </div>
-          <div class="alert ${pct>=80?'alert-success':pct>=60?'alert-warn':'alert-danger'}">
-            <span>${pct>=80?'✅':pct>=60?'⚠️':'🚨'}</span>
-            <div style="font-size:12px;">${pct>=80?'สภาพดี พร้อมใช้งาน':pct>=60?'ต้องการแก้ไขบางส่วน':'ต้องการบำรุงรักษาเร่งด่วน'}</div>
-          </div>
-          <div style="font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:8px;color:var(--text2);">
-            <strong style="font-family:var(--mono);font-size:10px;color:var(--text3);">NOTES:</strong><br>${v('a_notes')}
-          </div>
-        </div>
-      </div>
-    </div>`;
-  document.getElementById('auditReport').style.display = 'block';
-  document.getElementById('auditReport').scrollIntoView({behavior:'smooth'});
-}
 
 // ═══════════════════════════════════════════════
 //  REWINDING vs REPLACEMENT (ผชพ Manual 2.5, 2.11)
 // ═══════════════════════════════════════════════
-function calcRewinding() {
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const kW=g('rw_kw'), hrs=g('rw_hrs'), lf=g('rw_lf')/100;
-  const eff_old=g('rw_eff_old')/100, eff_new=g('rw_eff_new')/100;
-  const rate=g('rw_rate');
-  const cost_rewind=g('rw_cost_rewind'), cost_new=g('rw_cost_new');
 
-  if (!kW||!eff_old||!eff_new) { alert('กรอกข้อมูลให้ครบ'); return; }
-
-  // Energy consumed per year (from ผชพ formula)
-  // E = (kW_rated / eff) × LF × hrs  [kWh/year]
-  const E_rewind = (kW / eff_old) * lf * hrs;
-  const E_new    = (kW / eff_new) * lf * hrs;
-  const E_save   = E_rewind - E_new;
-  const cost_save = E_save * rate;
-
-  // Additional cost = New Motor - Rewinding
-  const add_cost = cost_new - cost_rewind;
-  const payback  = cost_save > 0 ? add_cost / cost_save : Infinity;
-
-  const pbColor = payback < 2 ? 'var(--green)' : payback < 4 ? 'var(--amber)' : 'var(--red)';
-  const verdict = payback < 3 ? '✅ แนะนำ: เปลี่ยน Motor ใหม่ IE3 — คุ้มค่ากว่า' : '⚠️ พิจารณาตามอายุ Motor และจำนวนครั้งที่พันแล้ว';
-
-  document.getElementById('rwResult').innerHTML = `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:var(--mono);font-size:12px;line-height:2.2;">
-      <strong style="color:var(--text);">📊 ผลการวิเคราะห์ (จากสูตร ผชพ ส่วน 2.5 & 2.11)</strong><br>
-      <span style="color:var(--text3);">E_rewind</span> = ${kW}/${eff_old.toFixed(2)} × ${lf} × ${hrs} = <strong>${E_rewind.toFixed(0)} kWh/year</strong><br>
-      <span style="color:var(--text3);">E_new (IE3)</span> = ${kW}/${eff_new.toFixed(2)} × ${lf} × ${hrs} = <strong>${E_new.toFixed(0)} kWh/year</strong><br>
-      <span style="color:var(--green);">Energy Saving</span> = ${E_save.toFixed(0)} kWh/year × ฿${rate} = <strong style="color:var(--green);">฿${cost_save.toFixed(0)}/year</strong><br>
-      <span style="color:var(--text3);">Additional Investment</span> = ฿${cost_new.toLocaleString()} − ฿${cost_rewind.toLocaleString()} = <strong>฿${add_cost.toLocaleString()}</strong><br>
-      <span style="color:var(--text3);">Simple Payback</span> = ฿${add_cost.toLocaleString()} ÷ ฿${cost_save.toFixed(0)} = <strong style="color:${pbColor};">${payback.toFixed(2)} ปี</strong><br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
-      <span style="color:${pbColor};font-size:13px;">${verdict}</span>
-    </div>`;
-  document.getElementById('rwResult').style.display = 'block';
-}
 
 // ═══════════════════════════════════════════════
 //  MOTOR SIZING — Core & Copper Loss (ผชพ 2.6)
 // ═══════════════════════════════════════════════
-function calcMotorSizing() {
-  const g = id => parseFloat(document.getElementById(id).value) || 0;
-  const kW=g('ms_kw'), eff=g('ms_eff')/100, pf_fl=g('ms_pf_fl');
-  const P_meas=g('ms_pin'), pf_op=g('ms_pf_op');
-  const core_pct=g('ms_core_pct')/100, cu_pct=1-core_pct;
 
-  if (!kW||!eff||!P_meas) { alert('กรอกข้อมูลให้ครบ'); return; }
-
-  // kVA operating vs kVA rated
-  const kVA_rated = kW / (eff * pf_fl);   // approximate kVA at full load
-  const kVA_op    = P_meas / pf_op;
-
-  // Loss components (ผชพ 2.6 formula)
-  // Core loss: P_rated × ((1/eff)−1) × core_pct  [constant]
-  // Copper loss: P_rated × ((1/eff)−1) × cu_pct × (kVA_op/kVA_rated)²  [variable]
-  const total_loss_fl = kW * (1/eff - 1);
-  const core_loss  = kW * (1/eff - 1) * core_pct;
-  const ratio_sq   = Math.pow(kVA_op / kVA_rated, 2);
-  const cu_loss    = kW * (1/eff - 1) * cu_pct * ratio_sq;
-  const total_loss = core_loss + cu_loss;
-
-  const LF = P_meas / kW * 100;
-  const lfColor = LF > 80 ? 'var(--green)' : LF > 50 ? 'var(--amber)' : 'var(--red)';
-
-  // Suggested motor size
-  const P_out_est = P_meas * eff;  // rough shaft output
-  const suggest = P_out_est / 0.85;  // target 85% load factor
-
-  document.getElementById('msResult').innerHTML = `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:var(--mono);font-size:12px;line-height:2.2;">
-      <strong style="color:var(--text);">📊 Motor Sizing Analysis (ผชพ 2.6)</strong><br>
-      <span style="color:var(--text3);">kVA_rated</span> ≈ ${kVA_rated.toFixed(2)} kVA · <span style="color:var(--text3);">kVA_op</span> = ${kVA_op.toFixed(2)} kVA<br>
-      <span style="color:var(--text3);">Load Factor</span> = ${LF.toFixed(1)}% <span style="color:${lfColor};">${LF>80?'✅ เหมาะสม':LF>50?'⚠️ ต่ำกว่า Optimum':'❌ Oversized มาก'}</span><br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <strong style="color:var(--blue);">Loss Breakdown ขณะทำงาน:</strong><br>
-      Core Loss (คงที่) = ${kW}×(1/${eff.toFixed(3)}−1)×${(core_pct*100).toFixed(0)}% = <strong>${core_loss.toFixed(3)} kW</strong><br>
-      Cu Loss (variable) = ${kW}×(1/${eff.toFixed(3)}−1)×${(cu_pct*100).toFixed(0)}%×(${kVA_op.toFixed(2)}/${kVA_rated.toFixed(2)})² = <strong>${cu_loss.toFixed(3)} kW</strong><br>
-      Total Loss ขณะทำงาน = <strong>${total_loss.toFixed(3)} kW</strong> (Full-load loss = ${total_loss_fl.toFixed(3)} kW)<br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <span style="color:var(--purple);">💡 แนะนำ Motor ขนาดประมาณ <strong>${suggest.toFixed(1)} kW</strong> เพื่อ Load Factor ≈ 85%</span>
-    </div>`;
-  document.getElementById('msResult').style.display = 'block';
-}
 
 // ═══════════════════════════════════════════════
 //  ╔═══════ DC MOTOR MODULE (Separately Excited) ═══════╗
@@ -2588,9 +2015,7 @@ function switchDCMode(mode) {
 }
 
 // Temperature correction for copper resistance
-function correctRcu(R25, T_hot) {
-  return R25 * (234.5 + T_hot) / (234.5 + 25);
-}
+
 
 // ─── DC LAB METHOD (IEEE 113 No-Load Test) ───
 function loadDCLabSample() {
@@ -2610,158 +2035,10 @@ function clearDCLab() {
   document.getElementById('dcLabResult').style.display='none';
 }
 
-function calcDCLab() {
-  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
-  const Prated=g('dclab_prated'), Vf=g('dclab_vf');
-  const Ra_cold=g('dclab_ra_cold'), Tcold=g('dclab_tcold'), Thot=g('dclab_thot');
-  const Va0=g('dclab_va0'), Ia0=g('dclab_ia0'), If0=g('dclab_if0');
-  const Va=g('dclab_va_l'), Ia=g('dclab_ia_l'), If=g('dclab_if_l'), N=g('dclab_n_l');
 
-  if (!Prated||!Va0||!Ia0||!Va||!Ia) { alert('กรุณากรอกข้อมูล Nameplate + No-Load + Load ให้ครบ'); return; }
-
-  // Step 1: Hot R_a
-  const Ra_hot = Ra_cold * (234.5+Thot)/(234.5+Tcold);
-
-  // Step 2: No-Load → P_rotational (Friction + Windage + Core)
-  const Pin0 = Va0*Ia0/1000 + Vf*If0/1000;       // kW
-  const PcuA0 = Ia0*Ia0*Ra_hot/1000;
-  const Pbrush0 = 2*Ia0/1000;
-  const Prot = Pin0 - PcuA0 - Pbrush0 - Vf*If0/1000;  // exclude field cu (constant), keep Pin armature side
-  // Actually: Prot = Va0*Ia0 - I0²·Ra - Vbr·I0 (armature-side only)
-  const Prot_arm = Va0*Ia0/1000 - PcuA0 - Pbrush0;
-
-  // Step 3: Load Point
-  const Pin = Va*Ia/1000 + Vf*If/1000;
-  const PcuA = Ia*Ia*Ra_hot/1000;
-  const PcuF = Vf*If/1000;
-  const Pbrush = 2*Ia/1000;
-  const Pstray = Prated*0.01;
-  const Ploss = PcuA + PcuF + Pbrush + Prot_arm + Pstray;
-  const Pout = Pin - Ploss;
-  const eta = Pout/Pin*100;
-  const LF = Pout/Prated*100;
-  const T = N>0 ? Pout*1000/(2*Math.PI*N/60) : 0;
-
-  // Determine accuracy class
-  const etaColor = eta>=95?'var(--green)':eta>=92?'var(--amber)':'var(--red)';
-  const etaStatus = eta>=95?'s-good':eta>=92?'s-warn':'s-bad';
-  const lfClass = LF>100?'s-bad':LF>70?'s-good':LF>40?'s-warn':'s-bad';
-
-  document.getElementById('dcLabKpi').innerHTML = `
-    <div class="kpi-card purple">
-      <div class="kpi-label">η (IEEE 113 Direct)</div>
-      <div class="kpi-value" style="font-size:30px;color:${etaColor};">${eta.toFixed(2)}</div>
-      <div class="kpi-unit">% · accuracy ±1%</div>
-      <div class="kpi-status ${etaStatus}">${eta>=95?'✓ Excellent':eta>=92?'⚠ Acceptable':'✗ Below Spec'}</div>
-    </div>
-    <div class="kpi-card blue">
-      <div class="kpi-label">P_in / P_out</div>
-      <div class="kpi-value" style="font-size:24px;color:var(--blue);">${Pin.toFixed(0)}/${Pout.toFixed(0)}</div>
-      <div class="kpi-unit">kW · ΣLoss = ${Ploss.toFixed(1)} kW</div>
-      <div class="kpi-status s-na">P_rot = ${Prot_arm.toFixed(1)} kW (from N-L)</div>
-    </div>
-    <div class="kpi-card ${LF>100?'red':LF>70?'green':'amber'}">
-      <div class="kpi-label">Load Factor</div>
-      <div class="kpi-value" style="font-size:30px;color:${LF>100?'var(--red)':LF>70?'var(--green)':'var(--amber)'};">${LF.toFixed(1)}</div>
-      <div class="kpi-unit">% · T = ${(T/1000).toFixed(1)} kN·m</div>
-      <div class="kpi-status ${lfClass}">${LF>100?'🔴 Overload':LF>70?'✅ Normal':'⚠ Low Load'}</div>
-    </div>`;
-
-  document.getElementById('dcLabDetail').innerHTML = `
-    <div style="font-family:var(--mono);font-size:12px;line-height:2.0;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;">
-      <strong style="color:var(--purple);">═ STEP 1: Hot R_a Correction (IEEE 113 §5.7) ═</strong><br>
-      R_a,hot = ${Ra_cold} × (234.5+${Thot})/(234.5+${Tcold}) = <strong>${Ra_hot.toFixed(5)} Ω</strong> (${(Ra_hot/Ra_cold*100-100).toFixed(1)}% เพิ่มจาก cold)<br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <strong style="color:var(--purple);">═ STEP 2: No-Load Test → P_rotational ═</strong><br>
-      P_in,0 (arm only) = ${Va0}×${Ia0}/1000 = ${(Va0*Ia0/1000).toFixed(2)} kW<br>
-      − P_Cu,a,0 = ${Ia0}²×${Ra_hot.toFixed(5)} = ${PcuA0.toFixed(3)} kW<br>
-      − P_brush,0 = 2×${Ia0}/1000 = ${Pbrush0.toFixed(3)} kW<br>
-      = <strong style="color:var(--green);">P_rotational = ${Prot_arm.toFixed(2)} kW</strong> (Friction + Windage + Core)<br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <strong style="color:var(--purple);">═ STEP 3: Load Point Loss Summation ═</strong><br>
-      P_Cu,arm = ${Ia}²×${Ra_hot.toFixed(5)} = <strong>${PcuA.toFixed(2)} kW</strong><br>
-      P_Cu,field = ${Vf}×${If}/1000 = <strong>${PcuF.toFixed(2)} kW</strong><br>
-      P_brush = 2×${Ia}/1000 = <strong>${Pbrush.toFixed(2)} kW</strong><br>
-      P_rotational (from N-L) = <strong>${Prot_arm.toFixed(2)} kW</strong><br>
-      P_stray = 1%×${Prated} = <strong>${Pstray.toFixed(1)} kW</strong><br>
-      Σ P_loss = <strong>${Ploss.toFixed(2)} kW</strong><br>
-      P_in = ${Va}×${Ia}/1000 + ${Vf}×${If}/1000 = <strong>${Pin.toFixed(2)} kW</strong><br>
-      P_out = P_in − ΣLoss = <strong>${Pout.toFixed(2)} kW</strong><br>
-      <strong style="color:${etaColor};">η = (1 − ${Ploss.toFixed(1)}/${Pin.toFixed(1)}) × 100% = ${eta.toFixed(2)}%</strong>
-    </div>
-    <div class="alert alert-success" style="font-size:11px;">
-      <span>✅</span>
-      <div><strong>IEEE 113 Direct Method (Reference Standard):</strong> ความแม่นยำ ±1% เพราะวัด P_rotational โดยตรงจาก No-Load Test แทนการประมาณ · เหมาะสำหรับ Motor Acceptance Test, M&V, Commissioning</div>
-    </div>`;
-
-  document.getElementById('dcLabResult').style.display = 'block';
-  if (window.MathJax) MathJax.typesetPromise();
-}
 
 // ─── DC FIELD WEAKENING CALCULATOR ───
-function calcFieldWeakening() {
-  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
-  const Va=g('dcfw_va'), Ia=g('dcfw_ia'), Nbase=g('dcfw_nbase');
-  const Iframe=g('dcfw_iframe'), Ifred=g('dcfw_ifred'), phiRatio=g('dcfw_phiratio');
-  const Pmax=g('dcfw_pmax');
 
-  if (!Va||!Ia||!Nbase||!phiRatio) { alert('กรอกค่าให้ครบ'); return; }
-
-  // Speed ratio = 1/phiRatio
-  const speedRatio = 1/phiRatio;
-  const Nfw = Nbase * speedRatio;
-  // Torque drops with phi
-  const T_base = (Pmax*1000) / (2*Math.PI*Nbase/60);   // N·m at base
-  const T_fw = T_base * phiRatio;                        // N·m at FW
-  // Power constant in FW region
-  const P_fw = T_fw * (2*Math.PI*Nfw/60) / 1000;
-
-  // Field weakening %
-  const fieldWeakPct = (1 - phiRatio)*100;
-  const ifReductionPct = Iframe>0 ? (1 - Ifred/Iframe)*100 : 0;
-
-  const speedColor = speedRatio>2?'var(--red)':speedRatio>1.5?'var(--amber)':'var(--green)';
-  const speedStatus = speedRatio>2?'⚠ Extreme (commutation risk)':speedRatio>1.5?'⚠ Aggressive':'✓ Normal FW';
-
-  document.getElementById('dcFWKpi').innerHTML = `
-    <div class="kpi-card purple">
-      <div class="kpi-label">Speed @ Field Weakened</div>
-      <div class="kpi-value" style="font-size:28px;color:var(--purple);">${Nfw.toFixed(0)}</div>
-      <div class="kpi-unit">RPM (${speedRatio.toFixed(2)}× base)</div>
-      <div class="kpi-status ${speedRatio>2?'s-bad':speedRatio>1.5?'s-warn':'s-good'}">${speedStatus}</div>
-    </div>
-    <div class="kpi-card amber">
-      <div class="kpi-label">Torque @ FW</div>
-      <div class="kpi-value" style="font-size:28px;color:var(--amber);">${(T_fw/1000).toFixed(1)}</div>
-      <div class="kpi-unit">kN·m (lost ${(100-phiRatio*100).toFixed(0)}%)</div>
-      <div class="kpi-status s-warn">T_base = ${(T_base/1000).toFixed(1)} kN·m</div>
-    </div>
-    <div class="kpi-card green">
-      <div class="kpi-label">Power @ FW</div>
-      <div class="kpi-value" style="font-size:28px;color:var(--green);">${P_fw.toFixed(0)}</div>
-      <div class="kpi-unit">kW (≈ constant)</div>
-      <div class="kpi-status s-good">P_max @ base = ${Pmax} kW</div>
-    </div>`;
-
-  document.getElementById('dcFWDetail').innerHTML = `
-    <div style="font-family:var(--mono);font-size:12px;line-height:2.0;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;">
-      <strong style="color:var(--amber);">Field Weakening Analysis:</strong><br>
-      I_f reduction = (1 − ${Ifred}/${Iframe}) × 100 = <strong>${ifReductionPct.toFixed(1)}%</strong><br>
-      Φ reduction = <strong>${fieldWeakPct.toFixed(1)}%</strong> (Φ_red/Φ_full = ${phiRatio})<br>
-      <strong>Note:</strong> Φ ไม่ลดเป็น linear กับ I_f เนื่องจาก iron saturation — ใช้ saturation curve จาก Manufacturer<br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <strong>Speed:</strong> N_fw = N_base / (Φ_red/Φ_full) = ${Nbase} / ${phiRatio} = <strong>${Nfw.toFixed(0)} RPM</strong><br>
-      <strong>Torque:</strong> T_fw = K·Φ_red·I_a = T_base × ${phiRatio} = <strong>${T_fw.toFixed(0)} N·m</strong><br>
-      <strong>Power:</strong> P = T·ω → ${(P_fw/1000).toFixed(2)} MW (เกือบเท่า P_max = ${Pmax/1000} MW) ✓<br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <strong style="color:var(--amber);">⚠ ข้อควรระวังขณะ Field Weakening:</strong><br>
-      • <strong>Commutation</strong>: V·I product ที่ Brush สูง → ต้องตรวจ interpole compensation<br>
-      • <strong>Mechanical Stress</strong>: Centrifugal force ∝ N² → ตรวจ rotor balance, bearing<br>
-      • <strong>Brush wear ↑</strong>: ความเร็วผิวสูง → patina บางลง · ตรวจถี่ขึ้น<br>
-      ${speedRatio>2 ? '<span style="color:var(--red);">🔴 Speed ratio &gt; 2× — เกินขีดจำกัดทั่วไป (ทั่วไปสูงสุด 1.5-2×) ต้องสอบถาม manufacturer</span>' : ''}
-    </div>`;
-  document.getElementById('dcFWResult').style.display = 'block';
-}
 
 // ─── DC SUB 1: Efficiency ───
 function loadDCSample() {
@@ -2780,306 +2057,16 @@ function clearDC() {
   document.getElementById('dcEffResult').style.display='none';
 }
 
-function calcDCEfficiency() {
-  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
-  const Prated=g('dc_prated'), Varated=g('dc_varated'), Iarated=g('dc_iarated'), Nrated=g('dc_nrated');
-  const Vf=g('dc_vf'), Ifrated=g('dc_ifrated'), etaFL=g('dc_etafl'), Ra25=g('dc_ra');
-  const Va=g('dc_va_meas'), Ia=g('dc_ia_meas'), If=g('dc_if_meas'), Nact=g('dc_nactual'), Temp=g('dc_temp');
-  const Pmech_meas = g('dc_pmech');
 
-  if (!Prated||!Varated||!Iarated) { alert('กรุณากรอก Nameplate ให้ครบ'); return; }
-  if (!Va||!Ia) { alert('กรุณากรอกค่าวัดจริง V_a และ I_a'); return; }
-
-  // Temperature-corrected R_a
-  const Ra_hot = correctRcu(Ra25, Temp || 75);
-
-  // Input power
-  const P_arm = Va * Ia / 1000;              // kW
-  const P_field = Vf * If / 1000;            // kW
-  const P_in = P_arm + P_field;              // kW total
-
-  // Back-EMF & converted power
-  const Eb = Va - Ia * Ra_hot;
-  const P_conv = Eb * Ia / 1000;             // kW
-
-  // Cu losses
-  const PcuA = Ia*Ia*Ra_hot / 1000;          // kW armature copper
-  const Rf = If > 0 ? Vf/If : 0;
-  const PcuF = If*If*Rf / 1000;              // kW field copper (= P_field)
-
-  // Brush loss (estimate at 2V drop)
-  const PbrushW = 2 * Ia / 1000;             // kW
-
-  // Estimate rotational+stray loss = P_conv − P_out (if Pmech given), else default
-  let P_rot_stray;
-  let etaOp;
-  let P_out;
-  if (Pmech_meas > 0) {
-    P_out = Pmech_meas;
-    P_rot_stray = P_conv - P_out - PbrushW;
-    etaOp = P_out / P_in * 100;
-  } else {
-    // Estimate from nameplate η
-    const losses_at_FL = Prated * (1/(etaFL/100) - 1);
-    // Assume rot+stray ≈ 25% of losses at rated
-    P_rot_stray = losses_at_FL * 0.25;
-    P_out = P_conv - PbrushW - P_rot_stray;
-    etaOp = P_out / P_in * 100;
-  }
-
-  const LF = P_out / Prated * 100;
-  const speedRatio = Nrated>0 ? Nact/Nrated*100 : 0;
-  const torque = (Nact > 0) ? (P_out * 1000) / (2*Math.PI*Nact/60) : 0;   // N·m
-
-  // Color logic
-  const etaColor = etaOp>=95?'var(--green)':etaOp>=92?'var(--amber)':'var(--red)';
-  const etaStatus = etaOp>=95?'s-good':etaOp>=92?'s-warn':'s-bad';
-  const lfClass = LF>100?'s-bad':LF>70?'s-good':LF>40?'s-warn':'s-bad';
-
-  document.getElementById('dcEffKpi').innerHTML = `
-    <div class="kpi-card purple">
-      <div class="kpi-label">η Operating</div>
-      <div class="kpi-value" style="font-size:30px;color:${etaColor};">${etaOp.toFixed(2)}</div>
-      <div class="kpi-unit">% (η_nameplate=${etaFL}%)</div>
-      <div class="kpi-status ${etaStatus}">${etaOp>=95?'✓ Excellent':etaOp>=92?'⚠ Acceptable':'✗ Below Spec'}</div>
-    </div>
-    <div class="kpi-card blue">
-      <div class="kpi-label">P_input / P_output</div>
-      <div class="kpi-value" style="font-size:24px;color:var(--blue);">${P_in.toFixed(0)}/${P_out.toFixed(0)}</div>
-      <div class="kpi-unit">kW (Arm:${P_arm.toFixed(0)} + Fld:${P_field.toFixed(1)})</div>
-      <div class="kpi-status s-na">Loss = ${(P_in-P_out).toFixed(1)} kW</div>
-    </div>
-    <div class="kpi-card ${LF>100?'red':LF>70?'green':'amber'}">
-      <div class="kpi-label">Load Factor</div>
-      <div class="kpi-value" style="font-size:30px;color:${LF>100?'var(--red)':LF>70?'var(--green)':'var(--amber)'};">${LF.toFixed(1)}</div>
-      <div class="kpi-unit">% of Rated (Speed=${speedRatio.toFixed(0)}%)</div>
-      <div class="kpi-status ${lfClass}">${LF>100?'🔴 Overload':LF>70?'✅ Normal':'⚠ Low Load'}</div>
-    </div>`;
-
-  document.getElementById('dcEffDetail').innerHTML = `
-    <div style="font-family:var(--mono);font-size:12px;line-height:2.0;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;">
-      <strong style="color:var(--purple);">การคำนวณ — DC Separately Excited:</strong><br>
-      R_a (hot @ ${Temp}°C) = ${Ra25} × (234.5+${Temp})/(234.5+25) = <strong>${Ra_hot.toFixed(5)} Ω</strong><br>
-      <strong>P_in</strong> = V_a·I_a + V_f·I_f = ${Va}×${Ia}/1000 + ${Vf}×${If}/1000 = <strong>${P_arm.toFixed(1)} + ${P_field.toFixed(2)} = ${P_in.toFixed(2)} kW</strong><br>
-      <strong>E_b</strong> = V_a − I_a·R_a = ${Va} − ${Ia}×${Ra_hot.toFixed(5)} = <strong>${Eb.toFixed(1)} V</strong><br>
-      <strong>P_conv</strong> = E_b·I_a = ${Eb.toFixed(1)}×${Ia}/1000 = <strong>${P_conv.toFixed(2)} kW</strong> (Armature → Mech)<br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <strong>Loss Components:</strong><br>
-      &nbsp;&nbsp;P_Cu,arm = I_a²·R_a = ${Ia}²×${Ra_hot.toFixed(5)} = <strong>${PcuA.toFixed(2)} kW</strong> (${(PcuA/P_in*100).toFixed(1)}%)<br>
-      &nbsp;&nbsp;P_Cu,field = V_f·I_f = <strong>${P_field.toFixed(2)} kW</strong> (${(P_field/P_in*100).toFixed(1)}%)<br>
-      &nbsp;&nbsp;P_brush ≈ 2V × I_a = <strong>${PbrushW.toFixed(2)} kW</strong> (${(PbrushW/P_in*100).toFixed(1)}%)<br>
-      &nbsp;&nbsp;P_rot+stray = <strong>${P_rot_stray.toFixed(2)} kW</strong> (${(P_rot_stray/P_in*100).toFixed(1)}%)<br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <strong>P_out</strong> = P_conv − P_brush − P_rot+stray = <strong>${P_out.toFixed(2)} kW</strong><br>
-      <strong style="color:${etaColor};">η = P_out/P_in × 100% = ${etaOp.toFixed(2)}%</strong><br>
-      ${Nact>0?`Torque @ shaft = P_out × 60 / (2π × N) = <strong>${torque.toFixed(0)} N·m</strong> (≈ ${(torque*0.7376).toFixed(0)} lbf·ft)<br>`:''}
-    </div>
-    ${Pmech_meas>0 ? `<div class="alert alert-success" style="font-size:11px;"><span>✅</span><div><strong>P_out วัดจริงจาก Torque Sensor</strong> — ความแม่นยำสูง ±1–2% (IEEE 113 Direct Method)</div></div>` : `<div class="alert alert-warn" style="font-size:11px;"><span>⚠️</span><div><strong>P_out คำนวณโดยใช้ P_rot+stray จากค่าประมาณ</strong> — ความแม่นยำ ±3–5% · เพื่อความแม่นยำสูง ทำ No-Load Test เพื่อวัด P_rot จริง</div></div>`}
-    ${etaOp < 92 ? `<div class="alert alert-danger" style="font-size:11px;margin-top:8px;"><span>🔴</span><div><strong>ประสิทธิภาพต่ำกว่าค่าปกติ (${etaOp.toFixed(1)}%):</strong> ตรวจ Brush Pressure, Commutator Surface, Field Current, Bearing — DC Motor 5MW class ควรได้ ≥ 95%</div></div>` : ''}`;
-
-  document.getElementById('dcEffResult').style.display = 'block';
-  if (window.MathJax) MathJax.typesetPromise();
-}
 
 // ─── DC SUB 2: Torque ───
-function calcDCTorque() {
-  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
-  const Va=g('dct_va'), Ia=g('dct_ia'), Ra=g('dct_ra'), N=g('dct_n'), If=g('dct_if'), Ifr=g('dct_ifr');
-  if (!Va||!Ia||!N) { alert('กรอก V_a, I_a, N ให้ครบ'); return; }
 
-  const Eb = Va - Ia*Ra;
-  const omega = 2*Math.PI*N/60;       // rad/s
-  const KPhi = omega > 0 ? Eb / omega : 0;
-  const T = KPhi * Ia;                 // N·m
-  const Pconv = Eb * Ia / 1000;        // kW
-  const Pshaft = T * omega / 1000;     // ≈ Pconv (without losses)
-
-  // Field weakening indicator
-  const fieldRatio = Ifr > 0 ? If/Ifr*100 : 100;
-  const isWeakened = fieldRatio < 95;
-
-  document.getElementById('dcTorqueKpi').innerHTML = `
-    <div class="kpi-card purple">
-      <div class="kpi-label">Shaft Torque (T)</div>
-      <div class="kpi-value" style="font-size:28px;color:var(--purple);">${T.toFixed(0)}</div>
-      <div class="kpi-unit">N·m (≈ ${(T*0.7376).toFixed(0)} lbf·ft)</div>
-    </div>
-    <div class="kpi-card blue">
-      <div class="kpi-label">Back-EMF (E_b)</div>
-      <div class="kpi-value" style="font-size:28px;color:var(--blue);">${Eb.toFixed(1)}</div>
-      <div class="kpi-unit">V (= ${(Eb/Va*100).toFixed(1)}% of V_a)</div>
-    </div>
-    <div class="kpi-card green">
-      <div class="kpi-label">K·Φ Constant</div>
-      <div class="kpi-value" style="font-size:28px;color:var(--green);">${KPhi.toFixed(3)}</div>
-      <div class="kpi-unit">V·s/rad (= Wb pole pairs)</div>
-    </div>`;
-
-  document.getElementById('dcTorqueDetail').innerHTML = `
-    <div style="font-family:var(--mono);font-size:12px;line-height:2.0;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);">
-      <strong style="color:var(--purple);">การคำนวณ Torque:</strong><br>
-      E_b = V_a − I_a·R_a = ${Va} − ${Ia}×${Ra} = <strong>${Eb.toFixed(2)} V</strong><br>
-      ω = 2π·N/60 = 2π×${N}/60 = <strong>${omega.toFixed(2)} rad/s</strong><br>
-      K·Φ = E_b/ω = ${Eb.toFixed(1)}/${omega.toFixed(2)} = <strong>${KPhi.toFixed(4)} V·s/rad</strong><br>
-      <strong style="color:var(--purple);">T = K·Φ·I_a</strong> = ${KPhi.toFixed(3)}×${Ia} = <strong>${T.toFixed(1)} N·m</strong><br>
-      P_conv = E_b·I_a = ${Pconv.toFixed(2)} kW = T·ω = ${Pshaft.toFixed(2)} kW ✓<br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <strong>Field Status:</strong> I_f/I_f,rated = ${fieldRatio.toFixed(1)}%
-      ${isWeakened ? `<span style="color:var(--amber);">⚠️ <strong>Field Weakened</strong> — operating ใน constant power region · N สูงกว่า base speed</span>` : `<span style="color:var(--green);">✓ Full Field — constant torque region</span>`}
-    </div>
-    <div class="alert alert-info" style="font-size:11px;margin-top:10px;">
-      <span>💡</span>
-      <div><strong>การประยุกต์ใช้ T = K·Φ·I_a:</strong><br>
-      • <strong>Below base speed</strong>: ควบคุม V_a → ลด N (T คงที่, P ลด)<br>
-      • <strong>Above base speed</strong>: ลด I_f → ลด Φ → เพิ่ม N (P คงที่, T ลด)<br>
-      • Rolling Mill ใช้ field weakening ในช่วง finishing pass ที่ต้อง speed สูงและ tension ต่ำ</div>
-    </div>`;
-  document.getElementById('dcTorqueResult').style.display = 'block';
-}
 
 // ─── DC SUB 3: Loss Breakdown ───
-function calcDCLoss() {
-  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
-  const Ia=g('dcl_ia'), Ra=g('dcl_ra'), If=g('dcl_if'), Rf=g('dcl_rf');
-  const Vbr=g('dcl_vbrush'), Prot=g('dcl_prot'), Prated=g('dcl_prated'), strayPct=g('dcl_stray');
-  if (!Ia||!Ra) { alert('กรอก I_a และ R_a ให้ครบ'); return; }
 
-  const PcuA = Ia*Ia*Ra / 1000;        // kW
-  const PcuF = If*If*Rf / 1000;        // kW
-  const Pbrush = Vbr*Ia / 1000;        // kW
-  const Pstray = Prated*strayPct/100;  // kW
-  const Pcore_frict = Prot;            // user input combined
-  const Ptotal = PcuA + PcuF + Pbrush + Pstray + Pcore_frict;
-
-  const items = [
-    {name:'Armature Cu (I_a²R_a)', val:PcuA, color:'var(--red)', desc:'Variable: ∝ I_a² · ลดได้ด้วยการลดโหลด หรือเพิ่มขนาด conductor'},
-    {name:'Field Cu (I_f²R_f)',    val:PcuF, color:'var(--amber)', desc:'Constant: ขณะ field excited · field weakening ช่วยลดได้'},
-    {name:'Brush Contact (2V·I_a)',val:Pbrush, color:'var(--purple)', desc:'∝ I_a · ใช้ Brush grade ที่เหมาะสม + Spring pressure ถูกต้อง'},
-    {name:'Rotational (Core+F&W)', val:Pcore_frict, color:'var(--blue)', desc:'Constant: ∝ N · ลดด้วยการ undercut mica, balance, lube bearing'},
-    {name:'Stray Load',            val:Pstray, color:'var(--teal)', desc:'IEEE 113: ใช้ 1% ของ P_rated เป็นค่าประมาณ'},
-  ];
-  items.sort((a,b)=>b.val-a.val);
-
-  let kpiHtml = '';
-  items.forEach(it => {
-    const pct = Ptotal>0 ? it.val/Ptotal*100 : 0;
-    kpiHtml += `<div class="kpi-card" style="border-left:4px solid ${it.color};text-align:left;padding:12px;">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:1px;">${it.name}</div>
-      <div style="font-family:var(--display);font-size:24px;color:${it.color};margin-top:3px;">${it.val.toFixed(2)} <span style="font-size:12px;color:var(--text3);">kW</span></div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px;">${pct.toFixed(1)}% of total loss</div>
-    </div>`;
-  });
-  document.getElementById('dcLossKpi').innerHTML = kpiHtml;
-
-  // Stacked bar
-  let barHtml = `<div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-bottom:6px;">LOSS DISTRIBUTION (Total = ${Ptotal.toFixed(2)} kW)</div>
-    <div style="display:flex;height:32px;border-radius:6px;overflow:hidden;border:1px solid var(--border);">`;
-  items.forEach(it => {
-    const pct = Ptotal>0 ? it.val/Ptotal*100 : 0;
-    if (pct > 0.5) barHtml += `<div title="${it.name}: ${it.val.toFixed(2)} kW (${pct.toFixed(1)}%)" style="background:${it.color};width:${pct}%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;">${pct>5?pct.toFixed(0)+'%':''}</div>`;
-  });
-  barHtml += `</div>`;
-  document.getElementById('dcLossBar').innerHTML = barHtml;
-
-  let recommendations = '<strong style="color:var(--purple);">🎯 Recommendations (เรียงตาม % loss):</strong><br>';
-  items.forEach((it, idx) => {
-    if (idx < 2) recommendations += `<div style="margin:6px 0;padding:8px;background:var(--bg2);border-left:3px solid ${it.color};border-radius:4px;font-size:12px;"><strong>${it.name}:</strong> ${it.desc}</div>`;
-  });
-
-  document.getElementById('dcLossDetail').innerHTML = `
-    <div style="font-family:var(--mono);font-size:12px;line-height:1.9;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;">
-      <strong>Total Losses</strong> = ${Ptotal.toFixed(2)} kW<br>
-      ${Prated>0 ? `<strong>η_loss-based</strong> = (1 − ${Ptotal.toFixed(1)}/${(Prated+Ptotal).toFixed(0)}) × 100% = <strong style="color:var(--purple);">${((1-Ptotal/(Prated+Ptotal))*100).toFixed(2)}%</strong>` : ''}
-    </div>
-    ${recommendations}`;
-  document.getElementById('dcLossResult').style.display = 'block';
-}
 
 // ─── DC SUB 4: Drive Comparison ───
-function calcDCDrive() {
-  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
-  const Prated=g('dcd_prated'), etaMdc=g('dcd_eta_m'), etaDdc=g('dcd_eta_d'), pfDC=g('dcd_pf');
-  const maintDC=g('dcd_maint'), LF=g('dcd_lf'), hrs=g('dcd_hrs'), rate=g('dcd_rate');
-  const etaMac=g('dca_eta_m'), etaDac=g('dca_eta_d'), pfAC=g('dca_pf');
-  const maintAC=g('dca_maint'), capex=g('dca_capex'), life=g('dca_life');
 
-  if (!Prated||!etaMdc||!etaDdc||!hrs||!rate) { alert('กรอกข้อมูลให้ครบ'); return; }
-
-  const Pshaft = Prated * LF/100;
-  // DC system input power
-  const Pin_dc = Pshaft / (etaMdc/100 * etaDdc/100);
-  // AC system input power
-  const Pin_ac = Pshaft / (etaMac/100 * etaDac/100);
-
-  const E_dc = Pin_dc * hrs;             // kWh/year
-  const E_ac = Pin_ac * hrs;
-  const E_save = E_dc - E_ac;            // kWh/year saved
-  const cost_dc_e = E_dc * rate;
-  const cost_ac_e = E_ac * rate;
-  const cost_save_e = cost_dc_e - cost_ac_e;
-
-  const annual_save = cost_save_e + (maintDC - maintAC);
-  const payback = annual_save > 0 ? capex/annual_save : 9999;
-  const npv_15yr = annual_save * life - capex;
-
-  // Lifecycle costs
-  const lc_dc = (cost_dc_e + maintDC) * life;
-  const lc_ac = (cost_ac_e + maintAC) * life + capex;
-  const lc_save = lc_dc - lc_ac;
-
-  const paybackColor = payback<3?'var(--green)':payback<5?'var(--amber)':'var(--red)';
-  const paybackStatus = payback<3?'s-good':payback<5?'s-warn':'s-bad';
-
-  document.getElementById('dcDriveKpi').innerHTML = `
-    <div class="kpi-card green">
-      <div class="kpi-label">Annual Energy Saving</div>
-      <div class="kpi-value" style="font-size:24px;color:var(--green);">${(E_save/1000).toFixed(0)}</div>
-      <div class="kpi-unit">MWh/year</div>
-      <div class="kpi-status s-good">${(cost_save_e/1e6).toFixed(2)} M฿/year</div>
-    </div>
-    <div class="kpi-card blue">
-      <div class="kpi-label">Annual Total Saving</div>
-      <div class="kpi-value" style="font-size:24px;color:var(--blue);">${(annual_save/1e6).toFixed(2)}</div>
-      <div class="kpi-unit">M บาท/year (รวม maintenance)</div>
-      <div class="kpi-status s-na">+${(maintDC-maintAC).toLocaleString()} ฿ maint diff</div>
-    </div>
-    <div class="kpi-card" style="border-color:${paybackColor};">
-      <div class="kpi-label">Simple Payback</div>
-      <div class="kpi-value" style="font-size:28px;color:${paybackColor};">${payback>99?'>99':payback.toFixed(1)}</div>
-      <div class="kpi-unit">ปี (CAPEX=${(capex/1e6).toFixed(1)}M฿)</div>
-      <div class="kpi-status ${paybackStatus}">${payback<3?'✓ Excellent':payback<5?'⚠ Marginal':payback<8?'△ Slow':'✗ Not viable'}</div>
-    </div>
-    <div class="kpi-card ${lc_save>0?'green':'red'}">
-      <div class="kpi-label">${life}-yr NPV (simple)</div>
-      <div class="kpi-value" style="font-size:24px;color:${lc_save>0?'var(--green)':'var(--red)'};">${(npv_15yr/1e6).toFixed(1)}</div>
-      <div class="kpi-unit">M บาท (savings − CAPEX)</div>
-      <div class="kpi-status ${lc_save>0?'s-good':'s-bad'}">${lc_save>0?'✓ Net Positive':'✗ Net Negative'}</div>
-    </div>`;
-
-  document.getElementById('dcDriveDetail').innerHTML = `
-    <div style="font-family:var(--mono);font-size:12px;line-height:1.9;background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;">
-      <strong style="color:var(--purple);">เปรียบเทียบ Input Power ที่ Load Factor ${LF}%:</strong><br>
-      P_shaft = ${Prated}×${LF}/100 = <strong>${Pshaft.toFixed(0)} kW</strong><br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <strong style="color:var(--amber);">DC System:</strong> P_in = ${Pshaft.toFixed(0)} / (${(etaMdc/100).toFixed(3)} × ${(etaDdc/100).toFixed(3)}) = <strong>${Pin_dc.toFixed(0)} kW</strong> · η_overall = ${(etaMdc*etaDdc/100).toFixed(1)}%<br>
-      <strong style="color:var(--green);">AC System:</strong> P_in = ${Pshaft.toFixed(0)} / (${(etaMac/100).toFixed(3)} × ${(etaDac/100).toFixed(3)}) = <strong>${Pin_ac.toFixed(0)} kW</strong> · η_overall = ${(etaMac*etaDac/100).toFixed(1)}%<br>
-      <strong>ΔP</strong> = ${(Pin_dc-Pin_ac).toFixed(1)} kW × ${hrs} h = <strong>${(E_save/1000).toFixed(1)} MWh/year</strong><br>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <strong>Lifecycle (${life} ปี):</strong> DC = ${(lc_dc/1e6).toFixed(2)} M฿ · AC = ${(lc_ac/1e6).toFixed(2)} M฿ · <strong style="color:${lc_save>0?'var(--green)':'var(--red)'};">ประหยัด ${(lc_save/1e6).toFixed(2)} M฿</strong>
-    </div>
-    <div class="alert ${payback<5?'alert-success':'alert-warn'}" style="font-size:11px;">
-      <span>${payback<5?'✅':'⚠️'}</span>
-      <div>
-        <strong>ข้อพิจารณาเพิ่มเติม (5MW class):</strong><br>
-        • DC Motor 5MW อาจมี <strong>parts availability</strong> น้อยลง เนื่องจาก market shrinking<br>
-        • AC induction + VFD รุ่นใหม่ใช้ <strong>Active Front-End</strong> ลด harmonics, PF≈1<br>
-        • DC system <strong>brush replacement cost</strong> 6–12 เดือน/ครั้ง สำหรับงานหนัก<br>
-        • Conversion ต้องพิจารณา <strong>foundation, cooling, control retrofit</strong> เพิ่มเติม<br>
-        • หาก DC drive ยังใหม่ การเปลี่ยนเป็น <strong>Digital DC Drive</strong> (เก็บ motor เดิม) อาจคุ้มกว่า — payback 2–3 ปี
-      </div>
-    </div>`;
-  document.getElementById('dcDriveResult').style.display = 'block';
-}
 
 // ─── DC SUB 5: Brush/Commutator Checklists & Life ───
 const DC_CHECKLISTS = {
@@ -3129,38 +2116,7 @@ function buildDCChecklists() {
   });
 }
 
-function calcBrushLife() {
-  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
-  const Lnew=g('dcb_len_new'), Lnow=g('dcb_len_now'), hrs=g('dcb_hrs'), Lmin=g('dcb_min');
-  if (!Lnew||!Lnow||!hrs) { alert('กรอกข้อมูลให้ครบ'); return; }
 
-  const wear = Lnew - Lnow;
-  const wearRate = wear / hrs;                   // mm/h
-  const remaining = Lnow - Lmin;
-  const hrsRemaining = wearRate > 0 ? remaining/wearRate : 9999;
-  const monthsRemaining = hrsRemaining / (24*30);   // assuming continuous
-
-  const color = monthsRemaining<2?'var(--red)':monthsRemaining<6?'var(--amber)':'var(--green)';
-  const status = monthsRemaining<2?'🔴 เปลี่ยนด่วน':monthsRemaining<6?'⚠️ วางแผนเปลี่ยน':'✅ ใช้งานต่อได้';
-
-  document.getElementById('dcBrushResult').innerHTML = `
-    <div style="font-family:var(--mono);font-size:12px;line-height:1.9;background:var(--panel);padding:12px;border-radius:6px;border:1px solid var(--border);">
-      <div style="display:flex;justify-content:space-between;">
-        <span>Wear Rate:</span><strong>${(wearRate*1000).toFixed(2)} μm/h</strong>
-      </div>
-      <div style="display:flex;justify-content:space-between;">
-        <span>Brush ใช้แล้ว:</span><strong>${(wear/Lnew*100).toFixed(1)}%</strong>
-      </div>
-      <div style="display:flex;justify-content:space-between;">
-        <span>Hrs Remaining:</span><strong style="color:${color};">${hrsRemaining.toFixed(0)} h</strong>
-      </div>
-      <div style="display:flex;justify-content:space-between;">
-        <span>≈ Months (24/7):</span><strong style="color:${color};">${monthsRemaining.toFixed(1)} เดือน</strong>
-      </div>
-      <hr style="border:none;border-top:1px solid var(--border);margin:6px 0;">
-      <div style="text-align:center;color:${color};font-weight:700;">${status}</div>
-    </div>`;
-}
 
 
 // ═══════════════════════════════════════════════
@@ -3230,10 +2186,10 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 document.getElementById('tab-vfd').addEventListener('click', buildAffinityTable);
 </script>
-<!-- [แก้ไข 3 ต.ค. 2569] TE_ECM export -->
+<!-- [แก้ไข 3 ต.ค. 2569] TE_ECM_IO export -->
 <script>
-/* TE_ECM — ส่งออกมาตรการไป ECM Portfolio (schema v1) [แก้ไข 3 ต.ค. 2569] */
-var TE_ECM=(function(){
+/* TE_ECM_IO — ส่งออกมาตรการไป ECM Portfolio (schema v1) [แก้ไข 3 ต.ค. 2569] */
+var TE_ECM_IO=(function(){
   function clean(o){var r={};Object.keys(o||{}).forEach(function(k){var v=o[k];if(v===undefined||v===null)return;if(typeof v==='number'&&!isFinite(v))return;r[k]=v;});return r;}
   function save(tool,site,measures,pools){
     var ms=(measures||[]).map(clean).filter(function(m){return m.id&&m.name&&m.effect&&m.carrier;});
@@ -3300,7 +2256,7 @@ function teBuildECM(){
   return {measures:ms,pools:[],site:site};
 }
 window.teBuildECM=teBuildECM; // [แก้ไข 3 ต.ค. 2569]
-function teExportECM(){var r=teBuildECM();TE_ECM.save('Tool_Motor_VFD_Audit',r.site,r.measures,r.pools);} // [แก้ไข 3 ต.ค. 2569]
+function teExportECM(){var r=teBuildECM();TE_ECM_IO.save('Tool_Motor_VFD_Audit',r.site,r.measures,r.pools);} // [แก้ไข 3 ต.ค. 2569]
 </script>
 <!-- [แก้ไข 4 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
 <script src="../te-insight.js" defer></script>

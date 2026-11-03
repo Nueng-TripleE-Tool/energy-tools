@@ -297,6 +297,22 @@ details.steps .steps-body{padding:10px 12px;}
   .feq,.calcstep pre{color:#000!important;background:#f0f0f0!important;}
 }
 </style>
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
 </head>
 <body>
 <!-- HEADER -->
@@ -941,14 +957,25 @@ details.steps .steps-body{padding:10px 12px;}
 </div><!-- /content -->
 </div><!-- /main -->
 
+<!-- ระยะ 2-11: เครื่องยนต์กลาง Triple E -->
+<script src="../lib/te-core.js"></script>
 <script>
 // ══ Constants (Boyce GT Handbook, Ch.2–3) ══════════════════════════════════
-const Cp_a = 1.005;     // kJ/kg·K air (cold side)
-const Cp_g = 1.148;     // kJ/kg·K hot gas (combustion products)
-const gamma_a = 1.4;    // Air
-const gamma_g = 1.333;  // Hot gas
-const exp_a = (gamma_a-1)/gamma_a;   // 0.2857
-const exp_g = (gamma_g-1)/gamma_g;   // 0.250
+
+/* ระยะ 2-9: แกนคำนวณย้ายเข้า te-core — TE.GTEFF (ห้ามแก้ตัวเลขในหน้านี้) */
+var Cp_a=TE.GTEFF.Cp_a,Cp_g=TE.GTEFF.Cp_g,wetBulbStull=TE.GTEFF.wetBulbStull;
+function __gtEnv(){return {v:v,vn:vn,f:f,setH:setH,toBarA:toBarA,p1CompAbs:p1CompAbs,currentRp:currentRp};}
+function calcAll(){var r=TE.GTEFF.make(__gtEnv()).calcAll();if(r===undefined)return;RES=r;updateUI();}
+function buildCalcSteps(...a){return TE.GTEFF.make(__gtEnv()).buildCalcSteps(...a);}
+function thermoPerKg(...a){return TE.GTEFF.make(__gtEnv()).thermoPerKg(...a);}
+function logRowCalc(...a){return TE.GTEFF.make(__gtEnv()).logRowCalc(...a);}
+function gasRho(...a){return TE.GTEFF.make(__gtEnv()).gasRho(...a);}
+
+
+
+
+
+
 const R_air = 0.287;    // kJ/kg·K
 
 let RES = {};
@@ -1039,21 +1066,7 @@ function onInletCoolChange(){
 }
 
 // ══ ตัวช่วยประมาณ ṁ_a (per-kg thermo ไม่ต้องรู้ ṁ_a) ═══════════════════════
-function thermoPerKg(){
-  const T1=vn('t1')+273.15, rp=currentRp();
-  const eta_c=vn('eta_c')/100, eta_t=vn('eta_t')/100, eta_cc=vn('eta_cc')/100, LHV=vn('lhv');
-  const T3=vn('t3')+273.15;
-  if(rp<=1||T3<=T1) return null;
-  const T2s=T1*Math.pow(rp,exp_a);
-  const wc=Cp_a*(T2s-T1)/eta_c;
-  const T2=T1+wc/Cp_a;
-  const q=Cp_g*((T3-273.15)-(T2-273.15));
-  const FAR=q/(eta_cc*LHV);
-  const rp_t=(p1CompAbs()*rp)/(toBarA(vn('p1'))+(vn('dpExh')||0)/1000);  // expansion ratio จริง
-  const T4s=T3/Math.pow(rp_t>1?rp_t:rp,exp_g);
-  const wt=eta_t*Cp_g*(T3-T4s);
-  return {FAR, wc, wt, wnet:(1+FAR)*wt-wc};
-}
+
 function estAirFrom(method){
   const out=document.getElementById('estAirOut');
   const th=thermoPerKg();
@@ -1086,138 +1099,7 @@ function estAirFrom(method){
 }
 
 // ══ Main Calculation ════════════════════════════════════════════════════════
-function calcAll(){
-  // Inputs
-  const T1_C  = vn('t1');
-  const T1    = T1_C + 273.15;        // K
-  const P_amb = toBarA(vn('p1'));     // บรรยากาศแวดล้อม (abs)
-  const P1    = p1CompAbs();          // หน้า Compressor (หัก ΔP_inlet แล้ว)
-  const P4abs = P_amb + (vn('dpExh')||0)/1000;   // ความดันต้านขาออกกังหัน
-  const rp    = currentRp();          // compression ratio = P2/P1 (หน้า compressor)
-  updateRpView();
-  if(rp<=1){ setH('calc_steps_text','⚠ rₚ ≤ 1 — กรอก P₂ (CDP) ให้มากกว่า P₁ หรือสลับไปโหมดกรอก rₚ ตรง'); return; }
-  const eta_c = vn('eta_c')/100;
-  const eta_t = vn('eta_t')/100;
-  const eta_cc= vn('eta_cc')/100;
-  const eta_mech = vn('eta_mech')/100;
-  const eta_gen  = vn('eta_gen')/100;
-  const m_air = vn('mair');           // kg/s
-  const T3_C  = vn('t3');
-  const T3    = T3_C + 273.15;        // K
-  const LHV   = vn('lhv');           // kJ/kg
-  const hasRegen = v('hasRegen')==='1';
-  const eps_r = vn('eps_regen')/100;
-  const P_meas= vn('p_elec_meas')||0;// measured kW (optional)
-  const coolT = v('inletCool')||'none';
-  const m_spray = (coolT==='evap'||coolT==='fog') ? (vn('mspray')||0) : 0;  // น้ำระเหยเข้าอากาศ kg/s
 
-  // ── STEP 1: State 1 ──────────────────────────────────────────────────────
-  const h1 = Cp_a * T1_C;             // kJ/kg (ref 0°C)
-  const P2 = P1 * rp;                 // barA
-
-  // ── STEP 2: Compressor ───────────────────────────────────────────────────
-  const T2s = T1 * Math.pow(rp, exp_a);  // K
-  const T2s_C = T2s - 273.15;
-  const wc_isen = Cp_a * (T2s - T1);    // kJ/kg
-  const wc_act  = wc_isen / eta_c;       // kJ/kg (actual compressor work)
-  const T2  = T1 + wc_act / Cp_a;       // K actual compressor exit
-  const T2_C = T2 - 273.15;
-  const h2s = Cp_a * T2s_C;
-  const h2  = Cp_a * T2_C;
-
-  // ── STEP 3: Combustor / State 3 ──────────────────────────────────────────
-  const h3  = Cp_g * T3_C;
-  // Fuel-air ratio (FAR): q_in = Cp_g*(T3-T2) per kg air
-  const q_in_perkg = Cp_g * (T3_C - T2_C);  // kJ/kg-air
-  const m_comp_in = m_air + m_spray;          // มวลผ่านคอมเพรสเซอร์ = อากาศชื้น + สเปรย์ที่ระเหย
-  // [แก้ไข 3 ต.ค. 2569 audit] ไอน้ำจากสเปรย์ (fog/evap) ผ่านห้องเผาไหม้ด้วย ต้องได้รับความร้อน T₂→T₃ เช่นกัน — เดิมคิดเชื้อเพลิงต่อ kg อากาศแห้งอย่างเดียว (η สูงไป ~1 %)
-  const heatFac = m_air>0 ? m_comp_in/m_air : 1;
-  const FAR  = q_in_perkg * heatFac / (eta_cc * LHV);  // kg_fuel/kg_air (รวมความร้อนให้สเปรย์)
-  const m_fuel = m_air * FAR;                 // kg/s
-  const m_gas = m_comp_in + m_fuel;           // มวลไอเสียออกกังหัน = อากาศ + สเปรย์ + เชื้อเพลิง
-
-  // ── STEP 4: Turbine Expander / State 4 ───────────────────────────────────
-  // กังหันขยายจาก P2 → P4abs (บรรยากาศ + back pressure) ไม่ใช่กลับถึง P1 หน้า compressor
-  const rp_t = P2 / P4abs;                   // turbine expansion ratio
-  const T4s  = T3 / Math.pow(rp_t, exp_g);  // K isentropic
-  const T4s_C= T4s - 273.15;
-  const wt_isen = Cp_g * (T3 - T4s);        // kJ/kg (per kg gas)
-  const wt_act  = eta_t * wt_isen;           // kJ/kg
-  const T4   = T3 - wt_act / Cp_g;          // K actual
-  const T4_C = T4 - 273.15;
-  const h4s  = Cp_g * T4s_C;
-  const h4   = Cp_g * T4_C;
-
-  // ── STEP 5: Net Work & Power ──────────────────────────────────────────────
-  // W_turbine (kW) = m_gas * wt_act
-  // W_compressor (kW) = m_air * wc_act
-  const W_turbine = m_gas * wt_act;          // kW
-  const W_comp    = m_comp_in * wc_act;      // kW (มวลผ่านคอมเพรสเซอร์รวมสเปรย์)
-  const P_shaft   = W_turbine - W_comp;      // kW net shaft
-  const P_elec    = P_shaft * eta_mech * eta_gen;  // kW
-  const w_net_kg  = P_shaft / m_air;         // kJ/kg-air (specific work)
-
-  // ── STEP 6: Heat Input & Efficiency ──────────────────────────────────────
-  // [แก้ไข 3 ต.ค. 2569 audit] Q_in = พลังงานเชื้อเพลิงที่ป้อน (ASME PTC 22) เป็นค่าเริ่มต้น ให้ HR ตรงกับแท็บ Trend Log; เลือกฐานเดิม (×η_cc) ได้ที่ qinBasis
-  const qinBasis = v('qinBasis')||'fuel';
-  const Q_abs = m_fuel * LHV * eta_cc;        // kW ความร้อนที่ก๊าซรับจริง
-  const Q_in  = qinBasis==='absorbed' ? Q_abs : m_fuel * LHV;   // kW (heat input สำหรับ η_th/HR)
-  const Q_exh = m_gas * Cp_g * (T4_C - T1_C); // kW exhaust enthalpy above ambient
-  const eta_th= P_elec / Q_in;               // thermal efficiency
-  const HR    = 3600 / eta_th;               // kJ/kWh
-  const BWR   = (W_comp / W_turbine) * 100;  // %
-
-  // ── STEP 7: Regenerator (optional) ───────────────────────────────────────
-  let T2r_C=T2_C, q_in_regen=q_in_perkg, eta_th_regen=eta_th, m_fuel_regen=m_fuel;
-  let Q_regen=0;
-  if(hasRegen && T4_C > T2_C){
-    T2r_C = T2_C + eps_r * (T4_C - T2_C);
-    q_in_regen = Cp_g * (T3_C - T2r_C);
-    const FAR_regen = q_in_regen * heatFac / (eta_cc * LHV);  // [แก้ไข 3 ต.ค. 2569 audit] รวมความร้อนให้สเปรย์
-    m_fuel_regen = m_air * FAR_regen;
-    const Q_in_regen = m_fuel_regen * LHV * (qinBasis==='absorbed' ? eta_cc : 1);  // [แก้ไข 3 ต.ค. 2569 audit] ฐานเดียวกับ Q_in
-    eta_th_regen = P_elec / Q_in_regen;
-    Q_regen = m_air * Cp_a * (T2r_C - T2_C);  // kW heat recovered
-  }
-
-  // ── Method 2: Field measurement override ─────────────────────────────────
-  let eta_th_field = eta_th, HR_field = HR;
-  if(P_meas > 0){
-    eta_th_field = P_meas / Q_in;
-    HR_field = 3600 / eta_th_field;
-  }
-  const P_display = P_meas > 0 ? P_meas : P_elec;
-
-  // ── [แก้ไข 3 ต.ค. 2569 audit] ตรวจความเป็นไปได้ทางฟิสิกส์ (กล่องเตือน ไม่ใช้ alert) ──
-  const plaus=[];
-  if(!(T3_C > T2_C)) plaus.push('TIT/T₃ ('+T3_C.toFixed(0)+' °C) ≤ T₂ ขาออกคอมเพรสเซอร์ ('+T2_C.toFixed(1)+' °C) — ห้องเผาไหม้ไม่ได้เติมความร้อน (FAR ติดลบ) ผลลัพธ์ใช้ไม่ได้');
-  if(!(eta_c>0) || !(eta_t>0) || !(eta_cc>0) || !(LHV>0) || !(m_air>0)) plaus.push('η_c, η_t, η_cc, LHV และ ṁ_air ต้องมากกว่า 0');
-  if(isFinite(P_elec) && P_elec<=0) plaus.push('กำลังไฟฟ้าสุทธิที่คำนวณได้ ≤ 0 kW ('+P_elec.toFixed(0)+' kW) — งานคอมเพรสเซอร์มากกว่างานกังหัน');
-  if(isFinite(eta_th_field) && (eta_th_field>=0.65 || eta_th_field<=0)) plaus.push('η_th = '+(eta_th_field*100).toFixed(1)+' % อยู่นอกช่วงที่เป็นไปได้ของกังหันก๊าซวัฏจักรเดี่ยว (0–60 %) — ตรวจ P_elec วัด, ṁ_air, LHV, TIT');
-  if(P_amb<0.5 || P_amb>1.2) plaus.push('ความดันบรรยากาศ '+P_amb.toFixed(3)+' bar a ผิดปกติ (ควร ≈ 0.9–1.05 bar a) — ตรวจหน่วย barG/barA ของ P₁');
-  (function(){ let w=document.getElementById('gt_plaus_warn'); const sb=document.getElementById('sum_result_box');
-    if(!w && sb && sb.parentNode){ w=document.createElement('div'); w.id='gt_plaus_warn'; w.className='err-box warn-box'; sb.parentNode.insertBefore(w,sb); }
-    if(w){ if(plaus.length){ w.style.display='block'; w.innerHTML='⛔ ค่าที่ป้อน/ผลลัพธ์เป็นไปไม่ได้ทางฟิสิกส์ — อย่านำไปรายงาน:<br>• '+plaus.join('<br>• '); } else { w.style.display='none'; w.innerHTML=''; } }
-  })();
-
-  // ── Store ─────────────────────────────────────────────────────────────────
-  RES = {
-    plaus, Q_abs, qinBasis, heatFac,
-    T1_C,T2s_C,T2_C,T3_C,T4s_C,T4_C,
-    P1,P2,
-    h1,h2s,h2,h3,h4s,h4,
-    wc_isen,wc_act,wt_isen,wt_act,w_net_kg,
-    W_turbine,W_comp,P_shaft,P_elec,P_display,
-    Q_in,Q_exh,eta_th,HR,BWR,FAR,m_fuel,m_gas,m_air,m_spray,m_comp_in,P_amb,P4abs,rp_t,
-    eta_th_field,HR_field,
-    hasRegen,T2r_C,Q_regen,eta_th_regen,m_fuel_regen,
-    m_fuel_save: hasRegen ? m_fuel-m_fuel_regen : 0,
-    rp,eta_c,eta_t,eta_cc,eta_mech,eta_gen,LHV,
-    ratedPow:vn('ratedPow'),ratedEff:vn('ratedEff')/100,ratedHR:vn('ratedHR'),
-  };
-
-  updateUI();
-}
 
 // ══ Update UI ══════════════════════════════════════════════════════════════
 function updateUI(){
@@ -1292,73 +1174,7 @@ function updateUI(){
 }
 
 // ══ Numerical Steps ════════════════════════════════════════════════════════
-function buildCalcSteps(r){
-  const step1 = `STEP 1: STATE 1 — Compressor Inlet (Ambient)
-  T₁ = ${f(r.T1_C,1)}°C = ${f(r.T1_C+273.15,2)} K
-  ความดันบรรยากาศ = ${f(r.P_amb,4)} barA  |  ΔP_inlet = ${f((r.P_amb-r.P1)*1000,1)} mbar
-  P₁ (หน้า Compressor) = ความดันบรรยากาศ − ΔP_inlet = ${f(r.P1,4)} barA
-  h₁ = Cp_a × T₁(°C) = ${f(Cp_a,3)} × ${f(r.T1_C,1)} = ${f(r.h1,2)} kJ/kg
 
-STEP 2: STATE 2s — Isentropic Compressor Outlet
-  rₚ = ${f(r.rp,1)}  |  (γ-1)/γ = ${exp_a.toFixed(4)}
-  T₂s = T₁ × rₚ^exp = ${f(r.T1_C+273.15,2)} × ${f(r.rp,1)}^${exp_a.toFixed(4)} = ${f(r.T2s_C+273.15,2)} K = ${f(r.T2s_C,2)}°C
-  w_c,isen = Cp_a × (T₂s − T₁) = ${Cp_a} × (${f(r.T2s_C+273.15,2)} − ${f(r.T1_C+273.15,2)}) = ${f(r.wc_isen,2)} kJ/kg
-
-STEP 3: STATE 2 — Actual Compressor Outlet
-  η_c = ${f(r.eta_c*100,1)}%
-  w_c,actual = w_c,isen / η_c = ${f(r.wc_isen,2)} / ${f(r.eta_c,3)} = ${f(r.wc_act,2)} kJ/kg
-  T₂ = T₁ + w_c,act/Cp_a = ${f(r.T1_C,1)} + ${f(r.wc_act/Cp_a,2)} = ${f(r.T2_C,2)}°C
-
-STEP 4: STATE 3 — Turbine Inlet (TIT)
-  T₃ = ${f(r.T3_C,1)}°C  (Firing Temperature)
-  P₂ = P₁ × rₚ = ${f(r.P1,4)} × ${f(r.rp,1)} = ${f(r.P2,3)} barA
-  q_in = Cp_g × (T₃ − T₂) = ${Cp_g} × (${f(r.T3_C,1)} − ${f(r.T2_C,2)}) = ${f(Cp_g*(r.T3_C-r.T2_C),2)} kJ/kg
-  FAR = q_in / (η_cc × LHV) = ${f(Cp_g*(r.T3_C-r.T2_C),2)} / (${f(r.eta_cc,3)} × ${f(r.LHV,0)}) = ${(r.FAR*1000).toFixed(3)} g/g (${f(r.FAR*100,3)}%)
-
-STEP 5: STATE 4s — Isentropic Turbine Outlet
-  (γ_g-1)/γ_g = ${exp_g.toFixed(4)} (hot gas)
-  P₄ (ขาออกกังหัน) = ความดันบรรยากาศ + ΔP_exhaust = ${f(r.P4abs,4)} barA
-  rₚ,turbine = P₂/P₄ = ${f(r.P2,3)}/${f(r.P4abs,4)} = ${f(r.rp_t,2)}  (≠ rₚ compressor ถ้ามี ΔP)
-  T₄s = T₃ / rₚ,t^exp_g = ${f(r.T3_C+273.15,2)} / ${f(r.rp_t,2)}^${exp_g.toFixed(4)} = ${f(r.T4s_C+273.15,2)} K = ${f(r.T4s_C,2)}°C
-  w_t,isen = Cp_g × (T₃ − T₄s) = ${Cp_g} × (${f(r.T3_C+273.15,2)} − ${f(r.T4s_C+273.15,2)}) = ${f(r.wt_isen,2)} kJ/kg
-
-STEP 6: STATE 4 — Actual Turbine Outlet (Exhaust)
-  η_t = ${f(r.eta_t*100,1)}%
-  w_t,actual = η_t × w_t,isen = ${f(r.eta_t,3)} × ${f(r.wt_isen,2)} = ${f(r.wt_act,2)} kJ/kg
-  T₄ = T₃ − w_t,act/Cp_g = ${f(r.T3_C,1)} − ${f(r.wt_act/Cp_g,2)} = ${f(r.T4_C,2)}°C
-
-STEP 7: NET POWER & EFFICIENCY
-  MASS BALANCE (นิยามมวล):
-    ṁ_air (อากาศชื้นก่อนสเปรย์)   = ${f(r.m_air,2)} kg/s
-    ṁ_spray (น้ำระเหยจาก Evap/Fog) = ${f(r.m_spray,2)} kg/s
-    ṁ_comp,in = ṁ_air + ṁ_spray    = ${f(r.m_comp_in,2)} kg/s   [มวลผ่านคอมเพรสเซอร์]
-    ṁ_fuel                          = ${f(r.m_fuel,4)} kg/s
-    ṁ_exhaust = ṁ_comp,in + ṁ_fuel = ${f(r.m_gas,3)} kg/s   [มวลไอเสียออกกังหัน]
-  W_turbine = ṁ_exhaust × w_t,act = ${f(r.m_gas,3)} × ${f(r.wt_act,2)} = ${f(r.W_turbine,1)} kW
-  W_compressor = ṁ_comp,in × w_c,act = ${f(r.m_comp_in,2)} × ${f(r.wc_act,2)} = ${f(r.W_comp,1)} kW
-  P_shaft = W_turbine − W_comp = ${f(r.W_turbine,1)} − ${f(r.W_comp,1)} = ${f(r.P_shaft,1)} kW
-  P_electric = P_shaft × η_mech × η_gen = ${f(r.P_shaft,1)} × ${f(r.eta_mech,4)} × ${f(r.eta_gen,4)} = ${f(r.P_elec,1)} kW
-  Q_in = ${r.qinBasis==='absorbed'?'ṁ_fuel × LHV × η_cc = '+f(r.m_fuel,4)+' × '+f(r.LHV,0)+' × '+f(r.eta_cc,3):'ṁ_fuel × LHV (เชื้อเพลิงที่ป้อน, ASME PTC 22) = '+f(r.m_fuel,4)+' × '+f(r.LHV,0)} = ${f(r.Q_in,1)} kW
-  η_th = P_elec / Q_in = ${f(r.P_display,1)} / ${f(r.Q_in,1)} = ${f(r.eta_th_field*100,2)}%
-  Heat Rate = 3600 / η_th = 3600 / ${f(r.eta_th_field,4)} = ${f(r.HR_field,1)} kJ/kWh
-  BWR = W_comp / W_turbine = ${f(r.W_comp,1)} / ${f(r.W_turbine,1)} = ${f(r.BWR,2)}%`;
-
-  document.getElementById('calc_steps_text').textContent = step1;
-
-  const estep = `ENERGY BALANCE — First Law of Thermodynamics
-  Q_in   (Heat Input)    = ${f(r.Q_in,1)} kW
-  W_turb (Turbine Work)  = ${f(r.W_turbine,1)} kW
-  W_comp (Compressor)    = ${f(r.W_comp,1)} kW   [Back Work Ratio = ${f(r.BWR,2)}%]
-  P_shaft                = ${f(r.P_shaft,1)} kW
-  η_mech × η_gen         = ${f(r.eta_mech*100,1)}% × ${f(r.eta_gen*100,1)}%
-  P_electric             = ${f(r.P_display,1)} kW
-  Q_exhaust              = ${f(r.Q_exh,1)} kW  [T₄=${f(r.T4_C,1)}°C above ambient]
-  Check: P_shaft + Q_exhaust ≈ Q_in?
-    ${f(r.P_shaft,1)} + ${f(r.Q_exh,1)} = ${f(r.P_shaft+r.Q_exh,1)} kW  |  Q_absorbed (ṁ_f×LHV×η_cc) = ${f(r.Q_abs,1)} kW ${Math.abs(r.P_shaft+r.Q_exh-r.Q_abs)<r.Q_abs*0.01?'✓ OK':'⚠ CHECK Cp values'}
-  η_th = ${f(r.eta_th_field*100,3)}%  |  HR = ${f(r.HR_field,1)} kJ/kWh
-  ${r.hasRegen?`\nREGENERATOR:\n  T₄ = ${f(r.T4_C,1)}°C > T₂ = ${f(r.T2_C,1)}°C → regen possible\n  T₂r = T₂ + ε×(T₄−T₂) = ${f(r.T2_C,1)} + ${f(vn('eps_regen')/100,2)}×(${f(r.T4_C,1)}−${f(r.T2_C,1)}) = ${f(r.T2r_C,2)}°C\n  Q_regen = ${f(r.Q_regen,1)} kW  |  ṁ_fuel saved = ${f(r.m_fuel_save,4)} kg/s\n  η_th,regen = ${f(r.eta_th_regen*100,2)}%`:''}`;
-  document.getElementById('energy_steps_text').textContent = estep;
-}
 
 // ══ Sample loaders ══════════════════════════════════════════════════════════
 function gv(id,val){ document.getElementById(id).value=val; }
@@ -1694,12 +1510,8 @@ function clearVars(){
   checkAllVars();
 }
 // Wet-bulb (Stull 2011) — ใช้ได้ RH 5–99 %, T −20…50 °C, ความคลาด ±1 °C
-function wetBulbStull(T,RH){
-  if(!(RH>0)) return NaN;
-  return T*Math.atan(0.151977*Math.sqrt(RH+8.313659)) + Math.atan(T+RH) - Math.atan(RH-1.676331)
-       + 0.00391838*Math.pow(RH,1.5)*Math.atan(0.023101*RH) - 4.686035;
-}
-function gasRho(){ return vn('log_rho')>0 ? vn('log_rho') : 0.75; }
+
+
 function fillVarsFromCalc(){
   if(!RES || RES.P_display===undefined) calcAll();
   const r=RES; if(!r || r.P_display===undefined){ alert('ยังคำนวณไม่ได้ — ตรวจช่องกรอกใน Sidebar ก่อน'); return; }
@@ -1769,22 +1581,7 @@ function readLogRows(){
     const o={}; tr.querySelectorAll('input').forEach(i=>{ o[i.dataset.k]=i.value; }); return o;
   });
 }
-function logRowCalc(o){
-  const P=parseFloat(o.pg), F=parseFloat(o.fuel), L=parseFloat(o.lhv), T=parseFloat(o.tamb), Pb=parseFloat(o.pbaro);
-  const kP=vn('log_kP')/100, kHR=vn('log_kHR')/100;
-  const rated = vn('log_rated')>0 ? vn('log_rated') : vn('ratedPow');
-  const r={};
-  if(F>0 && L>0){ r.q=F*L*1000/3600; }
-  if(r.q>0 && P>0){ r.eta=P/r.q*100; r.hr=3600/(r.eta/100); }
-  if(P>0){
-    const fT = isFinite(T)? (1+kP*(T-15)) : 1;
-    const fP = (Pb>0)? (1013.25/Pb) : 1;
-    r.pc=P*fP*fT;
-    if(rated>0) r.ld=P/rated*100;
-  }
-  if(r.hr>0){ r.hrc = r.hr*(1-(isFinite(T)?kHR*(T-15):0)); }
-  return r;
-}
+
 function recalcLog(){
   const rows=document.querySelectorAll('#logBody tr');
   const acc={n:0,hr:[],eta:[],pc:[],hrc:[],p:[]};

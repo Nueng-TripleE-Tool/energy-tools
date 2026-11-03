@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TH-BLR-02 ประเมินมาตรการหม้อไอน้ำ — Triple E Energy Tools Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- การ์ด TH-BLR-02 · v1.0.0-proto (3 พ.ย. 2569) · ก้อน W4 ระยะ 1 แผนแม่บท TE-Suite
+     แบบแผน MEASUR P2: Baseline → Scenario → Report + P4: ทะเบียนหม้อไอน้ำ (TE.STORE)
+     scenario 5 ชนิด: ปรับการเผาไหม้ · economizer · นำความร้อน blowdown กลับ (flash) · เพิ่ม condensate return · co-firing (TE.FUEL.mix)
+     สูตร/คุณสมบัติทั้งหมดมาจาก te-core r2a เท่านั้น (BS 845, IAPWS-IF97, ธรรมนูญ r2) · สองภาษา ?lang=en
+     ขอบเขตระยะ 1: ระดับหม้อไอน้ำเดี่ยว — steam network เต็มรูป (N-header) เป็น W4 ระยะ 2 รอเคสจริงตรวจรับ -->
+<script src="../lib/te-core.js"></script>
+<script src="../lib/te-ui.js"></script>
+<style>
+:root{--navy:#0f2a4a;--teal:#12a4a4;--header-grad:linear-gradient(135deg,var(--navy),var(--teal));--bg:#f4f7fa;--card:#fff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;
+  --accent:#12a4a4;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;--radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08)}
+*{box-sizing:border-box}
+body{margin:0;font-family:'IBM Plex Sans Thai',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.55}
+header{background:var(--header-grad);color:#fff;padding:10px 16px 10px}
+.hd{max-width:1300px;margin:0 auto;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;justify-content:space-between}
+.hd h1{font:700 24px/1.05 'Barlow Condensed',sans-serif;margin:2px 0 0;letter-spacing:.02em}
+.hd .sub{font-size:12.5px;opacity:.9}
+.code{font:600 11.5px 'IBM Plex Mono',monospace;background:rgba(255,255,255,.18);padding:2px 8px;border-radius:999px;margin-right:6px}
+.hbtn{font:inherit;font-size:13px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.45);padding:6px 12px;border-radius:8px;cursor:pointer}
+.hbtn:hover{background:rgba(255,255,255,.28)}
+.te-tierbar{max-width:1300px;margin:6px auto 0;font-size:12.5px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:#fff}
+.te-tierbar button{font:inherit;padding:2px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.6);background:transparent;color:#fff;cursor:pointer}
+.te-tierbar button.on{background:#fff;color:var(--navy);font-weight:600}
+.te-langsw button{font:inherit;font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.6);background:transparent;color:#fff;cursor:pointer;margin-left:4px}
+.te-langsw button.on{background:#fff;color:var(--navy);font-weight:700}
+.kbar{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 4px 14px rgba(15,42,74,.06)}
+.kbar .in{max-width:1300px;margin:0 auto;padding:8px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.k{padding:2px 10px;border-left:4px solid var(--accent)}
+.k .l{font-size:12px;color:var(--muted)}.k .v{font:700 25px/1.1 'Barlow Condensed',sans-serif;color:var(--navy)}.k .u{font-size:12px;color:var(--muted);margin-left:3px}
+.k.loss{border-left-color:var(--danger)}.k.money{border-left-color:var(--warn)}
+@media (max-width:700px){.kbar{position:static}.kbar .in{grid-template-columns:1fr 1fr}.k .v{font-size:21px}}
+main{max-width:1300px;margin:0 auto;padding:14px 16px 30px}
+.layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(330px,1fr);gap:14px;align-items:start}
+@media (max-width:1050px){.layout{grid-template-columns:1fr}}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+.card h2{font:600 19px 'Barlow Condensed',sans-serif;color:var(--navy);margin:0 0 8px;letter-spacing:.02em}
+label{display:block;font-size:12.5px;color:var(--muted);margin:8px 0 2px}
+input,select{font:inherit;width:100%;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff}
+input:focus,select:focus{outline:2px solid rgba(18,164,164,.35);border-color:var(--teal)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 12px}.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 12px}
+@media (max-width:680px){.g3,.g4{grid-template-columns:1fr 1fr}}
+.hint{font-size:11.5px;color:var(--muted);margin-top:2px}
+.te-row{display:flex;gap:8px}.te-grow{flex:1}
+.te-src{width:auto!important;font-size:11.5px;margin-top:2px;padding:2px 4px;border-radius:6px;color:var(--muted)}
+.te-fuel-res{list-style:none;margin:4px 0;padding:0;max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.te-fuel-res:empty{border:none}
+.te-fuel-res li{padding:5px 10px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;font-size:13px;border-bottom:1px solid #f0f4f8}
+.te-fuel-res li:hover{background:#f0fafa}.te-fuel-res li.on{background:#e2f5f5}
+.te-grade{font:600 10.5px 'IBM Plex Mono',monospace;border-radius:999px;padding:1px 7px;background:#eef3f8;color:var(--muted)}
+.te-grade.gA{background:#e3f6ec;color:var(--ok)}.te-grade.gB{background:#fdf3e2;color:var(--warn)}
+.te-fuel-card{background:#f7fafc;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-top:8px}
+.te-chips span{display:inline-block;background:#fff;border:1px solid var(--line);border-radius:999px;font-size:11.5px;padding:1px 8px;margin:3px 4px 0 0}
+.te-warn{color:var(--danger);font-size:12.5px}.te-muted{color:var(--muted);font-size:12.5px}.te-small{font-size:11.5px}
+.te-tbl{border-collapse:collapse;width:100%;margin:8px 0;font-size:12.8px}
+.te-tbl td,.te-tbl th{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:middle}.te-tbl th{background:#f0f5fa}.r{text-align:right}
+.te-tbl tr.hl td{background:#e7f6f6;font-weight:600}
+.te-qc-sum span{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;margin-right:6px}
+.te-qc-sum .ok{background:#e3f6ec;color:var(--ok)}.te-qc-sum .wa{background:#fdf3e2;color:var(--warn)}.te-qc-sum .fa{background:#fde5e8;color:var(--danger)}
+tr.qc-fail td{background:#fdf0f2}tr.qc-warn td{background:#fdf8ee}
+.te-grid2{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px}
+.te-req{color:var(--danger)}.te-btn-sm{font:inherit;font-size:12px;border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:3px 9px;cursor:pointer;margin-top:4px}
+.tbtn{font:inherit;font-size:13px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--ink)}
+.tbtn.pri{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.big{font:700 24px 'Barlow Condensed',sans-serif;color:var(--navy)}
+.formula{font-size:11.5px;color:var(--muted);background:#f7fafc;border-radius:8px;padding:6px 10px;margin-top:6px}
+.sc{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:#fbfdff}
+.sc h3{margin:0 0 4px;font:600 15px 'IBM Plex Sans Thai';color:var(--navy)}
+.sc .del{float:right}
+.invrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:3px 0}
+.invrow .id{font:600 11.5px 'IBM Plex Mono',monospace;background:#eef3f8;border-radius:999px;padding:1px 8px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="hd">
+    <div><span class="code">TH-BLR-02</span><span class="code" id="verChip"></span>
+      <h1 id="hTitle"></h1><div class="sub" id="hSub"></div></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span id="langHost"></span>
+      <button class="hbtn" id="bOpenJob" data-te-feature="job.open">📂 <span data-s="openJob"></span></button>
+      <button class="hbtn" id="bSaveJob" data-te-feature="job.save">💾 <span data-s="saveJob"></span></button>
+      <button class="hbtn" id="bEcmFile" data-te-feature="calc.ecm">⬆ <span data-s="ecmBtn"></span></button>
+      <button class="hbtn" id="bReport">🖨 <span data-s="report"></span></button>
+    </div>
+  </div>
+  <div id="tierHost"></div>
+</header>
+<div class="kbar"><div class="in" id="kpi"></div></div>
+<main>
+<div class="layout">
+<div>
+  <div class="card" data-te-feature="inv.registry"><h2><span data-s="s0"></span></h2>
+    <div class="te-row"><div class="te-grow"><label><span data-s="bName"></span></label><input id="invName"></div>
+      <div style="width:120px"><label><span data-s="bCap"></span></label><input type="number" id="invCap" min="0" step="0.5"></div>
+      <div style="width:120px"><label><span data-s="bP"></span></label><input type="number" id="invP" min="0" step="0.5"></div>
+      <div style="width:90px;align-self:flex-end"><button class="tbtn" id="bInvAdd">+ <span data-s="add"></span></button></div></div>
+    <div id="invList" class="te-muted"></div>
+  </div>
+  <div class="card"><h2><span data-s="s1"></span></h2>
+    <div id="fuelHost"></div>
+    <div class="g4">
+      <div><label><span data-s="F"></span></label><input type="number" id="F" min="0" step="any" data-src="measured"></div>
+      <div><label><span data-s="price"></span></label><input type="number" id="price" min="0" step="any"><div class="hint" id="priceGJ"></div></div>
+      <div><label><span data-s="hrs"></span></label><input type="number" id="hrs" min="0" max="8760" value="8000"></div>
+      <div><label><span data-s="Lrad"></span> (%)</label><input type="number" id="Lrad" min="0" max="10" step="0.1" value="1" data-src="reference"></div>
+    </div>
+    <div class="g4">
+      <div><label>O₂ (%)</label><input type="number" id="O2" min="0" max="20.8" step="0.1" data-src="measured"></div>
+      <div><label>CO (ppm)</label><input type="number" id="CO_ppm" min="0" value="0" data-src="measured"></div>
+      <div><label>T<sub>g</sub> (°C)</label><input type="number" id="Tg" min="0" data-src="measured"></div>
+      <div><label>T<sub>a</sub> (°C)</label><input type="number" id="Ta" min="-10" max="60" value="32" data-src="measured"></div>
+    </div>
+    <div class="g4">
+      <div><label><span data-s="Ws"></span></label><input type="number" id="Ws" min="0" step="0.1" data-src="measured"></div>
+      <div><label><span data-s="Pg"></span></label><input type="number" id="Pg" min="0" step="0.1" data-src="plant"></div>
+      <div><label><span data-s="Tfw"></span></label><input type="number" id="Tfw" min="0" step="0.5" data-src="measured"></div>
+      <div><label><span data-s="cRefuse"></span> (%)</label><input type="number" id="cRefuse" min="0" max="60" step="0.5" data-src="measured"></div>
+    </div>
+  </div>
+  <div class="card"><h2><span data-s="s2"></span></h2>
+    <div class="te-row" style="align-items:flex-end">
+      <div class="te-grow"><label><span data-s="scType"></span></label><select id="scType">
+        <option value="tune"></option><option value="eco"></option><option value="bd"></option><option value="cond"></option><option value="cofire"></option>
+      </select></div>
+      <div style="width:110px"><button class="tbtn pri" id="bScAdd">+ <span data-s="add"></span></button></div>
+    </div>
+    <div id="scList"></div>
+  </div>
+  <div class="card" data-te-feature="issuer.required"><h2><span data-s="s4"></span></h2><div id="issuerHost"></div></div>
+</div>
+<div>
+  <div class="card"><h2><span data-s="s3"></span></h2><div id="cmp"></div></div>
+  <div class="card"><h2><span data-s="qcT"></span></h2><div id="qc" class="te-muted" data-s="qcEmpty"></div></div>
+</div>
+</div>
+</main>
+<input type="file" id="fOpen" accept=".json,application/json" hidden>
+<script>
+/* ═════ TH-BLR-02 v1.0.0-proto — ห้ามมีสูตรในไฟล์ (ธรรมนูญ r2) — คุณสมบัติ/ความสูญเสียทุกค่าจาก TE.* ═════ */
+var U=TE_UI,$=U.$,fx=U.fx,esc=U.esc;
+var CODE='TH-BLR-02',VER='1.0.0-proto';
+var S={
+ title:{th:'ประเมินมาตรการหม้อไอน้ำ (Baseline → Scenario)',en:'Boiler Assessment (Baseline → Scenario)'},
+ sub:{th:'BS 845-1 (GCV) + IAPWS-IF97 · ทะเบียนหม้อไอน้ำ · เทียบหลายมาตรการพร้อมกัน · te-core r2a',en:'BS 845-1 (GCV) + IAPWS-IF97 · boiler inventory · multi-scenario comparison · te-core r2a'},
+ openJob:{th:'เปิดไฟล์งาน',en:'Open job'},saveJob:{th:'บันทึกไฟล์งาน (.tejob)',en:'Save job (.tejob)'},
+ ecmBtn:{th:'ส่งทุกมาตรการเข้า ECM Portfolio',en:'Export all measures (TE_ECM)'},report:{th:'รายงาน',en:'Report'},
+ s0:{th:'0. ทะเบียนหม้อไอน้ำ (ไฟล์งาน)',en:'0. Boiler Inventory (job file)'},
+ s1:{th:'1. Baseline — สภาพปัจจุบันจากการตรวจวัด',en:'1. Baseline — measured current state'},
+ s2:{th:'2. Scenario มาตรการปรับปรุง',en:'2. Improvement Scenarios'},
+ s3:{th:'3. ตารางเทียบ Baseline ↔ Scenario',en:'3. Baseline ↔ Scenario Comparison'},
+ s4:{th:'ข้อมูลผู้จัดทำรายงาน',en:'Report Issuer'},
+ qcT:{th:'คัดกรองคุณภาพข้อมูล',en:'Data Quality Screening'},qcEmpty:{th:'กรอกข้อมูลเพื่อเริ่มคัดกรอง',en:'Enter data to start screening'},
+ bName:{th:'ชื่อ/รุ่นหม้อไอน้ำ',en:'Boiler name/model'},bCap:{th:'พิกัด (t/h)',en:'Capacity (t/h)'},bP:{th:'ความดัน (bar g)',en:'Pressure (bar g)'},
+ add:{th:'เพิ่ม',en:'Add'},useThis:{th:'ใช้ตัวนี้',en:'Use'},del:{th:'ลบ',en:'Del'},
+ F:{th:'เชื้อเพลิง F (kg/h)',en:'Fuel feed F (kg/h)'},price:{th:'ราคาเชื้อเพลิง (฿/kg)',en:'Fuel price (THB/kg)'},
+ hrs:{th:'ชั่วโมงทำงาน (h/ปี)',en:'Operating hours (h/yr)'},Lrad:{th:'สูญเสียผิวเปลือก',en:'Surface loss'},
+ Ws:{th:'อัตราผลิตไอน้ำ (t/h)',en:'Steam output (t/h)'},Pg:{th:'ความดันไอน้ำ (bar g)',en:'Steam pressure (bar g)'},
+ Tfw:{th:'อุณหภูมิน้ำป้อน (°C)',en:'Feedwater temperature (°C)'},cRefuse:{th:'คาร์บอนในเถ้า',en:'Carbon in refuse'},
+ scType:{th:'ชนิดมาตรการ',en:'Scenario type'},
+ t_tune:{th:'ปรับแต่งการเผาไหม้ (ลด O₂)',en:'Combustion tuning (reduce O2)'},
+ t_eco:{th:'ติดตั้ง Economizer (ลด Tg)',en:'Install economizer (reduce Tg)'},
+ t_bd:{th:'นำความร้อน Blowdown กลับ (flash)',en:'Blowdown heat recovery (flash)'},
+ t_cond:{th:'เพิ่มการนำ Condensate กลับ',en:'Increase condensate return'},
+ t_cofire:{th:'Co-firing เชื้อเพลิงผสม',en:'Co-firing fuel blend'},
+ O2t:{th:'O₂ เป้าหมาย (%)',en:'Target O2 (%)'},Tgt:{th:'Tg เป้าหมาย (°C)',en:'Target Tg (°C)'},
+ TgEco:{th:'Tg หลัง economizer (°C)',en:'Tg after economizer (°C)'},
+ bdPct:{th:'อัตรา Blowdown (% ของไอน้ำ)',en:'Blowdown rate (% of steam)'},
+ pFlash:{th:'ความดัน Flash tank (bar g)',en:'Flash tank pressure (bar g)'},
+ rFrom:{th:'Condensate return เดิม (%)',en:'Current condensate return (%)'},
+ rTo:{th:'Condensate return ใหม่ (%)',en:'New condensate return (%)'},
+ Tcond:{th:'อุณหภูมิ condensate (°C)',en:'Condensate temperature (°C)'},
+ Tmu:{th:'อุณหภูมิน้ำ make-up (°C)',en:'Make-up water temperature (°C)'},
+ pct2:{th:'สัดส่วนเชื้อเพลิงที่ 2 (% มวล)',en:'Second fuel share (% mass)'},
+ price2:{th:'ราคาเชื้อเพลิงที่ 2 (฿/kg)',en:'Second fuel price (THB/kg)'},
+ inv:{th:'เงินลงทุน (฿)',en:'Investment (THB)'},
+ etaB:{th:'η BS 845-1 (GCV)',en:'η BS 845-1 (GCV)'},etaDir:{th:'η วิธีตรง (GCV)',en:'η direct (GCV)'},
+ dFuel:{th:'เชื้อเพลิงลดลง',en:'Fuel saved'},save:{th:'ผลประหยัด',en:'Saving'},pb:{th:'คืนทุน',en:'Payback'},yr:{th:'ปี',en:'yr'},
+ base:{th:'Baseline',en:'Baseline'},noFuel:{th:'เลือกเชื้อเพลิงและกรอก Baseline ก่อน',en:'Select fuel and complete the baseline first'},
+ needQc:{th:'แก้รายการ "ไม่ผ่าน" ในคัดกรองคุณภาพข้อมูลก่อน',en:'Fix "Fail" items in data screening first'},
+ needSteam:{th:'มาตรการนี้ต้องกรอกฝั่งไอน้ำ (Ws, ความดัน, Tfw) ใน Baseline',en:'This scenario needs the steam side (Ws, pressure, Tfw) in the baseline'},
+ noScen:{th:'ยังไม่มี scenario — เพิ่มจากกล่องด้านซ้าย',en:'No scenarios yet — add from the left panel'},
+ needIssuer:{th:'กรอกข้อมูลผู้จัดทำ (ช่อง *) ให้ครบก่อนออกรายงาน: ',en:'Complete required issuer fields first: '},
+ jobSaved:{th:'บันทึกแล้ว',en:'Saved'},
+ basis_tune:{th:'ลดเชื้อเพลิง % = (1−η₀/η₁)×100 ที่ภาระไอน้ำคงเดิม · BS 845-1 GCV',en:'Fuel saving % = (1−η0/η1)×100 at constant steam duty · BS 845-1 GCV'},
+ basis_bd:{th:'Q คืน = ṁ_bd × y_flash × hfg(P_flash) · y จาก IAPWS-IF97 · เชื้อเพลิงลด = Q/(η₀·HHV)',en:'Q recovered = m_bd × y_flash × hfg(P_flash), y from IAPWS-IF97 · fuel saved = Q/(η0·HHV)'},
+ basis_cond:{th:'Δh น้ำป้อน = ส่วนผสม condensate/make-up (IF97 hLiq) · เชื้อเพลิงลด = Ws·Δh/(η₀·HHV)',en:'Feedwater Δh from condensate/make-up mix (IF97 hLiq) · fuel saved = Ws·Δh/(η0·HHV)'},
+ basis_cofire:{th:'คุณสมบัติเชื้อเพลิงผสมจาก TE.FUEL.mix · เทียบต้นทุน ฿/GJ ที่ภาระความร้อนคงเดิม',en:'Blend properties from TE.FUEL.mix · cost compared at constant heat duty (THB/GJ)'},
+ fuel2:{th:'เชื้อเพลิงที่ 2',en:'Second fuel'},
+ repT1:{th:'1. Baseline',en:'1. Baseline'},repT2:{th:'2. เปรียบเทียบมาตรการ',en:'2. Scenario Comparison'},
+ item:{th:'รายการ',en:'Item'},val:{th:'ค่า',en:'Value'},scen:{th:'มาตรการ',en:'Scenario'}
+};
+function T(k){var e=S[k];return e?(U.lang.current==='en'?e.en:e.th):k;}
+document.querySelectorAll('[data-s]').forEach(function(n){n.innerHTML=T(n.getAttribute('data-s'));});
+$('hTitle').textContent=T('title');$('hSub').textContent=T('sub');$('verChip').textContent='v'+VER;
+document.title=CODE+' '+T('title')+' — Triple E Energy Tools Pro';
+['tune','eco','bd','cond','cofire'].forEach(function(t,i){$('scType').options[i].text=T('t_'+t);});
+U.lang.mountSwitch($('langHost'));U.tier.mountSwitch($('tierHost'));U.issuer.mount($('issuerHost'));
+var fuel=U.fuelPicker($('fuelHost'),{dbUrl:'../lib/te-fueldb.js',onChange:function(){recalc();}});
+U.sourceSelects(document);
+function V(id){var e=$(id);return e?parseFloat(e.value):NaN;}
+
+/* ── ไฟล์งาน + ทะเบียนหม้อไอน้ำ (TE.STORE — แบบแผน P4) ── */
+var JOB=TE.STORE.job({site:{name:''}}), activeBoiler=null;
+function renderInv(){
+  var L=TE.STORE.invList(JOB,'boilers');
+  $('invList').innerHTML=L.length?L.map(function(b){return '<div class="invrow"><span class="id">'+b.id+'</span> '+esc(b.name||'-')+
+    ' · '+fx(b.capTph,1)+' t/h · '+fx(b.Pg,1)+' bar g '+
+    '<button class="te-btn-sm" data-use="'+b.id+'">'+(activeBoiler===b.id?'✓ ':'')+T('useThis')+'</button>'+
+    '<button class="te-btn-sm" data-rm="'+b.id+'">'+T('del')+'</button></div>';}).join('')
+   :'<div class="hint">'+(U.lang.current==='en'?'Add boilers once — reuse across cards via the job file':'เพิ่มหม้อไอน้ำครั้งเดียว ใช้ซ้ำข้ามการ์ดผ่านไฟล์งาน')+'</div>';
+}
+$('bInvAdd').addEventListener('click',function(){
+  var b=TE.STORE.invAdd(JOB,'boilers',{name:$('invName').value.trim(),capTph:V('invCap')||null,Pg:V('invP')||null});
+  activeBoiler=b.id;if(isFinite(V('invP'))&&!$('Pg').value)$('Pg').value=V('invP');
+  $('invName').value='';renderInv();});
+$('invList').addEventListener('click',function(e){
+  var u=e.target.getAttribute('data-use');if(u){activeBoiler=u;var b=TE.STORE.invGet(JOB,'boilers',u);if(b&&b.Pg!=null)$('Pg').value=b.Pg;renderInv();recalc();}
+  var rm=e.target.getAttribute('data-rm');if(rm){TE.STORE.invRemove(JOB,'boilers',rm);if(activeBoiler===rm)activeBoiler=null;renderInv();}});
+
+/* ── Baseline (เรียก te-core เท่านั้น) ── */
+var _base=null;
+function calcBase(){
+  var f=fuel.get();if(!f)return null;
+  var x={Tg:V('Tg'),Ta:V('Ta'),O2:V('O2'),CO_ppm:isFinite(V('CO_ppm'))?V('CO_ppm'):0,Lrad:isFinite(V('Lrad'))?V('Lrad'):0};
+  var qc=TE.QC.check({Ta:x.Ta,Tg:x.Tg,O2:x.O2,CO_ppm:x.CO_ppm,Lrad:x.Lrad},'boiler',U.sourcesOf(['Ta','Tg','O2','CO_ppm','Lrad']));
+  U.qcPanel($('qc'),qc);
+  if(!qc.ok)return {fuel:f,x:x,qc:qc,bad:true};
+  var bs=TE.COMB.lossBS845(f,Object.assign({},x,{cRefuse:0}));
+  var as=TE.COMB.lossASME(f,x,{model:'r1',cRefuse:isFinite(V('cRefuse'))?V('cRefuse'):0});
+  var F=V('F'),P=null,hs=NaN,hw=NaN,Q=0,dir=NaN;
+  if(isFinite(V('Pg'))){P=V('Pg')+TE.UNITS.P_ATM;var st=TE.STEAM.satP(P);hs=st.hg;
+    if(isFinite(V('Tfw')))hw=TE.STEAM.hLiq(Math.max(P,TE.STEAM.PsatBar(V('Tfw'))),V('Tfw'));}
+  if(V('Ws')>0&&isFinite(hs)&&isFinite(hw))Q=TE.COMB.qSteam(V('Ws'),hs,hw);
+  if(Q>0&&F>0)dir=TE.COMB.effDirect(Q,F,f.hhv);
+  return {fuel:f,x:x,bs:bs,as:as,P:P,hs:hs,hw:hw,Q:Q,dir:dir,F:F,qc:qc,
+    hrs:V('hrs')||0,price:V('price')||0,EinGJh:F>0?F*f.hhv/1000:NaN};
+}
+
+/* ── Scenario (คำนวณผ่าน TE.* — การ์ดแค่ประกอบผล) ── */
+var SC=[],scSeq=0,fuel2=null;
+function scFields(t,id){
+  function f(lbl,fid,extra){return '<div><label>'+T(lbl)+'</label><input type="number" id="'+fid+'_'+id+'" '+(extra||'step="any"')+'></div>';}
+  if(t==='tune')  return '<div class="g3">'+f('O2t','O2t')+f('Tgt','Tgt')+f('inv','inv')+'</div>';
+  if(t==='eco')   return '<div class="g3">'+f('TgEco','TgEco')+f('inv','inv')+'</div>';
+  if(t==='bd')    return '<div class="g3">'+f('bdPct','bdPct','min="0" max="15" step="0.1"')+f('pFlash','pFlash','min="0" step="0.1"')+f('inv','inv')+'</div>';
+  if(t==='cond')  return '<div class="g4">'+f('rFrom','rFrom','min="0" max="100"')+f('rTo','rTo','min="0" max="100"')+f('Tcond','Tcond')+f('Tmu','Tmu')+'</div><div class="g3">'+f('inv','inv')+'</div>';
+  if(t==='cofire')return '<div id="f2_'+id+'"></div><div class="g3">'+f('pct2','pct2','min="0" max="100" step="1"')+f('price2','price2')+f('inv','inv')+'</div>';
+  return '';
+}
+$('bScAdd').addEventListener('click',function(){
+  var t=$('scType').value,id='sc'+(++scSeq);
+  SC.push({id:id,type:t});
+  var d=document.createElement('div');d.className='sc';d.id=id;
+  d.innerHTML='<button class="te-btn-sm del" data-scdel="'+id+'">✕ '+T('del')+'</button><h3>'+T('t_'+t)+'</h3>'+scFields(t,id)+'<div class="formula">'+T(t==='eco'?'basis_tune':'basis_'+(t==='tune'?'tune':t))+'</div>';
+  $('scList').appendChild(d);
+  if(t==='cofire'){var sc=SC[SC.length-1];sc.picker=U.fuelPicker(document.getElementById('f2_'+id),{dbUrl:'../lib/te-fueldb.js',onChange:function(){recalc();}});
+    var lb=document.createElement('label');lb.textContent=T('fuel2');document.getElementById('f2_'+id).prepend(lb);}
+  recalc();
+});
+$('scList').addEventListener('click',function(e){var d=e.target.getAttribute('data-scdel');
+  if(d){SC=SC.filter(function(s){return s.id!==d;});var el=document.getElementById(d);el&&el.remove();recalc();}});
+function sv(id,fid){var e=$(fid+'_'+id);return e?parseFloat(e.value):NaN;}
+function calcScenario(s,b){
+  var r={id:s.id,type:s.type,name:T('t_'+s.type),inv:sv(s.id,'inv'),eta1:null,dFkgh:NaN,thb:NaN,gj:NaN,note:''};
+  var f=b.fuel,e0=b.bs.effHHV;
+  function fromEta(e1){if(!(e1>e0))return;var savPct=(1-e0/e1)*100;
+    r.eta1=e1;r.dFkgh=b.F>0?b.F*savPct/100:NaN;r.gj=isFinite(r.dFkgh)?r.dFkgh*b.hrs*f.hhv/1000:NaN;r.thb=isFinite(r.dFkgh)?r.dFkgh*b.hrs*b.price:NaN;}
+  if(s.type==='tune'){var x1=Object.assign({},b.x,{O2:sv(s.id,'O2t'),Tg:sv(s.id,'Tgt')});
+    if(isFinite(x1.O2)&&isFinite(x1.Tg))fromEta(TE.COMB.lossBS845(f,x1).effHHV);r.basis=T('basis_tune');}
+  else if(s.type==='eco'){var x2=Object.assign({},b.x,{Tg:sv(s.id,'TgEco')});
+    if(isFinite(x2.Tg))fromEta(TE.COMB.lossBS845(f,x2).effHHV);r.basis=T('basis_tune');}
+  else if(s.type==='bd'){
+    if(!(b.P&&V('Ws')>0)){r.note=T('needSteam');return r;}
+    var bd=sv(s.id,'bdPct'),pf=sv(s.id,'pFlash');
+    if(isFinite(bd)&&isFinite(pf)){
+      var Pf=pf+TE.UNITS.P_ATM,y=TE.STEAM.flashFrac(b.P,Pf),stf=TE.STEAM.satP(Pf);
+      var mbd=V('Ws')*1000*bd/100;                       // kg/h
+      var Qr=mbd*y*stf.hfg;                              // kJ/h คืนจาก flash steam
+      r.dFkgh=Qr/( (e0/100)*f.hhv*1000 );
+      r.gj=r.dFkgh*b.hrs*f.hhv/1000;r.thb=r.dFkgh*b.hrs*b.price;r.y=y;}
+    r.basis=T('basis_bd');}
+  else if(s.type==='cond'){
+    if(!(b.P&&V('Ws')>0&&isFinite(b.hw))){r.note=T('needSteam');return r;}
+    var r0=sv(s.id,'rFrom'),r1=sv(s.id,'rTo'),Tc=sv(s.id,'Tcond'),Tm=sv(s.id,'Tmu');
+    if(isFinite(r0)&&isFinite(r1)&&isFinite(Tc)&&isFinite(Tm)&&r1>r0){
+      var hC=TE.STEAM.hLiq(Math.max(b.P,TE.STEAM.PsatBar(Tc)),Tc),hM=TE.STEAM.hLiq(b.P,Tm);
+      var h0=r0/100*hC+(1-r0/100)*hM, h1=r1/100*hC+(1-r1/100)*hM;  // enthalpy น้ำป้อนก่อน/หลัง (ส่วนผสม)
+      var dQ=V('Ws')*1000*(h1-h0);                                  // kJ/h ที่หม้อไม่ต้องเติม
+      r.dFkgh=dQ/((e0/100)*f.hhv*1000);
+      r.gj=r.dFkgh*b.hrs*f.hhv/1000;r.thb=r.dFkgh*b.hrs*b.price;}
+    r.basis=T('basis_cond');}
+  else if(s.type==='cofire'){
+    var f2=s.picker&&s.picker.get(),p2=sv(s.id,'pct2'),pr2=sv(s.id,'price2');
+    if(f2&&isFinite(p2)&&p2>0&&p2<100){
+      var blend=TE.FUEL.mix([{fuel:f,pct:100-p2},{fuel:f2,pct:p2}]);
+      var e1=TE.COMB.lossBS845(blend,b.x).effHHV;
+      r.eta1=e1;r.blend=blend;r.fuel2Name=f2.nameTh||f2.name;r.pct2=p2;
+      // เทียบที่ภาระความร้อนคงเดิม: Ein คงที่เชิงประโยชน์ → Ein_i = Ein0·(e0/e1); ต้นทุน ฿/GJ จากราคาต่อ kg / hhv
+      if(b.F>0&&b.price>0&&isFinite(pr2)){
+        var EinGJyr=b.F*f.hhv/1000*b.hrs*(e0/Math.max(e1,1e-9));   // GJ/ปี ที่ต้องป้อนด้วย blend เพื่อภาระเดิม
+        var cost0=b.F*b.hrs*b.price;                               // ฿/ปี เดิม
+        var priceGJblend=((100-p2)/100*b.price/f.hhv*1000)+(p2/100*pr2/f2.hhv*1000); // ฿/GJ ถ่วงตามสัดส่วนมวล→พลังงานโดยประมาณฐาน hhv แต่ละตัว
+        var cost1=EinGJyr*priceGJblend;
+        r.thb=cost0-cost1;r.gj=(b.F*f.hhv/1000*b.hrs)-EinGJyr;}
+    }
+    r.basis=T('basis_cofire');}
+  return r;
+}
+var _scres=[];
+function recalc(){
+  _base=calcBase();
+  _scres=(_base&&!_base.bad)?SC.map(function(s){return calcScenario(s,_base);}):[];
+  render();
+}
+function render(){
+  var b=_base;
+  function kv(cls,l,v,u,d){return '<div class="k '+cls+'"><div class="l">'+l+'</div><span class="v">'+fx(v,d==null?2:d)+'</span><span class="u">'+u+'</span></div>';}
+  var M=U.lang.current==='en'?'M THB/yr':'ล้าน฿/ปี';
+  if(!b){$('kpi').innerHTML='<div class="te-muted" style="padding:8px 0">'+T('noFuel')+'</div>';$('cmp').innerHTML='<div class="te-muted">'+T('noFuel')+'</div>';return;}
+  if(b.bad){$('kpi').innerHTML='<div class="te-warn" style="padding:8px 0">'+T('needQc')+'</div>';$('cmp').innerHTML='<div class="te-warn">'+T('needQc')+'</div>';return;}
+  var totTHB=0,totGJ=0,totInv=0;_scres.forEach(function(r){if(isFinite(r.thb)){totTHB+=r.thb;totGJ+=r.gj||0;totInv+=r.inv||0;}});
+  $('priceGJ').textContent=(b.price>0)?('≈ '+fx(b.price/b.fuel.hhv*1000,0)+' ฿/GJ (GCV)'):'';
+  $('kpi').innerHTML=kv('',T('etaB'),b.bs.effHHV,'%')+kv('',T('etaDir'),b.dir,'%')+
+    kv('money',T('save'),totTHB/1e6,M)+kv('loss',T('dFuel'),totGJ,'GJ/'+T('yr'),0)+
+    kv('',T('pb'),totInv>0&&totTHB>0?totInv/totTHB:NaN,T('yr'));
+  if(!_scres.length){$('cmp').innerHTML='<div class="te-muted">'+T('noScen')+'</div>';return;}
+  $('cmp').innerHTML='<table class="te-tbl"><tr><th>'+T('scen')+'</th><th class="r">η (GCV)</th><th class="r">'+T('dFuel')+'</th><th class="r">'+T('save')+'</th><th class="r">'+T('pb')+'</th></tr>'+
+    '<tr class="hl"><td>'+T('base')+'</td><td class="r">'+fx(b.bs.effHHV,2)+' %</td><td class="r">–</td><td class="r">–</td><td class="r">–</td></tr>'+
+    _scres.map(function(r){
+      var pb=(r.inv>0&&r.thb>0)?TE.ECON.payback(r.inv,r.thb):null;
+      return '<tr><td>'+esc(r.name)+(r.fuel2Name?' ('+esc(r.fuel2Name)+' '+fx(r.pct2,0)+'%)':'')+(r.note?'<div class="te-warn te-small">'+esc(r.note)+'</div>':'')+'</td>'+
+      '<td class="r">'+(r.eta1!=null?fx(r.eta1,2)+' %':'–')+'</td>'+
+      '<td class="r">'+(isFinite(r.gj)?fx(r.gj,0)+' GJ/'+T('yr'):'–')+'</td>'+
+      '<td class="r">'+(isFinite(r.thb)?fx(r.thb/1e6,3)+' '+M:'–')+'</td>'+
+      '<td class="r">'+(pb!=null?fx(pb,1)+' '+T('yr'):'–')+'</td></tr>';}).join('')+'</table>';
+}
+/* ── TE_ECM: ทุก scenario → หนึ่งไฟล์ ── */
+$('bEcmFile').addEventListener('click',function(){
+  var ok=_scres.filter(function(r){return r.gj>0&&r.thb>0;});
+  if(!_base||_base.bad||!ok.length){alert(T('noScen'));return;}
+  var e=TE.ECM.make({tool:CODE,site:U.issuer.data.clientName||''});
+  ok.forEach(function(r){TE.ECM.addMeasure(e,{id:CODE.toLowerCase()+'-'+r.id,name:r.name+(r.fuel2Name?' ('+r.fuel2Name+' '+r.pct2+'%)':''),
+    system:'boiler',effect:'direct',carrier:'fuel',unit:'GJ',savingQty:+r.gj.toFixed(1),
+    fuelName:_base.fuel.nameTh||_base.fuel.name,primary:{fuel_GJ:+r.gj.toFixed(1)},savingTHB:+r.thb.toFixed(0),
+    capex:r.inv>0?r.inv:undefined,mvOption:'B',basis:r.basis,group:'estimate'});});
+  U.download(new Blob([JSON.stringify(e,null,1)],{type:'application/json'}),TE.ECM.fileName(e));
+});
+/* ── ไฟล์งาน ── */
+var IDS=['F','price','hrs','Lrad','O2','CO_ppm','Tg','Ta','Ws','Pg','Tfw','cRefuse'];
+$('bSaveJob').addEventListener('click',function(){
+  var o={};IDS.forEach(function(id){if($(id).value!=='')o[id]=$(id).value;});o._fuel=fuel.state();
+  o._sc=SC.map(function(s){var vals={};['O2t','Tgt','TgEco','bdPct','pFlash','rFrom','rTo','Tcond','Tmu','pct2','price2','inv'].forEach(function(k){var e=$(k+'_'+s.id);if(e&&e.value!=='')vals[k]=e.value;});
+    return {type:s.type,vals:vals,fuel2:s.picker?s.picker.state():null};});
+  TE.STORE.putCard(JOB,CODE,TE.JSON2.exportCard({card:CODE,tool:T('title'),version:VER,tier:U.tier.current,inputs:o}),activeBoiler);
+  var sres=TE.STORE.save(JOB,U.tier.current);
+  if(!sres.ok){alert(sres.reason);return;}
+  U.download(new Blob([sres.json],{type:'application/json'}),sres.fileName);
+});
+$('bOpenJob').addEventListener('click',function(){$('fOpen').click();});
+$('fOpen').addEventListener('change',function(){
+  var file=this.files[0];this.value='';if(!file)return;
+  var rd=new FileReader();rd.onload=function(){
+    var obj;try{obj=JSON.parse(rd.result);}catch(e){alert('JSON?');return;}
+    var res=TE.STORE.open(obj,U.tier.current);if(!res.ok){alert(res.reason);return;}
+    JOB=res.job;renderInv();
+    var c=TE.STORE.getCard(JOB,CODE);if(!c)return;activeBoiler=c.equipmentId||null;
+    var o=(c.payload&&c.payload.inputs)||{};
+    IDS.forEach(function(id){if(o[id]!=null)$(id).value=o[id];});
+    SC=[];$('scList').innerHTML='';
+    (o._sc||[]).forEach(function(s){$('scType').value=s.type;$('bScAdd').click();var cur=SC[SC.length-1];
+      Object.keys(s.vals||{}).forEach(function(k){var e=$(k+'_'+cur.id);if(e)e.value=s.vals[k];});
+      if(s.fuel2&&cur.picker)cur.picker.restore(s.fuel2);});
+    if(o._fuel)fuel.restore(o._fuel);renderInv();recalc();
+  };rd.readAsText(file);
+});
+/* ── รายงาน ── */
+$('bReport').addEventListener('click',function(){
+  var b=_base;if(!b||b.bad){alert(T('needQc'));return;}
+  var pol=TE.TIER.report(U.tier.current);
+  if(pol.issuerRequired){var miss=U.issuer.missing();if(miss.length){alert(T('needIssuer')+miss.join(', '));return;}}
+  var M=U.lang.current==='en'?'M THB/yr':'ล้าน฿/ปี';
+  var body='<h2>'+T('repT1')+'</h2><table><tr><th>'+T('item')+'</th><th class="r">'+T('val')+'</th></tr>'+
+    '<tr><td>'+(U.lang.current==='en'?'Fuel':'เชื้อเพลิง')+'</td><td class="r">'+esc(U.lang.current==='en'?b.fuel.name:(b.fuel.nameTh||b.fuel.name))+' · HHV '+fx(b.fuel.hhv,3)+' MJ/kg</td></tr>'+
+    '<tr><td>'+T('etaB')+'</td><td class="r">'+fx(b.bs.effHHV,2)+' %</td></tr>'+
+    (isFinite(b.dir)?'<tr><td>'+T('etaDir')+'</td><td class="r">'+fx(b.dir,2)+' %</td></tr>':'')+
+    '<tr><td>O₂ / Tg / Ta</td><td class="r">'+fx(b.x.O2,1)+' % / '+fx(b.x.Tg,0)+' / '+fx(b.x.Ta,0)+' °C</td></tr></table>'+
+    '<h2>'+T('repT2')+'</h2><table><tr><th>'+T('scen')+'</th><th class="r">η (GCV)</th><th class="r">'+T('dFuel')+' (GJ/'+T('yr')+')</th><th class="r">'+T('save')+' ('+M+')</th><th class="r">'+T('pb')+' ('+T('yr')+')</th></tr>'+
+    '<tr><td><b>'+T('base')+'</b></td><td class="r">'+fx(b.bs.effHHV,2)+'</td><td class="r">–</td><td class="r">–</td><td class="r">–</td></tr>'+
+    _scres.map(function(r){var pb=(r.inv>0&&r.thb>0)?TE.ECON.payback(r.inv,r.thb):null;
+      return '<tr><td>'+esc(r.name)+(r.fuel2Name?' ('+esc(r.fuel2Name)+' '+fx(r.pct2,0)+'%)':'')+'<br><span style="font-size:10px;color:#5b6b7b">'+esc(r.basis||'')+'</span></td>'+
+      '<td class="r">'+(r.eta1!=null?fx(r.eta1,2):'–')+'</td><td class="r">'+(isFinite(r.gj)?fx(r.gj,0):'–')+'</td><td class="r">'+(isFinite(r.thb)?fx(r.thb/1e6,3):'–')+'</td><td class="r">'+(pb!=null?fx(pb,1):'–')+'</td></tr>';}).join('')+'</table>';
+  var rep=U.report.build({card:CODE,title:CODE+' — '+T('title'),bodyHtml:body,keyNums:[b.bs.effHHV].concat(_scres.map(function(r){return r.thb;}))});
+  var fmt=(U.tier.current==='expert'&&confirm(U.lang.current==='en'?'OK = Word (.doc) · Cancel = PDF/print':'ตกลง = Word (.doc) · ยกเลิก = PDF/พิมพ์'))?'docx':'pdf';
+  U.report.output(rep,fmt,CODE+'_'+(U.issuer.data.clientCode||'assessment'));
+});
+document.addEventListener('input',function(e){if(e.target.closest('main'))recalc();});
+document.addEventListener('change',function(e){if(e.target.closest('main'))recalc();});
+U.tier.on(function(){recalc();});
+U.tier.set(U.tier.resolve());renderInv();recalc();
+window.CARD={base:function(){return _base;},sc:function(){return _scres;},job:function(){return JOB;},code:CODE};
+</script>
+<script src="../te-insight.js" defer></script>
+</body>
+</html>

@@ -337,6 +337,22 @@ hr.divider { border:none; border-top:1px solid var(--border); margin:18px 0; }
 .fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
 .hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 </style>
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
 </head>
 <body>
 
@@ -880,31 +896,32 @@ hr.divider { border:none; border-top:1px solid var(--border); margin:18px 0; }
   <span style="font-size:10px; opacity:0.6;">Hybrid Chiller Analysis Tool v2.0 · ASHRAE 90.1 / AHRI 550/590 Reference</span>
 </div>
 
+<!-- ระยะ 2-12: เครื่องยนต์กลาง Triple E -->
+<script src="../lib/te-core.js"></script>
 <script>
 // ═══════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════
-const CP   = 4.186;      // kJ/kg·K water
-const KW_RT = 3.51685;   // kW per RT (1 RT = 12,000 BTU/h = 3.51685 kW)
+
+/* ระยะ 2-9: แกนคำนวณย้ายเข้า te-core — TE.CHILLER (ห้ามแก้ตัวเลขในหน้านี้) */
+function __chEnv(){return {styleSource:styleSource,tagFieldKinds:tagFieldKinds,toggleRow:toggleRow};}
+function calculateAll(...a){return TE.CHILLER.make(__chEnv()).calculateAll(...a);}
+function runSequencing(...a){return TE.CHILLER.make(__chEnv()).runSequencing(...a);}
+function runDiagnosis(...a){return TE.CHILLER.make(__chEnv()).runDiagnosis(...a);}
+function generateReport(...a){return TE.CHILLER.make(__chEnv()).generateReport(...a);}
+function buildAdvice(...a){return TE.CHILLER.make(__chEnv()).buildAdvice(...a);}
+function getRow(...a){return TE.CHILLER.make(__chEnv()).getRow(...a);}
+function buildSeqConfig(...a){return TE.CHILLER.make(__chEnv()).buildSeqConfig(...a);}
+function generateRows(...a){return TE.CHILLER.make(__chEnv()).generateRows(...a);}
+function drawLoadCurve(...a){return TE.CHILLER.make(__chEnv()).drawLoadCurve(...a);}
+
+
 
 // COP benchmarks [min_good, typical]
-const COP_BENCH = {
-  'Centrifugal': { kwrt_good:0.55, kwrt_warn:0.70 },
-  'Screw':       { kwrt_good:0.65, kwrt_warn:0.80 },
-  'Scroll':      { kwrt_good:0.80, kwrt_warn:1.10 },
-  'Abs-Steam':   { cop_good:0.65, cop_warn:0.55 },
-  'Abs-HotWater':{ cop_good:0.60, cop_warn:0.50 },
-  'Abs-Exhaust': { cop_good:0.55, cop_warn:0.40 },
-};
+
 
 // Default rows
-const DEFAULTS = [
-  { name:'CH-1', flow:170,  tin:12.0, tout:7.0, input:280,  cap:500, status:'On', source:'Electric',  type:'Centrifugal' },
-  { name:'CH-2', flow:85,   tin:12.0, tout:7.0, input:160,  cap:300, status:'On', source:'Electric',  type:'Screw' },
-  { name:'CH-3', flow:115,  tin:12.0, tout:7.0, input:930,  cap:400, status:'On', source:'Steam',     type:'Abs-Steam' },    // Fixed: COP ~0.72
-  { name:'CH-4', flow:60,   tin:11.5, tout:7.2, input:430,  cap:200, status:'On', source:'Hot Water', type:'Abs-HotWater' }, // Fixed: COP ~0.70
-  { name:'CH-5', flow:0,    tin:0,    tout:0,   input:0,    cap:150, status:'Off',source:'Exhaust',   type:'Abs-Exhaust' },
-];
+
 
 // ═══════════════════════════════════════════════
 //  TAB SWITCHING
@@ -928,59 +945,7 @@ function updateUnitLabels() {
   document.querySelectorAll('[class*="lbl-temp"]').forEach(el => el.innerText = isSI ? '°C' : '°F');
 }
 
-function generateRows(useDefaults) {
-  const num = parseInt(document.getElementById('numChillers').value);
-  const tb  = document.getElementById('tbody');
-  tb.innerHTML = '';
-  for (let i = 1; i <= num; i++) {
-    let d = { name:'CH-'+i, flow:'', tin:'', tout:'', input:'', cap:'', status:'Off', source:'Electric', type:'Screw' };
-    if (useDefaults && i <= DEFAULTS.length) d = DEFAULTS[i-1];
-    else if (useDefaults) d.name = 'CH-'+i;
 
-    const isOff = d.status === 'Off' || d.status === 'Standby';
-    tb.insertAdjacentHTML('beforeend', `
-      <tr id="row_${i}" class="${isOff?'row-off':'row-on'}">
-        <td style="text-align:center; font-family:var(--mono); font-weight:600; color:var(--text3);">${i}</td>
-        <td>
-          <input type="text" value="${d.name}" id="name_${i}" style="width:70px; font-size:12px; padding:5px 7px; border:1px solid var(--border); border-radius:5px; background:#f8faff; font-family:var(--mono); outline:none; margin-bottom:4px;">
-          <select id="status_${i}" onchange="toggleRow(${i})" style="width:70px; font-size:12px; padding:5px 4px; border:1px solid var(--border); border-radius:5px; background:#f8faff; font-family:var(--mono); outline:none;">
-            <option value="On" ${!isOff?'selected':''}>On</option>
-            <option value="Off" ${isOff?'selected':''}>Off</option>
-          </select>
-        </td>
-        <td><input type="number" id="flow_${i}" value="${d.flow}" step="0.1" class="tinput" ${isOff?'disabled':''}></td>
-        <td><input type="number" id="tin_${i}"  value="${d.tin}"  step="0.1" class="tinput" ${isOff?'disabled':''}></td>
-        <td><input type="number" id="tout_${i}" value="${d.tout}" step="0.1" class="tinput" ${isOff?'disabled':''}></td>
-        <td>
-          <select id="source_${i}" onchange="styleSource(${i})" class="tinput" style="min-width:130px;" ${isOff?'disabled':''}>
-            <option value="Electric"   ${d.source==='Electric'?'selected':''}>⚡ Electric</option>
-            <option value="Steam"      ${d.source==='Steam'?'selected':''}>♨️ Steam</option>
-            <option value="Hot Water"  ${d.source==='Hot Water'?'selected':''}>💧 Hot Water</option>
-            <option value="Exhaust"    ${d.source==='Exhaust'?'selected':''}>💨 Exhaust</option>
-            <option value="Thermal Oil"${d.source==='Thermal Oil'?'selected':''}>🛢️ Thermal Oil</option>
-          </select>
-        </td>
-        <td><input type="number" id="input_${i}" value="${d.input}" step="0.1" class="tinput" placeholder="kW" ${isOff?'disabled':''}></td>
-        <td>
-          <select id="type_${i}" class="tinput" ${isOff?'disabled':''}>
-            <option value="Centrifugal"  ${d.type==='Centrifugal'?'selected':''}>Centrifugal</option>
-            <option value="Screw"        ${d.type==='Screw'?'selected':''}>Screw</option>
-            <option value="Scroll"       ${d.type==='Scroll'?'selected':''}>Scroll</option>
-            <option value="Abs-Steam"    ${d.type==='Abs-Steam'?'selected':''}>Abs-Steam</option>
-            <option value="Abs-HotWater" ${d.type==='Abs-HotWater'?'selected':''}>Abs-HotWater</option>
-            <option value="Abs-Exhaust"  ${d.type==='Abs-Exhaust'?'selected':''}>Abs-Exhaust</option>
-          </select>
-        </td>
-        <td><input type="number" id="cap_${i}" value="${d.cap}" class="tinput" style="width:72px;" placeholder="RT" ${isOff?'disabled':''}></td>
-      </tr>`);
-    styleSource(i);
-  }
-  // apply table input style
-  document.querySelectorAll('.tinput').forEach(el => {
-    Object.assign(el.style, { width:'100%', padding:'7px 9px', border:'1px solid var(--border)', borderRadius:'6px', background:'#f8faff', fontFamily:'var(--mono)', fontSize:'12px', outline:'none', boxSizing:'border-box' });
-  });
-  if (typeof tagFieldKinds === 'function') tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่าหลังสร้างแถวใหม่ */
-}
 
 function toggleRow(id) {
   const isOff = document.getElementById(`status_${id}`).value === 'Off';
@@ -1004,434 +969,27 @@ function clearData() {
   document.getElementById('resultSection').style.display = 'none';
 }
 
-function getRow(i, isSI) {
-  const status = document.getElementById(`status_${i}`).value;
-  if (status === 'Off') return null;
-  const flow = parseFloat(document.getElementById(`flow_${i}`).value) || 0;
-  const tin  = parseFloat(document.getElementById(`tin_${i}`).value)  || 0;
-  const tout = parseFloat(document.getElementById(`tout_${i}`).value) || 0;
-  const inp  = parseFloat(document.getElementById(`input_${i}`).value) || 0;
-  const cap  = parseFloat(document.getElementById(`cap_${i}`).value)  || 0;
-  const source = document.getElementById(`source_${i}`).value;
-  const type   = document.getElementById(`type_${i}`).value;
-  const name   = document.getElementById(`name_${i}`).value || 'CH-'+i;
 
-  // Convert to SI
-  const flow_m3s = isSI ? flow/3600 : flow*0.00006309;  // GPM → m³/s
-  const dT = isSI ? (tin - tout) : (tin - tout)*(5/9);  // °F diff → °C diff
-  const q_kw = (flow_m3s > 0 && dT > 0) ? flow_m3s * 1000 * CP * dT : 0;
-  return { name, source, type, q_kw, q_rt: q_kw/KW_RT, inp, cap, flow, tin, tout };
-}
 
-function calculateAll() {
-  const isSI = document.getElementById('unitSI').checked;
-  const num  = parseInt(document.getElementById('numChillers').value);
 
-  let elec_q=0, elec_inp=0, abs_q=0, abs_inp=0, total_cap=0;
-  const rows = [];
 
-  for (let i = 1; i <= num; i++) {
-    const r = getRow(i, isSI);
-    if (!r) continue;
-    const isElec = r.source === 'Electric';
-    if (isElec) { elec_q += r.q_kw; elec_inp += r.inp; }
-    else         { abs_q  += r.q_kw; abs_inp  += r.inp; }
-    total_cap += r.cap;
-    rows.push({ ...r, idx: i });
-  }
 
-  const total_q   = elec_q + abs_q;
-  const total_rt  = total_q / KW_RT;
-  const total_inp = elec_inp + abs_inp;
-  const elec_rt   = elec_q / KW_RT;
-  const abs_rt    = abs_q  / KW_RT;
-
-  // === CORRECTED METRICS ===
-  // elec_kwrt: efficiency of Electric Chillers ONLY (Electric input ÷ Electric RT)
-  const elec_kwrt       = elec_rt   > 0 ? elec_inp  / elec_rt   : 0;
-  // sys_elec_intensity: how much electric power per total RT (for billing/demand analysis)
-  const sys_elec_intens = total_rt  > 0 ? elec_inp  / total_rt  : 0;
-  // abs_cop: Absorption COP = cooling output ÷ thermal input
-  const abs_cop         = abs_inp   > 0 ? abs_q     / abs_inp   : 0;
-  // sys_cop: Overall COP = total cooling ÷ total energy (electric + thermal)
-  const sys_cop         = total_inp > 0 ? total_q   / total_inp : 0;
-  // load_factor: running RT vs rated RT
-  const load_factor     = total_cap > 0 ? (total_rt / total_cap)*100 : 0;
-
-  // KPI Row
-  const kpiRow = document.getElementById('kpiRow');
-  kpiRow.innerHTML = `
-    <div class="kpi-card blue">
-      <div class="kpi-label">Total Cooling Load</div>
-      <div class="kpi-value" style="color:var(--blue)">${total_rt.toFixed(1)}</div>
-      <div class="kpi-unit">RT (${total_q.toFixed(0)} kW)</div>
-      <div class="kpi-status s-na">Elec ${elec_rt.toFixed(0)} + Abs ${abs_rt.toFixed(0)} RT</div>
-    </div>
-    <div class="kpi-card green">
-      <div class="kpi-label">Elec. Chiller Efficiency</div>
-      <div class="kpi-value" style="color:${elec_kwrt>0&&elec_kwrt<0.60?'var(--green)':elec_kwrt<0.80?'var(--amber)':'var(--red)'}">${elec_rt>0?elec_kwrt.toFixed(3):'—'}</div>
-      <div class="kpi-unit">kW(e)/RT (Electric Only)</div>
-      <div class="kpi-status ${elec_rt>0?(elec_kwrt<0.60?'s-good':elec_kwrt<0.80?'s-warn':'s-bad'):'s-na'}">${elec_rt>0?(elec_kwrt<0.60?'✓ ดีมาก':elec_kwrt<0.80?'⚠ ปานกลาง':'✗ ต้องปรับปรุง'):'ไม่มี Electric'}</div>
-    </div>
-    <div class="kpi-card amber">
-      <div class="kpi-label">Abs. COP (Thermal)</div>
-      <div class="kpi-value" style="color:${abs_rt>0?(abs_cop>0.65?'var(--green)':abs_cop>0.50?'var(--amber)':'var(--red)'):'var(--text3)'}">${abs_rt>0?abs_cop.toFixed(3):'—'}</div>
-      <div class="kpi-unit">kW_cool / kW_thermal</div>
-      <div class="kpi-status ${abs_rt>0?(abs_cop>0.65?'s-good':abs_cop>0.50?'s-warn':'s-bad'):'s-na'}">${abs_rt>0?(abs_cop>0.65?'✓ ดี':abs_cop>0.50?'⚠ ต่ำกว่าเกณฑ์':'✗ ต่ำมาก — ตรวจด่วน'):'ไม่มี Absorption'}</div>
-    </div>
-    <div class="kpi-card teal">
-      <div class="kpi-label">System Overall COP</div>
-      <div class="kpi-value" style="color:var(--teal)">${total_inp>0?sys_cop.toFixed(2):'—'}</div>
-      <div class="kpi-unit">Total kW_cool ÷ (Elec + Thermal)</div>
-      <div class="kpi-status s-na">Load Factor: ${load_factor.toFixed(1)}%</div>
-    </div>`;
-
-  // Breakdown Table
-  const bd = document.getElementById('breakdownBody');
-  bd.innerHTML = `
-    <tr>
-      <td>Cooling Load</td>
-      <td class="hi">${elec_rt.toFixed(2)} RT &nbsp;<span style="color:var(--text3);font-size:11px;">(${elec_q.toFixed(0)} kW)</span></td>
-      <td class="hi">${abs_rt.toFixed(2)} RT &nbsp;<span style="color:var(--text3);font-size:11px;">(${abs_q.toFixed(0)} kW)</span></td>
-      <td class="hi">${total_rt.toFixed(2)} RT</td>
-    </tr>
-    <tr>
-      <td>Energy Input</td>
-      <td>${elec_inp.toFixed(0)} kW <span style="color:var(--text3);font-size:11px;">(Electric)</span></td>
-      <td>${abs_inp.toFixed(0)} kW <span style="color:var(--text3);font-size:11px;">(Thermal)</span></td>
-      <td>${total_inp.toFixed(0)} kW</td>
-    </tr>
-    <tr>
-      <td>Performance</td>
-      <td><strong>${elec_rt>0?elec_kwrt.toFixed(3):'—'} kW/RT</strong></td>
-      <td>COP = <strong>${abs_rt>0?abs_cop.toFixed(3):'—'}</strong></td>
-      <td>Sys COP = <strong>${total_inp>0?sys_cop.toFixed(3):'—'}</strong></td>
-    </tr>
-    <tr>
-      <td>Elec Intensity (System)</td>
-      <td colspan="3">${total_rt>0?sys_elec_intens.toFixed(3):'—'} kW(e)/RT_total &nbsp;
-        <span style="color:var(--text3);font-size:11px;">= Electric Power ÷ Total Cooling (สำหรับวิเคราะห์ค่าไฟรายระบบ)</span></td>
-    </tr>`;
-
-  // Per-unit table
-  const ub = document.getElementById('unitResultBody');
-  ub.innerHTML = '';
-  rows.forEach(r => {
-    const isElec = r.source === 'Electric';
-    let perf='—', perfClass='';
-    if (r.q_rt > 0 && r.inp > 0) {
-      if (isElec) {
-        const kwr = r.inp / r.q_rt;
-        const b = COP_BENCH[r.type] || {};
-        perf = kwr.toFixed(3)+' kW/RT';
-        perfClass = kwr < (b.kwrt_good||0.7) ? 'good' : kwr < (b.kwrt_warn||0.9) ? 'warn' : 'bad';
-      } else {
-        const cop = r.q_kw / r.inp;
-        const b = COP_BENCH[r.type] || {};
-        perf = 'COP '+cop.toFixed(3);
-        perfClass = cop > (b.cop_good||0.6) ? 'good' : cop > (b.cop_warn||0.5) ? 'warn' : 'bad';
-      }
-    }
-    const lf = r.cap > 0 ? (r.q_rt/r.cap*100) : 0;
-    const lfClass = lf > 90 ? 'bad' : lf > 60 ? 'good' : lf > 35 ? 'warn' : 'bad';
-    ub.insertAdjacentHTML('beforeend', `
-      <tr>
-        <td style="text-align:center">${r.idx}</td>
-        <td class="hi">${r.name}</td>
-        <td style="font-family:var(--mono);font-size:11px;">${r.type}</td>
-        <td style="color:${isElec?'var(--green)':'var(--amber)'};font-weight:600;">${r.source}</td>
-        <td class="hi">${r.q_kw > 0 ? r.q_kw.toFixed(1) : '—'}</td>
-        <td class="hi">${r.q_rt > 0 ? r.q_rt.toFixed(2) : '—'}</td>
-        <td>${r.inp > 0 ? r.inp.toFixed(1) : '—'}</td>
-        <td class="${perfClass}">${perf}</td>
-        <td class="${lfClass}">${r.q_rt>0&&r.cap>0?lf.toFixed(1)+'%':'—'}</td>
-        <td><span class="kpi-status ${lf>90?'s-bad':lf>60?'s-good':lf>35?'s-warn':'s-bad'}">${lf>90?'🔴 Overload':lf>60?'🟢 Normal':lf>35?'🟡 Low':'⚫ Idle'}</span></td>
-      </tr>`);
-  });
-
-  // Advice
-  buildAdvice(elec_rt, abs_rt, elec_kwrt, abs_cop, sys_cop, load_factor, rows);
-  document.getElementById('resultSection').style.display = 'block';
-  document.getElementById('resultSection').scrollIntoView({ behavior:'smooth', block:'start' });
-}
-
-function buildAdvice(elec_rt, abs_rt, elec_kwrt, abs_cop, sys_cop, lf, rows) {
-  let html = '<ul style="padding-left:20px; line-height:2; font-size:13px; color:var(--text2);">';
-  html += `<li><strong>System Load Factor:</strong> ${lf.toFixed(1)}% ของพิกัดเครื่องที่เดินอยู่</li>`;
-
-  if (abs_rt > 0 && elec_rt > 0) {
-    html += `<li><span style="color:var(--blue);font-weight:600;">Hybrid Operation:</span> ระบบผสมผสาน Electric + Absorption — ช่วยลด Peak Demand ค่าไฟ`;
-    if (abs_cop < 0.55) html += ` <span style="color:var(--red)">⚠️ Abs COP ต่ำมาก (${abs_cop.toFixed(2)}) — ตรวจ Fouling, Non-condensable Gas, Solution Conc.</span>`;
-    html += '</li>';
-  } else if (abs_rt > 0 && elec_rt === 0) {
-    // Abs-only: must check COP
-    if (abs_cop < 0.55) {
-      html += `<li><span style="color:var(--red);font-weight:600;">⚠️ Abs-Only & COP ต่ำ (${abs_cop.toFixed(2)}):</span> ตรวจ Generator Fouling, Purge System, Solution Concentration</li>`;
-    } else {
-      html += `<li><span style="color:var(--green);font-weight:600;">✓ Absorption-Only:</span> COP = ${abs_cop.toFixed(2)} — อยู่ในเกณฑ์ที่ยอมรับได้</li>`;
-    }
-  }
-
-  if (elec_rt > 0 && elec_kwrt > 0.80) {
-    html += `<li><span style="color:var(--red);font-weight:600;">⚠️ Electric COP ต่ำ (${elec_kwrt.toFixed(3)} kW/RT):</span> ตรวจ Condenser Fouling, Refrigerant Charge, ลด Condenser Water Temp</li>`;
-  }
-
-  if (lf < 40 && rows.length > 0) {
-    html += `<li><span style="color:var(--amber);font-weight:600;">Low Load Alert (${lf.toFixed(1)}%):</span> ควรปิด Chiller ตัวที่ประสิทธิภาพต่ำสุดเพื่อให้ตัวที่เหลือทำงานใน Load Factor 70–90%`;
-    if (rows.some(r => r.type === 'Centrifugal')) html += ' — ระวัง Surge ใน Centrifugal ที่ Load &lt; 25%';
-    html += '</li>';
-  }
-
-  if (lf > 95) {
-    html += `<li><span style="color:var(--red);font-weight:600;">🔴 Overload Warning (${lf.toFixed(1)}%):</span> โหลดเกินพิกัดเครื่อง — สตาร์ท Standby Chiller ทันที</li>`;
-  }
-
-  html += '</ul>';
-  document.getElementById('adviceContent').innerHTML = html;
-}
 
 // ═══════════════════════════════════════════════
 //  TAB 2: FAULT DIAGNOSIS
 // ═══════════════════════════════════════════════
 function toggleFault(node) { node.classList.toggle('open'); }
 
-function runDiagnosis() {
-  const tret  = parseFloat(document.getElementById('d_tret').value)  || 0;
-  const tsup  = parseFloat(document.getElementById('d_tsup').value)  || 0;
-  const tcws  = parseFloat(document.getElementById('d_tcws').value)  || 0;
-  const tcwr  = parseFloat(document.getElementById('d_tcwr').value)  || 0;
-  const inp   = parseFloat(document.getElementById('d_input').value) || 0;
-  const flow  = parseFloat(document.getElementById('d_flow').value)  || 0;
-  const cap   = parseFloat(document.getElementById('d_cap').value)   || 0;
-  const type  = document.getElementById('d_type').value;
 
-  const isElec = type === 'Electric';
-  const q_kw   = (flow/3600) * 1000 * CP * (tret - tsup);
-  const q_rt   = q_kw / KW_RT;
-  const dT_chw = tret - tsup;
-  const dT_cw  = tcwr - tcws;
-  const kwrt   = (q_rt > 0 && isElec) ? inp / q_rt : 0;
-  const cop    = (!isElec && inp > 0) ? q_kw / inp : 0;
-  const lf     = (cap > 0) ? (q_rt/cap*100) : 0;
-
-  const b = COP_BENCH[type.replace('Electric','Centrifugal')] || {};
-  let kwrtClass='s-na', copClass='s-na';
-  if (isElec && kwrt > 0) kwrtClass = kwrt < (b.kwrt_good||0.7) ? 's-good' : kwrt < (b.kwrt_warn||0.9) ? 's-warn' : 's-bad';
-  if (!isElec && cop > 0) copClass  = cop > (b.cop_good||0.6) ? 's-good' : cop > (b.cop_warn||0.5) ? 's-warn' : 's-bad';
-
-  document.getElementById('diagKpi').innerHTML = `
-    <div class="kpi-card blue"><div class="kpi-label">Q_cooling</div><div class="kpi-value" style="color:var(--blue)">${q_rt.toFixed(2)}</div><div class="kpi-unit">RT (${q_kw.toFixed(0)} kW)</div></div>
-    <div class="kpi-card ${isElec?'green':'amber'}">
-      <div class="kpi-label">${isElec?'kW/RT':'COP Thermal'}</div>
-      <div class="kpi-value" style="color:var(${isElec?'--green':'--amber'})">${isElec?(kwrt>0?kwrt.toFixed(3):'—'):(cop>0?cop.toFixed(3):'—')}</div>
-      <div class="kpi-unit">${isElec?'lower=better':'higher=better'}</div>
-      <div class="kpi-status ${isElec?kwrtClass:copClass}">${isElec?(kwrt<(b.kwrt_good||0.7)?'✓ ดี':kwrt<(b.kwrt_warn||0.9)?'⚠ ปานกลาง':'✗ ต้องปรับปรุง'):(cop>(b.cop_good||0.6)?'✓ ดี':cop>(b.cop_warn||0.5)?'⚠ ต่ำ':'✗ ต่ำมาก')}</div>
-    </div>
-    <div class="kpi-card teal"><div class="kpi-label">ΔT CHW</div><div class="kpi-value" style="color:var(--teal);font-size:32px">${dT_chw.toFixed(1)}</div><div class="kpi-unit">°C (target 5–6°C)</div><div class="kpi-status ${dT_chw>=4&&dT_chw<=7?'s-good':dT_chw>=3?'s-warn':'s-bad'}">${dT_chw>=4&&dT_chw<=7?'✓ Normal':dT_chw>=3?'⚠ ต่ำกว่าปกติ':'✗ ผิดปกติ'}</div></div>
-    <div class="kpi-card amber"><div class="kpi-label">ΔT CW</div><div class="kpi-value" style="color:var(--amber);font-size:32px">${dT_cw.toFixed(1)}</div><div class="kpi-unit">°C (target 4–6°C)</div><div class="kpi-status ${dT_cw>=3.5&&dT_cw<=7?'s-good':'s-warn'}">${dT_cw>=3.5&&dT_cw<=7?'✓ Normal':'⚠ ตรวจสอบ CW Flow'}</div></div>`;
-
-  let alerts = '';
-  if (tsup > 8.5) alerts += `<div class="alert alert-danger">🌡️ <div><strong>T_supply สูงเกินปกติ (${tsup}°C)</strong> — ตรวจ Evaporator Fouling, Refrigerant Undercharge, หรือโหลดเกินพิกัด</div></div>`;
-  if (dT_chw < 3)  alerts += `<div class="alert alert-warn">⚠️ <div><strong>ΔT_CHW ต่ำ (${dT_chw.toFixed(1)}°C)</strong> — อาจมี Bypass รั่ว หรือ Flow สูงเกิน ทำให้ Chiller กินไฟมากเกินความจำเป็น</div></div>`;
-  if (dT_cw > 7)   alerts += `<div class="alert alert-warn">⚠️ <div><strong>ΔT_CW สูง (${dT_cw.toFixed(1)}°C)</strong> — Condenser Water Flow ต่ำเกิน หรือ Cooling Tower ไม่พอ</div></div>`;
-  if (tcws > 32)   alerts += `<div class="alert alert-warn">🌡️ <div><strong>T_CWS สูง (${tcws}°C)</strong> — Cooling Tower ทำงานผิดปกติ หรืออากาศร้อนมาก → kW/RT สูงขึ้น</div></div>`;
-  if (isElec && kwrt > 0.85) alerts += `<div class="alert alert-danger">⚡ <div><strong>kW/RT สูงมาก (${kwrt.toFixed(3)})</strong> — ตรวจ Condenser Fouling → ล้าง Tube; ตรวจ Refrigerant Charge; หรือ Load ต่ำเกิน</div></div>`;
-  if (!isElec && cop > 0 && cop < 0.50) alerts += `<div class="alert alert-danger">♨️ <div><strong>Abs COP ต่ำมาก (${cop.toFixed(3)})</strong> — ตรวจ Purge Unit (Non-condensable Gas), Solution Concentration, Generator Fouling</div></div>`;
-  if (lf < 35 && q_rt > 0) alerts += `<div class="alert alert-warn">📉 <div><strong>Load Factor ต่ำ (${lf.toFixed(1)}%)</strong> — ควรปิดเครื่องและโอนโหลดไปให้ Chiller ตัวอื่น</div></div>`;
-  if (!alerts) alerts = `<div class="alert alert-success">✅ <div><strong>ค่าวัดอยู่ในเกณฑ์ปกติ</strong> — ไม่พบความผิดปกติที่ชัดเจน</div></div>`;
-
-  document.getElementById('diagAlerts').innerHTML = alerts;
-  document.getElementById('diagResult').style.display = 'block';
-}
 
 // ═══════════════════════════════════════════════
 //  TAB 3: LOAD SEQUENCING
 // ═══════════════════════════════════════════════
-function buildSeqConfig() {
-  const num = parseInt(document.getElementById('numChillers').value);
-  const container = document.getElementById('seqChillerConfig');
-  // [แก้ไข 10 ก.ย. 2569] เก็บค่าที่ผู้ใช้แก้ไว้ก่อน rebuild (เดิมคลิกแท็บ Sequencing ทีไร ค่า Cap/Min/Priority ถูกล้างทุกครั้ง)
-  // [แก้ไข 3 ต.ค. 2569 audit] เดิม "เก็บค่าที่ผู้ใช้แก้" เก็บทุกช่องที่ไม่ว่าง → ค่าความจุ/ลำดับเก่าค้างแม้แท็บ 1 เปลี่ยนแล้ว (Seq ใช้ 500/300 RT แทน 600/400)
-  //   ตอนนี้แต่ละช่องจำค่าต้นทาง (data-src) ที่ใช้สร้าง — ถือว่า "ผู้ใช้แก้" เฉพาะเมื่อค่าปัจจุบัน ≠ ค่าต้นทาง; ถ้าไม่ได้แก้ → ดึงค่าใหม่จากแท็บ 1
-  const prev = {};
-  const edited = el => !!el && el.value !== '' && (el.dataset.src === undefined || String(el.value) !== String(el.dataset.src));
-  for (let i = 1; i <= 20; i++) {
-    const c = document.getElementById(`seq_cap_${i}`), m = document.getElementById(`seq_min_${i}`), p = document.getElementById(`seq_prio_${i}`);
-    if (c) prev[i] = { cap: edited(c) ? c.value : null, min: edited(m) ? m.value : null, prio: edited(p) ? p.value : null };
-  }
-  container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>#</th><th>Name</th><th>Type</th><th>Source</th><th>Cap (RT)</th><th>Min Load %</th><th>Priority</th></tr></thead><tbody id="seqBody"></tbody></table></div>';
-  const sb = document.getElementById('seqBody');
-  for (let i = 1; i <= num; i++) {
-    const name = document.getElementById(`name_${i}`)?.value || 'CH-'+i;
-    const type = document.getElementById(`type_${i}`)?.value || 'Screw';
-    const src  = document.getElementById(`source_${i}`)?.value || 'Electric';
-    const cap  = document.getElementById(`cap_${i}`)?.value || 0;
-    const isElec = src === 'Electric';
-    let minLoad = type === 'Centrifugal' ? 25 : type.startsWith('Abs') ? 30 : 30;
-    let prio = src==='Exhaust'?1:src==='Steam'||src==='Hot Water'?2:type==='Centrifugal'?3:type==='Screw'?4:5;
-    let capVal = cap;
-    const srcCap = cap, srcMin = minLoad, srcPrio = prio; // [แก้ไข 3 ต.ค. 2569 audit] ค่าต้นทางจากแท็บ 1 / ค่าอัตโนมัติ
-    if (prev[i]) { if (prev[i].cap !== null) capVal = prev[i].cap; if (prev[i].min !== null) minLoad = +prev[i].min; if (prev[i].prio !== null) prio = +prev[i].prio; }
-    const capNote = (String(capVal) !== String(srcCap)) ? `<div style="font-size:10px;color:var(--amber);">แท็บ 1: ${srcCap}</div>` : '';
-    sb.insertAdjacentHTML('beforeend', `
-      <tr>
-        <td>${i}</td>
-        <td class="hi">${name}</td>
-        <td style="font-size:11px;">${type}</td>
-        <td style="color:${isElec?'var(--green)':'var(--amber)'}; font-weight:600;">${src}</td>
-        <td><input type="number" id="seq_cap_${i}" value="${capVal}" data-src="${srcCap}" style="width:70px; padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-family:var(--mono); font-size:12px; outline:none; background:#f8faff;">${capNote}</td>
-        <td><input type="number" id="seq_min_${i}" value="${minLoad}" data-src="${srcMin}" style="width:60px; padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-family:var(--mono); font-size:12px; outline:none; background:#f8faff;">%</td>
-        <td><select id="seq_prio_${i}" data-src="${srcPrio}" style="padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-family:var(--mono); font-size:12px; outline:none; background:#f8faff;">
-          ${[1,2,3,4,5].map(p=>`<option value="${p}" ${p===prio?'selected':''}>P${p}</option>`).join('')}
-        </select></td>
-      </tr>`);
-  }
-}
 
-function runSequencing() {
-  const num    = parseInt(document.getElementById('numChillers').value);
-  const target = parseFloat(document.getElementById('seq_load').value) || 0;
 
-  // Gather chiller configs
-  let chillers = [];
-  for (let i = 1; i <= num; i++) {
-    const cap  = parseFloat(document.getElementById(`seq_cap_${i}`)?.value) || 0;
-    const minLv = parseFloat(document.getElementById(`seq_min_${i}`)?.value); const minL = isFinite(minLv) ? minLv : 30; // [แก้ไข 3 ต.ค. 2569 audit] 0 % ไม่ถูกแทนเป็น 30 %
-    const prio = parseInt(document.getElementById(`seq_prio_${i}`)?.value) || 3;
-    const name = document.getElementById(`name_${i}`)?.value || 'CH-'+i;
-    const type = document.getElementById(`type_${i}`)?.value || 'Screw';
-    const src  = document.getElementById(`source_${i}`)?.value || 'Electric';
-    if (cap > 0) chillers.push({ i, name, cap, minL, prio, type, src });
-  }
 
-  // Sort by priority (1=highest), then by kW/RT (Abs first, then Centrifugal)
-  chillers.sort((a, b) => a.prio - b.prio);
 
-  // Greedy sequencing: add chillers until target met
-  let remaining = target, running = [], totalCap = 0;
-  for (const ch of chillers) {
-    if (remaining <= 0) break;
-    const assign = Math.min(ch.cap, remaining);
-    const lf = assign / ch.cap * 100;
-    const isElec = ch.src === 'Electric';
-    running.push({ ...ch, assign, lf });
-    remaining -= assign;
-    totalCap  += ch.cap;
-  }
 
-  const achieved = target - Math.max(0, remaining);
-  const achLF    = totalCap > 0 ? achieved/totalCap*100 : 0;
-
-  // KPIs
-  document.getElementById('seqKpi').innerHTML = `
-    <div class="kpi-card blue"><div class="kpi-label">Load Target</div><div class="kpi-value" style="color:var(--blue)">${target.toFixed(0)}</div><div class="kpi-unit">RT</div></div>
-    <div class="kpi-card ${remaining>0?'red':'green'}"><div class="kpi-label">Met / Deficit</div><div class="kpi-value" style="color:${remaining>0?'var(--red)':'var(--green)'}; font-size:32px">${remaining>0?'-'+remaining.toFixed(0):'✓'}</div><div class="kpi-unit">${remaining>0?remaining.toFixed(0)+' RT deficit':'Fully met'}</div></div>
-    <div class="kpi-card teal"><div class="kpi-label">Active Chillers</div><div class="kpi-value" style="color:var(--teal)">${running.length}</div><div class="kpi-unit">of ${chillers.length} available</div></div>
-    <div class="kpi-card amber"><div class="kpi-label">Avg Load Factor</div><div class="kpi-value" style="color:var(--amber);font-size:32px">${achLF.toFixed(1)}</div><div class="kpi-unit">%</div></div>`;
-
-  // Bar chart
-  let bars = '';
-  running.forEach(ch => {
-    const isElec = ch.src === 'Electric';
-    const pct    = ch.lf;
-    const col    = isElec ? 'var(--blue3)' : 'var(--amber)';
-    const warn   = pct < ch.minL || pct > 100;
-    bars += `
-      <div style="margin-bottom:12px;">
-        <div style="display:flex; justify-content:space-between; font-size:12px; font-family:var(--mono); margin-bottom:4px;">
-          <span style="color:var(--text); font-weight:600;">${ch.name} <span style="color:var(--text3); font-weight:400;">(${ch.type})</span></span>
-          <span style="color:${warn?'var(--red)':col}; font-weight:600;">${pct.toFixed(1)}% of ${ch.cap} RT</span>
-        </div>
-        <div style="background:var(--border); border-radius:4px; height:12px; overflow:hidden;">
-          <div style="height:100%; width:${Math.min(100,pct)}%; background:${warn?'var(--red)':col}; border-radius:4px; transition:width 0.5s;"></div>
-        </div>
-        ${warn ? `<div style="font-size:10px; color:var(--red); font-family:var(--mono); margin-top:2px;">⚠️ ต่ำกว่า Min Load ${ch.minL}%</div>` : ''}
-      </div>`;
-  });
-  document.getElementById('seqBarChart').innerHTML = bars;
-
-  // Detail table
-  let detail = '<table class="data-table" style="margin-top:16px;"><thead><tr><th>P</th><th>Name</th><th>Cap</th><th>Assigned</th><th>Load %</th><th>Status</th></tr></thead><tbody>';
-  running.forEach(ch => {
-    const warn = ch.lf < ch.minL;
-    detail += `<tr><td>P${ch.prio}</td><td class="hi">${ch.name}</td><td>${ch.cap} RT</td><td>${ch.assign.toFixed(1)} RT</td><td class="${warn?'bad':ch.lf>90?'bad':'good'}">${ch.lf.toFixed(1)}%</td><td><span class="kpi-status ${warn?'s-warn':'s-good'}">${warn?'⚠ Low':'✓ OK'}</span></td></tr>`;
-  });
-  if (remaining > 0) detail += `<tr><td colspan="6" style="color:var(--red); font-weight:600; text-align:center;">⚠️ ขาด ${remaining.toFixed(1)} RT — ต้องสตาร์ท Standby Chiller</td></tr>`;
-  detail += '</tbody></table>';
-  document.getElementById('seqDetail').innerHTML = detail;
-  document.getElementById('seqResult').style.display = 'block';
-}
-
-function drawLoadCurve() {
-  const canvas = document.getElementById('loadCurveCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.offsetWidth || 560, H = 280;
-  canvas.width = W; canvas.height = H;
-  const pad = { t:30, r:20, b:40, l:60 };
-  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
-
-  ctx.clearRect(0,0,W,H);
-  ctx.fillStyle = '#f0f5fc'; ctx.fillRect(0,0,W,H);
-
-  // Axes
-  ctx.strokeStyle = 'rgba(160,185,215,0.6)'; ctx.lineWidth = 0.5;
-  [0,0.2,0.4,0.6,0.8,1.0].forEach(v => {
-    const y = pad.t + ch - v*ch;
-    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke();
-    ctx.fillStyle = 'rgba(80,100,140,0.7)'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
-    ctx.fillText((v).toFixed(1), pad.l-8, y+4);
-  });
-  [0,20,40,60,80,100].forEach((v,i) => {
-    const x = pad.l + (v/100)*cw;
-    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t+ch); ctx.stroke();
-    ctx.fillStyle = 'rgba(80,100,140,0.7)'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
-    ctx.fillText(v+'%', x, H-pad.b+16);
-  });
-
-  // COP curves (normalized, typical shape)
-  function plotCurve(pts, color, label) {
-    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.setLineDash([]);
-    ctx.beginPath();
-    pts.forEach(([lf,eff],i) => {
-      const x = pad.l + (lf/100)*cw, y = pad.t + ch - eff*ch;
-      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-    });
-    ctx.stroke();
-    // dot at peak
-    const peak = pts.reduce((a,b) => b[1]>a[1]?b:a);
-    ctx.beginPath(); ctx.arc(pad.l+(peak[0]/100)*cw, pad.t+ch-peak[1]*ch, 4, 0, Math.PI*2);
-    ctx.fillStyle = color; ctx.fill();
-    ctx.fillStyle = color; ctx.font = '11px monospace'; ctx.textAlign = 'left';
-    ctx.fillText(label, pad.l+(peak[0]/100)*cw+8, pad.t+ch-peak[1]*ch+4);
-  }
-
-  // Centrifugal: peaks at ~90%, poor at <40%
-  const centrifugal = [[25,0.40],[40,0.72],[60,0.88],[75,0.96],[90,1.00],[100,0.95]];
-  // Screw: flatter curve, peaks at ~75-85%
-  const screw = [[30,0.60],[40,0.75],[60,0.88],[75,0.95],[90,0.97],[100,0.90]];
-  // Scroll: lower max, reasonable part-load
-  const scroll = [[30,0.55],[50,0.72],[70,0.82],[85,0.86],[100,0.80]];
-
-  plotCurve(centrifugal.map(([l,e])=>[l, e*0.95+0.05]), 'var(--blue)', 'Centrifugal');
-  plotCurve(screw.map(([l,e])=>[l, e*0.90+0.05]), 'var(--teal)', 'Screw');
-  plotCurve(scroll.map(([l,e])=>[l, e*0.80+0.05]), 'var(--amber)', 'Scroll');
-
-  // Axis labels
-  ctx.fillStyle = 'rgba(60,80,140,0.7)'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('Part Load Ratio (%)', pad.l + cw/2, H-4);
-  ctx.save(); ctx.translate(14, pad.t+ch/2); ctx.rotate(-Math.PI/2);
-  ctx.fillText('Relative Efficiency', 0, 0); ctx.restore();
-  ctx.font = '12px monospace'; ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(0,60,140,0.5)';
-  ctx.fillText('Chiller Part-Load Efficiency Profile', pad.l+cw/2, pad.t-10);
-
-  // Optimal zone band
-  ctx.fillStyle = 'rgba(23,107,60,0.07)';
-  ctx.fillRect(pad.l+(70/100)*cw, pad.t, (20/100)*cw, ch);
-  ctx.fillStyle = 'rgba(23,107,60,0.5)'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('Optimal Zone', pad.l+(80/100)*cw, pad.t+14);
-}
 
 // ═══════════════════════════════════════════════
 //  TAB 4: INSPECTION CHECKLIST
@@ -1522,80 +1080,7 @@ function clearAudit() {
   updateCheckProgress();
 }
 
-function generateReport() {
-  const plant   = document.getElementById('a_plant').value   || '—';
-  const date    = document.getElementById('a_date').value    || '—';
-  const tag     = document.getElementById('a_tag').value     || '—';
-  const auditor = document.getElementById('a_auditor').value || '—';
-  const brand   = document.getElementById('a_brand').value   || '—';
-  const model   = document.getElementById('a_model').value   || '—';
-  const type    = document.getElementById('a_type').value;
-  const cap     = document.getElementById('a_cap').value     || '—';
-  const notes   = document.getElementById('a_notes').value   || '—';
 
-  const all  = document.querySelectorAll('[id^="chk_"]');
-  const done = document.querySelectorAll('[id^="chk_"]:checked');
-  const pct  = all.length > 0 ? Math.round(done.length/all.length*100) : 0;
-  const pcolor = pct>=80?'var(--green)':pct>=60?'var(--amber)':'var(--red)';
-
-  // COP from measurement
-  let copLine = '';
-  const tret = parseFloat(document.getElementById('m_tret').value);
-  const tsup = parseFloat(document.getElementById('m_tsup').value);
-  const flow = parseFloat(document.getElementById('m_flow').value);
-  const pw   = parseFloat(document.getElementById('m_power').value);
-  if (!isNaN(tret)&&!isNaN(tsup)&&!isNaN(flow)&&!isNaN(pw)&&pw>0) {
-    const q_kw = (flow/3600)*1000*CP*(tret-tsup);
-    const q_rt = q_kw/KW_RT;
-    const isElec = type==='Electric';
-    const eff = isElec ? (q_rt>0?pw/q_rt:0) : (pw>0?q_kw/pw:0);
-    copLine = `<tr><td style="color:var(--text3)">Q_cooling</td><td class="hi">${q_rt.toFixed(2)} RT (${q_kw.toFixed(0)} kW)</td></tr>
-               <tr><td style="color:var(--text3)">${isElec?'kW/RT':'COP Thermal'}</td><td style="color:${isElec?(eff<0.7?'var(--green)':'var(--red)'):(eff>0.6?'var(--green)':'var(--red)')}">${eff.toFixed(3)}</td></tr>`;
-  }
-
-  document.getElementById('reportContent').innerHTML = `
-    <div style="border:1px solid var(--border); border-radius:10px; overflow:hidden;">
-      <div style="background:var(--bg3); padding:14px 20px; display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <div style="font-family:var(--display); font-size:22px; color:var(--blue); letter-spacing:2px;">CHILLER AUDIT REPORT</div>
-          <div style="font-size:11px; color:var(--text3); font-family:var(--mono);">${plant} · ${date}</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:10px; color:var(--text3);">ผู้ตรวจสอบ</div>
-          <div style="font-family:var(--mono); font-weight:600; color:var(--text);">${auditor}</div>
-        </div>
-      </div>
-      <div style="padding:20px; display:grid; grid-template-columns:1fr 1fr; gap:20px;">
-        <table class="data-table">
-          <tr><td style="color:var(--text3)">Equipment Tag</td><td class="hi">${tag}</td></tr>
-          <tr><td style="color:var(--text3)">Brand / Model</td><td>${brand} / ${model}</td></tr>
-          <tr><td style="color:var(--text3)">Type / Capacity</td><td>${type} / ${cap} RT</td></tr>
-          <tr><td style="color:var(--text3)">CHW Return</td><td>${document.getElementById('m_tret').value||'—'} °C</td></tr>
-          <tr><td style="color:var(--text3)">CHW Supply</td><td>${document.getElementById('m_tsup').value||'—'} °C</td></tr>
-          <tr><td style="color:var(--text3)">CW Inlet</td><td>${document.getElementById('m_tcws').value||'—'} °C</td></tr>
-          <tr><td style="color:var(--text3)">CW Outlet</td><td>${document.getElementById('m_tcwr').value||'—'} °C</td></tr>
-          <tr><td style="color:var(--text3)">Flow / Power</td><td>${document.getElementById('m_flow').value||'—'} m³/h / ${document.getElementById('m_power').value||'—'} kW</td></tr>
-          ${copLine}
-        </table>
-        <div>
-          <div style="text-align:center; padding:20px; background:var(--bg); border-radius:8px; margin-bottom:12px;">
-            <div style="font-size:10px; color:var(--text3); font-family:var(--mono); margin-bottom:4px; letter-spacing:1px;">CHECKLIST SCORE</div>
-            <div style="font-family:var(--display); font-size:52px; color:${pcolor}; line-height:1;">${pct}%</div>
-            <div style="font-size:11px; color:var(--text3); font-family:var(--mono);">${done.length} / ${all.length} items passed</div>
-          </div>
-          <div class="alert ${pct>=80?'alert-success':pct>=60?'alert-warn':'alert-danger'}">
-            <span>${pct>=80?'✅':pct>=60?'⚠️':'🚨'}</span>
-            <div style="font-size:12px;">${pct>=80?'สภาพดี พร้อมใช้งาน':pct>=60?'ต้องการแก้ไขบางส่วน':'ต้องบำรุงรักษาเร่งด่วน'}</div>
-          </div>
-          <div style="font-size:12px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px; color:var(--text2);">
-            <strong style="font-family:var(--mono); font-size:10px; color:var(--text3);">NOTES:</strong><br>${notes}
-          </div>
-        </div>
-      </div>
-    </div>`;
-  document.getElementById('auditReport').style.display = 'block';
-  document.getElementById('auditReport').scrollIntoView({ behavior:'smooth' });
-}
 
 // ═══════════════════════════════════════════════
 //  INIT

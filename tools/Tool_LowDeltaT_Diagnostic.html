@@ -173,6 +173,22 @@ table td{vertical-align:middle}
 .fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
 .hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 </style>
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
 </head>
 <body>
 
@@ -366,54 +382,27 @@ table td{vertical-align:middle}
      คือความคลาดเคลื่อนของผลลัพธ์ถึง ±14–20 %</p>
 </footer>
 
+<!-- ระยะ 2-10: เครื่องยนต์กลาง Triple E -->
+<script src="../lib/te-core.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const V=id=>parseFloat($(id).value)||0;
-const CPV=4.19;                      // kJ per litre per K ที่ 7–12 °C
-const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed(d===undefined?2:d);
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const pill=(i,t)=>`<span class="pill p${i}">${t}</span>`;
-const money=v=>isFinite(v)?Math.round(v).toLocaleString('th-TH'):'–';
+
+/* ระยะ 2-9: แกนคำนวณย้ายเข้า te-core — TE.LOWDT (ห้ามแก้ตัวเลขในหน้านี้) */
+var fmt=TE.LOWDT.fmt,clamp=TE.LOWDT.clamp,pill=TE.LOWDT.pill;
+function calc(){return TE.LOWDT.make({$:$,V:V,AHU:AHU,lineChart:lineChart}).calc();}
+
+
+
+
+
 
 /* ── ε-NTU คอยล์ไหลขวาง (ทั้งสองฝั่งไม่ผสม) ── */
-function effCross(NTU,Cr){
-  if(NTU<=0) return 0;
-  if(Cr<1e-6) return 1-Math.exp(-NTU);
-  const e=1-Math.exp((1/Cr)*Math.pow(NTU,0.22)*(Math.exp(-Cr*Math.pow(NTU,0.78))-1));
-  return clamp(e,0,1);
-}
-function ntuFromEff(eps,Cr){       // bisection
-  let lo=0.001, hi=25;
-  for(let i=0;i<80;i++){ const m=(lo+hi)/2; (effCross(m,Cr)<eps)?lo=m:hi=m; }
-  return (lo+hi)/2;
-}
+
+
 /* คำนวณเส้นโค้ง capacity vs flow */
-function coilCurve(EWT,LWT,EAT,LAT,Rw){
-  const dTw=LWT-EWT, dTa=EAT-LAT, dTmax=EAT-EWT;
-  if(!(dTw>0&&dTa>0&&dTmax>0)) return null;
-  const Cw=1/dTw, Ca=1/dTa;                      // ต่อ Q = 1
-  const Cmin=Math.min(Cw,Ca), Cmax=Math.max(Cw,Ca);
-  const Cr=Cmin/Cmax;
-  const eps=1/(Cmin*dTmax);
-  if(eps>=1) return null;
-  const NTU=ntuFromEff(eps,Cr), UA=NTU*Cmin;
-  const pts=[];
-  for(let x=0.2;x<=3.001;x+=0.05){
-    const Cw2=Cw*x;
-    const UA2=UA/(Rw*Math.pow(x,-0.8)+(1-Rw));
-    const Cmin2=Math.min(Cw2,Ca), Cmax2=Math.max(Cw2,Ca);
-    const e2=effCross(UA2/Cmin2, Cmin2/Cmax2);
-    const Q2=e2*Cmin2*dTmax;
-    const lwt2=EWT+Q2/Cw2;
-    pts.push({x, q:Q2, dt:lwt2-EWT, lwt:lwt2});
-  }
-  return {NTU,UA,Cr,eps,Cw,Ca,pts,dTw,dTmax};
-}
-function atX(cc,x){
-  let best=cc.pts[0];
-  cc.pts.forEach(p=>{ if(Math.abs(p.x-x)<Math.abs(best.x-x)) best=p; });
-  return best;
-}
+
+
 
 /* ── SVG กราฟเส้นเล็ก ── */
 function lineChart(series,opt){
@@ -488,295 +477,7 @@ function drawAhu(){
 }
 
 /* ══════════ MAIN ══════════ */
-function calc(){
-  /* -- Plant -- */
-  const dS=V('dS'),dR=V('dR'),dQ=V('dQ'),aS=V('aS'),aR=V('aR'),aF=V('aF');
-  const dDT=dR-dS, aDT=aR-aS;
-  const dFlow=dDT>0?dQ/(CPV*dDT):0;
-  const aQ=CPV*aF*aDT;
-  const reqFlow=dDT>0?aQ/(CPV*dDT):0;              // flow ที่ควรใช้ขน load เดียวกัน
-  const xsFlow=reqFlow>0?(aF-reqFlow)/reqFlow*100:0;
-  $('kDdt').textContent=fmt(dDT,2)+' °C';
-  $('kDfl').textContent=fmt(dFlow,1)+' L/s';
-  $('kAdt').textContent=fmt(aDT,2)+' °C';
-  $('kAq').textContent=fmt(aQ,0)+' kW  ('+fmt(aQ/3.517,0)+' RT)';
-  $('bPl').value=aDT.toFixed(2);
 
-  const dtRatio=dDT>0?aDT/dDT:0;
-  /* [แก้ไข 3 ต.ค. 2569 audit] กัน CHWR ≤ CHWS (สลับ sensor/ค่าผิด) — ห้ามคิดเป็นผลประหยัด */
-  const dtBad = aF>0 && aDT<=0;
-  let lvl = dtRatio>=0.9?0 : (dtRatio>=0.75?1 : (dtRatio>=0.55?2:3));
-  const LAB=['ปกติ','เริ่มเสื่อม','Low ΔT ชัดเจน','Low ΔT รุนแรง'];
-  $('plantOut').innerHTML=`
-   <div class="grid4" style="margin-top:14px">
-     <div class="stat"><div class="big s${lvl}">${fmt(aDT,1)}</div><div class="bigu">ΔT actual · °C</div>
-       <div class="gauge"><i class="b${lvl}" style="width:${clamp(dtRatio*100,0,100)}%"></i></div></div>
-     <div class="stat"><div class="big">${fmt(dtRatio*100,0)}</div><div class="bigu">% ของ ΔT ออกแบบ</div></div>
-     <div class="stat"><div class="big">${fmt(reqFlow,1)}</div><div class="bigu">Flow ที่ควรใช้ · L/s</div></div>
-     <div class="stat"><div class="big s${xsFlow>15?2:0}">${xsFlow>0?'+':''}${fmt(xsFlow,0)}</div><div class="bigu">Flow ส่วนเกิน · %</div></div>
-   </div>
-   <div class="note ${lvl>=2?'bad':(lvl===1?'warn':'good')}">
-     <b>${LAB[lvl]}</b> — ระบบขน load ได้ ${fmt(aQ,0)} kW ด้วย flow ${fmt(aF,1)} L/s
-     ถ้า ΔT ทำได้ตามออกแบบ (${fmt(dDT,1)} °C) load เท่านี้ต้องการเพียง ${fmt(reqFlow,1)} L/s
-     ${xsFlow>5?`— ส่วนเกิน <b>${fmt(aF-reqFlow,1)} L/s (${fmt(xsFlow,0)} %)</b> คือน้ำที่ไหลผ่านระบบโดยแทบไม่ได้รับความร้อน`:''}
-   </div>
-   ${dtBad?`<div class="note bad"><b>⚠ ข้อมูลเป็นไปไม่ได้</b> — CHWR (${fmt(aR,1)} °C) ต้องสูงกว่า CHWS (${fmt(aS,1)} °C)
-     ค่า ΔT ≤ 0 แปลว่า sensor สลับตำแหน่ง/ยังไม่สอบเทียบ หรือพิมพ์ค่าผิด — โปรแกรมจะไม่คิดผลประหยัดปั๊มจนกว่าจะแก้ข้อมูล</div>`:''}
-   ${lvl>=2?`<div class="note warn"><b>สิ่งที่ไม่ควรทำเป็นอย่างแรก</b> — อย่าเพิ่งเพิ่มรอบปั๊ม
-     เพราะ flow ที่มากขึ้นจะทำให้น้ำแต่ละกิโลกรัมรับความร้อนน้อยลงอีก ΔT จะยิ่งตก
-     กลายเป็นวงจร: ΔT ต่ำ → เพิ่ม flow → DP สูง → coil overflow → ΔT ต่ำกว่าเดิม</div>`:''}`;
-
-  /* -- Pump -- */
-  const pk=V('pkW'), n=V('pN'), hrs=V('pH'), rate=V('pRate');
-  const ratio=aF>0?reqFlow/aF:1;
-  /* [แก้ไข 3 ต.ค. 2569 audit] ΔT ≤ 0 → ไม่คิดผลประหยัด (เดิมบีบ ratio เป็น 0.05 แล้วอ้างว่าปั๊มเสียเปล่า ~100 %) */
-  const idealkW=dtBad?pk:pk*Math.pow(clamp(ratio,0.05,1),n);
-  const savekW=pk-idealkW;
-  const saveBaht=savekW*hrs*rate;
-  const rt=aQ/3.517, kwrt=V('kwrt');
-  const pumpShareRT=rt>0?savekW/rt:0;
-  $('pumpOut').innerHTML=`
-   <div class="grid4" style="margin-top:12px">
-     <div class="stat"><div class="big">${fmt(idealkW,1)}</div><div class="bigu">กำลังปั๊มถ้า flow พอดี · kW</div></div>
-     <div class="stat"><div class="big s${savekW>2?2:0}">${fmt(savekW,1)}</div><div class="bigu">กำลังที่เสียเปล่า · kW</div></div>
-     <div class="stat"><div class="big">${fmt(savekW/pk*100,0)}</div><div class="bigu">% ของกำลังปั๊ม</div></div>
-     <div class="stat"><div class="big">${money(saveBaht)}</div><div class="bigu">บาท/ปี</div></div>
-   </div>
-   <div class="note">
-     <b>สมมุติฐาน</b> — ใช้ P ∝ Q<sup>${fmt(n,1)}</sup> ไม่ใช่ Q³ เต็มรูป เพราะระบบที่คุมด้วย DP setpoint คงที่
-     จะมีส่วน static head ที่ไม่ลดตาม flow เส้นโค้งจริงจึงชันน้อยกว่ากฎ affinity
-     (ใช้ 2.2–2.6 สำหรับระบบ DP คงที่, 2.7–3.0 สำหรับระบบที่ทำ DP reset ดีแล้ว)<br>
-     ${pumpShareRT>0.01?`คิดเป็น <b>${fmt(pumpShareRT,3)} kW/RT</b> จากค่า plant ปัจจุบัน ${fmt(kwrt,2)} kW/RT
-     หรือประมาณ ${fmt(pumpShareRT/kwrt*100,1)} % ของประสิทธิภาพรวมทั้ง plant`:''}
-   </div>`;
-
-  /* -- Bypass -- */
-  const chDT=V('bCh'), sys=$('bSys').value;
-  /* [แก้ไข 3 ต.ค. 2569 audit] แยกทิศ bypass 2 แบบ:
-     (ก) chiller ΔT > plant ΔT = deficit flow (P-S: secondary > primary) น้ำ return ไหลย้อนผ่าน decoupler มาผสม supply
-         สัดส่วนน้ำวนซ้ำ (ต่อ flow ฝั่ง plant/header) = 1 − ΔTplant/ΔTch  (สูตรเดิม)
-     (ข) chiller ΔT < plant ΔT = น้ำจาก supply ลัดกลับ return (VPF min-flow bypass, 3-way valve, CPF)
-         สัดส่วน bypass ต่อ flow ผ่าน chiller = 1 − ΔTch/ΔTplant · bypass flow = aF·(ΔTplant/ΔTch − 1) เมื่อ aF วัดที่ header ก่อน bypass
-     เดิมใช้ (ก) อย่างเดียว กรณี (ข) จึงได้ 0 % "ไม่พบ bypass" ทั้งที่มีจริง */
-  const bypMode = (chDT>0 && aDT>0 && chDT<aDT) ? 'sr' : 'rs';
-  const byp = bypMode==='sr' ? clamp(1-chDT/aDT,0,1) : (chDT>0?clamp(1-aDT/chDT,0,1):0);
-  const bypFlow = bypMode==='sr' ? Math.max(0,aF*(aDT/chDT-1)) : byp*aF;
-  let bl = byp<0.05?0 : (byp<0.15?1 : (byp<0.3?2:3));
-  const sysTxt={
-    vpf:`ระบบ VPF ไม่ควรมี bypass เลยยกเว้น minimum-flow line ตอนโหลดต่ำ
-         ถ้าเจอ bypass ตอนโหลดกลาง-สูง ให้สงสัย minimum flow valve ที่ modulate ค้างหรือรั่วเป็นอันดับแรก`,
-    ps:`ระบบ Primary–Secondary: ถ้า secondary flow สูงกว่า primary น้ำ return จะถูกดูดย้อนผ่าน decoupler
-        มาผสมกับ supply ทำให้อุณหภูมิ supply ที่ส่งไปอาคารสูงขึ้น ระบบควบคุมจึงสั่งเปิด chiller เพิ่ม
-        — เป็นการเปิดเพราะ flow demand ไม่ใช่ cooling load demand`,
-    cpf:`ระบบ Constant Primary Flow ที่ใช้ three-way valve จะมี bypass ตามธรรมชาติเมื่อโหลดลด
-         ค่าที่คำนวณได้จึงสะท้อนสัดส่วนน้ำที่ผ่าน bypass port ของ three-way ทั้งระบบ`};
-  $('bypOut').innerHTML=`
-   <div class="grid3" style="margin-top:12px">
-     <div class="stat"><div class="big s${bl}">${fmt(byp*100,1)}</div><div class="bigu">% น้ำที่ไม่ได้รับความร้อน</div>
-       <div class="gauge"><i class="b${bl}" style="width:${clamp(byp*100,0,100)}%"></i></div></div>
-     <div class="stat"><div class="big">${fmt(bypFlow,1)}</div><div class="bigu">Bypass flow · L/s</div></div>
-     <div class="stat" style="display:flex;align-items:center">${pill(bl,['ไม่พบ bypass','เล็กน้อย','ชัดเจน','รุนแรง'][bl])}</div>
-   </div>
-   <div class="note ${bl>=2?'bad':(bl===1?'warn':'good')}">
-     Chiller ΔT = ${fmt(chDT,2)} °C แต่ Plant ΔT = ${fmt(aDT,2)} °C
-     ${bl===0?'— สองค่าใกล้กัน แสดงว่าน้ำเกือบทั้งหมดผ่านคอยล์จริง ปัญหา ΔT ต่ำน่าจะอยู่ที่คอยล์ ไม่ใช่ bypass'
-      :(bypMode==='sr'?`— chiller ΔT ต่ำกว่า plant ΔT แปลว่ามีน้ำประมาณ <b>${fmt(bypFlow,1)} L/s</b>
-        (${fmt(byp*100,1)} % ของ flow ผ่าน chiller) ที่วิ่งจาก supply ลัดกลับ return โดยไม่ผ่าน load ใด ๆ
-        (min-flow bypass / three-way valve) — น้ำผสมทำให้น้ำกลับเข้า chiller เย็นลง`
-       :`— chiller ΔT สูงกว่า plant ΔT แปลว่า flow ฝั่งจ่ายอาคารมากกว่า flow ผ่าน chiller (deficit flow)
-        น้ำ return ประมาณ <b>${fmt(bypFlow,1)} L/s</b> (${fmt(byp*100,1)} % ของ flow ที่ header) ไหลย้อนผ่าน decoupler
-        มาผสมกับ supply — ทำให้ supply ที่ส่งไปอาคารอุ่นขึ้น`)}
-   </div>
-   ${bl>0&&bypMode==='rs'&&sys!=='ps'?`<div class="note warn">[แก้ไข 3 ต.ค. 2569 audit] ระบบที่เลือกไม่มี decoupler —
-     โดยปกติ chiller ΔT ไม่ควรสูงกว่า plant ΔT ให้ตรวจตำแหน่ง/การสอบเทียบ sensor ก่อน
-     (ถ้าเป็น bypass จาก supply กลับ return chiller ΔT จะ <b>ต่ำกว่า</b> plant ΔT)</div>`:''}
-   <div class="note">${sysTxt[sys]}</div>`;
-
-  const bypItems=[
-    ['Three-way valve ที่ AHU/FCU','เมื่อโหลดลด valve เปลี่ยนทิศให้น้ำ bypass คอยล์แล้วไหลกลับ return โดยตรง น้ำส่วนนี้แทบไม่ได้รับความร้อนเลย'],
-    ['Minimum flow bypass ของ VPF','ถ้า modulate ค้างหรือ seat รั่ว จะเป็น decoupler จำลองที่ลาก ΔT ลงตลอด 24 ชั่วโมง'],
-    ['Decoupler / common pipe','ตรวจทิศทางการไหล ถ้าไหลย้อนแปลว่า secondary flow เกิน primary'],
-    ['Valve seat leakage','คำสั่งเป็น 0 % ไม่ได้แปลว่า flow เป็นศูนย์ — ตรวจ close-off rating เทียบ DP จริงที่ตัว valve'],
-    ['Drain / flushing bypass ที่เปิดค้าง','จากงาน commissioning หรือซ่อมบำรุงแล้วลืมปิด พบบ่อยกว่าที่คิด'],
-    ['คอยล์ที่ต่อท่อผิดทิศ (parallel แทน counterflow)','ทำ ΔT ตกทันที 30–40 % โดยไม่มีอะไรเสียเลย ตรวจง่ายมากแต่มักถูกมองข้าม']];
-  $('bypList').innerHTML=bypItems.map(x=>
-    `<div class="zone"><div class="zi" style="background:var(--accent)"><i class="fas fa-magnifying-glass"></i></div>
-     <div class="zt"><b>${x[0]}</b><span>${x[1]}</span></div></div>`).join('');
-
-  /* -- AHU -- */
-  if(AHU.length){
-    const rows=AHU.map(r=>({name:r[0],df:+r[1],af:+r[2],ewt:+r[3],lwt:+r[4],vp:+r[5]}))
-      .filter(r=>r.af>0);
-    let tf=0, tq=0, over=[];
-    rows.forEach(r=>{ r.dt=r.lwt-r.ewt; r.q=CPV*r.af*r.dt; r.fr=r.df>0?r.af/r.df:null;
-      r.excess=r.df>0?Math.max(0,r.af-r.df):0; tf+=r.af; tq+=r.q; });
-    const mixDT=tf>0?tq/(CPV*tf):0;
-    rows.sort((a,b)=>b.excess-a.excess);
-    const top=rows.slice(0,3);
-    const totalExcess=rows.reduce((a,r)=>a+r.excess,0);
-    // ΔT ที่จะได้ถ้าจำกัด flow ทุกตัวไม่ให้เกิน design
-    let tf2=0,tq2=0;
-    rows.forEach(r=>{ const f=r.df>0?Math.min(r.af,r.df):r.af; tf2+=f; tq2+=r.q; });
-    const dt2=tf2>0?tq2/(CPV*tf2):0;
-    $('ahuOut').innerHTML=`
-     <div class="grid4" style="margin-top:14px">
-       <div class="stat"><div class="big">${fmt(tf,1)}</div><div class="bigu">Flow รวม · L/s</div></div>
-       <div class="stat"><div class="big">${fmt(mixDT,2)}</div><div class="bigu">ΔT ผสมที่ได้ · °C</div></div>
-       <div class="stat"><div class="big s2">${fmt(totalExcess,1)}</div><div class="bigu">Flow ส่วนเกินรวม · L/s</div></div>
-       <div class="stat"><div class="big s0">${fmt(dt2,2)}</div><div class="bigu">ΔT ถ้าจำกัด flow · °C</div></div>
-     </div>
-     ${top.length&&totalExcess>0?`<div class="note warn">
-       <b>สามตัวที่ลาก ΔT ลงมากที่สุด</b><br>
-       ${top.map((r,i)=>`${i+1}. <b>${r.name||'(ไม่ระบุชื่อ)'}</b> — flow เกิน ${fmt(r.excess,1)} L/s
-         (${fmt(r.fr*100,0)} % ของ design) ที่ ΔT เพียง ${fmt(r.dt,1)} °C`).join('<br>')}
-       <br><br>รวมสามตัวนี้คิดเป็น ${fmt(top.reduce((a,r)=>a+r.excess,0)/totalExcess*100,0)} % ของ flow ส่วนเกินทั้งหมด
-       — แก้เฉพาะกลุ่มนี้ก็เห็นผลที่ Plant ΔT ชัดแล้ว ไม่ต้องไล่ทุกตัวพร้อมกัน</div>`:''}
-     <div class="note">ถ้าจำกัดไม่ให้คอยล์รับน้ำเกิน design flow (balancing valve, PICV หรือ flow limiter)
-       ΔT ผสมจะขึ้นจาก ${fmt(mixDT,2)} เป็น ${fmt(dt2,2)} °C
-       และ flow รวมลดจาก ${fmt(tf,1)} เหลือ ${fmt(tf2,1)} L/s</div>`;
-  } else $('ahuOut').innerHTML='<div class="note">ยังไม่มีข้อมูล — กด “ใส่ข้อมูลตัวอย่าง” เพื่อดูวิธีใช้</div>';
-
-  /* -- Coil curve -- */
-  const cc=coilCurve(V('cEWT'),V('cLWT'),V('cEAT'),V('cLAT'),V('cRw'));
-  if(cc){
-    const x=clamp(V('cX')/100,0.2,3);
-    const at=atX(cc,x), at1=atX(cc,1), at05=atX(cc,0.5), at15=atX(cc,1.5);
-    $('coilOut').innerHTML=`
-     <div style="margin-top:14px">${lineChart(
-       [{p:cc.pts.map(p=>[p.x*100,p.q/at1.q*100]),c:'#12a4a4',n:'Capacity (% ของ design)'},
-        {p:cc.pts.map(p=>[p.x*100,p.dt/cc.dTw*100]),c:'#d1495b',n:'ΔT น้ำ (% ของ design)'}],
-       {x0:20,x1:300,y0:0,y1:170,xl:'Flow ที่คอยล์ (% ของ design)',yl:'',xd:0,yd:0,
-        marks:[{x:100,c:'#5b6b7b',t:'design'},{x:x*100,c:'#e08a00',t:'ตอนนี้'}]})}</div>
-     <div class="grid4" style="margin-top:12px">
-       <div class="stat"><div class="big">${fmt(at.q/at1.q*100,1)}</div><div class="bigu">Capacity ที่ได้ · % ของ design</div></div>
-       <div class="stat"><div class="big s2">${fmt(at.dt,2)}</div><div class="bigu">ΔT น้ำที่ได้ · °C</div></div>
-       <div class="stat"><div class="big">${fmt(at.lwt,2)}</div><div class="bigu">LWT · °C</div></div>
-       <div class="stat"><div class="big">${fmt(cc.NTU,2)}</div><div class="bigu">NTU ออกแบบ</div></div>
-     </div>
-     <div class="note bad">
-       <b>นี่คือหัวใจของเรื่องทั้งหมด</b> — ที่ flow ${fmt(x*100,0)} % ของ design
-       คอยล์ให้ capacity ${fmt(at.q/at1.q*100,1)} % เท่านั้น
-       ขณะที่ที่ flow 50 % ยังให้ได้ถึง ${fmt(at05.q/at1.q*100,1)} %
-       และที่ flow 150 % ได้เพียง ${fmt(at15.q/at1.q*100,1)} %<br>
-       แปลว่าน้ำที่เกิน design ไปครึ่งหนึ่ง แลกมาด้วย capacity เพิ่มแค่
-       ${fmt(at15.q/at1.q*100-100,1)} % — แต่กินพลังงานปั๊มเต็มจำนวน
-       เพราะ capacity ของคอยล์ถูกจำกัดด้วย UA และฝั่งอากาศ ไม่ใช่ปริมาณน้ำ
-     </div>
-     <div class="note">
-       <b>วิธีคำนวณ</b> — ε-NTU สำหรับคอยล์ไหลขวางทั้งสองฝั่งไม่ผสม
-       โดยความต้านทานฝั่งน้ำแปรตาม h ∝ v<sup>0.8</sup> (Dittus–Boelter)
-       ตั้งต้นด้วยสัดส่วนความต้านทานฝั่งน้ำ ${fmt(V('cRw')*100,0)} % ของทั้งหมด
-       (คอยล์น้ำเย็นทั่วไปอยู่ที่ 15–35 % — ยิ่งต่ำแปลว่าฝั่งอากาศเป็นตัวจำกัดมากขึ้น
-       และการเพิ่ม flow ยิ่งไร้ประโยชน์)
-     </div>`;
-  } else $('coilOut').innerHTML='<div class="note bad">ค่าที่ใส่ไม่สมเหตุสมผล — ตรวจว่า EAT &gt; LAT &gt; LWT &gt; EWT</div>';
-
-  /* -- DP reset -- */
-  const dpN=V('dpNow'), vM=V('vMax'), vT=V('vTgt'), dpMn=V('dpMin'), st=V('dpStat');
-  const dpNew=clamp(dpN*Math.pow(vM/vT,2),dpMn,dpN);
-  const dyn0=dpN*(1-st), dyn1=Math.max(dpNew-dpN*st,0);
-  const flowRatio=dyn0>0?Math.sqrt(clamp(dyn1/dyn0,0,1)):1;
-  /* [แก้ไข 3 ต.ค. 2569 audit] ผลประหยัด DP reset ต้องคิดต่อจากกำลังปั๊มหลังแก้ ΔT (idealkW) ไม่ใช่จาก pkW เดิม
-     — เดิมรวมสองมาตรการเกินกำลังปั๊มจริง (55 kW อ้างประหยัด 98.9 kW) · เลือก 'alone' = ทางเลือกเดี่ยว ไม่บวกกับข้อแรก */
-  const dpBasis=($('dpBasis')&&$('dpBasis').value)||'chain';
-  const dpBase=dpBasis==='alone'?V('pkW'):idealkW;
-  const pkW2=dpBase*Math.pow(flowRatio,V('pN'));
-  const dpSaveKW=dpBase-pkW2;
-  const dpSave=dpSaveKW*V('pH')*V('pRate');
-  const totKW=dpBasis==='alone'?Math.max(savekW,dpSaveKW):savekW+dpSaveKW;
-  $('dpOut').innerHTML=`
-   <div class="grid4" style="margin-top:12px">
-     <div class="stat"><div class="big">${fmt(dpNew,0)}</div><div class="bigu">DP setpoint ใหม่ · kPa</div></div>
-     <div class="stat"><div class="big">${fmt((dpN-dpNew)/dpN*100,0)}</div><div class="bigu">ลดลง · %</div></div>
-     <div class="stat"><div class="big s0">${fmt(dpSaveKW,1)}</div><div class="bigu">${dpBasis==='alone'?'ประหยัดปั๊ม (ทางเลือกเดี่ยว)':'ประหยัดเพิ่มหลังแก้ ΔT'} · kW</div></div>
-     <div class="stat"><div class="big">${money(dpSave)}</div><div class="bigu">บาท/ปี</div></div>
-   </div>
-   <div class="note">[แก้ไข 3 ต.ค. 2569 audit] ฐานคำนวณ: ${dpBasis==='alone'
-     ?`ปั๊มเดิม ${fmt(V('pkW'),1)} kW (ทางเลือกเดี่ยว — <b>ห้ามบวก</b>กับผลจากการแก้ ΔT)`
-     :`กำลังปั๊มหลังแก้ ΔT ${fmt(idealkW,1)} kW (ต่อเนื่องจากแท็บ 1) — รวมสองมาตรการ ${fmt(totKW,1)} kW
-       = ${fmt(V('pkW')>0?totKW/V('pkW')*100:0,0)} % ของปั๊ม ${fmt(V('pkW'),1)} kW`}</div>
-   <div class="note ${vM<70?'warn':'good'}">
-     ${vM<70?`<b>Valve ที่เปิดกว้างที่สุดเปิดแค่ ${fmt(vM,0)} %</b> — แปลว่าปั๊มสร้าง DP เกินความจำเป็น
-       ทุกตัวจึงต้องหรี่ตัวเองลงเพื่อกันน้ำเกิน ซึ่งเป็นการเผาพลังงานปั๊มทิ้งที่ตัว valve โดยตรง
-       และทำให้ valve ทำงานในช่วงที่ควบคุมยาก (hunting)`
-      :`Valve เปิดกว้างพอสมควรแล้ว ศักยภาพจาก DP reset จึงจำกัด — ไปดูที่ balancing และ valve sizing แทน`}
-   </div>
-   <div class="note">
-     <b>แนวคิด Trim &amp; Respond</b> — ค่อย ๆ ลด DP setpoint ลงทีละน้อยจนกระทั่ง valve ที่ต้องการน้ำมากที่สุด
-     เปิดประมาณ ${fmt(vT,0)} % แล้วหยุด ถ้ามี valve ตัวใดร้องขอเพิ่ม ค่อยดัน setpoint กลับขึ้น
-     ผลพลอยได้คือ overflow ลดลงเอง ΔT จึงดีขึ้นพร้อมกับที่ปั๊มกินไฟน้อยลง — แก้สองเรื่องด้วยมาตรการเดียว
-   </div>`;
-
-  /* -- Staging -- */
-  const nc=V('nCh'), cf=V('chFl'), cap=V('chCap');
-  const nByFlow=cf>0?Math.ceil(aF/cf):0, nByLoad=cap>0?Math.ceil(aQ/cap):0;
-  const extra=Math.max(0,nByFlow-nByLoad);
-  $('stgOut').innerHTML=`
-   <div class="grid4" style="margin-top:12px">
-     <div class="stat"><div class="big">${nByLoad}</div><div class="bigu">ต้องการตาม Cooling Load</div></div>
-     <div class="stat"><div class="big s${extra>0?2:0}">${nByFlow}</div><div class="bigu">ต้องการตาม Flow</div></div>
-     <div class="stat"><div class="big">${nc}</div><div class="bigu">ที่เดินอยู่จริง</div></div>
-     <div class="stat"><div class="big">${fmt(cap>0?aQ/(nc*cap)*100:0,0)}</div><div class="bigu">Part load เฉลี่ย · %</div></div>
-   </div>
-   <div class="note ${extra>0?'bad':'good'}">
-     ${extra>0?`<b>Premature Chiller Staging — เปิดเกินมา ${extra} เครื่องเพราะ flow ไม่ใช่เพราะ load</b><br>
-       Cooling load จริง ${fmt(aQ,0)} kW ต้องการ chiller เพียง ${nByLoad} เครื่อง
-       แต่ flow ${fmt(aF,1)} L/s บังคับให้ต้องเปิด ${nByFlow} เครื่องเพื่อรองรับ flow demand<br>
-       ผลที่ตามมาไม่ใช่แค่ที่ chiller — CHWP, CDWP และ cooling tower fan ของเครื่องที่เปิดเกิน
-       ต้องเดินตามทั้งชุด ซึ่งมักเป็นต้นทุนที่ใหญ่กว่าตัว chiller เอง`
-      :`จำนวน chiller ที่ต้องการตาม flow และตาม load ตรงกัน — ไม่พบอาการ premature staging`}
-   </div>
-   <div class="note">
-     <b>ข้อควรระวังในการตีความ part load</b> — centrifugal chiller ที่มี VSD หลายรุ่นมี kW/RT
-     ดีที่สุดที่ราว 40–70 % PLR เมื่ออุณหภูมิน้ำหล่อเย็นต่ำ ดังนั้น part load ต่ำไม่ได้แปลว่าแย่เสมอไป
-     โทษที่แท้จริงของ premature staging คือ fixed loss ที่เพิ่มตามจำนวนเครื่อง
-     บวกกับปั๊มและหอผึ่งที่เดินเพิ่มทั้งชุด และความเสี่ยง surge ที่ PLR ต่ำมาก
-   </div>`;
-
-  /* -- verdict strip -- */
-  $('vDT').textContent=fmt(aDT,2); $('vDT').className='vnum mono s'+lvl;
-  $('vDTb').innerHTML=`ออกแบบ ${fmt(dDT,1)} °C · ${pill(lvl,LAB[lvl])}`;
-  const xl = xsFlow<10?0:(xsFlow<30?1:(xsFlow<60?2:3));
-  $('vXF').textContent=(xsFlow>0?'+':'')+fmt(xsFlow,0); $('vXF').className='vnum mono s'+xl;
-  $('vXFb').textContent=`${fmt(aF,1)} L/s ที่ควรเป็น ${fmt(reqFlow,1)}`;
-  const pl = savekW/pk<0.1?0:(savekW/pk<0.3?1:(savekW/pk<0.55?2:3));
-  $('vXP').textContent=fmt(savekW,1); $('vXP').className='vnum mono s'+pl;
-  $('vXPb').textContent=`kW · ${money(saveBaht)} บาท/ปี`;
-  $('vBP').textContent=fmt(byp*100,1); $('vBP').className='vnum mono s'+bl;
-  $('vBPb').textContent=`% · ${fmt(bypFlow,1)} L/s ที่ไม่รับความร้อน`;
-
-  /* -- report -- */
-  $('repOut').innerHTML=`<pre class="mono" id="repTxt" style="white-space:pre-wrap;font-size:.78rem;
-   background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto">${
-`ผลวินิจฉัย Low Delta T Syndrome — ระบบน้ำเย็น
-
-ค่าออกแบบ    CHWS ${fmt(dS,1)} / CHWR ${fmt(dR,1)} °C   ΔT ${fmt(dDT,2)} °C   Load ${fmt(dQ,0)} kW
-ค่าที่วัดได้  CHWS ${fmt(aS,1)} / CHWR ${fmt(aR,1)} °C   ΔT ${fmt(aDT,2)} °C   Flow ${fmt(aF,1)} L/s
-
-  ΔT เทียบออกแบบ         ${fmt(dtRatio*100,0)} %   (${LAB[lvl]})
-  Load ที่ขนได้จริง        ${fmt(aQ,0)} kW  (${fmt(aQ/3.517,0)} RT)
-  Flow ที่ควรใช้           ${fmt(reqFlow,1)} L/s
-  Flow ส่วนเกิน            ${fmt(aF-reqFlow,1)} L/s  (${fmt(xsFlow,0)} %)
-  กำลังปั๊มที่เสียเปล่า      ${fmt(savekW,1)} kW  =  ${money(saveBaht)} บาท/ปี
-
-Bypass
-  Chiller ΔT              ${fmt(chDT,2)} °C
-  Plant ΔT                ${fmt(aDT,2)} °C
-  น้ำที่ไม่รับความร้อน       ${fmt(byp*100,1)} %  (${fmt(bypFlow,1)} L/s)
-
-DP Reset
-  DP ปัจจุบัน / เป้าหมาย    ${fmt(dpN,0)} → ${fmt(dpNew,0)} kPa
-  ${dpBasis==='alone'?'ประหยัด (ทางเลือกเดี่ยว)':'ประหยัดเพิ่ม (หลังแก้ ΔT)'}  ${fmt(dpSaveKW,1)} kW  =  ${money(dpSave)} บาท/ปี
-  รวมกำลังปั๊มที่ลดได้     ${fmt(totKW,1)} kW จากปั๊ม ${fmt(V('pkW'),1)} kW   <!-- [แก้ไข 3 ต.ค. 2569 audit] -->
-
-Chiller Staging
-  ต้องการตาม load          ${nByLoad} เครื่อง
-  ต้องการตาม flow          ${nByFlow} เครื่อง
-  เดินอยู่จริง              ${nc} เครื่อง${extra>0?`   ← เปิดเกิน ${extra} เครื่องเพราะ flow`:''}
-
-หมายเหตุ: ก่อนสรุปผล ต้องสอบเทียบ CHWS/CHWR sensor, flow meter, DP sensor และ valve
-position feedback ก่อนเสมอ — ข้อมูลผิดนำไปสู่การวินิจฉัยผิดได้ทุกครั้ง`}</pre>`;
-}
 
 /* ══ [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า + hint ══ */
 function recalcAll(){ try{calc();}catch(e){} try{tagFieldKinds();}catch(e){} }

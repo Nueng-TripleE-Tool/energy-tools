@@ -99,6 +99,22 @@
     svg{max-width:100%}
   }
 </style>
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
 </head>
 <body>
 <header>
@@ -228,145 +244,11 @@
   </div>
 
 </div>
+<!-- ระยะ 2-12: เครื่องยนต์กลาง Triple E -->
+<script src="../lib/te-core.js"></script>
 <script>
-/* ============================ ENGINE START ============================ */
-// เชื้อเพลิง: ultimate analysis % โดยมวล (as-fired), HHV MJ/kg
-const FUELS={
-  ng:   {name:'ก๊าซธรรมชาติ (NG)',        C:73.4,H:23.3,O:0.9, N:2.4,S:0,  M:0,  Ash:0,   HHV:52.2},
-  lpg:  {name:'LPG',                      C:82.0,H:18.0,O:0,   N:0,  S:0,  M:0,  Ash:0,   HHV:49.8},
-  hfo:  {name:'น้ำมันเตา (HFO)',           C:86.6,H:11.4,O:0.3, N:0.1,S:1.6,M:0,  Ash:0,   HHV:43.3},
-  diesel:{name:'ดีเซล',                    C:86.5,H:13.2,O:0,   N:0.1,S:0.2,M:0,  Ash:0,   HHV:45.8},
-  bitum:{name:'ถ่านหินบิทูมินัส',           C:62.4,H:4.2, O:7.5, N:1.2,S:0.8,M:12, Ash:11.9,HHV:25.5},
-  subbit:{name:'ถ่านหินซับบิทูมินัส',        C:53.0,H:3.8, O:11.0,N:0.9,S:0.4,M:20, Ash:10.9,HHV:21.0},
-  wood: {name:'ไม้สับ/ชีวมวล (M≈35%)',      C:32.4,H:3.9, O:27.7,N:0.2,S:0,  M:35, Ash:0.8, HHV:12.9},
-  husk: {name:'แกลบ',                     C:34.9,H:4.6, O:32.0,N:0.4,S:0,  M:10, Ash:18.1,HHV:14.8},
-  custom:{name:'กำหนดเอง (Custom)',        C:73.4,H:23.3,O:0.9, N:2.4,S:0,  M:0,  Ash:0,   HHV:52.2},
-};
-// วัสดุชิ้นงาน: cp ของแข็ง (kJ/kg·K), cp เหลว, จุดหลอม (°C), ความร้อนแฝงหลอม (kJ/kg)
-const MATERIALS={
-  steel:{name:'เหล็กกล้า (Steel)',cps:0.62,cpl:0.80,tmelt:1510,lf:272},
-  alu:  {name:'อลูมิเนียม',      cps:1.00,cpl:1.18,tmelt:660, lf:397},
-  copper:{name:'ทองแดง',        cps:0.42,cpl:0.51,tmelt:1084,lf:205},
-  zinc: {name:'สังกะสี',         cps:0.44,cpl:0.51,tmelt:420, lf:112},
-  glass:{name:'แก้ว',            cps:0.90,cpl:1.25,tmelt:1400,lf:350},
-  ceramic:{name:'เซรามิก/อิฐ',   cps:0.85,cpl:1.10,tmelt:1600,lf:0},
-  custom:{name:'กำหนดเอง',       cps:0.62,cpl:0.80,tmelt:1510,lf:272},
-};
-const SIGMA=5.67e-8;
-// mean specific heat 25°C→T (kJ/kg·K) — การประมาณเชิงเส้นสำหรับงานวิศวกรรม (คลาดเคลื่อน ~1–2%)
-const cpmCO2=T=>0.85+1.35e-4*T, cpmH2O=T=>1.86+2.1e-4*T, cpmN2=T=>1.03+1.0e-4*T,
-      cpmO2=T=>0.918+1.0e-4*T, cpmSO2=T=>0.64+1.0e-4*T, cpmAir=T=>1.005+9e-5*T,
-      cpmFG=T=>1.05+1.1e-4*T; // ก๊าซไอเสียรวมโดยประมาณ (สำหรับ leakage)
-const LATENT25=2442; // kJ/kg ความร้อนแฝงไอน้ำที่ 25°C
-
-function lhvFromHHV(f){ // MJ/kg
-  return f.HHV - 2.442*(9*f.H/100 + f.M/100);
-}
-// การเผาไหม้ต่อ 1 kg เชื้อเพลิง
-function combustion(f,o2d,humid){
-  const C=f.C/100,H=f.H/100,O=f.O/100,N=f.N/100,S=f.S/100,M=f.M/100,Ash=f.Ash/100;
-  const O2need=2.667*C+8*H+S-O;                 // kg O2/kg fuel
-  const A0=Math.max(0,O2need)/0.232;            // stoichiometric air kg/kg
-  const EA=Math.max(0,o2d)/(20.9-Math.min(o2d,20.0)); // excess air fraction
-  const lam=1+EA;
-  const mAir=lam*A0;                            // dry air
-  const mH2Oair=humid*mAir;                     // moisture carried by air
-  const mCO2=3.667*C, mSO2=2*S;
-  const mH2Ocomb=9*H+M;                         // water formed + fuel moisture (latent applies)
-  const mN2=N+0.768*mAir;
-  const mO2x=0.232*(lam-1)*A0;
-  const mDry=mCO2+mSO2+mN2+mO2x;
-  return {O2need,A0,EA,lam,mAir,mH2Oair,mCO2,mSO2,mH2Ocomb,mN2,mO2x,mDry};
-}
-// Available heat ต่อ 1 kg เชื้อเพลิง (kJ/kg) + องค์ประกอบความสูญเสีย
-function availableHeat(f,o2d,tFlue,tAir,humid){
-  const c=combustion(f,o2d,humid);
-  const dT=tFlue-25;
-  const Ldry=(c.mCO2*cpmCO2(tFlue)+c.mSO2*cpmSO2(tFlue)+c.mN2*cpmN2(tFlue)+c.mO2x*cpmO2(tFlue))*dT;
-  const LmoistComb=c.mH2Ocomb*(LATENT25+cpmH2O(tFlue)*dT);
-  const LmoistAir=c.mH2Oair*cpmH2O(tFlue)*dT;
-  const Qpre=(c.mAir+c.mH2Oair)*cpmAir(tAir)*Math.max(0,tAir-25); // เครดิตอุ่นอากาศ
-  const HHVkJ=f.HHV*1000, LHVkJ=lhvFromHHV(f)*1000;
-  const avail=HHVkJ-Ldry-LmoistComb-LmoistAir+Qpre;
-  return {...c,Ldry,LmoistComb,LmoistAir,Qpre,HHVkJ,LHVkJ,avail,
-    AH_HHV:avail/HHVkJ, AH_LHV:avail/LHVkJ};
-}
-// ---- รายการความร้อนแต่ละโมดูล (คืนค่า kW) ----
-function qCharge(L,tFlue){
-  const m=L.m||0, moist=(L.moist||0)/100;
-  const mDry=m*(1-moist), mW=m*moist;
-  const tm=L.tmelt, useMelt=(L.t_out>=tm)?(L.pctMelt||0)/100:0;
-  let q=mDry*L.cps*(Math.min(L.t_out,tm)-L.t_in);
-  q+=mDry*useMelt*(L.lf+L.cpl*Math.max(0,L.t_out-tm));
-  let qw=0;
-  if(mW>0){qw=mW*(4.186*Math.max(0,100-L.t_in)+2257+1.88*Math.max(0,tFlue-100));}
-  const qr=mDry*(L.q_rxn||0);
-  return (q+qw+qr)/3600;
-}
-function qFixture(L){return (L.m||0)*(L.cp||0.5)*((L.t_out||0)-(L.t_in||0))/3600;}
-function qWall(L){
-  const dT=(L.ts||0)-(L.ta||0); if(dT<=0||!(L.A>0))return 0;
-  const Kw=Math.pow((0.348+(L.wind||0))/0.348,0.55); // wind correction
-  const hc=1.31*Math.pow(dT,1/3)*Kw;
-  const Ts=L.ts+273.15,Ta=L.ta+273.15;
-  const qr=(L.eps??0.85)*SIGMA*(Ts**4-Ta**4);
-  return L.A*(hc*dT+qr)/1000;
-}
-function qOpening(L,tAmb){
-  const Tin=(L.t_in||0)+273.15,Ta=tAmb+273.15;
-  let A,D;
-  if(L.shape==='circle'){D=L.dim1;A=Math.PI/4*L.dim1*L.dim1;}
-  else{A=L.dim1*L.dim2;D=2*L.dim1*L.dim2/(L.dim1+L.dim2);}
-  const X=D/Math.max(L.thick,1e-6);
-  const F=X/(X+0.9); // การประมาณ view factor ช่องเปิดผนังหนา (เทียบ curve PHAST)
-  return SIGMA*(Tin**4-Ta**4)*A*F*((L.pctOpen||0)/100)*(L.count||1)/1000;
-}
-function qCooling(L){return (L.flow||0)*1000*4.186*(L.dt||0)/3600;}
-const ATM_CPV={n2:1.30,air:1.30,h2:1.29,ar:0.93,co2:1.86}; // kJ/Nm³·K
-function qAtmosphere(L){return (L.flow||0)*(ATM_CPV[L.gas]||1.30)*((L.t_out||0)-(L.t_in||0))/3600;}
-function qLeakage(L,tAmb){return (L.m||0)*cpmFG(L.t||0)*((L.t||0)-tAmb)/3600;}
-
-// ===== SOLVER (pure) =====
-function solvePH(inp){
-  const f=inp.fuel;
-  const ah=availableHeat(f,+inp.o2d,+inp.t_flue,+inp.t_air,+inp.humid);
-  const L=inp.losses;
-  const items=[];
-  const add=(key,name,kW,useful)=>{if(kW>0.0001)items.push({key,name,kW,useful:!!useful});};
-  if(L.charge.on)  add('charge','ความร้อนเข้าชิ้นงาน (Charge)',qCharge(L.charge,+inp.t_flue),true);
-  if(L.fixture.on) add('fixture','อุปกรณ์จับยึด/ถาด (Fixture)',qFixture(L.fixture));
-  if(L.wall.on)    add('wall','สูญเสียผ่านผนัง (Wall)',qWall(L.wall));
-  if(L.opening.on) add('opening','แผ่รังสีผ่านช่องเปิด (Opening)',qOpening(L.opening,+inp.t_amb));
-  if(L.cooling.on) add('cooling','น้ำหล่อเย็น (Cooling)',qCooling(L.cooling));
-  if(L.atmosphere.on)add('atmosphere','ก๊าซบรรยากาศในเตา (Atmosphere)',qAtmosphere(L.atmosphere));
-  if(L.leakage.on) add('leakage','ก๊าซร้อนรั่วจากเตา (Leakage)',qLeakage(L.leakage,+inp.t_amb));
-  if(L.other.on)   add('other','อื่น ๆ (Other)',+L.other.kW||0);
-  const Qnet=items.reduce((s,i)=>s+i.kW,0);
-  const grossHHV=ah.AH_HHV>0?Qnet/ah.AH_HHV:0;             // kW ฐาน HHV
-  const fuelKgH=ah.HHVkJ>0?grossHHV*3600/ah.HHVkJ:0;       // kg/h
-  const grossLHV=fuelKgH*ah.LHVkJ/3600;                    // kW ฐาน LHV
-  const flueLoss=grossHHV-Qnet+ah.Qpre*fuelKgH/3600;       // สูญเสียปล่อง (รวมเครดิต preheat แล้วในสมดุล)
-  const useful=items.filter(i=>i.useful).reduce((s,i)=>s+i.kW,0);
-  const basis=inp.basis||'HHV';
-  const grossDisp=basis==='HHV'?grossHHV:grossLHV;
-  const GJyr=grossDisp*3.6e-3*inp.hr;                      // GJ/ปี ฐานที่เลือก
-  const fuelCost=GJyr*inp.c_fuel;
-  // [แก้ไข 3 ต.ค. 2569 audit] CO₂ ต้องคูณ EF กับพลังงานฐานเดียวกับ EF (TGO/IPCC = NCV) ไม่ใช่ฐานแสดงผล — เดิม GJ(HHV)×EF(NCV) เกิน 10.9 % สำหรับ NG
-  const efBasis=inp.ef_basis||'NCV';
-  const GJyrEF=(efBasis==='GCV'?grossHHV:grossLHV)*3.6e-3*inp.hr;
-  const CO2=GJyrEF*inp.ef_fuel/1000;
-  const warns=[];  // [แก้ไข 3 ต.ค. 2569 audit] กล่องเตือนค่าที่เป็นไปไม่ได้
-  if(!(ah.AH_HHV>0)) warns.push('Available Heat ≤ 0 ('+(ah.AH_HHV*100).toFixed(1)+' %) — O₂ หรืออุณหภูมิไอเสียสูงเกินกว่าที่เชื้อเพลิงจะให้ความร้อนสุทธิได้ (ตรวจ O₂ < 21 %, T ปล่อง) — พลังงาน/ค่าใช้จ่ายที่แสดงเป็น 0 ใช้ไม่ได้');
-  if(L.charge.on && +L.charge.t_out < +L.charge.t_in) warns.push('อุณหภูมิชิ้นงานขาออก ('+L.charge.t_out+' °C) < ขาเข้า ('+L.charge.t_in+' °C) — ความร้อนเข้าชิ้นงานถูกตัดเป็น 0');
-  if(+inp.o2d>=20.9) warns.push('O₂ ในไอเสีย ≥ 20.9 % — ไม่มีการเผาไหม้');
-  const effGross=grossHHV>0?useful/grossHHV*100:0;         // ฐาน HHV
-  const effGrossLHV=grossLHV>0?useful/grossLHV*100:0;
-  return {ah,items,Qnet,useful,grossHHV,grossLHV,grossDisp,fuelKgH,flueLoss,basis,
-    GJyr,fuelCost,CO2,efBasis,GJyrEF,warns,effGross,effGrossLHV,hr:+inp.hr,c_fuel:+inp.c_fuel,ef_fuel:+inp.ef_fuel,
-    o2d:+inp.o2d,t_flue:+inp.t_flue,t_air:+inp.t_air,t_amb:+inp.t_amb,humid:+inp.humid,fuel:f,
-    ftype:inp.ftype||'reheat',chargeM:(L.charge.on?+L.charge.m||0:0)};
-}
-/* ============================ ENGINE END ============================ */
+/* ระยะ 2-12: ฟิสิกส์เตาย้ายเข้า te-core — TE.FURN (ห้ามแก้ตัวเลขในหน้านี้) */
+var FUELS=TE.FURN.FUELS,MATERIALS=TE.FURN.MATERIALS,lhvFromHHV=TE.FURN.lhvFromHHV,availableHeat=TE.FURN.availableHeat,solvePH=TE.FURN.solvePH;
 </script>
 <script>
 /* ============================ UI ============================ */

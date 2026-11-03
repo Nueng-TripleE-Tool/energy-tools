@@ -5,33 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Psychrometric Chart &amp; Air Properties — Triple E Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script>/* TE_PSY */
-/* ══ TE_PSY — Psychrometric engine กลางของ Triple E (ระยะ 4, 10 ก.ย. 2569) — ASHRAE Fundamentals, Hyland–Wexler; คัดจาก Tool_Psychrometric_Chart
-   หน่วย public: °C, kPa, kg/kg_da, kJ/kg_da, m³/kg_da ══ */
-var TE_PSY=(function(){
-  function pwsPa(TK){ if(TK<173.15)TK=173.15; var l;
-    if(TK<273.15){ l=-5.6745359e3/TK+6.3925247-9.677843e-3*TK+6.2215701e-7*TK*TK+2.0747825e-9*Math.pow(TK,3)-9.484024e-13*Math.pow(TK,4)+4.1635019*Math.log(TK); }
-    else { l=-5.8002206e3/TK+1.3914993-4.8640239e-2*TK+4.1764768e-5*TK*TK-1.4452093e-8*Math.pow(TK,3)+6.5459673*Math.log(TK); }
-    return Math.exp(l); }
-  function Pws(t){return pwsPa(t+273.15)/1000;}                                   // kPa
-  function Ws(t,p){var s=Pws(t);return s>=p?1e6:0.621945*s/(p-s);}
-  function W_rh(t,rh,p){var pw=Math.min(rh*Pws(t),p*0.9999);return 0.621945*pw/(p-pw);}   // rh เป็นสัดส่วน 0–1
-  function Pw_W(W,p){return p*W/(0.621945+W);}
-  function RH_W(t,W,p){return Pw_W(W,p)/Pws(t);}                                  // สัดส่วน 0–1
-  function Hda(t,W){return 1.006*t+W*(2501+1.86*t);}                              // kJ/kg_da
-  function Vda(t,W,p){return 0.287042*(t+273.15)*(1+1.607858*W)/p;}               // m³/kg_da
-  function Tdp(W,p){var pw=Pw_W(W,p);if(pw<=0)return NaN;var lo=-90,hi=200;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(Pws(m)<pw)lo=m;else hi=m;}return (lo+hi)/2;}
-  function W_wb(t,twb,p){var ws=Ws(twb,p);return twb>=0?((2501-2.326*twb)*ws-1.006*(t-twb))/(2501+1.86*t-4.186*twb):((2830-0.24*twb)*ws-1.006*(t-twb))/(2830+1.86*t-2.1*twb);}
-  function Twb(t,W,p){var lo=-90,hi=t;for(var i=0;i<90;i++){var m=(lo+hi)/2;if(W_wb(t,m,p)<W)lo=m;else hi=m;}return (lo+hi)/2;}
-  function Palt(z){return 101.325*Math.pow(1-2.25577e-5*z,5.2559);}
-  function state(t,W,p){W=Math.max(0,Math.min(W,Ws(t,p)));var h=Hda(t,W),v=Vda(t,W,p),pw=Pw_W(W,p),ws=Ws(t,p);
-    return{t:t,W:W,p:p,h:h,v:v,rh:100*pw/Pws(t),pw:pw,tdp:Tdp(W,p),twb:Twb(t,W,p),rho:(1+W)/v,mu:100*W/ws,ws:ws};}
-  function fromRH(t,rhPct,p){return state(t,W_rh(t,rhPct/100,p||101.325),p||101.325);}
-  function fromWB(t,twb,p){return state(t,W_wb(t,twb,p||101.325),p||101.325);}
-  return{Pws:Pws,Ws:Ws,W_rh:W_rh,Pw_W:Pw_W,RH_W:RH_W,Hda:Hda,Vda:Vda,Tdp:Tdp,W_wb:W_wb,Twb:Twb,Palt:Palt,state:state,fromRH:fromRH,fromWB:fromWB,_ver:'TE_PSY HW r4-2569'};
-})();
-
-</script>
+<!-- [แก้ไข 3 พ.ย. 2569 v2.0.2 ระยะ 2] เครื่องยนต์คุณสมบัติอากาศ TE_PSY ย้ายออกจากไฟล์ → ../lib/te-core.js (r2b, ล็อกโดเมน)
+     TE_PSY ในไฟล์เดิมตรงกับ engine ทุกตัวอักษร (HW r4-2569) — ผลคำนวณเท่า v2.0.1 -->
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
+<script src="../lib/te-core.js"></script>
 <script>
 /* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
 var TE_JSON=(function(){
@@ -114,6 +106,48 @@ svg{display:block;width:100%;min-width:720px;height:auto;font-family:"IBM Plex M
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:var(--muted);margin-top:8px}
 .legend i{display:inline-block;width:20px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
 footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
+.wrap{grid-template-columns:minmax(0,1fr)}
+@media(min-width:1440px){.wrap{max-width:1320px}}   /* [แก้ไข 13 ต.ค. 2569 v2.0.1] จอกว้างให้แผนภูมิใหญ่ขึ้น */   /* [แก้ไข 13 ต.ค. 2569] กันแผนภูมิ min-width 720px ดันทั้งหน้ากว้างเกินจอมือถือ (เดิมเลื่อนแนวนอนที่ 360 px) */
+/* [แก้ไข 13 ต.ค. 2569] v2.0 แท็บวงจรระบบหลายจุด */
+.sys-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+button.sm{padding:7px 12px;font-size:.84rem;margin-top:0;min-height:36px}
+label.ck{display:inline-flex;align-items:center;gap:5px;margin:0 6px;color:var(--ink);font-size:.82rem;cursor:pointer}
+label.ck input{width:auto}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-family:"IBM Plex Mono",monospace;font-size:.85rem}
+i.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+#sysPt tbody tr,#sysPr tbody tr{cursor:pointer}#sysPt tbody tr:hover td,#sysPr tbody tr:hover td{background:#f4f9ff}
+.tipbox{position:absolute;pointer-events:none;background:rgba(15,42,74,.94);color:#fff;font-size:.74rem;padding:6px 9px;border-radius:7px;display:none;white-space:pre;line-height:1.45;z-index:5}
+ul.obs{margin:6px 0 0;padding-left:0;list-style:none;font-size:.86rem}
+ul.obs li{padding:7px 10px;border-radius:8px;margin-bottom:5px;border-left:3px solid}
+.o-danger{background:#fdecee;border-color:#d1495b!important;color:#7a1c28}.o-warn{background:#fff6e6;border-color:#e08a00!important;color:#6e4500}
+.o-info{background:#eef5fd;border-color:#1e88e5!important;color:#0b3d91}.o-ok{background:#ecf7f0;border-color:#1e9e5a!important;color:#145c36}
+.rep-head{font-size:.85rem;color:var(--muted);margin:-4px 0 8px}
+#chart4{touch-action:none}
+.print-only{display:none}
+/* [แก้ไข 13 ต.ค. 2569 v2.0.1] UX: ระยะห่างการ์ด · แผนภูมิ+ตัวแก้ไขข้างกัน · แม่แบบพับได้ */
+.panel>*+*{margin-top:16px}
+details.tpl-det>summary{cursor:pointer;font-weight:600;color:var(--conv-dark);font-size:.9rem;margin:4px 0 8px;list-style:none}
+details.tpl-det>summary::before{content:'▸ ';}details.tpl-det[open]>summary::before{content:'▾ ';}
+.alt4{width:84px!important;padding:5px 8px!important;font-size:.84rem!important;display:inline-block}
+.sys-bar .sep{width:1px;height:24px;background:var(--line);margin:0 4px}
+#chart4.panning{cursor:grabbing}
+@media(min-width:1100px){
+  .sys-split{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(290px,1fr);gap:16px;align-items:start}
+  .sys-split>.card+.card{margin-top:0}
+  .sys-split .ed-card{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+  .sys-split .ed-card .grid4{grid-template-columns:1fr 1fr}
+}
+@media print{
+  header .te-json,.noprint,footer{display:none!important}
+  .panel{display:none!important}.panel.active{display:block!important}
+  .sys-split{display:block}
+  body.print-sys .panel{display:none!important}body.print-sys #p4{display:block!important}
+  body{background:#fff}.wrap{max-width:none;margin:0;padding:0}
+  .card{box-shadow:none;border:1px solid #e2e8f0;break-inside:avoid;padding:12px}
+  svg{min-width:0!important}.chartbox{overflow:visible}.hint{display:none}
+  .print-only{display:block!important;text-align:center;font-size:.75rem;color:#5b6b7b;margin-top:8px}
+}
 @media(max-width:760px){.grid2,.grid3,.grid4{grid-template-columns:1fr}
   .wrap{padding:0 10px}.card{padding:16px}}
 </style>
@@ -121,7 +155,7 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
 <body>
 <header>
   <div class="brand">Triple E Technology Co., Ltd.</div>
-  <h1>Psychrometric Chart &amp; Air Properties</h1>
+  <h1>Psychrometric Chart &amp; Air Properties <span style="font-size:.9rem;opacity:.75">v2.0.1</span></h1>
   <p>คุณสมบัติอากาศชื้นและแผนภูมิไซโครเมตริก — ASHRAE Fundamentals · รองรับความสูงเหนือระดับน้ำทะเล</p>
   <!-- [ระยะ 4 10 ก.ย. 2569] บันทึก/โหลด JSON ทุกแท็บ -->
   <span class="te-json">
@@ -131,10 +165,11 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
 </header>
 
 <div class="wrap">
-  <div class="card" style="padding-bottom:8px">
+  <div class="card noprint" style="padding-bottom:8px">
     <div class="tabs">
       <div class="tab active" data-p="p1">คุณสมบัติอากาศ + แผนภูมิ</div>
-      <div class="tab" data-p="p2">กระบวนการปรับอากาศ &amp; โหลด</div>
+      <div class="tab" data-p="p4">วงจรระบบหลายจุด (AHU / อบแห้ง) <span class="badge ok">ใหม่</span></div>
+      <div class="tab" data-p="p2">กระบวนการเดียว (คำนวณเร็ว)</div><!-- [แก้ไข 13 ต.ค. 2569 v2.0.1] เรียงแท็บใหม่: วงจรระบบขึ้นก่อน -->
       <div class="tab" data-p="p3">ตารางเทียบ &amp; สูตรอ้างอิง</div>
     </div>
   </div>
@@ -183,6 +218,7 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
       <div class="kpis" id="kpiA"></div>
       <div style="overflow-x:auto"><table id="tblA"><tbody></tbody></table></div>
       <p class="assump" id="asmA"></p>
+      <button type="button" class="ghost noprint" onclick="sendPointToSys()">↗ ส่งจุดนี้ไปแท็บวงจรระบบ</button><!-- [แก้ไข 13 ต.ค. 2569 v2.0.1] -->
     </div>
 
     <div class="card">
@@ -260,6 +296,7 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
       </div>
       <div class="note" id="ntProc"></div>
       <button class="ghost" onclick="document.querySelector('.tab[data-p=&quot;p1&quot;]').click()">ดูแผนภูมิด้านบน</button>
+      <button type="button" class="ghost" onclick="sendProcToSys()">↗ เปิดกระบวนการนี้ในแท็บวงจรระบบ</button><!-- [แก้ไข 13 ต.ค. 2569 v2.0.1] -->
     </div>
 
     <div class="card">
@@ -277,6 +314,123 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
         <svg id="chart2" viewBox="0 0 940 580" preserveAspectRatio="xMidYMid meet"></svg>
         <div id="tip2"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ══════════ PANEL 4 : วงจรระบบหลายจุด — [แก้ไข 13 ต.ค. 2569] v2.0 ══════════ -->
+  <div class="panel" id="p4">
+    <div class="card">
+      <h2>วงจรระบบปรับอากาศ / อบแห้ง แบบหลายจุด (Multi-point System)</h2>
+      <details class="tpl-det" id="tplDet" open><summary>แม่แบบ · หน่วย · ข้อมูลโครงการ (คลิกเพื่อเปิด/ปิด)</summary><!-- [แก้ไข 13 ต.ค. 2569 v2.0.1] -->
+      <p class="note" style="margin-top:-6px">ต่อจุดสภาวะกับกระบวนการเป็นวงจรเดียว ส่งต่อมวลอากาศแห้ง ṁ<sub>da</sub> ตลอดเส้นทาง แยกภาระคอยล์ ภาระห้อง และภาระลมภายนอก — ใช้ความดันบรรยากาศค่าเดียวกับแท็บแรก (<span id="sysP">101.325</span> kPa)</p>
+      <div class="grid4">
+        <div><label>เริ่มจากแม่แบบ</label>
+          <select id="tplSel" onchange="tplUI()">
+            <option value="ahu" selected>ออกแบบ AHU จากภาระห้อง (OA+RA → คอยล์ → ห้อง)</option>
+            <option value="audit">ตรวจวัดหน้างาน AHU (OA, RA, MA, off-coil)</option>
+            <option value="doas">ลมภายนอก 100 % (DOAS/MAU) + reheat</option>
+            <option value="dryer">เครื่องอบแห้ง: ฮีตเตอร์ → ห้องอบ → ลมทิ้ง</option>
+            <option value="blank">เริ่มว่าง (สร้างเอง)</option>
+          </select><div class="hint">เลือกแม่แบบแล้วกรอกค่าด้านล่าง กด "สร้างวงจร" — หลังสร้างแก้ไข ลากจุด เพิ่ม/ลบกระบวนการได้ทุกตัว</div></div>
+        <div><label>ระบบหน่วยที่แสดง</label>
+          <select id="sysUnit" onchange="sysRefresh(true)"><option value="SI" selected>SI (°C · g/kg · kJ/kg · kW)</option><option value="IP">IP (°F · lb/lb · Btu/lb · Btu/h)</option></select>
+          <div class="hint">เปลี่ยนเฉพาะการแสดงผลและช่องกรอกในตัวแก้ไข — ภายในคำนวณเป็น SI เสมอ · ช่องกรอกของแม่แบบเป็น SI</div></div>
+        <div><label>หน่วยอัตราลมที่แสดงในตาราง</label>
+          <select id="sysFlowU" onchange="sysRefresh()"><option value="m3h" selected>m³/h</option><option value="ls">L/s</option><option value="cfm">CFM</option></select>
+          <div class="hint">อัตราลมเชิงปริมาตรคิดที่สภาวะของแต่ละจุด (v ต่างกัน) — ṁ<sub>da</sub> คงที่ตลอดเส้นทาง</div></div>
+        <div><label>ช่วงแผนภูมิ</label>
+          <select id="range4" onchange="VIEW=null;sysRender()">
+            <option value="auto" selected>อัตโนมัติ (พอดีกับจุด)</option>
+            <option value="0,50,0.030">มาตรฐาน 0–50 °C</option>
+            <option value="10,45,0.030">งานปรับอากาศ 10–45 °C</option>
+            <option value="-10,40,0.025">อากาศเย็น −10–40 °C</option>
+            <option value="0,90,0.120">อบแห้ง 0–90 °C</option>
+            <option value="0,120,0.400">อุณหภูมิสูง 0–120 °C</option>
+          </select><div class="hint">อัตโนมัติ = ขยายพอดีกับจุดทั้งหมด ±5 °C · ช่วงกว้างใช้กับงานอบแห้ง/ไอเสีย</div></div>
+      </div>
+      <div id="tplBox" class="refbox" style="margin-top:10px"></div>
+      <button type="button" onclick="tplBuild(true)">⚙️ สร้างวงจรจากแม่แบบ</button>
+      </details>
+      <span class="note" id="tplNote"></span>
+    </div>
+
+    <div class="sys-split"><!-- [แก้ไข 13 ต.ค. 2569 v2.0.1] จอกว้าง: แผนภูมิกับตัวแก้ไขอยู่ข้างกัน -->
+    <div class="card">
+      <h2>แผนภูมิวงจร</h2>
+      <div class="sys-bar noprint">
+        <button type="button" class="ghost sm" onclick="sysAddPoint()">＋ จุดสภาวะ</button>
+        <button type="button" class="ghost sm" onclick="sysAddProc()">＋ กระบวนการ</button>
+        <button type="button" class="ghost sm" onclick="sysDelete()">🗑 ลบที่เลือก</button>
+        <button type="button" class="ghost sm" onclick="sysUndo()">↶ ย้อน</button>
+        <button type="button" class="ghost sm" onclick="sysRedo()">↷ ทำซ้ำ</button>
+        <button type="button" class="ghost sm" onclick="sysPNG()">🖼 บันทึกภาพ PNG</button>
+        <button type="button" class="ghost sm" onclick="sysPrint()">🖨 พิมพ์รายงาน</button>
+        <label class="ck"><input type="checkbox" id="shProt" checked onchange="sysRender()"> SHR protractor</label>
+        <label class="ck"><input type="checkbox" id="shRshr" checked onchange="sysRender()"> เส้น RSHR ห้อง</label>
+        <label class="ck"><input type="checkbox" id="shLbl" checked onchange="sysRender()"> ค่าที่จุด</label>
+        <span class="sep"></span>
+        <button type="button" class="ghost sm" onclick="sysZoom(1/1.25)" title="ซูมเข้า">🔍＋</button>
+        <button type="button" class="ghost sm" onclick="sysZoom(1.25)" title="ซูมออก">🔍−</button>
+        <button type="button" class="ghost sm" onclick="VIEW=null;$('range4').value='auto';sysRender()" title="กลับไปพอดีกับจุด">⟲ พอดีจุด</button>
+        <label class="ck" title="ใช้ค่าเดียวกับแท็บคุณสมบัติอากาศ">ความสูง <input class="alt4" type="number" step="10" oninput="alt4Set(this.value)"> m · p <b id="sysP2">101.325</b> kPa</label>
+      </div>
+      <div class="chartbox" style="margin-top:8px">
+        <svg id="chart4" viewBox="0 0 940 580" preserveAspectRatio="xMidYMid meet"></svg>
+        <div id="tip4" class="tipbox"></div>
+      </div>
+      <p class="note noprint">ดับเบิลคลิกที่ว่าง = เพิ่มจุด · คลิกจุด/เส้น = เลือกแล้วแก้ไข · ลากจุดอิสระเพื่อย้าย (จุดที่คำนวณจากกระบวนการลากไม่ได้) · ลากที่ว่าง = เลื่อนแผนภูมิ · ล้อเมาส์ = ซูม · Delete = ลบที่เลือก · Ctrl+Z / Ctrl+Y = ย้อน/ทำซ้ำ</p>
+    </div>
+
+    <div class="card noprint ed-card">
+      <h2 id="edTitle">แก้ไขรายการที่เลือก</h2>
+      <div id="sysEd"><p class="note">ยังไม่ได้เลือก — คลิกจุดหรือเส้นบนแผนภูมิ หรือคลิกแถวในตารางด้านล่าง</p></div>
+    </div>
+    </div><!-- /sys-split -->
+
+    <div class="card">
+      <h2>ผลลัพธ์ทั้งวงจร</h2>
+      <div class="rep-head" id="repHead"></div>
+      <div class="kpis" id="sysKpi"></div>
+      <h3>จุดสภาวะ (State points)</h3>
+      <div style="overflow-x:auto"><table id="sysPt"><thead></thead><tbody></tbody></table></div>
+      <h3>กระบวนการและภาระ (Processes &amp; loads)</h3>
+      <div style="overflow-x:auto"><table id="sysPr"><thead></thead><tbody></tbody></table></div>
+      <h3>ตรวจสมดุลและข้อสังเกตเชิงวิศวกรรม</h3>
+      <ul id="sysObs" class="obs"></ul>
+      <p class="assump" id="sysAsm"></p>
+    </div>
+
+    <div class="card">
+      <h2>สภาวะควบคุม &amp; ข้อมูลตรวจวัดต่อเนื่อง (Data logger)</h2>
+      <div class="grid4">
+        <div><label>แสดงพื้นที่สภาวะควบคุม</label>
+          <select id="zOn" onchange="sysRender()"><option value="1" selected>แสดง</option><option value="0">ซ่อน</option></select>
+          <div class="hint">กรอบช่วง DB ± และ RH ± ที่ห้อง/กระบวนการต้องควบคุม (เช่น ห้องสะอาด ห้องยา ห้องเก็บสินค้า)</div></div>
+        <div><label>DB ควบคุม (°C) ± ช่วง</label>
+          <div class="pair"><input id="zDb" type="number" step="0.5" value="25" oninput="sysRender()"><input id="zDbT" type="number" step="0.5" value="1.5" oninput="sysRender()"></div>
+          <div class="hint">สำนักงานไทย 24–26 °C ± 1.5 · ห้องยา/ห้องสะอาด ตามสเปค GMP · ป้อนเป็น °C</div></div>
+        <div><label>RH ควบคุม (%) ± ช่วง</label>
+          <div class="pair"><input id="zRh" type="number" step="1" value="55" oninput="sysRender()"><input id="zRhT" type="number" step="1" value="10" oninput="sysRender()"></div>
+          <div class="hint">สำนักงาน 50–60 % · ห้องเก็บยา ≤ 60 % · ห้องอิเล็กทรอนิกส์ 45 ± 5 %</div></div>
+        <div><label>เก็บค่าเป็นจุดอิสระใหม่</label>
+          <button type="button" class="ghost sm" style="margin-top:0" onclick="logToPoint()">＋ จุดค่าเฉลี่ยจาก logger</button>
+          <div class="hint">สร้างจุดสภาวะจากค่าเฉลี่ย DB/W ของข้อมูลที่วางไว้ เพื่อใช้ต่อกระบวนการ</div></div>
+      </div>
+      <div class="grid4" style="margin-top:10px"><!-- [แก้ไข 13 ต.ค. 2569 v2.0.1] เขตสบายตาม PMV (ASHRAE 55 / ISO 7730) -->
+        <div><label>เขตสบาย (Comfort zone)</label>
+          <select id="czMode" onchange="sysRefresh()"><option value="off">ไม่แสดง</option><option value="s" selected>ฤดูร้อน 0.5 clo</option><option value="w">เสื้อหนา 1.0 clo</option><option value="b">ทั้งสองแบบ</option></select>
+          <div class="hint">ขอบเขต PMV −0.5 ถึง +0.5 (PPD ≤ 10 %) ตาม ASHRAE 55 · สมมติอุณหภูมิผิวรอบตัว (MRT) = DB · 0.5 clo = เสื้อเชิ้ตแขนสั้น-กางเกงขายาว</div></div>
+        <div><label>อัตราเมตาบอลิซึม (met)</label><input id="czMet" type="number" step="0.1" value="1.1" oninput="sysRefresh()">
+          <div class="hint">นั่งทำงานเอกสาร 1.0–1.1 · ยืนทำงานเบา 1.4–1.6 · เดินไปมา 1.7–2.0 (ใช้ได้ 1.0–2.0)</div></div>
+        <div><label>ความเร็วลมที่ตัวคน (m/s)</label><input id="czV" type="number" step="0.05" value="0.1" oninput="sysRefresh()">
+          <div class="hint">ห้องปรับอากาศทั่วไป 0.1–0.2 m/s · วิธี PMV ใช้ได้ถึง 0.2 m/s (เกินนั้นต้องใช้ SET/elevated air speed)</div></div>
+        <div><label>เพดานความชื้น W ≤ 12 g/kg</label><select id="czWlim" onchange="sysRefresh()"><option value="1" selected>ใช้ (ASHRAE 55-2004)</option><option value="0">ไม่ใช้ (55-2010 ขึ้นไป)</option></select>
+          <div class="hint">ฉบับใหม่ไม่บังคับเพดานความชื้น แต่ในไทยควรคุม W ≤ 12 g/kg เพื่อกันเชื้อราและความรู้สึกเหนียวตัว</div></div>
+      </div>
+      <label for="logCsv" style="margin-top:12px">วางข้อมูล logger (แต่ละบรรทัด: [เวลา,] DB, RH — คั่นด้วย , ; หรือแท็บ)</label>
+      <textarea id="logCsv" rows="5" placeholder="2026-10-13 08:00, 25.4, 58.2&#10;2026-10-13 08:15, 25.9, 61.0" oninput="sysRender()"></textarea>
+      <div class="hint">คัดลอกสองคอลัมน์สุดท้าย (DB °C, RH %) จาก Excel/CSV ของ logger (testo 174H, HOBO, Elitech) — ข้อมูลไม่ถูกส่งออกจากเครื่อง · หน่วย DB ตามระบบหน่วยที่เลือก</div>
+      <div id="logStat" class="kpis"></div>
     </div>
   </div>
 
@@ -330,7 +484,8 @@ footer{text-align:center;padding:18px;font-size:.8rem;color:var(--muted)}
     </div>
   </div>
 
-  <footer>© Triple E Technology Co., Ltd. — Energy Engineering Tools · ASHRAE Fundamentals (Hyland–Wexler)</footer>
+  <footer>© Triple E Technology Co., Ltd. — Energy Engineering Tools · ASHRAE Fundamentals (Hyland–Wexler) · v2.0.1 (13 ต.ค. 2569)</footer>
+  <div class="print-only">ฉบับฟรี — Triple E Energy Tools · tripleeenergytools.com · ผลคำนวณขึ้นกับค่าที่ผู้ใช้ป้อน ผู้จัดทำรับผิดชอบข้อมูลนำเข้า</div>
 </div>
 
 <script>
@@ -364,6 +519,7 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   t.classList.add('active'); $(t.dataset.p).classList.add('active');
   draw(); drawP();
+  if(window.SYS_READY && t.dataset.p==='p4') sysRefresh(true);   // [แก้ไข 13 ต.ค. 2569]
 });
 
 /* ══════════ PANEL 1 ══════════ */
@@ -443,37 +599,47 @@ function calcA(){
 
   $('patm2').value = $('patm').value;
   draw(); calcP();
+  if(window.SYS_READY) sysRefresh();   // [แก้ไข 13 ต.ค. 2569] ความดันเปลี่ยน → วงจรหลายจุดคำนวณใหม่
 }
 
 /* ══════════ CHART DRAWING ══════════ */
 const CH = {L:62, R:112, T:20, B:56, W:940, H:580};
 CH.pw = CH.W-CH.L-CH.R; CH.ph = CH.H-CH.T-CH.B;
 
-function drawChart(svgId, tipId, pts, lines){
+function drawChart(svgId, tipId, pts, lines, opts){   // [แก้ไข 13 ต.ค. 2569] opts = {range, p, ip} สำหรับแท็บวงจรหลายจุด (แท็บเดิมไม่ส่ง → พฤติกรรมเดิม)
   const svg=$(svgId); if(!svg) return;
-  const rg=$('range').value.split(',').map(Number);
-  const t0=rg[0], t1=rg[1], Wmax=rg[2];
-  const p = num('patm')||101.325;
+  opts = opts || {};
+  const rg=(opts.range||$('range').value).split(',').map(Number);
+  const t0=rg[0], t1=rg[1], Wmax=rg[2], W0=rg[3]||0;   // [แก้ไข 13 ต.ค. 2569 v2.0.1] W0 = ขอบล่างแกน W (ซูม/เลื่อน) — แท็บเดิม = 0
+  const p = opts.p || num('patm')||101.325;
+  const ip = !!opts.ip;
   const X = t => CH.L + (t-t0)/(t1-t0)*CH.pw;
-  const Y = w => CH.T + CH.ph - Math.max(0,Math.min(w,Wmax))/Wmax*CH.ph;
+  const Y = w => CH.T + CH.ph - (Math.max(W0,Math.min(w,Wmax))-W0)/(Wmax-W0)*CH.ph;
   const esc = s => String(s);
   let g='';
 
   g+=`<rect x="${CH.L}" y="${CH.T}" width="${CH.pw}" height="${CH.ph}" fill="#fcfdff" stroke="#cbd5e1"/>`;
 
   /* grid */
-  const dt = (t1-t0)>60 ? 10 : (t1-t0)>40 ? 5 : 5;
-  for(let t=Math.ceil(t0/dt)*dt; t<=t1; t+=dt){
-    g+=`<line x1="${X(t)}" y1="${CH.T}" x2="${X(t)}" y2="${CH.T+CH.ph}" stroke="#eef2f7"/>`;
-    g+=`<text x="${X(t)}" y="${CH.T+CH.ph+18}" font-size="11" fill="#5b6b7b" text-anchor="middle">${t}</text>`;
+  if(!ip){
+    const dt = (t1-t0)>60 ? 10 : (t1-t0)>40 ? 5 : 5;
+    for(let t=Math.ceil(t0/dt)*dt; t<=t1; t+=dt){
+      g+=`<line x1="${X(t)}" y1="${CH.T}" x2="${X(t)}" y2="${CH.T+CH.ph}" stroke="#eef2f7"/>`;
+      g+=`<text x="${X(t)}" y="${CH.T+CH.ph+18}" font-size="11" fill="#5b6b7b" text-anchor="middle">${t}</text>`;
+    }
+  } else {                                                    // [แก้ไข 13 ต.ค. 2569] แกน °F
+    const f0=t0*1.8+32, f1=t1*1.8+32, df=(f1-f0)>100?20:(f1-f0)>50?10:5;
+    for(let f=Math.ceil(f0/df)*df; f<=f1+1e-9; f+=df){ const t=(f-32)/1.8;
+      g+=`<line x1="${X(t)}" y1="${CH.T}" x2="${X(t)}" y2="${CH.T+CH.ph}" stroke="#eef2f7"/>`;
+      g+=`<text x="${X(t)}" y="${CH.T+CH.ph+18}" font-size="11" fill="#5b6b7b" text-anchor="middle">${f}</text>`; }
   }
-  const dw = Wmax>0.15 ? 0.05 : Wmax>0.05 ? 0.02 : 0.005;
-  for(let w=0; w<=Wmax+1e-9; w+=dw){
+  const wSpan=Wmax-W0, dw = wSpan>0.15 ? 0.05 : wSpan>0.05 ? 0.02 : wSpan>0.012 ? 0.005 : wSpan>0.005 ? 0.002 : 0.001;
+  for(let w=Math.ceil(W0/dw-1e-9)*dw; w<=Wmax+1e-9; w+=dw){
     g+=`<line x1="${CH.L}" y1="${Y(w)}" x2="${CH.L+CH.pw}" y2="${Y(w)}" stroke="#eef2f7"/>`;
-    g+=`<text x="${CH.L+CH.pw+8}" y="${Y(w)+4}" font-size="11" fill="#5b6b7b">${(w*1000).toFixed(0)}</text>`;
+    g+=`<text x="${CH.L+CH.pw+8}" y="${Y(w)+4}" font-size="11" fill="#5b6b7b">${ip?w.toFixed(3):(w*1000).toFixed(0)}</text>`;
   }
-  g+=`<text x="${CH.L+CH.pw/2}" y="${CH.H-16}" font-size="12.5" fill="#0f2a4a" text-anchor="middle" font-weight="600">อุณหภูมิกระเปาะแห้ง Dry-Bulb Temperature (°C)</text>`;
-  g+=`<text transform="translate(${CH.W-18},${CH.T+CH.ph/2}) rotate(90)" font-size="12.5" fill="#0f2a4a" text-anchor="middle" font-weight="600">อัตราส่วนความชื้น W (g/kg อากาศแห้ง)</text>`;
+  g+=`<text x="${CH.L+CH.pw/2}" y="${CH.H-16}" font-size="12.5" fill="#0f2a4a" text-anchor="middle" font-weight="600">อุณหภูมิกระเปาะแห้ง Dry-Bulb Temperature (${ip?'°F':'°C'})</text>`;
+  g+=`<text transform="translate(${CH.W-18},${CH.T+CH.ph/2}) rotate(90)" font-size="12.5" fill="#0f2a4a" text-anchor="middle" font-weight="600">${ip?'Humidity Ratio W (lb/lb dry air)':'อัตราส่วนความชื้น W (g/kg อากาศแห้ง)'}</text>`;
 
   /* helper: polyline from sampled function, clipped */
   const WsCache=[]; const N=240;
@@ -486,7 +652,7 @@ function drawChart(svgId, tipId, pts, lines){
     for(let i=0;i<=N;i++){
       const t=t0+(t1-t0)*i/N;
       const w=fn(t);
-      if(!isFinite(w) || w<-1e-9 || w>Wmax*1.0001 || w>WsCache[i]*1.0001){ on=false; continue; }
+      if(!isFinite(w) || w<W0-1e-9 || w>Wmax*1.0001 || w>WsCache[i]*1.0001){ on=false; continue; }
       const x=X(t), y=Y(w);
       d += (on?'L':'M')+x.toFixed(1)+' '+y.toFixed(1)+' ';
       on=true; pts.push({x,y,w});
@@ -513,36 +679,44 @@ function drawChart(svgId, tipId, pts, lines){
     const vLo = Vda(t0,0,p), vHi = Vda(t1,Math.min(Wmax,Ws(t1,p)),p);
     const raw = (vHi-vLo)/16, mag = Math.pow(10,Math.floor(Math.log10(raw)));
     const vStep = Math.max(0.01, [1,2,2.5,5,10].find(m=>m*mag>=raw)*mag);
-    for(let vv=Math.ceil(vLo/vStep)*vStep; vv<=vHi; vv+=vStep){
+    if(!ip) for(let vv=Math.ceil(vLo/vStep)*vStep; vv<=vHi; vv+=vStep){
       g+=curve(t=>(vv*p/(0.287042*(t+273.15))-1)/1.607858,
         'stroke="#1e9e5a" stroke-width="0.8" stroke-dasharray="5 4" opacity="0.75"',
         vv.toFixed(2), {at:'end', dy:-6, anchor:'middle'});
     }
+    else { const fL=vLo*16.0185, fH=vHi*16.0185, fs=(fH-fL)>8?1:0.5;   // ft³/lb
+      for(let vf=Math.ceil(fL/fs)*fs; vf<=fH; vf+=fs){ const vv=vf/16.0185;
+        g+=curve(t=>(vv*p/(0.287042*(t+273.15))-1)/1.607858,'stroke="#1e9e5a" stroke-width="0.8" stroke-dasharray="5 4" opacity="0.75"',vf.toFixed(1),{at:'end',dy:-6,anchor:'middle'}); } }
   }
 
   /* enthalpy / wet-bulb lines */
   if($('shH').value==='1'){
     const hHi = Hda(t1, Math.min(Wmax, Ws(t1,p))) + 10;
-    const rawH = hHi/18, magH = Math.pow(10,Math.floor(Math.log10(Math.max(rawH,1))));
+    const hBase = opts.range ? Math.max(0,Hda(t0,W0)) : 0;   // [แก้ไข 13 ต.ค. 2569 v2.0.1] ซูมแล้วเส้น h ถี่ตามช่วงที่เห็น
+    const rawH = (hHi-hBase)/18, magH = Math.pow(10,Math.floor(Math.log10(Math.max(rawH,1))));
     const hStep = [1,2,2.5,5,10].find(m=>m*magH>=rawH)*magH;
-    for(let hh=0; hh<=hHi; hh+=hStep){
+    if(!ip) for(let hh=Math.floor(hBase/hStep)*hStep; hh<=hHi; hh+=hStep){
       g+=curve(t=>(hh-1.006*t)/(2501+1.86*t),
         'stroke="#e07b39" stroke-width="0.85" stroke-dasharray="7 3" opacity="0.75"',
         hh.toFixed(0), {at:'start', dx:-3, dy:-5, anchor:'end'});
     }
-    const wbStep = (t1-t0)>60 ? 10 : 5;
-    for(let tw=Math.ceil(t0/wbStep)*wbStep; tw<=t1; tw+=wbStep){
+    else { const hIP=hHi/2.326+7.689, hs=hIP>80?10:5;          // Btu/lb (ฐาน 0 °F)
+      for(let hi=Math.ceil((Hda(t0,W0)/2.326+7.689)/hs)*hs; hi<=hIP; hi+=hs){ const hh=(hi-7.689)*2.326;
+        g+=curve(t=>(hh-1.006*t)/(2501+1.86*t),'stroke="#e07b39" stroke-width="0.85" stroke-dasharray="7 3" opacity="0.75"',hi.toFixed(0),{at:'start',dx:-3,dy:-5,anchor:'end'}); } }
+    const wbStep = ip ? ((t1-t0)>60 ? 10/1.8*2 : 5/1.8) : ((t1-t0)>60 ? 10 : 5);
+    const wbStart = ip ? ((Math.ceil((t0*1.8+32)/(wbStep*1.8))*(wbStep*1.8))-32)/1.8 : Math.ceil(t0/wbStep)*wbStep;
+    for(let tw=wbStart; tw<=t1+1e-9; tw+=wbStep){
       let d='', on=false;
       for(let i=0;i<=200;i++){
         const t=tw+(t1-tw)*i/200; const w=W_wb(t,tw,p);
-        if(!isFinite(w)||w<0||w>Wmax||w>Ws(t,p)*1.0001){on=false;continue}
+        if(!isFinite(w)||w<W0||w>Wmax||w>Ws(t,p)*1.0001){on=false;continue}
         d+=(on?'L':'M')+X(t).toFixed(1)+' '+Y(w).toFixed(1)+' '; on=true;
       }
       if(d) g+=`<path d="${d}" fill="none" stroke="#c96a2e" stroke-width="0.7" opacity="0.45"/>`;
       const wsat=Ws(tw,p);
-      if(wsat<=Wmax && X(tw)>CH.L+6)
+      if(wsat<=Wmax && wsat>=W0 && X(tw)>CH.L+6)
         g+=`<text x="${X(tw)+4}" y="${Y(wsat)+13}" font-size="9.5" fill="#a8551f" ${HALO}
-             text-anchor="start" font-weight="700">${tw}°</text>`;
+             text-anchor="start" font-weight="700">${ip?Math.round(tw*1.8+32):tw}°</text>`;
     }
   }
 
@@ -580,22 +754,25 @@ function drawChart(svgId, tipId, pts, lines){
     const sx=(ev.clientX-r.left)/r.width*CH.W, sy=(ev.clientY-r.top)/r.height*CH.H;
     if(sx<CH.L||sx>CH.L+CH.pw||sy<CH.T||sy>CH.T+CH.ph){ tip.style.display='none'; return; }
     const t=t0+(sx-CH.L)/CH.pw*(t1-t0);
-    let w=(CH.T+CH.ph-sy)/CH.ph*Wmax; w=Math.min(w,Ws(t,p));
+    let w=W0+(CH.T+CH.ph-sy)/CH.ph*(Wmax-W0); w=Math.min(w,Ws(t,p));
     const s=state(t,w,p);
     tip.style.display='block';
     tip.style.left=(ev.clientX-r.left+14)+'px'; tip.style.top=(ev.clientY-r.top+10)+'px';
-    tip.textContent=`DB ${fmt(s.t,1)} °C   WB ${fmt(s.twb,1)} °C\nRH ${fmt(s.rh,1)} %   DP ${fmt(s.tdp,1)} °C\nW  ${fmt(s.W*1000,2)} g/kg\nh  ${fmt(s.h,2)} kJ/kg   v ${fmt(s.v,4)} m³/kg`;
+    tip.textContent= ip ? `DB ${fmt(s.t*1.8+32,1)} °F   WB ${fmt(s.twb*1.8+32,1)} °F\nRH ${fmt(s.rh,1)} %   DP ${fmt(s.tdp*1.8+32,1)} °F\nW  ${fmt(s.W,4)} lb/lb\nh  ${fmt(s.h/2.326+7.689,2)} Btu/lb   v ${fmt(s.v*16.0185,3)} ft³/lb`
+      : `DB ${fmt(s.t,1)} °C   WB ${fmt(s.twb,1)} °C\nRH ${fmt(s.rh,1)} %   DP ${fmt(s.tdp,1)} °C\nW  ${fmt(s.W*1000,2)} g/kg\nh  ${fmt(s.h,2)} kJ/kg   v ${fmt(s.v,4)} m³/kg`;
   };
   svg.onmouseleave = ()=> tip.style.display='none';
+  if(svgId==='chart4') svg.onmousemove = (function(f){ return function(ev){ if(SYS_DRAG){ tip.style.display='none'; return; } f(ev); }; })(svg.onmousemove);
   if(svgId==='chart') svg.onclick = ev=>{
     const r=svg.getBoundingClientRect();
     const sx=(ev.clientX-r.left)/r.width*CH.W, sy=(ev.clientY-r.top)/r.height*CH.H;
     if(sx<CH.L||sx>CH.L+CH.pw||sy<CH.T||sy>CH.T+CH.ph) return;
     const t=t0+(sx-CH.L)/CH.pw*(t1-t0);
-    let w=(CH.T+CH.ph-sy)/CH.ph*Wmax; w=Math.min(w,Ws(t,p));
+    let w=W0+(CH.T+CH.ph-sy)/CH.ph*(Wmax-W0); w=Math.min(w,Ws(t,p));
     $('pair').value='db_w'; $('lb1').textContent=PAIR_LB.db_w[0]; $('lb2').textContent=PAIR_LB.db_w[1];
     $('v1').value=t.toFixed(1); $('v2').value=(w*1000).toFixed(2); calcA();
   };
+  return {X:X, Y:Y, t0:t0, t1:t1, Wmax:Wmax, W0:W0, p:p};   // [แก้ไข 13 ต.ค. 2569] พิกัดสำหรับวาดซ้อน (แท็บวงจรหลายจุด)
 }
 function draw(){ drawChart('chart','tip', SA?[{t:SA.t,W:SA.W,n:'จุดสภาวะ',c:'#d1495b'}]:[], []); }
 
@@ -750,15 +927,746 @@ function recalcAll(){
   try{ pMode(); }catch(e){console.warn(e);}                       // เรียก calcA() ภายใน
   try{ const keep={e2db:$('e2db').value,e2rh:$('e2rh').value,eff:$('eff').value}; procUI(); Object.keys(keep).forEach(id=>$(id).value=keep[id]); calcP(); }catch(e){console.warn(e);}
   try{ draw(); drawP(); }catch(e){}
+  try{ tplUI(); sysRefresh(true); }catch(e){console.warn(e);}   // [แก้ไข 13 ต.ค. 2569]
   try{ tagFieldKinds(); }catch(e){}
 }
-function teExtra(){ const t=document.querySelector('.tab.active'); return {tab:t?t.dataset.p:'p1'}; }
-function teRestoreExtra(x){ if(x&&x.tab){ const t=document.querySelector('.tab[data-p="'+x.tab+'"]'); if(t) t.click(); } }
+function teExtra(){ const t=document.querySelector('.tab.active'); return {tab:t?t.dataset.p:'p1', sys:SYS}; }   // [แก้ไข 13 ต.ค. 2569] + วงจรหลายจุด
+function teRestoreExtra(x){ if(x&&x.sys&&x.sys.pts){ SYS=x.sys; SEL=null; UNDO=[]; REDO=[]; SYS_DIRTY=false; }
+  if(x&&x.tab){ const t=document.querySelector('.tab[data-p="'+x.tab+'"]'); if(t) t.click(); } }
 function teSaveJSON(){ TE_JSON.save('Tool_Psychrometric_Chart',teExtra()); }
 function teLoadJSON(file){ TE_JSON.load(file,recalcAll,teRestoreExtra); }
 
+/* ══════════ PANEL 4 : วงจรระบบหลายจุด — [แก้ไข 13 ต.ค. 2569] v2.0 ══════════
+   แบบจำลอง: SYS.pts = จุดสภาวะ (free = กำหนดเอง / derived = คำนวณจากกระบวนการ)
+             SYS.prs = กระบวนการ เชื่อม from → to (mix มี from2) และส่งต่อ ṁ_da ตลอดวงจร
+   ทุกค่าภายในเป็น SI: t °C, W kg/kg_da, h kJ/kg_da, ṁ kg_da/s, Q kW — แปลง IP เฉพาะตอนแสดงผล
+   ใช้ TE_PSY (Hyland–Wexler) ชุดเดียวกับแท็บ 1–2 ไม่มีสูตร psychro ชุดใหม่ */
+var VIEW=null, PAN=null, CZ_CACHE={};   // [แก้ไข 13 ต.ค. 2569 v2.0.1] มุมมองซูม/เลื่อน · แคชเขตสบาย
+var SYS_READY=false, SYS={pts:[],prs:[],seq:1}, SYSR=null, SEL=null, UNDO=[], REDO=[], SYS_DIRTY=false, SYS_MAP=null, SYS_DRAG=null;
+var SYS_COLORS=['#d1495b','#0b3d91','#1e9e5a','#e08a00','#7b3fa0','#12a4a4','#9a5008','#3a4f72'];
+var PR_TYPES={
+  sens :{n:'ให้ความร้อน/ทำความเย็นแบบสัมผัส (Sensible)',c:'#e08a00',link:false},
+  coil :{n:'คอยล์เย็น ลดอุณหภูมิ+ลดความชื้น (Cooling coil)',c:'#0b3d91',link:false},
+  mix  :{n:'ผสมอากาศ 2 สาย (Adiabatic mixing)',c:'#9a5008',link:false},
+  evap :{n:'ระบายความร้อนแบบระเหย (Evaporative, WB คงที่)',c:'#12a4a4',link:false},
+  steam:{n:'เพิ่มความชื้นด้วยไอน้ำ (Steam humidifier)',c:'#7b3fa0',link:false},
+  desic:{n:'ลดความชื้นด้วยสารดูดความชื้น (Desiccant, h ≈ คงที่)',c:'#5c35a0',link:false},
+  room :{n:'ภาระห้อง — ลมจ่าย → ห้อง (Room process)',c:'#1e9e5a',link:true},
+  line :{n:'เส้นทั่วไป — เชื่อม 2 จุดที่มีอยู่',c:'#3a4f72',link:true}
+};
+var FLOWU={ls:{n:'L/s',f:1000},m3h:{n:'m³/h',f:3600},cfm:{n:'CFM',f:2118.88},m3s:{n:'m³/s',f:1},kgs:{n:'kg/s อากาศแห้ง',f:null}};
+var CP_DA=1.006, CP_V=1.86, HG0=2501;          // kJ/kg·K, kJ/kg·K, kJ/kg — ค่าเดียวกับ TE_PSY.Hda
+var KW_BTUH=3412.142, KW_TR=3.51685;           // 1 kW = 3,412.142 Btu/h · 1 TR = 3.51685 kW
+
+function ipOn(){ var e=$('sysUnit'); return !!e && e.value==='IP'; }
+var UC={
+  T :function(t){return ipOn()?t*1.8+32:t;},  Ti:function(v){return ipOn()?(v-32)/1.8:v;},  tu:function(){return ipOn()?'°F':'°C';},
+  dT:function(d){return ipOn()?d*1.8:d;},
+  W :function(w){return ipOn()?w:w*1000;},    Wi:function(v){return ipOn()?v:v/1000;},     wu:function(){return ipOn()?'lb/lb':'g/kg';}, wd:function(){return ipOn()?4:2;},
+  h :function(h){return ipOn()?h/2.326+7.689:h;}, hi:function(v){return ipOn()?(v-7.689)*2.326:v;}, hu:function(){return ipOn()?'Btu/lb':'kJ/kg';},
+  /* h_IP = h_SI/2.326 + 7.689 : ฐาน IP คืออากาศแห้ง 0 °F (ASHRAE) — ตรวจกับ ezyHVAC LC 51.1 °F/96 % → 20.43 Btu/lb */
+  v :function(v){return ipOn()?v*16.0185:v;}, vu:function(){return ipOn()?'ft³/lb':'m³/kg';},
+  Q :function(k){return ipOn()?k*KW_BTUH:k;}, qu:function(){return ipOn()?'Btu/h':'kW';}, qd:function(){return ipOn()?0:2;},
+  M :function(k){return ipOn()?k*2.20462:k;}, mu:function(){return ipOn()?'lb/h':'kg/h';}
+};
+function flowToM(fl,v){ if(!fl||!(fl.v>0))return null; if(fl.u==='kgs')return fl.v; return fl.v/FLOWU[fl.u].f/v; }   // → kg_da/s
+function mToFlow(m,v,u){ if(m==null||!isFinite(m))return null; if(u==='kgs')return m; return m*v*FLOWU[u].f; }
+function sysP(){ return num('patm')||101.325; }
+function ptById(id){ for(var i=0;i<SYS.pts.length;i++) if(SYS.pts[i].id===id) return SYS.pts[i]; return null; }
+function prById(id){ for(var i=0;i<SYS.prs.length;i++) if(SYS.prs[i].id===id) return SYS.prs[i]; return null; }
+function prOfPoint(id){ for(var i=0;i<SYS.prs.length;i++){var r=SYS.prs[i]; if(r.to===id && r.toMode==='derived') return r;} return null; }
+function newId(pfx){ return pfx+(SYS.seq++); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+/* ── สภาวะจากคู่ค่า (SI) — ตรรกะเดียวกับ calcA แท็บ 1 ── */
+function solvePair(k,a,b,p){
+  var t=a, W, warn='';
+  if(k==='db_rh'){ if(b>100||b<0)warn='RH นอกช่วง 0–100 %'; W=W_rh(t,Math.max(0,Math.min(100,b))/100,p); }
+  else if(k==='db_wb'){ if(b>a){warn='WB สูงกว่า DB — ปรับเป็นอิ่มตัว'; b=a;} W=W_wb(t,b,p); }
+  else if(k==='db_dp'){ if(b>a){warn='DP สูงกว่า DB — ปรับเป็นอิ่มตัว'; b=a;} var pw=Math.min(Pws(b),p*0.9999); W=0.621945*pw/(p-pw); }
+  else if(k==='db_w'){ W=b; }
+  else { W=(b-CP_DA*t)/(HG0+CP_V*t); }                                  // db_h
+  if(!(W>=0)){ W=0; warn=warn||'W ติดลบ — ปรับเป็นอากาศแห้ง'; }
+  var ws=Ws(t,p); if(W>ws*1.00001){ W=ws; warn=warn||'เกินเส้นอิ่มตัว — ปรับเป็นอิ่มตัวพอดี'; }
+  return {t:t,W:W,warn:warn};
+}
+/* จุดน้ำค้างของเส้นตรง in→out ต่อออกไปตัดเส้นอิ่มตัว (Apparatus Dew Point) — เส้นตรงบนพิกัด t–W ตามแบบ ASHRAE */
+function lineADP(a,b,p){
+  var dt=b.t-a.t, dW=b.W-a.W; if(dt>-1e-6) return null;               // ต้องเป็นการลดอุณหภูมิ
+  var f=function(s){var t=a.t+s*dt; return a.W+s*dW-Ws(t,p);};
+  var lo=1, hi=1; if(f(lo)>0) return null;
+  for(var i=0;i<60 && f(hi)<0;i++){ hi*=1.6; if(a.t+hi*dt<-40) return null; }
+  for(var j=0;j<70;j++){ var m=(lo+hi)/2; if(f(m)<0)lo=m; else hi=m; }
+  var s=(lo+hi)/2, t=a.t+s*dt; return {t:t, W:Ws(t,p), bf:(b.t-t)/(a.t-t)};
+}
+function tAtRH(W,rh,p){ var lo=-40,hi=120; for(var i=0;i<80;i++){var m=(lo+hi)/2; if(W_rh(m,rh,p)>W)hi=m; else lo=m;} return (lo+hi)/2; }
+
+/* ══ การคำนวณทั้งวงจร ══ */
+function sysCalc(){
+  var p=sysP(), prevM={};
+  for(var it=0; it<2; it++){                                        // รอบที่ 2 ใช้ ṁ ที่ได้จากรอบแรก (กรณีจุดได้ ṁ จากกระบวนการที่คำนวณทีหลัง)
+    var R={pt:{},pr:{},warn:[],obs:[],p:p};
+    SYS.pts.forEach(function(P){
+      if(P.kind!=='free') return;
+      var r=solvePair(P.pair.k,P.pair.a,P.pair.b,p); P.t=r.t; P.W=r.W;
+      var s=state(r.t,r.W,p), m=flowToM(P.flow,s.v);
+      R.pt[P.id]={s:s, m:m!=null?m:(prevM[P.id]&&prevM[P.id].m!=null?prevM[P.id].m:null), msrc:m!=null?'กำหนดที่จุด':(prevM[P.id]?prevM[P.id].msrc:''), warn:r.warn};
+      if(r.warn) R.warn.push('จุด '+P.name+': '+r.warn);
+    });
+    var pend=SYS.prs.slice(), guard=0;
+    while(pend.length && guard++<30){
+      var nx=[]; pend.forEach(function(pr){ if(!sysProc(pr,R,p)) nx.push(pr); });
+      if(nx.length===pend.length) break; pend=nx;
+    }
+    pend.forEach(function(pr){ R.warn.push('กระบวนการ "'+pr.name+'" คำนวณไม่ได้ — จุดต้นทางยังไม่มีค่า หรือวงจรอ้างอิงกันเป็นวง'); });
+    prevM={}; Object.keys(R.pt).forEach(function(k){ prevM[k]={m:R.pt[k].m,msrc:R.pt[k].msrc}; });
+  }
+  sysObserve(R,p);
+  SYSR=R; return R;
+}
+
+function sysProc(pr,R,p){
+  var A=R.pt[pr.from]; if(!A) return false;
+  var B=null; if(pr.type==='mix'){ B=R.pt[pr.from2]; if(!B) return false; }
+  var linkT=null;
+  if(pr.toMode==='link'){ linkT=R.pt[pr.to]; if(!linkT) return false; }
+  var m=A.m, msrc=A.msrc, par=pr.par||{}, out=null, x={}, warn=[];
+  if(pr.flow && pr.flow.on && pr.type!=='mix'){
+    var mo=flowToM(pr.flow,A.s.v);
+    if(mo){ if(m!=null && Math.abs(mo-m)/m>0.02) warn.push('อัตราลมที่กำหนดที่กระบวนการ ('+fmt(mo*3600,0)+' kg/h) ต่างจากที่ส่งต่อมา ('+fmt(m*3600,0)+' kg/h) '+fmt(100*(mo-m)/m,1)+' % — ตรวจสมดุลมวล'); m=mo; msrc='กำหนดที่กระบวนการ'; }
+  }
+  var s1=A.s;
+  if(pr.toMode==='link' && pr.type!=='mix'){                         // ปลายทางเป็นจุดที่มีอยู่ (ค่าวัดจริง)
+    out=linkT.s;
+    if(pr.type==='coil'){ var adL=lineADP(s1,out,p); if(adL){ x.adp=adL.t; x.bf=adL.bf; x.adpW=adL.W; }
+      if(out.W>s1.W+1e-6) warn.push('W ขาออกสูงกว่าขาเข้า — คอยล์ไม่ได้ลดความชื้น (ตรวจค่าที่วัด)'); }
+  } else switch(pr.type){
+    case 'sens': out=state(par.tOut, s1.W, p);
+      if(par.tOut < s1.tdp-0.01) warn.push('ปลายทางต่ำกว่าจุดน้ำค้าง '+fmt(UC.T(s1.tdp),1)+UC.tu()+' — จะเกิดการกลั่นตัว ควรใช้ "คอยล์เย็น" แทน');
+      break;
+    case 'coil':
+      if(par.mode==='adpbf'){ var Wa=Ws(par.a,p), bf=Math.max(0,Math.min(1,par.b));
+        out=state(par.a+bf*(s1.t-par.a), Wa+bf*(s1.W-Wa), p); }
+      else { var r=solvePair(par.mode==='dbwb'?'db_wb':par.mode==='dbw'?'db_w':'db_rh', par.a, par.b, p); out=state(r.t,r.W,p); if(r.warn) warn.push(r.warn); }
+      if(out.W>s1.W+1e-6) warn.push('W ขาออกสูงกว่าขาเข้า — คอยล์ไม่ได้ลดความชื้น (ตรวจค่าที่วัด)');
+      if(out.t>s1.t) warn.push('อุณหภูมิขาออกสูงกว่าขาเข้า — ไม่ใช่คอยล์เย็น');
+      var ad=lineADP(s1,out,p); if(ad){ x.adp=ad.t; x.bf=ad.bf; x.adpW=ad.W; }
+      break;
+    case 'evap': var e=Math.max(0,Math.min(1,par.eff)), t2=s1.t-e*(s1.t-s1.twb);
+      out=state(t2, W_wb(t2,s1.twb,p), p); x.eff=e; break;
+    case 'steam':
+      if(par.mode==='rh'){ out=state(s1.t, W_rh(s1.t,Math.min(100,par.val)/100,p), p); }
+      else { if(m==null){ warn.push('ต้องมีอัตราลมจึงคิดจาก kg/h ได้ — ใช้โหมด RH เป้าหมาย หรือกำหนดอัตราลม'); out=s1; }
+             else out=state(s1.t, s1.W+par.val/3600/m, p); }
+      if(m!=null) x.steam=m*(out.W-s1.W)*3600;                          // kg/h
+      break;
+    case 'desic': var Wo=Math.max(0,Math.min(par.wOut,s1.W)), to=(s1.h-HG0*Wo)/(CP_DA+CP_V*Wo);
+      out=state(to,Wo,p); x.note='สมมติ h ≈ คงที่ (ไม่รวมความร้อนดูดซับ ~5–10 % ของ wheel จริง)'; break;
+    case 'mix':
+      var fb=Math.max(0,Math.min(100,par.frac))/100, mA=null, mB=null, xm;
+      if(par.basis==='measured'){
+        var M=linkT.s; out=M;
+        var ft=(B.s.t-A.s.t)!==0?(M.t-A.s.t)/(B.s.t-A.s.t):NaN, fw=(B.s.W-A.s.W)!==0?(M.W-A.s.W)/(B.s.W-A.s.W):NaN;
+        x.fracT=ft; x.fracW=fw; xm=isFinite(ft)?ft:fw;
+        if(linkT.m!=null){ m=linkT.m; mB=m*xm; mA=m-mB; }
+      } else if(par.basis==='flows'){
+        if(A.m==null||B.m==null){ warn.push('โหมด "ตามอัตราลมของแต่ละสาย" ต้องกำหนดอัตราลมที่จุดต้นทางทั้ง 2 จุด'); return true; }
+        mA=A.m; mB=B.m; m=mA+mB; xm=mB/m;
+      } else {
+        xm = par.basis==='vol' ? (fb/B.s.v)/((fb/B.s.v)+((1-fb)/A.s.v)) : fb;   // สัดส่วนตามปริมาตร → มวล
+      }
+      if(par.basis!=='measured'){
+        var Wm=(1-xm)*A.s.W+xm*B.s.W, hm=(1-xm)*A.s.h+xm*B.s.h;
+        out=state((hm-HG0*Wm)/(CP_DA+CP_V*Wm), Wm, p);
+        if(par.basis!=='flows'){
+          var mt=flowToM(par.tot,out.v);
+          if(mt!=null){ m=mt; msrc='อัตราลมรวมที่จุดผสม'; }
+          else if(A.m!=null && B.m!=null){ m=A.m+B.m; }
+          else m=null;
+          if(m!=null){ mB=m*xm; mA=m-mB; }
+        } else msrc='รวมอัตราลมสองสาย';
+      }
+      x.xm=xm; x.mA=mA; x.mB=mB;
+      if(mA!=null && A.m!=null && A.msrc==='กำหนดที่จุด' && Math.abs(mA-A.m)/A.m>0.02) warn.push('ṁ สาย 1 ที่สัดส่วนผสมต้องการ ('+fmt(mA*3600,0)+' kg/h) ต่างจากที่จุด '+ptById(pr.from).name+' ('+fmt(A.m*3600,0)+' kg/h)');
+      if(mB!=null && B.m!=null && B.msrc==='กำหนดที่จุด' && Math.abs(mB-B.m)/B.m>0.02) warn.push('ṁ สาย 2 ที่สัดส่วนผสมต้องการ ('+fmt(mB*3600,0)+' kg/h) ต่างจากที่จุด '+ptById(pr.from2).name+' ('+fmt(B.m*3600,0)+' kg/h)');
+      if(mB!=null) x.qVent=mB*(B.s.h-A.s.h);                           // kW — ภาระที่ลมสาย 2 (มัก = OA) นำเข้ามาเทียบกับสาย 1
+      break;
+    case 'room': case 'line': out=linkT.s; break;
+  }
+  if(!out) return true;
+  /* ปลายทาง */
+  if(pr.toMode==='derived'){
+    var T=ptById(pr.to); if(T){ T.t=out.t; T.W=out.W; }
+    R.pt[pr.to]={s:out, m:m, msrc:m!=null?'ส่งต่อจาก '+pr.name:'', warn:''};
+  } else if(linkT && linkT.m==null && m!=null){ linkT.m=m; linkT.msrc='ส่งต่อจาก '+pr.name; }
+  /* ภาระ: บวก = อากาศคายความร้อน (ภาระทำความเย็น) ยกเว้น room = ภาระที่ห้องให้แก่อากาศ */
+  var res={id:pr.id, s1:s1, s2:out, m:m, msrc:msrc, x:x, warn:warn};
+  if(pr.type!=='mix'){
+    var sg = pr.type==='room' ? -1 : 1, cp=CP_DA+CP_V*(s1.W+out.W)/2;
+    res.dh=sg*(s1.h-out.h); res.dt=out.t-s1.t; res.dW=out.W-s1.W;
+    if(m!=null){
+      res.Qt=m*res.dh; res.Qs=sg*m*cp*(s1.t-out.t); res.Ql=res.Qt-res.Qs;
+      res.water=m*(s1.W-out.W)*3600;                                  // kg/h บวก = กลั่นตัว
+      res.shr=Math.abs(res.Qt)>1e-6 && Math.abs(res.Qt)>0.06*Math.max(Math.abs(res.Qs),Math.abs(res.Ql)) ? res.Qs/res.Qt : NaN;
+    } else {
+      var qs1=sg*cp*(s1.t-out.t); res.shr=Math.abs(res.dh)>1e-6?qs1/res.dh:NaN;
+    }
+    if(!(res.shr>=-1e-9 && res.shr<=1.0001)) res.shr=NaN;               // SHR นอก 0–1 ไม่มีความหมาย (เช่น อบแห้ง/ภาระกลับทิศ)
+    if(pr.type==='room'){ var ra=lineADP(out,s1,p); if(ra){ x.radp=ra.t; x.radpW=ra.W; } }
+  }
+  warn.forEach(function(w){ R.warn.push(pr.name+': '+w); });
+  R.pr[pr.id]=res;
+  return true;
+}
+
+/* ── ข้อสังเกตเชิงวิศวกรรม (ตรวจอัตโนมัติ) ── */
+function sysObserve(R,p){
+  var O=R.obs;
+  SYS.prs.forEach(function(pr){
+    var r=R.pr[pr.id]; if(!r) return; var x=r.x||{};
+    if(pr.type==='coil'){
+      var rh2=r.s2.rh;
+      if(isFinite(r.shr)){ if(r.shr<0.6) O.push(['warn',pr.name+': SHR '+fmt(r.shr,2)+' ต่ำ — ภาระความชื้นสูง ตรวจปริมาณลมภายนอก/การรั่วซึม หรือแหล่งความชื้นในห้อง']);
+        else if(r.shr>0.9) O.push(['info',pr.name+': SHR '+fmt(r.shr,2)+' สูง — คอยล์แทบไม่ลดความชื้น ตรวจอุณหภูมิน้ำเย็น/สารทำความเย็นขาเข้า']); }
+      if(rh2>98.5) O.push(['warn',pr.name+': RH ขาออก '+fmt(rh2,1)+' % — ใกล้อิ่มตัว เสี่ยงละอองน้ำถูกพัดไปกับลม (carry-over) ตรวจความเร็วลมหน้าคอยล์ ≤ 2.5 m/s']);
+      if(x.bf!=null){ if(x.bf>0.3) O.push(['warn',pr.name+': Bypass factor '+fmt(x.bf,2)+' สูง — คอยล์แถวน้อย/สกปรก/ลมเร็ว หรือมีลมรั่วผ่านข้างคอยล์']);
+        if(x.adp<3) O.push(['warn',pr.name+': ADP '+fmt(UC.T(x.adp),1)+UC.tu()+' ต่ำมาก — เสี่ยงน้ำแข็งเกาะคอยล์']); }
+      if(r.Qt!=null && r.water!=null) O.push(['ok',pr.name+': ภาระ '+fmt(r.Qt/KW_TR,2)+' TR · น้ำทิ้ง '+fmt(r.water,1)+' kg/h ≈ '+fmt(r.water*24/1000,2)+' m³/วัน ที่ทำงานต่อเนื่อง (นำกลับไปใช้ที่หอผึ่งน้ำได้)']);
+    }
+    if(pr.type==='sens' && r.s2.t>r.s1.t+0.3 && (pr.par||{}).role!=='fan'){        // ความร้อนพัดลมไม่นับเป็น reheat
+      var up=prOfPoint(pr.from);
+      if(up && up.type==='coil') O.push(['warn',pr.name+': อุ่นซ้ำหลังคอยล์เย็น (reheat) '+(r.Qt!=null?fmt(Math.abs(UC.Q(r.Qt)),UC.qd())+' '+UC.qu():'')+' — ทำความเย็นแล้วเผาความร้อนทิ้ง พิจารณา heat pipe/run-around coil ใช้ความร้อนจากลมเข้า หรือคุมความชื้นด้วย dew point แทน']);
+    }
+    if(pr.type==='mix' && x.fracT!=null){
+      var dF=Math.abs(x.fracT-x.fracW)*100;
+      O.push([dF>5?'warn':'ok',pr.name+': สัดส่วนสาย 2 จากอุณหภูมิ = '+fmt(x.fracT*100,1)+' % · จากความชื้น W = '+fmt(x.fracW*100,1)+' %'+(dF>5?' — ต่างกัน '+fmt(dF,1)+' จุด สงสัยเซนเซอร์คลาด/ลมไม่ผสมกันดี (stratification) ควรวัด MA หลายจุดตามหน้าตัด':' — สอดคล้องกัน')]);
+      if(x.fracT>0.4) O.push(['info',pr.name+': ลมภายนอก ≈ '+fmt(x.fracT*100,0)+' % สูงกว่าทั่วไป (10–30 %) — ตรวจตำแหน่ง damper เทียบความต้องการ ASHRAE 62.1/CO₂']);
+    }
+    if(pr.type==='line' && r.water!=null && r.water<-0.01){
+      var upH=prOfPoint(pr.from), rh=upH?R.pr[upH.id]:null, ev=-r.water;
+      var txt=pr.name+': อากาศรับน้ำ '+fmt(UC.M(ev),1)+' '+UC.mu()+' · ลมทิ้ง RH '+fmt(r.s2.rh,0)+' %';
+      if(rh && upH.type==='sens' && rh.Qt<0){ var sec=-rh.Qt*3600/ev; txt+=' · พลังงานฮีตเตอร์ต่อน้ำระเหย '+fmt(sec,0)+' kJ/kg (ทฤษฎีขั้นต่ำ ≈ 2,400–2,600 kJ/kg; > 4,000 = ลมทิ้งมากเกิน/ควรหมุนเวียนลมกลับ)'; }
+      O.push([r.s2.rh<25?'warn':'ok',txt+(r.s2.rh<25?' — RH ลมทิ้งต่ำ แปลว่าทิ้งลมร้อนที่ยังรับน้ำได้อีก พิจารณาหมุนเวียนลมกลับ':'')]);
+    }
+    if(pr.type==='room' && isFinite(r.shr) && r.shr<0.65) O.push(['info',pr.name+': RSHR '+fmt(r.shr,2)+' — ภาระแฝงในห้องสูง (คนหนาแน่น/อากาศรั่ว) คอยล์ต้องมี ADP ต่ำ หรือต้องมีระบบลดความชื้นเสริม']);
+  });
+  /* สรุปสมดุลภาระทั้งวงจร */
+  var cool=0, heat=0, room=0, vent=0, nCool=0, nRoom=0, nVent=0, cond=0;
+  SYS.prs.forEach(function(pr){ var r=R.pr[pr.id]; if(!r) return;
+    if(pr.type==='coil' && r.Qt!=null){ cool+=r.Qt; nCool++; cond+=r.water||0; }
+    if((pr.type==='sens'||pr.type==='steam') && r.Qt!=null && r.Qt<0) heat+=-r.Qt;
+    if(pr.type==='room' && r.Qt!=null){ room+=r.Qt; nRoom++; }
+    if(pr.type==='mix' && r.x && r.x.qVent!=null){ vent+=r.x.qVent; nVent++; }
+  });
+  R.sum={cool:cool,heat:heat,room:room,vent:vent,nCool:nCool,nRoom:nRoom,nVent:nVent,cond:cond};
+  if(nCool && nRoom){
+    var other=cool-room-vent;
+    O.push(['ok','งบภาระ: คอยล์ '+fmt(UC.Q(cool),UC.qd())+' = ห้อง '+fmt(UC.Q(room),UC.qd())+(nVent?' + ลมภายนอก '+fmt(UC.Q(vent),UC.qd()):'')+' + อื่น ๆ (พัดลม/reheat/ส่วนต่าง) '+fmt(UC.Q(other),UC.qd())+' '+UC.qu()]);
+  }
+}
+
+/* ══ การแสดงผล ══ */
+function sysRefresh(rebuildEd){ sysCalc(); sysRender(); sysTables(); if(rebuildEd) sysEditor(); }
+function fmtFlow(m,v){ var u=ipOn()?'cfm':$('sysFlowU').value; var q=mToFlow(m,v,u); return q==null?'–':fmt(q,0); }
+function flowUName(){ return FLOWU[ipOn()?'cfm':$('sysFlowU').value].n; }
+
+function sysTables(){
+  var R=SYSR||sysCalc(), tu=UC.tu(), wu=UC.wu(), hu=UC.hu();
+  if($('sysP')) $('sysP').textContent=fmt(R.p,3);
+  if($('sysP2')) $('sysP2').textContent=fmt(R.p,3);   // [แก้ไข 13 ต.ค. 2569 v2.0.1]
+  var a4=document.querySelector('.alt4'); if(a4 && document.activeElement!==a4){ var dir=$('pMode').value==='dir'; a4.value=dir?'':$('alt').value; a4.placeholder=dir?'กรอก p ตรง':''; a4.title=dir?'แท็บแรกตั้งเป็น "ระบุความดันโดยตรง" — พิมพ์ความสูงที่นี่จะสลับกลับเป็นโหมดความสูง':''; }
+  var czOn=$('czMode')&&$('czMode').value!=='off', czClo=czOn?($('czMode').value==='w'?1.0:0.5):0;
+  /* points */
+  $('sysPt').querySelector('thead').innerHTML='<tr><th>จุด</th><th>ที่มา</th><th class="num">DB '+tu+'</th><th class="num">WB '+tu+'</th><th class="num">RH %</th><th class="num">DP '+tu+'</th><th class="num">W '+wu+'</th><th class="num">h '+hu+'</th><th class="num">v '+UC.vu()+'</th><th class="num">อัตราลม '+flowUName()+'</th><th class="num">ṁ<sub>da</sub> kg/h</th>'+(czOn?'<th class="num" title="PMV ที่ '+czClo+' clo, '+num('czMet')+' met, '+num('czV')+' m/s, MRT = DB">PMV</th>':'')+'</tr>';
+  $('sysPt').querySelector('tbody').innerHTML=SYS.pts.map(function(P){
+    var r=R.pt[P.id]; if(!r) return '<tr data-sel="pt:'+P.id+'"><td><i class="dot" style="background:'+P.color+'"></i>'+esc(P.name)+'</td><td colspan="'+(czOn?11:10)+'" class="small">ยังคำนวณไม่ได้</td></tr>';
+    var s=r.s, src=P.kind==='free'?'กำหนดเอง':'จาก '+esc((prOfPoint(P.id)||{}).name||'');
+    return '<tr data-sel="pt:'+P.id+'"'+(SEL&&SEL.k==='pt'&&SEL.id===P.id?' class="hl"':'')+'><td><i class="dot" style="background:'+P.color+'"></i><b>'+esc(P.name)+'</b></td><td class="small">'+src+'</td><td class="num">'+fmt(UC.T(s.t),1)+'</td><td class="num">'+fmt(UC.T(s.twb),1)+'</td><td class="num">'+fmt(s.rh,1)+'</td><td class="num">'+fmt(UC.T(s.tdp),1)+'</td><td class="num">'+fmt(UC.W(s.W),UC.wd())+'</td><td class="num">'+fmt(UC.h(s.h),2)+'</td><td class="num">'+fmt(UC.v(s.v),ipOn()?3:4)+'</td><td class="num">'+fmtFlow(r.m,s.v)+'</td><td class="num" title="'+esc(r.msrc||'')+'">'+(r.m!=null?fmt(r.m*3600,0):'–')+'</td>'+(czOn?pmvCell(s,czClo,R.p):'')+'</tr>';
+  }).join('');
+  /* processes */
+  var qu=UC.qu(), qd=UC.qd();
+  $('sysPr').querySelector('thead').innerHTML='<tr><th>กระบวนการ</th><th>เส้นทาง</th><th class="num">อัตราลม '+flowUName()+'</th><th class="num">Q รวม '+qu+'</th><th class="num">Q สัมผัส '+qu+'</th><th class="num">Q แฝง '+qu+'</th><th class="num">TR</th><th class="num">SHR</th><th class="num">น้ำ '+UC.mu()+'</th><th>รายละเอียด</th></tr>';
+  $('sysPr').querySelector('tbody').innerHTML=SYS.prs.map(function(pr){
+    var r=R.pr[pr.id], A=ptById(pr.from), T=ptById(pr.to), B=pr.from2?ptById(pr.from2):null;
+    var path=(A?esc(A.name):'?')+(B?' + '+esc(B.name):'')+' → '+(T?esc(T.name):'?');
+    var row='<tr data-sel="pr:'+pr.id+'"'+(SEL&&SEL.k==='pr'&&SEL.id===pr.id?' class="hl"':'')+'><td><i class="dot" style="background:'+pr.color+'"></i><b>'+esc(pr.name)+'</b><div class="small">'+PR_TYPES[pr.type].n+'</div></td><td class="small">'+path+'</td>';
+    if(!r) return row+'<td colspan="8" class="small">คำนวณไม่ได้</td></tr>';
+    var x=r.x||{}, det=[];
+    if(x.adp!=null) det.push('ADP '+fmt(UC.T(x.adp),1)+UC.tu()+' · BF '+fmt(x.bf,3));
+    if(x.radp!=null) det.push('ADP ห้อง '+fmt(UC.T(x.radp),1)+UC.tu());
+    if(x.eff!=null) det.push('ประสิทธิผล '+fmt(x.eff*100,0)+' %');
+    if(x.steam!=null) det.push('ไอน้ำ '+fmt(UC.M(x.steam),1)+' '+UC.mu());
+    if(x.xm!=null) det.push('สาย 2 = '+fmt(x.xm*100,1)+' % โดยมวล'+(x.mB!=null?' ('+fmt(x.mB*3600,0)+' kg/h)':''));
+    if(x.fracT!=null) det.push('จาก T '+fmt(x.fracT*100,1)+' % / จาก W '+fmt(x.fracW*100,1)+' %');
+    if(x.qVent!=null) det.push('ภาระลมสาย 2 '+fmt(UC.Q(x.qVent),qd)+' '+qu);
+    if(x.note) det.push(x.note);
+    if(pr.type==='mix') return row+'<td class="num">'+fmtFlow(r.m,r.s2.v)+'</td><td class="num" colspan="6" style="text-align:center">ผสมอะเดียแบติก — ไม่มีภาระ</td><td class="small">'+det.join('<br>')+'</td></tr>';
+    var has=r.Qt!=null;
+    return row+'<td class="num">'+fmtFlow(r.m,r.s1.v)+'</td><td class="num">'+(has?fmt(UC.Q(r.Qt),qd):'–')+'</td><td class="num">'+(has?fmt(UC.Q(r.Qs),qd):'–')+'</td><td class="num">'+(has?fmt(UC.Q(r.Ql),qd):'–')+'</td><td class="num">'+(has?fmt(r.Qt/KW_TR,2):'–')+'</td><td class="num">'+(isFinite(r.shr)?fmt(r.shr,3):'–')+'</td><td class="num">'+(has?fmt(UC.M(r.water),2):'–')+'</td><td class="small">'+det.join('<br>')+(has?'':'<br>ต่อ kg อากาศแห้ง: Δh '+fmt(ipOn()?r.dh/2.326:r.dh,2)+' '+UC.hu())+'</td></tr>';
+  }).join('');
+  document.querySelectorAll('#sysPt tbody tr,#sysPr tbody tr').forEach(function(tr){ tr.onclick=function(){ var a=tr.dataset.sel.split(':'); sysSelect(a[0],a[1]); }; });
+  /* KPI */
+  var S=R.sum||{}, oaPr=SYS.prs.filter(function(q){return q.type==='mix'&&R.pr[q.id];})[0], oa=oaPr?R.pr[oaPr.id].x:null;
+  var oaF=oa?(oa.fracT!=null?oa.fracT:oa.xm):null;
+  var coilPr=SYS.prs.filter(function(q){return q.type==='coil'&&R.pr[q.id];})[0], cr=coilPr?R.pr[coilPr.id]:null;
+  var roomPr=SYS.prs.filter(function(q){return q.type==='room'&&R.pr[q.id];})[0], rr=roomPr?R.pr[roomPr.id]:null;
+  var K=function(lb,val,un){return '<div class="kpi"><div class="lb">'+lb+'</div><div class="val">'+val+'</div><div class="un">'+un+'</div></div>';};
+  $('sysKpi').innerHTML=
+    K('ภาระคอยล์เย็นรวม', S.nCool?fmt(UC.Q(S.cool),qd):'–', qu+(S.nCool?' · '+fmt(S.cool/KW_TR,2)+' TR':''))+
+    K('ภาระห้อง (Room load)', S.nRoom?fmt(UC.Q(S.room),qd):'–', qu+(rr&&isFinite(rr.shr)?' · RSHR '+fmt(rr.shr,2):''))+
+    K('SHR คอยล์ (GSHR)', cr&&isFinite(cr.shr)?fmt(cr.shr,3):'–', cr&&cr.x.adp!=null?'ADP '+fmt(UC.T(cr.x.adp),1)+UC.tu()+' · BF '+fmt(cr.x.bf,2):'Qs / Qt')+
+    K('ลมภายนอก (สาย 2)', oaF!=null?fmt(oaF*100,1):'–', '% โดยมวล'+(S.nVent?' · '+fmt(UC.Q(S.vent),qd)+' '+qu:''))+
+    K('ภาระทำความร้อน/อุ่นซ้ำ', S.heat>0?fmt(UC.Q(S.heat),qd):'0', qu)+
+    K('น้ำทิ้งจากคอยล์', S.nCool?fmt(UC.M(S.cond),1):'–', UC.mu());
+  /* observations */
+  var li=[]; R.warn.forEach(function(w){ li.push('<li class="o-danger">⚠ '+esc(w)+'</li>'); });
+  R.obs.forEach(function(o){ li.push('<li class="o-'+o[0]+'">'+(o[0]==='warn'?'△ ':o[0]==='ok'?'✓ ':'ℹ ')+esc(o[1])+'</li>'); });
+  $('sysObs').innerHTML=li.join('')||'<li class="o-ok">✓ ไม่พบข้อผิดพลาดของสมดุลมวล</li>';
+  $('sysAsm').innerHTML='<b>วิธีคำนวณ:</b> ṁ<sub>da</sub> = V̇ / v ที่จุดที่กำหนดอัตราลม แล้วส่งต่อคงที่ตลอดเส้นทาง (ผสม = ผลรวมสองสาย) · Q<sub>รวม</sub> = ṁ<sub>da</sub>Δh · Q<sub>สัมผัส</sub> = ṁ<sub>da</sub>(1.006 + 1.86W̄)Δt · Q<sub>แฝง</sub> = Q<sub>รวม</sub> − Q<sub>สัมผัส</sub> · น้ำ = ṁ<sub>da</sub>ΔW<br>'+
+    '<b>ADP / Bypass factor:</b> ต่อเส้นตรงขาเข้า→ขาออกบนพิกัด t–W ไปตัดเส้นอิ่มตัว · BF = (t<sub>ออก</sub> − ADP)/(t<sub>เข้า</sub> − ADP) · <b>RSHR</b> = Q<sub>สัมผัสห้อง</sub>/Q<sub>รวมห้อง</sub> · <b>GSHR</b> = SHR ของคอยล์ · ภาระลมภายนอก = ṁ<sub>สาย 2</sub>(h<sub>สาย 2</sub> − h<sub>สาย 1</sub>)<br>'+
+    '<b>ที่มา:</b> ASHRAE Handbook — Fundamentals Ch.1 (Hyland–Wexler, TE_PSY) · ความดัน '+fmt(R.p,3)+' kPa · IP: h<sub>IP</sub> = h<sub>SI</sub>/2.326 + 7.689 (ฐาน 0 °F) · ภาระคิดที่อากาศเท่านั้น ไม่รวมความร้อนท่อลม/การรั่ว เว้นแต่ใส่เป็นกระบวนการ';
+  var hd='<b>'+esc(($('sysProj')||{}).value||'โครงการ —')+'</b> · ผู้คำนวณ '+esc(($('sysBy')||{}).value||'—')+' · '+thaiDate()+' · ระบบหน่วย '+(ipOn()?'IP':'SI');
+  $('repHead').innerHTML=hd;
+}
+function thaiDate(){ var d=new Date(), M=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']; return d.getDate()+' '+M[d.getMonth()]+' '+(d.getFullYear()+543); }
+
+/* ── แผนภูมิ ── */
+function sysRange(){
+  if(VIEW) return [VIEW.t0,VIEW.t1,VIEW.Wmax,VIEW.W0].join(',');
+  var v=$('range4').value; if(v!=='auto') return v;
+  var R=SYSR, ts=[], ws=[];
+  SYS.pts.forEach(function(P){ var r=R&&R.pt[P.id]; if(r){ ts.push(r.s.t); ws.push(r.s.W);} });
+  logPts().forEach(function(q){ ts.push(q.t); ws.push(q.W); });
+  if(!ts.length) return '0,50,0.030';
+  var t0=Math.floor((Math.min.apply(null,ts)-5)/5)*5, t1=Math.ceil((Math.max.apply(null,ts)+5)/5)*5;
+  if(t1-t0<25){ var c=(t0+t1)/2; t0=Math.floor((c-12.5)/5)*5; t1=t0+25; }
+  var wm=Math.max(0.01, Math.ceil(Math.max.apply(null,ws)*1.3/0.005)*0.005);
+  return t0+','+t1+','+wm;
+}
+function sysRender(){
+  var svg=$('chart4'); if(!svg) return;
+  if(!SYSR) sysCalc();
+  var R=SYSR, p=R.p;
+  var M=drawChart('chart4','tip4',[],[],{range:sysRange(),p:p,ip:ipOn()}); SYS_MAP=M;
+  if(!M) return;
+  var X=M.X, Y=M.Y, g='', HALO='paint-order="stroke" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"';
+  var inPlot=function(x,y){return x>=CH.L-2&&x<=CH.L+CH.pw+2&&y>=CH.T-2&&y<=CH.T+CH.ph+2;};
+  /* พื้นที่สภาวะควบคุม */
+  if($('zOn').value==='1'){
+    var tc=num('zDb'), dt=Math.abs(num('zDbT')), rc=num('zRh'), dr=Math.abs(num('zRhT')), poly=[], i;
+    for(i=0;i<=12;i++){ var t=tc-dt+2*dt*i/12; poly.push([X(t),Y(W_rh(t,Math.max(0,rc-dr)/100,p))]); }
+    for(i=12;i>=0;i--){ var t2=tc-dt+2*dt*i/12; poly.push([X(t2),Y(W_rh(t2,Math.min(100,rc+dr)/100,p))]); }
+    g+='<polygon points="'+poly.map(function(q){return q[0].toFixed(1)+','+q[1].toFixed(1);}).join(' ')+'" fill="#e07b39" fill-opacity="0.13" stroke="#c96a2e" stroke-width="1.2" stroke-dasharray="4 3"/>';
+    g+='<text x="'+X(tc+dt).toFixed(1)+'" y="'+(Y(W_rh(tc+dt,Math.min(100,rc+dr)/100,p))-4).toFixed(1)+'" font-size="9.5" fill="#a8551f" text-anchor="end" '+HALO+'>สภาวะควบคุม</text>';
+  }
+  /* ข้อมูล logger */
+  logPts().forEach(function(q){ var x=X(q.t),y=Y(q.W); if(inPlot(x,y)) g+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.2" fill="#7b3fa0" fill-opacity="0.45"/>'; });
+  /* SHR protractor */
+  if($('shProt').checked){
+    var ox=CH.L+150, oy=CH.T+26, rad=140, cp=CP_DA+CP_V*0.010, hfg=HG0+CP_V*24;
+    var sx=CH.pw/(M.t1-M.t0), sy=CH.ph/(M.Wmax-M.W0);
+    g+='<g opacity="0.95" style="pointer-events:none"><circle cx="'+ox+'" cy="'+oy+'" r="2.5" fill="#0f2a4a"/>';
+    [1,0.8,0.7,0.6,0.5,0.4].forEach(function(shr,k){                 // ทิศของเส้นตามมาตราส่วนจริงของแผนภูมินี้: ΔW/Δt = c_p(1−SHR)/(h_fg·SHR)
+      var dWdt=cp*(1-shr)/(hfg*shr), vx=-sx, vy=dWdt*sy, L=Math.hypot(vx,vy), ux=vx/L, uy=vy/L, rr=rad-(k%2)*18;
+      g+='<line x1="'+ox+'" y1="'+oy+'" x2="'+(ox+ux*rr).toFixed(1)+'" y2="'+(oy+uy*rr).toFixed(1)+'" stroke="#0f2a4a" stroke-width="0.7" stroke-dasharray="'+(shr===1?'':'3 2')+'"/>';
+      g+='<text x="'+(ox+ux*rr-3).toFixed(1)+'" y="'+(oy+uy*rr+3).toFixed(1)+'" font-size="8.5" text-anchor="end" fill="#0f2a4a" '+HALO+'>'+shr.toFixed(1)+'</text>';
+    });
+    g+='<text x="'+(ox+4)+'" y="'+(oy+3)+'" font-size="8.5" font-weight="700" fill="#0f2a4a" '+HALO+'>SHR</text></g>';
+  }
+  /* เส้น RSHR ห้อง → ADP ห้อง */
+  if($('shRshr').checked) SYS.prs.forEach(function(pr){ var r=R.pr[pr.id]; if(pr.type!=='room'||!r||r.x.radp==null) return;
+    g+='<line x1="'+X(r.s2.t).toFixed(1)+'" y1="'+Y(r.s2.W).toFixed(1)+'" x2="'+X(r.x.radp).toFixed(1)+'" y2="'+Y(r.x.radpW).toFixed(1)+'" stroke="#1e9e5a" stroke-width="1" stroke-dasharray="2 3"/>'+
+       '<circle cx="'+X(r.x.radp).toFixed(1)+'" cy="'+Y(r.x.radpW).toFixed(1)+'" r="3.5" fill="none" stroke="#1e9e5a" stroke-width="1.4"/>'+
+       '<text x="'+(X(r.x.radp)-6).toFixed(1)+'" y="'+(Y(r.x.radpW)-6).toFixed(1)+'" font-size="9" fill="#1e9e5a" text-anchor="end" '+HALO+'>ADP ห้อง</text>';
+  });
+  /* กระบวนการ */
+  var arrow=function(x1,y1,x2,y2,col){ var dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy); if(L<14) return ''; var ux=dx/L, uy=dy/L, mx=x1+dx*0.58, my=y1+dy*0.58;
+    return '<polygon points="'+(mx+ux*7).toFixed(1)+','+(my+uy*7).toFixed(1)+' '+(mx-ux*5-uy*5).toFixed(1)+','+(my-uy*5+ux*5).toFixed(1)+' '+(mx-ux*5+uy*5).toFixed(1)+','+(my-uy*5-ux*5).toFixed(1)+'" fill="'+col+'"/>'; };
+  var DASH={solid:'',dash:'8 5',dot:'2 4',dashdot:'9 4 2 4'};
+  SYS.prs.forEach(function(pr){
+    var r=R.pr[pr.id]; if(!r) return; var sel=SEL&&SEL.k==='pr'&&SEL.id===pr.id, col=pr.color, w=sel?4:2.6;
+    var segs=[[r.s1,r.s2]]; if(pr.type==='mix'){ var Bp=R.pt[pr.from2]; if(Bp) segs.push([Bp.s,r.s2]); }
+    segs.forEach(function(sg,k){
+      var x1=X(sg[0].t),y1=Y(sg[0].W),x2=X(sg[1].t),y2=Y(sg[1].W);
+      g+='<g data-prid="'+pr.id+'" style="cursor:pointer"><line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="transparent" stroke-width="14"/>'+
+         '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="'+col+'" stroke-width="'+w+'" stroke-dasharray="'+(pr.type==='mix'?'6 4':DASH[pr.dash||'solid'])+'" stroke-linecap="round"/>'+arrow(x1,y1,x2,y2,col)+'</g>';
+      if(k===0 && Math.hypot(x2-x1,y2-y1)>40){ var mx=(x1+x2)/2, my=(y1+y2)/2; g+='<text x="'+mx.toFixed(1)+'" y="'+(my-7).toFixed(1)+'" font-size="10" font-weight="700" fill="'+col+'" text-anchor="middle" '+HALO+' style="pointer-events:none">'+esc(pr.name)+'</text>'; }
+    });
+  });
+  /* เขตสบาย [แก้ไข 13 ต.ค. 2569 v2.0.1] */
+  g+=czDraw(M,X,Y,p,HALO);
+  /* จุด — [แก้ไข 13 ต.ค. 2569 v2.0.1] เลื่อนป้ายชื่อที่ซ้อนกันขึ้นทีละบรรทัด */
+  var placed=[];
+  SYS.pts.forEach(function(P){
+    var r=R.pt[P.id]; if(!r) return; var x=X(r.s.t), y=Y(r.s.W), sel=SEL&&SEL.k==='pt'&&SEL.id===P.id;
+    var rt=x>CH.L+CH.pw*0.7, ax=rt?'end':'start', ox=rt?-11:11, ly=y;
+    for(var k2=0;k2<6 && placed.some(function(q){return Math.abs(q.x-x)<70 && Math.abs(q.y-ly)<24;});k2++) ly-=24;
+    placed.push({x:x,y:ly});
+    g+='<g data-pid="'+P.id+'" style="cursor:'+(P.kind==='free'?'grab':'pointer')+'">'+(sel?'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="11" fill="none" stroke="'+P.color+'" stroke-width="2" opacity="0.55"/>':'')+
+       '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(P.kind==='free'?6.5:5.5)+'" fill="'+(P.kind==='free'?P.color:'#fff')+'" stroke="'+P.color+'" stroke-width="'+(P.kind==='free'?2:2.6)+'"/></g>';
+    if(ly!==y) g+='<line x1="'+x.toFixed(1)+'" y1="'+(y-6).toFixed(1)+'" x2="'+(x+ox*0.6).toFixed(1)+'" y2="'+(ly-4).toFixed(1)+'" stroke="'+P.color+'" stroke-width="0.7" opacity="0.7"/>';
+    g+='<text x="'+(x+ox).toFixed(1)+'" y="'+(ly-8).toFixed(1)+'" font-size="11.5" font-weight="700" text-anchor="'+ax+'" fill="'+P.color+'" '+HALO+' style="pointer-events:none">'+esc(P.name)+'</text>';
+    if($('shLbl').checked) g+='<text x="'+(x+ox).toFixed(1)+'" y="'+(ly+6).toFixed(1)+'" font-size="9" text-anchor="'+ax+'" fill="#3a4b5c" '+HALO+' style="pointer-events:none">'+fmt(UC.T(r.s.t),1)+UC.tu()+' · '+fmt(r.s.rh,0)+'%</text>';
+  });
+  svg.insertAdjacentHTML('beforeend',g);
+  sysLogStats();
+}
+
+/* ── การโต้ตอบบนแผนภูมิ ── */
+function chartXY(ev){ var svg=$('chart4'), r=svg.getBoundingClientRect(), M=SYS_MAP; if(!M) return null;
+  var sx=(ev.clientX-r.left)/r.width*CH.W, sy=(ev.clientY-r.top)/r.height*CH.H;
+  if(sx<CH.L||sx>CH.L+CH.pw||sy<CH.T||sy>CH.T+CH.ph) return null;
+  var t=M.t0+(sx-CH.L)/CH.pw*(M.t1-M.t0), w=M.W0+(CH.T+CH.ph-sy)/CH.ph*(M.Wmax-M.W0); return {t:t, W:Math.max(0,Math.min(w,Ws(t,M.p)))}; }
+function sysBindChart(){
+  var svg=$('chart4'); if(!svg||svg.dataset.bound) return; svg.dataset.bound='1';
+  svg.addEventListener('pointerdown',function(ev){
+    var gp=ev.target.closest('[data-pid]'), gr=ev.target.closest('[data-prid]');
+    if(gp){ var P=ptById(gp.dataset.pid); sysSelect('pt',P.id);
+      if(P.kind==='free'){ SYS_DRAG={id:P.id,snap:JSON.stringify(SYS),moved:false}; svg.setPointerCapture(ev.pointerId); ev.preventDefault(); } return; }
+    if(gr){ sysSelect('pr',gr.dataset.prid); return; }
+    if(ev.button===0 && SYS_MAP){ var M=SYS_MAP; PAN={x:ev.clientX,y:ev.clientY,v:{t0:M.t0,t1:M.t1,W0:M.W0,Wmax:M.Wmax},moved:false}; }   // [แก้ไข 13 ต.ค. 2569 v2.0.1] ลากที่ว่าง = เลื่อน
+  });
+  svg.addEventListener('pointermove',function(ev){
+    if(!PAN || SYS_DRAG) return; var dx=ev.clientX-PAN.x, dy=ev.clientY-PAN.y; if(!PAN.moved && Math.hypot(dx,dy)<4) return;
+    if(!PAN.moved){ PAN.moved=true; svg.setPointerCapture(ev.pointerId); svg.classList.add('panning'); }
+    var r=svg.getBoundingClientRect(), v=PAN.v, dt=-dx/r.width*CH.W/CH.pw*(v.t1-v.t0), dW=dy/r.height*CH.H/CH.ph*(v.Wmax-v.W0);
+    if(v.W0+dW<0) dW=-v.W0;
+    VIEW={t0:v.t0+dt,t1:v.t1+dt,W0:v.W0+dW,Wmax:v.Wmax+dW};
+    if(!PAN.raf) PAN.raf=requestAnimationFrame(function(){ if(PAN) PAN.raf=0; sysRender(); });
+  });
+  var endPan=function(){ if(PAN){ svg.classList.remove('panning'); PAN=null; } };
+  svg.addEventListener('pointerup',endPan); svg.addEventListener('pointercancel',endPan);
+  svg.addEventListener('wheel',function(ev){ if(!SYS_MAP) return; ev.preventDefault(); var r=svg.getBoundingClientRect(), M=SYS_MAP;
+    var sx=(ev.clientX-r.left)/r.width*CH.W, sy=(ev.clientY-r.top)/r.height*CH.H;
+    var ct=M.t0+(sx-CH.L)/CH.pw*(M.t1-M.t0), cw=M.W0+(CH.T+CH.ph-sy)/CH.ph*(M.Wmax-M.W0);
+    sysZoom(ev.deltaY>0?1.15:1/1.15, ct, cw); },{passive:false});
+  svg.addEventListener('pointermove',function(ev){
+    if(!SYS_DRAG) return; var c=chartXY(ev); if(!c) return; var P=ptById(SYS_DRAG.id);
+    P.pair={k:'db_w',a:c.t,b:c.W}; SYS_DRAG.moved=true;
+    if(!SYS_DRAG.raf) SYS_DRAG.raf=requestAnimationFrame(function(){ if(SYS_DRAG) SYS_DRAG.raf=0; sysCalc(); sysRender(); sysTables(); });
+  });
+  var end=function(){ if(!SYS_DRAG) return; if(SYS_DRAG.moved){ UNDO.push(SYS_DRAG.snap); REDO=[]; SYS_DIRTY=true; sysEditor(); } SYS_DRAG=null; };
+  svg.addEventListener('pointerup',end); svg.addEventListener('pointercancel',end);
+  svg.addEventListener('dblclick',function(ev){ if(ev.target.closest('[data-pid],[data-prid]')) return; var c=chartXY(ev); if(!c) return; sysAddPoint(c); });
+  document.addEventListener('keydown',function(ev){
+    if(!$('p4').classList.contains('active')) return; var tg=ev.target.tagName; if(tg==='INPUT'||tg==='SELECT'||tg==='TEXTAREA') return;
+    if(ev.key==='Delete'){ sysDelete(); ev.preventDefault(); }
+    else if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='z'){ sysUndo(); ev.preventDefault(); }
+    else if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='y'){ sysRedo(); ev.preventDefault(); }
+  });
+}
+/* [แก้ไข 13 ต.ค. 2569 v2.0.1] ซูมรอบจุด (ct,cw) — ช่วง t 2–160 K, ช่วง W ≥ 1 g/kg, W0 ≥ 0 */
+function sysZoom(f,ct,cw){ var M=SYS_MAP; if(!M) return; if(ct==null){ ct=(M.t0+M.t1)/2; cw=(M.W0+M.Wmax)/2; }
+  var span=(M.t1-M.t0)*f, wsp=(M.Wmax-M.W0)*f; if(span<2||span>160||wsp<0.001||wsp>0.45) return;
+  var t0=ct-(ct-M.t0)*f, W0=Math.max(0,cw-(cw-M.W0)*f); VIEW={t0:t0,t1:t0+span,W0:W0,Wmax:W0+wsp}; sysRender(); }
+function alt4Set(v){ $('pMode').value='alt'; $('alt').value=v; pMode(); }   // ช่องความสูงในแท็บวงจร = ช่องเดียวกับแท็บ 1
+function sysSelect(k,id){ SEL={k:k,id:id}; sysRender(); sysTables(); sysEditor(); }
+function sysPush(){ UNDO.push(JSON.stringify(SYS)); if(UNDO.length>60) UNDO.shift(); REDO=[]; SYS_DIRTY=true; }
+function sysUndo(){ if(!UNDO.length) return; REDO.push(JSON.stringify(SYS)); SYS=JSON.parse(UNDO.pop()); if(SEL&&!(SEL.k==='pt'?ptById(SEL.id):prById(SEL.id))) SEL=null; sysRefresh(true); }
+function sysRedo(){ if(!REDO.length) return; UNDO.push(JSON.stringify(SYS)); SYS=JSON.parse(REDO.pop()); if(SEL&&!(SEL.k==='pt'?ptById(SEL.id):prById(SEL.id))) SEL=null; sysRefresh(true); }
+
+function mkPoint(name,k,a,b,flow,color){ var id=newId('P'); var P={id:id,name:name||id,color:color||SYS_COLORS[(SYS.pts.length)%SYS_COLORS.length],kind:'free',pair:{k:k||'db_rh',a:a,b:b},flow:flow||{v:0,u:'m3h'},t:a,W:0}; SYS.pts.push(P); return P; }
+function mkDerived(name,color){ var id=newId('P'); var P={id:id,name:name||id,color:color||SYS_COLORS[(SYS.pts.length)%SYS_COLORS.length],kind:'derived',pair:{k:'db_w',a:25,b:0.01},flow:{v:0,u:'m3h'},t:25,W:0.01}; SYS.pts.push(P); return P; }
+function mkProc(type,from,opt){ opt=opt||{}; var id=newId('R'), T=PR_TYPES[type];
+  var pr={id:id,type:type,name:opt.name||T.n.split(' (')[0].split(' — ')[0],color:opt.color||T.c,dash:'solid',from:from,from2:opt.from2||null,to:null,toMode:T.link?'link':'derived',par:opt.par||defPar(type),flow:{on:false,v:0,u:'m3h'}};
+  if(opt.to){ pr.to=opt.to; pr.toMode='link'; }
+  else if(pr.toMode==='derived'){ var D=mkDerived(opt.toName,opt.toColor); pr.to=D.id; }
+  SYS.prs.push(pr); return pr; }
+function defPar(type){ return {sens:{tOut:35},coil:{mode:'dbrh',a:13,b:95},evap:{eff:0.85},steam:{mode:'rh',val:50},desic:{wOut:0.006},mix:{basis:'mass',frac:20,tot:{v:0,u:'m3h'}},room:{},line:{}}[type]||{}; }
+
+function sysAddPoint(c){ sysPush(); var P=c?mkPoint(null,'db_w',+c.t.toFixed(2),+c.W.toFixed(5)):mkPoint(null,'db_rh',25,55); SEL={k:'pt',id:P.id}; sysRefresh(true); }
+function sysAddProc(){ if(!SYS.pts.length){ sysAddPoint(); return; } sysPush();
+  var from=(SEL&&SEL.k==='pt')?SEL.id:SYS.pts[SYS.pts.length-1].id; var pr=mkProc('coil',from); SEL={k:'pr',id:pr.id}; sysRefresh(true); }
+function freezePoint(id){ var P=ptById(id); if(P&&P.kind==='derived'){ var pr=prOfPoint(id); P.kind='free'; P.pair={k:'db_w',a:+(+P.t).toFixed(3),b:+(+P.W).toFixed(6)}; if(pr) pr.toMode='link'; } }
+function sysDelete(){ if(!SEL) return; sysPush();
+  if(SEL.k==='pr'){ var pr=prById(SEL.id); if(pr){ if(pr.toMode==='derived') freezePoint(pr.to); SYS.prs=SYS.prs.filter(function(q){return q.id!==pr.id;}); } }
+  else { var id=SEL.id;
+    SYS.prs.filter(function(q){return q.from===id||q.from2===id||q.to===id;}).forEach(function(q){ if(q.toMode==='derived'&&q.to!==id) freezePoint(q.to); });
+    SYS.prs=SYS.prs.filter(function(q){return !(q.from===id||q.from2===id||q.to===id);});
+    SYS.pts=SYS.pts.filter(function(P){return P.id!==id;}); }
+  SEL=null; sysRefresh(true); }
+
+/* ── ตัวแก้ไข (ไม่มี id บนช่องกรอก — สถานะทั้งหมดอยู่ใน SYS และบันทึกผ่าน extra ของ TE_JSON) ── */
+function cvOut(cv,v){ if(v==null||!isFinite(v)) return ''; switch(cv){case 'T':return +UC.T(v).toFixed(2); case 'W':return +UC.W(v).toFixed(ipOn()?5:3); case 'h':return +UC.h(v).toFixed(2); default:return v;} }
+function cvIn(cv,v){ v=parseFloat(v); if(!isFinite(v)) return null; switch(cv){case 'T':return UC.Ti(v); case 'W':return UC.Wi(v); case 'h':return UC.hi(v); default:return v;} }
+function fIn(lab,key,val,cv,hint,step){ return '<div><label>'+lab+'</label><input type="number" step="'+(step||'any')+'" data-k="'+key+'" data-cv="'+(cv||'raw')+'" value="'+cvOut(cv||'raw',val)+'">'+(hint?'<div class="hint">'+hint+'</div>':'')+'</div>'; }
+function fTx(lab,key,val,type){ return '<div><label>'+lab+'</label><input type="'+(type||'text')+'" data-k="'+key+'" value="'+esc(val)+'"></div>'; }
+function fSel(lab,key,val,opts,hint){ return '<div><label>'+lab+'</label><select data-k="'+key+'" data-rb="1">'+opts.map(function(o){return '<option value="'+o[0]+'"'+(String(o[0])===String(val)?' selected':'')+'>'+esc(o[1])+'</option>';}).join('')+'</select>'+(hint?'<div class="hint">'+hint+'</div>':'')+'</div>'; }
+function flowOpts(){ return Object.keys(FLOWU).map(function(k){return [k,FLOWU[k].n];}); }
+function ptOpts(excl){ return SYS.pts.filter(function(P){return P.id!==excl;}).map(function(P){return [P.id,P.name];}); }
+var PAIR_SYS={db_rh:['DB','RH (%)','rh'],db_wb:['DB','WB','T'],db_dp:['DB','จุดน้ำค้าง DP','T'],db_w:['DB','W','W'],db_h:['DB','เอนทัลปี h','h']};
+
+function sysEditor(){
+  var ed=$('sysEd'); if(!ed) return; var h='', tu=UC.tu();
+  if(!SEL){ $('edTitle').textContent='แก้ไขรายการที่เลือก'; ed.innerHTML='<p class="note">ยังไม่ได้เลือก — คลิกจุดหรือเส้นบนแผนภูมิ หรือคลิกแถวในตารางด้านล่าง</p>'; return; }
+  if(SEL.k==='pt'){
+    var P=ptById(SEL.id); if(!P){ SEL=null; return sysEditor(); }
+    $('edTitle').textContent='จุดสภาวะ: '+P.name;
+    h+='<div class="grid4">'+fTx('ชื่อจุด','pt.name',P.name)+fTx('สี','pt.color',P.color,'color');
+    if(P.kind==='free'){
+      var pk=PAIR_SYS[P.pair.k];
+      h+=fSel('คู่ค่าที่ทราบ','pt.pair.k',P.pair.k,[['db_rh','DB + RH'],['db_wb','DB + WB'],['db_dp','DB + จุดน้ำค้าง'],['db_w','DB + W'],['db_h','DB + เอนทัลปี']],'เปลี่ยนคู่ค่าแล้วระบบแปลงค่าปัจจุบันให้')+
+         fIn(pk[0]+' ('+tu+')','pt.pair.a',P.pair.a,'T','อุณหภูมิกระเปาะแห้งที่วัด/ออกแบบ')+'</div><div class="grid4">'+
+         fIn(pk[1]+' ('+(pk[2]==='rh'?'%':pk[2]==='T'?tu:pk[2]==='W'?UC.wu():UC.hu())+')','pt.pair.b',P.pair.b,pk[2]==='rh'?'raw':pk[2],'ค่าที่สองของคู่')+
+         fIn('อัตราลมที่จุดนี้ (เว้น 0 = ไม่กำหนด)','pt.flow.v',P.flow.v,'raw','กำหนดที่จุดต้นทางของสาย (เช่น ลมจ่ายที่วัดด้วย balometer) ระบบส่งต่อ ṁ ให้กระบวนการถัดไป')+
+         fSel('หน่วยอัตราลม','pt.flow.u',P.flow.u,flowOpts())+'</div>';
+    } else {
+      var src=prOfPoint(P.id);
+      h+='</div><p class="note">จุดนี้คำนวณจากกระบวนการ <b>'+esc(src?src.name:'')+'</b> — แก้ค่าที่กระบวนการนั้น หรือ <a href="#" onclick="sysPush();freezePoint(\''+P.id+'\');var q=prOfPoint(\''+P.id+'\');sysRefresh(true);return false">แปลงเป็นจุดอิสระ</a> (กระบวนการจะเปลี่ยนเป็นเชื่อมไปยังจุดนี้)</p>';
+    }
+  } else {
+    var pr=prById(SEL.id); if(!pr){ SEL=null; return sysEditor(); }
+    var T=PR_TYPES[pr.type], par=pr.par||{};
+    $('edTitle').textContent='กระบวนการ: '+pr.name;
+    h+='<div class="grid4">'+fTx('ชื่อกระบวนการ','pr.name',pr.name)+fSel('ชนิด','pr.type',pr.type,Object.keys(PR_TYPES).map(function(k){return [k,PR_TYPES[k].n];}))+
+       fTx('สีเส้น','pr.color',pr.color,'color')+fSel('ลักษณะเส้น','pr.dash',pr.dash||'solid',[['solid','━━ เส้นทึบ'],['dash','╍╍ เส้นประ'],['dot','┈┈ จุด'],['dashdot','━·━ ประจุด']])+'</div>';
+    h+='<div class="grid4">'+fSel(pr.type==='mix'?'สาย 1 (เช่น ลมกลับ RA)':pr.type==='room'?'จุดลมจ่าย (Supply)':'จุดเริ่มต้น','pr.from',pr.from,ptOpts(pr.toMode==='derived'?pr.to:null));
+    if(pr.type==='mix') h+=fSel('สาย 2 (เช่น ลมภายนอก OA)','pr.from2',pr.from2,ptOpts(pr.toMode==='derived'?pr.to:null));
+    if(!T.link && pr.type!=='mix') h+=fSel('จุดปลายทาง','pr.toMode',pr.toMode,[['derived','สร้างจุดใหม่จากเงื่อนไข'],['link','เชื่อมไปยังจุดที่มีอยู่']],'เชื่อมจุดที่มีอยู่ = ใช้ค่าที่วัดได้จริงเป็นปลายทาง');
+    if(pr.toMode==='link' && pr.type!=='mix') h+=fSel(pr.type==='room'?'จุดห้อง (Room)':'จุดปลายทาง','pr.to',pr.to,ptOpts(pr.from));
+    h+='</div>';
+    /* พารามิเตอร์ตามชนิด */
+    h+='<div class="grid4">';
+    if(pr.type==='sens' && pr.toMode==='derived') h+=fIn('DB ปลายทาง ('+tu+')','pr.par.tOut',par.tOut,'T','W คงที่ · ฮีตเตอร์/คอยล์ร้อน หรือความร้อนพัดลม (ΔT ≈ 0.5–1.5 K)');
+    if(pr.type==='coil' && pr.toMode==='derived'){
+      h+=fSel('กำหนดขาออกด้วย','pr.par.mode',par.mode,[['dbrh','DB + RH ขาออก'],['dbwb','DB + WB ขาออก'],['dbw','DB + W ขาออก'],['adpbf','ADP + Bypass factor']]);
+      if(par.mode==='adpbf') h+=fIn('ADP ('+tu+')','pr.par.a',par.a,'T','จุดน้ำค้างของผิวคอยล์ · ทั่วไป 7–11 °C (น้ำเย็น 6.7 °C)')+fIn('Bypass factor (0–1)','pr.par.b',par.b,'raw','คอยล์ 4 แถว ≈ 0.10–0.15 · 6 แถว ≈ 0.05 · คอยล์สกปรก/ลมเร็วค่าสูงขึ้น');
+      else h+=fIn('DB ขาออก ('+tu+')','pr.par.a',par.a,'T','off-coil ทั่วไป 12–14 °C · วัดหลังคอยล์ ~30 cm')+fIn(par.mode==='dbwb'?'WB ขาออก ('+tu+')':par.mode==='dbw'?'W ขาออก ('+UC.wu()+')':'RH ขาออก (%)','pr.par.b',par.b,par.mode==='dbwb'?'T':par.mode==='dbw'?'W':'raw','RH off-coil ทั่วไป 90–95 %');
+    }
+    if(pr.type==='evap') h+=fIn('ประสิทธิผลแผ่นระเหย (0–1)','pr.par.eff',par.eff,'raw','แผ่น cellulose 100 mm ≈ 0.75–0.85 · 150 mm ≈ 0.85–0.90');
+    if(pr.type==='steam') h+=fSel('กำหนดด้วย','pr.par.mode',par.mode,[['rh','RH เป้าหมาย (%)'],['kgh','อัตราฉีดไอน้ำ (kg/h)']])+fIn(par.mode==='kgh'?'อัตราฉีดไอน้ำ (kg/h)':'RH เป้าหมาย (%)','pr.par.val',par.val,'raw','ไอน้ำแห้งเพิ่ม W ที่ DB เกือบคงที่');
+    if(pr.type==='desic') h+=fIn('W ขาออก ('+UC.wu()+')','pr.par.wOut',par.wOut,'W','desiccant wheel ทั่วไปลด W ได้ 3–8 g/kg · อุณหภูมิขาออกสูงขึ้นตามความร้อนดูดซับ');
+    if(pr.type==='mix'){
+      h+=fSel('วิธีกำหนดสัดส่วน','pr.par.basis',par.basis,[['mass','% สาย 2 โดยมวล'],['vol','% สาย 2 โดยปริมาตร'],['flows','ตามอัตราลมที่จุดต้นทางทั้ง 2'],['measured','จากค่าวัด MA (ย้อนหาสัดส่วน)']],'"จากค่าวัด" = เลือกจุด MA ที่วัดจริง ระบบคำนวณ %OA จากอุณหภูมิและจากความชื้นเทียบกัน');
+      if(par.basis==='mass'||par.basis==='vol') h+=fIn('สัดส่วนสาย 2 (%)','pr.par.frac',par.frac,'raw','ลมภายนอกทั่วไป 10–30 % ของลมจ่าย')+fIn('อัตราลมรวมหลังผสม (0 = ไม่กำหนด)','pr.par.tot.v',(par.tot||{}).v,'raw','ปริมาตรคิดที่สภาวะผสม')+fSel('หน่วย','pr.par.tot.u',(par.tot||{}).u||'m3h',flowOpts());
+      if(par.basis==='measured') h+=fSel('จุดผสมที่วัดได้ (MA)','pr.to',pr.to,ptOpts(pr.from));
+    }
+    h+='</div>';
+    if(pr.type!=='mix') h+='<div class="grid4"><div><label class="ck"><input type="checkbox" data-k="pr.flow.on" data-rb="1"'+(pr.flow.on?' checked':'')+'> กำหนดอัตราลมที่กระบวนการนี้เอง</label><div class="hint">ปกติรับ ṁ ต่อจากจุดต้นทาง — ติ๊กเมื่อต้องการกำหนดเอง ระบบจะเตือนถ้าไม่ตรงกับที่ส่งต่อมาเกิน 2 %</div></div>'+
+       (pr.flow.on?fIn('อัตราลม (ที่สภาวะขาเข้า)','pr.flow.v',pr.flow.v,'raw')+fSel('หน่วย','pr.flow.u',pr.flow.u,flowOpts()):'')+'</div>';
+  }
+  ed.innerHTML=h;
+}
+function setPath(obj,path,val){ var k=path.split('.'), o=obj; for(var i=0;i<k.length-1;i++){ if(o[k[i]]==null) o[k[i]]={}; o=o[k[i]]; } o[k[k.length-1]]=val; }
+function getPath(obj,path){ var k=path.split('.'), o=obj; for(var i=0;i<k.length;i++){ if(o==null) return undefined; o=o[k[i]]; } return o; }
+function sysEdInput(ev){
+  var el=ev.target, key=el.dataset&&el.dataset.k; if(!key) return;
+  var isPt=key.indexOf('pt.')===0, obj=isPt?ptById(SEL.id):prById(SEL.id); if(!obj) return; var path=key.slice(3);
+  if(ev.type==='focusin'){ el._snap=JSON.stringify(SYS); el._pushed=false; return; }
+  var val;
+  if(el.type==='checkbox') val=el.checked;
+  else if(el.type==='number'){ val=cvIn(el.dataset.cv,el.value); if(val==null) return; }
+  else val=el.value;
+  var rb=el.dataset.rb==='1';
+  if(!el._pushed){ UNDO.push(el._snap||JSON.stringify(SYS)); if(UNDO.length>60) UNDO.shift(); REDO=[]; el._pushed=true; }
+  SYS_DIRTY=true;
+  /* การเปลี่ยนโครงสร้าง */
+  if(isPt && path==='pair.k'){ var s=SYSR&&SYSR.pt[obj.id]?SYSR.pt[obj.id].s:null; obj.pair.k=val;
+    if(s){ obj.pair.a=+s.t.toFixed(3); obj.pair.b={db_rh:+s.rh.toFixed(2),db_wb:+s.twb.toFixed(3),db_dp:+s.tdp.toFixed(3),db_w:+s.W.toFixed(6),db_h:+s.h.toFixed(3)}[val]; } }
+  else if(!isPt && path==='type'){ var was=obj.type; obj.type=val; obj.par=defPar(val); obj.name=PR_TYPES[val].n.split(' (')[0].split(' — ')[0]; obj.color=PR_TYPES[val].c;
+    if(PR_TYPES[val].link && obj.toMode==='derived'){ freezePoint(obj.to); obj.toMode='link'; }
+    else if(!PR_TYPES[val].link && PR_TYPES[was].link){ obj.toMode='derived'; obj.to=mkDerived().id; }
+    if(val==='mix' && obj.toMode==='link'){ obj.toMode='derived'; obj.to=mkDerived('MA').id; }
+    if(val==='mix' && !obj.from2){ var o2=SYS.pts.filter(function(P){return P.id!==obj.from&&P.id!==obj.to;})[0]; obj.from2=o2?o2.id:obj.from; } }
+  else if(!isPt && path==='toMode'){ if(val==='link'&&obj.toMode==='derived'){ freezePoint(obj.to); } if(val==='derived'&&obj.toMode==='link'){ obj.to=mkDerived().id; } obj.toMode=val; }
+  else if(!isPt && path==='par.basis'){ var wasM=obj.par.basis==='measured'; obj.par.basis=val;
+    if(val==='measured' && obj.toMode==='derived'){ freezePoint(obj.to); obj.toMode='link'; }
+    if(wasM && val!=='measured'){ obj.toMode='derived'; obj.to=mkDerived('MA').id; } }
+  else if(!isPt && path==='par.mode' && obj.type==='coil'){ var r=SYSR&&SYSR.pr[obj.id]; obj.par.mode=val;
+    if(r){ var s2=r.s2; if(val==='adpbf'){ obj.par.a=r.x.adp!=null?+r.x.adp.toFixed(2):9; obj.par.b=r.x.bf!=null?+r.x.bf.toFixed(3):0.12; } else { obj.par.a=+s2.t.toFixed(2); obj.par.b=val==='dbwb'?+s2.twb.toFixed(2):val==='dbw'?+s2.W.toFixed(6):+s2.rh.toFixed(1); } } }
+  else setPath(obj,path,val);
+  sysCalc(); sysRender(); sysTables();
+  if(rb) sysEditor();
+}
+
+/* ── แม่แบบ (ช่องกรอกเป็น SI — มี id ให้ TE_JSON เก็บได้) ── */
+var TPL={
+  ahu:{n:'ออกแบบ AHU จากภาระห้อง', f:[
+    ['ta_qs','ภาระความร้อนสัมผัสของห้อง RSH (kW)',35,'design','จากการคำนวณ cooling load (Cooling Load Selector) · สำนักงาน ≈ 100–150 W/m²'],
+    ['ta_ql','ภาระความร้อนแฝงของห้อง RLH (kW)',8,'design','คน ≈ 55–70 W/คน + อากาศรั่ว · RSHR ทั่วไป 0.75–0.85'],
+    ['ta_rmdb','DB ห้อง (°C)',24,'design','สภาวะออกแบบภายใน 24–26 °C'],
+    ['ta_rmrh','RH ห้อง (%)',50,'design','50–60 %'],
+    ['ta_oadb','DB ลมภายนอก (°C)',35,'design','กรุงเทพฯ 1 % design ≈ 35 °C DB'],
+    ['ta_oarh','RH ลมภายนอก (%)',55,'design','35 °C/27 °C WB ≈ RH 55 %'],
+    ['ta_oa','สัดส่วนลมภายนอก (% โดยมวล)',20,'design','ตาม ASHRAE 62.1 ≈ 10–30 % ของลมจ่าย'],
+    ['ta_sadb','DB ลมจ่ายเข้าห้อง (°C)',14,'design','ลมจ่ายทั่วไป 13–16 °C · ΔT ห้อง–ลมจ่าย 9–12 K'],
+    ['ta_fan','ความร้อนพัดลมหลังคอยล์ ΔT (K)',0.8,'design','พัดลม draw-through ≈ 0.5–1.5 K · ใส่ 0 ถ้าไม่คิด']]},
+  audit:{n:'ตรวจวัดหน้างาน AHU', f:[
+    ['tu_oadb','DB ลมภายนอก OA (°C)',33,'meas','วัดที่ช่องรับลมภายนอก ไม่โดนแดด'],['tu_oarh','RH ลมภายนอก (%)',65,'meas','thermo-hygrometer ตัวเดียวกันทุกจุด'],
+    ['tu_radb','DB ลมกลับ RA (°C)',25.5,'meas','วัดที่ท่อลมกลับก่อนผสม'],['tu_rarh','RH ลมกลับ (%)',58,'meas',''],
+    ['tu_madb','DB ลมผสม MA (°C)',27.2,'meas','วัดหลังจุดผสม/ก่อนคอยล์ หลายจุดตามหน้าตัด'],['tu_marh','RH ลมผสม (%)',60,'meas',''],
+    ['tu_lcdb','DB ลมออกคอยล์ (°C)',13.5,'meas','วัดหลังคอยล์ ~30 cm'],['tu_lcrh','RH ลมออกคอยล์ (%)',94,'meas','ทั่วไป 90–95 %'],
+    ['tu_q','อัตราลมจ่ายที่วัดได้ (m³/h)',12000,'meas','balometer/pitot traverse ที่ท่อลมจ่าย']]},
+  doas:{n:'ลมภายนอก 100 % + reheat', f:[
+    ['td_oadb','DB ลมภายนอก (°C)',35,'design',''],['td_oarh','RH ลมภายนอก (%)',55,'design',''],
+    ['td_lcdb','DB ออกคอยล์ (°C)',12,'design','DOAS ลดความชื้นลึก 11–13 °C'],['td_lcrh','RH ออกคอยล์ (%)',95,'design',''],
+    ['td_rh','DB หลังอุ่นซ้ำ (°C)',18,'design','อุ่นซ้ำเพื่อไม่ให้ลมจ่ายเย็นเกิน · 0 = ไม่มี reheat'],['td_q','อัตราลมภายนอก (m³/h)',5000,'design','ตามจำนวนคน × L/s·คน (ASHRAE 62.1)']]},
+  dryer:{n:'เครื่องอบแห้ง', f:[
+    ['tr_adb','DB อากาศแวดล้อม (°C)',32,'meas',''],['tr_arh','RH อากาศแวดล้อม (%)',70,'meas',''],
+    ['tr_hdb','DB หลังฮีตเตอร์ (°C)',70,'set','อุณหภูมิตั้งของห้องอบ'],['tr_edb','DB ลมทิ้ง (°C)',45,'meas','วัดที่ปล่องลมทิ้ง'],['tr_erh','RH ลมทิ้ง (%)',48,'meas','ลมทิ้งที่ดีควร RH 30–60 % (ใช้ศักยภาพรับน้ำเต็มที่)'],
+    ['tr_q','อัตราลมเข้า (m³/h)',6000,'meas','วัดที่ช่องรับลมสด']]},
+  blank:{n:'เริ่มว่าง', f:[]}
+};
+function tplInit(){
+  var box=$('tplBox'); if(!box) return; var h='';
+  h+='<div class="grid2" style="margin-bottom:6px"><div><label>ชื่อโครงการ / ระบบ</label><input id="sysProj" type="text" value="" placeholder="เช่น AHU-01 อาคาร A ชั้น 3" oninput="sysTables()"><div class="hint">แสดงในหัวรายงานที่พิมพ์</div></div><div><label>ผู้คำนวณ</label><input id="sysBy" type="text" value="" placeholder="ชื่อผู้คำนวณ" oninput="sysTables()"><div class="hint">แสดงในหัวรายงานที่พิมพ์</div></div></div>';
+  Object.keys(TPL).forEach(function(k){ var T=TPL[k];
+    h+='<div class="grid4 tpl" data-tpl="'+k+'">'+T.f.map(function(f){ return '<div><label for="'+f[0]+'">'+f[1]+'</label><input id="'+f[0]+'" type="number" step="any" value="'+f[2]+'"><div class="hint">'+f[4]+'</div></div>'; }).join('')+(k==='blank'?'<p class="note">เริ่มจากแผนภูมิว่าง — ดับเบิลคลิกที่แผนภูมิเพื่อวางจุด แล้วกด "＋ กระบวนการ"</p>':'')+'</div>';
+    T.f.forEach(function(f){ var arr={design:FK_DESIGN,meas:FK_MEAS,set:FK_SET}[f[3]]; if(arr.indexOf(f[0])<0) arr.push(f[0]); });
+  });
+  box.innerHTML=h; tplUI();
+}
+function tplUI(){ var k=$('tplSel').value; document.querySelectorAll('.tpl').forEach(function(d){ d.style.display=d.dataset.tpl===k?'grid':'none'; }); }
+function tplBuild(user){
+  var k=$('tplSel').value, p=sysP(), note='';
+  sysPush(); SYS={pts:[],prs:[],seq:1}; SEL=null;
+  if(k==='ahu'){
+    var Qs=num('ta_qs'), Ql=num('ta_ql'), RM0=TE_PSY.fromRH(num('ta_rmdb'),num('ta_rmrh'),p), tsa=num('ta_sadb'), fan=Math.max(0,num('ta_fan')), x=num('ta_oa')/100;
+    if(!(RM0.t>tsa)){ $('tplNote').textContent='DB ลมจ่ายต้องต่ำกว่า DB ห้อง'; SYS=JSON.parse(UNDO.pop()); return; }
+    /* ṁ จาก RSH, W ลมจ่ายจาก RLH — Ql = ṁ·ΔW·(2501 + 1.86 t̄) สอดคล้องกับนิยาม Ql = Qt − Qs ที่ใช้ทั้งเครื่องมือ */
+    var m=0, Wsa=RM0.W; for(var i=0;i<4;i++){ var cp=CP_DA+CP_V*(RM0.W+Wsa)/2; m=Qs/(cp*(RM0.t-tsa)); Wsa=RM0.W-Ql/(m*(HG0+CP_V*(RM0.t+tsa)/2)); }
+    var OA=mkPoint('OA','db_rh',num('ta_oadb'),num('ta_oarh'),null,'#d1495b'), RM=mkPoint('RM','db_rh',RM0.t,num('ta_rmrh'),null,'#1e9e5a');
+    var mixP=mkProc('mix',RM.id,{from2:OA.id,name:'ผสม '+fmt(100-x*100,0)+'% RM',toName:'MA',toColor:'#9a5008',par:{basis:'mass',frac:x*100,tot:{v:+m.toFixed(5),u:'kgs'}}});
+    var tlc=tsa-fan, tc=tAtRH(Wsa,0.95,p), last, rhNeed=RH_W(tlc,Wsa,p)*100;   // tc = อุณหภูมิที่คอยล์ทำ W_sa ได้ที่ RH 95 %
+    /* คอยล์จริงให้ลมออก RH ≈ 80–95 % — ถ้า LC ต้องแห้งกว่า 80 % ต้องลดถึงจุดน้ำค้างแล้วอุ่นซ้ำ */
+    if(rhNeed>=80){ var c=mkProc('coil',mixP.to,{name:'คอยล์เย็น',toName:fan>0?'LC':'SA',toColor:'#0b3d91',par:{mode:'dbw',a:tlc,b:+Math.min(Wsa,Ws(tlc,p)).toFixed(6)}}); last=c;
+      var rhL=RH_W(tlc,Wsa,p)*100;
+      if(Wsa>Ws(tlc,p)) note='W ลมจ่ายที่ต้องการ '+fmt(Wsa*1000,2)+' g/kg เกินอิ่มตัวที่ '+fmt(tlc,1)+' °C — ภาระแฝงน้อยเมื่อเทียบลมที่จ่าย ให้เพิ่ม DB ลมจ่าย (ลดอัตราลม)';
+      else if(rhL>95) note='ลมออกคอยล์ต้องได้ RH '+fmt(rhL,1)+' % (> 95 %) ซึ่งคอยล์จริงทำได้ยาก — พิจารณาเพิ่ม DB ลมจ่ายขึ้น 1–2 K'; }
+    else { var c2=mkProc('coil',mixP.to,{name:'คอยล์เย็น',toName:'CC',toColor:'#0b3d91',par:{mode:'dbw',a:+tc.toFixed(3),b:+Wsa.toFixed(6)}});
+      last=mkProc('sens',c2.to,{name:'อุ่นซ้ำ (reheat)',toName:fan>0?'LC':'SA',toColor:'#e08a00',par:{tOut:tlc}});
+      note='ลมจ่ายต้องการ W '+fmt(Wsa*1000,2)+' g/kg ซึ่งคอยล์ทำที่ '+fmt(tlc,1)+' °C ไม่ได้ (RH > 95 %) — จึงลดถึงจุดน้ำค้างแล้วอุ่นซ้ำ ควรพิจารณาลด DB ลมจ่ายหรือใช้ระบบลดความชื้นเฉพาะ'; }
+    if(fan>0) last=mkProc('sens',last.to,{name:'ความร้อนพัดลม',toName:'SA',toColor:'#3a4f72',par:{tOut:tsa,role:'fan'}});
+    mkProc('room',last.to,{name:'ภาระห้อง',to:RM.id});
+    $('range4').value='auto';
+    note=(note?note+' · ':'')+'ṁ ลมจ่าย = RSH ÷ [c_p(t_ห้อง − t_จ่าย)] = '+fmt(m*3600,0)+' kg/h · W ลมจ่าย '+fmt(Wsa*1000,2)+' g/kg (RSHR '+fmt(Qs/(Qs+Ql),3)+')';
+  } else if(k==='audit'){
+    var oa=mkPoint('OA','db_rh',num('tu_oadb'),num('tu_oarh'),null,'#d1495b'), ra=mkPoint('RA','db_rh',num('tu_radb'),num('tu_rarh'),null,'#1e9e5a');
+    var ma=mkPoint('MA','db_rh',num('tu_madb'),num('tu_marh'),{v:num('tu_q'),u:'m3h'},'#9a5008'), lc=mkPoint('LC','db_rh',num('tu_lcdb'),num('tu_lcrh'),null,'#0b3d91');
+    mkProc('mix',ra.id,{from2:oa.id,name:'ผสม (ค่าวัด)',to:ma.id,par:{basis:'measured',frac:20,tot:{v:0,u:'m3h'}}});
+    mkProc('coil',ma.id,{name:'คอยล์เย็น',to:lc.id,par:{mode:'dbrh',a:13,b:95}});
+    mkProc('room',lc.id,{name:'ภาระห้อง (ประมาณ)',to:ra.id});
+    note='อัตราลมกำหนดที่ MA (ลมผ่านคอยล์ = ลมจ่าย) · ภาระห้องประมาณจาก LC→RA โดยไม่คิดความร้อนพัดลม/ท่อลม';
+  } else if(k==='doas'){
+    var o=mkPoint('OA','db_rh',num('td_oadb'),num('td_oarh'),{v:num('td_q'),u:'m3h'},'#d1495b');
+    var cc=mkProc('coil',o.id,{name:'คอยล์ลดความชื้น',toName:'CC',toColor:'#0b3d91',par:{mode:'dbrh',a:num('td_lcdb'),b:num('td_lcrh')}});
+    if(num('td_rh')>num('td_lcdb')) mkProc('sens',cc.to,{name:'อุ่นซ้ำ (reheat)',toName:'SA',toColor:'#e08a00',par:{tOut:num('td_rh')}});
+  } else if(k==='dryer'){
+    var a=mkPoint('AMB','db_rh',num('tr_adb'),num('tr_arh'),{v:num('tr_q'),u:'m3h'},'#1e9e5a'), ex=mkPoint('EX','db_rh',num('tr_edb'),num('tr_erh'),null,'#7b3fa0');
+    var ht=mkProc('sens',a.id,{name:'ฮีตเตอร์',toName:'HA',toColor:'#d1495b',par:{tOut:num('tr_hdb')}});
+    mkProc('line',ht.to,{name:'ห้องอบ (รับความชื้น)',to:ex.id,color:'#7b3fa0'});
+    $('range4').value='0,90,0.120';
+    note='เส้น HA → EX = อากาศรับน้ำจากวัสดุ (เกือบ WB คงที่) · น้ำระเหย = ṁ·ΔW ดูในคอลัมน์ "น้ำ" (ค่าลบ = รับน้ำเข้าอากาศ)';
+  }
+  if(k!=='dryer' && $('range4').value==='0,90,0.120') $('range4').value='auto';
+  $('tplNote').textContent=note; SYS_DIRTY=true; VIEW=null;
+  if(user) $('tplDet').open=false;   // [แก้ไข 13 ต.ค. 2569 v2.0.1] พับแม่แบบหลังผู้ใช้สร้างวงจร (ตอนเปิดหน้าครั้งแรกยังกางไว้)
+  sysRefresh(true);
+}
+
+/* ── ข้อมูล logger ── */
+var _logCache={txt:null,pts:[]};
+function logPts(){
+  var e=$('logCsv'); if(!e) return []; var txt=e.value, p=sysP(); if(_logCache.txt===txt+'|'+p+'|'+ipOn()) return _logCache.pts;
+  var out=[]; txt.split(/\r?\n/).forEach(function(line){ var n=line.split(/[,;\t]+/).map(function(s){return parseFloat(s.trim());}).filter(function(v){return isFinite(v);});
+    if(n.length<2) return; var db=UC.Ti(n[n.length-2]), rh=n[n.length-1]; if(!(rh>=0&&rh<=100)) return; out.push({t:db,W:W_rh(db,rh/100,p),rh:rh}); });
+  _logCache={txt:txt+'|'+p+'|'+ipOn(),pts:out}; return out;
+}
+function sysLogStats(){
+  var L=logPts(), box=$('logStat'); if(!box) return; if(!L.length){ box.innerHTML=''; return; }
+  var tc=num('zDb'), dt=Math.abs(num('zDbT')), rc=num('zRh'), dr=Math.abs(num('zRhT')), inZ=0, st=0, sW=0, sR=0, p=sysP();
+  L.forEach(function(q){ st+=q.t; sW+=q.W; sR+=q.rh; if(Math.abs(q.t-tc)<=dt && Math.abs(q.rh-rc)<=dr) inZ++; });
+  var mt=st/L.length, mW=sW/L.length, s=state(mt,mW,p);
+  var K=function(lb,v,u){return '<div class="kpi"><div class="lb">'+lb+'</div><div class="val">'+v+'</div><div class="un">'+u+'</div></div>';};
+  var czM=$('czMode').value, czS='';
+  if(czM!=='off'){ var nC=0, clos=czM==='b'?[0.5,1.0]:[czM==='w'?1.0:0.5];
+    L.forEach(function(q){ if(czInside(q.t,q.W,p,clos)) nC++; });
+    czS=K('อยู่ในเขตสบาย PMV ±0.5',fmt(100*nC/L.length,1),'% ของเวลา · '+clos.join('/')+' clo'); }
+  box.innerHTML=K('จำนวนข้อมูล',L.length,'จุด')+K('DB เฉลี่ย',fmt(UC.T(mt),1),UC.tu())+K('RH เฉลี่ย (จาก W เฉลี่ย)',fmt(s.rh,1),'% · DP '+fmt(UC.T(s.tdp),1)+UC.tu())+K('อยู่ในสภาวะควบคุม',fmt(100*inZ/L.length,1),'% ของเวลา'+(inZ<L.length?' · หลุด '+(L.length-inZ)+' จุด':''))+czS;
+}
+function logToPoint(){ var L=logPts(); if(!L.length) return; var st=0,sW=0; L.forEach(function(q){st+=q.t;sW+=q.W;}); sysPush(); var P=mkPoint('LOG','db_w',+(st/L.length).toFixed(3),+(sW/L.length).toFixed(6),null,'#7b3fa0'); SEL={k:'pt',id:P.id}; sysRefresh(true); }
+
+/* ── ส่งออก ── */
+function sysPNG(){
+  var svg=$('chart4'), cl=svg.cloneNode(true), W=1880, H=1160;
+  cl.setAttribute('xmlns','http://www.w3.org/2000/svg'); cl.setAttribute('width',W); cl.setAttribute('height',H); cl.setAttribute('font-family','IBM Plex Mono, Consolas, monospace');
+  cl.insertAdjacentHTML('afterbegin','<rect x="0" y="0" width="940" height="580" fill="#ffffff"/>');
+  cl.insertAdjacentHTML('beforeend','<text x="'+(CH.L+4)+'" y="'+(CH.T+CH.ph-6)+'" font-size="9" fill="#5b6b7b">'+esc(($('sysProj').value||'')+' · Triple E Energy Tools · '+thaiDate()+' · p = '+fmt(sysP(),3)+' kPa')+'</text>');
+  var img=new Image();
+  img.onload=function(){ var c=document.createElement('canvas'); c.width=W; c.height=H; var g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,W,H); g.drawImage(img,0,0,W,H);
+    c.toBlob(function(b){ var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='Psychro_'+(($('sysProj').value||'system').replace(/[^\w฀-๿-]+/g,'_'))+'_'+new Date().toISOString().slice(0,10)+'.png'; a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},2000); }); };
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(cl));
+}
+function sysPrint(){ sysTables(); document.body.classList.add('print-sys'); window.print(); setTimeout(function(){ document.body.classList.remove('print-sys'); },500); }
+
+function sysInit(){
+  tplInit(); sysBindChart();
+  var ed=$('sysEd'); ed.addEventListener('input',sysEdInput); ed.addEventListener('focusin',sysEdInput);
+  FK_SET.push('sysUnit','sysFlowU','range4','tplSel','zOn','zDb','zDbT','zRh','zRhT','sysProj','sysBy','czMode','czMet','czV','czWlim');
+  window.addEventListener('beforeunload',function(e){ if(SYS_DIRTY){ e.preventDefault(); e.returnValue='ข้อมูลที่กรอกจะหาย — บันทึก JSON ก่อนออก'; } });
+  SYS_READY=true; tplBuild(); UNDO=[]; REDO=[]; SYS_DIRTY=false;
+}
+
+
+/* ══ [แก้ไข 13 ต.ค. 2569 v2.0.1] PMV — ISO 7730:2005 Annex D / ASHRAE 55 (ta, tr °C · vel m/s · pa Pa · met · clo) ══
+   ทวนสอบกับ pythermalcomfort.pmv_ppd_iso: (25,25,0.1,50%,1.2,0.5) → 0.08 · (22,22,0.1,60%,1.1,1.0) → −0.04 · (27,27,0.15,40%,1.1,0.5) → 0.32 */
+function pmvISO(ta,tr,vel,pa,met,clo){
+  var icl=0.155*clo, m=met*58.15, mw=m, fcl=icl<=0.078?1+1.29*icl:1.05+0.645*icl, hcf=12.1*Math.sqrt(vel);
+  var taa=ta+273, tra=tr+273, tcla=taa+(35.5-ta)/(3.5*icl+0.1);
+  var p1=icl*fcl, p2=p1*3.96, p3=p1*100, p4=p1*taa, p5=308.7-0.028*mw+p2*Math.pow(tra/100,4);
+  var xn=tcla/100, xf=tcla/50, hc=hcf, n=0;
+  while(Math.abs(xn-xf)>0.00015 && n++<150){ xf=(xf+xn)/2; var hcn=2.38*Math.pow(Math.abs(100*xf-taa),0.25); hc=Math.max(hcf,hcn); xn=(p5+p4*hc-p2*Math.pow(xf,4))/(100+p3*hc); }
+  var tcl=100*xn-273;
+  var hl1=3.05e-3*(5733-6.99*mw-pa), hl2=mw>58.15?0.42*(mw-58.15):0, hl3=1.7e-5*m*(5867-pa), hl4=0.0014*m*(34-ta);
+  var hl5=3.96*fcl*(Math.pow(xn,4)-Math.pow(tra/100,4)), hl6=fcl*hc*(tcl-ta);
+  return (0.303*Math.exp(-0.036*m)+0.028)*(mw-hl1-hl2-hl3-hl4-hl5-hl6);
+}
+function pmvAt(t,W,p,clo){ return pmvISO(t,t,Math.max(0.05,num('czV')||0.1),Pw_W(W,p)*1000,num('czMet')||1.1,clo); }   // MRT = DB
+function ppdOf(v){ return 100-95*Math.exp(-0.03353*Math.pow(v,4)-0.2179*v*v); }
+function pmvCell(s,clo,p){   // ช่วงใช้งาน ISO 7730: ta 10–30 °C, pa 0–2.7 kPa, PMV −2..+2 (นอกช่วงแสดงเป็นข้อความ)
+  if(s.t<10||s.t>30||s.pw>2.7) return '<td class="num small" title="นอกช่วงใช้งาน PMV (ISO 7730: 10–30 °C, p_w ≤ 2.7 kPa)">นอกช่วง</td>';
+  var v=pmvAt(s.t,s.W,p,clo), ok=Math.abs(v)<=0.5;
+  if(Math.abs(v)>3) return '<td class="num" style="color:#9a5b00">'+(v>0?'> +3':'< −3')+'</td>';
+  return '<td class="num" style="color:'+(ok?'#176b3c':'#9a5b00')+'" title="PPD '+fmt(ppdOf(v),1)+' %">'+(v>0?'+':'')+fmt(v,2)+'</td>'; }
+/* หา DB ที่ PMV = เป้าหมาย ที่ W คงที่ (PMV เพิ่มตาม DB) */
+function czT(target,W,p,clo){ var lo=5, hi=45; if(pmvAt(lo,W,p,clo)>target||pmvAt(hi,W,p,clo)<target) return NaN;
+  for(var i=0;i<40;i++){ var m=(lo+hi)/2; if(pmvAt(m,W,p,clo)<target) lo=m; else hi=m; } return (lo+hi)/2; }
+function czPoly(p,clo){
+  var key=[p,clo,num('czMet'),num('czV'),$('czWlim').value].join('|'); if(CZ_CACHE[key]) return CZ_CACHE[key];
+  var lim=$('czWlim').value==='1', Wtop=lim?0.012:0.03, L=[], Rt=[], N=24;
+  for(var i=0;i<=N;i++){ var W=Wtop*i/N, tl=czT(-0.5,W,p,clo), tr=czT(0.5,W,p,clo);
+    if(!isFinite(tl)||!isFinite(tr)) continue; if(W>Ws(tl,p)) break;          // ขอบซ้ายเลยเส้นอิ่มตัว → หยุด
+    L.push([tl,W]); Rt.push([tr,Math.min(W,Ws(tr,p))]); }
+  var poly=L.concat(Rt.reverse()); CZ_CACHE[key]=poly; return poly;
+}
+function czInside(t,W,p,clos){ if($('czWlim').value==='1' && W>0.012) return false;
+  return clos.some(function(c){ return Math.abs(pmvAt(t,W,p,c))<=0.5; }); }
+function czDraw(M,X,Y,p,HALO){
+  var m=$('czMode')?$('czMode').value:'off'; if(m==='off') return ''; var g='', set=m==='b'?[0.5,1.0]:[m==='w'?1.0:0.5];
+  set.forEach(function(clo){ var poly=czPoly(p,clo); if(poly.length<3) return; var col=clo===0.5?'#1e9e5a':'#1e88e5';
+    g+='<polygon points="'+poly.map(function(q){return X(q[0]).toFixed(1)+','+Y(q[1]).toFixed(1);}).join(' ')+'" fill="'+col+'" fill-opacity="0.10" stroke="'+col+'" stroke-width="1.3" style="pointer-events:none"/>';
+    var top=poly[Math.floor(poly.length/2)-1]||poly[0];
+    g+='<text x="'+X(top[0]).toFixed(1)+'" y="'+(Y(top[1])-5).toFixed(1)+'" font-size="9.5" font-weight="600" fill="'+col+'" '+HALO+' style="pointer-events:none">เขตสบาย '+clo+' clo</text>'; });
+  return g;
+}
+
+/* ══ [แก้ไข 13 ต.ค. 2569 v2.0.1] ส่งต่อจากแท็บ 1 / แท็บ 2 เข้าวงจร (เพิ่มต่อท้าย ไม่ลบของเดิม) ══ */
+function gotoSys(){ document.querySelector('.tab[data-p="p4"]').click(); }
+function sendPointToSys(){ if(!SA) return; sysPush(); var n=SYS.pts.length+1; var P=mkPoint('จุด '+n,'db_w',+SA.t.toFixed(3),+SA.W.toFixed(6)); SEL={k:'pt',id:P.id}; VIEW=null; gotoSys(); }
+function sendProcToSys(){
+  var pr=$('proc').value, q=parseFloat($('qUnit').value), f1={v:+(num('e1q')/q*3600).toFixed(2),u:'m3h'}, f2={v:+(num('e2q')/q*3600).toFixed(2),u:'m3h'};
+  sysPush(); var nm={coil:'คอยล์เย็น',heat:'ฮีตเตอร์',mix:'ผสม',evap:'ระเหย',steam:'ฉีดไอน้ำ',dry:'อบแห้ง'}[pr];
+  var A=mkPoint('เข้า','db_rh',num('e1db'),num('e1rh'),pr==='mix'?f1:f1), x;
+  if(pr==='coil'||pr==='dry'){ var B=mkPoint('ออก','db_rh',num('e2db'),num('e2rh')); x=mkProc(pr==='coil'?'coil':'line',A.id,{name:nm,to:B.id}); }
+  else if(pr==='heat') x=mkProc('sens',A.id,{name:nm,toName:'ออก',par:{tOut:num('e2db')}});
+  else if(pr==='mix'){ var B2=mkPoint('สาย 2','db_rh',num('e2db'),num('e2rh'),f2); x=mkProc('mix',A.id,{from2:B2.id,name:nm,toName:'ผสม',par:{basis:'flows',frac:20,tot:{v:0,u:'m3h'}}}); }
+  else if(pr==='evap') x=mkProc('evap',A.id,{name:nm,toName:'ออก',par:{eff:num('eff')}});
+  else x=mkProc('steam',A.id,{name:nm,toName:'ออก',par:{mode:'kgh',val:num('eff')}});
+  SEL={k:'pr',id:x.id}; VIEW=null; gotoSys();
+}
+
 /* ══════════ INIT ══════════ */
-pMode(); procUI(); buildRef(); calcA();
+pMode(); procUI(); buildRef(); sysInit(); calcA();   // [แก้ไข 13 ต.ค. 2569] sysInit ก่อน calcA
 tagFieldKinds(); /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า */
 </script>
 <!-- [แก้ไข 4 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->

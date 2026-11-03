@@ -76,6 +76,22 @@ svg text{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:#5b6b7b}
   header{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
 </head>
 <body>
 <header>
@@ -387,12 +403,21 @@ svg text{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:#5b6b7b}
 <p style="color:var(--muted);font-size:.78rem;margin:8px 0 30px">Tool_PumpStation_Assessment v1.3 · Triple E Technology Co., Ltd. · ผลการคำนวณเป็นการประเมินเบื้องต้นตามสมมุติฐานที่แสดง — การตัดสินใจลงทุนควรยืนยันด้วยการตรวจวัดตามมาตรฐาน (HI 14.6 / ISO 9906 / MEASUR Pump Assessment)</p>
 </div>
 
+<!-- ระยะ 2-10: เครื่องยนต์กลาง Triple E -->
+<script src="../lib/te-core.js"></script>
 <script>
 /* ───────── helpers ───────── */
 const $=id=>document.getElementById(id);
 const V=id=>parseFloat($(id).value)||0;
-const fmt=(n,d=2)=>isFinite(n)?n.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:0}):'–';
-const RHO=998, G=9.81, BAR2M=10.20;
+
+/* ระยะ 2-9: แกนคำนวณย้ายเข้า te-core — TE.PUMPSTA (ห้ามแก้ตัวเลขในหน้านี้) */
+var fmt=TE.PUMPSTA.fmt,pumpTDH=TE.PUMPSTA.pumpTDH;
+var G=TE.PUMPSTA.G,BAR2M=TE.PUMPSTA.BAR2M;
+function __psEnv(){return {'$':$,V:V,avgRate:avgRate,drawSysCurve:drawSysCurve,prefillLinked:prefillLinked,pumps:pumps};}
+function calcAll(){return TE.PUMPSTA.make(__psEnv()).calcAll();}
+function pumpCalc(p){return TE.PUMPSTA.make(__psEnv()).pumpCalc(p);}
+
+
 
 /* ───────── tabs ───────── */
 document.querySelectorAll('#tabbar button').forEach(b=>b.onclick=()=>{
@@ -404,7 +429,7 @@ document.querySelectorAll('#tabbar button').forEach(b=>b.onclick=()=>{
 /* ───────── pumps ───────── */
 let pumps=[];
 function newPump(o={}){return Object.assign({name:'P-'+(pumps.length+1),kwr:250,qr:900,hr:55,em:92,ctl:'throttle',hrs:3700,kwm:'',qm:'',qsrc:'meas',pd:'',zg:1.5,hs:2},o)}
-const QSRC={meas:'วัดจริง',curve:'pump curve',draw:'drawdown',wb:'water balance'};
+
 function addPump(o){pumps.push(newPump(o));renderPumps();calcAll()}
 function delPump(i){pumps.splice(i,1);renderPumps();calcAll()}
 function renderPumps(){
@@ -491,20 +516,8 @@ function applySlip(){
   p.kwm=Math.round(elec*10)/10; renderPumps(); calcAll();
   showOut('slOut',`Slip = ${fmt(Ns-Nm,0)}/${fmt(Ns-Nr,0)} rpm → โหลดมอเตอร์ ≈ <b>${fmt(load*100,1)}%</b> → กำลังเพลา ${fmt(shaft,1)} kW → กำลังไฟฟ้า ≈ <b>${fmt(elec,1)} kW</b> (η มอเตอร์ ${p.em}%) — ใส่ค่าให้ปั๊ม ${p.name} แล้ว · ความแม่น ±10–15% ใช้เป็นค่าประมาณเท่านั้น`);
 }
-function pumpTDH(p){
-  if(p.pd===''||p.pd===undefined)return NaN;
-  return (+p.pd)*BAR2M+(+p.zg||0)-(+p.hs||0);
-}
-function pumpCalc(p){
-  const tdh=pumpTDH(p), q=+p.qm||0, kw=+p.kwm||0;
-  const phyd=RHO*G*(q/3600)*tdh/1000;
-  const eww=kw>0?phyd/kw:NaN;
-  const evfd=p.ctl==='vfd'?(V('vfEta')||0.97):1;  // [แก้ไข 10 ก.ย. 2569] เดิม hard-code 0.97 → ใช้ช่อง vfEta (ECM-1) ให้ตรงกันทั้งสองจุด
-  const ep=(eww/((+p.em/100)*evfd));
-  const sec=q>0?kw/q*1000:NaN;
-  const e=kw*(+p.hrs||0), vol=q*(+p.hrs||0);
-  return {tdh,phyd,eww,ep,sec,e,vol};
-}
+
+
 
 /* [แก้ไข 10 ก.ย. 2569] helper: เติมค่าลิงก์ลงช่อง input ถ้าผู้ใช้ยังไม่แก้เอง (แก้ทับได้ — ช่องจะจำว่าเป็นค่าผู้ใช้) */
 function markUser(el){ el.dataset.user='1'; const h=$(el.id+'Hint'); if(h) h.textContent='✎ ค่าผู้ใช้กรอกเอง'; }
@@ -518,161 +531,10 @@ function avgRate(){
   const s=V('trPeakShare')/100;
   return s*(V('trPeak')+V('trFt'))+(1-s)*(V('trOff')+V('trFt'));
 }
-function tag(e,ep){
-  if(!isFinite(e))return '<span class="tag">รอข้อมูล</span>';
-  if(e>1||(isFinite(ep)&&ep>1)||e<0)return '<span class="tag bad">เป็นไปไม่ได้ (η &gt; 100 %)</span>'; // [แก้ไข 3 ต.ค. 2569 audit] เดิม η 117–128 % ได้ป้าย "ดี"
-  if(e>=0.70)return '<span class="tag ok">ดี</span>';
-  if(e>=0.55)return '<span class="tag warn">ควรปรับปรุง</span>';
-  return '<span class="tag bad">เร่งด่วน</span>';
-}
-function kpiBox(t,v,u){return `<div class="box"><div class="t">${t}</div><div class="v">${v}</div><div class="u">${u}</div></div>`}
 
-function calcAll(){
-  const rate=avgRate(); $('trAvg').value=rate.toFixed(4);
 
-  /* per-pump performance */
-  let sumE=0,sumV=0,sumPhyd=0,sumKw=0,rows='';
-  pumps.forEach(p=>{
-    const c=pumpCalc(p);
-    if(isFinite(c.e)){sumE+=c.e;sumV+=c.vol}
-    if(isFinite(c.phyd)&&(+p.kwm||0)>0){sumPhyd+=c.phyd;sumKw+=(+p.kwm)}
-    rows+=`<tr><td>${p.name}</td><td style="font-size:.78rem;color:var(--muted)">${QSRC[p.qsrc||'meas']}</td><td class="num">${fmt(c.tdh,1)}</td><td class="num">${fmt(c.phyd,1)}</td>
-      <td class="num">${isFinite(c.eww)?fmt(c.eww*100,1):'–'}</td><td class="num">${isFinite(c.ep)?fmt(c.ep*100,1):'–'}</td>
-      <td class="num">${fmt(c.sec,1)}</td><td class="num">${fmt(c.e,0)}</td><td class="num">${fmt(c.vol,0)}</td>
-      <td class="num">${fmt(c.e*rate,0)}</td><td>${tag(c.eww,c.ep)}</td></tr>`;
-  });
-  $('perfBody').innerHTML=rows;
-  /* [แก้ไข 3 ต.ค. 2569 audit] ปั๊มที่ η > 100 % ไม่นับใน η สถานี + แสดงคำเตือน */
-  const bad=pumps.filter(p=>{const c=pumpCalc(p);return isFinite(c.eww)&&(c.eww>1||c.ep>1||c.eww<0);});
-  bad.forEach(p=>{const c=pumpCalc(p); if(isFinite(c.phyd)&&(+p.kwm||0)>0){sumPhyd-=c.phyd;sumKw-=(+p.kwm);}});
-  $('effWarn').innerHTML=bad.length?`<div class="note" style="border-color:var(--danger);color:var(--danger)">🚨 <b>ค่าที่เป็นไปไม่ได้:</b> ${bad.map(p=>{const c=pumpCalc(p);return `${p.name} η w-t-w ${fmt(c.eww*100,1)} % / η ปั๊ม ${fmt(c.ep*100,1)} %`;}).join(' · ')} — ตรวจ kW วัดจริง (kW ไม่ใช่ต่อเฟส), Q, ความดันด้านส่ง/เกจ และระดับ — ไม่นับปั๊มนี้ใน η เฉลี่ยของสถานี</div>`:'';
-  const stEww=sumKw>0?sumPhyd/sumKw:NaN, stSec=sumV>0?sumE/sumV*1000:NaN;
-  $('stationKPI').innerHTML=
-    kpiBox('พลังงานรวม',fmt(sumE,0),'kWh/ปี')+
-    kpiBox('น้ำสูบรวม',fmt(sumV,0),'m³/ปี')+
-    kpiBox('SEC สถานี',fmt(stSec,1),'kWh/1000 m³')+
-    kpiBox('η w-t-w เฉลี่ยถ่วงน้ำหนัก',isFinite(stEww)?fmt(stEww*100,1):'–','%')+
-    kpiBox('ค่าไฟฟ้ารวม',fmt(sumE*rate,0),'บาท/ปี');
 
-  /* pipe & system curve */
-  const Hs=V('ppHs'),L=V('ppL'),D=V('ppD')/1000,C=V('ppC'),mn=V('ppMinor')/100,Qd=V('ppQ');
-  const hf=Q=>10.67*L*Math.pow(Q/3600,1.852)/(Math.pow(C,1.852)*Math.pow(D,4.87))*(1+mn);
-  const hfD=hf(Qd), Hreq=Hs+hfD, k=Qd>0?hfD/(Qd*Qd):0;
-  const vel=Qd/3600/(Math.PI*D*D/4);
-  $('pipeKPI').innerHTML=
-    kpiBox('ความเร็วน้ำในท่อ',fmt(vel,2),'m/s'+(vel>2.5?' ⚠ สูง':''))+
-    kpiBox('Friction Loss ที่ Q ออกแบบ',fmt(hfD,1),'m ('+fmt(hfD/L*1000,2)+' m/km)')+
-    kpiBox('TDH ที่ระบบต้องการ',fmt(Hreq,1),'m')+
-    kpiBox('สัดส่วน Static (s)',fmt(Hs/Hreq,2),'H_s/TDH');
-  drawSysCurve(Hs,k,Qd,Hreq);
-  /* throttle warning */
-  let tw='';
-  /* [แก้ไข 3 ต.ค. 2569 audit] ปั๊มเดินขนาน: system curve ต้องอ่านที่ Q รวมของ header (N × q) — เดิมใช้ q ของปั๊มตัวเดียว → friction ต่ำไป head ส่วนเกินสูงเกิน
-     และกำลังสูญเดิมเป็น kW เพลา (÷η ปั๊ม) แต่คูณค่าไฟ → แก้เป็น kW ไฟฟ้า (÷η ปั๊ม ÷η มอเตอร์ ÷η VFD) */
-  const qMeas=pumps.filter(p=>(+p.qm||0)>0).map(p=>+p.qm);
-  const nParIn=V('ppNpar');
-  const nPar=nParIn>=1?Math.round(nParIn):Math.max(1,Math.round(qMeas.length&&Qd>0?Qd/(qMeas.reduce((a,b)=>a+b,0)/qMeas.length):1));
-  if(qMeas.length) tw+=`<p class="assump">ตรวจ head ส่วนเกินที่ Q header = ${nPar} × Q ปั๊ม (${nParIn>=1?'ตามที่กรอก':'อัตโนมัติจาก Q ออกแบบ ÷ Q เฉลี่ยที่วัด'}) · ปั๊มเดินขนานใช้ท่อประธานร่วมกัน</p>`;
-  pumps.forEach(p=>{
-    const tdh=pumpTDH(p);
-    if(isFinite(tdh)&&(+p.qm||0)>0){
-      const qH=(+p.qm)*nPar;
-      const need=Hs+k*qH*qH;
-      if(tdh>need*1.05){
-        // [แก้ไข 10 ก.ย. 2569] เดิมใช้ η ปั๊ม 0.75 คงที่ → ใช้ η ปั๊มของตัวนั้นจาก pumpCalc (fallback 0.75 ถ้าคำนวณไม่ได้)
-        const epC=pumpCalc(p).ep, epUse=(isFinite(epC)&&epC>0.2&&epC<=1)?epC:0.75;
-        const emU=(+p.em>0&&+p.em<=100)?(+p.em/100):0.92, evU=p.ctl==='vfd'?(V('vfEta')||0.97):1;
-        const exc=tdh-need, wkw=RHO*G*(+p.qm/3600)*exc/1000/epUse/emU/evU;
-        tw+=`<div class="note">⚠ <b>${p.name}</b>: TDH วัดจริง ${fmt(tdh,1)} m สูงกว่า system curve ${fmt(need,1)} m (ที่ Q header ${fmt(qH,0)} m³/h) อยู่ ${fmt(exc,1)} m → head ส่วนเกิน (หรี่วาล์ว/ตะกรัน) คิดเป็นกำลังไฟฟ้าสูญ ~${fmt(wkw,1)} kW (${fmt(wkw*(+p.hrs||0)*avgRate(),0)} บาท/ปี ที่ η ปั๊ม ${fmt(epUse*100,0)}%${epUse===0.75&&!(isFinite(epC)&&epC>0.2&&epC<=1)?' — ค่าสมมติ':' จากตารางปั๊ม'} × η มอเตอร์ ${fmt(emU*100,0)}%)</div>`;
-      }
-    }
-  });
-  $('throttleWarn').innerHTML=tw;
 
-  /* [แก้ไข 10 ก.ย. 2569] เติมค่า ECM จากตารางปั๊ม/อัตราค่าไฟอัตโนมัติ (เฉพาะช่องที่ผู้ใช้ยังไม่แก้เอง) */
-  {
-    const withKw=pumps.filter(p=>(+p.kwm||0)>0);
-    const cand=withKw.filter(p=>p.ctl!=='vfd');
-    const pickMax=arr=>arr.reduce((a,b)=>(+b.kwm>+a.kwm?b:a));
-    if(cand.length){ const p=pickMax(cand); prefillLinked('vfKw',+p.kwm,`⚡ จาก ${p.name} (kW วัดจริง, ${p.ctl==='throttle'?'หรี่วาล์ว':'เดิน-หยุด'})`); }
-    if(withKw.length){ const p=pickMax(withKw); prefillLinked('imKw',+p.kwm,`⚡ จาก ${p.name} (kW วัดจริง)`); }
-    const dayRate=$('trMode').value==='tou'?V('trPeak')+V('trFt'):rate;
-    prefillLinked('pvRate',+dayRate.toFixed(4),$('trMode').value==='tou'?'⚡ จาก Peak + Ft (แท็บอัตราค่าไฟ)':'⚡ จากอัตราเฉลี่ย (แท็บอัตราค่าไฟ)');
-  }
-  /* ECM-1 VFD */
-  const P100=V('vfKw'), s=Math.min(Math.max(V('vfS'),0),1), etaV=V('vfEta')||0.95;
-  const Pthr=q=>P100*q*(1.25-0.25*q*q);
-  const Pvfd=q=>P100*q*(s+(1-s)*q*q)/etaV;
-  let eB=0,eV=0;
-  [[V('vfQ1'),V('vfH1')],[V('vfQ2'),V('vfH2')],[V('vfQ3'),V('vfH3')],[V('vfQ4'),V('vfH4')]].forEach(([qp,h])=>{
-    const q=Math.min(qp/100,1.2); if(q>0&&h>0){eB+=Pthr(q)*h; eV+=Math.min(Pvfd(q),Pthr(q))*h;}
-  });
-  const sv=eB-eV, svB=sv*rate, pb=svB>0?V('vfCapex')/svB:NaN;
-  $('vfdKPI').innerHTML=
-    kpiBox('พลังงาน Baseline',fmt(eB,0),'kWh/ปี')+
-    kpiBox('พลังงานหลังติด VFD',fmt(eV,0),'kWh/ปี')+
-    kpiBox('ผลประหยัด',fmt(sv,0),'kWh/ปี ('+(eB>0?fmt(sv/eB*100,1):'–')+'%)')+
-    kpiBox('คิดเป็นเงิน',fmt(svB,0),'บาท/ปี')+
-    kpiBox('ระยะคืนทุน',fmt(pb,1),'ปี');
-
-  /* ECM-2 trim */
-  const r2=Math.sqrt(V('imHreq')/Math.max(V('imHnow'),0.001)), rP=Math.pow(r2,3);
-  const tKw=V('imKw')*(1-rP), tE=tKw*V('imHrs'), warn=r2<0.85?' ⚠ ตัดเกิน 15% — ควรเปลี่ยนใบพัด/ปั๊ม':'';
-  $('trimKPI').innerHTML=
-    kpiBox('D₂/D₁ ที่ต้องตัด',fmt(r2*100,1),'%'+warn)+
-    kpiBox('กำลังที่ลดได้',fmt(tKw,1),'kW')+
-    kpiBox('ผลประหยัด',fmt(tE,0),'kWh/ปี')+
-    kpiBox('คิดเป็นเงิน',fmt(tE*rate,0),'บาท/ปี');
-
-  /* ECM-3 scheduling */
-  const N=Math.max(1,Math.round(V('scN'))), Qr=V('scQr'), Qdm=V('scQd');
-  let sc='<table><thead><tr><th>จำนวนปั๊มที่เดิน</th><th class="num">q ต่อตัว (%Q พิกัด)</th><th class="num">กำลังรวมโดยประมาณ (%P รวมพิกัด)</th><th>สถานะ</th></tr></thead><tbody>';
-  let best=null;
-  for(let n=1;n<=N;n++){
-    const q=Qdm/(n*Qr);
-    if(q>1.2){sc+=`<tr><td>${n}</td><td class="num">${fmt(q*100,0)}</td><td class="num">–</td><td><span class="tag bad">เกินพิกัด</span></td></tr>`;continue;}
-    const pTot=n*q*(1.25-0.25*q*q)/N*100;
-    const good=q>=0.8&&q<=1.1;
-    if(!best||pTot<best.p){best={n,p:pTot,good}}
-    sc+=`<tr><td>${n}</td><td class="num">${fmt(q*100,0)}</td><td class="num">${fmt(pTot,1)}</td><td>${good?'<span class="tag ok">ใกล้ BEP</span>':'<span class="tag warn">ห่าง BEP</span>'}</td></tr>`;
-  }
-  sc+='</tbody></table>';
-  if(best)sc+=`<div class="note blue">แนะนำเดิน <b>${best.n} ตัว</b> — ใช้กำลังรวมต่ำสุดที่ ~${fmt(best.p,1)}% ของกำลังรวมพิกัด${best.good?' และแต่ละตัวอยู่ใกล้ BEP':''}</div>`;
-  $('scTable').innerHTML=sc;
-
-  /* ECM-4 TOU */
-  const dRate=(V('trPeak')-V('trOff'));
-  const toSv=V('toKwh')*dRate+V('toKw')*V('trDemand')*12;
-  $('touKPI').innerHTML=
-    kpiBox('ส่วนต่าง Peak−Off-Peak',fmt(dRate,4),'บาท/kWh')+
-    kpiBox('ผลประหยัดค่าพลังงาน',fmt(V('toKwh')*dRate,0),'บาท/ปี')+
-    kpiBox('ผลประหยัดค่า Demand',fmt(V('toKw')*V('trDemand')*12,0),'บาท/ปี')+
-    kpiBox('รวม',fmt(toSv,0),'บาท/ปี')+
-    kpiBox('ระยะคืนทุน',V('toCapex')>0?fmt(V('toCapex')/toSv,1):'ทันที','ปี');
-
-  /* ECM-5 PF */
-  const kvar=V('pfKw')*(Math.tan(Math.acos(Math.min(V('pfNow'),0.999)))-Math.tan(Math.acos(Math.min(V('pfTarget'),0.999))));
-  const kvarLimit=V('pfKw')*0.6197, kvarNow=V('pfKw')*Math.tan(Math.acos(Math.min(V('pfNow'),0.999)));
-  const penalty=Math.max(0,kvarNow-kvarLimit)*V('pfPenalty')*12;
-  $('pfKPI').innerHTML=
-    kpiBox('Capacitor ที่ต้องติด',fmt(kvar,0),'kvar')+
-    kpiBox('kvar ปัจจุบัน',fmt(kvarNow,0),'kvar (เกณฑ์ '+fmt(kvarLimit,0)+')')+
-    kpiBox('ค่าปรับ kvar ที่เลี่ยงได้',fmt(penalty,0),'บาท/ปี')+
-    kpiBox('ลด loss สาย/หม้อแปลง',fmt((1-Math.pow(V('pfNow')/V('pfTarget'),2))*100,1),'% ของ I²R loss');
-
-  /* Solar */
-  const gen=V('pvKwp')*V('pvYield'), use=gen*V('pvSelf')/100, pvSv=use*V('pvRate');
-  const capex=V('pvKwp')*V('pvCapexUnit');
-  $('pvKPI').innerHTML=
-    kpiBox('พลังงานผลิตได้',fmt(gen,0),'kWh/ปี')+
-    kpiBox('ใช้เองทันที',fmt(use,0),'kWh/ปี')+
-    kpiBox('ผลประหยัด',fmt(pvSv,0),'บาท/ปี')+
-    kpiBox('เงินลงทุน',fmt(capex,0),'บาท')+
-    kpiBox('ระยะคืนทุน',pvSv>0?fmt(capex/pvSv,1):'–','ปี');
-  $('pk2Warn').innerHTML=V('pvKva')>=200
-    ?'<div class="note">⚠ อินเวอร์เตอร์รวม ≥ 200 kVA — เข้าข่ายการผลิตพลังงานควบคุม ต้องยื่นขอ <b>พค.2</b> (ใบอนุญาตผลิตพลังงานควบคุม) ต่อ พพ. ก่อนใช้งาน และแจ้ง/ขออนุญาตเชื่อมโยงกับการไฟฟ้าตามระเบียบ</div>'
-    :'<div class="note blue">อินเวอร์เตอร์รวม &lt; 200 kVA — ไม่เข้าข่ายต้องขอ พค.2 (ยังต้องแจ้งขนานเครื่องกำเนิดกับการไฟฟ้าฝ่ายจำหน่ายตามระเบียบเชื่อมโยง)</div>';
-}
 
 /* ───────── system curve chart ───────── */
 function drawSysCurve(Hs,k,Qd,Hreq){

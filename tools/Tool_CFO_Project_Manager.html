@@ -150,6 +150,22 @@ td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
 .print-only{display:none}
 footer{text-align:center;padding:20px;color:var(--muted);font-size:.78rem}
 </style>
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
 </head>
 <body>
 <header>
@@ -498,6 +514,8 @@ footer{text-align:center;padding:20px;color:var(--muted);font-size:.78rem}
   EF: เอกสาร TGO CFO — UPDATE ก.พ. 2569 (บังคับใช้ 1 ม.ค. 2569), GWP IPCC AR5 · Grid EF (Scope 2) 0.4750 grid mix 2022-2024 · วันที่แสดงเป็น พ.ศ.
 </footer>
 
+<!-- ระยะ 2-12: เครื่องยนต์กลาง Triple E -->
+<script src="../lib/te-core.js"></script>
 <script>
 /* ═══════════════ EMISSION FACTOR DATA ═══════════════
    แหล่งอ้างอิง: เอกสาร "ค่าการปล่อยก๊าซเรือนกระจก (Emission Factor) สำหรับ CFO"
@@ -505,85 +523,23 @@ footer{text-align:center;padding:20px;color:var(--muted);font-size:.78rem}
    GWP = IPCC AR5 (CO2 fossil=1, CH4 fossil=30, CH4=28, N2O=265)
    total = kgCO2e/unit (รวมทุกก๊าซ) · bio:true = ชีวมวล, bioco2 รายงานแยก
 */
-const EF_SOURCE = 'TGO CFO EF — UPDATE ก.พ. 2569 (บังคับใช้ 1 ม.ค. 2569)';
-const EF = [
-  // ── Scope 1 : Stationary Combustion (fossil) ──
-  {id:'ng_scf', scope:1, cat:'Stationary Combustion', name:'Natural gas (NCV)', unit:'scf', ef:0.0573, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'ng_mj',  scope:1, cat:'Stationary Combustion', name:'Natural gas (NCV)', unit:'MJ', ef:0.0562, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'ng_mmbtu',scope:1,cat:'Stationary Combustion', name:'Natural gas (HHV)', unit:'MMBTU', ef:52.9545, bio:false, ref:'2021 API Compendium t.4.3/4.6'},
-  {id:'lpg_l',  scope:1, cat:'Stationary Combustion', name:'LPG', unit:'litre', ef:1.6812, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'lpg_kg', scope:1, cat:'Stationary Combustion', name:'LPG', unit:'kg', ef:3.1133, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'foa',    scope:1, cat:'Stationary Combustion', name:'Fuel Oil A (เตา A)', unit:'litre', ef:3.2198, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'foc',    scope:1, cat:'Stationary Combustion', name:'Fuel Oil C (เตา C)', unit:'litre', ef:3.2455, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'jetkero',scope:1, cat:'Stationary Combustion', name:'Jet Kerosene', unit:'litre', ef:2.4773, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'otherkero',scope:1,cat:'Stationary Combustion', name:'Other Kerosene', unit:'litre', ef:2.4911, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'diesel', scope:1, cat:'Stationary Combustion', name:'Diesel (ดีเซล)', unit:'litre', ef:2.7076, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'gasoline',scope:1,cat:'Stationary Combustion', name:'Gasoline (เบนซิน)', unit:'litre', ef:2.1892, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'lignite',scope:1, cat:'Stationary Combustion', name:'Lignite (ถ่านลิกไนต์)', unit:'kg', ef:1.2100, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'anth',   scope:1, cat:'Stationary Combustion', name:'Anthracite', unit:'kg', ef:3.1079, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'bitcoal',scope:1, cat:'Stationary Combustion', name:'Bituminous Coal', unit:'kg', ef:2.5125, bio:false, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  // ── Scope 1 : Biofuel blends (fossil part in Scope 1 + biogenic CO2 แยก) ──
-  {id:'db7',    scope:1, cat:'Stationary Combustion', name:'Diesel B7 (Scope1 fossil)', unit:'litre', ef:2.5184, bio:true, bioco2:0.1151, ref:'TGO CFO — Diesel B7'},
-  {id:'db20',   scope:1, cat:'Stationary Combustion', name:'Diesel B20 (Scope1 fossil)', unit:'litre', ef:2.1672, bio:true, bioco2:0.3288, ref:'TGO CFO — Diesel B20'},
-  // ── Scope 1 : Biomass (Scope1 = CH4+N2O เท่านั้น ; biogenic CO2 รายงานแยก) ──
-  {id:'bagasse',scope:1, cat:'Stationary Combustion', name:'Bagasse (ชานอ้อย)', unit:'kg', ef:0.0143, bio:true, bioco2:0.7530, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'pks',    scope:1, cat:'Stationary Combustion', name:'Palm kernel shell (กะลาปาล์ม)', unit:'kg', ef:0.0352, bio:true, bioco2:1.8530, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'cob',    scope:1, cat:'Stationary Combustion', name:'Corn cob (ซังข้าวโพด)', unit:'kg', ef:0.0319, bio:true, bioco2:1.6780, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  {id:'biogas_s',scope:1,cat:'Stationary Combustion', name:'Biogas (ก๊าซชีวภาพ)', unit:'m³', ef:0.0011, bio:true, bioco2:1.1428, ref:'IPCC 2006 Vol.2 ch.2 t.2.3'},
-  // ── Scope 1 : Mobile combustion (On road) ──
-  {id:'mg_unc', scope:1, cat:'Mobile (On road)', name:'Motor gasoline - uncontrolled', unit:'litre', ef:2.2373, bio:false, ref:'IPCC 2006 Vol.2 ch.3'},
-  {id:'mg_cat', scope:1, cat:'Mobile (On road)', name:'Motor gasoline - oxidation catalyst', unit:'litre', ef:2.2703, bio:false, ref:'IPCC 2006 Vol.2 ch.3'},
-  {id:'md_road',scope:1, cat:'Mobile (On road)', name:'Diesel (ยานพาหนะ on-road)', unit:'litre', ef:2.7403, bio:false, ref:'IPCC 2006 Vol.2 ch.3'},
-  {id:'db7_road',scope:1,cat:'Mobile (On road)', name:'Diesel B7 - on road (Scope1)', unit:'litre', ef:2.5504, bio:true, bioco2:0.1151, ref:'TGO CFO — Diesel B7'},
-  {id:'db20_road',scope:1,cat:'Mobile (On road)',name:'Diesel B20 - on road (Scope1)', unit:'litre', ef:2.1976, bio:true, bioco2:0.3288, ref:'TGO CFO — Diesel B20'},
-  {id:'cng',    scope:1, cat:'Mobile (On road)', name:'Compressed Natural Gas (CNG)', unit:'kg', ef:2.2540, bio:false, ref:'IPCC 2006 Vol.2 ch.3'},
-  {id:'lpg_road',scope:1,cat:'Mobile (On road)', name:'LPG (ยานพาหนะ)', unit:'litre', ef:1.7273, bio:false, ref:'IPCC 2006 Vol.2 ch.3'},
-  // ── Scope 1 : Mobile combustion (Off road) ──
-  {id:'md_agri',scope:1, cat:'Mobile (Off road)', name:'Diesel - Agriculture', unit:'litre', ef:2.9790, bio:false, ref:'IPCC 2006 Vol.2 ch.3'},
-  {id:'md_ind', scope:1, cat:'Mobile (Off road)', name:'Diesel - Industry', unit:'litre', ef:2.9790, bio:false, ref:'IPCC 2006 Vol.2 ch.3'},
-  {id:'lpg_offkg',scope:1,cat:'Mobile (Off road)', name:'LPG (off road)', unit:'kg', ef:3.1988, bio:false, ref:'IPCC 2006 Vol.2 ch.3'},
-  // ── Scope 1 : Refrigerants (fugitive) — GWP AR5 per kg ──
-  {id:'r22',    scope:1, cat:'Refrigerant (fugitive)', name:'R-22 (HCFC-22)', unit:'kg', ef:1760, bio:false, ref:'IPCC 2013, AR5'},
-  {id:'r32',    scope:1, cat:'Refrigerant (fugitive)', name:'R-32', unit:'kg', ef:677, bio:false, ref:'IPCC 2013, AR5'},
-  {id:'r125',   scope:1, cat:'Refrigerant (fugitive)', name:'R-125', unit:'kg', ef:3170, bio:false, ref:'IPCC 2013, AR5'},
-  {id:'r134',   scope:1, cat:'Refrigerant (fugitive)', name:'R-134', unit:'kg', ef:1120, bio:false, ref:'IPCC 2013, AR5'},
-  {id:'r134a',  scope:1, cat:'Refrigerant (fugitive)', name:'R-134a', unit:'kg', ef:1300, bio:false, ref:'IPCC 2013, AR5'},
-  {id:'r143',   scope:1, cat:'Refrigerant (fugitive)', name:'R-143', unit:'kg', ef:328, bio:false, ref:'IPCC 2013, AR5'},
-  {id:'r143a',  scope:1, cat:'Refrigerant (fugitive)', name:'R-143a', unit:'kg', ef:4800, bio:false, ref:'IPCC 2013, AR5'},
-  // ── Scope 2 : Purchased Energy ──
-  {id:'grid',   scope:2, cat:'Purchased Electricity', name:'ไฟฟ้า Grid mix (CFO Scope 2)', unit:'kWh', ef:0.4750, bio:false, ref:'TGO electricity grid mix 2022-2024, AR5 (CFO Scope 2) — UPDATE ก.พ. 2569'},
-  {id:'grid_s3', scope:3, cat:'Upstream Electricity (T&D / well-to-tank)', name:'ไฟฟ้า well-to-tank (CFO Scope 3)', unit:'kWh', ef:0.0812, bio:false, ref:'TGO electricity grid mix 2022-2024, AR5 (Scope 3 การได้มาซึ่งเชื้อเพลิต) — UPDATE ก.พ. 2569'},
-  {id:'steam_buy',scope:2,cat:'Purchased Energy', name:'ไอน้ำที่ซื้อ (Purchased Steam)', unit:'GJ', ef:0, bio:false, ref:'ระบุ EF ผู้จำหน่าย'},
-  // ── Scope 3 : editable (default 0 — ต้องระบุ EF/แหล่ง) ──
-  {id:'s3_transport',scope:3,cat:'Scope 3', name:'การขนส่งสินค้า (ระบุ EF)', unit:'ตัน-กม.', ef:0, bio:false, ref:'ระบุแหล่ง EF'},
-  {id:'s3_commute',  scope:3,cat:'Scope 3', name:'การเดินทางพนักงาน (ระบุ EF)', unit:'คน-กม.', ef:0, bio:false, ref:'ระบุแหล่ง EF'},
-  {id:'s3_waste',    scope:3,cat:'Scope 3', name:'การจัดการของเสีย (ระบุ EF)', unit:'ตัน', ef:0, bio:false, ref:'ระบุแหล่ง EF'},
-  {id:'s3_material', scope:3,cat:'Scope 3', name:'วัตถุดิบที่ซื้อ (ระบุ EF)', unit:'ตัน', ef:0, bio:false, ref:'ระบุแหล่ง EF'},
-  {id:'s3_water',    scope:3,cat:'Scope 3', name:'น้ำประปา (ระบุ EF)', unit:'m³', ef:0, bio:false, ref:'ระบุแหล่ง EF'}
-];
+
+/* ระยะ 2-9: แกนคำนวณย้ายเข้า te-core — TE.CFO (ห้ามแก้ตัวเลขในหน้านี้) */
+var EF_SOURCE=TE.CFO.EF_SOURCE,EF=TE.CFO.EF,SOURCES=TE.CFO.SOURCES,DQC_LABEL=TE.CFO.DQC_LABEL,DQE_LABEL=TE.CFO.DQE_LABEL;
+function __cfEnv(){return {state:state,esc:esc,imFilled:imFilled};}
+function efOf(...a){return TE.CFO.make(__cfEnv()).efOf(...a);}
+function calcEntry(...a){return TE.CFO.make(__cfEnv()).calcEntry(...a);}
+function dqLevel(...a){return TE.CFO.make(__cfEnv()).dqLevel(...a);}
+function totals(...a){return TE.CFO.make(__cfEnv()).totals(...a);}
+function renderUncertainty(...a){return TE.CFO.make(__cfEnv()).renderUncertainty(...a);}
+function renderReadiness(...a){return TE.CFO.make(__cfEnv()).renderReadiness(...a);}
+function gasRow(...a){return TE.CFO.make(__cfEnv()).gasRow(...a);}
+function renderReport(...a){return TE.CFO.make(__cfEnv()).renderReport(...a);}
+
+
 
 /* ═══════════════ EMISSION SOURCE LIBRARY (แท็บ 3) ═══════════════ */
-const SOURCES = {
-  1:[
-    {id:'sc_boiler', t:'หม้อไอน้ำ / เตาเผา (เชื้อเพลิงในที่ตั้ง)', data:'ปริมาณเชื้อเพลิงที่ใช้', unit:'litre/kg/scf/m³', freq:'รายเดือน', doc:'ใบส่งเชื้อเพลิง, บันทึกการใช้, มิเตอร์'},
-    {id:'sc_genset', t:'เครื่องกำเนิดไฟฟ้าสำรอง (Genset)', data:'ปริมาณดีเซลที่ใช้', unit:'litre', freq:'ต่อครั้ง/รายเดือน', doc:'บันทึกเติมน้ำมัน, log เดินเครื่อง'},
-    {id:'sc_vehicle',t:'ยานพาหนะขององค์กร', data:'ปริมาณน้ำมัน/CNG/LPG', unit:'litre/kg', freq:'รายเดือน', doc:'ใบกำกับภาษีน้ำมัน, fleet card'},
-    {id:'sc_forklift',t:'รถยก/เครื่องจักร off-road', data:'ปริมาณเชื้อเพลิง', unit:'litre', freq:'รายเดือน', doc:'บันทึกเบิกเชื้อเพลิง'},
-    {id:'sc_refrig',t:'สารทำความเย็นรั่วซึม (Fugitive)', data:'ปริมาณสารเติมชดเชย', unit:'kg', freq:'ต่อครั้งที่เติม', doc:'บันทึกซ่อมบำรุง PM, ใบเติมน้ำยา'},
-    {id:'sc_process',t:'การปล่อยจากกระบวนการผลิต (Process)', data:'ปริมาณตามกระบวนการ', unit:'ตามชนิด', freq:'รายเดือน', doc:'บันทึกกระบวนการผลิต'}
-  ],
-  2:[
-    {id:'sc_elec', t:'ไฟฟ้าที่ซื้อจากภายนอก (Grid)', data:'หน่วยไฟฟ้าที่ใช้', unit:'kWh', freq:'รายเดือน', doc:'บิลค่าไฟ กฟภ./กฟน., มิเตอร์'},
-    {id:'sc_steam',t:'ไอน้ำ/ความเย็นที่ซื้อ', data:'ปริมาณพลังงานที่ซื้อ', unit:'GJ/ตัน', freq:'รายเดือน', doc:'ใบแจ้งหนี้ผู้จำหน่าย'}
-  ],
-  3:[
-    {id:'sc_transport',t:'การขนส่งสินค้า (upstream/downstream)', data:'ระยะทาง × น้ำหนัก', unit:'ตัน-กม.', freq:'รายเดือน', doc:'ใบส่งของ, บันทึกขนส่ง'},
-    {id:'sc_commute', t:'การเดินทางของพนักงาน', data:'ระยะทาง × จำนวนคน', unit:'คน-กม.', freq:'สำรวจรายปี', doc:'แบบสำรวจการเดินทาง'},
-    {id:'sc_waste',   t:'การจัดการของเสีย', data:'ปริมาณของเสียแยกประเภท', unit:'ตัน', freq:'รายเดือน', doc:'ใบชั่งของเสีย, manifest'},
-    {id:'sc_material',t:'วัตถุดิบ/สินค้าที่ซื้อ', data:'ปริมาณวัตถุดิบ', unit:'ตัน', freq:'รายเดือน', doc:'ใบสั่งซื้อ, ใบรับของ'},
-    {id:'sc_water',   t:'น้ำประปาที่ใช้', data:'ปริมาณน้ำ', unit:'m³', freq:'รายเดือน', doc:'บิลค่าน้ำ, มิเตอร์'}
-  ]
-};
+
 
 const DEFAULT_PLAN = [
   {name:'Kick-off & แต่งตั้งทีมงาน', owner:'ผู้บริหาร/ทีม CFO', dur:14},
@@ -724,22 +680,11 @@ function addEntry(){
   renderEntries(); saveLocal();
 }
 /* คะแนนคุณภาพข้อมูล = วิธีเก็บ × คุณภาพ EF (ภาคผนวก 11 TGO): 1-6 ไม่ดี, 7-12 ปานกลาง, 13-18 ดี, 19-24 ดีเยี่ยม */
-function dqLevel(score){
-  if(score>=19)return{t:'ดีเยี่ยม',c:'b-ok'};
-  if(score>=13)return{t:'ดี',c:'b-ok'};
-  if(score>=7)return{t:'ปานกลาง',c:'b-bio'};
-  return{t:'ไม่ดี',c:'b-miss'};
-}
+
 function delEntry(i){ state.entries.splice(i,1); renderEntries(); saveLocal(); }
 /* [แก้ไข 3 ต.ค. 2569 audit] EF ที่ใช้จริง = EF ที่ผู้ใช้กรอก (efv) ถ้ามี มิฉะนั้นใช้ EF ฐานข้อมูล; efMissing = กิจกรรม > 0 แต่ EF = 0 */
-function efOf(en,e){ return (en.efv!==undefined&&en.efv!==null&&en.efv!==''&&isFinite(+en.efv)) ? +en.efv : (e.ef||0); }
-function calcEntry(en){
-  const e=EF.find(x=>x.id===en.efid);
-  const ef=efOf(en,e);
-  const co2e = en.qty*ef/1000;         // tCO2e (fossil + CH4/N2O for biomass)
-  const bio  = e.bio ? en.qty*(e.bioco2||0)/1000 : 0;
-  return {e,co2e,bio,ef,efMissing:(en.qty>0&&!(ef>0))};
-}
+
+
 function setEfv(i,v,src){ const en=state.entries[i]; if(!en)return; if(src!==undefined){en.efsrc=v;} else { const x=parseFloat(v); if(String(v).trim()===''||!isFinite(x)){delete en.efv;} else en.efv=x; } renderEntries(); saveLocal(); }
 function renderEntries(){
   const body=document.getElementById('entryBody'); body.innerHTML='';
@@ -770,117 +715,18 @@ function renderEntries(){
   const w=document.getElementById('efWarn'); // [แก้ไข 3 ต.ค. 2569 audit]
   if(w) w.innerHTML=miss.length?'<div class="note" style="border-left-color:#c0392b">⚠️ รายการต่อไปนี้มีปริมาณกิจกรรมแต่ EF = 0 → คิดเป็น 0 tCO₂e (ผลรวมต่ำกว่าจริง) — กรอก EF ในตารางช่อง EF: '+miss.map(esc).join(' · ')+'</div>':'';
 }
-function totals(){
-  let s1=0,s2=0,s3=0,bio=0;
-  state.entries.forEach(en=>{const {e,co2e,bio:b}=calcEntry(en); if(e.scope===1)s1+=co2e;else if(e.scope===2)s2+=co2e;else s3+=co2e; bio+=b;});
-  return {s1,s2,s3,tot:s1+s2+s3,bio};
-}
+
 
 /* ═══════════════ TAB5 UNCERTAINTY ═══════════════ */
-const DQC_LABEL={6:'X ต่อเนื่อง/อัตโนมัติ',3:'Y มิเตอร์/ใบเสร็จ',1:'Z ประมาณค่า'};
-const DQE_LABEL={4:'A วัดคุณภาพ',3:'B ผู้ผลิต/ประเทศ',2:'C ภูมิภาค',1:'D สากล'};
-function renderUncertainty(){
-  const body=document.getElementById('uBody'); body.innerHTML='';
-  if(state.entries.length===0){body.innerHTML='<tr><td colspan="7" class="empty">ยังไม่มีรายการ — กรอกในแท็บ 4</td></tr>';
-    document.getElementById('u-avg').textContent='–';document.getElementById('u-avg-lv').textContent='';
-    document.getElementById('u-low').textContent='0';return;}
-  let wsum=0,wtot=0,low=0;
-  state.entries.forEach(en=>{
-    const {e,co2e}=calcEntry(en);
-    const dqc=en.dqc||3, dqe=en.dqe||3, sc=dqc*dqe, lv=dqLevel(sc);
-    if(sc<13)low++;
-    const w=Math.max(co2e,0.0001); wsum+=sc*w; wtot+=w;
-    body.innerHTML+=`<tr>
-      <td>${esc(en.label)}</td><td>${esc(e.name)}</td><td class="num">${co2e.toFixed(3)}</td>
-      <td>${DQC_LABEL[dqc]||dqc}</td><td>${DQE_LABEL[dqe]||dqe}</td>
-      <td class="num">${sc}</td><td><span class="badge ${lv.c}">${lv.t}</span></td></tr>`;
-  });
-  const avg=wtot>0?(wsum/wtot):0;
-  document.getElementById('u-avg').textContent=avg.toFixed(1);
-  document.getElementById('u-avg-lv').textContent=dqLevel(avg).t;
-  document.getElementById('u-low').textContent=low;
-}
+
+
+
 
 /* ═══════════════ TAB6 READINESS / REPORT ═══════════════ */
 function imFilled(){const o=state.org;return !!(o.im_roles||o.im_method||o.im_storage);}
-function renderReadiness(){
-  const ul=document.getElementById('readiness'); ul.innerHTML='';
-  const t=totals();
-  const checks=[
-    {ok:!!state.org.o_name, txt:'ระบุชื่อองค์กรและขอบเขต (9.1)'},
-    {ok:!!state.org.o_baseyr, txt:'กำหนดปีฐานและปีรายงาน (9.1)'},
-    {ok:state.plan.length>0, txt:'มีแผนดำเนินงาน'},
-    {ok:Object.values(state.srcSel).some(v=>v), txt:'ระบุแหล่งปล่อยในทะเบียน'},
-    {ok:state.entries.length>0, txt:'บันทึกข้อมูลกิจกรรมและคำนวณแล้ว'},
-    {ok:state.entries.length>0&&state.entries.every(e=>e.ref), txt:'ทุกรายการมีหลักฐานอ้างอิง (audit trail)'},
-    {ok:t.tot>0, txt:'มีผลการปล่อยรวม > 0'},
-    {ok:state.entries.every(en=>!calcEntry(en).efMissing), txt:'ทุกรายการที่มีปริมาณกิจกรรมมีค่า EF > 0 (ไม่มีรายการ "ระบุ EF" ที่ยังว่าง)'}, // [แก้ไข 3 ต.ค. 2569 audit]
-    {ok:imFilled(), txt:'จัดทำระเบียบจัดการสารสนเทศ GHG (8.1)'},
-    {ok:state.entries.length>0&&state.entries.every(e=>e.dqc&&e.dqe), txt:'ประเมินคุณภาพข้อมูล/Uncertainty ครบ (8.2)'},
-  ];
-  checks.forEach(c=>{
-    ul.innerHTML+=`<li><span class="badge ${c.ok?'b-ok':'b-miss'}">${c.ok?'✓':'✗'}</span> ${c.txt}</li>`;
-  });
-  const done=checks.filter(c=>c.ok).length;
-  ul.innerHTML+=`<li style="margin-top:8px;font-weight:600">ความพร้อม: ${done}/${checks.length} ${done===checks.length?'— พร้อมส่งทวนสอบ ✅':''}</li>`;
-}
-function gasRow(){ /* รวมรายก๊าซโดยประมาณจาก entries — CFO ต้องแยกชนิดก๊าซ */
-  return null;
-}
-function renderReport(){
-  const t=totals(); const o=state.org;
-  const appMap={operational:'Operational Control',financial:'Financial Control',equity:'Equity Share'};
-  // ตารางรายกิจกรรม
-  let rows='';
-  state.entries.forEach(en=>{const {e,co2e,bio,ef,efMissing}=calcEntry(en); /* [แก้ไข 3 ต.ค. 2569 audit] แสดง EF ที่ใช้จริง */
-    const sc=(en.dqc||3)*(en.dqe||3);
-    rows+=`<tr><td>S${e.scope}${e.bio?' (bio)':''}</td><td>${esc(en.label)}</td><td>${esc(e.name)}</td>
-      <td class="num">${en.qty.toLocaleString()}</td><td>${e.unit}</td><td class="num">${efMissing?'⚠️ 0 (ยังไม่ระบุ EF)':ef}</td>
-      <td class="num">${co2e.toFixed(3)}</td><td class="num">${bio?bio.toFixed(3):'–'}</td><td>${esc(en.ref||'–')}</td><td class="num">${sc}</td></tr>`;
-  });
-  const im=`<table>
-    <tr><th style="width:32%">ผู้รับผิดชอบข้อมูล GHG</th><td>${esc(o.im_roles||'–')}</td></tr>
-    <tr><th>การฝึกอบรมทีมงาน</th><td>${esc(o.im_training||'–')}</td></tr>
-    <tr><th>การเลือก/ทบทวนวิธีคำนวณและ EF</th><td>${esc(o.im_method||'–')}</td></tr>
-    <tr><th>การสอบเทียบเครื่องมือ</th><td>${esc(o.im_calib||'–')}</td></tr>
-    <tr><th>ระบบจัดเก็บข้อมูล</th><td>${esc(o.im_storage||'–')}</td></tr>
-    <tr><th>การตรวจประเมินภายใน</th><td>${esc(o.im_audit||'–')}</td></tr></table>`;
-  document.getElementById('printReport').innerHTML=`
-    <h3>1. ข้อมูลองค์กรและผู้รับผิดชอบ (9.1)</h3>
-    <table>
-      <tr><th style="width:22%">องค์กร</th><td>${esc(o.o_name||'–')}</td><th style="width:22%">ประเภทกิจการ</th><td>${esc(o.o_type||'–')}</td></tr>
-      <tr><th>ที่ตั้ง/สาขา</th><td>${esc(o.o_site||'–')}</td><th>ผู้รับผิดชอบโครงการ</th><td>${esc(o.o_owner||'–')}</td></tr>
-      <tr><th>ปีฐาน (พ.ศ.)</th><td>${esc(o.o_baseyr||'–')}</td><th>ปีรายงาน (พ.ศ.)</th><td>${esc(o.o_repyr||'–')}</td></tr>
-      <tr><th>ช่วงเวลารายงาน</th><td>${esc(o.o_period||'–')}</td><th>ปีฐาน (เหตุผล)</th><td>${esc(o.o_rationale||'–')}</td></tr>
-    </table>
-    <h3>2. ขอบเขตและมาตรฐาน (9.1)</h3>
-    <table>
-      <tr><th style="width:22%">Consolidation Approach</th><td>${esc(appMap[o.o_approach]||o.o_approach||'–')}</td></tr>
-      <tr><th>มาตรฐานอ้างอิง</th><td>${esc(o.o_std||'CFO by TGO')}</td></tr>
-      <tr><th>GWP</th><td>IPCC AR5 (ตามที่ TGO กำหนด)</td></tr>
-      <tr><th>แหล่งอ้างอิง EF</th><td>${esc(EF_SOURCE)}</td></tr>
-    </table>
-    <h3>3. สรุปผลการปล่อยราย Scope (tCO₂e)</h3>
-    <div class="kpis" style="margin-top:8px">
-      <div class="kpi s1"><div class="k-label">Scope 1 (fossil)</div><div class="k-val">${t.s1.toFixed(2)}</div><div class="k-unit">tCO₂e</div></div>
-      <div class="kpi s2"><div class="k-label">Scope 2</div><div class="k-val">${t.s2.toFixed(2)}</div><div class="k-unit">tCO₂e</div></div>
-      <div class="kpi s3"><div class="k-label">Scope 3</div><div class="k-val">${t.s3.toFixed(2)}</div><div class="k-unit">tCO₂e</div></div>
-      <div class="kpi tot"><div class="k-label">รวม (1+2+3)</div><div class="k-val">${t.tot.toFixed(2)}</div><div class="k-unit">tCO₂e</div></div>
-      <div class="kpi bio"><div class="k-label">Biogenic CO₂ (รายงานแยก)</div><div class="k-val">${t.bio.toFixed(2)}</div><div class="k-unit">tCO₂e</div></div>
-    </div>
-    <p class="assump">Biogenic CO₂ จากเชื้อเพลิงชีวมวลรายงานแยกจากยอด Scope 1 ตามข้อกำหนด (บทที่ 12.1) · CH₄/N₂O จากชีวมวลนับรวมใน Scope 1</p>
-    <h3>4. บัญชีรายการกิจกรรม (GHG Inventory)</h3>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Scope</th><th>รายการ</th><th>แหล่งปล่อย</th><th class="num">ปริมาณ</th><th>หน่วย</th><th class="num">EF</th><th class="num">tCO₂e</th><th class="num">bioCO₂</th><th>หลักฐาน</th><th class="num">คะแนน DQ</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="10" class="empty">ไม่มีข้อมูล</td></tr>'}</tbody>
-    </table></div>
-    <h3>5. ระเบียบจัดการสารสนเทศ GHG (บทที่ 8.1)</h3>
-    ${im}
-    <h3>6. การประเมินความไม่แน่นอน (บทที่ 8.2)</h3>
-    <p class="assump">คะแนนคุณภาพข้อมูล = วิธีเก็บ (X6/Y3/Z1) × คุณภาพ EF (A4/B3/C2/D1) · เกณฑ์: 1–6 ไม่ดี, 7–12 ปานกลาง, 13–18 ดี, 19–24 ดีเยี่ยม (ดูตารางคะแนนรายกิจกรรมข้อ 4 คอลัมน์ขวาสุด)</p>
-    <h3>7. ถ้อยแถลงความสอดคล้อง</h3>
-    <p class="assump">รายงานฉบับนี้จัดทำตามแนวทาง ${esc(o.o_std||'CFO by TGO')} ใช้ค่า GWP ตาม IPCC AR5 และค่าการปล่อยจาก ${esc(EF_SOURCE)} · ข้อมูล กิจกรรม ค่า EF และสมมติฐานตรวจสอบย้อนกลับได้ · จัดทำโดย ${esc(o.o_owner||'ผู้รับผิดชอบโครงการ')}</p>`;
-}
+
+
+
 
 /* ═══════════════ EXPORTS ═══════════════ */
 function dl(name,content,type){

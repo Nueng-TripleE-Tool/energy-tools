@@ -323,6 +323,24 @@ NPV = Σ CFₜ/(1+r)ᵗ ;  IRR: NPV = 0 ;  Simple payback = (เงินลง�
   </div>
 </section>
 </main>
+<!-- [แก้ไข 3 พ.ย. 2569 ระยะ 2-5] แกนคำนวณพอร์ตมาตรการ+เศรษฐศาสตร์ย้ายออกจากไฟล์ → TE.ECMPORT ใน ../lib/te-core.js (r2c, ล็อกโดเมน) -->
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
+<script src="../lib/te-core.js"></script>
 <script>
 /* ===================================================================
    Tool_ECM_Portfolio v1.0 — 3 ต.ค. 2569 — Triple E Technology
@@ -403,147 +421,41 @@ function matchFuelByName(n){if(!n)return null;n=String(n).toLowerCase();for(var 
 
 /* ---------- แปลงหน่วย ---------- */
 // ปริมาณเชื้อเพลิงในหน่วยต่าง ๆ → GJ (LHV)
-function fuelQtyToGJ(f,qty,unit){if(!f)return 0;if(unit==='GJ')return qty;if(unit==='MJ')return qty/1000;if(unit===f.unit)return qty*f.lhv;
-  if(unit==='kg'&&f.unit==='t')return qty/1000*f.lhv;if(unit==='t'&&f.unit==='kg')return qty*1000*f.lhv;if(unit==='MMBtu')return qty*1.055056; // MMBtu ตามนิยาม (ไม่ระบุฐาน) → GJ
-  /* [แก้ไข 3 ต.ค. 2569 audit] หน่วยที่ไม่รู้จัก → เดิมคูณ LHV เงียบ ๆ ตอนนี้ยังคิดแบบเดิมแต่ขึ้นคำเตือน */
-  if(unit&&_unitWarn.indexOf(unit+'|'+f.name)<0)_unitWarn.push(unit+'|'+f.name);
-  return qty*f.lhv;}
+/* ===== ระยะ 2-5 (3 พ.ย. 2569): แกนคำนวณพอร์ต+การเงินย้ายเข้า TE.ECMPORT (../lib/te-core.js) =====
+   ไฟล์นี้ไม่มีสูตรผลซ้อน/เศรษฐศาสตร์อีกแล้ว — สำเนานอกเว็บคำนวณไม่ได้ */
+function _ecmState(){return{fuels:FUELS,pools:POOLS,meas:MEAS,params:{
+  elecKWh:GV('elecKWh'),elecPrice:GV('elecPrice'),elecEF:GV('elecEF'),gjPerToe:GV('gjPerToe'),
+  discRate:GV('discRate'),escRate:GV('escRate'),anaYears:GV('anaYears'),taxMode:GS('taxMode'),citRate:GV('citRate'),depYears:GV('depYears'),
+  mvYears:GV('mvYears'),dedePct:GV('dedePct'),dedeCap:GV('dedeCap'),boiPct:GV('boiPct'),boiYears:GV('boiYears'),
+  loanPct:GV('loanPct'),loanRate:GV('loanRate'),loanYears:GV('loanYears'),escoShare:GV('escoShare'),escoYears:GV('escoYears'),
+  carbonPrice:GV('carbonPrice'),creditRatio:GV('creditRatio'),creditYears:GV('creditYears'),tverCost:GV('tverCost'),savBasis:GS('savBasis')}};}
+function calcEnergy(){_res.energy=TE.ECMPORT.calcEnergy(_ecmState());return _res.energy;}
+function calcEcon(){_res.econ=TE.ECMPORT.calcEcon(_ecmState(),_res.energy);return _res.econ;}
+function crf(r,n){return TE.ECMPORT.fin.crf(r,n);}
+function npv(r,cf){return TE.ECMPORT.fin.npv(r,cf);}
+function irr(cf){return TE.ECMPORT.fin.irr(cf);}
+function dpayback(cf,r){return TE.ECMPORT.fin.dpayback(cf,r);}
+function elecToKWh(q,u){return TE.ECMPORT.convert.elecToKWh(q,u);}
+function secToPoolUnit(p,q,u){return TE.ECMPORT.convert.secToPoolUnit(p,q,u);}
+function fuelQtyToGJ(f,q,u){return TE.ECMPORT.convert.fuelQtyToGJ(f,q,u);}
+
 var _unitWarn=[]; // [แก้ไข 3 ต.ค. 2569 audit] เก็บหน่วยที่แปลงไม่ได้ระหว่าง calcEnergy
-function elecToKWh(qty,unit){return unit==='MWh'?qty*1000:qty;}
+
 // demand ของ pool: แปลงหน่วยที่ส่งมาให้ตรงกับหน่วย pool
-function secToPoolUnit(p,qty,unit){if(!p||unit===p.unit||!unit)return qty;
-  if(p.unit==='t'&&unit==='kg')return qty/1000;if(p.unit==='Nm3'&&unit==='m3')return qty;if(p.unit==='GJ'&&unit==='MJ')return qty/1000;if(p.unit==='GJ'&&unit==='kWh')return qty*GJ_PER_KWH;if(p.unit==='RTh'&&unit==='kWhth')return qty/3.51685;
-  return qty;}
+
 
 /* ===================== ENGINE: พลังงาน + ผลซ้อน ===================== */
-function emptyPrim(){return{kWh:0,fuel:{}};}
-function addPrim(a,draw,v){if(draw==='elec')a.kWh+=v;else a.fuel[draw]=(a.fuel[draw]||0)+v;}  // fuel เป็น GJ
-function calcEnergy(){
-  var E={warn:[],pools:[],byM:{},base:{kWh:GV('elecKWh'),fuelGJ:{}},tot:{alone:emptyPrim(),inter:emptyPrim()}};
-  _unitWarn=[]; /* [แก้ไข 3 ต.ค. 2569 audit] */
-  FUELS.forEach(function(f){E.base.fuelGJ[f.id]=num(f.qty)*num(f.lhv);});
-  var act=MEAS.filter(function(m){return m.include;});
-  act.forEach(function(m){E.byM[m.id]={alone:emptyPrim(),inter:emptyPrim(),secAlone:0,secInter:0,clip:false,note:''};});
-  function sortOrd(a,b){return (num(a.order)-num(b.order))||(MEAS.indexOf(a)-MEAS.indexOf(b));}
-  // ---- 1) pool ทุติยภูมิ: demand ก่อน → conversion ----
-  POOLS.forEach(function(p){
-    var draw=p.draw==='elec'?'elec':p.draw; var f0=num(p.factor), Q0=num(p.qty);
-    var st={pool:p,draw:draw,Q0:Q0,f0:f0,steps:[]};
-    if(draw!=='elec'&&!findFuel(draw))E.warn.push('pool "'+p.name+'" ยังไม่ได้เลือกเชื้อเพลิงต้นทาง');
-    var dms=act.filter(function(m){return m.effect==='demand'&&m.target===p.id;}).sort(sortOrd);
-    var cms=act.filter(function(m){return m.effect==='conversion'&&m.target===p.id;}).sort(sortOrd);
-    var Qrem=Q0;
-    dms.forEach(function(m){var r=E.byM[m.id],dA,dI;
-      /* [แก้ไข 3 ต.ค. 2569 audit] ผลประหยัดติดลบ = ใช้เพิ่ม → เตือน (และทำให้ conversion ถัดไปคิดบนปริมาณที่มากขึ้น) */
-      if((m.unit==='%'?num(m.savingPct):num(m.savingQty))<0)E.warn.push('"'+m.name+'": ผลประหยัดติดลบ (= ใช้พลังงานเพิ่ม) — ไม่ใช่ผลประหยัด และทำให้มาตรการ conversion ถัดไปใน pool "'+p.name+'" คิดบนปริมาณที่สูงขึ้น ตรวจเครื่องหมายค่า');
-      if(m.unit==='%'){dA=Q0*num(m.savingPct)/100;dI=Qrem*num(m.savingPct)/100;}
-      else{dA=secToPoolUnit(p,num(m.savingQty),m.unit);dI=dA;}
-      if(Q0>0&&dI>Qrem){dI=Math.max(Qrem,0);r.clip=true;r.note='ผลประหยัดเกินปริมาณที่เหลือของ pool — ตัดเหลือ '+fmtAuto(dI)+' '+p.unit;}
-      r.secAlone=dA;r.secInter=dI;addPrim(r.alone,draw,dA*f0);addPrim(r.inter,draw,dI*f0);
-      st.steps.push({m:m,kind:'demand',Qbefore:Qrem,dQ:dI,f:f0,save:dI*f0,saveAlone:dA*f0});Qrem-=dI;});
-    if(Q0<=0&&(dms.length||cms.length))E.warn.push('pool "'+p.name+'" ยังไม่มีปริมาณฐาน — มาตรการ conversion จะเป็น 0 และ demand ไม่ถูกตรวจเพดาน');
-    var Q1=Math.max(Qrem,0),fc=f0;
-    cms.forEach(function(m){var r=E.byM[m.id],s=num(m.savingPct)/100;
-      if(s<0||s>=1){E.warn.push('"'+m.name+'": % ลดต้องอยู่ระหว่าง 0–100');s=Math.min(Math.max(s,0),0.99);}
-      var a=Q0*f0*s, i=Q1*fc*s; addPrim(r.alone,draw,a);addPrim(r.inter,draw,i);
-      st.steps.push({m:m,kind:'conversion',Qbefore:Q1,fBefore:fc,s:s,save:i,saveAlone:a});fc*=(1-s);});
-    st.Q1=Q1;st.f1=fc;st.base=Q0*f0;st.after=Q1*fc;st.saving=st.base-st.after;
-    st.pct=st.base>0?st.saving/st.base*100:0;E.pools.push(st);
-  });
-  // ---- 2) direct ----
-  var remK=E.base.kWh, remF={}; Object.keys(E.base.fuelGJ).forEach(function(k){remF[k]=E.base.fuelGJ[k];});
-  act.filter(function(m){return m.effect==='direct';}).sort(sortOrd).forEach(function(m){var r=E.byM[m.id];
-    if((m.unit==='%'?num(m.savingPct):num(m.savingQty))<0)E.warn.push('"'+m.name+'": ผลประหยัดติดลบ (= ใช้พลังงานเพิ่ม) — ตรวจเครื่องหมายค่า'); /* [แก้ไข 3 ต.ค. 2569 audit] */
-    if(m.target==='elec'){var a,i;if(m.unit==='%'){a=E.base.kWh*num(m.savingPct)/100;i=remK*num(m.savingPct)/100;}else{a=elecToKWh(num(m.savingQty),m.unit);i=a;}
-      r.alone.kWh+=a;r.inter.kWh+=i;remK-=i;}
-    else{var f=findFuel(m.target);if(!f){E.warn.push('"'+m.name+'": ยังไม่ได้เลือกเชื้อเพลิง');return;}
-      var a2,i2;if(m.unit==='%'){a2=E.base.fuelGJ[f.id]*num(m.savingPct)/100;i2=remF[f.id]*num(m.savingPct)/100;}else{a2=fuelQtyToGJ(f,num(m.savingQty),m.unit);i2=a2;}
-      addPrim(r.alone,f.id,a2);addPrim(r.inter,f.id,i2);remF[f.id]-=i2;}
-  });
-  // ---- 3) ไฟฟ้าที่มาตรการใช้เพิ่ม ----
-  act.forEach(function(m){var pen=num(m.elecPenalty);if(pen){E.byM[m.id].alone.kWh-=pen;E.byM[m.id].inter.kWh-=pen;}});
-  // ---- 4) แปลง ฿ / tCO2e / GJ / toe ----
-  var price=GV('elecPrice'),ef=GV('elecEF'),gjToe=GV('gjPerToe')||41.868;
-  function money(pr){var b=pr.kWh*price,c=pr.kWh*ef/1000,gj=pr.kWh*GJ_PER_KWH;
-    Object.keys(pr.fuel).forEach(function(fid){var f=findFuel(fid);if(!f||!num(f.lhv))return;var u=pr.fuel[fid]/num(f.lhv);b+=u*num(f.price);c+=u*num(f.ef)/1000;gj+=pr.fuel[fid];});
-    return{thb:b,t:c,gj:gj,toe:gj/gjToe};}
-  act.forEach(function(m){var r=E.byM[m.id];r.A=money(r.alone);r.I=money(r.inter);
-    addPrim(E.tot.alone,'elec',r.alone.kWh);addPrim(E.tot.inter,'elec',r.inter.kWh);
-    Object.keys(r.alone.fuel).forEach(function(k){addPrim(E.tot.alone,k,r.alone.fuel[k]);});
-    Object.keys(r.inter.fuel).forEach(function(k){addPrim(E.tot.inter,k,r.inter.fuel[k]);});});
-  E.totA=money(E.tot.alone);E.totI=money(E.tot.inter);
-  var baseP={kWh:E.base.kWh,fuel:E.base.fuelGJ};E.baseM=money(baseP);
-  // ---- 5) ตรวจความสอดคล้อง ----
-  var useK=0,useF={};E.pools.forEach(function(s){if(s.draw==='elec')useK+=s.base;else useF[s.draw]=(useF[s.draw]||0)+s.base;});
-  E.poolUse={kWh:useK,fuel:useF};
-  if(E.base.kWh>0&&useK>E.base.kWh*1.02)E.warn.push('pool ที่ใช้ไฟฟ้ารวม '+fmt(useK)+' kWh เกินไฟฟ้าทั้งปี '+fmt(E.base.kWh)+' kWh — ตรวจปริมาณ/factor');
-  Object.keys(useF).forEach(function(fid){var f=findFuel(fid);if(f&&E.base.fuelGJ[fid]>0&&useF[fid]>E.base.fuelGJ[fid]*1.02)E.warn.push('pool ที่ใช้ '+f.name+' รวม '+fmt(useF[fid])+' GJ เกินเชื้อเพลิงทั้งปี '+fmt(E.base.fuelGJ[fid])+' GJ — ตรวจ factor หรือ LHV');
-    if(f&&!(num(f.qty)>0))E.warn.push(f.name+' ยังไม่ได้กรอกปริมาณทั้งปี — ตรวจเพดานไม่ได้');});
-  if(E.tot.inter.kWh>E.base.kWh&&E.base.kWh>0)E.warn.push('ผลประหยัดไฟฟ้ารวมเกินการใช้ทั้งปี');
-  if(!(E.base.kWh>0))E.warn.push('ยังไม่ได้กรอกไฟฟ้าทั้งปี (kWh) — % ผลประหยัดไฟฟ้าจะไม่แสดง');
-  /* [แก้ไข 3 ต.ค. 2569 audit] LHV = 0 → มาตรการเชื้อเพลิงกลายเป็น 0 ฿ เงียบ ๆ; หน่วยไม่รู้จัก */
-  FUELS.forEach(function(f){if(!(num(f.lhv)>0))E.warn.push(f.name+': LHV = 0 หรือไม่ได้กรอก — ผลประหยัด ฿/tCO₂e ของมาตรการที่ใช้เชื้อเพลิงนี้จะเป็น 0');});
-  _unitWarn.forEach(function(k){var a=k.split('|');E.warn.push('หน่วย "'+a[0]+'" ของ '+a[1]+' แปลงเป็น GJ ไม่ได้โดยตรง — คิดเป็น ปริมาณ × LHV ('+a[1]+') ตรวจหน่วยให้ตรงกับหน่วยเชื้อเพลิง');});
-  _res.energy=E;return E;
-}
+
+  // fuel เป็น GJ
+
 
 /* ===================== ENGINE: เศรษฐศาสตร์ ===================== */
-function crf(r,n){n=Math.max(1,Math.round(n));if(Math.abs(r)<1e-9)return 1/n;var q=Math.pow(1+r,n);return r*q/(q-1);}
-function npv(r,cf){var s=0;for(var t=0;t<cf.length;t++)s+=cf[t]/Math.pow(1+r,t);return s;}
-function irr(cf){var pos=false,neg=false;cf.forEach(function(v){if(v>1e-9)pos=true;if(v<-1e-9)neg=true;});if(!pos||!neg)return null;
-  var lo=-0.99,hi=10,flo=npv(lo,cf),fhi=npv(hi,cf);
-  if(flo*fhi>0){hi=1000;fhi=npv(hi,cf);} /* [แก้ไข 3 ต.ค. 2569 audit] IRR > 1,000 % เดิมคืน null แสดง "—" → ขยายช่วงค้นถึง 100,000 % */
-  if(flo*fhi>0)return null;
-  for(var k=0;k<200;k++){var mid=(lo+hi)/2,fm=npv(mid,cf);if(Math.abs(fm)<1e-6)return mid;if(flo*fm<0){hi=mid;fhi=fm;}else{lo=mid;flo=fm;}}return (lo+hi)/2;}
+
+
+
 function irrTxt(v){return v===null||v===undefined?'—':(v>10?'> 1,000':fmt(v*100,1));} // [แก้ไข 3 ต.ค. 2569 audit]
-function dpayback(cf,r){var c=0;for(var t=0;t<cf.length;t++){var prev=c;c+=cf[t]/Math.pow(1+r,t);if(t>0&&c>=0&&prev<0){var d=cf[t]/Math.pow(1+r,t);return t-1+(d>0?(-prev/d):0);}}return null;}
-function calcEcon(){
-  var E=_res.energy||calcEnergy();
-  var P={r:GV('discRate')/100,e:GV('escRate')/100,N:Math.max(1,Math.round(GV('anaYears'))),post:GS('taxMode')==='post',cit:GV('citRate')/100,dep:Math.max(1,Math.round(GV('depYears'))),
-    mvY:Math.round(GV('mvYears')),dedeP:GV('dedePct')/100,dedeCap:GV('dedeCap'),boiP:GV('boiPct')/100,boiY:Math.round(GV('boiYears')),
-    loanP:GV('loanPct')/100,loanR:GV('loanRate')/100,loanY:Math.max(1,Math.round(GV('loanYears'))),escoS:GV('escoShare')/100,escoY:Math.round(GV('escoYears')),
-    cPrice:GV('carbonPrice'),cRatio:GV('creditRatio')/100,cY:Math.round(GV('creditYears')),tver:GV('tverCost'),basis:GS('savBasis')};
-  var R={P:P,byM:{},port:null};var portCF=[];for(var t=0;t<=P.N;t++)portCF.push(0);
-  var anyCarbon=false,sumNet=0,sumY1=0,sumCap=0,sumSub=0,sumSav=0,sumT=0;
-  MEAS.filter(function(m){return m.include;}).forEach(function(m){
-    var em=E.byM[m.id];if(!em)return;var M=P.basis==='alone'?em.A:em.I;
-    var cap=num(m.capex),om=num(m.omChange),life=Math.max(1,Math.round(num(m.life)||1)),N=Math.min(life,P.N),mvc=num(m.mvCost);
-    var esco=m.fin==='esco',loan=m.fin==='loan';
-    var sub=(!esco&&m.dede)?Math.min(cap*P.dedeP,P.dedeCap>0?P.dedeCap:Infinity):0;
-    var L=loan?cap*P.loanP:0,A=loan?L*crf(P.loanR,P.loanY):0,bal=L;
-    var cf=[-(esco?0:(cap-L-sub))],boiCap=(m.boi&&!esco)?cap*P.boiP:0,boiUsed=0,rows=[];
-    var t1=M.t*P.cRatio*P.cPrice*(m.carbon?1:0);if(m.carbon)anyCarbon=true;
-    /* [แก้ไข 3 ต.ค. 2569 audit] เงินกู้ที่ผ่อนนานกว่าอายุมาตรการ/ช่วงวิเคราะห์: เดิมตัดค่างวดหลังปี N ทิ้ง → NPV/IRR สูงเกิน
-       ตอนนี้ขยายกระแสเงินถึง max(N, ระยะผ่อน) ปีที่เกิน N มีเฉพาะค่างวด (และภาษีลดจากดอกเบี้ยในโหมดหลังภาษี) */
-    var Nh=loan?Math.max(N,P.loanY):N;
-    for(var y=1;y<=Nh;y++){
-      var inLife=y<=N;
-      var sav=inLife?M.thb*Math.pow(1+P.e,y-1):0,car=(inLife&&m.carbon&&y<=P.cY)?t1:0,mv=(inLife&&y<=P.mvY)?mvc:0,omY=inLife?om:0;
-      var interest=0,pay=0;if(loan&&y<=P.loanY){interest=bal*P.loanR;pay=A;bal-=(A-interest);}
-      var escoPay=(inLife&&esco&&y<=P.escoY)?sav*P.escoS:0;
-      var pre=sav+car-omY-mv-pay-escoPay,tax=0,exempt=0;
-      if(P.post){var dep=(inLife&&!esco&&y<=P.dep)?(cap-sub)/P.dep:0;
-        /* [แก้ไข 3 ต.ค. 2569 audit] อายุมาตรการสั้นกว่าระยะคิดค่าเสื่อม: ตัดมูลค่าตามบัญชีที่เหลือเป็นค่าใช้จ่ายในปีสิ้นอายุ (เดิมหายไป) */
-        if(!esco&&y===N&&N===life&&P.dep>N)dep+=(cap-sub)*(P.dep-N)/P.dep;
-        var taxable=sav+car-omY-mv-dep-interest-escoPay;tax=P.cit*taxable;
-        if(boiCap>0&&y<=P.boiY&&tax>0){exempt=Math.min(tax,boiCap-boiUsed);boiUsed+=exempt;tax-=exempt;}}
-      var c=pre-tax;cf.push(c);rows.push({y:y,sav:sav,car:car,om:omY,mv:mv,pay:pay,escoPay:escoPay,tax:tax,exempt:exempt,cf:c});}
-    var y1=M.thb*(esco&&P.escoY>=1?(1-P.escoS):1)+t1-om-((P.mvY>=1)?mvc:0); // ESCO: ลูกค้าได้ส่วนที่เหลือจากส่วนแบ่ง
-    var invest=esco?0:cap-sub;
-    var pb=esco?null:(y1>0?invest/y1:null);
-    var cr=crf(P.r,life),ann=cr*(cap-sub);
-    var o={M:M,cap:cap,sub:sub,invest:invest,loan:L,y1:y1,cf:cf,rows:rows,npv:npv(P.r,cf),irr:irr(cf),pb:pb,dpb:dpayback(cf,P.r),
-      cce:M.gj>0?(ann+om)/M.gj:null,macc:M.t>0?(ann+om-M.thb)/M.t:null,carbonRev:t1,boiUsed:boiUsed,N:N,life:life};
-    R.byM[m.id]=o;while(portCF.length<cf.length)portCF.push(0); /* [แก้ไข 3 ต.ค. 2569 audit] ขยายพอร์ตเมื่อค่างวดเกินช่วงวิเคราะห์ */
-    for(var k=0;k<cf.length;k++)portCF[k]+=cf[k];
-    sumCap+=cap;sumSub+=sub;sumNet+=invest;sumY1+=y1;sumSav+=M.thb;sumT+=M.t;});
-  if(anyCarbon&&P.tver>0)for(var yy=1;yy<=Math.min(P.cY,P.N);yy++)portCF[yy]-=P.tver*(P.post?(1-P.cit):1);
-  var cum=[],c0=0;portCF.forEach(function(v){c0+=v;cum.push(c0);});
-  /* [แก้ไข 3 ต.ค. 2569 audit] ระยะคืนทุนพอร์ตใช้ผลได้ปีแรกหลังหักค่า T-VER ให้ตรงกับ KPI "ผลได้สุทธิปีแรก" */
-  var y1Net=sumY1-(anyCarbon?P.tver:0);
-  R.port={cf:portCF,cum:cum,npv:npv(P.r,portCF),irr:irr(portCF),pb:y1Net>0?sumNet/y1Net:null,dpb:dpayback(portCF,P.r),cap:sumCap,sub:sumSub,net:sumNet,y1:sumY1-(anyCarbon?P.tver:0),sav:sumSav,t:sumT,anyCarbon:anyCarbon};
-  _res.econ=R;return R;
-}
+
+
 
 /* ===================== M&V แนะนำ ===================== */
 function suggestMV(m){if(m.mvOption)return m.mvOption;

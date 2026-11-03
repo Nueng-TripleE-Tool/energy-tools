@@ -173,6 +173,22 @@ table td{vertical-align:middle}
 .fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
 .hint{font-size:11px;color:var(--muted,#5b6b7b);margin:2px 0 8px;line-height:1.5}
 </style>
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
 </head>
 <body>
 
@@ -320,321 +336,42 @@ table td{vertical-align:middle}
   <p style="margin-top:5px">LMTD พร้อมตัวประกอบแก้ F ตามรูปแบบการไหล · Fouling factor จาก 1/U<sub>สกปรก</sub> − 1/U<sub>สะอาด</sub></p>
 </footer>
 
+<!-- ระยะ 2-10: เครื่องยนต์กลาง Triple E -->
+<script src="../lib/te-core.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const V=id=>parseFloat($(id).value)||0;
-const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed(d===undefined?2:d);
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const pill=(i,t)=>`<span class="pill p${i}">${t}</span>`;
-const money=v=>isFinite(v)?Math.round(v).toLocaleString('th-TH'):'–';
+
+/* ระยะ 2-9: แกนคำนวณย้ายเข้า te-core — TE.HXFOUL (ห้ามแก้ตัวเลขในหน้านี้) */
+var clamp=TE.HXFOUL.clamp,TE_HINTS=TE.HXFOUL.TE_HINTS;
+function __hxEnv(){return {$:$,V:V,S:{}};}
+function calc(){return TE.HXFOUL.make(__hxEnv()).calc();}
+function econ(){return TE.HXFOUL.make(__hxEnv()).econ();}
+function dx(){return TE.HXFOUL.make(__hxEnv()).dx();}
+function report(){return TE.HXFOUL.make(__hxEnv()).report();}
+
+
+
+
 
 /* ── ตัวประกอบแก้ F สำหรับ 1 shell / 2 tube pass ── */
-function fST12(T1,T2,t1,t2){
-  const dT=T1-T2, dt=t2-t1;
-  if(dt<=0||dT<=0||T1-t1<=0) return null;
-  const P=dt/(T1-t1), R=dT/dt;
-  if(P<=0||P>=1) return null;
-  const s=Math.sqrt(R*R+1);
-  let num,den;
-  if(Math.abs(R-1)<1e-4){
-    num=s*P/(1-P);
-    den=Math.log((2/P-1-R+s)/(2/P-1-R-s));
-  }else{
-    num=s/(R-1)*Math.log((1-P)/(1-P*R));
-    den=Math.log((2/P-1-R+s)/(2/P-1-R-s));
-  }
-  const F=num/den;
-  return (isFinite(F)&&F>0&&F<=1.001)?clamp(F,0,1):null;
-}
-function lmtdOf(T1,T2,t1,t2,type){
-  let d1,d2;
-  if(type==='parallel'){ d1=T1-t1; d2=T2-t2; }
-  else { d1=T1-t2; d2=T2-t1; }
-  if(d1<=0||d2<=0) return null;
-  if(Math.abs(d1-d2)<1e-6) return d1;
-  return (d1-d2)/Math.log(d1/d2);
-}
+
+
 
 let S={};
-function calc(){
-  const type=$('hxType').value;
-  const T1=V('Th1'),T2=V('Th2'),t1=V('Tc1'),t2=V('Tc2');
-  const A=V('area'), Uc=V('uClean');
-  const mh=V('mh')*V('rh')/3600, mc=V('mc')*V('rc')/3600;   // kg/s
-  const Qh=mh*V('cph')*(T1-T2), Qc=mc*V('cpc')*(t2-t1);
-  const Q=(Qh>0&&Qc>0)?(Qh+Qc)/2:Math.max(Qh,Qc);
-  const closure=(Qh>0&&Qc>0)?Math.abs(Qh-Qc)/((Qh+Qc)/2)*100:null;
 
-  const lmtd=lmtdOf(T1,T2,t1,t2,type);
-  let F=1, fNote='ไหลสวนทางสมบูรณ์ — F = 1';
-  if(type==='st12'){ const f=fST12(T1,T2,t1,t2); if(f!==null){F=f; fNote=`1 shell / 2 tube pass — F = ${fmt(F,3)}`;} else {F=null; fNote='คำนวณ F ไม่ได้ที่อุณหภูมิชุดนี้ (P หรือ R อยู่นอกช่วงที่เป็นไปได้)';} }
-  else if(type==='phe') fNote='PHE ไหลสวนทางเกือบสมบูรณ์ — ใช้ F = 1';
-  else if(type==='parallel') fNote='ไหลตามกัน — ใช้ LMTD ของรูปแบบนี้โดยตรง F = 1';
-  else if(type==='cond') fNote='ฝั่งหนึ่งอุณหภูมิคงที่ — F = 1 เสมอ';
 
-  const dTm=(lmtd!==null&&F!==null)?lmtd*F:null;
-  const U=(dTm&&A>0&&Q>0)?Q*1000/(A*dTm):null;
-  const pct=(U&&Uc>0)?U/Uc*100:null;
-  const Rf=(U&&Uc>0)?(1/U-1/Uc):null;   /* [แก้ไข 10 ก.ย. 2569] เดิม ternary สองกิ่งให้ค่าเหมือนกัน — ย่อให้เหลือเงื่อนไขเดียว */
 
-  const bal=closure===null?1:(closure<5?0:(closure<10?1:2));
-  S={type,T1,T2,t1,t2,A,Uc,Qh,Qc,Q,closure,lmtd,F,dTm,U,pct,Rf,fNote,bal};
 
-  /* verdict */
-  $('vU').textContent=fmt(U,0);
-  const pl=pct===null?1:(pct>90?0:(pct>75?1:(pct>60?2:3)));
-  $('vPct').textContent=fmt(pct,0); $('vPct').className='vnum mono s'+pl;
-  $('vPctb').innerHTML=`% · ${pill(pl,['สะอาด','เริ่มสกปรก','สกปรก','สกปรกมาก'][pl])}`;
-  $('vRf').textContent=Rf===null?'–':Rf.toExponential(2);
 
-  /* balance */
-  $('balOut').innerHTML=`
-   <div class="grid4" style="margin-top:12px">
-     <div class="stat"><div class="big">${fmt(Qh,0)}</div><div class="bigu">Q ฝั่งร้อน · kW</div></div>
-     <div class="stat"><div class="big">${fmt(Qc,0)}</div><div class="bigu">Q ฝั่งเย็น · kW</div></div>
-     <div class="stat"><div class="big s${bal}">${fmt(closure,1)}</div><div class="bigu">ส่วนต่างสมดุล · %</div></div>
-     <div class="stat"><div class="big">${fmt(Q,0)}</div><div class="bigu">Q ที่ใช้คำนวณ · kW</div></div>
-   </div>
-   <div class="note ${bal===0?'good':(bal===1?'warn':'bad')}">
-     ${closure===null?'ข้อมูลไม่พอสำหรับปิดสมดุล — ต้องมีอัตราการไหลทั้งสองฝั่ง'
-      :(bal===0?`สมดุลปิดได้ดี (ต่างกัน ${fmt(closure,1)} %) ข้อมูลชุดนี้ใช้วินิจฉัยได้`
-        :(bal===1?`สมดุลต่างกัน ${fmt(closure,1)} % — ยังพอใช้ได้แต่ควรระวัง อาจมาจาก flow meter หรือการสูญเสียความร้อนสู่บรรยากาศ`
-          :`<b>สมดุลต่างกันถึง ${fmt(closure,1)} % — อย่าเพิ่งสรุปว่าอุปกรณ์สกปรก</b><br>
-            ส่วนต่างขนาดนี้แปลว่าข้อมูลอย่างน้อยหนึ่งตัวผิด สอบเทียบ flow meter และ sensor อุณหภูมิก่อน
-            แล้วค่อยกลับมาคำนวณใหม่ ไม่งั้นจะได้ค่า U ที่ผิดไปทั้งชุด`))}
-   </div>`;
 
-  /* main */
-  $('calcOut').innerHTML=`
-   <div class="grid4">
-     <div class="stat"><div class="big">${fmt(lmtd,2)}</div><div class="bigu">LMTD · °C</div></div>
-     <div class="stat"><div class="big">${F===null?'–':fmt(F,3)}</div><div class="bigu">ตัวประกอบแก้ F</div></div>
-     <div class="stat"><div class="big">${fmt(dTm,2)}</div><div class="bigu">ΔT เฉลี่ยที่ใช้จริง · °C</div></div>
-     <div class="stat"><div class="big s${pl}">${fmt(U,0)}</div><div class="bigu">U ที่วัดได้ · W/m²·K</div></div>
-   </div>
-   <div class="tbl-wrap" style="margin-top:14px"><table>
-     <tr><th>รายการ</th><th class="n">ค่า</th><th>หน่วย</th><th>ความหมาย</th></tr>
-     <tr><td>U สะอาด (อ้างอิง)</td><td class="n">${fmt(Uc,0)}</td><td>W/m²·K</td><td class="legend">จาก data sheet หรือตอนเพิ่งล้างเสร็จ</td></tr>
-     <tr class="${pl>=2?'hl':''}"><td>U ที่วัดได้</td><td class="n">${fmt(U,0)}</td><td>W/m²·K</td><td class="legend">Q / (A · F · LMTD)</td></tr>
-     <tr><td>สมรรถนะคงเหลือ</td><td class="n">${fmt(pct,1)}</td><td>%</td><td class="legend">${pill(pl,['สะอาด','เริ่มสกปรก','สกปรก','สกปรกมาก'][pl])}</td></tr>
-     <tr><td>Fouling factor R<sub>f</sub></td><td class="n">${Rf===null?'–':Rf.toExponential(3)}</td><td>m²·K/W</td><td class="legend">1/U − 1/U<sub>สะอาด</sub></td></tr>
-     <tr><td>UA ที่วัดได้</td><td class="n">${fmt(U*A/1000,1)}</td><td>kW/K</td><td class="legend">ใช้ติดตาม trend ได้ดีกว่า U เดี่ยว ๆ</td></tr>
-   </table></div>
-   <div class="note">${fNote}<br>
-     ${type==='st12'&&F!==null&&F<0.8?`<b>F = ${fmt(F,3)} ต่ำกว่า 0.80</b> — ที่ค่านี้ ΔT เฉลี่ยไวต่อความคลาดเคลื่อนของอุณหภูมิมาก
-       ผล U ที่ได้จึงมีความไม่แน่นอนสูง โดยทั่วไปการออกแบบจะหลีกเลี่ยงช่วง F < 0.80 อยู่แล้ว
-       ถ้าเจอค่านี้ในการเดินเครื่องจริง ให้ตรวจว่าอุณหภูมิที่วัดถูกต้องหรือมี temperature cross จริง`:''}
-   </div>
-   <div class="note">
-     <b>เกณฑ์ R<sub>f</sub> ที่ใช้ในการออกแบบโดยทั่วไป</b> — น้ำหล่อเย็นหอผึ่งที่บำบัดแล้ว 0.00018 ·
-     น้ำหล่อเย็นที่ไม่บำบัด 0.00035–0.00055 · น้ำในเมือง 0.00018 · น้ำมันหล่อลื่น 0.00018 ·
-     ไอเสีย 0.0009–0.0018 m²·K/W<br>
-     ถ้า R<sub>f</sub> ที่วัดได้เกินค่าที่ออกแบบเผื่อไว้ แปลว่าอุปกรณ์ทำงานต่ำกว่าที่ออกแบบตั้งใจแล้ว
-   </div>`;
 
-  /* approach */
-  const apHot=T2-t1, apCold=T1-t2;
-  $('apOut').innerHTML=`
-   <div class="grid3">
-     <div class="stat"><div class="big">${fmt(apHot,2)}</div><div class="bigu">Approach ฝั่งร้อน (T₂ − t₁) · °C</div></div>
-     <div class="stat"><div class="big">${fmt(apCold,2)}</div><div class="bigu">Approach ฝั่งเย็น (T₁ − t₂) · °C</div></div>
-     <div class="stat"><div class="big">${fmt(V('mh')>0?V('mc')/V('mh'):null,2)}</div><div class="bigu">อัตราส่วนการไหล เย็น/ร้อน</div></div>
-   </div>
-   <div class="note">
-     <b>วิธีใช้ approach เป็น KPI</b> — บันทึกทุกสัปดาห์ที่ภาระใกล้เคียงกัน แล้วพล็อต approach เทียบเวลา
-     เส้นที่ค่อย ๆ ไต่ขึ้นคือสัญญาณ fouling ที่ชัดและถูกกว่าการวัด U ทุกครั้ง<br>
-     <b>ข้อควรระวัง</b> — approach ขึ้นกับภาระด้วย ห้ามเทียบข้ามภาระ
-     ถ้าภาระเปลี่ยน ให้กลับมาใช้ UA แทน เพราะ UA แทบไม่ขึ้นกับภาระ
-     (เปลี่ยนตามอัตราการไหลตาม h ∝ v<sup>0.8</sup> เท่านั้น)
-   </div>`;
-
-  econ(); dx(); report();
-}
-
-function econ(){
-  const {Uc,U,A,pct}=S;
-  const rate=V('rfRate'), hrs=V('hrs'), cost=V('cCost'), pen=V('penalty');
-  const dHrs=V('dHrs'), dCost=V('dCost');
-  const totalClean=cost+dHrs*dCost;
-  if(!U||!Uc){ $('econOut').innerHTML='<div class="note bad">ยังคำนวณ U ไม่ได้</div>';
-    /* [แก้ไข 3 ต.ค. 2569 audit] ล้างแถบสรุปค่าเดิม (เดิมยังโชว์รอบล้าง/ผลประหยัดของการคำนวณครั้งก่อน) */
-    $('vDays').textContent='–'; $('vDaysb').textContent='ข้อมูลไม่พอ/อุณหภูมิผิด';
-    S.best=null; S.nowLoss=null; S.nowCost=null; S.netSave=null; S.totalClean=totalClean; return; }
-  /* [แก้ไข 10 ก.ย. 2569] เดิมเริ่มทุกรอบที่ Rf ปัจจุบัน (Rf0) ทำให้รอบล้างที่ได้เอนเอียง
-     → แต่ละรอบเริ่มจากสภาพสะอาด Rf = 0 แล้ว Rf โตเชิงเส้นด้วยอัตราที่กรอก
-       U(t) = 1/(1/Uc + rate·t/1000)  →  U เฉลี่ยตลอดรอบ = Uc·ln(1+Uc·RfEnd)/(Uc·RfEnd) (อินทิเกรตตรง ๆ) */
-  /* หาเวลาที่ต้นทุนรวมต่อชั่วโมงต่ำสุด */
-  const rows=[]; let best=null;
-  for(let m=1;m<=36;m++){
-    const h=hrs/12*m;
-    const RfEnd=rate*h/1000;                             // เริ่มรอบที่ Rf = 0
-    const Uend=1/(1/Uc+RfEnd);
-    const x=Uc*RfEnd;
-    const Uavg=x>1e-9?Uc*Math.log(1+x)/x:Uc;             // U เฉลี่ยตลอดรอบ (ค่าเฉลี่ยเชิงเวลา)
-    const lossAvg=(Uc-Uavg)/Uc*100;                      // % เฉลี่ยตลอดรอบ
-    const energyCost=lossAvg/10*pen*(h/hrs);
-    const total=(energyCost+totalClean)/(h/hrs);        // บาท/ปี เทียบเท่า
-    rows.push({m,h,RfEnd,Uend,lossAvg,energyCost,total});
-    if(best===null||total<best.total) best=rows[rows.length-1];
-  }
-  const nowLoss=(Uc-U)/Uc*100;
-  /* [แก้ไข 3 ต.ค. 2569 audit] U > U สะอาด → ไม่มีต้นทุนส่วนเกิน (เดิมแสดงเป็นค่าลบ) */
-  const nowCost=Math.max(0,nowLoss/10*pen);
-  /* [แก้ไข 3 ต.ค. 2569 audit] ผลประหยัดสุทธิเทียบ "รอบล้างปัจจุบัน" ที่กรอก (เดิมเทียบรอบ 36 เดือนซึ่งไม่ใช่ baseline จริง)
-     curM = 0 → ไม่ทราบ/ไม่เคยล้าง ใช้ 36 เดือนตามเดิม */
-  const curMin=V('curM');
-  const totalAt=m=>{ const h=hrs/12*m, RfEnd=rate*h/1000, x=Uc*RfEnd, Uavg=x>1e-9?Uc*Math.log(1+x)/x:Uc;
-    const lossAvg=(Uc-Uavg)/Uc*100; return (lossAvg/10*pen*(h/hrs)+totalClean)/(h/hrs); };
-  const curRef=curMin>0?curMin:36;
-  const curTotal=totalAt(curRef);
-  const netSave=best?curTotal-best.total:null;
-  $('vDays').textContent=best?best.m:'–';
-  $('vDaysb').textContent=best?`เดือน · ประหยัดสุทธิ ${money(Math.max(0,netSave))} บาท/ปี เทียบรอบ${curMin>0?'ปัจจุบัน '+fmt(curRef,0):' 36'} เดือน`:'';
-  $('econOut').innerHTML=`
-   <div class="grid4" style="margin-top:12px">
-     <div class="stat"><div class="big s${nowLoss>20?2:(nowLoss>10?1:0)}">${fmt(nowLoss,1)}</div><div class="bigu">U ที่ตกไปแล้ว · %</div></div>
-     <div class="stat"><div class="big">${money(nowCost)}</div><div class="bigu">ต้นทุนพลังงานส่วนเกิน · บาท/ปี</div></div>
-     <div class="stat"><div class="big">${money(totalClean)}</div><div class="bigu">ต้นทุนล้าง 1 ครั้ง รวมหยุดเครื่อง</div></div>
-     <div class="stat"><div class="big s0">${best?best.m:'–'}</div><div class="bigu">รอบล้างที่คุ้มที่สุด · เดือน</div></div>
-   </div>
-   <!-- [แก้ไข 3 ต.ค. 2569 audit] -->
-   ${nowLoss<0?`<div class="note warn"><b>⚠ U ที่วัดได้สูงกว่า U สะอาดที่ตั้งไว้ (${fmt(-nowLoss,1)} %)</b> — ไม่มีต้นทุนส่วนเกินจาก fouling
-     ตรวจค่า U สะอาดอ้างอิง (อาจต่ำเกินจริง) หรืออัตราการไหลที่สูงกว่าออกแบบก่อนใช้ผลเศรษฐศาสตร์</div>`:''}
-   <div class="kv" style="margin-top:8px"><span>ต้นทุนรวมที่รอบล้าง${curMin>0?'ปัจจุบัน':' 36 เดือน (ไม่ได้กรอกรอบปัจจุบัน)'} ${fmt(curRef,0)} เดือน</span><b>${money(curTotal)} บาท/ปี</b></div>
-   <div class="kv"><span>ต้นทุนรวมที่รอบคุ้มที่สุด ${best?best.m:'–'} เดือน</span><b>${best?money(best.total):'–'} บาท/ปี</b></div>
-   <div class="kv"><span>ผลประหยัดสุทธิเมื่อเปลี่ยนมาใช้รอบที่คุ้มที่สุด</span><b>${netSave===null?'–':money(Math.max(0,netSave))} บาท/ปี</b></div>
-   <div class="tbl-wrap" style="margin-top:12px"><table>
-     <tr><th class="n">รอบล้าง (เดือน)</th><th class="n">R<sub>f</sub> ปลายรอบ</th><th class="n">U ปลายรอบ</th>
-         <th class="n">U ที่ตกเฉลี่ย %</th><th class="n">ต้นทุนรวม บาท/ปี</th></tr>
-     ${rows.filter(r=>[2,3,4,6,9,12,18,24,36].includes(r.m)).map(r=>
-       `<tr${best&&Math.abs(r.m-best.m)<=1?' class="hl"':''}>
-        <td class="n">${r.m}</td><td class="n">${r.RfEnd.toExponential(2)}</td>
-        <td class="n">${fmt(r.Uend,0)}</td><td class="n">${fmt(r.lossAvg,1)}</td>
-        <td class="n">${money(r.total)}</td></tr>`).join('')}
-   </table></div>
-   <div class="note">
-     <b>วิธีคิด</b> — ต้นทุนรวมคือผลบวกของ (1) ค่าพลังงานส่วนเกินจาก U ที่ตกลงเรื่อย ๆ ตลอดรอบ
-     และ (2) ค่าล้างเฉลี่ยต่อปี รอบที่สั้นเกินไปเสียค่าล้างบ่อย รอบที่ยาวเกินไปเสียค่าพลังงาน
-     จุดต่ำสุดคือรอบที่ควรตั้ง<br>
-     <b>สมมติฐาน</b> — ทุกรอบเริ่มจากสภาพสะอาด (R<sub>f</sub> = 0 หลังล้าง) แล้ว R<sub>f</sub> โตเชิงเส้นตามอัตราที่กรอก
-     U เฉลี่ยตลอดรอบคิดจากการอินทิเกรต U(t) = 1/(1/U<sub>c</sub> + R<sub>f</sub>(t))
-     ค่า R<sub>f</sub> ปัจจุบันที่วัดได้ใช้เฉพาะช่อง “U ที่ตกไปแล้ว” และต้นทุนส่วนเกินตอนนี้ ไม่ใช่จุดเริ่มของรอบ<br>
-     <b>ตัวเลขที่ควรใส่ให้ตรงที่สุดคือ “ผลกระทบต่อพลังงานต่อทุก 10 % ที่ U ตก”</b>
-     — สำหรับ condenser ของ chiller ให้ประเมินจาก kW/RT ที่แย่ลงเมื่อ condensing temperature สูงขึ้น
-     สำหรับ economizer ให้ประเมินจากอุณหภูมิไอเสียที่สูงขึ้นและประสิทธิภาพหม้อไอน้ำที่ลดลง
-   </div>`;
-  S.best=best; S.nowLoss=nowLoss; S.totalClean=totalClean; S.nowCost=nowCost; S.netSave=netSave; S.curRef=curRef; /* [แก้ไข 3 ต.ค. 2569 audit] */
-}
-
-function dx(){
-  const {closure,pct,U,Uc,type,T1,T2,t1,t2,F}=S;
-  const out=[];
-  const add=(l,t,d)=>out.push({l,t,d});
-  if(closure!==null&&closure>10)
-    add(2,'ข้อมูลไม่สมดุล — สงสัยเครื่องมือวัดก่อน',
-      `สมดุลพลังงานสองฝั่งต่างกัน ${fmt(closure,1)} % ค่า U ที่คำนวณได้จึงเชื่อไม่ได้
-       สอบเทียบ flow meter (ตัวที่พบผิดบ่อยที่สุด) และ sensor อุณหภูมิก่อนสรุปว่าสกปรก`);
-  if(pct!==null&&pct<85)
-    add(2,'ตะกรันและคราบบนผิวแลกเปลี่ยน',
-      `สมรรถนะเหลือ ${fmt(pct,0)} % ของสะอาด — ในน้ำหล่อเย็นสาเหตุหลักคือตะกรันแคลเซียม
-       ตะกอนแขวนลอย และ biofilm ตรวจ cycle of concentration และค่าการนำไฟฟ้าประกอบ
-       ถ้าเป็นวงจรน้ำมันหรือ process ให้ดู coking และ polymer deposit`);
-  if(pct!==null&&pct>105)
-    add(1,'U สูงกว่าค่าสะอาดที่ตั้งไว้',
-      `เป็นไปได้สองทาง: ค่า U สะอาดที่ใส่ต่ำเกินจริง หรืออัตราการไหลตอนนี้สูงกว่าตอนออกแบบ
-       (U เพิ่มตาม h ∝ v<sup>0.8</sup>) ตรวจอัตราการไหลเทียบ design ก่อน`);
-  add(1,'อัตราการไหลต่ำกว่าออกแบบ',
-    `U ลดลงตาม h ∝ v<sup>0.8</sup> โดยที่อุปกรณ์ยังสะอาด — flow ที่ 70 % ของ design
-     ทำให้ U ตกไปประมาณ 15–20 % เอง ต้องแยกผลนี้ออกจาก fouling ก่อนเสมอ
-     ถ้า flow เปลี่ยน ให้แก้ค่า U สะอาดอ้างอิงตามสัดส่วนนี้ด้วย`);
-  add(1,'อากาศหรือก๊าซที่ไม่ควบแน่นค้างในระบบ',
-    `พบบ่อยใน condenser และวงจรปิดที่ air vent อุดตัน ก๊าซที่ค้างเกาะผิวท่อและเป็นฉนวนที่ดีมาก
-     ทำให้ U ตกฮวบโดยไม่มีตะกรันเลย — ไล่อากาศแล้ววัดซ้ำ ถ้า U กลับมาก็จบเรื่อง`);
-  add(1,'การไหลลัดวงจรและการกระจายไม่ทั่ว',
-    `ใน PHE คือ gasket รั่วภายในทำให้สองฝั่งผสมกัน (ตรวจจากสมดุลที่ไม่ปิดและอุณหภูมิที่แปลก)
-     ใน Shell&Tube คือ baffle เสียหายหรือ bypass ระหว่าง bundle กับ shell`);
-  if(type==='st12'&&F!==null&&F<0.8)
-    add(2,'ตัวประกอบแก้ F ต่ำ',
-      `F = ${fmt(F,3)} ที่ค่านี้ผลลัพธ์ไวต่อความคลาดเคลื่อนของอุณหภูมิมาก
-       และอาจเกิด temperature cross ที่รูปแบบ 1-2 pass รองรับไม่ได้ — ตรวจว่าอุณหภูมิที่วัดถูกต้อง`);
-  if(T2<t1||T1<t2)
-    add(2,'อุณหภูมิไขว้ผิดปกติ',
-      `ฝั่งร้อนออกเย็นกว่าฝั่งเย็นเข้า หรือฝั่งเย็นออกร้อนกว่าฝั่งร้อนเข้า
-       — เป็นไปไม่ได้ในอุปกรณ์แลกเปลี่ยนความร้อนทุกชนิด (ผิดกฎข้อ 2) ตรวจว่าสลับ sensor หรือสลับฝั่งเข้า-ออก
-       (ส่วนกรณีฝั่งเย็นออกร้อนกว่าฝั่งร้อนออก = temperature cross ทำได้เฉพาะ counterflow/PHE)`); /* [แก้ไข 3 ต.ค. 2569 audit] แก้ข้อความ */
-  add(0,'ตรวจก่อนล้าง: ต่อท่อผิดทิศหรือไม่',
-    `การต่อเป็น parallel flow แทน counterflow ทำให้สมรรถนะตกทันที 20–40 % โดยไม่มีอะไรสกปรกเลย
-     พบบ่อยหลังงานซ่อมหรือย้ายท่อ ตรวจง่ายมากแต่มักถูกมองข้าม — ล้างไปก็ไม่ดีขึ้น`);
-  const ic=['fa-circle-check','fa-triangle-exclamation','fa-circle-exclamation'];
-  const bg=['var(--ok)','var(--warn)','var(--danger)'];
-  $('dxOut').innerHTML=out.map(o=>
-    `<div class="zone"><div class="zi" style="background:${bg[o.l]}"><i class="fas ${ic[o.l]}"></i></div>
-     <div class="zt"><b>${o.t}</b><span>${o.d}</span></div></div>`).join('');
-}
-
-function report(){
-  const S2=S;
-  $('repOut').innerHTML=`<pre class="mono" id="repTxt" style="white-space:pre-wrap;font-size:.78rem;
-   background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto">${
-`ผลวิเคราะห์การเสื่อมสภาพของอุปกรณ์แลกเปลี่ยนความร้อน
-
-ชนิด / รูปแบบการไหล   ${$('hxType').selectedOptions[0].text}
-พื้นที่ผิว A          ${fmt(S2.A,1)} m²
-
-อุณหภูมิ
-  ฝั่งร้อน  เข้า/ออก   ${fmt(S2.T1,1)} / ${fmt(S2.T2,1)} °C
-  ฝั่งเย็น  เข้า/ออก   ${fmt(S2.t1,1)} / ${fmt(S2.t2,1)} °C
-
-สมดุลพลังงาน
-  Q ฝั่งร้อน           ${fmt(S2.Qh,0)} kW
-  Q ฝั่งเย็น           ${fmt(S2.Qc,0)} kW
-  ส่วนต่าง             ${fmt(S2.closure,1)} %
-
-ผลการคำนวณ
-  LMTD                ${fmt(S2.lmtd,2)} °C
-  ตัวประกอบแก้ F       ${S2.F===null?'–':fmt(S2.F,3)}
-  ΔT เฉลี่ยที่ใช้จริง    ${fmt(S2.dTm,2)} °C
-  U สะอาดอ้างอิง       ${fmt(S2.Uc,0)} W/m²·K
-  U ที่วัดได้           ${fmt(S2.U,0)} W/m²·K
-  สมรรถนะคงเหลือ       ${fmt(S2.pct,1)} %
-  Fouling factor Rf   ${S2.Rf===null?'–':S2.Rf.toExponential(3)} m²·K/W
-
-เศรษฐศาสตร์
-  U ที่ตกไปแล้ว        ${fmt(S2.nowLoss,1)} %
-  ต้นทุนล้างต่อครั้ง     ${money(S2.totalClean)} บาท (รวมหยุดเครื่อง)
-  รอบล้างที่คุ้มที่สุด    ${S2.best?S2.best.m+' เดือน':'–'}
-  ประหยัดสุทธิ          ${S2.netSave==null?'–':money(Math.max(0,S2.netSave))+' บาท/ปี เทียบรอบ '+fmt(S2.curRef,0)+' เดือน'}
-
-หมายเหตุ: ก่อนสรุปว่าสกปรก ต้องตัดสาเหตุอื่นออกก่อน — สมดุลพลังงานที่ไม่ปิด
-อัตราการไหลที่ต่ำกว่าออกแบบ ก๊าซที่ไม่ควบแน่นค้างในระบบ และการต่อท่อผิดทิศ
-ล้วนทำให้ U ที่วัดได้ตกโดยที่ผิวแลกเปลี่ยนยังสะอาดอยู่`}</pre>`;
-}
 
 /* ══ [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า + hint ══ */
 function recalcAll(){ try{calc();}catch(e){} try{tagFieldKinds();}catch(e){} }   // calc() เรียก econ/dx/report ครบอยู่แล้ว
 function teSaveJSON(){ TE_JSON.save('Tool_HX_Fouling_Diagnostic', null); }
 function teLoadJSON(file){ TE_JSON.load(file, recalcAll, null); }
-const TE_HINTS={
-  hxType:'ชนิด/รูปแบบการไหลกำหนด LMTD correction F · PHE และ counterflow F ≈ 1 · shell&tube 1-2 pass F 0.8–0.95 · ดูจาก datasheet/ผังท่อ',
-  area:'พื้นที่ผิวแลกเปลี่ยนความร้อน m² จาก datasheet/nameplate (PHE = พื้นที่ต่อแผ่น × จำนวนแผ่น)',
-  uClean:'ค่า U ออกแบบ/ตอนสะอาด W/m²·K จาก datasheet · น้ำ–น้ำ PHE 3,000–6,000 · shell&tube น้ำ–น้ำ 800–1,500 · น้ำมัน–น้ำ 200–500 · ถ้าไม่มี ใช้ค่าวัดหลังล้างครั้งล่าสุด',
-  Th1:'อุณหภูมิของไหลร้อนเข้า °C · thermometer/gauge สอบเทียบที่ท่อเข้า (วัดพร้อมกันทั้ง 4 จุด)',
-  Th2:'อุณหภูมิของไหลร้อนออก °C',
-  mh:'อัตราไหลฝั่งร้อน m³/h · ultrasonic flow meter/pump curve/DCS · โปรแกรมแปลงเป็น kg/s ด้วยความหนาแน่นด้านล่าง',
-  cph:'ความจุความร้อนจำเพาะฝั่งร้อน kJ/kg·K · น้ำ 4.18 · น้ำมันร้อน 2.0–2.5 · glycol 30 % ≈ 3.7',
-  Tc1:'อุณหภูมิของไหลเย็นเข้า °C (เช่น น้ำหล่อเย็นจากหอ 29–33)',
-  Tc2:'อุณหภูมิของไหลเย็นออก °C',
-  mc:'อัตราไหลฝั่งเย็น m³/h · flow meter/pump curve — ใช้ตรวจสมดุลพลังงาน Q_hot ≈ Q_cold (ต่างกัน < 5 %)',
-  cpc:'ความจุความร้อนจำเพาะฝั่งเย็น kJ/kg·K · น้ำ 4.18',
-  rh:'ความหนาแน่นฝั่งร้อน kg/m³ · น้ำ 60–90 °C ≈ 980–965 · น้ำมันร้อน 800–850',
-  rc:'ความหนาแน่นฝั่งเย็น kg/m³ · น้ำ 30 °C ≈ 996',
-  rfRate:'อัตราสะสมความต้านทานตะกรัน Rf m²·K/W ต่อ 1,000 ชม. · น้ำหอผึ่งบำบัดดี 0.5–1e-4 · น้ำดิบ/แม่น้ำ 2–5e-4 · จากประวัติ U ระหว่างรอบล้าง (TEMA)',
-  hrs:'ชั่วโมงเดินเครื่องต่อปี · 3 กะ ≈ 8,000 · 2 กะ ≈ 6,000',
-  cCost:'ค่าล้าง/ CIP ต่อครั้ง บาท (แรงงาน+เคมี+ปะเก็น) · PHE กลาง 20,000–60,000 · shell&tube 30,000–100,000',
-  penalty:'มูลค่าพลังงานที่เสียเพิ่ม บาท/ปี ต่อทุก 10 % ที่ U ตก — ประเมินจากไอน้ำ/ไฟฟ้าที่ต้องเพิ่มเพื่อชดเชย (เช่น chiller kW/RT สูงขึ้น หรือ steam เพิ่ม)',
-  dHrs:'เวลาหยุดเครื่องเพื่อล้างต่อครั้ง ชม. · PHE 8–16 · shell&tube 24–48',
-  dCost:'ต้นทุนการหยุดผลิต บาท/ชม. (ค่าเสียโอกาส/OT) · ใส่ 0 ถ้าล้างช่วงหยุดซ่อมประจำอยู่แล้ว'
-};
+
 function teInjectHints(){ Object.keys(TE_HINTS).forEach(id=>{ const e=$(id); if(!e) return; const n=e.nextElementSibling; if(n&&n.classList&&n.classList.contains('hint')) return; const d=document.createElement('div'); d.className='hint'; d.textContent=TE_HINTS[id]; e.insertAdjacentElement('afterend',d); }); }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
 var FK_DESIGN=['hxType', 'area', 'uClean', 'cph', 'cpc', 'rh', 'rc'], FK_MEAS=['Th1', 'Th2', 'mh', 'Tc1', 'Tc2', 'mc'], FK_SET=['rfRate', 'hrs', 'cCost', 'penalty', 'dHrs', 'dCost', 'curM'], FK_CALC=[];
