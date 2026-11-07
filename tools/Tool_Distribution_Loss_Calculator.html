@@ -4758,5 +4758,65 @@ if(window.TE_I18N)TE_I18N.set({
 ]);
 </script>
 <script>/* EN r1b — หัวกลุ่ม dropdown (optgroup) */ if(window.TE_I18N)TE_I18N.set({"ของเหลว/แก๊ส (ค่าคงที่)": "Liquids/gases (constant properties)", "แก๊ส/ไอน้ำ — คำนวณสด (IF97/ideal-gas)": "Gas/steam — live calc (IF97/ideal-gas)", "แก๊ส/ไอน้ำ — คำนวณสด (IF97 / ideal-gas)": "Gas/steam — live calc (IF97 / ideal-gas)", "ของเหลว/ทั่วไป": "Liquids/general", "ท่อส่งอากาศอัด (Compressed Air)": "Compressed air piping", "ท่อส่งไอน้ำ (Steam)": "Steam piping", "ดักท์ลม (HVAC Duct)": "HVAC duct", "ก๊าซ / ก๊าซอุตสาหกรรม": "Gases / industrial gases", "ก๊าซเชื้อเพลิง": "Fuel gases", "ไอน้ำ": "Steam", "ของเหลว": "Liquids", "สารทำความเย็น (Refrigerant)": "Refrigerants", "ของเหลว (ค่าคงที่)": "Liquids (constant properties)", "ของเหลว/ทั่วไป (Water & General)": "Liquids/general (water & general)"});</script>
+<!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
+<script src="../lib/te-scene.js?v=r6"></script>
+<script>
+/* ═════ [R6 7 พ.ย. 2569] Distribution Loss — ค่าร่วม + ป้ายผลค้าง (ชั้น UI ล้วน — ไม่แตะสูตร)
+   1) "ค่าไฟฟ้า" เดิมถาม 3 ช่อง → ค่าร่วมบนแถบหมวด แก้ทับเฉพาะโมดูลได้ (TE_PARAM)
+      "ชั่วโมงทำงานต่อปี" 11 ช่อง ค่าตั้งต้นต่างกันตามระบบโดยตั้งใจ (ชิลเลอร์ 3,000 · น้ำร้อน 8,000 …) → ไม่บังคับยุบ แต่มีปุ่ม "ใช้กับทุกโมดูล"
+      ราคาความร้อน/ความเย็นของแต่ละท่อไม่ยุบ เพราะต่างกันตามสารทำงานจริง
+   2) แก้ข้อมูลแล้วยังไม่กดคำนวณ → ผลเดิมจางลง + ป้าย "ผลยังไม่อัปเดต" จนกว่าจะกด 🔢 คำนวณ ═════ */
+(function(){
+function T(th,en){return (window.TE_I18N&&TE_I18N.lang==='en')?en:th;}
+function $(id){return document.getElementById(id);}
+var PFX=['chl','vnt','cv','ss','sh','cw','hw','ho','fg','pf','lk'];
+var css=document.createElement('style');css.className='te-uix';
+css.textContent='#dlShared{flex-basis:100%;display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;background:#eef6fc;border:1px solid #d7e4ee;border-left:3px solid #1e88e5;border-radius:10px;padding:8px 12px;margin-top:6px;font-size:.8rem;color:#223549}'+
+ '#dlShared label{display:flex;flex-direction:column;gap:3px;font-size:.76rem}#dlShared input{width:110px;padding:4px 6px;border:1px solid #c9d6e2;border-radius:6px;font:inherit}'+
+ '.dl-stale{position:relative;opacity:.45;transition:opacity .2s}.dl-stalemsg{display:block;margin:6px 0;font-size:.78rem;color:#8a5200;background:rgba(224,138,0,.12);border:1px solid #e0a040;border-radius:8px;padding:4px 10px}';
+document.head.appendChild(css);
+function bar(){
+ var cb=$('categoryBar');if(!cb||$('dlShared'))return false;
+ var d=document.createElement('div');d.id='dlShared';d.className='te-uix';
+ d.innerHTML='<span>🔗 <b>'+T('ค่าร่วมทุกโมดูล','Shared values for all modules')+'</b></span>'+
+  '<label>'+T('ชั่วโมงทำงานต่อปี (ชม./ปี)','Operating hours per year (h/yr)')+'<input type="number" step="any" id="dlHrs" placeholder="6000"></label>'+
+  '<button type="button" id="dlHrsAll" style="border:1px solid #12a4a4;background:#fff;color:#0B7373;border-radius:8px;padding:4px 10px;font:inherit;cursor:pointer">'+T('↧ ใช้กับทุกโมดูล','↧ Apply to all modules')+'</button>'+
+  '<label>'+T('ค่าไฟฟ้า (บาท/kWh)','Electricity price (THB/kWh)')+'<input type="number" step="any" id="dlElec" value="4.5"></label>'+
+  '<span style="color:#5b6b7b">'+T('ค่าไฟฟ้าส่งให้ทุกโมดูลอัตโนมัติ (แก้ทับรายโมดูลได้) · ชั่วโมงแต่ละระบบตั้งต้นต่างกัน — กดปุ่มถ้าต้องการใช้ค่าเดียวกันทั้งหมด','The electricity price feeds every module automatically (override per module) · hours default differently per system — press the button to use one value everywhere')+'</span>';
+ cb.appendChild(d);return true;
+}
+function link(){
+ if(!window.TE_PARAM)return;
+  var em=['pf_cost','lk_cost_elec','lk_cost_elec3'].filter(function(id){return $(id);}).map(function(id){return {id:id};});
+ TE_PARAM.use({
+  elec:{own:'dlElec',src:T('แถบค่าร่วม · ค่าไฟฟ้า','shared bar · electricity price'),mir:em}
+ },{badgeHost:'dlShared'});
+}
+/* ป้ายผลค้าง */
+function stale(p,on){var r=$(p+'_result');if(!r||!r.innerHTML.trim())return;
+ r.classList.toggle('dl-stale',!!on);
+ var m=$(p+'_stalemsg');
+ if(on&&!m){m=document.createElement('span');m.id=p+'_stalemsg';m.className='dl-stalemsg te-uix';m.textContent=T('⚠ แก้ข้อมูลแล้ว — ผลด้านล่างยังเป็นของค่าเดิม กด 🔢 คำนวณ เพื่ออัปเดต','⚠ Data changed — the result below is from the old values; press 🔢 Calculate to update');r.parentNode.insertBefore(m,r);}
+ if(!on&&m)m.remove();}
+function pfxOf(el){if(!el||!el.id||el.closest('.te-uix'))return null;var m=/^([a-z]+)_/.exec(el.id);return m&&PFX.indexOf(m[1])>=0?m[1]:null;}
+function mark(e){var p=pfxOf(e.target);if(p&&!window._teRecalc)stale(p,true);}
+document.addEventListener('input',mark);document.addEventListener('change',mark);
+function wrapCalc(){PFX.forEach(function(p){var n=p==='lk'?'lk_calc':'calc_'+p,f=window[n];if(typeof f!=='function'||f._r6)return;
+ var g=function(){var r=f.apply(this,arguments);try{stale(p,false);}catch(e){}return r;};g._r6=true;window[n]=g;});}
+/* ค่าร่วมเปลี่ยน → โมดูลที่ผลแสดงอยู่ขึ้นป้ายผลค้าง */
+function watchShared(){var e=$('dlElec');if(e)e.addEventListener('input',function(){['pf','lk'].forEach(function(p){stale(p,true);});});
+ var b=$('dlHrsAll');if(b)b.addEventListener('click',function(){var v=parseFloat(($('dlHrs')||{}).value);if(!(v>0)){alert(T('กรอกชั่วโมงทำงานต่อปีก่อน','Enter the operating hours per year first'));return;}
+  PFX.forEach(function(p){var f=$(p+'_hr');if(f){f.value=v;stale(p,true);}});});}
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+ 'ค่าร่วมทุกโมดูล':'Shared values for all modules','ชั่วโมงทำงานต่อปี (ชม./ปี)':'Operating hours per year (h/yr)','ค่าไฟฟ้า (บาท/kWh)':'Electricity price (THB/kWh)',
+ 'ค่าไฟฟ้าส่งให้ทุกโมดูลอัตโนมัติ (แก้ทับรายโมดูลได้) · ชั่วโมงแต่ละระบบตั้งต้นต่างกัน — กดปุ่มถ้าต้องการใช้ค่าเดียวกันทั้งหมด':'The electricity price feeds every module automatically (override per module) · hours default differently per system — press the button to use one value everywhere',
+ '↧ ใช้กับทุกโมดูล':'↧ Apply to all modules','กรอกชั่วโมงทำงานต่อปีก่อน':'Enter the operating hours per year first',
+ '⚠ แก้ข้อมูลแล้ว — ผลด้านล่างยังเป็นของค่าเดิม กด 🔢 คำนวณ เพื่ออัปเดต':'⚠ Data changed — the result below is from the old values; press 🔢 Calculate to update'
+},[[/แถบค่าร่วม · ค่าไฟฟ้า/,'shared bar · electricity price']]);
+function boot(){try{if(bar()){link();watchShared();}wrapCalc();}catch(e){if(window.console)console.warn('dl r6',e);}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,500);});else setTimeout(boot,500);
+})();
+
+</script>
 </body>
 </html>
