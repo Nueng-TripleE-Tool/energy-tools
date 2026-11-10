@@ -214,6 +214,7 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
   <div class="tab" data-t="3"><i class="fas fa-fire"></i> 3 · LHV ↔ HHV</div>
   <div class="tab" data-t="4"><i class="fas fa-right-left"></i> 4 · ปริมาณ ↔ พลังงาน</div>
   <div class="tab" data-t="5"><i class="fas fa-smog"></i> 5 · ไอเสีย &amp; O₂ Correction</div>
+  <div class="tab" data-t="6"><i class="fas fa-book"></i> 6 · คลังเชื้อเพลิง GCV/NCV</div><!-- [แก้ไข 11 พ.ย. 2569] -->
 </div>
 
 <!-- ═══ 1 ═══ -->
@@ -222,7 +223,7 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
     <h2>ข้อมูลเชื้อเพลิง</h2>
     <div class="sub">เลือกจากคลังเพื่อเติมค่าตั้งต้น แล้วแก้เป็นค่าของล็อตจริงได้ทุกช่อง</div>
     <div class="grid3">
-      <div class="fld"><label class="f">เชื้อเพลิง</label><select id="fuel"></select><div class="hint">เลือกจากคลังเพื่อเติมค่าตั้งต้น (LHV as-received, ρ, η) — เลือก "กำหนดเอง" เมื่อมีผลวิเคราะห์ของล็อตจริง</div><div class="hint" id="fuelSrc" style="color:#0B7373"></div><!-- [แก้ไข 10 พ.ย. 2569] ที่มาของค่าจากคลังกลาง TE.FUEL --></div>
+      <div class="fld"><label class="f">เชื้อเพลิง</label><select id="fuel"></select><div class="hint">เลือกจากคลังเพื่อเติมค่าตั้งต้น (LHV as-received, ρ, η) — เลือก "กำหนดเอง" เมื่อมีผลวิเคราะห์ของล็อตจริง</div><div class="hint" id="fuelSrc" style="color:#0B7373"></div><div id="fuelInfo"></div><!-- [แก้ไข 10 พ.ย. 2569] ที่มาของค่าจากคลังกลาง TE.FUEL --></div>
       <div class="fld"><label class="f">ค่าความร้อน</label><input type="number" id="hv" value="16.5" step="0.01"><div class="hint">ค่าความร้อนต่ำ (LHV, as-received) ของล็อตที่ซื้อจริง · ที่มา: ใบรับรองผลวิเคราะห์ (COA) / ห้องแล็บ · ค่าทั่วไป: ไม้สับชื้น 40 % 10–12, PKS 16–17, บิทูมินัส 24–27 MJ/kg, NG 35–38 MJ/Nm³</div></div>
       <div class="fld"><label class="f">หน่วยค่าความร้อน</label>
         <select id="hvU">
@@ -395,6 +396,15 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
       <div class="fld"><label class="f">ความชื้นในไอเสีย <span class="unit">% โดยปริมาตร</span></label><input type="number" id="wH2O" value="12" step="0.1" min="0" max="60"><div class="hint">ไอน้ำในไอเสีย % ปริมาตร · ก๊าซธรรมชาติ 15–19 % · น้ำมันเตา 9–12 % · ถ่านหิน 6–9 % · ชีวมวลชื้น 15–25 % · วัดด้วย CEMS H₂O หรือคำนวณจาก H และ M ของเชื้อเพลิง</div></div>
     </div>
     <div id="wetOut"></div>
+  </div>
+</section>
+
+<!-- ═══ 6 ═══ [แก้ไข 11 พ.ย. 2569] คลังเชื้อเพลิงกลาง: GCV/NCV ทุกฐาน ทุกหน่วย -->
+<section class="panel" data-p="6">
+  <div class="card">
+    <h2>คลังเชื้อเพลิงกลาง — ค่าความร้อน GCV / NCV</h2>
+    <div class="hint">ก๊าซ: ต่อ kg · Nm³ · scf — ของเหลว: ต่อ kg · L — ของแข็ง: ต่อ kg ฐานที่ได้รับ และฐานแห้ง (M 0 %) · เลือกหน่วยพลังงานได้ · แตะชื่อเชื้อเพลิงเพื่อดูที่มาของค่า</div>
+    <div id="fuLib"></div>
   </div>
 </section>
 
@@ -811,6 +821,7 @@ function init(){
   loadFuel('pks');
 
   $('fuel').addEventListener('change',e=>{ loadFuel(e.target.value); calc(); });
+  try{ if(window.TE_FUELINFO) TE_FUELINFO.library($('fuLib')); }catch(e){} /* [แก้ไข 11 พ.ย. 2569] แท็บ 6 */
   document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
     document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
     document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
@@ -842,7 +853,7 @@ function init(){
 document.addEventListener('te-lang',function(){const fs=$('fuelSrc'),k=$('fuel')&&$('fuel').value,f=FUELS[k];if(!fs||!f||!f.src)return;setTimeout(function(){const en=(window.TE_I18N&&(typeof TE_I18N.lang==='function'?TE_I18N.lang():TE_I18N.lang))==='en';fs.textContent=(en?'Source: ':'ที่มา: ')+f.src;},60);});
 function loadFuel(k){
   const f=FUELS[k];
-  if(!f||k==='custom'){ const fs=$('fuelSrc'); if(fs) fs.textContent=''; return; }
+  if(!f||k==='custom'){ const fs=$('fuelSrc'); if(fs) fs.textContent=''; const fi=$('fuelInfo'); if(fi) fi.innerHTML=''; return; }
   if(f.hvVol!==undefined){ $('hv').value=f.hvVol; $('hvU').value='MJ/Nm3'; }
   else { $('hv').value=f.hv; $('hvU').value='MJ/kg'; }
   $('rho').value=f.rho||0; $('rhoU').value=f.rhoU||'kg/L';
@@ -852,6 +863,8 @@ function loadFuel(k){
     const el=$(id); if(el&&(el.value===''||el.dataset.auto==='1')){ el.value=v; el.dataset.auto='1'; } }); }
   /* [แก้ไข 10 พ.ย. 2569] แสดงที่มาของค่า (คลังกลาง TE.FUEL ปรับความชื้น) */
   const fs=$('fuelSrc'); if(fs){ const en=(window.TE_I18N&&(typeof TE_I18N.lang==='function'?TE_I18N.lang():TE_I18N.lang))==='en'; fs.textContent=f.src?((en?'Source: ':'ที่มา: ')+f.src):''; }
+  /* [แก้ไข 11 พ.ย. 2569] ตาราง GCV/NCV หลายฐาน หลายหน่วยของเชื้อเพลิงจากคลังกลาง */
+  try{ if(window.TE_FUELINFO) TE_FUELINFO.render($('fuelInfo'), f.fid?TE.FUEL.byId(f.fid):null); }catch(e){}
 }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
 var FK_DESIGN=[], FK_MEAS=['cMeas', 'o2m', 'gVal', 'wVal', 'wH2O', 'hv', 'rho', 'hH', 'hM', 'hA'], FK_SET=['fuel', 'hvU', 'rhoU', 'sref', 'price', 'priceU', 'mmbtuBasis', 'mmbtuHL', 'eff', 'hDir', 'hBasis', 'qty', 'qtyU', 'qtyH', 'o2r', 'gas', 'gU', 'wBase'], FK_CALC=['hIn'];
@@ -1202,7 +1215,7 @@ if(window.TE_I18N)TE_I18N.set({
 ]);
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
-<script src="../lib/te-scene.js?v=r8"></script>
+<script src="../lib/te-scene.js?v=r11"></script>
 <script>
 /* ═════ [G3–G4 · 7 พ.ย. 2569] วิธีกรอกทีละขั้น — Pro ที่เหลือ + Free (ชั้น UI ล้วน ใช้ TE_GUIDE ใน te-scene.js · หาตารางจากหัวคอลัมน์) ═════ */
 (function(){
@@ -1277,5 +1290,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>/* ═════ EN r3 (6 พ.ย. 2569) — ข้อความแจ้งเตือน/รายงาน ═════ */ if(window.TE_I18N)TE_I18N.set({},[
 [/^ไฟล์ JSON ไม่ถูกต้อง:(.*)$/,"Invalid JSON file:$1"]
 ]);</script>
+<script>/* [แก้ไข 11 พ.ย. 2569] EN แท็บคลังเชื้อเพลิง */if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"6 · คลังเชื้อเพลิง GCV/NCV": "6 · Fuel library GCV/NCV", "คลังเชื้อเพลิงกลาง — ค่าความร้อน GCV / NCV": "Central fuel library — calorific value GCV / NCV", "ก๊าซ: ต่อ kg · Nm³ · scf — ของเหลว: ต่อ kg · L — ของแข็ง: ต่อ kg ฐานที่ได้รับ และฐานแห้ง (M 0 %) · เลือกหน่วยพลังงานได้ · แตะชื่อเชื้อเพลิงเพื่อดูที่มาของค่า": "Gas: per kg · Nm³ · scf — liquid: per kg · L — solid: per kg as received and dry basis (M 0 %) · pick the energy unit · tap a fuel name to see where its values come from"});</script>
 </body>
 </html>
