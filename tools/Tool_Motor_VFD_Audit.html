@@ -2255,8 +2255,17 @@ function teBuildECM(){
       mvOption:'B',keyParams:['kW','hours','speed'],group:'estimate',
       basis:'P_shaft = '+P+'×'+LF+'% = '+Ps.toFixed(0)+' kW · P_in,DC = P_shaft/(η_m×η_drive) = '+Pdc.toFixed(1)+' kW · P_in,AC = '+Pac.toFixed(1)+' kW · ΔP×'+hrs+' h = '+dE.toFixed(0)+' kWh/ปี · ฿ รวมผลต่างค่าบำรุงรักษา'});
   })();
+  /* [แก้ไข 10 พ.ย. 2569] VFD + เปลี่ยนมอเตอร์ของมอเตอร์ตัวเดียวกัน → ผูก pool รายมอเตอร์ (scope:'equipment')
+     ECM Portfolio โหมดห่วงโซ่: VFD (ลดภาระ) ก่อน แล้ว % ของมอเตอร์ใหม่ = 1 − η_เดิม/η_ใหม่ คิดบนพลังงานที่เหลือ — กันนับซ้ำ
+     ค่าคิดเดี่ยว (primary) คงเดิม · ฐาน pool = กำลังไฟฟ้าเข้าที่วัดในแท็บ VFD × ชั่วโมง (มี) หรือพลังงานมอเตอร์เดิมจากแท็บ Rewinding */
+  const pools=[]; const mv=ms.find(m=>m.id==='motor-vfd'), mh=ms.find(m=>m.id==='motor-hem');
+  if(mv&&mh){ const eo=g('rw_eff_old'), en=g('rw_eff_new'); const B=mv.baselineQty>0?mv.baselineQty:mh.baselineQty;
+    if(B>0&&eo>0&&en>eo){ const pn='motor:'+(eqName||'M1');
+      pools.push({carrier:'electricity',name:pn,scope:'equipment',baselineQty:r2(B),factor:1,factorUnit:'kWh/kWh',drawFrom:'electricity',note:eqName||''});
+      mv.effect='demand'; mv.pool=pn; mh.effect='conversion'; mh.pool=pn; mh.savingPct=r2((1-eo/en)*100);
+      mh.basis+=' · ผูก pool เดียวกับ VFD: โหมดห่วงโซ่คิด '+mh.savingPct+' % บนพลังงานที่เหลือหลังติด VFD'; } }
   const site=sv('a_plant')||'';
-  return {measures:ms,pools:[],site:site};
+  return {measures:ms,pools:pools,site:site};
 }
 window.teBuildECM=teBuildECM; // [แก้ไข 3 ต.ค. 2569]
 function teExportECM(){var r=teBuildECM();TE_ECM_IO.save('Tool_Motor_VFD_Audit',r.site,r.measures,r.pools);} // [แก้ไข 3 ต.ค. 2569]

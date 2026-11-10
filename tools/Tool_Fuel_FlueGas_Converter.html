@@ -222,7 +222,7 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
     <h2>ข้อมูลเชื้อเพลิง</h2>
     <div class="sub">เลือกจากคลังเพื่อเติมค่าตั้งต้น แล้วแก้เป็นค่าของล็อตจริงได้ทุกช่อง</div>
     <div class="grid3">
-      <div class="fld"><label class="f">เชื้อเพลิง</label><select id="fuel"></select><div class="hint">เลือกจากคลังเพื่อเติมค่าตั้งต้น (LHV as-received, ρ, η) — เลือก "กำหนดเอง" เมื่อมีผลวิเคราะห์ของล็อตจริง</div></div>
+      <div class="fld"><label class="f">เชื้อเพลิง</label><select id="fuel"></select><div class="hint">เลือกจากคลังเพื่อเติมค่าตั้งต้น (LHV as-received, ρ, η) — เลือก "กำหนดเอง" เมื่อมีผลวิเคราะห์ของล็อตจริง</div><div class="hint" id="fuelSrc" style="color:#0B7373"></div><!-- [แก้ไข 10 พ.ย. 2569] ที่มาของค่าจากคลังกลาง TE.FUEL --></div>
       <div class="fld"><label class="f">ค่าความร้อน</label><input type="number" id="hv" value="16.5" step="0.01"><div class="hint">ค่าความร้อนต่ำ (LHV, as-received) ของล็อตที่ซื้อจริง · ที่มา: ใบรับรองผลวิเคราะห์ (COA) / ห้องแล็บ · ค่าทั่วไป: ไม้สับชื้น 40 % 10–12, PKS 16–17, บิทูมินัส 24–27 MJ/kg, NG 35–38 MJ/Nm³</div></div>
       <div class="fld"><label class="f">หน่วยค่าความร้อน</label>
         <select id="hvU">
@@ -838,9 +838,11 @@ function init(){
   $('demoRow').click();
   calc();
 }
+/* [แก้ไข 10 พ.ย. 2569] สลับภาษาแล้วคำนำ "ที่มา" ตามภาษา */
+document.addEventListener('te-lang',function(){const fs=$('fuelSrc'),k=$('fuel')&&$('fuel').value,f=FUELS[k];if(!fs||!f||!f.src)return;setTimeout(function(){const en=(window.TE_I18N&&(typeof TE_I18N.lang==='function'?TE_I18N.lang():TE_I18N.lang))==='en';fs.textContent=(en?'Source: ':'ที่มา: ')+f.src;},60);});
 function loadFuel(k){
   const f=FUELS[k];
-  if(!f||k==='custom') return;
+  if(!f||k==='custom'){ const fs=$('fuelSrc'); if(fs) fs.textContent=''; return; }
   if(f.hvVol!==undefined){ $('hv').value=f.hvVol; $('hvU').value='MJ/Nm3'; }
   else { $('hv').value=f.hv; $('hvU').value='MJ/kg'; }
   $('rho').value=f.rho||0; $('rhoU').value=f.rhoU||'kg/L';
@@ -848,6 +850,8 @@ function loadFuel(k){
   /* [แก้ไข 10 ก.ย. 2569] เติม H/M/A ในแท็บ 3 จากคลังเชื้อเพลิง เฉพาะช่องที่ว่างหรือยังไม่ถูกแก้เอง (data-auto) */
   if(f.ult){ [['hH',f.ult.H],['hM',f.ult.M],['hA',f.ult.A]].forEach(([id,v])=>{
     const el=$(id); if(el&&(el.value===''||el.dataset.auto==='1')){ el.value=v; el.dataset.auto='1'; } }); }
+  /* [แก้ไข 10 พ.ย. 2569] แสดงที่มาของค่า (คลังกลาง TE.FUEL ปรับความชื้น) */
+  const fs=$('fuelSrc'); if(fs){ const en=(window.TE_I18N&&(typeof TE_I18N.lang==='function'?TE_I18N.lang():TE_I18N.lang))==='en'; fs.textContent=f.src?((en?'Source: ':'ที่มา: ')+f.src):''; }
 }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
 var FK_DESIGN=[], FK_MEAS=['cMeas', 'o2m', 'gVal', 'wVal', 'wH2O', 'hv', 'rho', 'hH', 'hM', 'hA'], FK_SET=['fuel', 'hvU', 'rhoU', 'sref', 'price', 'priceU', 'mmbtuBasis', 'mmbtuHL', 'eff', 'hDir', 'hBasis', 'qty', 'qtyU', 'qtyH', 'o2r', 'gas', 'gU', 'wBase'], FK_CALC=['hIn'];
