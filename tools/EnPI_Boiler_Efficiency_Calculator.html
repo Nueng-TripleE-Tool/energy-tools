@@ -353,6 +353,10 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                 <label><span class="marker-badge c-gas mk-sm">C</span> ปริมาณ $CO$ <span class="unit-label">ppm</span></label>
                 <input type="number" id="co_ppm" value="250"><div class="hint">CO ในไอเสีย (ppm) จาก analyzer — เผาไหม้ดี < 200 ppm; > 400 ppm บ่งชี้เผาไหม้ไม่สมบูรณ์/อากาศไม่พอ</div>
                 
+                <!-- [แก้ไข 10 พ.ย. 2569] CO₂ วัดได้ (ไม่บังคับ) — ตรวจ O₂–CO₂ เทียบสมดุลมวล ไม่เข้าสูตรมาตรฐาน -->
+                <label><span class="marker-badge c-gas mk-sm">C</span> ปริมาณ $CO_2$ ที่วัดได้ (ไม่บังคับ) <span class="unit-label">% Vol แห้ง</span></label>
+                <input type="number" id="co2_meas" value="" step="0.1" min="0" max="25" placeholder="ไม่บังคับ"><div class="hint">CO₂ จาก analyzer ที่จุดเดียวกับ O₂ — ใช้ตรวจความสอดคล้อง O₂–CO₂ กับสมดุลมวล (ต่าง ≤ 0.5 จุด = สอดคล้อง) ไม่กระทบผลประสิทธิภาพ</div>
+
                 <label><span class="marker-badge c-loss mk-sm">E</span> คาร์บอนในเถ้า/กาก (ASME) <span class="unit-label">% C</span></label>
                 <input type="number" id="c_refuse" value="" step="0.1" min="0" max="95" placeholder="ไม่กรอก = 0"><div class="hint">[แก้ไข 5 ต.ค. 2569 MAJOR v2.0] % คาร์บอนที่ไม่เผาไหม้ในเถ้าหนัก/เถ้าลอย จากผลแล็ป LOI — ถ่านหินตะกรับ 5–25 %, ชีวมวล 3–15 % · ใช้กับ ASME (ต้องมีเถ้าในเชื้อเพลิง) ค่าความร้อนคาร์บอน 33,727 kJ/kg ตาม ASME PTC 4 · ความชื้นอากาศของ ASME ใช้ RH จากช่อง Tramp air</div>
 
@@ -460,6 +464,14 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                 </thead>
                 <tbody id="tableBody"></tbody>
             </table>
+        </div>
+
+        <!-- [แก้ไข 10 พ.ย. 2569] ตรวจ CO₂ เทียบสมดุลมวล (ระดับ Free) · ตารางเส้นอ้างอิงเต็มอยู่ใน Pro TH-BLR-01 -->
+        <div class="card" id="refQcCard" style="border-left:4px solid #3a4f72;">
+            <span class="card-header" style="color:#3a4f72;"><i class="fas fa-vial"></i>&nbsp;ตรวจ CO₂ เทียบสมดุลมวล (CO₂ QC)</span>
+            <div id="refQc" style="font-size:0.9rem;"></div>
+            <p style="font-size:0.82rem; color:#5b6b7b; margin:6px 0 0;">เส้นอ้างอิงสมดุลมวล-พลังงาน (คอลัมน์ที่ 4 · Δ ของแต่ละมาตรฐาน · แยกรายการ) เป็นความสามารถรุ่น <b>Pro</b>
+            &nbsp;<a href="../app/th-blr-01-boiler-efficiency.html" style="color:#145a32; font-weight:bold;" data-te-feature="calc.refbal">ดูรุ่น Pro →</a></p>
         </div>
 
         <div class="card" style="border-left:4px solid #b7950b; background:#fffdf7;">
@@ -978,6 +990,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
         document.getElementById('results').style.display = 'block';
         window.teBoilerWarn([], boilerWarns); // [แก้ไข 3 ต.ค. 2569 audit]
+        /* [แก้ไข 10 พ.ย. 2569] CO₂ QC — สมดุลมวลจาก te-core TE_REFBAL (สูตรเดียวกับรุ่น Pro) เทียบ CO₂ ตาม BS 845 และค่าวัดได้ */
+        try{ window.teRefQc && window.teRefQc(mix, Tg, Ta, O2, CO_ppm, LossRad, CO2_act); }catch(e){ console.warn('refQc', e); }
 
         // --- Render MathJax Steps (Formula Layout Version) ---
         let m_N2_fuel_disp = (n_N2 * 28.01);
@@ -1350,11 +1364,33 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
     /* applyPredictedFuel: ย้ายไปรุ่น Pro */
 
+    /* [แก้ไข 10 พ.ย. 2569] CO₂ QC (Free) — ไม่ใช่มาตรฐาน · ไม่แก้ค่าให้เอง */
+    window.teRefQc = function(mix, Tg, Ta, O2, CO_ppm, LossRad, CO2bs){
+        const host = document.getElementById('refQc'); if(!host) return;
+        if(!(window.TE && TE.REFBAL)){ host.innerHTML = '<span style="color:#5b6b7b">te-core รุ่นนี้ยังไม่มีเส้นอ้างอิง</span>'; return; }
+        const num = id => parseFloat((document.getElementById(id)||{}).value);
+        const r = TE.REFBAL.boiler({c:mix.c,h:mix.h,o:mix.o,n:mix.n,s:mix.s,ash:mix.ash||0,m:mix.m,hhv:mix.hhv},
+            {Tg:Tg, Ta:Ta, O2:O2, CO_ppm:CO_ppm, Lrad:LossRad, RH:num('fan_rh')>0?num('fan_rh'):0, cRefuse:num('c_refuse')>0?num('c_refuse'):0, CO2m:num('co2_meas')});
+        if(!r.valid){ host.innerHTML = '<span style="color:#5b6b7b">'+r.reason+'</span>'; return; }
+        const col = {ok:'#1e8449', warn:'#9a5b00', fail:'#c0392b'}, txt = {ok:'สอดคล้อง', warn:'ควรตรวจ', fail:'ไม่สอดคล้อง'};
+        const st = d => { const a = Math.abs(d); return a <= TE.REFBAL.QC_OK ? 'ok' : a <= TE.REFBAL.QC_WARN ? 'warn' : 'fail'; };
+        const f2 = v => (isFinite(v) ? v.toFixed(2) : '–'), sg = v => { const r = Math.round(v*100)/100; return (r >= 0 ? '+' : '') + (r === 0 ? '0.00' : r.toFixed(2)); };
+        const c0 = r.detail.CO2dry, dB = CO2bs - c0, q = r.qc.CO2;
+        let h = '<table class="res-table"><tr><th style="text-align:left">แหล่งค่า CO₂ (% แห้ง)</th><th>CO₂</th><th>Δ จากสมดุลมวล</th><th>ผล</th></tr>'+
+            '<tr><td style="text-align:left">สมดุลมวล (ผลวิเคราะห์ธาตุ + O₂ + CO ที่วัด)</td><td><b>'+f2(c0)+'</b></td><td>–</td><td>ค่าอ้างอิง</td></tr>'+
+            '<tr><td style="text-align:left">BS 845-1: CO₂max·(20.9−O₂)/20.9</td><td>'+f2(CO2bs)+'</td><td>'+sg(dB)+'</td><td style="color:'+col[st(dB)]+';font-weight:bold">'+txt[st(dB)]+'</td></tr>'+
+            (q.status !== 'none' ? '<tr><td style="text-align:left">ค่าวัดได้ (analyzer)</td><td>'+f2(q.meas)+'</td><td>'+sg(q.d)+'</td><td style="color:'+col[q.status]+';font-weight:bold">'+txt[q.status]+'</td></tr>'
+              : '<tr><td colspan="4" style="text-align:left;color:#5b6b7b">กรอก “CO₂ ที่วัดได้” เพื่อตรวจเครื่องวัด/อากาศรั่วเข้าจุดเก็บตัวอย่าง</td></tr>')+'</table>'+
+            '<div class="hint">เกณฑ์ |Δ| ≤ 0.5 จุด สอดคล้อง · ≤ 1.0 ควรตรวจ · เกินนั้นไม่สอดคล้อง — CO₂ วัดได้ต่ำกว่าสมดุลมวลมาก มักเกิดจากอากาศรั่วเข้าท่อเก็บตัวอย่าง เครื่องวัดคลาดเคลื่อน หรือผลวิเคราะห์ธาตุไม่ตรงเชื้อเพลิงจริง · อากาศส่วนเกินจากสมดุลมวล '+r.detail.EA.toFixed(1)+' %</div>';
+        if(q.status === 'fail') h += '<div style="background:#fdecec;border:1px solid #f5a0a0;border-radius:8px;padding:6px 10px;color:#b42318;margin-top:6px">⚠ CO₂ ที่วัดได้ไม่สอดคล้องกับ O₂ และองค์ประกอบเชื้อเพลิง — ตรวจก่อนใช้ผล (ระบบไม่แก้ค่าให้เอง)</div>';
+        host.innerHTML = h;
+    };
+
     // ===================== JSON Save / Load (Input Data) =====================
     const JSON_NUM_FIELDS = ['ta','tg','o2','co_ppm','rad_loss','fuel_flow',
         'steam_flow','steam_press','steam_temp','cp_sup','feed_temp','h_steam',
         'oil_q_kcal','oil_flow','oil_cp','oil_tin','oil_tout',
-        'fan_vol','fan_rh','c_refuse',
+        'fan_vol','fan_rh','c_refuse','co2_meas', /* [แก้ไข 10 พ.ย. 2569] */
         'te_ecm_hours','te_ecm_price','te_ecm_o2t','te_ecm_tgt']; // [แก้ไข 3 ต.ค. 2569 audit] เดิมไม่บันทึกช่อง ECM 4 ช่อง → โหลดกลับแล้วมาตรการ/ค่าเงินหาย
     const CUST_JSON_FIELDS = ['c','h','o','n','s','ash','w'];
 
@@ -1528,7 +1564,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     };
 
     /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-    var FK_DESIGN=[], FK_MEAS=['ta','tg','o2','co_ppm','fuel_flow','steam_flow','steam_press','steam_temp','feed_temp','oil_q_kcal','oil_flow','oil_tin','oil_tout','fan_vol','fan_rh','c_refuse'], FK_SET=['rad_loss','oil_cp','save_note'], FK_CALC=['h_steam','h_water','cp_sup'];
+    var FK_DESIGN=[], FK_MEAS=['ta','tg','o2','co_ppm','fuel_flow','steam_flow','steam_press','steam_temp','feed_temp','oil_q_kcal','oil_flow','oil_tin','oil_tout','fan_vol','fan_rh','c_refuse','co2_meas'], FK_SET=['rad_loss','oil_cp','save_note'], FK_CALC=['h_steam','h_water','cp_sup'];
     var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
     function fieldKind(id){if(/^(c|h|o|n|s|ash|w)_cust_\d$/.test(id)||/^madj_cur_\d$/.test(id))return'meas';if(/^(hhv|lhv)_cust_\d$/.test(id)||/^madj_(ref|res)_\d$/.test(id))return'calc';if(/^p_\d+$/.test(id)||/^f_\d+$/.test(id))return'set';
       if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
