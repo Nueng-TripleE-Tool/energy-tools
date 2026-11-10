@@ -887,13 +887,22 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
         if(runJIS) {
             if(mix.c > 0) {
-                A0_jis = (1/100) * (8.89 * (C_f*100) + 26.7 * ((H_f*100) - (O_f*100)/8) + 3.3 * (S_f*100));
-                G0_jis = (1/100) * (8.89 * (C_f*100) + 21.1 * ((H_f*100) - (O_f*100)/8) + 3.3 * (S_f*100) + 0.8 * (N_f*100));
-                Gw_jis = (1/100) * (1.24 * (9 * (H_f*100) + (M_f*100)));
-                m_jis = O2_AIR / (O2_AIR - O2); // [แก้ไข 10 ก.ย. 2569] เดิมใช้ 21 → ใช้ O2_AIR (20.9) ให้ตรงกับ ASME/BS
+                /* [แก้ไข 11 พ.ย. 2569 · อ้างอิง JIS B 8222] สูตรเดียวกับเครื่องยนต์กลาง (te-core lossJIS): m เต็มรูป N₂/(N₂ − 3.76(O₂ − 0.5CO))
+                   แทนสูตรลัด · ไอน้ำจากความชื้นอากาศ 1.61·z·m·A0 (z จาก RH ช่องเดียวกับ ASME · ว่าง = 70 %) · c1 = c − คาร์บอนในเถ้า · 1.244(9h+w) · 3.33S */
+                const _cr = parseFloat((document.getElementById('c_refuse')||{}).value), _ash = (mix.ash||0);
+                let _ubc = 0; if(_cr > 0 && _cr < 100 && _ash > 0) _ubc = Math.min(_ash * _cr / (100 - _cr), C_f*100);
+                const C1_jis = C_f*100 - _ubc;
+                A0_jis = (1/100) * (8.89 * C1_jis + 26.7 * ((H_f*100) - (O_f*100)/8) + 3.33 * (S_f*100));
+                G0_jis = (1/100) * (8.89 * C1_jis + 21.1 * ((H_f*100) - (O_f*100)/8) + 3.33 * (S_f*100) + 0.8 * (N_f*100));
+                Gw_jis = (1/100) * (1.244 * (9 * (H_f*100) + (M_f*100)));
+                { const k = O2 - 0.5 * (CO_ppm / 10000); m_jis = 21 / (21 - O2);
+                  for(let it = 0; it < 40; it++){ const Gd = G0_jis + (m_jis - 1) * A0_jis, n2 = 100 * (0.79 * m_jis * A0_jis + 0.008 * N_f*100) / Gd, mn = n2 / (n2 - 3.76 * k);
+                    if(!(mn > 0) || !isFinite(mn)) break; if(Math.abs(mn - m_jis) < 1e-10){ m_jis = mn; break; } m_jis = mn; } }
+                const _rh = parseFloat((document.getElementById('fan_rh')||{}).value);
+                const z_jis = (window.TE_PSY && TE_PSY.W_rh) ? TE_PSY.W_rh(Ta, (_rh > 0 ? _rh : 70) / 100, 101.325) : 0.013;
                 
                 let G_dry = G0_jis + (m_jis - 1) * A0_jis;
-                G_actual = G_dry + Gw_jis;
+                G_actual = G_dry + Gw_jis + 1.61 * z_jis * m_jis * A0_jis;
                 
                 L1_jis_kJ = G_actual * 1.38 * (Tg - Ta);
                 L3_jis_kJ = 126.1 * G_dry * (CO_ppm / 10000); 
