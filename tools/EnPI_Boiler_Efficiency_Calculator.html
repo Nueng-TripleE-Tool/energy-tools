@@ -659,6 +659,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         const tin = parseFloat(document.getElementById('oil_tin').value);
         const tout = parseFloat(document.getElementById('oil_tout').value);
         let q = 0;
+        if(!isNaN(tin) && !isNaN(tout) && tout <= tin) { el.innerText = '⚠ ขาออก ≤ ขาเข้า'; return 0; } // [แก้ไข 11 พ.ย. 2569 · U1]
         if(!isNaN(m) && !isNaN(cp) && !isNaN(tin) && !isNaN(tout) && (tout - tin) !== 0) {
             q = m * cp * (tout - tin);
             el.innerText = q.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -940,6 +941,11 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         [['ASME PTC 4 (GCV)', runASME ? asme_Eff : NaN], ['BS 845-1 (GCV)', runBS ? bs_Eff_G : NaN], ['BS 845-1 (NCV)', runBS ? bs_Eff_N : NaN], ['JIS (GCV)', runJIS ? jis_Eff_H : NaN], ['JIS (NCV)', runJIS ? jis_Eff_L : NaN], ['Direct (HHV)', dir_HHV > 0 ? dir_HHV : NaN], ['Direct (LHV)', dir_LHV > 0 ? dir_LHV : NaN]]
           .forEach(function(p){ if(isFinite(p[1]) && (p[1] > 100 || p[1] <= 0)) boilerWarns.push('η ' + p[0] + ' = ' + p[1].toFixed(1) + ' % — เป็นไปไม่ได้ทางฟิสิกส์ (ตรวจอัตราไอน้ำ/เชื้อเพลิง, ค่าความร้อน, O₂, หน่วย)'); });
         if(dir_HHV > 0 && runBS && Math.abs(dir_HHV - bs_Eff_G) > 10) boilerWarns.push('η Direct (' + dir_HHV.toFixed(1) + ' %) ต่างจาก Indirect BS 845 (' + bs_Eff_G.toFixed(1) + ' %) เกิน 10 จุด — ตรวจมิเตอร์ไอน้ำ/อัตราเชื้อเพลิง');
+        /* [แก้ไข 11 พ.ย. 2569] เกณฑ์ทวน 2 ระดับ (เหมือน Pro TH-BLR-01 v2.9): 5–10 จุด = เฝ้าระวัง · > 10 จุด = ตรวจการวัด (ข้อความเดิม) */
+        else if(dir_HHV > 0 && runBS && Math.abs(dir_HHV - bs_Eff_G) > 5) boilerWarns.push('η Direct (' + dir_HHV.toFixed(1) + ' %) ต่างจาก Indirect BS 845 (' + bs_Eff_G.toFixed(1) + ' %) 5–10 จุด — เฝ้าระวัง: ทวนอัตราเชื้อเพลิง มิเตอร์ไอน้ำ และค่าความร้อน');
+        /* [แก้ไข 11 พ.ย. 2569 · U1] หม้อต้มน้ำมันร้อน: ขาออก ≤ ขาเข้า → แจ้ง (เดิมคิดวิธีตรงไม่ได้เงียบ ๆ) */
+        if(isOilMode && !(parseFloat(document.getElementById('oil_q_kcal').value) > 0)) { const _ti = parseFloat(document.getElementById('oil_tin').value), _to = parseFloat(document.getElementById('oil_tout').value);
+            if(isFinite(_ti) && isFinite(_to) && _to <= _ti) boilerWarns.push('อุณหภูมิน้ำมันขาออก (' + _to + ' °C) ต้องสูงกว่าขาเข้า (' + _ti + ' °C) — ตรวจว่ากรอกสลับช่อง · ยังคิดวิธีตรงไม่ได้'); }
         // [แก้ไข 3 ต.ค. 2569] เก็บผลหลักไว้ให้ teBuildECM() ใช้ (ไม่เปลี่ยนการคำนวณเดิม)
         window.TE_BOILER_RES = { asme_Eff: asme_Eff, bs_Eff_G: bs_Eff_G, bs_Eff_N: bs_Eff_N, jis_Eff_H: jis_Eff_H, jis_Eff_L: jis_Eff_L,
             bs_L1: bs_L1, bs_L2: bs_L2, bs_L3: bs_L3, LossRad: LossRad, Tg: Tg, Ta: Ta, O2: O2, CO_ppm: CO_ppm, Water_Pct: Water_Pct,
@@ -1863,6 +1869,9 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)JIS\s+B\s+(-?\d[\d,]*\.?\d*)\s+คำนวณ\s+\\\(\\eta\\\)\s+บนฐาน\s+NCV\s+เป็นหลัก\s+ค่า\s+\\\(L_(-?\d[\d,]*\.?\d*)\\\)\s+นี้ใช้เพื่อแปลงผลกลับสู่ฐาน\s+GCV\s+เท่านั้น(\s*)$/,"$1JIS B $2 calculates \\(\\eta\\) mainly on an NCV basis; this \\(L_$3\\) value is used only to convert results back to a GCV basis$4"],
 [/^(\s*)ความร้อนจำเพาะน้ำมันร้อน\s+\(kCal\/kg·°C\)\s+จาก\s+datasheet\s+ผู้ผลิต\s+—\s+ทั่วไป\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+\(เพิ่มตามอุณหภูมิ\)(\s*)$/,"$1Hot oil specific heat (kCal/kg·°C) from the manufacturer datasheet — typically $2–$3 (rises with temperature)$4"],
 [/^(\s*)⚠\s+η\s+Direct\s+\((-?\d[\d,]*\.?\d*)\s+%\)\s+ต่างจาก\s+Indirect\s+BS\s+(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\s+%\)\s+เกิน\s+(-?\d[\d,]*\.?\d*)\s+จุด\s+—\s+ตรวจมิเตอร์ไอน้ำ\/อัตราเชื้อเพลิง(\s*)$/,"$1⚠ η Direct ($2 %) differs from Indirect BS $3 ($4 %) by more than $5 points — check steam meter/fuel rate$6"],
+[/^(\s*)⚠\s+η\s+Direct\s+\((-?\d[\d,]*\.?\d*)\s+%\)\s+ต่างจาก\s+Indirect\s+BS\s+845\s+\((-?\d[\d,]*\.?\d*)\s+%\)\s+5–10\s+จุด\s+—\s+เฝ้าระวัง:\s+ทวนอัตราเชื้อเพลิง\s+มิเตอร์ไอน้ำ\s+และค่าความร้อน(\s*)$/,"$1⚠ η Direct ($2 %) differs from Indirect BS 845 ($3 %) by 5–10 points — watch: re-check fuel rate, steam meter and heating value$4"],
+[/^(\s*)⚠\s+อุณหภูมิน้ำมันขาออก\s+\((-?\d[\d,]*\.?\d*)\s+°C\)\s+ต้องสูงกว่าขาเข้า\s+\((-?\d[\d,]*\.?\d*)\s+°C\)\s+—\s+ตรวจว่ากรอกสลับช่อง\s+·\s+ยังคิดวิธีตรงไม่ได้(\s*)$/,"$1⚠ Outlet oil temperature ($2 °C) must be higher than inlet ($3 °C) — check for swapped fields · direct method not computed$4"],
+[/^⚠ ขาออก ≤ ขาเข้า$/,"⚠ outlet ≤ inlet"],
 [/^(\s*)อุณหภูมิน้ำป้อนเข้าหม้อไอน้ำ\s+\(°C\)\s+หลัง\s+deaerator\/economizer\s+—\s+วัดที่ท่อป้อน\s+ทั่วไป\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+°C(\s*)$/,"$1Boiler feedwater temperature (°C) after deaerator/economizer — measured at the feed line, typically $2–$3 °C$4"],
 [/^(\s*)\*การแสดงผลสมการ\s+ASME\s+PTC\s+(-?\d[\d,]*\.?\d*)\-(-?\d[\d,]*\.?\d*)\s+\(Mass\s+\&\s+Enthalpy\s+Balance\)\s+จะทำงานสมบูรณ์ต่อเมื่อท่านเลือกใช้(\s*)$/,"$1*The ASME PTC $2-$3 equation display (Mass & Enthalpy Balance) works fully only when you select$4"],
 [/^(\s*)อัปเดตใหม่!\s+ใช้วิธี\s+Energy\s+Balance\s+สมบูรณ์\s+\(Mass\s+Flow\s+\&\s+Enthalpy\)\s+ตามมาตรฐานปี\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1New update! Uses the full Energy Balance method (Mass Flow & Enthalpy) per the $2 standard$3"],
