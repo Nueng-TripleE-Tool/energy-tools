@@ -792,6 +792,17 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         
         let bs_Eff_G = 100 - (bs_L1 + bs_L2 + bs_L3 + LossRad);
         let bs_Eff_N = mix.lhv > 0 ? bs_Eff_G * (mix.hhv / mix.lhv) : 0; 
+        /* [แก้ไข 11 พ.ย. 2569] BS 845-1 ตามตัวบท (ระดับ 1): X ความชื้นอากาศ §6.3.2 Note 1 (RH ช่องเดียวกับ ASME/JIS) + η_NCV ตาม eq.8/11/13/23
+           (เดิม η_NCV = η_GCV × GCV/NCV) — คำนวณผ่าน te-core ชุดเดียวกับการ์ด Pro */
+        let bs_LX = 0, bs_L2n = 0, bs_qc = null, bs_w = NaN, bs_a3 = NaN, bs_W = NaN;
+        if (window.TE && TE.COMB && TE.COMB.lossBS845) {
+            const _rhb = parseFloat((document.getElementById('fan_rh') || {}).value);
+            const _b = TE.COMB.lossBS845({c:mix.c,h:mix.h,o:mix.o,n:mix.n,s:mix.s,ash:mix.ash||0,m:mix.m,hhv:mix.hhv,lhv:mix.lhv,k:mix.k,co2:mix.co2,kco:mix.kco},
+                {Tg:Tg,Ta:Ta,O2:O2,CO_ppm:CO_ppm,Lrad:LossRad},{RH:(_rhb > 0 ? _rhb : undefined)});
+            bs_LX = _b.LX; bs_L2n = _b.net.L2; bs_qc = _b.qc; bs_w = _b.humid.w; bs_a3 = _b.humid.a3; bs_W = _b.humid.W;
+            bs_Eff_G = 100 - (bs_L1 + bs_L2 + bs_L3 + bs_LX + LossRad);
+            bs_Eff_N = mix.lhv > 0 ? _b.effLHV : 0;
+        }
 
         // == ASME PTC 4-2008 (Rigorous Mass & Enthalpy Balance) ==
         let asme_L1 = bs_L1, asme_L2 = bs_L2, asme_L3 = bs_L3, asme_Eff = bs_Eff_G;
@@ -1127,6 +1138,13 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             </div>
 
             <div class="calc-step-box">
+                <h4 class="step-title">Step 3b: Air Moisture (\\( X \\)) — BS 845-1 §6.3.2 Note 1 <!-- [แก้ไข 11 พ.ย. 2569] --></h4>
+                <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ X = \\frac{1.88\\, w\\, \\bar{W} (1 + a_3/100)(T_g - T_a)}{GCV} \\times 100 \\quad [\\%\\,GCV] \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Inputs:</div><div class="calc-content">\\[ w = ${isFinite(bs_w)?bs_w.toFixed(4):'-'}\\text{ kg/kg (RH, }T_a), \\; \\bar{W} = ${isFinite(bs_W)?bs_W.toFixed(3):'-'}\\text{ kg/kg}, \\; a_3 = ${isFinite(bs_a3)?bs_a3.toFixed(1):'-'}\\% \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ X = ${bs_LX.toFixed(2)}\\% \\quad \\text{(a}_3\\text{ from O}_2\\text{ balance; the printed 9.5 factor appears to be a misprint of 95)} \\]</div></div>
+            </div>
+
+            <div class="calc-step-box">
                 <h4 class="step-title">Step 4: Unburned CO Loss (\\( Q_{loss3} \\)) — BS 845-1</h4>
                 <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ Q_{loss3} = \\frac{K_{CO} \\times CO\\%}{CO_2\\% + CO\\%} \\quad [\\%\\,GCV] \\]</div></div>
                 <div class="calc-row"><div class="calc-label">CO fraction:</div><div class="calc-content">\\[ CO\\% = \\frac{${CO_ppm}\\text{ ppm}}{10{,}000} = ${(CO_frac*100).toFixed(4)}\\%, \\quad CO_2\\% = ${(CO2_frac*100).toFixed(2)}\\% \\]</div></div>
@@ -1136,15 +1154,15 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
             <div class="calc-step-box">
                 <h4 class="step-title">Step 5: Total Indirect Efficiency (\\( \\eta_{BS(GCV)} \\))</h4>
-                <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{BS(GCV)} = 100\\% - (Q_{loss1} + Q_{loss2} + Q_{loss3} + L_{rad}) \\]</div></div>
-                <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{BS(GCV)} = 100\\% - (${bs_L1.toFixed(2)}\\% + ${bs_L2.toFixed(2)}\\% + ${bs_L3.toFixed(2)}\\% + ${LossRad.toFixed(2)}\\%) \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{BS(GCV)} = 100\\% - (Q_{loss1} + Q_{loss2} + X + Q_{loss3} + L_{rad}) \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{BS(GCV)} = 100\\% - (${bs_L1.toFixed(2)}\\% + ${bs_L2.toFixed(2)}\\% + ${bs_LX.toFixed(2)}\\% + ${bs_L3.toFixed(2)}\\% + ${LossRad.toFixed(2)}\\%) \\]</div></div>
                 <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ \\eta_{BS(GCV)} = ${bs_Eff_G.toFixed(2)}\\% \\]</div></div>
             </div>
 
             <div class="calc-step-box">
                 <h4 class="step-title">Step 6: LHV-Based Indirect Efficiency (\\( \\eta_{BS(NCV)} \\))</h4>
-                <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{BS(NCV)} = \\eta_{BS(GCV)} \\times \\frac{GCV}{NCV} \\]</div></div>
-                <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{BS(NCV)} = ${bs_Eff_G.toFixed(2)}\\% \\times \\frac{${GCV.toFixed(2)}}{${NCV.toFixed(2)}} \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{BS(NCV)} = 100 - \\left[ (Q_{loss1} + Q_{loss3} + X + L_{rad}) \\frac{GCV}{NCV} + \\frac{(9H\\% + M\\%)(210 + 2.1T_g - 4.2T_a)}{NCV} \\right] \\quad \\text{(BS 845-1 eq.8, 11, 13, 23)} \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ Q_{loss2,net} = ${bs_L2n.toFixed(2)}\\%, \\; \\frac{GCV}{NCV} = \\frac{${GCV.toFixed(0)}}{${NCV.toFixed(0)}} \\; ${bs_qc&&isFinite(bs_qc.devPct)?'\\text{QC: }Q_c\\text{ two-basis diff }'+bs_qc.devPct.toFixed(2)+'\\%':''} \\]</div></div>
                 <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ \\eta_{BS(NCV)} = ${bs_Eff_N.toFixed(2)}\\% \\]</div></div>
             </div>
         `;
