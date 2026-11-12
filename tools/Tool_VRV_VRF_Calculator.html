@@ -23,6 +23,7 @@ function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
 })();</script>
 <script src="../lib/te-core.js"></script>
+<script src="../lib/te-psychart.js"></script><!-- [แก้ไข 12 พ.ย. 2569] แผนภูมิไซโครเมตริกครบทุกแกน (lib กลาง) -->
 <!-- [แก้ไข 3 ต.ค. 2569 audit] engine สารทำความเย็นกลาง TE_REFRIG (CoolProp fit) แทน Antoine/enthalpy จำลองเดิม (P ต่ำ 27–73 %, COP วัฏจักรต่ำ 26 %) -->
 <script>
 /* ════════════════════════════════════════════════════════════════════════
@@ -436,8 +437,8 @@ PLR = Q_actual / Q_rated</div>
       <div style="font-size:28px;margin-bottom:8px">🔬</div>
       <div style="font-weight:700;font-size:14px;margin-bottom:6px">3. Field Measurement</div>
       <div style="font-size:12px;color:var(--text2);line-height:1.5">คำนวณสมรรถนะจากค่าวัดภาคสนาม: กระแส/แรงดัน, อุณหภูมิจ่าย/กลับ, อัตราการไหลอากาศ</div>
-      <div class="formula-box" style="margin-top:8px;font-size:10px">Q_sens = ṁ_air × Cp × ΔT
-Q_lat  = ṁ_air × Δω × h_fg
+      <div class="formula-box" style="margin-top:8px;font-size:10px">Q_sens = ṁ × [h(T_RA,ω_SA) − h_SA]
+Q_lat  = ṁ × [h_RA − h(T_RA,ω_SA)]
 W_comp = √3 × V × I × PF</div>
     </div>
     <div class="mode-card" onclick="switchTabById('refrig')" style="border-top-color:var(--purple)">
@@ -811,22 +812,27 @@ Saving = ΔW × hrs × tariff</div>
         <div class="card-header"><div class="dot green"></div>ผลการวิเคราะห์ภาคสนาม</div>
         <div class="card-body" id="field_result_body"></div>
       </div>
+      <div class="card" id="field_psy"><!-- [แก้ไข 12 พ.ย. 2569] แผนภูมิไซโครเมตริกครบทุกแกน -->
+        <div class="card-header"><div class="dot"></div>แผนภูมิไซโครเมตริกครบทุกแกน — อากาศกลับ (RA) → ลมจ่าย (SA)</div>
+        <div class="card-body" id="field_psy_body"></div>
+      </div>
 
       <!-- Psychro reference -->
       <div class="card">
         <div class="card-header"><div class="dot"></div>📖 สูตรอ้างอิง Psychrometric</div>
         <div class="card-body">
-          <div class="formula-box">ω (Humidity Ratio) = 0.622 × Pv/(P_atm − Pv)
-Pv_sat(T°C) = exp(17.625×T/(243.04+T)) × 0.61094 kPa  [WB]
+          <div class="formula-box">P_ws(T) — ASHRAE Fundamentals Ch.1 (Hyland–Wexler) · TE_PSY  [kPa]
+W_s(T) = 0.621945 × P_ws / (P_atm − P_ws)
+ω = [(2501 − 2.326·WB)·W_s(WB) − 1.006·(DB − WB)] / (2501 + 1.86·DB − 4.186·WB)   [kg/kg_da]
 
-h_air = 1.006×T_db + ω×(2501 + 1.86×T_db)  [kJ/kg_dry]
-ρ_air ≈ P_atm/(287×(T_db+273.15))  [kg/m³]
-ṁ_air = ρ × Q_v  [kg/s]
+h = 1.006·T_db + ω·(2501 + 1.86·T_db)   [kJ/kg_da]
+v_da = 0.287042·(T + 273.15)·(1 + 1.607858·ω) / P_atm   [m³/kg_da]
+ṁ_da = Q_v / v_da   [kg/s]
 
-Q_sens = ṁ × Cp_air × (T_return_db − T_supply_db)
-Q_lat  = ṁ × (ω_return − ω_supply) × 2501
-Q_total= Q_sens + Q_lat  [kW]
-SHR    = Q_sens / Q_total</div>
+Q_sens = ṁ·[h(T_RA, ω_SA) − h_SA]   (x = (T, ω_SA) on the chart)
+Q_lat  = ṁ·[h_RA − h(T_RA, ω_SA)]
+Q_total = ṁ·(h_RA − h_SA) = Q_sens + Q_lat   [kW]
+SHR = Q_sens / Q_total</div>
         </div>
       </div>
 
@@ -1333,9 +1339,12 @@ function calcField() {
   const m_air = qv / TE_PSY.Vda(Tra_db, w_ra, patm); // kg_da/s
 
   // Loads
-  const q_sens = m_air * 1.006 * (Tra_db - Tsa_db); // kW
-  const q_lat  = m_air * (w_ra - w_sa) * 2501;       // kW
-  const q_total = m_air * (h_ra - h_sa);              // kW (= q_sens + q_lat approx)
+  /* [แก้ไข 12 พ.ย. 2569] แยกความร้อนสัมผัส/แฝงตาม ASHRAE ให้ตรงกับแผนภูมิไซโครเมตริก: Q_s = ṁ·[h(T_RA, ω_SA) − h_SA] · Q_l = ṁ·[h_RA − h(T_RA, ω_SA)]
+     → Q_s + Q_l = Q_total พอดี (เดิม ṁ·1.006·ΔT และ ṁ·Δω·2501 ทำให้ SHR ต่ำไป ~1–2 %) */
+  const h_x = 1.006*Tra_db + w_sa*(2501+1.86*Tra_db);
+  const q_sens = m_air * (h_x - h_sa);   // kW
+  const q_lat  = m_air * (h_ra - h_x);   // kW
+  const q_total = m_air * (h_ra - h_sa); // kW = q_sens + q_lat
 
   const shr = q_sens / q_total;
   const cop_field = q_total / w_kw;
@@ -1364,8 +1373,8 @@ function calcField() {
     <div class="result-grid">
       <div class="result-item"><div class="r-label">W_input (kW)</div><div class="r-value">${fmtN(w_kw,2)}</div><div class="r-unit">${phase===3?'√3×V×I×PF':'V×I×PF'} ÷ 1000</div></div>
       <div class="result-item warm"><div class="r-label">Q_total (kW)</div><div class="r-value warm">${fmtN(q_total,2)}</div><div class="r-unit">${fmtN(q_kW_ton,2)} RT (Tons of Refrig.)</div></div>
-      <div class="result-item"><div class="r-label">Q_sensible (kW)</div><div class="r-value">${fmtN(q_sens,2)}</div><div class="r-unit">ṁ × Cp × ΔT</div></div>
-      <div class="result-item purple"><div class="r-label">Q_latent (kW)</div><div class="r-value purple">${fmtN(q_lat,2)}</div><div class="r-unit">ṁ × Δω × 2501</div></div>
+      <div class="result-item"><div class="r-label">Q_sensible (kW)</div><div class="r-value">${fmtN(q_sens,2)}</div><div class="r-unit">ṁ × (1.006 + 1.86ω_SA) × ΔT</div></div>
+      <div class="result-item purple"><div class="r-label">Q_latent (kW)</div><div class="r-value purple">${fmtN(q_lat,2)}</div><div class="r-unit">ṁ × Δω × (2501 + 1.86T_RA)</div></div>
       <div class="result-item ${copOK?'green':'red'}"><div class="r-label">COP_field</div><div class="r-value ${copOK?'green':'red'}">${fmtN(cop_field,3)}</div><div class="r-unit">${copOK?'✅ ≥ 2.5':'❌ < 2.5 ต่ำ'}</div></div>
       <div class="result-item ${shrOK?'gold':'warn'}"><div class="r-label">SHR</div><div class="r-value gold">${fmtN(shr,3)}</div><div class="r-unit">${shrOK?'✅ ปกติ':'⚠️ ตรวจสอบ'}</div></div>
     </div>
@@ -1393,12 +1402,12 @@ function calcField() {
      sub:`h_ra = 1.006×${Tra_db} + ${fmtN(w_ra,5)}×(2501+1.86×${Tra_db}) = ${fmtN(h_ra,2)}\nh_sa = 1.006×${Tsa_db} + ${fmtN(w_sa,5)}×(2501+1.86×${Tsa_db}) = ${fmtN(h_sa,2)}`,
      result:`Δh = ${fmtN(h_ra-h_sa,3)} kJ/kg`,note:''},
     {num:4,col:'warm',title:'อัตราการไหลมวลอากาศ ṁ_air',
-     formula:'ρ = P_atm×1000 / (287.058×(T+273.15))\nṁ = ρ × Q_v  [kg/s]',
-     sub:`ρ = ${patm*1000}/(287.058×${Tra_db+273.15}) = ${fmtN(rho_ra,4)} kg/m³\nQ_v = ${fmtN(cmh,0)} m³/hr ÷ 3600 = ${fmtN(qv,4)} m³/s\nṁ = ${fmtN(rho_ra,4)} × ${fmtN(qv,4)}`,
+     formula:'v_da = 0.287042×(T+273.15)×(1+1.607858ω)/P_atm  [m³/kg_da · TE_PSY]\nṁ_da = Q_v / v_da  [kg/s]',
+     sub:`v_da = ${fmtN(TE_PSY.Vda(Tra_db,w_ra,patm),4)} m³/kg_da\nQ_v = ${fmtN(cmh,0)} m³/hr ÷ 3600 = ${fmtN(qv,4)} m³/s\nṁ = ${fmtN(qv,4)} ÷ ${fmtN(TE_PSY.Vda(Tra_db,w_ra,patm),4)}`,
      result:`ṁ_air = ${fmtN(m_air,4)} kg/s`,note:`= ${fmtN(cfm,0)} CFM = ${fmtN(cmh,0)} m³/hr`},
     {num:5,col:'green',title:'Q_sens, Q_lat, Q_total',
-     formula:'Q_sens = ṁ × Cp_air × ΔT_db\nQ_lat  = ṁ × Δω × 2501\nQ_total= ṁ × Δh',
-     sub:`Q_sens = ${fmtN(m_air,4)}×1.006×${Tra_db-Tsa_db} = ${fmtN(q_sens,3)}\nQ_lat  = ${fmtN(m_air,4)}×${fmtN((w_ra-w_sa)*1000,2)/1000}×2501 = ${fmtN(q_lat,3)}\nQ_total= ${fmtN(m_air,4)}×${fmtN(h_ra-h_sa,3)} = ${fmtN(q_total,3)}`,
+     formula:'Q_sens = ṁ × [h(T_RA, ω_SA) − h_SA]\nQ_lat  = ṁ × [h_RA − h(T_RA, ω_SA)]\nQ_total= ṁ × Δh = Q_sens + Q_lat   [ASHRAE · x = (T_RA, ω_SA)]',
+     sub:`h(T_RA, ω_SA) = ${fmtN(h_x,3)} kJ/kg\nQ_sens = ${fmtN(m_air,4)}×(${fmtN(h_x,3)}−${fmtN(h_sa,3)}) = ${fmtN(q_sens,3)}\nQ_lat  = ${fmtN(m_air,4)}×(${fmtN(h_ra,3)}−${fmtN(h_x,3)}) = ${fmtN(q_lat,3)}\nQ_total= ${fmtN(m_air,4)}×${fmtN(h_ra-h_sa,3)} = ${fmtN(q_total,3)}`,
      result:`Q_total = ${fmtN(q_total,3)} kW | SHR = ${fmtN(shr,4)}`,note:''},
     {num:6,col:'purple',title:'COP ภาคสนาม',
      formula:'COP_field = Q_total / W_input',
@@ -1950,6 +1959,27 @@ if(window.TE_I18N)TE_I18N.set({
 ]);
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
+<script>/* [แก้ไข 12 พ.ย. 2569] EN — แผนภูมิครบทุกแกน */ if(window.TE_I18N)TE_I18N.set({"แผนภูมิไซโครเมตริกครบทุกแกน — อากาศกลับ (RA) → ลมจ่าย (SA)":"Full-scale psychrometric chart — return air (RA) → supply air (SA)"});</script>
+<script>/* [แก้ไข 12 พ.ย. 2569] แผนภูมิไซโครเมตริกครบทุกแกน (TE_PSYCHART) — อากาศกลับ (RA) → ลมจ่าย (SA) จากค่าที่วัด
+   จุด x = (DB_RA, W_SA) แสดงการแยกความร้อนสัมผัส/แฝง: SHR = (h_x − h_SA)/(h_RA − h_SA) ตรงกับตัวเลข SHR ของเครื่องมือ */
+(function(){
+  var P=null;
+  function g(id){ var e=document.getElementById(id); return e?parseFloat(e.value):NaN; }
+  function st(db,wb,p){ return TE_PSY.state(db,TE_PSY.W_wb(db,Math.min(wb,db),p),p); }
+  function run(){
+    var el=document.getElementById('field_psy_body'); if(!el||!window.TE_PSYCHART||!window.TE_PSY) return;
+    if(!P) P=TE_PSYCHART.panel(el,{id:'psyF',file:'VRV_RA-SA',note:['ชี้เมาส์บนแผนภูมิเพื่ออ่านค่า · เส้นแดง = กระบวนการคอยล์ RA → SA · จุด x = (DB ของ RA, W ของ SA): h_RA − h_x = ความร้อนแฝง · h_x − h_SA = ความร้อนสัมผัส · บันทึก PNG/SVG ไปใช้ในรายงานได้','Hover to read values · red line = coil process RA → SA · point x = (DB of RA, W of SA): h_RA − h_x = latent, h_x − h_SA = sensible · save PNG/SVG for reports']});
+    var p=g('f_patm'); if(!(p>50&&p<120)) p=101.325;
+    var a=[g('f_tra_db'),g('f_tra_wb'),g('f_tsa_db'),g('f_tsa_wb')]; if(a.some(function(v){return !isFinite(v);})) return;
+    var ra=st(a[0],a[1],p), sa=st(a[2],a[3],p), x=TE_PSY.state(ra.t,sa.W,p);
+    P.update({p:p,points:[{t:ra.t,W:ra.W,label:'RA'},{t:sa.t,W:sa.W,label:'SA',color:'#1d4ed8'},{t:x.t,W:x.W,label:'x',color:'#64748b',r:3.5}],
+      lines:[{a:ra,b:sa,arrow:true},{a:sa,b:x,color:'#64748b',width:1.3,dash:'4 3'},{a:x,b:ra,color:'#64748b',width:1.3,dash:'4 3'}],
+      guides:[{s:ra},{s:sa,color:'#1d4ed8'}]});
+  }
+  var f=window.calcField; if(typeof f==='function') window.calcField=function(){ var r=f.apply(this,arguments); try{ run(); }catch(e){} return r; };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(run,60); }); else setTimeout(run,60);
+})();
+</script>
 <script src="../lib/te-scene.js?v=r8"></script>
 <script>
 /* [R4 7 พ.ย. 2569] ⓘ รายช่อง Split AC + VRV/VRF — รอตรวจตามตารางทวน */

@@ -23,6 +23,7 @@ function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
 })();</script>
 <script src="../lib/te-core.js"></script>
+<script src="../lib/te-psychart.js"></script><!-- [แก้ไข 12 พ.ย. 2569] แผนภูมิไซโครเมตริกครบทุกแกน (lib กลาง) -->
 <script>
 /* [ระยะ 4 10 ก.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม */
 var TE_JSON=(function(){
@@ -516,10 +517,10 @@ canvas{width:100%;display:block;}
         <table class="tbl"><tbody id="PSYCHRO_TBL"></tbody></table>
       </div>
     </div>
-    <div class="card">
-      <div class="ctitle">&#127754; Psychrometric Chart (Simplified)</div>
-      <div class="csub">แสดงสถานะอากาศ: ภายนอก → Return Air → Supply Air</div>
-      <div class="canvas-wrap psychro-bg"><canvas id="PSYCHRO_CANVAS" height="260"></canvas></div>
+    <div class="card"><!-- [แก้ไข 12 พ.ย. 2569] แทนแผนภูมิอย่างง่าย (canvas) ด้วยแผนภูมิครบทุกแกน (TE_PSYCHART) -->
+      <div class="ctitle">&#127754; แผนภูมิไซโครเมตริกครบทุกแกน</div>
+      <div class="csub">อากาศภายนอก (OA) + อากาศกลับ (RA) → อากาศผสม (M) → คอยล์ → ลมจ่าย (SA) → ห้อง (RA)</div>
+      <div id="PSYCHRO_FULL"></div>
     </div>
   </div>
 </div><!-- /P1 -->
@@ -1078,6 +1079,25 @@ if(window.TE_I18N)TE_I18N.set({
 ]);
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
+<script>/* [แก้ไข 12 พ.ย. 2569] แผนภูมิไซโครเมตริกครบทุกแกน (TE_PSYCHART) แทนแผนภูมิอย่างง่าย — ใช้สภาวะจากการคำนวณภาระ (window._lastLoad)
+   M = จุดผสมตามสัดส่วนอากาศภายนอก/ลมจ่าย (โดยปริมาตร ≈ โดยมวล) · OA ใช้ RH 60 % และ SA ใช้ RH 92 % ตามสมมติฐานเดิมของเครื่องมือ */
+(function(){
+  var P=null;
+  function run(){
+    var r=window._lastLoad, el=document.getElementById('PSYCHRO_FULL'); if(!r||!el||!window.TE_PSYCHART||!window.TE_PSY) return;
+    if(!P) P=TE_PSYCHART.panel(el,{id:'psyAC',file:'AirCon_Load_Psychro',note:['ชี้เมาส์บนแผนภูมิเพื่ออ่านค่า · เส้นประ OA–RA = เส้นผสม · M→SA = คอยล์เย็น · SA→RA = เส้นภาระห้อง (SHR) · อากาศภายนอกใช้ RH 60 % และลมจ่าย RH 92 % ตามสมมติฐานของการคำนวณภาระ','Hover to read values · dashed OA–RA = mixing line · M→SA = cooling coil · SA→RA = room load line (SHR) · outdoor air RH 60 % and supply RH 92 % as assumed by the load calculation']});
+    var p=101.325, S=function(t,W){ return TE_PSY.state(t,W,p); }, oa=S(r.tOut,r.W_out), ra=S(r.tRoom,r.W_room), sa=S(r.tSup,r.W_sup);
+    var pts=[{t:oa.t,W:oa.W,label:'OA',color:'#b45309'},{t:ra.t,W:ra.W,label:'RA'},{t:sa.t,W:sa.W,label:'SA',color:'#1d4ed8'}], lines=[{a:oa,b:ra,color:'#b45309',width:1.6,dash:'6 4'}];
+    var f=(r.m_sa>0&&r.fa>0)?Math.min(1,r.fa/r.m_sa):0;
+    if(f>0&&f<1){ var Wm=ra.W+f*(oa.W-ra.W), hm=ra.h+f*(oa.h-ra.h), m=S((hm-2501*Wm)/(1.006+1.86*Wm),Wm); pts.push({t:m.t,W:m.W,label:'M',color:'#7b3fa0',dx:4,dy:-12}); lines.push({a:m,b:sa,arrow:true}); }
+    else lines.push({a:ra,b:sa,arrow:true});
+    lines.push({a:sa,b:ra,color:'#0f766e',width:1.8,label:'SHR '+(r.SHR||0).toFixed(2)});
+    P.update({p:p,points:pts,lines:lines,guides:[{s:ra},{s:sa,color:'#1d4ed8'}]});
+  }
+  var c=window.calcCoolingLoad; if(typeof c==='function') window.calcCoolingLoad=function(){ var x=c.apply(this,arguments); setTimeout(function(){ try{ run(); }catch(e){} },150); return x; };
+})();
+</script>
+<script>/* [แก้ไข 12 พ.ย. 2569] EN — แผนภูมิครบทุกแกน */ if(window.TE_I18N)TE_I18N.set({"🌊 แผนภูมิไซโครเมตริกครบทุกแกน":"🌊 Full-scale psychrometric chart","แผนภูมิไซโครเมตริกครบทุกแกน":"Full-scale psychrometric chart","อากาศภายนอก (OA) + อากาศกลับ (RA) → อากาศผสม (M) → คอยล์ → ลมจ่าย (SA) → ห้อง (RA)":"Outdoor air (OA) + return air (RA) → mixed air (M) → coil → supply air (SA) → room (RA)"});</script>
 <script src="../lib/te-scene.js?v=r8"></script>
 <script>
 /* ═════ [G3–G4 · 7 พ.ย. 2569] วิธีกรอกทีละขั้น — Pro ที่เหลือ + Free (ชั้น UI ล้วน ใช้ TE_GUIDE ใน te-scene.js · หาตารางจากหัวคอลัมน์) ═════ */

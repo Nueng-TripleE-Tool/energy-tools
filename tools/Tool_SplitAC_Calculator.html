@@ -23,6 +23,7 @@ function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
 })();</script>
 <script src="../lib/te-core.js"></script>
+<script src="../lib/te-psychart.js"></script><!-- [แก้ไข 12 พ.ย. 2569] แผนภูมิไซโครเมตริกครบทุกแกน (lib กลาง) -->
 <!-- [แก้ไข 3 ต.ค. 2569 audit] engine สารทำความเย็นกลาง TE_REFRIG (CoolProp fit) แทน Antoine RSAT เดิมที่ให้ความดันผิด ×25–150 และ CR สูงเกิน 40–82 % -->
 <script>
 /* ════════════════════════════════════════════════════════════════════════
@@ -621,20 +622,24 @@ ROI = Cost_invest / Annual_save</div>
         <div class="card-header"><div class="dot green"></div>ผลการวิเคราะห์ภาคสนาม</div>
         <div class="card-body" id="field_result_body"></div>
       </div>
+      <div class="card" id="field_psy"><!-- [แก้ไข 12 พ.ย. 2569] แผนภูมิไซโครเมตริกครบทุกแกน -->
+        <div class="card-header"><div class="dot"></div>แผนภูมิไซโครเมตริกครบทุกแกน — อากาศกลับ (RA) → ลมจ่าย (SA)</div>
+        <div class="card-body" id="field_psy_body"></div>
+      </div>
       <div class="card">
         <div class="card-header"><div class="dot"></div>สูตร Psychrometric อ้างอิง</div>
         <div class="card-body">
-          <div class="formula-box">ω [kg/kg_dry] = 0.622 × Pv / (Patm − Pv)
-Pv(T_wb) = Pvs(Twb) − 0.000662 × Patm × (Tdb − Twb)
-Pvs(T)   = exp(17.625×T/(243.04+T)) × 0.61094  [kPa]
+          <div class="formula-box">P_ws(T) — ASHRAE Fundamentals Ch.1 (Hyland–Wexler) · TE_PSY  [kPa]
+W_s(T) = 0.621945 × P_ws / (P_atm − P_ws)
+ω [kg/kg_da] = [(2501 − 2.326·WB)·W_s(WB) − 1.006·(DB − WB)] / (2501 + 1.86·DB − 4.186·WB)
 
-h [kJ/kg] = 1.006×Tdb + ω×(2501 + 1.86×Tdb)
-ρ [kg/m³] = Patm×1000 / (287.058×(Tdb+273.15))
-ṁ [kg/s]  = ρ × Q_v
+h [kJ/kg_da] = 1.006×Tdb + ω×(2501 + 1.86×Tdb)
+v_da [m³/kg_da] = 0.287042×(Tdb + 273.15)×(1 + 1.607858ω) / Patm
+ṁ_da [kg/s] = Q_v / v_da
 
-Q_sens = ṁ × 1.006 × (T_ra − T_sa)   [kW]
-Q_lat  = ṁ × (ω_ra − ω_sa) × 2501    [kW]
-Q_total= ṁ × (h_ra − h_sa)           [kW]
+Q_sens = ṁ × [h(T_ra, ω_sa) − h_sa]   (x = (T, ω_SA) on the chart)
+Q_lat  = ṁ × [h_ra − h(T_ra, ω_sa)]
+Q_total= ṁ × (h_ra − h_sa) = Q_sens + Q_lat
 SHR    = Q_sens / Q_total
 EER_f  = Q_total×3412 / W_input(W)</div>
         </div>
@@ -1492,6 +1497,27 @@ if(window.TE_I18N)TE_I18N.set({
 ]);
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
+<script>/* [แก้ไข 12 พ.ย. 2569] EN — แผนภูมิครบทุกแกน */ if(window.TE_I18N)TE_I18N.set({"แผนภูมิไซโครเมตริกครบทุกแกน — อากาศกลับ (RA) → ลมจ่าย (SA)":"Full-scale psychrometric chart — return air (RA) → supply air (SA)"});</script>
+<script>/* [แก้ไข 12 พ.ย. 2569] แผนภูมิไซโครเมตริกครบทุกแกน (TE_PSYCHART) — อากาศกลับ (RA) → ลมจ่าย (SA) จากค่าที่วัด
+   จุด x = (DB_RA, W_SA) แสดงการแยกความร้อนสัมผัส/แฝง: SHR = (h_x − h_SA)/(h_RA − h_SA) ตรงกับตัวเลข SHR ของเครื่องมือ */
+(function(){
+  var P=null;
+  function g(id){ var e=document.getElementById(id); return e?parseFloat(e.value):NaN; }
+  function st(db,wb,p){ return TE_PSY.state(db,TE_PSY.W_wb(db,Math.min(wb,db),p),p); }
+  function run(){
+    var el=document.getElementById('field_psy_body'); if(!el||!window.TE_PSYCHART||!window.TE_PSY) return;
+    if(!P) P=TE_PSYCHART.panel(el,{id:'psyF',file:'SplitAC_RA-SA',note:['ชี้เมาส์บนแผนภูมิเพื่ออ่านค่า · เส้นแดง = กระบวนการคอยล์ RA → SA · จุด x = (DB ของ RA, W ของ SA): h_RA − h_x = ความร้อนแฝง · h_x − h_SA = ความร้อนสัมผัส · บันทึก PNG/SVG ไปใช้ในรายงานได้','Hover to read values · red line = coil process RA → SA · point x = (DB of RA, W of SA): h_RA − h_x = latent, h_x − h_SA = sensible · save PNG/SVG for reports']});
+    var p=g('f_patm'); if(!(p>50&&p<120)) p=101.325;
+    var a=[g('f_radb'),g('f_rawb'),g('f_sadb'),g('f_sawb')]; if(a.some(function(v){return !isFinite(v);})) return;
+    var ra=st(a[0],a[1],p), sa=st(a[2],a[3],p), x=TE_PSY.state(ra.t,sa.W,p);
+    P.update({p:p,points:[{t:ra.t,W:ra.W,label:'RA'},{t:sa.t,W:sa.W,label:'SA',color:'#1d4ed8'},{t:x.t,W:x.W,label:'x',color:'#64748b',r:3.5}],
+      lines:[{a:ra,b:sa,arrow:true},{a:sa,b:x,color:'#64748b',width:1.3,dash:'4 3'},{a:x,b:ra,color:'#64748b',width:1.3,dash:'4 3'}],
+      guides:[{s:ra},{s:sa,color:'#1d4ed8'}]});
+  }
+  var f=window.calcField; if(typeof f==='function') window.calcField=function(){ var r=f.apply(this,arguments); try{ run(); }catch(e){} return r; };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(run,60); }); else setTimeout(run,60);
+})();
+</script>
 <script src="../lib/te-scene.js?v=r8"></script>
 <script>
 /* [R4 7 พ.ย. 2569] ⓘ รายช่อง Split AC + VRV/VRF — รอตรวจตามตารางทวน */
