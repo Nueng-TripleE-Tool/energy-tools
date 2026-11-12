@@ -428,7 +428,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                     <input type="number" id="fan_vol" value="11500"><div class="hint">ปริมาตรลมจากพัดลม FD (m³/h) — anemometer/pitot × พื้นที่หน้าตัดท่อ หรือ fan curve ที่ damper/VSD จริง</div>
 
                     <label>ความชื้นสัมพัทธ์อากาศ ($RH$) <span class="unit-label">%</span></label>
-                    <input type="number" id="fan_rh" value="60" min="0" max="100"><div class="hint">ความชื้นสัมพัทธ์อากาศ (%) จาก hygrometer — ประเทศไทย 55–80 % · เว้นว่าง = ใช้ RH 70 % ที่ Ta (ค่าแทนภูมิอากาศไทย — มีผลเฉพาะคอลัมน์ ASME)</div>
+                    <input type="number" id="fan_rh" value="60" min="0" max="100"><div class="hint">ความชื้นสัมพัทธ์อากาศ (%) จาก hygrometer — ประเทศไทย 55–80 % · เว้นว่าง = ใช้ RH 70 % ที่ Ta (ค่าแทนภูมิอากาศไทย) — ใช้ทั้ง 3 วิธี: ASME (ความชื้นอากาศ) · BS 845 (เทอม X) · JIS (1.61·z·m·A₀)</div>
 
                     <p style="font-size:0.78rem; color:#8a6d3b; margin:8px 0 0;">
                         *อุณหภูมิอากาศใช้ค่า $T_a$ ด้านบน &nbsp;|&nbsp; ค่า C,H,O,S, อัตราเชื้อเพลิง, $T_g$, $O_2$, $CO$ ดึงจากด้านบนอัตโนมัติ
@@ -569,11 +569,13 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         updateMixCalc();
     };
 
-    let mix = { hhv:0, lhv:0, c:0, h:0, o:0, n:0, s:0, ash:0, m:0, k:0, co2:0, kco:0 };
+    let mix = { hhv:0, lhv:0, c:0, h:0, o:0, n:0, s:0, ash:0, m:0, k:0, co2:0, kco:0, jg:{dA0:0,dG0:0,dGw:0,dN2:0,pct:0}, ro:{A0:0,G0w:0,ok:true,warn:[]} };
 
     window.updateMixCalc = function() {
         let sumPct = 0;
         let w_hhv=0, w_lhv=0, w_c=0, w_h=0, w_o=0, w_n=0, w_s=0, w_m=0, w_k=0, w_co2=0, w_kco=0, w_ash=0; // [แก้ไข 5 ต.ค. 2569 MAJOR v2.0] + เถ้า
+        // [แก้ไข 12 พ.ย. 2569 · JIS B 8222] ก๊าซที่มีองค์ประกอบโมล: ค่าปรับ (สูตรปริมาตร − สูตรมวล) ต่อ kg · ค่าประมาณจากตารางค่าความร้อน (ตรวจทาน)
+        let w_dA0=0, w_dG0=0, w_dGw=0, w_dN2=0, w_gas=0, w_rA0=0, w_rG0=0, r_ok=true, r_warn=[];
         
         for(let i=1; i<=MAX_FUELS; i++) {
             let pctInp = document.getElementById(`p_${i}`);
@@ -602,6 +604,11 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                     w_co2 += parseFloat(f.co2) * weight;
                     let valKco = f.kco !== undefined ? f.kco : (3.4 * f.co2 - 0.064); 
                     w_kco += valKco * weight;
+                    try { const F = (f.id && window.TE && TE.FUEL) ? TE.FUEL.byId(f.id) : null;
+                      if(F && TE.COMB.jisTheo){ const tv = TE.COMB.jisTheo(F), tm = TE.COMB.jisTheo({c:F.c,h:F.h,o:F.o,n:F.n,s:F.s,m:F.m});
+                        if(tv.basis === 'vol'){ w_dA0 += (tv.A0 - tm.A0) * weight; w_dG0 += (tv.G0 - tm.G0) * weight; w_dGw += (tv.Gw - tm.Gw) * weight; w_dN2 += (tv.N2f - tm.N2f) * weight; w_gas += pct; }
+                        const re = TE.COMB.rosinEst(F); if(re){ w_rA0 += re.A0 * weight; w_rG0 += re.G0w * weight; const wt = TE.COMB.ROSIN_WARN[re.group]; if(wt && r_warn.indexOf(wt) < 0) r_warn.push(wt); } else r_ok = false; } else r_ok = false;
+                    } catch(e) { r_ok = false; }
                 }
             }
         }
@@ -626,6 +633,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             mix.k = w_k * factor;
             mix.co2 = w_co2 * factor;
             mix.kco = w_kco * factor;
+            mix.jg = {dA0:w_dA0*factor, dG0:w_dG0*factor, dGw:w_dGw*factor, dN2:w_dN2*factor, pct:w_gas*factor};
+            mix.ro = {A0:w_rA0*factor, G0w:w_rG0*factor, ok:r_ok, warn:r_warn};
         }
 
         document.getElementById('disp_hhv').innerText = mix.hhv.toFixed(2);
@@ -806,7 +815,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
         // == ASME PTC 4-2008 (Rigorous Mass & Enthalpy Balance) ==
         let asme_L1 = bs_L1, asme_L2 = bs_L2, asme_L3 = bs_L3, asme_Eff = bs_Eff_G;
-        let useAsmeRigorous = (mix.c > 0); 
+        let useAsmeRigorous = (mix.c > 0 || mix.h > 0);   // [แก้ไข 12 พ.ย. 2569] H₂ ล้วน (c = 0) คิด ASME ได้ 
         
         let M_th = 0; // ประกาศตัวแปรที่ใช้แสดงใน Step การคำนวณ
         let n_C=0, n_H2=0, n_S=0, n_O2=0, n_N2=0, n_H2O=0;
@@ -891,13 +900,13 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
         // == JIS B 8222 (Direct NCV Basis) ==
         let jis_L1=0, jis_L3=0, jis_Eff_L=0, jis_Eff_H=0;
-        let A0_jis=0, G0_jis=0, Gw_jis=0, m_jis=0, G_actual=0, L1_jis_kJ=0, L3_jis_kJ=0, L_latent_jis_kJ=0;
+        let A0_jis=0, G0_jis=0, Gw_jis=0, m_jis=0, G_actual=0, L1_jis_kJ=0, L3_jis_kJ=0, L_latent_jis_kJ=0, z_jis_o=0, A0_mass=0, G0_mass=0, Gw_mass=0;
         
         let jis_Q_loss1_GCV=0, jis_Q_loss2_GCV=0, jis_Q_loss3_GCV=0;
         let jis_Q_loss1_NCV=0, jis_Q_loss3_NCV=0;
 
         if(runJIS) {
-            if(mix.c > 0) {
+            if(mix.c > 0 || mix.h > 0) {   // [แก้ไข 12 พ.ย. 2569] H₂ ล้วน (c = 0) คิดตาม JIS ได้ ไม่ต้องตกไป BS 845
                 /* [แก้ไข 11 พ.ย. 2569 · อ้างอิง JIS B 8222] สูตรเดียวกับเครื่องยนต์กลาง (te-core lossJIS): m เต็มรูป N₂/(N₂ − 3.76(O₂ − 0.5CO))
                    แทนสูตรลัด · ไอน้ำจากความชื้นอากาศ 1.61·z·m·A0 (z จาก RH ช่องเดียวกับ ASME · ว่าง = 70 %) · c1 = c − คาร์บอนในเถ้า · 1.244(9h+w) · 3.33S */
                 const _cr = parseFloat((document.getElementById('c_refuse')||{}).value), _ash = (mix.ash||0);
@@ -906,11 +915,15 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                 A0_jis = (1/100) * (8.89 * C1_jis + 26.7 * ((H_f*100) - (O_f*100)/8) + 3.33 * (S_f*100));
                 G0_jis = (1/100) * (8.89 * C1_jis + 21.1 * ((H_f*100) - (O_f*100)/8) + 3.33 * (S_f*100) + 0.8 * (N_f*100));
                 Gw_jis = (1/100) * (1.244 * (9 * (H_f*100) + (M_f*100)));
+                // [แก้ไข 12 พ.ย. 2569] ส่วนที่เป็นก๊าซ (มีองค์ประกอบโมล) แทนด้วยสูตรปริมาตรของ JIS — ของแข็ง/ของเหลวใช้สูตรมวลเดิม
+                A0_mass = A0_jis; G0_mass = G0_jis; Gw_mass = Gw_jis;
+                const _jg = mix.jg || {dA0:0,dG0:0,dGw:0,dN2:0,pct:0};
+                A0_jis += _jg.dA0; G0_jis += _jg.dG0; Gw_jis += _jg.dGw;
                 { const k = O2 - 0.5 * (CO_ppm / 10000); m_jis = 21 / (21 - O2);
-                  for(let it = 0; it < 40; it++){ const Gd = G0_jis + (m_jis - 1) * A0_jis, n2 = 100 * (0.79 * m_jis * A0_jis + 0.008 * N_f*100) / Gd, mn = n2 / (n2 - 3.76 * k);
+                  for(let it = 0; it < 40; it++){ const Gd = G0_jis + (m_jis - 1) * A0_jis, n2 = 100 * (0.79 * m_jis * A0_jis + 0.008 * N_f*100 + _jg.dN2) / Gd, mn = n2 / (n2 - 3.76 * k);
                     if(!(mn > 0) || !isFinite(mn)) break; if(Math.abs(mn - m_jis) < 1e-10){ m_jis = mn; break; } m_jis = mn; } }
                 const _rh = parseFloat((document.getElementById('fan_rh')||{}).value);
-                const z_jis = (window.TE_PSY && TE_PSY.W_rh) ? TE_PSY.W_rh(Ta, (_rh > 0 ? _rh : 70) / 100, 101.325) : 0.013;
+                const z_jis = (window.TE_PSY && TE_PSY.W_rh) ? TE_PSY.W_rh(Ta, (_rh > 0 ? _rh : 70) / 100, 101.325) : 0.013; z_jis_o = z_jis;
                 
                 let G_dry = G0_jis + (m_jis - 1) * A0_jis;
                 G_actual = G_dry + Gw_jis + 1.61 * z_jis * m_jis * A0_jis;
@@ -984,7 +997,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         function addRow(label, asmeVal, bsVal, jisVal, type='normal') {
             let row = `<tr><td style="text-align:left; font-weight:bold;">${label}</td>`;
             if(runASME) row += `<td>${asmeVal}</td>`;
-            if(runBS) row += `<td>${bsVal}</td>`;
+            // [แก้ไข 12 พ.ย. 2569] BS 845 (Siegert) อาศัย CO₂ ในไอเสีย — เชื้อเพลิงไม่มีคาร์บอน (H₂ ล้วน) คิดไม่ได้ → แสดง —
+            if(runBS) row += (!(mix.co2 > 0) && bsVal !== '') ? `<td title="BS 845-1 ใช้ CO₂ ในไอเสีย — เชื้อเพลิงไม่มีคาร์บอนคิดวิธีนี้ไม่ได้">—</td>` : `<td>${bsVal}</td>`;
             if(runJIS) row += `<td>${jisVal}</td>`;
             row += '</tr>';
             body.insertAdjacentHTML('beforeend', row);
@@ -1168,31 +1182,40 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         `;
 
         let jisHtml = "";
-        if(mix.c > 0) {
+        if(mix.c > 0 || mix.h > 0) {
             let C_pct = C_f * 100, H_pct = H_f * 100, O_pct = O_f * 100, S_pct = S_f * 100, N_pct = N_f * 100, M_pct = M_f * 100;
             let G_dry_jis = G0_jis + (m_jis - 1) * A0_jis;
+            /* [แก้ไข 12 พ.ย. 2569] แสดงส่วนปรับก๊าซ (สูตรปริมาตร) · ตรวจทานด้วยตารางค่าความร้อน · m เต็มรูป + ความชื้นอากาศ ตามที่คำนวณจริง */
+            const _L = (th, en) => (window.TE_I18N && TE_I18N.lang === 'en') ? en : th;
+            const _jg = mix.jg || {dA0:0,dG0:0,dGw:0,dN2:0,pct:0}, _gas = _jg.pct > 0.01;
+            const _N2f = 0.008 * N_pct + _jg.dN2, _N2pct = G_dry_jis > 0 ? 100 * (0.79 * m_jis * A0_jis + _N2f) / G_dry_jis : 0, _COp = CO_ppm / 10000;
+            const _gasRowA = _gas ? `<div class="calc-row" style="background:#eef6ff; padding:6px; border-radius:4px;"><div class="calc-label">${_L('ส่วนก๊าซ','Gas part')}:</div><div class="calc-content">${_L('ก๊าซ '+_jg.pct.toFixed(1)+' % ของเชื้อเพลิงมีองค์ประกอบ — JIS ใช้สูตรปริมาตรต่อ Nm³ แล้วหารด้วย ρ<sub>N</sub>','Gas fuel '+_jg.pct.toFixed(1)+' % has a composition — JIS volumetric formula per Nm³, divided by ρ<sub>N</sub>')} \\( A_0 = \\frac{0.5H_2 + 0.5CO + \\sum (m+\\tfrac{n}{4}) C_mH_n + 1.5H_2S - O_2}{0.21} \\) → \\( A_0 = ${A0_mass.toFixed(4)} ${_jg.dA0<0?'-':'+'} ${Math.abs(_jg.dA0).toFixed(4)} = ${A0_jis.toFixed(4)} \\text{ m}^3/\\text{kg} \\)</div></div>` : '';
+            const _gasRowG = _gas ? `<div class="calc-row" style="background:#eef6ff; padding:6px; border-radius:4px;"><div class="calc-label">${_L('ส่วนก๊าซ','Gas part')}:</div><div class="calc-content">\\( G_0 = CO_2 + SO_2 + N_2 + 0.79A_0 \\) → \\( G_0 = ${G0_mass.toFixed(4)} ${_jg.dG0<0?'-':'+'} ${Math.abs(_jg.dG0).toFixed(4)} = ${G0_jis.toFixed(4)} \\text{ m}^3/\\text{kg} \\)</div></div>` : '';
+            const _ro = mix.ro || {ok:false};
+            const _roRow = (_ro.ok && _ro.A0 > 0) ? `<div class="calc-row" style="background:#fff8e1; padding:6px; border-radius:4px; margin-top:6px;"><div class="calc-label" style="color:#b7770d;">${_L('ตรวจทาน','Cross-check')}:</div><div class="calc-content" style="color:#7a5200; font-size:0.9em;">${_L('ตารางสูตรประมาณจากค่าความร้อนต่ำ (ตำราอบรม): ','LHV-based estimate table (training text): ')}A<sub>0</sub> ≈ ${_ro.A0.toFixed(3)} (${(100*(_ro.A0/A0_jis-1)).toFixed(1)} %) · G<sub>0</sub> ${_L('เปียก','wet')} ≈ ${_ro.G0w.toFixed(3)} (${(100*(_ro.G0w/(G0_jis+Gw_jis)-1)).toFixed(1)} %) ${_L('เทียบค่าจากผลวิเคราะห์ธาตุ','vs. values from the ultimate analysis')}<br>${(_ro.warn||[]).map(w=>_L(w[0],w[1])).join('<br>')}</div></div>` : '';
+            const _gasRowW = _gas ? `<div class="calc-row" style="background:#eef6ff; padding:6px; border-radius:4px;"><div class="calc-label">${_L('ส่วนก๊าซ','Gas part')}:</div><div class="calc-content">\\( G_w = ${Gw_mass.toFixed(4)} ${_jg.dGw<0?'-':'+'} ${Math.abs(_jg.dGw).toFixed(4)} = ${Gw_jis.toFixed(4)} \\text{ m}^3/\\text{kg} \\) (H<sub>2</sub>O = H<sub>2</sub> + Σ n/2 C<sub>m</sub>H<sub>n</sub> + H<sub>2</sub>S)</div></div>` : '';
             jisHtml = `
                 <div class="calc-step-box">
                     <h4 class="step-title">Step 1: Stoichiometric Air & Dry Gas Volume (\\(A_0\\), \\(G_0\\))</h4>
-                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ A_0 = \\frac{1}{100} \\left[ 8.89C + 26.7\\left(H - \\frac{O}{8}\\right) + 3.3S \\right] \\quad [\\text{m}^3/\\text{kg}] \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ A_0 = \\frac{1}{100} \\left[ 8.89(${C_pct.toFixed(2)}) + 26.7\\left(${H_pct.toFixed(2)} - \\frac{${O_pct.toFixed(2)}}{8}\\right) + 3.3(${S_pct.toFixed(2)}) \\right] \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ A_0 = ${A0_jis.toFixed(4)} \\text{ m}^3/\\text{kg} \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ A_0 = \\frac{1}{100} \\left[ 8.89C + 26.7\\left(H - \\frac{O}{8}\\right) + 3.33S \\right] \\quad [\\text{m}^3/\\text{kg}] \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ A_0 = \\frac{1}{100} \\left[ 8.89(${C_pct.toFixed(2)}) + 26.7\\left(${H_pct.toFixed(2)} - \\frac{${O_pct.toFixed(2)}}{8}\\right) + 3.33(${S_pct.toFixed(2)}) \\right] \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ A_0 = ${A0_mass.toFixed(4)} \\text{ m}^3/\\text{kg} \\]</div></div>${_gasRowA}
                     <hr style="border-top:1px dashed #eee; margin: 10px 0;">
-                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ G_0 = \\frac{1}{100} \\left[ 8.89C + 21.1\\left(H - \\frac{O}{8}\\right) + 3.3S + 0.8N \\right] \\quad [\\text{m}^3/\\text{kg}] \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ G_0 = \\frac{1}{100} \\left[ 8.89(${C_pct.toFixed(2)}) + 21.1\\left(${H_pct.toFixed(2)} - \\frac{${O_pct.toFixed(2)}}{8}\\right) + 3.3(${S_pct.toFixed(2)}) + 0.8(${N_pct.toFixed(2)}) \\right] \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ G_0 = ${G0_jis.toFixed(4)} \\text{ m}^3/\\text{kg} \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ G_0 = \\frac{1}{100} \\left[ 8.89C + 21.1\\left(H - \\frac{O}{8}\\right) + 3.33S + 0.8N \\right] \\quad [\\text{m}^3/\\text{kg}] \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ G_0 = \\frac{1}{100} \\left[ 8.89(${C_pct.toFixed(2)}) + 21.1\\left(${H_pct.toFixed(2)} - \\frac{${O_pct.toFixed(2)}}{8}\\right) + 3.33(${S_pct.toFixed(2)}) + 0.8(${N_pct.toFixed(2)}) \\right] \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ G_0 = ${G0_mass.toFixed(4)} \\text{ m}^3/\\text{kg} \\]</div></div>${_gasRowG}${_roRow}
                 </div>
 
                 <div class="calc-step-box">
                     <h4 class="step-title">Step 2: Water Vapour Volume & Air Ratio (\\(G_w\\), \\(m\\), \\(G\\))</h4>
-                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ G_w = \\frac{1}{100} \\times 1.24 \\times (9H + M) \\quad [\\text{m}^3/\\text{kg}] \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ G_w = \\frac{1.24}{100}(9 \\times ${H_pct.toFixed(2)} + ${M_pct.toFixed(2)}) = ${Gw_jis.toFixed(4)} \\text{ m}^3/\\text{kg} \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ G_w = \\frac{1}{100} \\times 1.244 \\times (9H + M) \\quad [\\text{m}^3/\\text{kg}] \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ G_w = \\frac{1.244}{100}(9 \\times ${H_pct.toFixed(2)} + ${M_pct.toFixed(2)}) = ${Gw_mass.toFixed(4)} \\text{ m}^3/\\text{kg} \\]</div></div>${_gasRowW}
                     <hr style="border-top:1px dashed #eee; margin: 10px 0;">
-                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ m = \\frac{20.9}{20.9 - O_2\\%} \\quad \\text{(excess air ratio)} \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ m = \\frac{20.9}{20.9 - ${O2}} = ${m_jis.toFixed(4)} \\quad (EA = ${((m_jis-1)*100).toFixed(1)}\\%) \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ m = \\frac{N_2}{N_2 - 3.76\\,(O_2 - 0.5\\,CO)} , \\quad N_2 = \\frac{100\\,(0.79\\,m A_0 + N_{2,fuel})}{G_0 + (m-1)A_0} \\quad \\text{(JIS B 8222, iterated)} \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ m = \\frac{${_N2pct.toFixed(2)}}{${_N2pct.toFixed(2)} - 3.76\\,(${O2} - 0.5 \\times ${_COp.toFixed(4)})} = ${m_jis.toFixed(4)} \\quad (EA = ${((m_jis-1)*100).toFixed(1)}\\%) \\; \\text{${_L('สูตรลัด','shortcut')} } \\tfrac{21}{21 - O_2} = ${(21/(21-O2)).toFixed(4)} \\]</div></div>
                     <hr style="border-top:1px dashed #eee; margin: 10px 0;">
-                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ G = G_0 + G_w + (m-1)A_0 \\quad \\text{(wet flue gas)} \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ G = ${G0_jis.toFixed(4)} + ${Gw_jis.toFixed(4)} + (${m_jis.toFixed(4)}-1) \\times ${A0_jis.toFixed(4)} \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ G = G_0 + G_w + (m-1)A_0 + 1.61\\,z\\,m A_0 \\quad \\text{(wet flue gas, } z = \\text{air humidity kg/kg)} \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ G = ${G0_jis.toFixed(4)} + ${Gw_jis.toFixed(4)} + (${m_jis.toFixed(4)}-1) \\times ${A0_jis.toFixed(4)} + 1.61 \\times ${z_jis_o.toFixed(4)} \\times ${m_jis.toFixed(4)} \\times ${A0_jis.toFixed(4)} \\]</div></div>
                     <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ G = ${G_actual.toFixed(4)} \\text{ m}^3/\\text{kg} \\quad (G_{dry} = ${G_dry_jis.toFixed(4)} \\text{ m}^3/\\text{kg}) \\]</div></div>
                 </div>
 
@@ -1995,7 +2018,18 @@ if(window.TE_I18N)TE_I18N.set({
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
 <script src="../lib/te-scene.js?v=r11"></script>
-<script>/* ═════ EN r3 (6 พ.ย. 2569) — ข้อความแจ้งเตือน/รายงาน ═════ */ if(window.TE_I18N)TE_I18N.set({"กรุณาระบุสัดส่วนเชื้อเพลิงให้ครบ 100%": "Please make the fuel shares add up to 100%", "กรุณาเลือกเชื้อเพลิง": "Please select a fuel", "กรุณาเลือกอย่างน้อย 1 รายการ": "Please select at least 1 item", "กรุณากด \"Calculate Analysis\" เพื่อคำนวณผลก่อน จึงจะพิมพ์ได้": "Click \"Calculate Analysis\" to calculate results before printing", "ยังไม่มีมาตรการที่คำนวณผลประหยัดได้ — กรุณากรอกข้อมูล/คำนวณก่อนส่งออก": "No measure with calculated savings yet — enter data/calculate before exporting"},[
+<script>/* [แก้ไข 12 พ.ย. 2569] EN — BS 845 กับเชื้อเพลิงไม่มีคาร์บอน */ if(window.TE_I18N)TE_I18N.set({"ความชื้นสัมพัทธ์อากาศ (%) จาก hygrometer — ประเทศไทย 55–80 % · เว้นว่าง = ใช้ RH 70 % ที่ Ta (ค่าแทนภูมิอากาศไทย) — ใช้ทั้ง 3 วิธี: ASME (ความชื้นอากาศ) · BS 845 (เทอม X) · JIS (1.61·z·m·A₀)":"Air relative humidity (%) from a hygrometer — Thailand 55–80 % · blank = RH 70 % at Ta (Thai climate default) — used by all 3 methods: ASME (air moisture) · BS 845 (term X) · JIS (1.61·z·m·A₀)",
+"% Vol แห้ง":"% vol dry","71. Lignite (Mae Moh, 30%M) (ถ่านหินลิกไนต์ (แม่เมาะ ชื้น 30 %))":"71. Lignite (Mae Moh, 30%M)","72. Wood pellet ENplus A1 (8%M) (ไม้อัดเม็ดเชิงพาณิชย์ ENplus A1 (ชื้น 8 %))":"72. Wood pellet ENplus A1 (8%M)","73. LNG (regasified, import avg.) (แอลเอ็นจี (นำเข้า แปรสภาพเป็นก๊าซ))":"73. LNG (regasified, import avg.)",
+"CO₂ จาก analyzer ที่จุดเดียวกับ O₂ — ใช้ตรวจความสอดคล้อง O₂–CO₂ กับสมดุลมวล (ต่าง ≤ 0.5 จุด = สอดคล้อง) ไม่กระทบผลประสิทธิภาพ":"CO₂ from the analyzer at the same point as O₂ — checks O₂–CO₂ consistency against the mass balance (difference ≤ 0.5 points = consistent); does not change the efficiency result",
+"Tramp Air = (อากาศรวมจาก O₂ ไอเสีย) − (อากาศจากพัดลม) \u00a0|\u00a0 ρ":"Tramp Air = (total air from flue-gas O₂) − (fan air) \u00a0|\u00a0 ρ",
+"Δ จากสมดุลมวล":"Δ vs. mass balance","กรอก “CO₂ ที่วัดได้” เพื่อตรวจเครื่องวัด/อากาศรั่วเข้าจุดเก็บตัวอย่าง":"Enter the “measured CO₂” to check the analyzer / air leaking into the sampling point",
+"ค่าอ้างอิง":"Reference","ดูรุ่น Pro →":"See the Pro version →","ตรวจ CO₂ เทียบสมดุลมวล (CO₂ QC)":"CO₂ check vs. mass balance (CO₂ QC)","ปริมาณ $CO_2$ ที่วัดได้ (ไม่บังคับ)":"Measured $CO_2$ (optional)","ผล":"Result",
+"สมดุลมวล (ผลวิเคราะห์ธาตุ + O₂ + CO ที่วัด)":"Mass balance (ultimate analysis + measured O₂ + CO)","สอดคล้อง":"Consistent","ควรตรวจ":"Check","ไม่สอดคล้อง":"Inconsistent",
+"เส้นอ้างอิงสมดุลมวล-พลังงาน (คอลัมน์ที่ 4 · Δ ของแต่ละมาตรฐาน · แยกรายการ) เป็นความสามารถรุ่น":"The mass-energy balance reference line (4th column · Δ for each standard · itemized) is a feature of the",
+"แหล่งค่า CO₂ (% แห้ง)":"CO₂ source (% dry)","เชื้อเพลิงไม่มีผลวิเคราะห์ธาตุ (C, H, O) — คำนวณเส้นอ้างอิงไม่ได้":"Fuel has no ultimate analysis (C, H, O) — the reference line cannot be calculated",
+"⚠ CO₂ ที่วัดได้ไม่สอดคล้องกับ O₂ และองค์ประกอบเชื้อเพลิง — ตรวจก่อนใช้ผล (ระบบไม่แก้ค่าให้เอง)":"⚠ Measured CO₂ is inconsistent with O₂ and the fuel composition — check before using the result (the tool does not correct it)",
+"BS 845-1 ใช้ CO₂ ในไอเสีย — เชื้อเพลิงไม่มีคาร์บอนคิดวิธีนี้ไม่ได้":"BS 845-1 relies on flue-gas CO₂ — not applicable to a carbon-free fuel"});</script>
+<script>/* ═════ EN r3 (6 พ.ย. 2569) — ข้อความแจ้งเตือน/รายงาน ═════ */ if(window.TE_I18N)TE_I18N.set({},[[/^(\s*)เกณฑ์ \|Δ\| ≤ 0\.5 จุด สอดคล้อง · ≤ 1\.0 ควรตรวจ · เกินนั้นไม่สอดคล้อง — CO₂ วัดได้ต่ำกว่าสมดุลมวลมาก มักเกิดจากอากาศรั่วเข้าท่อเก็บตัวอย่าง เครื่องวัดคลาดเคลื่อน หรือผลวิเคราะห์ธาตุไม่ตรงเชื้อเพลิงจริง · อากาศส่วนเกินจากสมดุลมวล (-?[\d.,]+) %(\s*)$/,"$1Criteria |Δ| ≤ 0.5 points consistent · ≤ 1.0 check · above that inconsistent — measured CO₂ far below the mass balance usually means air leaking into the sampling line, an analyzer error, or an ultimate analysis that does not match the actual fuel · excess air from mass balance $2 %$3"]]); if(window.TE_I18N)TE_I18N.set({"กรุณาระบุสัดส่วนเชื้อเพลิงให้ครบ 100%": "Please make the fuel shares add up to 100%", "กรุณาเลือกเชื้อเพลิง": "Please select a fuel", "กรุณาเลือกอย่างน้อย 1 รายการ": "Please select at least 1 item", "กรุณากด \"Calculate Analysis\" เพื่อคำนวณผลก่อน จึงจะพิมพ์ได้": "Click \"Calculate Analysis\" to calculate results before printing", "ยังไม่มีมาตรการที่คำนวณผลประหยัดได้ — กรุณากรอกข้อมูล/คำนวณก่อนส่งออก": "No measure with calculated savings yet — enter data/calculate before exporting"},[
 [/^ไม่สามารถโหลดไฟล์ JSON ได้:(.*)$/,"Could not load the JSON file:$1"]
 ]);</script>
 </body>
