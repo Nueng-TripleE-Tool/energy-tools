@@ -8,9 +8,10 @@
      หลักที่สอน: ไอน้ำรั่วและกับดักไอน้ำ (steam trap) เสีย = เงินที่ลอยหายไปทุกนาที ยิ่งเจอเร็วยิ่งประหยัด
      วิธีตรวจจริงของช่าง: หูฟัง/ultrasonic ไล่เสียงฟู่ + กล้องความร้อนหาจุดร้อน(รั่ว/trap เปิดค้าง) และจุดเย็น(trap ตัน)
      ฟิสิกส์เบื้องหลัง (สูตร Napier สำหรับไอน้ำไหลผ่านรูสู่บรรยากาศ):
-       ṁ [kg/h] = 0.5245 × A[mm²] × P_abs[bar]   (จาก ṁ[lb/s] = A[in²]·P[psia]/70)
-       รูรั่ว 3 มม. ที่ 7 bar g (P_abs=8.013 bar): A=7.0686 mm² → ṁ ≈ 29.7 ≈ 30 kg/h
-       ไอน้ำ ~1.2 บาท/kg → 30 kg/h × 8,760 ชม./ปี × 1.2 ≈ 315,000 บาท/ปี (≈ 3 แสนบาท/รูเดียว)
+       [แก้ไข 15 พ.ย. 2569] ใช้รูปเดียวกับ TE_LEAK.steamNapier ของ te-core (Napier รูป D², C_d 0.60 ตามมติ D1) — เดิมคิดที่ C_d 1.0 (A·P/70) ได้ 30 kg/h
+       ṁ [kg/h] = 0.002472 × P_abs[kPa] × d²[mm]   (จาก W[lb/h] = 24.24·P[psia]·D²[in] รวม π/4 และ C_d 0.60)
+       รูรั่ว 3 มม. ที่ 7 bar g (P_abs=801.3 kPa): ṁ ≈ 17.8 ≈ 18 kg/h
+       ไอน้ำ ~1.2 บาท/kg → 17.8 kg/h × 8,760 ชม./ปี × 1.2 ≈ 187,000 บาท/ปี (≈ 1.9 แสนบาท/รูเดียว)
        trap เปิดค้าง (failed open) เสียไอน้ำ ~15–50 kg/h · trap ตัน (blocked) = น้ำขัง เสี่ยง water hammer -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -503,7 +504,7 @@ body.adult .adult-only{display:initial}
       <div class="rankbar"><span class="lb">🧊 trap ตัน (น้ำขัง)</span><div class="tr"><div class="fl" data-w="38" style="background:#4aa8ff">อันตรายแฝง!</div></div></div>
     </div>
     <p class="adult-only" style="font-size:.85rem;color:#55657c;margin-top:6px">
-      Napier: รู 3 มม. @7 bar g ≈ 30 kg/h · ไอน้ำ ~1.2 บาท/kg → ≈ 315,000 บาท/ปี ต่อรูเดียว · trap เปิดค้าง ~15–50 kg/h</p>
+      Napier (C_d 0.60): รู 3 มม. @7 bar g ≈ 18 kg/h · ไอน้ำ ~1.2 บาท/kg → ≈ 187,000 บาท/ปี ต่อรูเดียว · trap เปิดค้าง ~15–50 kg/h</p>
     <p style="margin-top:8px;font-size:.92rem">จำไว้นะ: <b>เดินสำรวจท่อไอน้ำทุกเดือน</b> — เจอเร็ว ซ่อมเร็ว = ประหยัดที่สุด!</p>
     <div style="margin-top:12px"><button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button></div>
     <div class="brand">Energy Sense Games · Triple E Technology</div>
@@ -517,10 +518,10 @@ var $=function(id){return document.getElementById(id);};
 var SVGNS='http://www.w3.org/2000/svg';
 
 /* ── ฟิสิกส์ (สมจริง — สูตร Napier) ──
-   ṁ[kg/h] = 0.5245 × A[mm²] × P_abs[bar]  · P = 7 bar g → P_abs = 8.013 bar
-   รู 3 มม. → 29.7 ≈ 30 kg/h · ไอน้ำ 1.2 บาท/kg · 8,760 ชม./ปี */
+   [แก้ไข 15 พ.ย. 2569] ṁ[kg/h] = 0.002472 × P_abs[kPa] × d²[mm] (C_d 0.60 — ตรงกับ TE_LEAK.steamNapier) · P = 7 bar g → P_abs = 801.3 kPa
+   รู 3 มม. → 17.8 ≈ 18 kg/h · ไอน้ำ 1.2 บาท/kg · 8,760 ชม./ปี */
 var PH={P_BARG:7,PRICE:1.2,HRS:8760,COLD_UNIT:15};
-function napier(dmm,pbarg){var A=Math.PI/4*dmm*dmm;return 0.5245*A*(pbarg+1.013);}
+function napier(dmm,pbarg){return 0.002472*(pbarg+1.01325)*100*dmm*dmm;} /* [แก้ไข 15 พ.ย. 2569] C_d 0.60 เท่ากับ TE_LEAK.steamNapier (เดิม 0.5245·A·P = C_d 1.0) */
 function bahtYr(kgph){return kgph*PH.PRICE*PH.HRS;}
 function fmtSaen(b){return (b/100000).toFixed(1)+' แสนบาท/ปี';}
 
@@ -538,7 +539,7 @@ var LEVELS=[
  {name:'ด่าน 1 · เสียงฟู่ปริศนา 🔊', icon:'🔊', time:45, drainT:110, thermal:0, jetScale:1.25,
   goal:'มีจุดรั่ว 2 จุด! แตะค้างบนท่อด้วย 🔊 หูฟังช่าง ไล่ฟังเสียงฟู่ — เจอแล้วแตะที่จุดนั้นเพื่อซ่อม!',
   faults:[{s:'F1',type:'leak',mm:3},{s:'V1',type:'leak',mm:2}],
-  lesson:function(st){return st>=3?'เยี่ยม! รูรั่วเล็กแค่ 3 มม. ก็ปล่อยไอน้ำ ~30 กก./ชม. — เสียงฟู่คือเงินที่ลอยหนี!':
+  lesson:function(st){return st>=3?'เยี่ยม! รูรั่วเล็กแค่ 3 มม. ก็ปล่อยไอน้ำ ~18 กก./ชม. — เสียงฟู่คือเงินที่ลอยหนี!':
     (st===2?'ดีมาก! ซ่อมได้ครบ — คราวหน้าไล่เสียงให้เร็วขึ้น เหรียญจะเหลือเยอะกว่านี้':
     'อย่าปล่อยจุดรั่วไว้นาน! เสียงฟู่ = เงินกำลังลอยหายไปทุกนาที');}},
  {name:'ด่าน 2 · ตามล่าด้วยกล้องร้อน 🌡', icon:'🌡', time:50, drainT:135, thermal:2, jetScale:0.7,
@@ -1249,7 +1250,7 @@ window.GAME={
 "กลาง": "Medium",
 "🧊 trap ตัน (น้ำขัง)": "🧊 Trap blocked (water backs up)",
 "อันตรายแฝง!": "Hidden danger!",
-"Napier: รู 3 มม. @7 bar g ≈ 30 kg/h · ไอน้ำ ~1.2 บาท/kg → ≈ 315,000 บาท/ปี ต่อรูเดียว · trap เปิดค้าง ~15–50 kg/h": "Napier: 3 mm hole @7 bar g ≈ 30 kg/h · steam ~1.2 THB/kg → ≈ 315,000 THB/yr for one hole · trap stuck open ~15–50 kg/h",
+"Napier (C_d 0.60): รู 3 มม. @7 bar g ≈ 18 kg/h · ไอน้ำ ~1.2 บาท/kg → ≈ 187,000 บาท/ปี ต่อรูเดียว · trap เปิดค้าง ~15–50 kg/h": "Napier (C_d 0.60): 3 mm hole @7 bar g ≈ 18 kg/h · steam ~1.2 THB/kg → ≈ 187,000 THB/yr for one hole · trap stuck open ~15–50 kg/h",
 "จำไว้นะ:": "Remember:",
 "เดินสำรวจท่อไอน้ำทุกเดือน": "walk and check the steam pipes every month",
 "— เจอเร็ว ซ่อมเร็ว = ประหยัดที่สุด!": "— find early, fix early = save the most!",
@@ -1262,7 +1263,7 @@ window.GAME={
 "เลื่อนขวา": "Scroll right",
 "ด่าน 1 · เสียงฟู่ปริศนา 🔊": "Level 1 · The mystery hiss 🔊",
 "มีจุดรั่ว 2 จุด! แตะค้างบนท่อด้วย 🔊 หูฟังช่าง ไล่ฟังเสียงฟู่ — เจอแล้วแตะที่จุดนั้นเพื่อซ่อม!": "There are 2 leaks! Press and hold on the pipe with the 🔊 stethoscope and follow the hiss. Found it? Tap that spot to fix it!",
-"เยี่ยม! รูรั่วเล็กแค่ 3 มม. ก็ปล่อยไอน้ำ ~30 กก./ชม. — เสียงฟู่คือเงินที่ลอยหนี!": "Great! Even a tiny 3 mm hole lets out ~30 kg/h of steam. The hiss is money flying away!",
+"เยี่ยม! รูรั่วเล็กแค่ 3 มม. ก็ปล่อยไอน้ำ ~18 กก./ชม. — เสียงฟู่คือเงินที่ลอยหนี!": "Great! Even a tiny 3 mm hole lets out ~18 kg/h of steam. The hiss is money flying away!",
 "ดีมาก! ซ่อมได้ครบ — คราวหน้าไล่เสียงให้เร็วขึ้น เหรียญจะเหลือเยอะกว่านี้": "Very good! All fixed. Next time follow the sound faster and you'll keep more coins",
 "อย่าปล่อยจุดรั่วไว้นาน! เสียงฟู่ = เงินกำลังลอยหายไปทุกนาที": "Don't leave leaks for long! Hiss = money floating away every minute",
 "ด่าน 2 · ตามล่าด้วยกล้องร้อน 🌡": "Level 2 · Hunt with the heat camera 🌡",
