@@ -323,7 +323,7 @@ var TE_JSON=(function(){
     <input type="number" id="turbRatedEff" onchange="markStale()" value="80" step="0.5"><div class="hint">η_isentropic ออกแบบจาก heat balance ผู้ผลิต/acceptance test (%) — กังหันอุตสาหกรรม 70–85 %, ยูทิลิตี้ 85–90 %</div>
     <button class="btn-calc" id="calcBtn" onclick="calcAll()">&#9654; คำนวณประสิทธิภาพ</button>
     <div id="stale_warn" style="display:none;background:#fff3cd;border:1px solid #ffc107;border-radius:5px;padding:5px 8px;font-size:11px;color:#856404;margin-top:4px;">⚠ ค่า input เปลี่ยน — กด คำนวณ อีกครั้ง</div>
-    <button class="btn-sample" onclick="loadSample('bp28mw')">&#128268; Sample: Mill B28 28MW (DCS จริง)</button>
+    <button class="btn-sample" onclick="loadSample('bp28mw')">&#128268; Sample: กังหันสกัด-ควบแน่น 12 MW (ตัวอย่างสมมุติ)</button><!-- [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ B4 · มติ D4: เปลี่ยนข้อมูล DCS จริงเป็นตัวอย่างสมมุติ ลบชื่อโรงงาน วันที่ และแท็กเครื่องมือวัด -->
     <button class="btn-sample" onclick="loadSample('measur')">&#128268; Sample: MEASUR BP (107 barA)</button>
     <button class="btn-sample" onclick="loadMeasurWet()" style="background:#fef0d0;border-color:#f5c060;color:#6a3d00;">&#128268; Sample: MEASUR Wet (20 barG) ← จากรูป</button>    <button class="btn-sample" onclick="loadSample('condensing')">&#128268; Sample: Condensing Turbine</button>
   </div>
@@ -510,7 +510,7 @@ var TE_JSON=(function(){
         <text x="758" y="262" font-size="8" fill="#5c35a0">ความยืดหยุ่นสูง: สกัด+ผลิตไฟฟ้า</text>
         <circle cx="752" cy="275" r="2.5" fill="#5c35a0"/>
         <text x="758" y="279" font-size="8" fill="#5c35a0">ควบคุมกำลังไฟฟ้าและโหลดความร้อน</text>
-        <text x="758" y="293" font-size="7.5" fill="#3a4f72" font-style="italic">เช่น Mill B28 28MW</text>
+        <text x="758" y="293" font-size="7.5" fill="#3a4f72" font-style="italic">เช่น โรงไฟฟ้าร่วม (cogeneration)</text>
       </svg>
     </div>
   </div>
@@ -529,50 +529,43 @@ var TE_JSON=(function(){
     <div class="ctitle">&#128203; Nameplate / Design Data</div>
     <div class="csub">ข้อมูลอ้างอิงจากป้ายพิกัดและ Manufacturer</div>
     <label>ยี่ห้อ / รุ่น</label>
-    <input type="text" id="turbBrand" value="SKODA-JINMA B10-4.1/0.294//450"><div class="hint">ยี่ห้อ/รุ่นจาก nameplate — พิมพ์ในรายงาน</div>
+    <input type="text" id="turbBrand" value="กังหันไอน้ำตัวอย่าง (สมมุติ)"><div class="hint">ยี่ห้อ/รุ่นจาก nameplate — พิมพ์ในรายงาน</div>
     <label>ความดันไอน้ำพิกัด (barA)</label>
     <input type="number" id="turbRatedP" value="42.0" step="0.5"><div class="hint">ความดันไอน้ำเข้าพิกัด (barA) จาก nameplate/datasheet — ใช้เทียบกับค่าวัดจริง</div>
     <label>อุณหภูมิพิกัด (°C)</label>
     <input type="number" id="turbRatedT" value="400" step="1"><div class="hint">อุณหภูมิไอน้ำเข้าพิกัด (°C) จาก nameplate/datasheet</div>
     <label>ความเร็วรอบพิกัด (rpm)</label>
     <input type="number" id="turbRPM" value="4950" step="50">
-    <div class="hint">B28: 4950 rpm → Gearbox → Generator</div>
+    <div class="hint">ตัวอย่าง: 4,950 rpm → Gearbox → Generator</div>
   </div>
   <div class="card">
     <div class="ctitle">&#127777; Steam Properties (Saturated)</div>
-    <div class="csub">T_sat, h_f, h_g, s_g — ค่าอ้างอิงจาก ASME Steam Tables</div>
+    <div class="csub">T_sat, h_g, s_g — คำนวณจาก TE_STEAM (IAPWS-IF97) ขณะเปิดหน้า</div>
+    <!-- [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ B4 — ตารางเดิมพิมพ์ค่าตายตัวและมีค่าผิด (เช่น 0.64 barA: 86.0 °C / s_g 7.763) → สร้างจาก TE_STEAM.satP() ตอนโหลดหน้า -->
     <div class="twrap">
-      <table class="tbl">
+      <table class="tbl" id="satTbl">
         <tr><th>P (barA)</th><th>T_sat (°C)</th><th>h_g (kJ/kg)</th><th>s_g (kJ/kg·K)</th></tr>
-        <tr><td class="hl">0.64</td><td>86.0</td><td>2654.8</td><td>7.763</td></tr>
-        <tr><td class="hl">4.0</td><td>143.6</td><td>2737.7</td><td>6.897</td></tr>
-        <tr><td class="hl">7.0</td><td>165.0</td><td>2763.5</td><td>6.709</td></tr>
-        <tr><td class="hl">10.0</td><td>179.9</td><td>2778.1</td><td>6.586</td></tr>
-        <tr><td class="hl">22.75</td><td>219.2</td><td>2801.0</td><td>6.348</td></tr>
-        <tr><td class="hl">42.0</td><td>253.2</td><td>2800.5</td><td>6.048</td></tr>
-        <tr><td class="hl">75.0</td><td>290.6</td><td>2769.1</td><td>5.796</td></tr>
-        <tr><td class="hl">107.0</td><td>318.1</td><td>2721.0</td><td>5.616</td></tr>
       </table>
     </div>
   </div>
   </div>
 
   <div class="card">
-    <div class="ctitle">&#128187; DCS Data — Mill B28 28MW (08/05/2026 14:56)</div>
-    <div class="csub">ข้อมูลภาคสนามจริง SKODA-JINMA Extraction-Condensing Turbine</div>
+    <div class="ctitle">&#128187; ตัวอย่างข้อมูลหน้างาน — กังหันสกัด-ควบแน่น 12 MW (ค่าสมมุติ)</div>
+    <div class="csub">ค่าสมมุติเพื่อสาธิตวิธีกรอก ไม่ใช่ข้อมูลของโรงงานใด — ชุดเดียวกับปุ่ม Sample ด้านบน</div>
+    <!-- [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ B4 · มติ D4 — แทนตารางข้อมูล DCS จริง (ลบชื่อโรงงาน วันที่ และแท็กเครื่องมือวัดทั้งหมด) -->
     <div class="twrap">
       <table class="tbl">
-        <tr><th>Parameter</th><th>Tag No.</th><th>Actual Value</th><th>Unit</th><th>Note</th></tr>
-        <tr><td class="hl">Main Steam Flow</td><td>G28 FI-120</td><td class="good">54.95</td><td>t/h</td><td>Inlet mass flow</td></tr>
-        <tr><td class="hl">Inlet Steam Pressure</td><td>G28 PI-101</td><td class="good">42.0</td><td>barA</td><td>HP steam header</td></tr>
-        <tr><td class="hl">Inlet Steam Temp</td><td>G28 TI-101</td><td class="good">376.9</td><td>°C</td><td>Superheated</td></tr>
-        <tr><td class="hl">Extraction Steam P</td><td>G28 PI-102</td><td>6.83</td><td>barA</td><td>After 1st stage</td></tr>
-        <tr><td class="hl">Exhaust Steam P</td><td>G28 PIA-103A</td><td class="warn">0.64</td><td>barA</td><td>Condenser inlet</td></tr>
-        <tr><td class="hl">Exhaust Steam T</td><td>G28 TIA-103</td><td>56.6</td><td>°C</td><td>≈ T_sat at 0.2 barA?</td></tr>
-        <tr><td class="hl">Power Output</td><td>G28 Meter</td><td class="good">9.14</td><td>MW</td><td>Active power</td></tr>
-        <tr><td class="hl">Turbine Speed</td><td>G28 IS-1111</td><td>4897</td><td>rpm</td><td>Rated: 4950</td></tr>
-        <tr><td class="hl">Thrust Bearing Temp</td><td>G28 TIA-214</td><td class="warn">82.2</td><td>°C</td><td>Monitor &lt;85°C</td></tr>
-        <tr><td class="hl">Condensate Flow</td><td>G28 FI-101</td><td>57.0</td><td>t/h</td><td>Hotwell pump</td></tr>
+        <tr><th>Parameter</th><th>Value</th><th>Unit</th><th>Note</th></tr>
+        <tr><td class="hl">Main Steam Flow</td><td class="good">55.0</td><td>t/h</td><td>Inlet mass flow</td></tr>
+        <tr><td class="hl">Inlet Steam Pressure</td><td class="good">42.0</td><td>barA</td><td>HP steam header</td></tr>
+        <tr><td class="hl">Inlet Steam Temp</td><td class="good">400</td><td>°C</td><td>Superheated (T_sat 253.3 °C)</td></tr>
+        <tr><td class="hl">Extraction Steam P</td><td>4.0</td><td>barA</td><td>Process steam</td></tr>
+        <tr><td class="hl">Extraction Steam T</td><td>162</td><td>°C</td><td>Superheated (T_sat 143.6 °C)</td></tr>
+        <tr><td class="hl">Extraction Steam Flow</td><td>20.0</td><td>t/h</td><td>To process</td></tr>
+        <tr><td class="hl">Exhaust Steam P</td><td>0.10</td><td>barA</td><td>Condenser inlet</td></tr>
+        <tr><td class="hl">Exhaust Steam T</td><td>45.8</td><td>°C</td><td>= T_sat at 0.10 barA (wet steam)</td></tr>
+        <tr><td class="hl">Power Output</td><td class="good">10.30</td><td>MW</td><td>Active power</td></tr>
       </table>
     </div>
   </div>
@@ -811,7 +804,7 @@ var TE_JSON=(function(){
       </div>
       <div style="background:var(--blue-lt);border:1px solid #93b8f0;border-radius:8px;padding:11px 13px;">
         <div style="font-weight:700;color:var(--blue);font-size:13px;margin-bottom:4px;">&#9881; ECM 2: Steam Trap &amp; Leak Survey</div>
-        <div style="font-size:12px;color:#1a3a70;line-height:1.7;">ตรวจ Steam Trap ทุก 6 เดือน<br>Leak 3mm @ 7 barA ≈ 5 kg/hr<br><strong>ประหยัด = ราคาไอน้ำ × รั่ว (t/yr)</strong></div>
+        <div style="font-size:12px;color:#1a3a70;line-height:1.7;">ตรวจ Steam Trap ทุก 6 เดือน<br>Leak 3mm @ 7 barA ≈ <span id="ecmLeak3">15.6</span> kg/hr<!-- [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ B4: เดิม ≈ 5 kg/hr → ค่าจากสูตร Napier รูป D² (TE_LEAK, C_d 0.60) --><br><strong>ประหยัด = ราคาไอน้ำ × รั่ว (t/yr)</strong></div>
       </div>
       <div style="background:var(--amber-lt);border:1px solid #f5c060;border-radius:8px;padding:11px 13px;">
         <div style="font-weight:700;color:var(--amber);font-size:13px;margin-bottom:4px;">&#9851; ECM 3: Condensate Recovery</div>
@@ -857,6 +850,16 @@ function getSuperheat(P,T){
 
 /* ระยะ 2-9: แกนคำนวณย้ายเข้า te-core — TE.STMEFF (ห้ามแก้ตัวเลขในหน้านี้) */
 function __stEnv(){return {v:v,setH:setH,getSat:getSat,getSuperheat:getSuperheat,P_ATM:P_ATM,pressureUnit:pressureUnit};}
+/* [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ B4 — ตารางไอน้ำอิ่มตัวและค่ารั่วในการ์ด ECM คำนวณจาก te-core ตอนโหลดหน้า (ไม่พิมพ์ค่าตายตัว) */
+function buildSatTable(){
+  var tb=document.getElementById('satTbl'); if(!tb||!window.TE_STEAM) return;
+  var h='<tr><th>P (barA)</th><th>T_sat (°C)</th><th>h_g (kJ/kg)</th><th>s_g (kJ/kg·K)</th></tr>';
+  ['0.64','4.0','7.0','10.0','22.75','42.0','75.0','107.0'].forEach(function(Ps){ var P=+Ps, x=TE_STEAM.satP(P);
+    h+='<tr><td class="hl">'+Ps+'</td><td>'+x.TsC.toFixed(1)+'</td><td>'+x.hg.toFixed(1)+'</td><td>'+x.sg.toFixed(3)+'</td></tr>'; });
+  tb.innerHTML=h;
+  var e=document.getElementById('ecmLeak3'); if(e&&window.TE_LEAK) e.textContent=TE_LEAK.steamNapier(3,700,0.60).toFixed(1);
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',buildSatTable); else buildSatTable();
 function calcAll(){var r=TE.STMEFF.make(__stEnv()).calcAll();if(r===undefined)return;RES=r;updateUI();}
 function hIsen(P_out,s_in){return TE.STMEFF.make(__stEnv()).hIsen(P_out,s_in);}
 function drawSLD(type,cfg){return TE.STMEFF.make(__stEnv()).drawSLD(type,cfg);}
@@ -956,15 +959,18 @@ function loadSample(name){
   // Reset inlet phase to Superheated for all standard samples
   s('inletPhase').value='SH'; onInletPhaseChange();
   if(name==='bp28mw'){
-    // Mill B28 EXT_COND: 54.95 t/h → extraction ~20 t/h (process) + ~35 t/h condenser
-    s('projName').value='โรงงานน้ำตาลตัวอย่าง B28 (DCS 08/05/2026)';
-    s('turbineType').value='EXT_COND';s('p_in').value='42.0';s('t_in').value='376.9';
-    s('m_steam').value='54.95';s('p_out').value='0.64';s('t_out').value='56.6';
-    s('p_export').value='9140';s('eta_gen').value='96.0';s('eta_mech').value='99.0';s('turbRated').value='28000';
+    /* [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ B4 · มติ D4 — ตัวอย่างสมมุติ (ไม่ใช่ข้อมูลของโรงงานใด) แทนชุด DCS เดิม
+       ชุดเดิมไม่สมดุล: ไอออก 0.64 barA คู่กับ 56.6 °C ขณะ T_sat(0.64 barA) = 87.6 °C และได้ η_is 90.0 %
+       ชุดใหม่: 42 barA / 400 °C · 55 t/h → สกัด 20 t/h ที่ 4.0 barA / 162 °C (T_sat 143.6 °C) → ควบแน่น 35 t/h ที่ 0.10 barA / 45.8 °C (= T_sat)
+       กำลังไฟฟ้า 10,300 kW → η_is ≈ 80.7 % (อยู่ในช่วง 75–88 %) */
+    s('projName').value='ตัวอย่างสมมุติ — กังหันสกัด-ควบแน่น 12 MW';
+    s('turbineType').value='EXT_COND';s('p_in').value='42.0';s('t_in').value='400';
+    s('m_steam').value='55.0';s('p_out').value='0.10';s('t_out').value='45.8';
+    s('p_export').value='10300';s('eta_gen').value='96.0';s('eta_mech').value='99.0';s('turbRated').value='12000';
     s('turbRatedEff').value='80';s('calcMethod').value='m3';
-    // Extraction port 1: 20 t/h @ ~4 barA process steam
-    s('p_ext1').value='4.0';s('t_ext1').value='155';s('m_ext1').value='20.0';
-    // m_out will be auto-calculated: 54.95 - 20 = 34.95 t/h to condenser
+    // Extraction port 1: 20 t/h @ 4.0 barA process steam
+    s('p_ext1').value='4.0';s('t_ext1').value='162';s('m_ext1').value='20.0';
+    // m_out will be auto-calculated: 55.0 - 20 = 35.0 t/h to condenser
   } else if(name==='measur'){
     s('projName').value='MEASUR BP Example (107 barA → 22.75 barA)';
     s('turbineType').value='BP';s('p_in').value='107.0';s('t_in').value='510';
@@ -1004,7 +1010,7 @@ function onTypeChange(){
     BP: {ext:0, cond:false, desc:'ไอน้ำทางออก > P_atm → Process Steam เหมาะโรงงานน้ำตาล/กระดาษ/เยื่อกระดาษ'},
     COND: {ext:0, cond:true,  desc:'ไอน้ำทางออก = Vacuum → Condenser รีดพลังงานสูงสุด เหมาะโรงไฟฟ้าผลิตไฟ'},
     EXT:  {ext:3, cond:false, desc:'สกัดไอน้ำได้สูงสุด 3 จุด → หลายระดับความดัน Process (ปล่อยว่างจุดที่ไม่ใช้)'},
-    EXT_COND:{ext:3,cond:true, desc:'สกัดไอน้ำบางส่วน + ส่วนที่เหลือเข้า Condenser (เช่น Mill B28 28MW)'},
+    EXT_COND:{ext:3,cond:true, desc:'สกัดไอน้ำบางส่วน + ส่วนที่เหลือเข้า Condenser'},
     EXT_BP:  {ext:3,cond:false,desc:'สกัดไอน้ำบางส่วน + ส่วนที่เหลือออกเป็น Back-Pressure (Cogeneration)'}
   };
   const tcfg=cfg[t]||cfg.BP;
@@ -1203,9 +1209,14 @@ if(window.TE_I18N)TE_I18N.set({
 "🔥 การจำแนกประเภทกังหันไอน้ำตามสภาวะไอน้ำทางออกและการนำไปใช้งาน": "🔥 Steam turbine types by exhaust condition and application",
 "วันที่เก็บข้อมูลหน้างาน (พ.ศ.) — โปรแกรมเติมวันปัจจุบัน แก้ได้": "Site data collection date (BE) — defaults to today, editable",
 "หา h_out,isen ที่ P_out ด้วยเงื่อนไข s_out = s_in (Isentropic)": "Find h_out,isen at P_out with s_out = s_in (isentropic)",
-"ข้อมูลภาคสนามจริง SKODA-JINMA Extraction-Condensing Turbine": "Real field data, SKODA-JINMA extraction-condensing turbine",
+"ค่าสมมุติเพื่อสาธิตวิธีกรอก ไม่ใช่ข้อมูลของโรงงานใด — ชุดเดียวกับปุ่ม Sample ด้านบน": "Hypothetical values to demonstrate data entry, not from any plant — same set as the Sample button above",
+"💻 ตัวอย่างข้อมูลหน้างาน — กังหันสกัด-ควบแน่น 12 MW (ค่าสมมุติ)": "💻 Sample field data — 12 MW extraction-condensing turbine (hypothetical)",
+"🔌 Sample: กังหันสกัด-ควบแน่น 12 MW (ตัวอย่างสมมุติ)": "🔌 Sample: 12 MW extraction-condensing turbine (hypothetical)",
+"เช่น โรงไฟฟ้าร่วม (cogeneration)": "e.g. a cogeneration plant",
+"ตัวอย่าง: 4,950 rpm → Gearbox → Generator": "Example: 4,950 rpm → gearbox → generator",
+"สกัดไอน้ำบางส่วน + ส่วนที่เหลือเข้า Condenser": "Part of the steam is extracted + the rest goes to the condenser",
 "กำลังพิกัดจาก nameplate/datasheet (kW) — ใช้เทียบ % โหลด": "Rated power from nameplate/datasheet (kW) — used for % load",
-"T_sat, h_f, h_g, s_g — ค่าอ้างอิงจาก ASME Steam Tables": "T_sat, h_f, h_g, s_g — reference values from ASME Steam Tables",
+"T_sat, h_g, s_g — คำนวณจาก TE_STEAM (IAPWS-IF97) ขณะเปิดหน้า": "T_sat, h_g, s_g — computed from TE_STEAM (IAPWS-IF97) when the page loads",
 "ชื่อโรงงาน/โครงการ — ใช้บนหัวรายงานและชื่อไฟล์ JSON": "Plant/project name — used on report header and JSON file name",
 "อุณหภูมิไอน้ำเข้าพิกัด (°C) จาก nameplate/datasheet": "Rated inlet steam temperature (°C) from nameplate/datasheet",
 "Δh_eff = W_shaft ÷ ṁ_in  (kJ/kg ต่อ kg ไอน้ำขาเข้า)": "Δh_eff = W_shaft ÷ ṁ_in (kJ/kg per kg inlet steam)",
@@ -1363,7 +1374,6 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)สกัดไอน้ำได้สูงสุด\s+(-?\d[\d,]*\.?\d*)\s+จุด\s+→\s+หลายระดับความดัน\s+Process\s+\(ปล่อยว่างจุดที่ไม่ใช้\)(\s*)$/,"$1Up to $2 extraction points → several process pressure levels (leave unused points blank)$3"],
 [/^(\s*)ต้องปรับแก้ตาม\s+Part\-Load:\s+CF_load\s+=\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+และ\s+Steam\s+Condition\s+correction(\s*)$/,"$1Needs part-load correction: CF_load = $2–$3 and steam-condition correction$4"],
 [/^(\s*)Gearbox\+Bearing:\s+ปกติ\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)%\s+\|\s+W_shaft\s+=\s+P_elec\s+÷\s+\(η_gen\s+×\s+η_mech\)(\s*)$/,"$1Gearbox+Bearing: typically $2–$3% | W_shaft = P_elec ÷ (η_gen × η_mech)$4"],
-[/^(\s*)สกัดไอน้ำบางส่วน\s+\+\s+ส่วนที่เหลือเข้า\s+Condenser\s+\(เช่น\s+Mill\s+B(-?\d[\d,]*\.?\d*)\s+(-?\d[\d,]*\.?\d*)MW\)(\s*)$/,"$1Partial extraction + remainder to condenser (e.g. Sugar mill B$2 $3MW)$4"],
 [/^(\s*)⚠\s+ASME\s+PTC\s+(-?\d[\d,]*\.?\d*):\s+ไอน้ำขาเข้าควร\s+X\s+≥\s+(-?\d[\d,]*\.?\d*)\s+เพื่อป้องกัน\s+Blade\s+Erosion(\s*)$/,"$1⚠ ASME PTC $2: inlet steam should be X ≥ $3 to prevent blade erosion$4"],
 [/^(\s*)วัด\s+P_in,\s+T_in\s+→\s+หา\s+h_in\s+และ\s+s_in\s+จาก\s+Steam\s+Table\s+\(IAPWS\-IF(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Measure P_in, T_in → h_in and s_in from steam table (IAPWS-IF$2)$3"],
 [/^(\s*)ต้องการ\s+T_out\s+>\s+T_sat\s+ที่\s+P_out\s+เพื่อใช้\s+Steam\s+Table\s+Region\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Requires T_out > T_sat at P_out to use steam table Region $2$3"],
@@ -1394,7 +1404,6 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)Extraction\s+(-?\d[\d,]*\.?\d*)\s+—\s+HP\s+\(จุดสกัดที่\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Extraction $2 — HP (extraction point $3)$4"],
 [/^(\s*)Extraction\s+(-?\d[\d,]*\.?\d*)\s+—\s+IP\s+\(จุดสกัดที่\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Extraction $2 — IP (extraction point $3)$4"],
 [/^(\s*)Extraction\s+(-?\d[\d,]*\.?\d*)\s+—\s+LP\s+\(จุดสกัดที่\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Extraction $2 — LP (extraction point $3)$4"],
-[/^(\s*)🔌\s+Sample:\s+Mill\s+B(-?\d[\d,]*\.?\d*)\s+(-?\d[\d,]*\.?\d*)MW\s+\(DCS\s+จริง\)(\s*)$/,"$1🔌 Sample: Sugar mill B$2 $3MW (real DCS)$4"],
 [/^(\s*)(-?\d[\d,]*\.?\d*)\s+Condensing\s+Turbine\s+\(กลั่นตัว\)(\s*)$/,"$1$2 Condensing Turbine$3"],
 [/^(\s*)ตะกรันที่ใบพัดลด\s+η_is\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)%\/ปี(\s*)$/,"$1Blade scaling cuts η_is $2–$3%/yr$4"],
 [/^(\s*)Overhaul\s+ทุก\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+ปี\s+ฟื้น\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)%(\s*)$/,"$1Overhaul every $2–$3 yr restores $4–$5%$6"],
@@ -1410,7 +1419,6 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)อัตราไหลสกัด\s+m_ext(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Extraction flow m_ext$2$3"],
 [/^(\s*)ทั่วไป:\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+barA(\s*)$/,"$1Typical: $2–$3 barA$4"],
 [/^(\s*)ความดัน\s+P_ext(-?\d[\d,]*\.?\d*)\s+\((\s*)$/,"$1Pressure P_ext$2 ($3"],
-[/^(\s*)เช่น\s+Mill\s+B(-?\d[\d,]*\.?\d*)\s+(-?\d[\d,]*\.?\d*)MW(\s*)$/,"$1e.g. Mill B$2 $3MW$4"],
 [/^(\s*)🔢\s+ผล\s+Method\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1🔢 Method $2 result$3"],
 [/STEP 1: ไอน้ำขาเข้า —/g,"STEP 1: Inlet steam —"],
 [/--- การไหลสกัด \(Extraction Streams\) ---/g,"--- Extraction streams ---"],

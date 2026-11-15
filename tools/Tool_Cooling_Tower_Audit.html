@@ -273,7 +273,7 @@ body.print-all .content{overflow:visible;}
     <div class="src"><b>ข้อมูล:</b> อัตราไหลน้ำหมุนเวียนเข้าหอ (Circulation Rate) <b>ที่มา:</b> วัดด้วย Ultrasonic Flow Meter ที่ท่อขาเข้าหอ (ช่วงท่อตรง) — ถ้าวัดไม่ได้ ใช้ Pump Curve เทียบกับความดัน หรือ Nameplate ปั๊ม CW &#215; จำนวนปั๊มที่เดิน</div>
     <label>Q_air — อัตราไหลอากาศ (วัด / Fan curve)</label>
     <div style="display:flex;gap:6px">
-      <input type="number" id="qAir" value="35" min="0.1" step="0.5" style="flex:2">
+      <input type="number" id="qAir" value="100" min="0.1" step="0.5" style="flex:2"><!-- [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ B5 — ค่าตั้งต้นเดิม 35 m³/s ให้ L/G 3.45 เกินค่าสูงสุดทางทฤษฎี 2.11 (NTU ขึ้น ⛔ ตั้งแต่เปิดหน้า) → 100 m³/s ได้ L/G ≈ 1.21 · NTU ≈ 1.36 -->
       <select id="qAirUnit" style="flex:1.1">
         <option value="m3s">m&#179;/s</option>
         <option value="m3h">m&#179;/h</option>
@@ -750,7 +750,7 @@ var CHECKLIST = [
     'ตรวจ Makeup Water Valve Auto Float'
   ]},
   {s:'&#9971; Legionella Prevention',i:[
-    'ตรวจ T_basin &#8805; 20°C (ไม่เอื้อต่อ Legionella)',
+    'T_basin อยู่ช่วง 20–45 °C = ช่วงเสี่ยง Legionella ต้องมีแผน biocide และผลตรวจเชื้อ', /* [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ B5 — เดิม "ตรวจ T_basin ≥ 20°C (ไม่เอื้อต่อ Legionella)" เขียนกลับด้าน (20–45 °C คือช่วงที่เชื้อเติบโต) */
     'ตรวจ Biocide Dosing — ตามแผน Treatment',
     'บันทึก Legionella Test Result (ล่าสุด)',
     'ตรวจ Dead Legs / Stagnant Water ในระบบ',
@@ -1071,7 +1071,9 @@ function calcPerf(){
     var lgMax = lgMaxTheory(tCold, tHot, tWB);
     var lgInvalid = isFinite(lgMax) && lg >= lgMax;
     // Safety clamp: air enthalpy must stay below saturation at hot water temp
-    h_air_out = Math.min(h_air_out, hSat(tHot) * 0.97);
+    /* [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ B5 — จำค่าก่อนจำกัด เพื่อแจ้งในตารางผลเมื่อ h_air,out ถูกจำกัดที่ 0.97·h_sat(T_hot) */
+    var h_air_out_raw = h_air_out, hClampLim = hSat(tHot) * 0.97, hClamped = h_air_out > hClampLim;
+    h_air_out = Math.min(h_air_out, hClampLim);
     h_air_out = Math.max(h_air_out, h_air_in + 3);
 
     // NTU by Chebyshev 4-point (Merkel): ∫(Cw·dT)/(h_sat - h_air)
@@ -1138,7 +1140,7 @@ function calcPerf(){
     pt+='<tr><td>Water Flow Rate</td><td>'+fN(qWater,0)+' m³/h = '+fN(mw,2)+' kg/s</td></tr>';
     pt+='<tr><td>L/G Ratio</td><td class="'+(lgInvalid?'bad':'')+'">'+fN(lg,2)+' (target 0.75–1.50 · สูงสุดทางทฤษฎี '+fN(lgMax,2)+')</td></tr>';
     pt+='<tr><td>Enthalpy Air In</td><td>'+fN(h_air_in,1)+' kJ/kg</td></tr>';
-    pt+='<tr><td>Enthalpy Air Out</td><td>'+fN(h_air_out,1)+' kJ/kg</td></tr>';
+    pt+='<tr><td>Enthalpy Air Out</td><td class="'+(hClamped?'bad':'')+'">'+fN(h_air_out,1)+' kJ/kg'+(hClamped?' ⚠ ถูกจำกัดที่ 0.97·h_sat(T_hot) — ค่าจากสมดุลพลังงาน '+fN(h_air_out_raw,1)+' kJ/kg เกินเส้นอิ่มตัว':'')+'</td></tr>'; /* [แก้ไข 15 พ.ย. 2569] B5 */
     SI('PERF_TBL',pt);
 
     // Benchmark
@@ -2222,7 +2224,8 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)<\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)%\s+ของ\s+Circulation\s+\(มี\s+Drift\s+Eliminator\)(\s*)$/,"$1< $2–$3% of circulation (with drift eliminator)$4"],
 [/^(\s*)ประหยัดพลังงาน\s+\~(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)%\s+ตามกฎ\s+Affinity\s+\(P\s+∝\s+N³\)(\s*)$/,"$1Energy savings ~$2–$3% by the affinity law (P ∝ N³)$4"],
 [/^(\s*)(-?\d[\d,]*\.?\d*)\s+kg\/kg\s+\(ใส่\s+T_wb,out\s+เพื่อ\s+back\-calc\s+จริง\)(\s*)$/,"$1$2 kg/kg (enter T_wb,out to back-calc the actual value)$3"],
-[/^(\s*)ตรวจ\s+T_basin\s+≥\s+(-?\d[\d,]*\.?\d*)°C\s+\(ไม่เอื้อต่อ\s+Legionella\)(\s*)$/,"$1Check T_basin ≥ $2°C (unfavorable for Legionella)$3"],
+[/^(\s*)(-?\d[\d,]*\.?\d*)\s+kJ\/kg\s+⚠\s+ถูกจำกัดที่\s+0\.97·h_sat\(T_hot\)\s+—\s+ค่าจากสมดุลพลังงาน\s+(-?\d[\d,]*\.?\d*)\s+kJ\/kg\s+เกินเส้นอิ่มตัว(\s*)$/,"$1$2 kJ/kg ⚠ limited to 0.97·h_sat(T_hot) — the energy-balance value $3 kJ/kg is above the saturation line$4"],
+[/^(\s*)T_basin\s+อยู่ช่วง\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+°C\s+=\s+ช่วงเสี่ยง\s+Legionella\s+ต้องมีแผน\s+biocide\s+และผลตรวจเชื้อ(\s*)$/,"$1T_basin within $2–$3 °C = Legionella risk range — a biocide programme and test results are required$4"],
 [/^(\s*)เป้าหมาย\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+\|\s+<\s+(-?\d[\d,]*\.?\d*)\s+=\s+Fill\s+เสื่อม\/Flow\s+เกิน(\s*)$/,"$1Target $2–$3 | < $4 = degraded fill/excess flow$5"],
 [/^(\s*)ความเป็นกรด–ด่างของน้ำหมุนเวียน\s+\(เป้า\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Acidity–alkalinity of circulating water (target $2–$3)$4"],
 [/^(\s*)kW\/RT\s+=\s+(-?\d[\d,]*\.?\d*)\s+\(เกณฑ์\s+<\s+(-?\d[\d,]*\.?\d*)\s+kW\/RT\s+—\s+✓\s+ผ่านเกณฑ์\)(\s*)$/,"$1kW/RT = $2 (limit < $3 kW/RT — ✓ pass)$4"],

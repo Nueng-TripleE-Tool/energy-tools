@@ -3221,8 +3221,19 @@ window.addEventListener('DOMContentLoaded', function() {
     const cd = document.getElementById('lk_cd'), adv = document.getElementById('lk_advisor');
     adv.style.display = (p === 'thread') ? 'block' : 'none';
     if (p === 'custom') { cd.readOnly = false; cd.style.background = 'var(--panel)'; cd.focus(); }
-    else { cd.readOnly = true; cd.style.background = 'var(--panel-2)'; cd.value = LEAK_PROFILES[p].Cd; }
+    else { cd.readOnly = true; cd.style.background = 'var(--panel-2)'; cd.value = lk_profCd(p); }
   };
+  /* [แก้ไข 15 พ.ย. 2569] มติ D1 — ไอน้ำอิ่มตัวใช้ Napier รูป D² ซึ่งรวม C_d 0.60 ไว้ในค่าคงที่ → รูขอบคมของไอน้ำอิ่มตัว = 0.60 (สารอื่นคง 0.61 ตามเดิม) */
+  function lk_profCd(p) {
+    const F = LEAK_FLUIDS[document.getElementById('lk_fluid').value];
+    return (F && F.cat === 'satsteam' && p === 'sharp') ? TE_LEAK.CD_REF : LEAK_PROFILES[p].Cd;
+  }
+  function lk_syncSteamCd() {
+    const sel = document.getElementById('lk_profile'), cd = document.getElementById('lk_cd');
+    const o = sel.querySelector('option[value="sharp"]');
+    if (o) o.textContent = LEAK_PROFILES.sharp.name + ' [Cd=' + lk_profCd('sharp') + ']';
+    if (sel.value !== 'custom') cd.value = lk_profCd(sel.value);
+  }
 
   window.lk_updateFluid = function() {
     const key = document.getElementById('lk_fluid').value;
@@ -3260,6 +3271,7 @@ window.addEventListener('DOMContentLoaded', function() {
       document.getElementById('lk_lhv').value = F.LHV;
       document.getElementById('lk_fch4').value = F.fch4;
     }
+    lk_syncSteamCd();   /* [แก้ไข 15 พ.ย. 2569] C_d รูขอบคมตามชนิดสาร (ไอน้ำอิ่มตัว 0.60) */
   };
 
   window.lk_calc = function() {
@@ -3287,7 +3299,9 @@ window.addEventListener('DOMContentLoaded', function() {
       Object.assign(d, cf, { R, k, T1, T1K, M:F.M });
     } else if (F.cat === 'satsteam') {
       const sp = steamProp(P1g);
-      const mdot_kghr = 0.24725 * P1abs * D_mm*D_mm * (Cd/0.61);
+      /* [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ A1 · มติ D1 — เรียกฟังก์ชันกลาง TE_LEAK.steamNapier ชุดเดียวกับการ์ด Steam Trap (Pro)
+         เดิม 0.24725·P(bar)·D²·(Cd/0.61) — ค่าคงที่เดียวกัน (0.002472 ต่อ kPa) แต่ฐาน C_d ที่รวมในสูตร Napier คือ 0.60 ไม่ใช่ 0.61 */
+      const mdot_kghr = TE_LEAK.steamNapier(D_mm, P1abs*100, Cd);
       Object.assign(d, { sp, Tsat:sp[1], hf:sp[2], hfg:sp[3], hg:sp[4], mdot_kghr, mdot:mdot_kghr/3600 });
     } else if (F.cat === 'refrig') {
       const charge=+document.getElementById('lk_charge').value, leakrate=+document.getElementById('lk_leakrate').value;
@@ -3393,7 +3407,7 @@ window.addEventListener('DOMContentLoaded', function() {
           P₁ = <span class="num">${fmt(d.P1g,2)}</span> barg → T_sat = <span class="num">${fmt(d.Tsat,1)}°C</span> ; h_g = <span class="num">${fmt(d.hg,1)} kJ/kg</span>
         </div></div>
         <div class="step"><div class="label">② อัตราการรั่ว (Napier's Equation × C_d)</div><div class="formula">
-          ṁ = 0.24725·P₁,abs·D²·(C_d/0.61) = <span class="num">${fmt(d.mdot_kghr,2)} kg/hr</span> = <span class="num">${fmt(d.mdot,6)} kg/s</span> (ต่อจุด)
+          ṁ = 0.002472·P₁,abs(kPa)·D²(mm)·(C_d/0.60) = <span class="num">${fmt(d.mdot_kghr,2)} kg/hr</span> = <span class="num">${fmt(d.mdot,6)} kg/s</span> (ต่อจุด)
         </div></div>`;
     } else if (d.cat === 'refrig') {
       mass = `
@@ -3796,7 +3810,7 @@ var FH_ID={
   lk_fluid:'เลือกสารที่รั่ว — โปรแกรมสลับชุดช่องกรอกและวิธีคิดพลังงาน/ต้นทุน',
   lk_p1:'ความดันในระบบที่จุดรั่ว (bar g) จากเกจ — อากาศอัด 6–7.5, ไอน้ำตามหม้อไอน้ำ',
   lk_t1:'อุณหภูมิสารที่จุดรั่ว (°C) — ไอน้ำอิ่มตัวใช้ T_sat อัตโนมัติ',
-  lk_profile:'ลักษณะขอบรูรั่ว — กำหนด C_d: ขอบคม 0.61, มน 0.8–0.97, เกลียว/แตกร้าว 0.65',
+  lk_profile:'ลักษณะขอบรูรั่ว — กำหนด C_d: ขอบคม 0.61, มน 0.8–0.97, เกลียว/แตกร้าว 0.65 · ไอน้ำอิ่มตัว (Napier) ขอบคม = 0.60',
   lk_cd:'สัมประสิทธิ์การไหลออก (อัตโนมัติจากลักษณะรู) — แก้ได้เมื่อเลือก custom',
   lk_dia:'เส้นผ่านศูนย์กลางรูรั่วเทียบเท่า (mm) — ประเมินจาก ultrasonic leak detector หรือวัดตรง; ทั่วไป 1–5 mm',
   lk_n:'จำนวนจุดรั่วที่มีลักษณะเดียวกัน (จุด) จากการสำรวจ',
@@ -4449,6 +4463,7 @@ if(window.TE_I18N)TE_I18N.set({
 "สารทำงาน": "Medium",
 "น้ำประปา": "Tap water",
 "(ต่อจุด)": "(per point)",
+"② อัตราการรั่ว (Napier's Equation × C_d)": "② Leak rate (Napier's equation × C_d)",
 "tCO₂e/ปี": "tCO₂e/yr",
 "พลังงาน": "Energy",
 "ตั้งค่า": "Settings",
@@ -4562,7 +4577,7 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)สัมประสิทธิ์พาความร้อนผิวนอก\s+\(W\/m²·K\)\s+—\s+ในอาคาร\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+กลางแจ้ง\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Outer surface heat transfer coefficient (W/m²·K) — indoor $2–$3 outdoor $4–$5$6"],
 [/^(\s*)GWP\s+ของสารทำความเย็น\s+\(AR(-?\d[\d,]*\.?\d*)\)\s+—\s+อัตโนมัติจากชนิด;\s+R(-?\d[\d,]*\.?\d*)a\s+(-?\d[\d,]*\.?\d*)\s+R(-?\d[\d,]*\.?\d*)A\s+(-?\d[\d,]*\.?\d*)\s+R(-?\d[\d,]*\.?\d*)\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Refrigerant GWP (AR$2) — auto from type; R$3a $4 R$5A $6 R$7 $8$9"],
 [/^(\s*)ราคาเชื้อเพลิงหม้อไอน้ำ\s+\(฿\/GJ\)\s+—\s+NG\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+ถ่านหิน\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+ชีวมวล\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Boiler fuel price (THB/GJ) — NG $2–$3 coal $4–$5 biomass $6–$7$8"],
-[/^(\s*)ลักษณะขอบรูรั่ว\s+—\s+กำหนด\s+C_d:\s+ขอบคม\s+(-?\d[\d,]*\.?\d*),\s+มน\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*),\s+เกลียว\/แตกร้าว\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Leak edge type — sets C_d: sharp edge $2, rounded $3–$4, thread/crack $5$6"],
+[/^(\s*)ลักษณะขอบรูรั่ว\s+—\s+กำหนด\s+C_d:\s+ขอบคม\s+(-?\d[\d,]*\.?\d*),\s+มน\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*),\s+เกลียว\/แตกร้าว\s+(-?\d[\d,]*\.?\d*)\s+·\s+ไอน้ำอิ่มตัว\s+\(Napier\)\s+ขอบคม\s+=\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Leak edge type — sets C_d: sharp edge $2, rounded $3–$4, thread/crack $5 · saturated steam (Napier) sharp edge = $6$7"],
 [/^(\s*)ผลรวมสัมประสิทธิ์ความสูญเสียรอง\s+ΣK\s+ของข้อต่อ\/วาล์ว\s+\(Crane\s+TP(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Sum of minor loss coefficients ΣK of fittings/valves (Crane TP$2)$3"],
 [/^(\s*)ประสิทธิภาพปั๊ม\/พัดลมที่จุดทำงาน\s+\(%\)\s+จาก\s+curve\s+ผู้ผลิต\s+—\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+%(\s*)$/,"$1Pump/fan efficiency at operating point (%) from manufacturer curve — $2–$3 %$4"],
 [/^(\s*)เลือกของไหล\s+—\s+ρ,\s+μ\s+อัตโนมัติ\s+\(ไอน้ำ\/อากาศคำนวณ\s+IF(-?\d[\d,]*\.?\d*)\/ideal\s+gas\)(\s*)$/,"$1Select fluid — ρ, μ automatic (steam/air computed with IF$2/ideal gas)$3"],
