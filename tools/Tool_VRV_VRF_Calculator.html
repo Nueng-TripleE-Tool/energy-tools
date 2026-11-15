@@ -1084,7 +1084,8 @@ document.querySelectorAll('.mode-card').forEach(c=>{
   c.addEventListener('click', ()=>{ const id=c.getAttribute('onclick').match(/'(\w+)'/)[1]; switchTabById(id); });
 });
 
-function fmtN(v,d=2){ return isFinite(v)?parseFloat(v.toFixed(d)).toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d}):v }
+/* [แก้ไข 14 พ.ย. 2569] ค่าที่คำนวณไม่ได้ (ช่องว่าง/หารศูนย์) แสดง "—" แทน NaN/Infinity */
+function fmtN(v,d=2){ return isFinite(v)?parseFloat(v.toFixed(d)).toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d}):'—' }
 
 /* [แก้ไข 3 ต.ค. 2569 audit] อ่านตัวเลข: ใช้ค่าตั้งต้นเฉพาะช่องว่าง (0 ไม่ถูกแทน) */
 function teNum(id, def){ const e=document.getElementById(id); const v=e?parseFloat(e.value):NaN; return isFinite(v)?v:def; }
@@ -1245,8 +1246,10 @@ function calcCapacity() {
 
   const divOK = diversity>=0.5 && diversity<=1.3;
   const plrOK = plr<=1.1;
-  let divMsg = diversity<0.5?'⚠️ Diversity ต่ำเกินไป (Under-designed)':diversity>1.3?'❌ Diversity สูงเกิน 130% — ระบบจะขาด Capacity':'✅ Diversity อยู่ในช่วงปกติ (50–130%)';
-  let plrMsg = plr>1.1?`❌ PLR = ${fmtN(plr,2)} เกิน 110% — Outdoor Unit ไม่พอ`:`✅ PLR = ${fmtN(plr,2)} — อยู่ในเกณฑ์`;
+  /* [แก้ไข 14 พ.ย. 2569] ไม่กรอก Q ODU → ไม่ตัดสินว่า "อยู่ในเกณฑ์" */
+  const capBad = !isFinite(diversity) || !isFinite(plr);
+  let divMsg = capBad?'⚠️ คำนวณไม่ได้ — กรอกพิกัด Outdoor Unit (Q ODU) และ Indoor Unit ให้ครบ':diversity<0.5?'⚠️ Diversity ต่ำเกินไป (Under-designed)':diversity>1.3?'❌ Diversity สูงเกิน 130% — ระบบจะขาด Capacity':'✅ Diversity อยู่ในช่วงปกติ (50–130%)';
+  let plrMsg = capBad?'⚠️ PLR คำนวณไม่ได้ — ตรวจช่องพิกัดเครื่อง':plr>1.1?`❌ PLR = ${fmtN(plr,2)} เกิน 110% — Outdoor Unit ไม่พอ`:`✅ PLR = ${fmtN(plr,2)} — อยู่ในเกณฑ์`;
 
   document.getElementById('cap_result_body').innerHTML = `
     <div class="result-grid">
@@ -1959,6 +1962,7 @@ if(window.TE_I18N)TE_I18N.set({
 ]);
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
+<script>/* [แก้ไข 14 พ.ย. 2569] EN — ข้อความเมื่อคำนวณไม่ได้ */ if(window.TE_I18N)TE_I18N.set({"⚠️ คำนวณไม่ได้ — กรอกพิกัด Outdoor Unit (Q ODU) และ Indoor Unit ให้ครบ":"⚠️ Cannot calculate — enter the Outdoor Unit (Q ODU) and Indoor Unit capacities","⚠️ PLR คำนวณไม่ได้ — ตรวจช่องพิกัดเครื่อง":"⚠️ PLR cannot be calculated — check the capacity inputs"});</script>
 <script>/* [แก้ไข 12 พ.ย. 2569] EN — แผนภูมิครบทุกแกน */ if(window.TE_I18N)TE_I18N.set({"แผนภูมิไซโครเมตริกครบทุกแกน — อากาศกลับ (RA) → ลมจ่าย (SA)":"Full-scale psychrometric chart — return air (RA) → supply air (SA)"});</script>
 <script>/* [แก้ไข 12 พ.ย. 2569] แผนภูมิไซโครเมตริกครบทุกแกน (TE_PSYCHART) — อากาศกลับ (RA) → ลมจ่าย (SA) จากค่าที่วัด
    จุด x = (DB_RA, W_SA) แสดงการแยกความร้อนสัมผัส/แฝง: SHR = (h_x − h_SA)/(h_RA − h_SA) ตรงกับตัวเลข SHR ของเครื่องมือ */
@@ -2020,5 +2024,26 @@ TE_HELP.auto({c_qrated:'ac_plate',c_wrated:'ac_plate',c_iplv_plate:'ac_iplv',
 <script>/* ═════ EN r3 (6 พ.ย. 2569) — ข้อความแจ้งเตือน/รายงาน ═════ */ if(window.TE_I18N)TE_I18N.set({},[
 [/^ไฟล์ JSON ไม่ถูกต้อง:(.*)$/,"Invalid JSON file:$1"]
 ]);</script>
+<script>/* [แก้ไข 14 พ.ย. 2569 · U5] ปุ่ม "↺ คืนค่าตั้งต้น" (ไม่ใช้คำว่า ตัวอย่าง/example เพื่อไม่ให้แถบใช้ครั้งแรกของ te-scene จับเป็นปุ่มดูผลตัวอย่าง) — เปิดหน้าใหม่ให้ทุกช่องกลับเป็นค่าตั้งต้นของเครื่องมือ (ค่าตัวอย่างชุดเดิม ไม่เพิ่มตัวเลขใหม่) · ไม่แตะสูตร */
+(function(){
+  if(window.__teExampleBtn) return; window.__teExampleBtn = 1;
+  function go(){
+    if(!confirm('คืนค่าตั้งต้นของเครื่องมือทุกช่อง? ค่าที่กรอกไว้จะหาย — บันทึก JSON ไว้ก่อนถ้ายังต้องใช้')) return;
+    location.assign(location.href.split('#')[0]);
+  }
+  function add(){
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'te-example-btn';
+    b.textContent = '↺ คืนค่าตั้งต้น'; b.title = 'คืนทุกช่องเป็นค่าตั้งต้นของเครื่องมือ'; b.onclick = go;
+    b.style.cssText = 'margin:6px 8px;padding:5px 14px;border-radius:999px;border:1.5px solid #d4ac0d;background:#fffbea;color:#1c2733;font:600 13px/1.4 inherit;cursor:pointer;white-space:nowrap';
+    var anchor = document.querySelector('.btn-reset');
+    if(anchor){ anchor.insertAdjacentElement('afterend', b); return; }
+    var h = document.querySelector('header, .hdr');
+    if(h){ h.appendChild(b); return; }
+    document.body.insertBefore(b, document.body.firstChild);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add); else add();
+  if(window.TE_I18N) TE_I18N.set({'↺ คืนค่าตั้งต้น':'↺ Reset to defaults','คืนทุกช่องเป็นค่าตั้งต้นของเครื่องมือ':'Reset every field to the tool defaults','คืนค่าตั้งต้นของเครื่องมือทุกช่อง? ค่าที่กรอกไว้จะหาย — บันทึก JSON ไว้ก่อนถ้ายังต้องใช้':'Reset every field to the tool defaults? Your entries will be lost — save a JSON file first if you still need them'});
+})();
+</script>
 </body>
 </html>

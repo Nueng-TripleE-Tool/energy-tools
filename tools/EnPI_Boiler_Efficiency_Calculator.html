@@ -465,6 +465,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                 </thead>
                 <tbody id="tableBody"></tbody>
             </table>
+            <div id="stdPick" style="display:none; margin-top:10px; padding:8px 12px; border-left:4px solid #d4ac0d; background:#fffbea; font-size:0.92rem;"></div><!-- [แก้ไข 14 พ.ย. 2569 · U6] มาตรฐานที่แนะนำให้รายงาน -->
         </div>
 
         <!-- [แก้ไข 10 พ.ย. 2569] ตรวจ CO₂ เทียบสมดุลมวล (ระดับ Free) · ตารางเส้นอ้างอิงเต็มอยู่ใน Pro TH-BLR-01 -->
@@ -1024,6 +1025,22 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             runJIS ? jis_Eff_L.toFixed(2)+'%' : '', 
             'hl'
         );
+
+        /* [แก้ไข 14 พ.ย. 2569 · U6] ไฮไลต์มาตรฐานที่แนะนำให้ใช้รายงาน ตามมติ อ.หนึ่ง: BS 845-1 → ASME PTC 4 → JIS B 8222
+           ใช้ตัวถัดไปเมื่อตัวก่อนหน้าไม่ได้เลือก หรือคำนวณไม่ได้ (เช่น BS 845 กับเชื้อเพลิงไม่มีคาร์บอน) · แสดงผลอย่างเดียว ตัวเลขไม่เปลี่ยน */
+        (function(){
+            const okv = v => isFinite(v) && v > 0 && v <= 100;
+            const cand = [['bs', runBS && mix.co2 > 0 && okv(bs_Eff_G), 'BS 845-1'], ['asme', runASME && okv(asme_Eff), 'ASME PTC 4'], ['jis', runJIS && okv(jis_Eff_H), 'JIS B 8222']];
+            const pick = cand.find(c => c[1]);
+            const cols = []; if(runASME) cols.push('asme'); if(runBS) cols.push('bs'); if(runJIS) cols.push('jis');
+            const box = document.getElementById('stdPick');
+            window.TE_BOILER_RES.recStd = pick ? pick[0] : null;
+            if(!pick || !box) { if(box) box.style.display = 'none'; return; }
+            const th = headRow.children[1 + cols.indexOf(pick[0])];
+            if(th) { th.style.boxShadow = 'inset 0 -4px 0 #d4ac0d'; th.insertAdjacentHTML('beforeend', '<br><span class="te-rec" style="display:inline-block; margin-top:3px; padding:1px 8px; border-radius:9px; background:#d4ac0d; color:#1c2733; font-size:0.75em; font-weight:700;">★ แนะนำให้รายงาน</span>'); }
+            box.innerHTML = '<span>★ มาตรฐานที่แนะนำให้ใช้รายงาน:</span> <b>' + pick[2] + '</b> <span>— ลำดับ BS 845-1 → ASME PTC 4 → JIS B 8222 (ใช้ตัวถัดไปเมื่อตัวก่อนหน้าไม่ได้เลือกหรือคำนวณไม่ได้) · ตัวอื่นใช้ตรวจไขว้</span>';
+            box.style.display = 'block';
+        })();
 
         addRow('2. Input-Output Method (Direct)', '', '', '', 'sub-header');
         let dH = (dir_HHV > 0) ? dir_HHV.toFixed(2)+'%' : '-';
@@ -2018,6 +2035,7 @@ if(window.TE_I18N)TE_I18N.set({
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
 <script src="../lib/te-scene.js?v=r11"></script>
+<script>/* [แก้ไข 14 พ.ย. 2569 · U6] EN */ if(window.TE_I18N)TE_I18N.set({"★ แนะนำให้รายงาน":"★ Recommended for reporting","★ มาตรฐานที่แนะนำให้ใช้รายงาน:":"★ Recommended standard for reporting:","— ลำดับ BS 845-1 → ASME PTC 4 → JIS B 8222 (ใช้ตัวถัดไปเมื่อตัวก่อนหน้าไม่ได้เลือกหรือคำนวณไม่ได้) · ตัวอื่นใช้ตรวจไขว้":"— order BS 845-1 → ASME PTC 4 → JIS B 8222 (the next one is used when the previous one is not selected or cannot be calculated) · the others serve as cross-checks"});</script>
 <script>/* [แก้ไข 12 พ.ย. 2569] EN — BS 845 กับเชื้อเพลิงไม่มีคาร์บอน */ if(window.TE_I18N)TE_I18N.set({"ความชื้นสัมพัทธ์อากาศ (%) จาก hygrometer — ประเทศไทย 55–80 % · เว้นว่าง = ใช้ RH 70 % ที่ Ta (ค่าแทนภูมิอากาศไทย) — ใช้ทั้ง 3 วิธี: ASME (ความชื้นอากาศ) · BS 845 (เทอม X) · JIS (1.61·z·m·A₀)":"Air relative humidity (%) from a hygrometer — Thailand 55–80 % · blank = RH 70 % at Ta (Thai climate default) — used by all 3 methods: ASME (air moisture) · BS 845 (term X) · JIS (1.61·z·m·A₀)",
 "% Vol แห้ง":"% vol dry","71. Lignite (Mae Moh, 30%M) (ถ่านหินลิกไนต์ (แม่เมาะ ชื้น 30 %))":"71. Lignite (Mae Moh, 30%M)","72. Wood pellet ENplus A1 (8%M) (ไม้อัดเม็ดเชิงพาณิชย์ ENplus A1 (ชื้น 8 %))":"72. Wood pellet ENplus A1 (8%M)","73. LNG (regasified, import avg.) (แอลเอ็นจี (นำเข้า แปรสภาพเป็นก๊าซ))":"73. LNG (regasified, import avg.)",
 "CO₂ จาก analyzer ที่จุดเดียวกับ O₂ — ใช้ตรวจความสอดคล้อง O₂–CO₂ กับสมดุลมวล (ต่าง ≤ 0.5 จุด = สอดคล้อง) ไม่กระทบผลประสิทธิภาพ":"CO₂ from the analyzer at the same point as O₂ — checks O₂–CO₂ consistency against the mass balance (difference ≤ 0.5 points = consistent); does not change the efficiency result",
@@ -2032,5 +2050,26 @@ if(window.TE_I18N)TE_I18N.set({
 <script>/* ═════ EN r3 (6 พ.ย. 2569) — ข้อความแจ้งเตือน/รายงาน ═════ */ if(window.TE_I18N)TE_I18N.set({},[[/^(\s*)เกณฑ์ \|Δ\| ≤ 0\.5 จุด สอดคล้อง · ≤ 1\.0 ควรตรวจ · เกินนั้นไม่สอดคล้อง — CO₂ วัดได้ต่ำกว่าสมดุลมวลมาก มักเกิดจากอากาศรั่วเข้าท่อเก็บตัวอย่าง เครื่องวัดคลาดเคลื่อน หรือผลวิเคราะห์ธาตุไม่ตรงเชื้อเพลิงจริง · อากาศส่วนเกินจากสมดุลมวล (-?[\d.,]+) %(\s*)$/,"$1Criteria |Δ| ≤ 0.5 points consistent · ≤ 1.0 check · above that inconsistent — measured CO₂ far below the mass balance usually means air leaking into the sampling line, an analyzer error, or an ultimate analysis that does not match the actual fuel · excess air from mass balance $2 %$3"]]); if(window.TE_I18N)TE_I18N.set({"กรุณาระบุสัดส่วนเชื้อเพลิงให้ครบ 100%": "Please make the fuel shares add up to 100%", "กรุณาเลือกเชื้อเพลิง": "Please select a fuel", "กรุณาเลือกอย่างน้อย 1 รายการ": "Please select at least 1 item", "กรุณากด \"Calculate Analysis\" เพื่อคำนวณผลก่อน จึงจะพิมพ์ได้": "Click \"Calculate Analysis\" to calculate results before printing", "ยังไม่มีมาตรการที่คำนวณผลประหยัดได้ — กรุณากรอกข้อมูล/คำนวณก่อนส่งออก": "No measure with calculated savings yet — enter data/calculate before exporting"},[
 [/^ไม่สามารถโหลดไฟล์ JSON ได้:(.*)$/,"Could not load the JSON file:$1"]
 ]);</script>
+<script>/* [แก้ไข 14 พ.ย. 2569 · U5] ปุ่ม "↺ คืนค่าตั้งต้น" (ไม่ใช้คำว่า ตัวอย่าง/example เพื่อไม่ให้แถบใช้ครั้งแรกของ te-scene จับเป็นปุ่มดูผลตัวอย่าง) — เปิดหน้าใหม่ให้ทุกช่องกลับเป็นค่าตั้งต้นของเครื่องมือ (ค่าตัวอย่างชุดเดิม ไม่เพิ่มตัวเลขใหม่) · ไม่แตะสูตร */
+(function(){
+  if(window.__teExampleBtn) return; window.__teExampleBtn = 1;
+  function go(){
+    if(!confirm('คืนค่าตั้งต้นของเครื่องมือทุกช่อง? ค่าที่กรอกไว้จะหาย — บันทึก JSON ไว้ก่อนถ้ายังต้องใช้')) return;
+    location.assign(location.href.split('#')[0]);
+  }
+  function add(){
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'te-example-btn';
+    b.textContent = '↺ คืนค่าตั้งต้น'; b.title = 'คืนทุกช่องเป็นค่าตั้งต้นของเครื่องมือ'; b.onclick = go;
+    b.style.cssText = 'margin:6px 8px;padding:5px 14px;border-radius:999px;border:1.5px solid #d4ac0d;background:#fffbea;color:#1c2733;font:600 13px/1.4 inherit;cursor:pointer;white-space:nowrap';
+    var anchor = document.querySelector('.btn-reset');
+    if(anchor){ anchor.insertAdjacentElement('afterend', b); return; }
+    var h = document.querySelector('header, .hdr');
+    if(h){ h.appendChild(b); return; }
+    document.body.insertBefore(b, document.body.firstChild);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add); else add();
+  if(window.TE_I18N) TE_I18N.set({'↺ คืนค่าตั้งต้น':'↺ Reset to defaults','คืนทุกช่องเป็นค่าตั้งต้นของเครื่องมือ':'Reset every field to the tool defaults','คืนค่าตั้งต้นของเครื่องมือทุกช่อง? ค่าที่กรอกไว้จะหาย — บันทึก JSON ไว้ก่อนถ้ายังต้องใช้':'Reset every field to the tool defaults? Your entries will be lost — save a JSON file first if you still need them'});
+})();
+</script>
 </body>
 </html>
