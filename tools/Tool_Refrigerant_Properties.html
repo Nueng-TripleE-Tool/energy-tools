@@ -46,18 +46,18 @@ footer{max-width:1180px;margin:0 auto 26px;padding:0 18px;font-size:.78em;color:
 </div>
 <div class="card"><h2>② อิ่มตัว — จากความดัน</h2>
   <div class="row"><div><label>ความดัน</label><input id="rp" type="number" step="0.1" value="8.5"></div>
-  <div><label>หน่วย</label><select id="rp_u"><option value="g" selected>bar g</option><option value="a">bar a</option></select></div></div>
+  <div><label>หน่วย</label><select id="rp_u"><option value="g" selected>bar g</option><option value="psig">psi g</option><option value="a">bar a</option></select></div></div>
   <div class="kv" id="rp_out"></div>
 </div>
 <div class="card"><h2>③ Superheat (ด้านดูด)</h2>
   <div class="row"><div><label>ความดันด้านดูด</label><input id="sh_p" type="number" step="0.1" value="8.5"></div>
-  <div><label>หน่วย</label><select id="sh_u"><option value="g" selected>bar g</option><option value="a">bar a</option></select></div>
+  <div><label>หน่วย</label><select id="sh_u"><option value="g" selected>bar g</option><option value="psig">psi g</option><option value="a">bar a</option></select></div>
   <div><label>T ท่อดูดวัดจริง (°C)</label><input id="sh_t" type="number" step="0.5" value="12"></div></div>
   <div class="kv" id="sh_out"></div><div class="hint">ช่วงที่พบทั่วไป Split/VRF: SH ≈ 4–8 K · ต่ำมาก = เสี่ยง liquid back, สูงมาก = ขาดสาร/Expansion ตีบ · สีของช่อง: แดง ต่ำกว่า 2 K · เขียว 2–12 K · ส้ม เกิน 12 K (ค่าแนวทางของเครื่องมือ — ใช้ค่าของผู้ผลิตเครื่องเมื่อมี)</div>
 </div>
 <div class="card"><h2>④ Subcooling (ด้านส่ง)</h2>
   <div class="row"><div><label>ความดันด้านส่ง</label><input id="sc_p" type="number" step="0.1" value="26"></div>
-  <div><label>หน่วย</label><select id="sc_u"><option value="g" selected>bar g</option><option value="a">bar a</option></select></div>
+  <div><label>หน่วย</label><select id="sc_u"><option value="g" selected>bar g</option><option value="psig">psi g</option><option value="a">bar a</option></select></div>
   <div><label>T ท่อ liquid วัดจริง (°C)</label><input id="sc_t" type="number" step="0.5" value="38"></div></div>
   <div class="kv" id="sc_out"></div><div class="hint">ช่วงที่พบทั่วไป: SC ≈ 3–7 K · ต่ำ = สารน้อย/ไม่ควบแน่นพอ, สูง = ชาร์จเกิน/คอนเดนเซอร์อั้น · สีของช่อง: แดง ต่ำกว่า 1 K · เขียว 1–10 K · ส้ม เกิน 10 K (ค่าแนวทางของเครื่องมือ — ใช้ค่าของผู้ผลิตเครื่องเมื่อมี)</div>
 </div>
@@ -77,7 +77,9 @@ function fx(v,d){return (v==null||!isFinite(v))?'–':Number(v).toLocaleString('
 function K(l,v,u,d,c){return '<div class="k"'+(c?' style="border-top-color:'+c+'"':'')+'><div class="l">'+l+'</div><span class="v">'+(typeof v==='string'?v:fx(v,d))+'</span><span class="u">'+(u||'')+'</span></div>';}
 R.list.forEach(function(k){var o=document.createElement('option');o.value=k;var inf=R.info(k);o.text=inf.name+(inf.mix?' (ผสม)':'');$('rf').add(o);});
 $('rf').value='R32';
-function Pa(id,uid){var p=+$(id).value;return $(uid).value==='g'?p+ATM:p;}
+/* [แก้ไข 16 พ.ย. 2569] เพิ่มหน่วย psi g — เกจแมนิโฟลด์งานปรับอากาศจำนวนมากอ่านเป็น psi เดิมผู้ใช้ต้องแปลงเอง (หลัก: ผู้ใช้ต้องเข้าใจชัดเจน ผลลัพธ์ปลอดภัย)
+   ตัวแปลง: 1 psi = 6 894.757 Pa = 0.06894757 bar (นิยามหน่วย lbf/in²) · ค่าเดิมของตัวเลือก g / a ไม่เปลี่ยน */
+function Pa(id,uid){var p=+$(id).value,u=$(uid).value;return u==='g'?p+ATM:u==='psig'?p*0.06894757+ATM:p;}
 /* [แก้ไข 16 พ.ย. 2569] แก้ที่หน้าเครื่องมือ (ไม่แตะสูตร TE_REFRIG) ตามหลัก "ผู้ใช้ต้องเข้าใจชัดเจน ผลลัพธ์ปลอดภัย"
    (ก) สารผสมที่มี glide (R-407C · R-454B): เดิม Subcooling ใช้อุณหภูมิอิ่มตัวค่าเดียวกับ Superheat (จุด dew) → Subcooling สูงเกินจริงเท่ากับ glide (R-407C ราว 5 K)
        แก้: Subcooling ใช้จุด bubble (R.Tsat(k,P,'bub') ซึ่งเครื่องยนต์มีอยู่แล้ว) · Superheat ใช้จุด dew ตามเดิม · การ์ด ①② และตารางแสดงทั้ง dew และ bubble
