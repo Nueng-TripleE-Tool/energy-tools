@@ -297,7 +297,7 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
 
     <label>SEC ที่ Nameplate / Design (kW/(m³/min))</label>
     <input type="number" id="spc_design" value="6.5" step="0.1"><div class="hint">SEC ตามแคตตาล็อก kW/(m³/min) — ฐานกำลังไฟฟ้าเข้าทั้งชุด (package input power) ต่อ FAD ตาม datasheet · screw 7 bar g: 5.5–7.0 · เครื่องมือเทียบค่านี้กับ SEC ฐานกำลังไฟฟ้าเข้าที่วัดจริง</div><!-- [แก้ไข 15 พ.ย. 2569] B1: ระบุฐานของค่าป้าย -->
-    <div class="unit-hint">ค่าดี <6.5 / ปกติ 6.5–7.5 / ต้องปรับปรุง &gt;7.5</div>
+    <div class="unit-hint">ค่าแนวทางของเครื่องมือ: ดีมาก <6.0 / ดี 6.0–6.5 / ยอมรับได้ 6.5–7.5 / ต้องปรับปรุง &gt;7.5</div>
   </div>
 </div>
 
@@ -1139,13 +1139,14 @@ function calcPerf() {
   const CR = P2/P1;
 
   const spcSt = SEC_e < 6.5 ? 'good' : SEC_e < 7.5 ? 'warn' : 'bad';
-  const isoSt = iso_eff > 75 ? 'good' : iso_eff > 65 ? 'warn' : 'bad';
+  /* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-05 (มติ D13 ตัวเลือก 1) — ถอดป้าย GOOD/FAIR/POOR ของ Isothermal/Isentropic Eff (เกณฑ์ 75/65 และ 80/70 ไม่มีเอกสารต้นทาง) คงตัวเลขและระบุฐานกำลังเพลา · ระดับ SEC ใช้ 4 ระดับเดียวกับตาราง SEC BENCHMARK */
+  const spcLbl = SEC_e < 6.0 ? 'EXCELLENT' : SEC_e < 6.5 ? 'GOOD' : SEC_e < 7.5 ? 'ACCEPTABLE' : 'POOR';
   const enpiSt = enpi >= 95 ? 'good' : enpi >= 80 ? 'warn' : 'bad';
 
   document.getElementById('perf-kpis').innerHTML = `
-    <div class="kpi blue"><div class="kpi-lbl">SEC (กำลังไฟฟ้าเข้า)</div><div class="kpi-val" style="color:var(--blue)">${SEC_e.toFixed(2)}</div><div class="kpi-unit">kW/(m³/min) (อ้างอิง)</div><div class="kpi-unit">ฐานกำลังเพลา ${SEC_s.toFixed(2)}</div><div style="margin-top:5px"><span class="badge badge-${spcSt}">${spcSt==='good'?'GOOD':spcSt==='warn'?'ACCEPTABLE':'POOR'}</span></div></div>
-    <div class="kpi teal"><div class="kpi-lbl">Isothermal Eff</div><div class="kpi-val" style="color:var(--teal)">${iso_eff.toFixed(1)}</div><div class="kpi-unit">%</div><div style="margin-top:5px"><span class="badge badge-${isoSt}">${isoSt==='good'?'GOOD':isoSt==='warn'?'FAIR':'POOR'}</span></div></div>
-    <div class="kpi green"><div class="kpi-lbl">Isentropic Eff</div><div class="kpi-val" style="color:var(--green)">${isen_eff.toFixed(1)}</div><div class="kpi-unit">%</div><div style="margin-top:5px"><span class="badge badge-${isen_eff>80?'good':isen_eff>70?'warn':'bad'}">${isen_eff>80?'GOOD':isen_eff>70?'FAIR':'POOR'}</span></div></div>
+    <div class="kpi blue"><div class="kpi-lbl">SEC (กำลังไฟฟ้าเข้า)</div><div class="kpi-val" style="color:var(--blue)">${SEC_e.toFixed(2)}</div><div class="kpi-unit">kW/(m³/min) (อ้างอิง)</div><div class="kpi-unit">ฐานกำลังเพลา ${SEC_s.toFixed(2)}</div><div style="margin-top:5px"><span class="badge badge-${spcSt}">${spcLbl}</span></div><div class="kpi-unit">ค่าแนวทางของเครื่องมือ</div></div>
+    <div class="kpi teal"><div class="kpi-lbl">Isothermal Eff</div><div class="kpi-val" style="color:var(--teal)">${iso_eff.toFixed(1)}</div><div class="kpi-unit">%</div><div class="kpi-unit">W_iso ÷ P_shaft (ฐานกำลังเพลา)</div></div>
+    <div class="kpi green"><div class="kpi-lbl">Isentropic Eff</div><div class="kpi-val" style="color:var(--green)">${isen_eff.toFixed(1)}</div><div class="kpi-unit">%</div><div class="kpi-unit">W_isen ÷ P_shaft (ฐานกำลังเพลา)</div></div>
     <div class="kpi amber"><div class="kpi-lbl">EnPI Efficiency</div><div class="kpi-val" style="color:var(--amber)">${enpi.toFixed(1)}</div><div class="kpi-unit">% vs Design SEC</div><div style="margin-top:5px"><span class="badge badge-${enpiSt}">${enpiSt==='good'?'GOOD':enpiSt==='warn'?'DEGRADED':'POOR'}</span></div></div>`;
 
   document.getElementById('perf-detail').innerHTML = `
@@ -1158,7 +1159,7 @@ function calcPerf() {
     <tr><td>W_isothermal (จาก FAD ที่ช่องดูด)</td><td class="hl">${W_iso.toFixed(2)}</td><td>kW</td><td>—</td></tr>
     <tr><td>W_isentropic (จาก FAD ที่ช่องดูด)</td><td class="hl">${W_isen.toFixed(2)}</td><td>kW</td><td>—</td></tr>
     <tr><td>SEC Design (Nameplate · ฐานกำลังไฟฟ้าเข้า)</td><td class="hl">${SPC_d.toFixed(2)}</td><td>kW/(m³/min) (อ้างอิง)</td><td>—</td></tr>
-    <tr><td>SEC ฐานกำลังไฟฟ้าเข้า = P_elec ÷ FAD อ้างอิง (ค่าหลัก)</td><td class="hl ${spcSt}">${SEC_e.toFixed(2)}</td><td>kW/(m³/min) (อ้างอิง)</td><td class="${spcSt}">${spcSt==='good'?'✅ ดี':spcSt==='warn'?'⚠️ ต้องดูแล':'❌ ต้องแก้ไข'}</td></tr>
+    <tr><td>SEC ฐานกำลังไฟฟ้าเข้า = P_elec ÷ FAD อ้างอิง (ค่าหลัก)</td><td class="hl ${spcSt}">${SEC_e.toFixed(2)}</td><td>kW/(m³/min) (อ้างอิง)</td><td class="${spcSt}">${spcLbl} (ค่าแนวทางของเครื่องมือ)</td></tr>
     <tr><td>SEC ฐานกำลังเพลา = P_shaft ÷ FAD อ้างอิง (ค่ารอง)</td><td class="hl">${SEC_s.toFixed(2)}</td><td>kW/(m³/min) (อ้างอิง)</td><td>—</td></tr>`;
 
   const saving_kw = (SEC_e - SPC_d) * FAD_n;   // kW ไฟฟ้า (SEC ทั้งสองค่าเป็นฐานกำลังไฟฟ้าเข้า)
@@ -2864,5 +2865,6 @@ if(window.TE_I18N)TE_I18N.set({
 ]);
 </script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-16 · R4-10 · C1 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"อุณหภูมิอากาศในระบบ T (°C)": "System air temperature T (°C)", "อุณหภูมิอากาศในถังพัก/ท่อขณะทดสอบ °C · ถ้าไม่ได้วัด ใช้อุณหภูมิแวดล้อม": "Air temperature in the receiver/piping during the test, °C · if not measured, use the ambient temperature", "เร็ว": "Fast", "เร็วเกิน": "Too fast", "จุดวัด": "Measuring point", "ระยะ (m)": "Distance (m)", "ΔP จากต้นทาง (bar)": "ΔP from source (bar)", "✅ ดี": "✅ Good", "⚠ สังเกต": "⚠ Watch", "❌ สูงเกิน": "❌ Too high", "m³/min (อ้างอิง)": "m³/min (reference)"},[[/✅ ΔP < 3% — อยู่ในเกณฑ์ดี/g,"✅ ΔP < 3% — within a good range"],[/⚠️ ΔP 3–6% — ควรตรวจสอบ Fitting/g,"⚠️ ΔP 3–6% — check the fittings"],[/❌ ΔP > 6% — ต้องขยายขนาดท่อหรือลด Fitting/g,"❌ ΔP > 6% — enlarge the pipe or reduce the fittings"],[/ΔP ต้นทาง→ปลายทาง =/g,"ΔP source→end ="],[/จุดที่ Drop สูงสุด:/g,"Largest drop at:"],[/→ ตรวจ Valve \/ Filter \/ Fitting บริเวณนั้น/g,"→ check the valves / filters / fittings around it"],[/❌ ΔP รวม > 0\.5 bar — ต้องปรับปรุงระบบท่อ \(ทุก 0\.1 bar ที่ลด SEC ลดได้ ~0\.5%\)/g,"❌ Total ΔP > 0.5 bar — the piping needs improving (each 0.1 bar removed cuts SEC by ~0.5%)"],[/⚠ ΔP รวม 0\.2–0\.5 bar — ตรวจ Fitting\/Valve/g,"⚠ Total ΔP 0.2–0.5 bar — check fittings/valves"],[/✅ ΔP รวม < 0\.2 bar — ระบบท่ออยู่ในเกณฑ์ดี/g,"✅ Total ΔP < 0.2 bar — piping within a good range"],[/อัตราส่วนงาน isentropic ÷ polytropic/g,"Isentropic ÷ polytropic work ratio"],[/m³\/min \(อ้างอิง\)/g,"m³/min (reference)"],[/ใช้ Ultrasonic Leak Detector/g,"use an ultrasonic leak detector"]]);</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-05 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ค่าแนวทางของเครื่องมือ": "tool guide value"},[[/\(ฐานกำลังเพลา\)/g,"(shaft-power basis)"],[/\(ค่าแนวทางของเครื่องมือ\)/g,"(tool guide value)"],[/ค่าแนวทางของเครื่องมือ: ดีมาก <6\.0 \/ ดี 6\.0–6\.5 \/ ยอมรับได้ 6\.5–7\.5 \/ ต้องปรับปรุง >7\.5/g,"Tool guide values: excellent <6.0 / good 6.0–6.5 / acceptable 6.5–7.5 / needs improvement >7.5"]]);</script>
 </body>
 </html>

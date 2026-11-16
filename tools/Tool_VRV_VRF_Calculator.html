@@ -1158,18 +1158,20 @@ function calcCOP() {
      ฉลากตัดสินด้วย SEER: ใช้ SEER ที่ฉลาก (ช่อง c_seer_plate) ถ้ากรอก มิฉะนั้นเทียบจาก EER พิกัด (BTU/W·h) แบบชี้แนว */
   const _spl = document.getElementById('c_seer_plate');
   const seerP = _spl ? (parseFloat(_spl.value)||0) : 0;
-  const seerUse = seerP>0 ? seerP : eer_btu;
-  const seerSrc = seerP>0 ? 'SEER ที่ฉลาก' : 'EER พิกัด (ชี้แนว)';
+  /* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-01 (มติ D7 ตัวเลือก 1) — ไม่กรอก SEER ที่ฉลาก = ไม่แสดงระดับฉลาก (เดิมเทียบ EER พิกัดกับเกณฑ์ SEER แบบชี้แนว) */
+  const hasSeer = seerP>0;
+  const seerUse = hasSeer ? seerP : 0;
+  const seerSrc = hasSeer ? 'SEER ที่ฉลาก' : '';
   const lab = TE.ACLABEL.level('vrf', q*1000, seerUse);
   const eer_min = null, iplv_min = null;
   S.cop.eer_min = null;   // คง key เดิมไว้ (ไม่มีเกณฑ์ EER ขั้นต่ำที่มีที่มา)
-  S.cop.label = lab.name; S.cop.label_pass = lab.pass; S.cop.label_in_scope = lab.inScope; S.cop.label_min = lab.thr?lab.thr[0]:null;
-  S.cop.seer_used = seerUse; S.cop.seer_src = seerSrc; S.cop.seer_plate = seerP;
+  S.cop.label = hasSeer?lab.name:null; S.cop.label_pass = hasSeer?lab.pass:null; S.cop.label_no_seer = !hasSeer; S.cop.label_in_scope = lab.inScope; S.cop.label_min = lab.thr?lab.thr[0]:null;
+  S.cop.seer_used = hasSeer?seerUse:null; S.cop.seer_src = seerSrc; S.cop.seer_plate = seerP;
   const eerOK = lab.pass, iplvOK = true;
   const eerDiff = ((eer_calc - eerPlate)/eerPlate*100).toFixed(1);
   const iplvDiff = ((iplv_calc - iplvPlate)/iplvPlate*100).toFixed(1);
 
-  let stars = !lab.inScope ? 'นอกขอบเขต' : !lab.pass ? 'ต่ำกว่าเบอร์ 5' : ('เบอร์ 5'+(lab.stars?' '+'⭐'.repeat(lab.stars):''));
+  let stars = !lab.inScope ? 'นอกขอบเขต' : !hasSeer ? 'ยังเทียบไม่ได้' : !lab.pass ? 'ต่ำกว่าเบอร์ 5' : ('เบอร์ 5'+(lab.stars?' '+'⭐'.repeat(lab.stars):''));
 
   document.getElementById('cop_result_body').innerHTML = `
     <div class="result-grid">
@@ -1182,9 +1184,9 @@ function calcCOP() {
       <div class="result-item purple"><div class="r-label">ระดับฉลากเบอร์ 5</div>
         <div class="r-value purple" style="font-size:13px">${stars}</div><div class="r-unit">กฟผ. เกณฑ์ ${TE.ACLABEL.YEAR}</div></div>
     </div>
-    <div class="${!lab.inScope?'info-box':(seerP>0?(eerOK?'good-box':'warn-box'):'warn-box')}" style="margin-top:10px">
+    <div class="${(!lab.inScope||!hasSeer)?'info-box':(eerOK?'good-box':'warn-box')}" style="margin-top:10px">
       ${!lab.inScope?('ขนาด '+fmtN(q,1)+' kW เกินขอบเขตฉลากเบอร์ 5 ของ VRF (ไม่เกิน 29,308 W) — ไม่มีเกณฑ์ฉลากสำหรับขนาดนี้ และ BEC พ.ศ. 2564 ไม่กำหนดค่าขั้นต่ำของ VRF')
-        :('ระดับฉลาก: '+lab.name+' — '+(seerP>0?'ตัดสินจาก SEER ที่ฉลาก':'เทียบจาก EER พิกัดแบบชี้แนว ฉลากตัดสินด้วย SEER ที่ทดสอบตาม มอก. 2714 เล่ม 1-2558 · กรอก "SEER ที่ฉลาก" เพื่อผลที่ตรงกับฉลากจริง'))}
+        :(hasSeer?('ระดับฉลาก: '+lab.name+' — ตัดสินจาก SEER ที่ฉลาก'):'ยังเทียบระดับฉลากไม่ได้ — กรอก "SEER ที่ฉลาก" (ฉลากเบอร์ 5 ตัดสินด้วย SEER ตามฤดูกาลที่ทดสอบตาม มอก. 2714 เล่ม 1-2558 ส่วน EER เป็นค่าที่ภาระเต็มพิกัด จึงเทียบกันไม่ได้) จึงยังไม่แสดงระดับและไม่คิดผลประหยัดเทียบเกณฑ์ฉลาก')}
     </div>
     ${Math.abs(parseFloat(eerDiff))>2?`<div class="warn-box">EER คำนวณ (${fmtN(eer_calc,3)}) แตกต่างจาก Nameplate (${fmtN(eerPlate,3)}) = ${eerDiff}% — ตรวจสอบข้อมูล Nameplate</div>`:''}`;
   document.getElementById('cop_result_card').style.display = 'block';
@@ -1198,7 +1200,7 @@ function calcCOP() {
     {num:2,col:'red',title:'EER (Energy Efficiency Ratio)',
      formula:'EER(W/W) = Q_cool(kW) / W_input(kW) = COP ที่สภาวะพิกัด · EER(BTU/W·h) = EER(W/W) × 3.41214',
      sub:`EER = ${fmtN(q,2)} ÷ ${fmtN(w,2)} = ${fmtN(eer_calc,4)} W/W · × 3.41214 = ${fmtN(eer_btu,3)} BTU/(W·h)`,result:`EER = ${fmtN(eer_calc,4)} W/W = ${fmtN(eer_btu,3)} BTU/(W·h)`,
-     note:'[แก้ไข 15 พ.ย. 2569] เกณฑ์ฉลากเบอร์ 5 ของ VRF ตัดสินด้วย SEER (BTU/W·h) — EER พิกัดใช้เทียบได้เพียงชี้แนว'},
+     note:'[แก้ไข 15 พ.ย. 2569] เกณฑ์ฉลากเบอร์ 5 ของ VRF ตัดสินด้วย SEER (BTU/W·h) — ไม่ใช้ EER พิกัดเทียบระดับฉลาก ต้องกรอก SEER ที่ฉลาก'},
     {num:3,col:'gold',title:'IEER (Integrated Energy Efficiency Ratio)',
      formula:'IEER = 0.020×A + 0.617×B + 0.238×C + 0.125×D',
      sub:`IEER = 0.020×${eerA} + 0.617×${eerB} + 0.238×${eerC} + 0.125×${eerD}
@@ -1594,7 +1596,9 @@ function updateCompare(){
   if(hasCOP){
     /* [แก้ไข 15 พ.ย. 2569] เดิม "ผ่าน/ไม่ผ่าน ECBC (Min …)" → เกณฑ์ฉลากเบอร์ 5 VRF จาก TE.ACLABEL */
     const ok=!!S.cop.label_pass;
-    ratingHtml+=S.cop.label_in_scope
+    ratingHtml+=(S.cop.label_in_scope && S.cop.label_no_seer)
+      ? `<div class="info-box">ยังเทียบระดับฉลากไม่ได้ — กรอก "SEER ที่ฉลาก" (ฉลากเบอร์ 5 ตัดสินด้วย SEER ตามฤดูกาลที่ทดสอบตาม มอก. 2714 เล่ม 1-2558 ส่วน EER เป็นค่าที่ภาระเต็มพิกัด จึงเทียบกันไม่ได้) จึงยังไม่แสดงระดับและไม่คิดผลประหยัดเทียบเกณฑ์ฉลาก</div>`
+      : S.cop.label_in_scope
       ? `<div class="${ok?'good-box':'bad-box'}">${S.cop.seer_src} = ${fmtN(S.cop.seer_used,2)} BTU/W·h → ${ok?'✅ ผ่านเกณฑ์ฉลากเบอร์ 5 (≥'+fmtN(S.cop.label_min,2)+')':'❌ ต่ำกว่าเกณฑ์ฉลากเบอร์ 5 ('+fmtN(S.cop.label_min,2)+')'} · ระดับ: ${S.cop.label}</div>`
       : `<div class="info-box">EER Nameplate = ${fmtN(S.cop.eer,3)} W/W — ขนาดเกินขอบเขตฉลากเบอร์ 5 ของ VRF จึงไม่มีเกณฑ์เทียบ</div>`;
     ratingHtml+=`<div class="info-box">IEER = ${fmtN(S.cop.iplv,3)} W/W — Seasonal weighted average</div>`;
@@ -2098,5 +2102,7 @@ if(window.TE_I18N)TE_I18N.set({
 ]);
 </script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-03 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"คำนวณ Coefficient of Performance, Energy Efficiency Ratio และ Integrated Energy Efficiency Ratio (IEER) ตามมาตรฐาน AHRI 1230-2021": "Calculates the coefficient of performance, energy efficiency ratio and integrated energy efficiency ratio (IEER) per AHRI 1230-2021"},[[/AHRI 1230-2021 \(IEER\): น้ำหนักมากที่สุดอยู่ที่โหลด 75% \(61\.7%\) รองลงมา 50% \(23\.8%\)/g,"AHRI 1230-2021 (IEER): the largest weight is at 75% load (61.7%), then 50% (23.8%)"]]);</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-01 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ยังเทียบไม่ได้": "Not yet comparable"},[[/ยังเทียบระดับฉลากไม่ได้ — กรอก "SEER ที่ฉลาก" \(ฉลากเบอร์ 5 ตัดสินด้วย SEER ตามฤดูกาลที่ทดสอบตาม มอก\. 2714 เล่ม 1-2558 ส่วน EER เป็นค่าที่ภาระเต็มพิกัด จึงเทียบกันไม่ได้\) จึงยังไม่แสดงระดับและไม่คิดผลประหยัดเทียบเกณฑ์ฉลาก/g,"Label level cannot be assessed yet — enter the “label SEER” (Label No.5 is judged on seasonal SEER tested to TIS 2714 Part 1-2558, whereas EER is a full-load value, so the two are not comparable); no level is shown and no saving against the label criteria is calculated"],[/ไม่ใช้ EER พิกัดเทียบระดับฉลาก ต้องกรอก SEER ที่ฉลาก/g,"rated EER is not used for the label level — enter the label SEER"]]);</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-01 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/\[แก้ไข 15 พ\.ย\. 2569\] เกณฑ์ฉลากเบอร์ 5 ของ VRF ตัดสินด้วย SEER \(BTU\/W·h\) — /g,"[Revised 15 Nov 2026] The VRF Label No.5 is judged on SEER (BTU/W·h) — "]]);</script>
 </body>
 </html>
