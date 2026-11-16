@@ -1141,6 +1141,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           </div>
         </div>
         <div class="hint te" id="rw_eta_note" style="margin:2px 0 8px"></div>
+        <div class="hint te" id="rw_price_note" style="margin:2px 0 8px;color:var(--amber);display:none"></div><!-- [แก้ไข 16 พ.ย. 2569] R4-17 -->
         <button class="btn btn-amber" style="width:100%;margin-top:4px;" onclick="window._teRWUsed=true;calcRewinding()">🔄 วิเคราะห์ Rewinding vs Replace</button>
         <div id="rwResult" style="display:none;margin-top:14px;"></div>
       </div>
@@ -1746,9 +1747,24 @@ function rwAutoEta(){
   const user = el => el.dataset && el.dataset.user === '1' && String(el.value).trim() !== '';
   if (!user(eo)) eo.value = (a.eta - 1).toFixed(1);
   if (!user(en)) en.value = b.eta.toFixed(1);
+  rwPriceSync(kw);
   if (nt) nt.textContent = 'ตาราง IE (IEC 60034-30-1 · 4 ขั้ว 50 Hz) ที่ ' + kw + ' kW: มอเตอร์เดิม IE1 ' + a.eta.toFixed(1) + ' % → หลังพันใหม่ −1 จุด = ' + (a.eta - 1).toFixed(1) + ' % · มอเตอร์ใหม่ IE3 ' + b.eta.toFixed(1) + ' %';
 }
+/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-17 — ราคาพันขดลวด/ราคามอเตอร์ใหม่เป็นของ kW ที่กรอกไว้เท่านั้น (ค่าตัวอย่างตั้งต้นเป็นของ 22 kW)
+   เมื่อ kW เปลี่ยน: ล้างช่องราคาที่ไม่ได้กรอกไว้สำหรับ kW ใหม่ แล้วแจ้งให้กรอกจากใบเสนอราคา · ไม่ใส่ราคาประมาณแทน เพราะไม่มีเอกสารต้นทาง */
+let _rwPriceKw = null;
+function rwPriceRebase(){ const k = parseFloat((document.getElementById('rw_kw')||{}).value); if (k > 0) { _rwPriceKw = k; ['rw_cost_rewind','rw_cost_new'].forEach(function(id){ const el = document.getElementById(id); if (el && String(el.value).trim() !== '') el.dataset.kw = String(k); }); } rwPriceNote(null); }
+function rwPriceNote(oldKw){ const nt = document.getElementById('rw_price_note'); if (!nt) return; const cr = document.getElementById('rw_cost_rewind'), cn = document.getElementById('rw_cost_new');
+  const blank = !cr || !cn || String(cr.value).trim() === '' || String(cn.value).trim() === '';
+  if (!blank) { nt.style.display = 'none'; nt.textContent = ''; return; }
+  nt.style.display = 'block'; nt.textContent = (oldKw > 0 ? 'ราคาเดิมเป็นของมอเตอร์ ' + oldKw + ' kW จึงล้างออก — ' : '') + 'กรอกค่าพันขดลวดและราคามอเตอร์ใหม่ของ ' + (_rwPriceKw || '') + ' kW จากใบเสนอราคา เพื่อคิดระยะคืนทุน'; }
+function rwPriceSync(kw){ if (_rwPriceKw === null) { _rwPriceKw = kw; return; } if (kw === _rwPriceKw) return; const old = _rwPriceKw; _rwPriceKw = kw;
+  let cleared = false; ['rw_cost_rewind','rw_cost_new'].forEach(function(id){ const el = document.getElementById(id); if (!el) return; if (parseFloat(el.dataset.kw) === kw) return; if (String(el.value).trim() !== '') cleared = true; el.value = ''; delete el.dataset.kw; });
+  rwPriceNote(cleared ? old : null); const res = document.getElementById('rwResult'); if (cleared && res) { res.style.display = 'none'; res.innerHTML = ''; } }
 document.addEventListener('DOMContentLoaded', function(){
+  ['rw_cost_rewind','rw_cost_new'].forEach(function(id){ const el = document.getElementById(id); if (!el) return;
+    const h = function(){ const k = parseFloat((document.getElementById('rw_kw')||{}).value); if (String(el.value).trim() === '') delete el.dataset.kw; else if (k > 0) el.dataset.kw = String(k); rwPriceNote(null); };
+    el.addEventListener('input', h); el.addEventListener('change', h); });
   ['rw_eff_old','rw_eff_new'].forEach(function(id){ const el = document.getElementById(id); if (!el) return;
     const h = function(){ if (String(el.value).trim() === '') { delete el.dataset.user; rwAutoEta(); } else el.dataset.user = '1'; };
     el.addEventListener('input', h); el.addEventListener('change', h); });
@@ -2186,6 +2202,7 @@ function recalcAll(){ // ensureAllCalc: เรียกทุกฟังก์�
     T(calcFieldM1); T(calcFieldM2);
     Object.keys(keep).forEach(id=>{ document.getElementById(id).value=keep[id]; });
     } finally { window._teLinkHold=false; }
+    if (typeof rwPriceRebase==='function') rwPriceRebase(); /* [แก้ไข 16 พ.ย. 2569] R4-17: ราคาที่โหลดจากไฟล์งานเป็นของ kW ที่โหลดมา */
     T(calcDCLab); T(calcFieldWeakening); T(calcDCEfficiency); T(calcDCTorque); T(calcDCLoss); T(calcDCDrive); T(calcBrushLife);
     T(buildAffinityTable); T(calcVFD); T(calcRewinding); T(calcMotorSizing);
     T(runMotorDiag);
@@ -2833,5 +2850,6 @@ if(window.TE_I18N)TE_I18N.set({
 "กระแส L3 (A) · ความไม่สมดุลกระแส ≤ 5 % ปกติ · 5–10 % เฝ้าระวัง · > 10 % ต้องแก้ไข":"Current L3 (A) · current unbalance ≤ 5 % normal · 5–10 % monitor · > 10 % fix",
 "ชั่วโมงเดินต่อปี · 1 กะ ≈ 2,000 h · 2 กะ ≈ 4,000 h · เดิน 24 ชม. ≈ 8,000 h (6 วัน/สัปดาห์ ×1.2)":"Operating hours per year · 1 shift ≈ 2,000 h · 2 shifts ≈ 4,000 h · 24 h operation ≈ 8,000 h (6 days/week ×1.2)",
 "ต่างพอสมควร — ตรวจสอบ RPM และ Current อีกครั้ง":"Moderate difference — re-check RPM and current","ต่างมาก — อาจมีปัญหา Slip หรือ V Unbalance":"Large difference — possible slip or voltage-unbalance problem"});</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-17 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/ราคาเดิมเป็นของมอเตอร์ (\S+) kW จึงล้างออก — /g,"The previous prices were for a $1 kW motor and have been cleared — "],[/กรอกค่าพันขดลวดและราคามอเตอร์ใหม่ของ (\S*) ?kW จากใบเสนอราคา เพื่อคิดระยะคืนทุน/g,"enter the rewinding cost and the new-motor price for $1 kW from a quotation to work out the payback"],[/ยังไม่มีราคา — กรอกค่าพันขดลวดและราคามอเตอร์ใหม่จากใบเสนอราคาของมอเตอร์ขนาดนี้ เพื่อคิดเงินลงทุนส่วนเพิ่มและระยะคืนทุน/g,"No prices yet — enter the rewinding cost and the new-motor price from a quotation for this motor size to work out the additional investment and payback"]]);</script>
 </body>
 </html>

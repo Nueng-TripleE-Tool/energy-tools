@@ -561,6 +561,9 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
         <label>ปริมาตรระบบ V_system (m³)</label>
         <input type="number" id="dp_V" value="1.5" step="0.1" oninput="calcDPLeak()"><div class="hint">ปริมาตรระบบที่ถูกกักไว้ m³ = ถังพัก + ท่อ (π D²/4 × L) · จาก nameplate ถัง + แบบท่อ</div>
         <div class="unit-hint">Receiver 1m³ + ท่อ ≈ 0.5m³ → ประมาณ 1.5m³ ถ้าไม่รู้ค่าจริง</div>
+        <!-- [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-10: ช่องใหม่ อุณหภูมิอากาศในระบบ ใช้เทียบปริมาตรลมรั่วเป็นสภาวะอ้างอิงก่อนคูณ SEC -->
+        <label>อุณหภูมิอากาศในระบบ T (°C)</label>
+        <input type="number" id="dp_Tline" value="35" step="0.5" oninput="calcDPLeak()"><div class="hint">อุณหภูมิอากาศในถังพัก/ท่อขณะทดสอบ °C · ถ้าไม่ได้วัด ใช้อุณหภูมิแวดล้อม</div>
       </div>
       <div>
         <label>FAD รวมระบบ (m³/min)</label>
@@ -578,7 +581,7 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div style="margin-top:10px;background:var(--amber-lt);border:1px solid #f5c060;border-radius:7px;padding:9px 12px;font-size:11px;color:var(--amber);line-height:1.85">
       ⚠️ <b>ข้อจำกัด:</b> วิธีนี้วัด Total System Leak — ไม่บอกตำแหน่งรั่ว<br>
       ผลดี: ถ้า Leak Rate &lt;5% = ดีมาก | 5–10% = ยอมรับได้ | &gt;10% = ต้องทำ Leak Survey<br>
-      วิธีตรวจตำแหน่ง: Ultrasonic Detector (SDT200) หรือ Soapy Water Survey
+      วิธีตรวจตำแหน่ง: Ultrasonic Detector หรือ Soapy Water Survey
     </div>
   </div>
 
@@ -1083,7 +1086,7 @@ function drawPV() {
     </div>
     <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:6px">
       Isothermal Eff (Polytropic) = ${(W_iso/W_poly*100).toFixed(1)}% &nbsp;|&nbsp; 
-      Isentropic Eff (Polytropic) = ${(W_isen/W_poly*100).toFixed(1)}%<br>
+      อัตราส่วนงาน isentropic ÷ polytropic = ${(W_isen/W_poly*100).toFixed(1)}%<br><!-- [แก้ไข 16 พ.ย. 2569] ข้อ C1: ค่านี้เกิน 100 % ได้เมื่อ n < k จึงไม่เรียกว่า Efficiency -->
       พื้นที่สีเขียวอ่อน = พลังงานที่ประหยัดได้เมื่อเทียบกับ Isothermal
     </div>`;
   pvDrawn = true;
@@ -1915,6 +1918,8 @@ function calcDPLeak() {
   const SPC   = parseFloat(document.getElementById('dp_spc').value)|| 7.0;
   const rate  = parseFloat(document.getElementById('dp_rate').value)||4.5;
   const P_atm = 1.01325;
+  const T_lineV = parseFloat(document.getElementById('dp_Tline')?.value);
+  const T_line = isFinite(T_lineV) ? T_lineV : 35; // °C อุณหภูมิอากาศในระบบ
 
   if (P1_g <= P2_g) {
     document.getElementById('dp-leak-result').style.display = 'block';
@@ -1929,7 +1934,11 @@ function calcDPLeak() {
   const dP_rate  = dP / t_min;                           // bar/min
   const P_avg_a  = (P1_g + P2_g)/2 + P_atm;             // bar abs average
   const Q_leak_act = V_sys * dP_rate / P_avg_a;         // m³/min (actual at avg press)
-  const Q_leak_free = Q_leak_act * P_avg_a / P_atm;     // m³/min free air (FAD basis)
+  /* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-10 — เทียบเป็นสภาวะอ้างอิงของเครื่องมือ (20 °C, 65 % RH, 1.01325 bar) ฐานเดียวกับ FAD และ SEC:
+     Q_ref = V × (ΔP/t) × 293.15 ÷ [(T_line + 273.15) × p_อากาศแห้ง,อ้างอิง] · p_อากาศแห้ง,อ้างอิง = 1.01325 − 0.65 × p_ws(20 °C) ≈ 0.998 bar
+     สมมุติความดันที่ลดเป็นของอากาศแห้ง · เดิม = V × (ΔP/t) ÷ P_atm (ปริมาตรที่ความดันบรรยากาศและอุณหภูมิในท่อ) สูงเกิน 3.5 % ที่ 35 °C · ชื่อตัวแปร Q_leak_free คงไว้ (ฐาน = m³/min อ้างอิง) */
+  const pDryRef = 1.01325 - 0.65 * getPsat(20);         // bar
+  const Q_leak_free = V_sys * dP_rate * 293.15 / ((T_line + 273.15) * pDryRef); // m³/min (อ้างอิง)
 
   const leak_pct  = FAD > 0 ? Q_leak_free / FAD * 100 : 0;
   const kW_lost   = Q_leak_free * SPC;
@@ -1952,9 +1961,9 @@ function calcDPLeak() {
         <div style="margin-top:4px"><span class="badge badge-${leakGrade}">${leakLabel}</span></div>
       </div>
       <div class="kpi teal">
-        <div class="kpi-lbl">Q_leak (Free Air)</div>
+        <div class="kpi-lbl">Q_leak</div>
         <div class="kpi-val" style="color:var(--teal)">${Q_leak_free.toFixed(4)}</div>
-        <div class="kpi-unit">m³/min</div>
+        <div class="kpi-unit">m³/min (อ้างอิง)</div>
       </div>
       <div class="kpi amber">
         <div class="kpi-lbl">kW สูญเสีย</div>
@@ -1971,12 +1980,11 @@ function calcDPLeak() {
       <b style="color:var(--blue)">การคำนวณ (วิธี Pressure Decay):</b><br>
       ΔP = P₁ − P₂ = ${P1_g} − ${P2_g} = <b>${dP.toFixed(2)} bar</b><br>
       dP/dt = ${dP.toFixed(2)}/${t_min} = <b>${dP_rate.toFixed(4)} bar/min</b><br>
-      P_avg (abs) = (${P1_g}+${P2_g})/2 + ${P_atm} = <b>${P_avg_a.toFixed(3)} bar</b><br>
-      Q_leak (free air) = V × (dP/dt) × P_avg / (P_avg × P_atm) ≈ <b>${Q_leak_free.toFixed(4)} m³/min</b><br>
+      Q_leak = V × (dP/dt) × 293.15 ÷ [(T + 273.15) × p_dry,ref] = ${V_sys} × ${dP_rate.toFixed(4)} × 293.15 ÷ (${(T_line+273.15).toFixed(2)} × ${pDryRef.toFixed(4)}) = <b>${Q_leak_free.toFixed(4)} m³/min (อ้างอิง)</b><br>
       Leak % = ${Q_leak_free.toFixed(4)} / ${FAD} × 100 = <b>${leak_pct.toFixed(1)}%</b>
     </div>
     ${leak_pct >= 10 ? `<div class="warn-box" style="margin-top:8px">
-      🔍 <b>แนะนำ Leak Survey:</b> ใช้ Ultrasonic Leak Detector (SDT200 หรือเทียบเท่า)<br>
+      🔍 <b>แนะนำ Leak Survey:</b> ใช้ Ultrasonic Leak Detector<br>
       จุดที่ต้องตรวจ: Fitting, Union, Valve Stem, Quick-Coupler, Auto Drain, Filter Bowl<br>
       Payback ซ่อม 70% ของจุดรั่ว ≈ <b>${(cost_save/1000).toFixed(1)} พัน บาท/ปี</b>
     </div>` : ''}`;
@@ -2653,7 +2661,7 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)ความชื้นสัมพัทธ์\s+%\s+·\s+ไทย\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+%\s+·\s+วัดด้วย\s+hygrometer\s+ใกล้ช่องดูดอากาศ(\s*)$/,"$1Relative humidity % · Thailand $2–$3 % · measure with hygrometer near the air intake$4"],
 [/^(\s*)เวลาทดสอบ\s+นาที\s+·\s+แนะนำ\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+นาที\s+·\s+ปิด\s+compressor\s+และไม่มีการใช้อากาศ(\s*)$/,"$1Test duration, minutes · recommended $2–$3 min · compressors off and no air use$4"],
 [/^(\s*)อุณหภูมิกระเปาะแห้งอากาศขาเข้า\s+°C\s+·\s+วัดจริงหน้าช่องดูด\s+·\s+ไทย\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+°C(\s*)$/,"$1Inlet air dry-bulb temperature °C · measured at the intake · Thailand $2–$3 °C$4"],
-[/^(\s*)วิธีตรวจตำแหน่ง:\s+Ultrasonic\s+Detector\s+\(SDT(-?\d[\d,]*\.?\d*)\)\s+หรือ\s+Soapy\s+Water\s+Survey(\s*)$/,"$1Locating method: ultrasonic detector (SDT$2) or soapy water survey$3"],
+[/^(\s*)วิธีตรวจตำแหน่ง:\s+Ultrasonic\s+Detector\s+หรือ\s+Soapy\s+Water\s+Survey(\s*)$/,"$1Locating method: ultrasonic detector or soapy water survey$2"],
 [/^(\s*)ความดันในท่อที่จุดรั่ว\s+bar\s+g\s+·\s+gauge\s+ใกล้จุดรั่ว\s+·\s+ทั่วไป\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+bar\s+g(\s*)$/,"$1Line pressure at the leak bar g · gauge near the leak · typical $2–$3 bar g$4"],
 [/^(\s*)SEC\s+=\s+(-?\d[\d,]*\.?\d*)\s+kW\/\(m³\/min\)\s+·\s+FAD\s+=\s+(-?\d[\d,]*\.?\d*)\s+m³\/min\s+\(จากการวัดใน\s+Tab\s+Performance\)(\s*)$/,"$1SEC = $2 kW/(m³/min) · FAD = $3 m³/min (measured in Performance tab)$4"],
 [/^(\s*)kW\s+ขณะ\s+full\s+load\s+·\s+power\s+meter\s+·\s+เทียบกับ\s+nameplate\s+ไม่ควรเกิน\s+(-?\d[\d,]*\.?\d*)\s+%(\s*)$/,"$1Full-load kW · power meter · vs nameplate should not exceed $2 %$3"],
@@ -2855,5 +2863,6 @@ if(window.TE_I18N)TE_I18N.set({
  [/m³N\/min \(สูตรคู่มือ ผอส\.\) · = ([\d.]+) m³\/min อ้างอิง/g,"m³N/min (PRE handbook formula) · = $1 m³/min at reference state"]
 ]);
 </script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-16 · R4-10 · C1 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"อุณหภูมิอากาศในระบบ T (°C)": "System air temperature T (°C)", "อุณหภูมิอากาศในถังพัก/ท่อขณะทดสอบ °C · ถ้าไม่ได้วัด ใช้อุณหภูมิแวดล้อม": "Air temperature in the receiver/piping during the test, °C · if not measured, use the ambient temperature", "เร็ว": "Fast", "เร็วเกิน": "Too fast", "จุดวัด": "Measuring point", "ระยะ (m)": "Distance (m)", "ΔP จากต้นทาง (bar)": "ΔP from source (bar)", "✅ ดี": "✅ Good", "⚠ สังเกต": "⚠ Watch", "❌ สูงเกิน": "❌ Too high", "m³/min (อ้างอิง)": "m³/min (reference)"},[[/✅ ΔP < 3% — อยู่ในเกณฑ์ดี/g,"✅ ΔP < 3% — within a good range"],[/⚠️ ΔP 3–6% — ควรตรวจสอบ Fitting/g,"⚠️ ΔP 3–6% — check the fittings"],[/❌ ΔP > 6% — ต้องขยายขนาดท่อหรือลด Fitting/g,"❌ ΔP > 6% — enlarge the pipe or reduce the fittings"],[/ΔP ต้นทาง→ปลายทาง =/g,"ΔP source→end ="],[/จุดที่ Drop สูงสุด:/g,"Largest drop at:"],[/→ ตรวจ Valve \/ Filter \/ Fitting บริเวณนั้น/g,"→ check the valves / filters / fittings around it"],[/❌ ΔP รวม > 0\.5 bar — ต้องปรับปรุงระบบท่อ \(ทุก 0\.1 bar ที่ลด SEC ลดได้ ~0\.5%\)/g,"❌ Total ΔP > 0.5 bar — the piping needs improving (each 0.1 bar removed cuts SEC by ~0.5%)"],[/⚠ ΔP รวม 0\.2–0\.5 bar — ตรวจ Fitting\/Valve/g,"⚠ Total ΔP 0.2–0.5 bar — check fittings/valves"],[/✅ ΔP รวม < 0\.2 bar — ระบบท่ออยู่ในเกณฑ์ดี/g,"✅ Total ΔP < 0.2 bar — piping within a good range"],[/อัตราส่วนงาน isentropic ÷ polytropic/g,"Isentropic ÷ polytropic work ratio"],[/m³\/min \(อ้างอิง\)/g,"m³/min (reference)"],[/ใช้ Ultrasonic Leak Detector/g,"use an ultrasonic leak detector"]]);</script>
 </body>
 </html>
