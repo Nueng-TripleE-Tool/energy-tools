@@ -435,10 +435,11 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div class="card-sub">Dry Air Mass Balance Method | วิธีเติมถัง (Pump-up)</div><!-- [แก้ไข 15 พ.ย. 2569] ถอดคำอ้าง ISO 1217 / DOE ที่ยืนยันกับเอกสารต้นทางไม่ได้ -->
     <div class="g3">
       <div>
+        <!-- [แก้ไข 16 พ.ย. 2569] ค่าตั้งต้น Pump-Up เดิม 1.0 m³ / 120 s ให้ FAD ≈ 3.4 m³/min ไม่เข้ากับตัวอย่างเครื่อง 75 kW · FAD 12 m³/min (กดแล้ว SEC พุ่งผิดจริง) → 3.0 m³ / 103 s ให้ FAD ≈ 12.0 m³/min -->
         <label>ปริมาตรถัง V (m³)</label>
-        <input type="number" id="pu_V" value="1.0" step="0.01"><div class="hint">ปริมาตรถังพัก + ท่อที่ปิดกั้น m³ · อ่านจาก nameplate ถัง (เช่น 1,000 L = 1 m³)</div>
+        <input type="number" id="pu_V" value="3.0" step="0.01"><div class="hint">ปริมาตรถังพัก + ท่อที่ปิดกั้น m³ · อ่านจาก nameplate ถัง (เช่น 1,000 L = 1 m³)</div>
         <label>เวลาทดสอบ t (วินาที)</label>
-        <input type="number" id="pu_t" value="120" step="1"><div class="hint">เวลาที่ใช้เติมความดันจาก P₁ ถึง P₂ วินาที · จับเวลาด้วยนาฬิกา · ควร ≥60 s เพื่อลดคลาดเคลื่อน</div>
+        <input type="number" id="pu_t" value="103" step="1"><div class="hint">เวลาที่ใช้เติมความดันจาก P₁ ถึง P₂ วินาที · จับเวลาด้วยนาฬิกา · ควร ≥60 s เพื่อลดคลาดเคลื่อน</div>
       </div>
       <div>
         <label>P₁ เริ่มต้น (bar g)</label>
@@ -1992,10 +1993,8 @@ function calcDPLeak() {
 
   // ✨ Auto-fill Audit Tab leak field
   const auditLeak = document.getElementById('a_leak');
-  if (auditLeak && !auditLeak.value) {
-    auditLeak.value = leak_pct.toFixed(1);
-    runAudit();
-  }
+  /* [แก้ไข 16 พ.ย. 2569] เดิมเติมเฉพาะตอนช่องว่าง และฟังก์ชันนี้ทำงานทุกครั้งที่พิมพ์ → ค่ารั่วในแท็บ Field Audit ค้างที่ผลของการพิมพ์ช่องแรก; ปรับให้ตามผลล่าสุดจนกว่าผู้ใช้จะพิมพ์ทับเอง (teAutoFill) */
+  if (auditLeak && isFinite(leak_pct) && teAutoFill(auditLeak, leak_pct.toFixed(1))) runAudit();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2077,15 +2076,21 @@ function calcPmap() {
 // ══════════════════════════════════════════════════════════════
 //  ✨ NEW 3: SEC AUTO-LINK (Perf → Audit)
 // ══════════════════════════════════════════════════════════════
+/* [แก้ไข 16 พ.ย. 2569] ช่องที่เครื่องมือเติมให้ในแท็บ Field Audit: เติม/อัปเดตเมื่อช่องว่างหรือค่าเดิมเป็นค่าที่เครื่องมือเติมไว้ (data-te-auto="1"); เมื่อผู้ใช้พิมพ์เองจะเลิกอัปเดตช่องนั้น — ไม่แตะสูตรคำนวณ */
+function teAutoFill(el, val) {
+  if (!el) return false;
+  if (!el.value || el.dataset.teAuto === '1') { el.value = val; el.dataset.teAuto = '1'; return true; }
+  return false;
+}
+document.addEventListener('input', function (e) {
+  var t = e.target; if (t && (t.id === 'a_spc' || t.id === 'a_fad' || t.id === 'a_leak')) t.dataset.teAuto = '';
+}, true);
 function autoLinkSPC(spc, fad) {
   const auditSPC = document.getElementById('a_spc');
   const auditFAD = document.getElementById('a_fad');
-  if (auditSPC && !auditSPC.value && spc > 0) {
-    auditSPC.value = spc.toFixed(3);
-  }
-  if (auditFAD && !auditFAD.value && fad > 0) {
-    auditFAD.value = fad.toFixed(3);
-  }
+  /* [แก้ไข 16 พ.ย. 2569] เดิมเติมเฉพาะตอนช่องว่าง → คำนวณ Performance ซ้ำแล้ว SEC/FAD ในแท็บ Field Audit ค้างค่าเก่า; ปรับให้ตามผลล่าสุดจนกว่าผู้ใช้จะพิมพ์ทับเอง (teAutoFill) */
+  if (spc > 0) teAutoFill(auditSPC, spc.toFixed(3));
+  if (fad > 0) teAutoFill(auditFAD, fad.toFixed(3));
   const banner = document.getElementById('spc-autolink-banner');
   const txt = document.getElementById('spc-autolink-text');
   if (banner && txt && spc > 0) {
