@@ -543,8 +543,9 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
 
     <div class="info-box" style="margin-bottom:12px;font-size:12px;line-height:1.85">
       <b>ขั้นตอนภาคสนาม:</b><br>
-      1️⃣ หยุด Compressor ทั้งหมด — ปิด Isolation Valve ขาออก (แยกถังออกจากระบบ)<br>
-      2️⃣ เติมความดันให้ได้ P₁ (bar g) ปกติ → บันทึกค่า<br>
+      <!-- [แก้ไข 16 พ.ย. 2569] ข้อ 1–2 เดิมบอกให้ "แยกถังออกจากระบบ" ขัดกับช่องปริมาตรที่ให้กรอกถัง + ท่อ และให้หยุดเครื่องก่อนเติมความดัน → เรียงใหม่ตามวิธี pressure decay ของทั้งระบบ -->
+      1️⃣ หยุดผลิต ปิดอุปกรณ์ใช้ลมทุกจุด — วาล์วท่อจ่ายยังเปิด เพื่อทดสอบถัง + ท่อทั้งระบบ<br>
+      2️⃣ เดินเครื่องจนความดันถึง P₁ (bar g) ปกติ แล้วหยุด Compressor ทั้งหมด → บันทึกค่า<br>
       3️⃣ จับเวลา t (นาที) แล้วอ่าน P₂ ที่ตก<br>
       4️⃣ ถ้าไม่รู้ V_system → ประมาณจากถัง Receiver + ปริมาตรท่อ (m³)
     </div>
@@ -2044,12 +2045,15 @@ function calcPmap() {
     <thead><tr><th>#</th><th>จุดวัด</th><th>ระยะ (m)</th><th>P (bar g)</th><th>ΔP จากต้นทาง (bar)</th><th>%P_ref</th><th>สถานะ</th></tr></thead><tbody>`;
 
   let maxDrop = 0, maxDropPt = '';
+  /* [แก้ไข 16 พ.ย. 2569] เดิมรายงาน "จุดที่ Drop สูงสุด" จาก ΔP สะสม จึงชี้จุดปลายทางเสมอ → เพิ่มการหาช่วงท่อ (จุดติดกัน) ที่ความดันตกมากที่สุด */
+  let maxSeg = 0, maxSegTxt = '';
   pts.forEach((pt, i) => {
     const dP = P_ref - pt.p;
     const pct = P_ref > 0 ? dP/P_ref*100 : 0;
     const st = dP < 0.1 ? 'good' : dP < 0.3 ? 'warn' : 'bad';
     const stText = dP < 0.1 ? '✅ ดี' : dP < 0.3 ? '⚠ สังเกต' : '❌ สูงเกิน';
     if (dP > maxDrop) { maxDrop = dP; maxDropPt = pt.label; }
+    if (i > 0) { const seg = pts[i-1].p - pt.p; if (seg > maxSeg) { maxSeg = seg; maxSegTxt = '<span>' + pts[i-1].label + '</span> → <span>' + pt.label + '</span>'; } }
     html += `<tr>
       <td style="font-family:var(--mono);color:var(--text3)">${i+1}</td>
       <td class="hl">${pt.label}</td>
@@ -2065,7 +2069,7 @@ function calcPmap() {
   const totalDrop = pts[pts.length-1] ? P_ref - pts[pts.length-1].p : 0;
   html += `<div style="margin-top:10px;background:var(--bg4);border:1px solid var(--border);border-radius:7px;padding:11px;font-size:12px;font-family:var(--mono);line-height:2">
     ΔP ต้นทาง→ปลายทาง = <b>${totalDrop.toFixed(3)} bar</b> (${(totalDrop/P_ref*100).toFixed(1)}%)<br>
-    จุดที่ Drop สูงสุด: <b style="color:var(--red)">${maxDropPt}</b> → ตรวจ Valve / Filter / Fitting บริเวณนั้น<br>
+    ${maxSeg > 0 ? `ช่วงที่ความดันตกมากที่สุด: <b style="color:var(--red)">${maxSegTxt}</b> (${maxSeg.toFixed(3)} bar) → ตรวจ Valve / Filter / Dryer / Fitting ในช่วงนั้น<br>` : ''}
     ${totalDrop > 0.5 ? `❌ ΔP รวม > 0.5 bar — ต้องปรับปรุงระบบท่อ (ทุก 0.1 bar ที่ลด SEC ลดได้ ~0.5%)` : totalDrop > 0.2 ? `⚠ ΔP รวม 0.2–0.5 bar — ตรวจ Fitting/Valve` : `✅ ΔP รวม < 0.2 bar — ระบบท่ออยู่ในเกณฑ์ดี`}<br><span style="color:var(--text3)">เกณฑ์สถานะ (ΔP ต่อจุด 0.1 / 0.3 bar · รวม 0.2 / 0.5 bar) เป็นค่าแนวทางของเครื่องมือ</span>
   </div>`;
 
@@ -2873,5 +2877,6 @@ if(window.TE_I18N)TE_I18N.set({
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-16 · R4-10 · C1 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"อุณหภูมิอากาศในระบบ T (°C)": "System air temperature T (°C)", "อุณหภูมิอากาศในถังพัก/ท่อขณะทดสอบ °C · ถ้าไม่ได้วัด ใช้อุณหภูมิแวดล้อม": "Air temperature in the receiver/piping during the test, °C · if not measured, use the ambient temperature", "เร็ว": "Fast", "เร็วเกิน": "Too fast", "จุดวัด": "Measuring point", "ระยะ (m)": "Distance (m)", "ΔP จากต้นทาง (bar)": "ΔP from source (bar)", "✅ ดี": "✅ Good", "⚠ สังเกต": "⚠ Watch", "❌ สูงเกิน": "❌ Too high", "m³/min (อ้างอิง)": "m³/min (reference)"},[[/✅ ΔP < 3% — อยู่ในเกณฑ์ดี/g,"✅ ΔP < 3% — within a good range"],[/⚠️ ΔP 3–6% — ควรตรวจสอบ Fitting/g,"⚠️ ΔP 3–6% — check the fittings"],[/❌ ΔP > 6% — ต้องขยายขนาดท่อหรือลด Fitting/g,"❌ ΔP > 6% — enlarge the pipe or reduce the fittings"],[/ΔP ต้นทาง→ปลายทาง =/g,"ΔP source→end ="],[/จุดที่ Drop สูงสุด:/g,"Largest drop at:"],[/→ ตรวจ Valve \/ Filter \/ Fitting บริเวณนั้น/g,"→ check the valves / filters / fittings around it"],[/❌ ΔP รวม > 0\.5 bar — ต้องปรับปรุงระบบท่อ \(ทุก 0\.1 bar ที่ลด SEC ลดได้ ~0\.5%\)/g,"❌ Total ΔP > 0.5 bar — the piping needs improving (each 0.1 bar removed cuts SEC by ~0.5%)"],[/⚠ ΔP รวม 0\.2–0\.5 bar — ตรวจ Fitting\/Valve/g,"⚠ Total ΔP 0.2–0.5 bar — check fittings/valves"],[/✅ ΔP รวม < 0\.2 bar — ระบบท่ออยู่ในเกณฑ์ดี/g,"✅ Total ΔP < 0.2 bar — piping within a good range"],[/อัตราส่วนงาน isentropic ÷ polytropic/g,"Isentropic ÷ polytropic work ratio"],[/m³\/min \(อ้างอิง\)/g,"m³/min (reference)"],[/ใช้ Ultrasonic Leak Detector/g,"use an ultrasonic leak detector"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-05 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ค่าแนวทางของเครื่องมือ": "tool guide value"},[[/\(ฐานกำลังเพลา\)/g,"(shaft-power basis)"],[/\(ค่าแนวทางของเครื่องมือ\)/g,"(tool guide value)"],[/ค่าแนวทางของเครื่องมือ: ดีมาก <6\.0 \/ ดี 6\.0–6\.5 \/ ยอมรับได้ 6\.5–7\.5 \/ ต้องปรับปรุง >7\.5/g,"Tool guide values: excellent <6.0 / good 6.0–6.5 / acceptable 6.5–7.5 / needs improvement >7.5"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ ทะเบียนเกณฑ์ — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ค่าแนวทางของเครื่องมือ (5 / 10 %)": "tool guide value (5 / 10 %)"},[[/เกณฑ์สถานะ \(ΔP ต่อจุด 0\.1 \/ 0\.3 bar · รวม 0\.2 \/ 0\.5 bar\) เป็นค่าแนวทางของเครื่องมือ/g,"Status limits (ΔP per point 0.1 / 0.3 bar · total 0.2 / 0.5 bar) are tool guide values"],[/เกณฑ์สถานะ \(ความเร็ว 6 \/ 9 m\/s · ΔP 3 \/ 6 %\) เป็นค่าแนวทางของเครื่องมือ/g,"Status limits (velocity 6 / 9 m/s · ΔP 3 / 6 %) are tool guide values"]]);</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ คู่มือช่วง 1 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/^(\s*)(-?\d[\d,]*\.?\d*)️⃣\s+หยุดผลิต\s+ปิดอุปกรณ์ใช้ลมทุกจุด\s+—\s+วาล์วท่อจ่ายยังเปิด\s+เพื่อทดสอบถัง\s+\+\s+ท่อทั้งระบบ(\s*)$/,"$1$2️⃣ Stop production and shut every air user — keep the header valves open so the receiver + piping are tested together$3"],[/^(\s*)(-?\d[\d,]*\.?\d*)️⃣\s+เดินเครื่องจนความดันถึง\s+P₁\s+\(bar\s+g\)\s+ปกติ\s+แล้วหยุด\s+Compressor\s+ทั้งหมด\s+→\s+บันทึกค่า(\s*)$/,"$1$2️⃣ Run up to normal P₁ (bar g), then stop all compressors → record the value$3"],[/^(\s*)ช่วงที่ความดันตกมากที่สุด:\s*$/,"$1Segment with the largest pressure drop: "],[/^(\s*)\((-?\d[\d,]*\.?\d*)\s+bar\)\s+→\s+ตรวจ\s+Valve\s+\/\s+Filter\s+\/\s+Dryer\s+\/\s+Fitting\s+ในช่วงนั้น(\s*)$/,"$1($2 bar) → check valves / filters / dryer / fittings in that segment$3"]]);</script>
 </body>
 </html>
