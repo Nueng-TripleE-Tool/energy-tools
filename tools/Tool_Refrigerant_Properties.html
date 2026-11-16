@@ -37,6 +37,7 @@ footer{max-width:1180px;margin:0 auto 26px;padding:0 18px;font-size:.78em;color:
 <div class="card w" style="border-top-color:#117a8b"><h2>เลือกสารทำความเย็น</h2>
   <div class="row" style="max-width:720px"><div><label>สาร</label><select id="rf"></select></div></div>
   <div class="kv" id="rf_info"></div>
+  <div id="rf_mix"></div>
   <div class="hint" style="margin-top:6px">ช่วงใช้งานโมเดล −50 … +65 °C · แหล่งข้อมูล: CoolProp 8.0 (HEOS) อ้างอิง IIR</div>
 </div>
 <div class="card"><h2>① อิ่มตัว — จากอุณหภูมิ</h2>
@@ -52,13 +53,13 @@ footer{max-width:1180px;margin:0 auto 26px;padding:0 18px;font-size:.78em;color:
   <div class="row"><div><label>ความดันด้านดูด</label><input id="sh_p" type="number" step="0.1" value="8.5"></div>
   <div><label>หน่วย</label><select id="sh_u"><option value="g" selected>bar g</option><option value="a">bar a</option></select></div>
   <div><label>T ท่อดูดวัดจริง (°C)</label><input id="sh_t" type="number" step="0.5" value="12"></div></div>
-  <div class="kv" id="sh_out"></div><div class="hint">เกณฑ์ทั่วไป Split/VRF: SH ≈ 4–8 K · ต่ำมาก = เสี่ยง liquid back, สูงมาก = ขาดสาร/Expansion ตีบ</div>
+  <div class="kv" id="sh_out"></div><div class="hint">ช่วงที่พบทั่วไป Split/VRF: SH ≈ 4–8 K · ต่ำมาก = เสี่ยง liquid back, สูงมาก = ขาดสาร/Expansion ตีบ · สีของช่อง: แดง ต่ำกว่า 2 K · เขียว 2–12 K · ส้ม เกิน 12 K (ค่าแนวทางของเครื่องมือ — ใช้ค่าของผู้ผลิตเครื่องเมื่อมี)</div>
 </div>
 <div class="card"><h2>④ Subcooling (ด้านส่ง)</h2>
   <div class="row"><div><label>ความดันด้านส่ง</label><input id="sc_p" type="number" step="0.1" value="26"></div>
   <div><label>หน่วย</label><select id="sc_u"><option value="g" selected>bar g</option><option value="a">bar a</option></select></div>
   <div><label>T ท่อ liquid วัดจริง (°C)</label><input id="sc_t" type="number" step="0.5" value="38"></div></div>
-  <div class="kv" id="sc_out"></div><div class="hint">เกณฑ์ทั่วไป: SC ≈ 3–7 K · ต่ำ = สารน้อย/ไม่ควบแน่นพอ, สูง = ชาร์จเกิน/คอนเดนเซอร์อั้น</div>
+  <div class="kv" id="sc_out"></div><div class="hint">ช่วงที่พบทั่วไป: SC ≈ 3–7 K · ต่ำ = สารน้อย/ไม่ควบแน่นพอ, สูง = ชาร์จเกิน/คอนเดนเซอร์อั้น · สีของช่อง: แดง ต่ำกว่า 1 K · เขียว 1–10 K · ส้ม เกิน 10 K (ค่าแนวทางของเครื่องมือ — ใช้ค่าของผู้ผลิตเครื่องเมื่อมี)</div>
 </div>
 <div class="card w"><h2>⑤ ตาราง P–T ของสารที่เลือก</h2>
   <div class="row" style="max-width:560px"><div><label>จาก (°C)</label><input id="pt_a" type="number" step="5" value="-30"></div>
@@ -77,21 +78,51 @@ function K(l,v,u,d,c){return '<div class="k"'+(c?' style="border-top-color:'+c+'
 R.list.forEach(function(k){var o=document.createElement('option');o.value=k;var inf=R.info(k);o.text=inf.name+(inf.mix?' (ผสม)':'');$('rf').add(o);});
 $('rf').value='R32';
 function Pa(id,uid){var p=+$(id).value;return $(uid).value==='g'?p+ATM:p;}
-function rng(x){return x&&x.inRange===false?'<div class="warn">นอกช่วงโมเดล (−50…65 °C) — ค่าเป็นการประมาณนอกช่วง</div>':'';}
+/* [แก้ไข 16 พ.ย. 2569] แก้ที่หน้าเครื่องมือ (ไม่แตะสูตร TE_REFRIG) ตามหลัก "ผู้ใช้ต้องเข้าใจชัดเจน ผลลัพธ์ปลอดภัย"
+   (ก) สารผสมที่มี glide (R-407C · R-454B): เดิม Subcooling ใช้อุณหภูมิอิ่มตัวค่าเดียวกับ Superheat (จุด dew) → Subcooling สูงเกินจริงเท่ากับ glide (R-407C ราว 5 K)
+       แก้: Subcooling ใช้จุด bubble (R.Tsat(k,P,'bub') ซึ่งเครื่องยนต์มีอยู่แล้ว) · Superheat ใช้จุด dew ตามเดิม · การ์ด ①② และตารางแสดงทั้ง dew และ bubble
+       ที่มา ลำดับ 3 หลักวิทยาศาสตร์ — สมดุลเฟสของสารผสมซีโอโทรปิก: ที่ความดันหนึ่ง สารเป็นของเหลวล้วนเมื่ออุณหภูมิต่ำกว่าจุด bubble และเป็นไอล้วนเมื่อสูงกว่าจุด dew
+       จึงต้องวัดความเย็นยิ่งของของเหลวจาก bubble และความร้อนยวดยิ่งของไอจาก dew
+   (ข) นอกช่วงโมเดล −50 … 65 °C: เดิมแสดงค่าของขอบช่วง (เช่น กรอก 70 °C ได้ค่าของ 65 °C) พร้อมคำว่า "ประมาณนอกช่วง" และความดันนอกช่วงให้ T จากการลากเส้นตรง
+       (R-32 ที่ 100 bar a → 103 °C สูงกว่าอุณหภูมิวิกฤต 78.1 °C) → แก้: นอกช่วงไม่แสดงตัวเลข · ที่มา: ช่วงใช้งานที่เครื่องมือระบุเอง (CP-fit จาก CoolProp −50 … 65 °C)
+   (ค) สีของ Superheat / Subcooling: บอกความหมายของสีและกำกับว่าเป็นค่าแนวทางของเครื่องมือ · ค่าติดลบขึ้นคำเตือน
+       ที่มา ลำดับ 2 หลักวิศวกรรม — ไอด้านดูดเย็นกว่าจุดอิ่มตัวไม่ได้ และของเหลวด้านส่งร้อนกว่าจุดอิ่มตัวไม่ได้ ถ้าคำนวณได้ติดลบแปลว่าค่าวัด/ชนิดสาร/หน่วยผิด หรือมีสองสถานะปนกัน */
+var M_RNG='นอกช่วงโมเดล (−50 … 65 °C) — ไม่แสดงค่า เพราะนอกช่วงนี้ตัวเลขไม่น่าเชื่อถือ',M_P0='ความดันสัมบูรณ์ต้องมากกว่า 0 — ตรวจค่าและหน่วย (bar g / bar a)';
+function W(m){return '<div class="warn">'+m+'</div>';}
+function inT(T){return isFinite(T)&&T>=R.Tmin&&T<=R.Tmax;}
 function go(){
- var f=$('rf').value,inf=R.info(f);
+ var f=$('rf').value,inf=R.info(f),mix=!!inf.mix;
  $('rf_info').innerHTML=K('Safety',inf.safety,'',0,'#8e44ad')+K('GWP (AR5)',inf.gwp,'',0,'#8e44ad')+K('T วิกฤต',inf.Tc,'°C',1,'#8e44ad')+K('Glide',inf.glide0||0,'K',1,'#8e44ad');
- try{var s=R.sat(f,+$('rt').value);
-  $('rt_out').innerHTML=K('P อิ่มตัว',s.P,'bar a',3)+K('',s.P-ATM,'bar g',3)+K('h_f',s.hf,'kJ/kg',1)+K('h_g',s.hg,'kJ/kg',1)+K('h_fg',s.hfg,'kJ/kg',1)+K('ρ ของเหลว',s.rhof,'kg/m³',0)+K('ρ ไอ',s.rhog,'kg/m³',2)+rng(s);}catch(e){$('rt_out').innerHTML='<div class="warn">'+e.message+'</div>';}
- try{var P=Pa('rp','rp_u'),T=R.Tsat(f,P),s2=R.sat(f,T);
-  $('rp_out').innerHTML=K('T อิ่มตัว',T,'°C',2)+K('P',P,'bar a',3)+K('h_f',s2.hf,'kJ/kg',1)+K('h_g',s2.hg,'kJ/kg',1)+K('h_fg',s2.hfg,'kJ/kg',1)+rng(s2);}catch(e){$('rp_out').innerHTML='<div class="warn">'+e.message+'</div>';}
- try{var Ps=Pa('sh_p','sh_u'),Tds=R.Tsat(f,Ps),SH=(+$('sh_t').value)-Tds;
-  $('sh_out').innerHTML=K('T อิ่มตัว @P',Tds,'°C',2)+K('Superheat',SH,'K',1,SH<2?'#d1495b':SH>12?'#e08a00':'#1e9e5a');}catch(e){$('sh_out').innerHTML='<div class="warn">'+e.message+'</div>';}
- try{var Pc=Pa('sc_p','sc_u'),Tdc=R.Tsat(f,Pc),SC=Tdc-(+$('sc_t').value);
-  $('sc_out').innerHTML=K('T อิ่มตัว @P',Tdc,'°C',2)+K('Subcooling',SC,'K',1,SC<1?'#d1495b':SC>10?'#e08a00':'#1e9e5a');}catch(e){$('sc_out').innerHTML='<div class="warn">'+e.message+'</div>';}
- try{var a=+$('pt_a').value,b=+$('pt_b').value,st=Math.max(1,+$('pt_s').value||5),rows='',n=0;
-  for(var t=a;t<=b+1e-9&&n<80;t+=st){var ss=R.sat(f,t);rows+='<tr><td class="r">'+fx(t,0)+'</td><td class="r">'+fx(ss.P,3)+'</td><td class="r">'+fx(ss.P-ATM,3)+'</td><td class="r">'+fx(ss.hfg,1)+'</td><td class="r">'+fx(ss.rhog,2)+'</td></tr>';n++;}
-  $('pt_out').innerHTML='<table><tr><th class="r">T °C</th><th class="r">P bar a</th><th class="r">P bar g</th><th class="r">h_fg kJ/kg</th><th class="r">ρ ไอ kg/m³</th></tr>'+rows+'</table>';}catch(e){$('pt_out').innerHTML='<div class="warn">'+e.message+'</div>';}
+ $('rf_mix').innerHTML=mix?W('สารผสมมี glide — ที่ความดันเดียวกัน จุด bubble (เริ่มเดือด) ต่ำกว่าจุด dew (เริ่มกลั่นตัว) · Superheat คิดจาก dew · Subcooling คิดจาก bubble'):'';
+ try{var t1=+$('rt').value;
+  if(!inT(t1))$('rt_out').innerHTML=W(M_RNG);
+  else{var s=R.sat(f,t1);
+  $('rt_out').innerHTML=(mix?K('P dew',s.P,'bar a',3)+K('P dew',s.P-ATM,'bar g',3)+K('P bubble',s.Pb,'bar a',3)+K('P bubble',s.Pb-ATM,'bar g',3):K('P อิ่มตัว',s.P,'bar a',3)+K('P อิ่มตัว',s.P-ATM,'bar g',3))+K('h_f',s.hf,'kJ/kg',1)+K('h_g',s.hg,'kJ/kg',1)+K('h_fg',s.hfg,'kJ/kg',1)+K('ρ ของเหลว',s.rhof,'kg/m³',0)+K('ρ ไอ',s.rhog,'kg/m³',2);}}catch(e){$('rt_out').innerHTML=W(e.message);}
+ try{var P=Pa('rp','rp_u');
+  if(!(P>0))$('rp_out').innerHTML=W(M_P0);
+  else{var T=R.Tsat(f,P),Tb=mix?R.Tsat(f,P,'bub'):T;
+  if(!inT(T)||!inT(Tb))$('rp_out').innerHTML=W(M_RNG);
+  else{var s2=R.sat(f,T);
+  $('rp_out').innerHTML=(mix?K('T dew',T,'°C',2)+K('T bubble',Tb,'°C',2):K('T อิ่มตัว',T,'°C',2))+K('P',P,'bar a',3)+K('h_f',s2.hf,'kJ/kg',1)+K('h_g',s2.hg,'kJ/kg',1)+K('h_fg',s2.hfg,'kJ/kg',1);}}}catch(e){$('rp_out').innerHTML=W(e.message);}
+ try{var Ps=Pa('sh_p','sh_u');
+  if(!(Ps>0))$('sh_out').innerHTML=W(M_P0);
+  else{var Tds=R.Tsat(f,Ps);
+  if(!inT(Tds))$('sh_out').innerHTML=W(M_RNG);
+  else{var SH=(+$('sh_t').value)-Tds;
+  $('sh_out').innerHTML=K(mix?'T dew @P':'T อิ่มตัว @P',Tds,'°C',2)+K('Superheat',SH,'K',1,SH<2?'#d1495b':SH>12?'#e08a00':'#1e9e5a')
+   +(SH<0?W('Superheat ติดลบ — อุณหภูมิท่อดูดต่ำกว่าจุดอิ่มตัว เป็นไปไม่ได้สำหรับไอล้วน: ตรวจชนิดสาร · หน่วยความดัน · จุดวัดอุณหภูมิ'):'');}}}catch(e){$('sh_out').innerHTML=W(e.message);}
+ try{var Pc=Pa('sc_p','sc_u');
+  if(!(Pc>0))$('sc_out').innerHTML=W(M_P0);
+  else{var Tdc=R.Tsat(f,Pc,mix?'bub':undefined);
+  if(!inT(Tdc))$('sc_out').innerHTML=W(M_RNG);
+  else{var SC=Tdc-(+$('sc_t').value);
+  $('sc_out').innerHTML=K(mix?'T bubble @P':'T อิ่มตัว @P',Tdc,'°C',2)+K('Subcooling',SC,'K',1,SC<1?'#d1495b':SC>10?'#e08a00':'#1e9e5a')
+   +(SC<0?W('Subcooling ติดลบ — ท่อ liquid ร้อนกว่าจุดอิ่มตัว: มีไอปนในท่อ liquid หรือค่าวัด · หน่วย · ชนิดสารผิด'):'');}}}catch(e){$('sc_out').innerHTML=W(e.message);}
+ try{var a=+$('pt_a').value,b=+$('pt_b').value,st=Math.max(1,+$('pt_s').value||5),rows='',n=0,skip=0,cap=false;
+  for(var t=a;t<=b+1e-9;t+=st){if(!inT(t)){skip++;if(skip>2000)break;continue;}if(n>=80){cap=true;break;}
+   var ss=R.sat(f,t);rows+='<tr><td class="r">'+fx(t,0)+'</td><td class="r">'+fx(ss.P,3)+'</td><td class="r">'+fx(ss.P-ATM,3)+'</td>'+(mix?'<td class="r">'+fx(ss.Pb-ATM,3)+'</td>':'')+'<td class="r">'+fx(ss.hfg,1)+'</td><td class="r">'+fx(ss.rhog,2)+'</td></tr>';n++;}
+  $('pt_out').innerHTML=(a>b?W('ค่า "จาก" ต้องไม่มากกว่า "ถึง"'):'')+(skip?W('ข้ามอุณหภูมิที่อยู่นอกช่วงโมเดล (−50 … 65 °C)'):'')+(cap?W('แสดง 80 แถวแรก — เพิ่มค่า "ขั้น" เพื่อดูช่วงที่เหลือ'):'')
+   +'<table><tr><th class="r">T °C</th><th class="r">'+(mix?'P dew bar a':'P bar a')+'</th><th class="r">'+(mix?'P dew bar g':'P bar g')+'</th>'+(mix?'<th class="r">P bubble bar g</th>':'')+'<th class="r">h_fg kJ/kg</th><th class="r">ρ ไอ kg/m³</th></tr>'+rows+'</table>';}catch(e){$('pt_out').innerHTML=W(e.message);}
 }
 document.addEventListener('input',go);document.addEventListener('change',go);go();
 
@@ -125,7 +156,18 @@ if(window.TE_I18N)TE_I18N.set({
 "ความดัน": "Pressure",
 "หน่วย": "Unit",
 "ρ ไอ": "ρ vapor",
-"สาร": "Refrigerant"
+"สาร": "Refrigerant",
+/* [แก้ไข 16 พ.ย. 2569] คำแปลของข้อความใหม่ */
+"นอกช่วงโมเดล (−50 … 65 °C) — ไม่แสดงค่า เพราะนอกช่วงนี้ตัวเลขไม่น่าเชื่อถือ": "Outside the model range (−50 … 65 °C) — no values shown because numbers outside this range are not reliable",
+"ความดันสัมบูรณ์ต้องมากกว่า 0 — ตรวจค่าและหน่วย (bar g / bar a)": "Absolute pressure must be greater than 0 — check the value and unit (bar g / bar a)",
+"สารผสมมี glide — ที่ความดันเดียวกัน จุด bubble (เริ่มเดือด) ต่ำกว่าจุด dew (เริ่มกลั่นตัว) · Superheat คิดจาก dew · Subcooling คิดจาก bubble": "This blend has glide — at the same pressure the bubble point (starts to boil) is below the dew point (starts to condense) · superheat is referenced to dew · subcooling to bubble",
+"Superheat ติดลบ — อุณหภูมิท่อดูดต่ำกว่าจุดอิ่มตัว เป็นไปไม่ได้สำหรับไอล้วน: ตรวจชนิดสาร · หน่วยความดัน · จุดวัดอุณหภูมิ": "Negative superheat — suction-line temperature is below saturation, impossible for dry vapor: check the refrigerant · pressure unit · temperature measuring point",
+"Subcooling ติดลบ — ท่อ liquid ร้อนกว่าจุดอิ่มตัว: มีไอปนในท่อ liquid หรือค่าวัด · หน่วย · ชนิดสารผิด": "Negative subcooling — the liquid line is hotter than saturation: vapor is present in the liquid line, or the reading · unit · refrigerant is wrong",
+"ค่า \"จาก\" ต้องไม่มากกว่า \"ถึง\"": "\"From\" must not be greater than \"To\"",
+"ข้ามอุณหภูมิที่อยู่นอกช่วงโมเดล (−50 … 65 °C)": "Temperatures outside the model range (−50 … 65 °C) are skipped",
+"แสดง 80 แถวแรก — เพิ่มค่า \"ขั้น\" เพื่อดูช่วงที่เหลือ": "Showing the first 80 rows — increase \"Step\" to see the rest",
+"ช่วงที่พบทั่วไป Split/VRF: SH ≈ 4–8 K · ต่ำมาก = เสี่ยง liquid back, สูงมาก = ขาดสาร/Expansion ตีบ · สีของช่อง: แดง ต่ำกว่า 2 K · เขียว 2–12 K · ส้ม เกิน 12 K (ค่าแนวทางของเครื่องมือ — ใช้ค่าของผู้ผลิตเครื่องเมื่อมี)": "Commonly seen for Split/VRF: SH ≈ 4–8 K · very low = liquid floodback risk, very high = undercharge/restricted expansion · tile colour: red below 2 K · green 2–12 K · amber above 12 K (tool guidance values — use the equipment maker's values when available)",
+"ช่วงที่พบทั่วไป: SC ≈ 3–7 K · ต่ำ = สารน้อย/ไม่ควบแน่นพอ, สูง = ชาร์จเกิน/คอนเดนเซอร์อั้น · สีของช่อง: แดง ต่ำกว่า 1 K · เขียว 1–10 K · ส้ม เกิน 10 K (ค่าแนวทางของเครื่องมือ — ใช้ค่าของผู้ผลิตเครื่องเมื่อมี)": "Commonly seen: SC ≈ 3–7 K · low = undercharge/poor condensing, high = overcharge/condenser backup · tile colour: red below 1 K · green 1–10 K · amber above 10 K (tool guidance values — use the equipment maker's values when available)"
 },[
 [/^(\s*)คำนวณด้วยเครื่องยนต์กลาง\s+te\-core\s+\(ใช้งานฟรีบน\s+tripleeenergytools\.com\)\s+·\s+R(-?\d[\d,]*\.?\d*)\s+·\s+R(-?\d[\d,]*\.?\d*)A\s+·\s+R(-?\d[\d,]*\.?\d*)\s+·\s+R(-?\d[\d,]*\.?\d*)\s+·\s+R(-?\d[\d,]*\.?\d*)a\s+·\s+R(-?\d[\d,]*\.?\d*)A\s+·\s+R(-?\d[\d,]*\.?\d*)C\s+·\s+R(-?\d[\d,]*\.?\d*)B\s+\(CP\-fit\s+จาก\s+CoolProp\s+(-?\d[\d,]*\.?\d*)\)\s+·\s+ลิขสิทธิ์\s+อ\.หนึ่ง\s+กลับทวี\s+·\s+Triple\s+E\s+Technology\s+Co\.,\s+Ltd\.(\s*)$/,"$1Computed by the te-core engine (free at tripleeenergytools.com) · R$2 · R$3A · R$4 · R$5 · R$6a · R$7A · R$8C · R$9B (CP-fit from CoolProp $10) · © Aj. Nueng Klubtavee · Triple E Technology Co., Ltd.$11"],
 [/^(\s*)เกณฑ์ทั่วไป\s+Split\/VRF:\s+SH\s+≈\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+K\s+·\s+ต่ำมาก\s+=\s+เสี่ยง\s+liquid\s+back,\s+สูงมาก\s+=\s+ขาดสาร\/Expansion\s+ตีบ(\s*)$/,"$1Typical Split/VRF: SH ≈ $2–$3 K · very low = liquid floodback risk, very high = undercharge/restricted expansion$4"],
