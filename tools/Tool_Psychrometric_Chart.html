@@ -763,6 +763,13 @@ function calcA(){
   if(W > wsat){ W = wsat; warn = warn || 'สภาวะเกินเส้นอิ่มตัว (มีหมอก/ละอองน้ำ) — ปรับเป็นอากาศอิ่มตัวพอดี'; }
 
   const s = state(t,W,p); SA = s;
+  /* [แก้ไข 16 พ.ย. 2569] DB สูงกว่าจุดเดือดของน้ำที่ความดันนั้น แล้วค่าที่กรอกทำให้ความดันไอน้ำ p_w ถึงความดันรวม p
+     (เช่น DB 150 °C + RH 60 % ที่ 101.325 kPa) เดิมแสดง W 6,218,828 g/kg · h 17 ล้าน kJ/kg โดยไม่เตือน — เป็นค่าที่เกิดจากการตรึง p_w = 0.9999·p ไม่ใช่สภาวะจริง
+     ที่มา ลำดับ 3 หลักวิทยาศาสตร์ — กฎความดันย่อยของดาลตัน: p_w ต้องต่ำกว่า p และ W = 0.621945·p_w/(p − p_w) → ∞ เมื่อ p_w → p (สมการเดียวกับที่เครื่องมืออ้าง ASHRAE Fundamentals Ch.1)
+     แก้ที่หน้าเครื่องมือ: เตือน + ไม่แสดง W · h · v · ρ (ไม่แตะ TE_PSY) */
+  const boil = isFinite(s.pw) && s.pw >= 0.999*p;
+  if(boil) warn = `ความดันไอน้ำเท่ากับความดันบรรยากาศ — ที่ DB ${fmt(t,1)} °C และ ${fmt(p,3)} kPa น้ำเดือดแล้ว ไม่ใช่อากาศชื้น · ค่า W · h · v ใช้ไม่ได้ · RH สูงสุดที่เป็นไปได้ ≈ ${fmt(100*p/Pws(t),1)} %`;
+  const NB = x => boil ? NaN : x;
   $('warnA').innerHTML = warn ? `<span class="badge warn">${warn}</span>` : '';
 
   $('kpiA').innerHTML = `
@@ -770,10 +777,10 @@ function calcA(){
    <div class="kpi"><div class="lb">กระเปาะเปียก WB</div><div class="val">${fmt(s.twb,1)}</div><div class="un">°C</div></div>
    <div class="kpi"><div class="lb">ความชื้นสัมพัทธ์ RH</div><div class="val">${fmt(s.rh,1)}</div><div class="un">%</div></div>
    <div class="kpi"><div class="lb">จุดน้ำค้าง DP</div><div class="val">${fmt(s.tdp,1)}</div><div class="un">°C</div></div>
-   <div class="kpi"><div class="lb">อัตราส่วนความชื้น W</div><div class="val">${fmt(s.W*1000,2)}</div><div class="un">g/kg อากาศแห้ง</div></div>
-   <div class="kpi"><div class="lb">เอนทัลปี h</div><div class="val">${fmt(s.h,2)}</div><div class="un">kJ/kg อากาศแห้ง</div></div>
-   <div class="kpi"><div class="lb">ปริมาตรจำเพาะ v</div><div class="val">${fmt(s.v,4)}</div><div class="un">m³/kg อากาศแห้ง</div></div>
-   <div class="kpi"><div class="lb">ความหนาแน่น ρ</div><div class="val">${fmt(s.rho,4)}</div><div class="un">kg/m³ (อากาศชื้น)</div></div>`;
+   <div class="kpi"><div class="lb">อัตราส่วนความชื้น W</div><div class="val">${fmt(NB(s.W*1000),2)}</div><div class="un">g/kg อากาศแห้ง</div></div>
+   <div class="kpi"><div class="lb">เอนทัลปี h</div><div class="val">${fmt(NB(s.h),2)}</div><div class="un">kJ/kg อากาศแห้ง</div></div>
+   <div class="kpi"><div class="lb">ปริมาตรจำเพาะ v</div><div class="val">${fmt(NB(s.v),4)}</div><div class="un">m³/kg อากาศแห้ง</div></div>
+   <div class="kpi"><div class="lb">ความหนาแน่น ρ</div><div class="val">${fmt(NB(s.rho),4)}</div><div class="un">kg/m³ (อากาศชื้น)</div></div>`;
 
   $('tblA').querySelector('tbody').innerHTML = `
    <tr><th>ความดันไออิ่มตัวที่ DB — p<sub>ws</sub>(t)</th><td class="num">${fmt(Pws(s.t),4)}</td><td>kPa</td>
@@ -1016,6 +1023,12 @@ function calcP(){
 
   if(pr==='coil' || pr==='dry'){
     s2 = state(num('e2db'), W_rh(num('e2db'), Math.max(0,Math.min(100,num('e2rh')))/100, p), p);
+    /* [แก้ไข 16 พ.ย. 2569] เดิมไม่เตือนเมื่อสภาวะออกขัดกับกระบวนการที่เลือก (คอยล์เย็น 27 °C/55 % → 20 °C/95 %: แสดง SHR 2.419 และ "น้ำที่ระเหยเข้าอากาศ")
+       ที่มา ลำดับ 2 หลักวิศวกรรม — คอยล์เย็นดึงได้แต่ความร้อนและความชื้นออกจากอากาศ (t ออก < t เข้า · W ออก ≤ W เข้า) · การอบแห้งอากาศรับความชื้นจากวัสดุ (W ออก > W เข้า) */
+    if(pr==='coil' && (s2.t >= s1.t - 1e-9 || s2.W > s1.W + 1e-6))
+      extra = `<span class="badge warn">สภาวะออกไม่ใช่ผลของคอยล์เย็น (อุณหภูมิออกต้องต่ำกว่าเข้า และความชื้น W ออกต้องไม่สูงกว่าเข้า) — ตรวจค่าที่กรอก หรือเลือกกระบวนการอื่น · ค่า SHR ด้านบนใช้ไม่ได้</span>`;
+    if(pr==='dry' && s2.W <= s1.W + 1e-9)
+      extra = `<span class="badge warn">ความชื้น W ของอากาศออกไม่สูงกว่าอากาศเข้า — ไม่มีน้ำระเหยจากวัสดุ ตรวจค่าที่กรอก</span>`;
   } else if(pr==='heat'){
     s2 = state(num('e2db'), s1.W, p);
     if(num('e2db') < s1.tdp - 0.01)
@@ -1053,13 +1066,15 @@ function calcP(){
   const cond= isMix ? 0 : mT*(s1.W-s2.W)*3600;  // kg/h (บวก = กลั่นตัว) — [แก้ไข 3 ต.ค. 2569 audit] การผสม = 0
   SP={s1,s2,pr};
 
-  const sign = isMix ? 'การผสมอะเดียแบติก — ไม่มีภาระความร้อน' : (Qt>=0 ? 'ภาระทำความเย็น (คอยล์รับความร้อน)' : 'ภาระทำความร้อน (อากาศรับความร้อน)');   // [แก้ไข 3 ต.ค. 2569 audit]
+  /* [แก้ไข 16 พ.ย. 2569] ระบายความร้อนแบบระเหย: เดิมขึ้นป้าย "ภาระทำความร้อน (อากาศรับความร้อน)" ทั้งที่ไม่มีฮีตเตอร์ — เอนทัลปีที่เพิ่มเล็กน้อยมาจากน้ำที่เติม
+     ที่มา ลำดับ 3 หลักวิทยาศาสตร์ — สมดุลพลังงานของการอิ่มตัวแบบอะเดียแบติก h2 − h1 = (W2 − W1)·h_w · ฉีดไอน้ำ: ป้ายมวลน้ำใช้คำว่า "ไอน้ำที่ฉีด" แทน "น้ำที่ระเหย" (ตัวเลขไม่เปลี่ยน) */
+  const sign = isMix ? 'การผสมอะเดียแบติก — ไม่มีภาระความร้อน' : pr==='evap' ? 'ระบายความร้อนแบบระเหย — เอนทัลปีที่น้ำเติมให้อากาศ' : (Qt>=0 ? 'ภาระทำความเย็น (คอยล์รับความร้อน)' : 'ภาระทำความร้อน (อากาศรับความร้อน)');   // [แก้ไข 3 ต.ค. 2569 audit]
   $('kpiP').innerHTML = `
    <div class="kpi"><div class="lb">${sign} — รวม</div><div class="val">${fmt(Math.abs(Qt),2)}</div><div class="un">kW &nbsp;· ${fmt(Math.abs(Qt)/3.51685,2)} TR</div></div>
    <div class="kpi"><div class="lb">ความร้อนสัมผัส Q<sub>sensible</sub></div><div class="val">${fmt(Math.abs(Qs),2)}</div><div class="un">kW</div></div>
    <div class="kpi"><div class="lb">ความร้อนแฝง Q<sub>latent</sub></div><div class="val">${fmt(Math.abs(Ql),2)}</div><div class="un">kW</div></div>
    <div class="kpi"><div class="lb">SHR (Sensible Heat Ratio)</div><div class="val" ${adia?'style="font-size:1.05rem;padding-top:8px"':''}>${adia?'≈ 0 (อะเดียแบติก)':fmt(SHR,3)}</div><div class="un">Qs / Qt</div></div>
-   <div class="kpi"><div class="lb">${isMix?'น้ำกลั่นตัว/ระเหย (การผสม = 0)':(cond>=0?'น้ำกลั่นตัว (condensate)':'น้ำที่ระเหยเข้าอากาศ')}</div><div class="val">${fmt(Math.abs(cond),2)}</div><div class="un">kg/h ≈ L/h</div></div>
+   <div class="kpi"><div class="lb">${isMix?'น้ำกลั่นตัว/ระเหย (การผสม = 0)':(cond>=0?'น้ำกลั่นตัว (condensate)':(pr==='steam'?'ไอน้ำที่ฉีดเข้าอากาศ':'น้ำที่ระเหยเข้าอากาศ'))}</div><div class="val">${fmt(Math.abs(cond),2)}</div><div class="un">kg/h ≈ L/h</div></div>
    <div class="kpi"><div class="lb">มวลอากาศแห้ง ṁ<sub>da</sub></div><div class="val">${fmt(mT*3600,0)}</div><div class="un">kg/h</div></div>`;
 
   const R=(n,a,b,u,d=2)=>`<tr><td>${n}</td><td class="num">${fmt(a,d)}</td><td class="num">${fmt(b,d)}</td>
@@ -2513,6 +2528,11 @@ if(window.TE_I18N)TE_I18N.set({
 "W ขาออกสูงกว่าขาเข้า — คอยล์ไม่ได้ลดความชื้น (ตรวจค่าที่วัด)": "Outlet W above inlet — the coil is not dehumidifying (check measured values)",
 "ค่าที่ป้อนให้ W ติดลบ — ปรับเป็นอากาศแห้งสนิท": "Inputs give negative W — set to bone-dry air",
 "WB ต้องไม่สูงกว่า DB — ปรับเป็น WB = DB (อากาศอิ่มตัว)": "WB must not exceed DB — set WB = DB (saturated air)",
+"สภาวะออกไม่ใช่ผลของคอยล์เย็น (อุณหภูมิออกต้องต่ำกว่าเข้า และความชื้น W ออกต้องไม่สูงกว่าเข้า) — ตรวจค่าที่กรอก หรือเลือกกระบวนการอื่น · ค่า SHR ด้านบนใช้ไม่ได้": "The leaving state is not a cooling-coil result (leaving DB must be lower than entering and leaving W must not exceed entering) — check the inputs or choose another process · the SHR above is not valid",
+"ความชื้น W ของอากาศออกไม่สูงกว่าอากาศเข้า — ไม่มีน้ำระเหยจากวัสดุ ตรวจค่าที่กรอก": "Leaving-air W is not higher than entering — no water is evaporated from the product; check the inputs",
+"ระบายความร้อนแบบระเหย — เอนทัลปีที่น้ำเติมให้อากาศ — รวม": "Evaporative cooling — enthalpy added by the make-up water — total",
+"ระบายความร้อนแบบระเหย — เอนทัลปีที่น้ำเติมให้อากาศ": "Evaporative cooling — enthalpy added by the make-up water",
+"ไอน้ำที่ฉีดเข้าอากาศ": "Steam injected into air",
 "WB สูงกว่า DB — ปรับเป็นอิ่มตัว": "WB above DB — set to saturation",
 "จุดน้ำค้างต้องไม่สูงกว่า DB — ปรับเป็นอิ่มตัว": "Dew point must not exceed DB — set to saturation",
 "สภาวะเกินเส้นอิ่มตัว (มีหมอก/ละอองน้ำ) — ปรับเป็นอากาศอิ่มตัวพอดี": "State beyond saturation (fog/droplets) — set to exactly saturated air",
@@ -2594,6 +2614,7 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)ลมออกคอยล์ต้องได้ RH (-?[\d.]+) % \(> (\d+) %\) ซึ่งคอยล์จริงทำได้ยาก — พิจารณาเพิ่ม DB ลมจ่ายขึ้น (\d+)–(\d+) K$/,"$1Off-coil air would need RH $2 % (> $3 %), hard for a real coil — consider raising supply DB by $4–$5 K"],
 [/^(\s*)W ลมจ่ายที่ต้องการ (-?[\d.]+) g\/kg เกินอิ่มตัวที่ (-?[\d.]+) °C — ภาระแฝงน้อยเมื่อเทียบลมที่จ่าย ให้เพิ่ม DB ลมจ่าย \(ลดอัตราลม\)$/,"$1Required supply W $2 g/kg exceeds saturation at $3 °C — latent load is small relative to supply air; raise supply DB (reduce airflow)"],
 [/^(\s*)ลมจ่ายต้องการ W (-?[\d.]+) g\/kg ซึ่งคอยล์ทำที่ (-?[\d.]+) °C ไม่ได้ \(RH > (\d+) %\) — จึงลดถึงจุดน้ำค้างแล้วอุ่นซ้ำ ควรพิจารณาลด DB ลมจ่ายหรือใช้ระบบลดความชื้นเฉพาะ$/,"$1Supply air needs W $2 g/kg, which the coil cannot reach at $3 °C (RH > $4 %) — so it cools to the dew point and reheats; consider lowering supply DB or a dedicated dehumidification system"],
+[/^(\s*)ความดันไอน้ำเท่ากับความดันบรรยากาศ — ที่ DB (-?[\d.,]+) °C และ ([\d.,]+) kPa น้ำเดือดแล้ว ไม่ใช่อากาศชื้น · ค่า W · h · v ใช้ไม่ได้ · RH สูงสุดที่เป็นไปได้ ≈ ([\d.,]+) %$/,"$1Water-vapour pressure equals atmospheric pressure — at DB $2 °C and $3 kPa water boils; this is no longer moist air · W · h · v are not valid · maximum possible RH ≈ $4 %"],
 [/^(\s*)อุณหภูมิปลายทาง (-?[\d.]+) °C ต่ำกว่าจุดน้ำค้างของอากาศเข้า \((-?[\d.]+) °C\) — เกิดการกลั่นตัว จึงไม่ใช่กระบวนการสัมผัสล้วนอีกต่อไป$/,"$1End temperature $2 °C is below the entering-air dew point ($3 °C) — condensation occurs, so it is no longer a purely sensible process"],
 [/^(\s*)เขตสบาย (-?[\d.]+) clo$/,"$1Comfort zone $2 clo"],
 [/^(\s*)% ของเวลา · (.*) clo$/,"$1% of time · $2 clo"],
