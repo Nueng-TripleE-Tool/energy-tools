@@ -59,6 +59,7 @@ footer{max-width:1180px;margin:0 auto 26px;padding:0 18px;font-size:.78em;color:
   <div class="row"><div><label>ความดันคอนเดนเสท (bar a)</label><input id="fl_hi" type="number" step="0.1" value="11"></div>
   <div><label>ความดันแฟลช (bar a)</label><input id="fl_lo" type="number" step="0.1" value="2"></div>
   <div><label>อัตราคอนเดนเสท (kg/h)</label><input id="fl_m" type="number" step="10" value="1000"></div></div>
+  <div class="hint">คิดจากคอนเดนเสทอิ่มตัวที่ความดันต้นทาง (ยังไม่เย็นตัวต่ำกว่าจุดเดือด)</div>
   <div class="kv" id="fl_out"></div>
 </div>
 <div class="card w"><h2>⑥ ตารางไอน้ำอิ่มตัว (ช่วงความดันกำหนดเอง)</h2>
@@ -79,20 +80,52 @@ function Pa(id,uid){var p=+$(id).value;return $(uid).value==='g'?p+ATM:p;}
 function satKV(s,Pa_){return K('P (bar a)',Pa_,'',3)+K('P (bar g)',Pa_-ATM,'',3)+K('T อิ่มตัว',s.TsC,'°C',2)
  +K('h_f',s.hf,'kJ/kg',1)+K('h_g',s.hg,'kJ/kg',1)+K('h_fg',s.hfg,'kJ/kg',1)
  +K('s_f',s.sf,'kJ/kg·K',4)+K('s_g',s.sg,'kJ/kg·K',4)+K('v_g',s.vg,'m³/kg',4);}
+/* [แก้ไข 16 พ.ย. 2569] เพิ่มด่านตรวจช่วงใช้งานที่หน้าเครื่องมือ (ไม่แตะสูตรใน TE_STEAM)
+   อาการเดิม: ความดัน > 220.64 bar a หรืออุณหภูมิ > 373.946 °C การ์ดอิ่มตัวและตารางแสดงค่าที่ไม่มีอยู่จริง (h_fg ติดลบ · v_g ติดลบ) ·
+   การ์ดน้ำอัดให้ค่าทั้งที่ T สูงกว่าจุดเดือด (สภาวะเป็นไอ) · การ์ด Flash ไม่เตือนเมื่อความดันแฟลชไม่ต่ำกว่าความดันต้นทาง ·
+   การ์ดไอร้อนยวดยิ่งใช้สมการ region 2 นอกช่วง (ใกล้จุดวิกฤต / เกิน 800 °C)
+   ที่มา ลำดับ 1 มาตรฐาน — IAPWS, Revised Release on the IAPWS Industrial Formulation 1997 (IAPWS-IF97, ฉบับปรับปรุง 2007/2012) เปิดอ่าน 16 พ.ย. 2569:
+     §3 Eq.(2)(3) จุดวิกฤต T_c = 647.096 K · p_c = 22.064 MPa
+     §8.1 Eq.(30) p_s(T): 273.15 K ≤ T ≤ 647.096 K · §8.2 Eq.(31) T_s(p): 611.213 Pa ≤ p ≤ 22.064 MPa
+     §5.1 region 1 (น้ำ): 273.15 K ≤ T ≤ 623.15 K · p_s(T) ≤ p ≤ 100 MPa
+     §6.1 region 2 (ไอ): ถึง 623.15 K ใช้ได้เมื่อ p ≤ p_s(T) · 623.15–863.15 K ใช้ได้เมื่อ p ≤ p_B23(T) · 863.15–1073.15 K ใช้ได้ถึง 100 MPa
+     §4 Eq.(6) เส้นแบ่ง region 2/3: T = n4 + [(p − n5)/n3]^0.5 (p MPa · T K) ครอบคลุม 623.15 K ที่ 16.5292 MPa ถึง 863.15 K ที่ 100 MPa
+        (ทวนสัมประสิทธิ์กับปลายช่วงที่เอกสารระบุ: p = 16.5292 MPa → 623.15 K · p = 100 MPa → 863.15 K)
+   ลำดับ 2 หลักวิศวกรรม — Flash เกิดเมื่อความดันลดลงเท่านั้น (สมดุลพลังงาน y = (h_f1 − h_f2)/h_fg2 > 0) */
+var PMIN=0.00611213 /* 611.213 Pa */,PC=220.64 /* 22.064 MPa */,TC_C=373.946 /* 647.096 K */,T1MAX=350 /* 623.15 K */,T2MAX=800 /* 1073.15 K */,PMAX=1000 /* 100 MPa */,PB23MIN=165.292 /* 16.5292 MPa */;
+function W(m){return '<div class="warn">'+m+'</div>';}
+var M_LOW='ต่ำกว่าช่วงเส้นอิ่มตัวของ IAPWS-IF97 (เริ่มที่ 0.0061 bar a · 0 °C)',
+    M_HIGH='เหนือจุดวิกฤตของน้ำ (220.64 bar a · 373.946 °C) — ไม่มีสภาวะอิ่มตัว';
+function satRangeP(P){return !(P>=PMIN)?M_LOW:(P>PC?M_HIGH:'');}
+function tB23C(Pbar){return 572.54459862746+Math.sqrt((Pbar/10-13.91883977887)/0.0010192970039326)-273.15;} /* IAPWS-IF97 Eq.(6) */
 function go(){
- try{var P1=Pa('sp_p','sp_pu');var s1=TE.STEAM.satP(P1);$('sp_out').innerHTML=satKV(s1,P1);}catch(e){$('sp_out').innerHTML='<div class="warn">'+e.message+'</div>';}
- try{var t2=+$('st_t').value;var P2=TE.STEAM.PsatBar(t2);var s2=TE.STEAM.satP(P2);$('st_out').innerHTML=satKV(s2,P2);}catch(e){$('st_out').innerHTML='<div class="warn">'+e.message+'</div>';}
- try{var P3=Pa('su_p','su_pu'),T3=+$('su_t').value,Ts3=TE.STEAM.satP(P3).TsC;
-  if(T3<=Ts3){$('su_out').innerHTML='';$('su_warn').innerHTML='<div class="warn">T ≤ T อิ่มตัว ('+fx(Ts3,1)+' °C) — สภาวะนี้ไม่ใช่ superheated</div>';}
-  else{$('su_warn').innerHTML='<div class="hint">Superheat = '+fx(T3-Ts3,1)+' °C เหนืออิ่มตัว</div>';
-   $('su_out').innerHTML=K('h',TE.STEAM.hSup(P3,T3),'kJ/kg',1)+K('s',TE.STEAM.sSup(P3,T3),'kJ/kg·K',4)+K('v',TE.STEAM.vSup(P3,T3),'m³/kg',4)+K('T อิ่มตัว',Ts3,'°C',1);}}catch(e){$('su_warn').innerHTML='<div class="warn">'+e.message+'</div>';}
- try{var P4=Pa('li_p','li_pu'),T4=+$('li_t').value;
-  $('li_out').innerHTML=K('h',TE.STEAM.hLiq(P4,T4),'kJ/kg',1)+K('v',TE.STEAM.vLiq(P4,T4),'m³/kg',6)+K('ρ',1/TE.STEAM.vLiq(P4,T4),'kg/m³',1);}catch(e){$('li_out').innerHTML='<div class="warn">'+e.message+'</div>';}
- try{var hi=+$('fl_hi').value,lo=+$('fl_lo').value,m=+$('fl_m').value||0;var y=TE.STEAM.flashFrac(hi,lo);
-  $('fl_out').innerHTML=K('สัดส่วนแฟลช',y*100,'%',2)+K('ไอแฟลชที่ได้',m*y,'kg/h',1)+K('คอนเดนเสทเหลือ',m*(1-y),'kg/h',1)+K('T หลังแฟลช',TE.STEAM.satP(lo).TsC,'°C',1);}catch(e){$('fl_out').innerHTML='<div class="warn">'+e.message+'</div>';}
- try{var a=+$('tb_a').value,b=+$('tb_b').value,st=Math.max(0.1,+$('tb_s').value||1);var rows='';var n=0;
-  for(var p=a;p<=b+1e-9&&n<120;p+=st){var s=TE.STEAM.satP(p);rows+='<tr><td class="r">'+fx(p,2)+'</td><td class="r">'+fx(p-ATM,2)+'</td><td class="r">'+fx(s.TsC,2)+'</td><td class="r">'+fx(s.hf,1)+'</td><td class="r">'+fx(s.hfg,1)+'</td><td class="r">'+fx(s.hg,1)+'</td><td class="r">'+fx(s.vg,4)+'</td></tr>';n++;}
-  $('tb_out').innerHTML='<table><tr><th class="r">bar a</th><th class="r">bar g</th><th class="r">T °C</th><th class="r">h_f</th><th class="r">h_fg</th><th class="r">h_g</th><th class="r">v_g m³/kg</th></tr>'+rows+'</table>';}catch(e){$('tb_out').innerHTML='<div class="warn">'+e.message+'</div>';}
+ try{var P1=Pa('sp_p','sp_pu'),m1=satRangeP(P1);
+  if(m1)$('sp_out').innerHTML=W(m1);else{var s1=TE.STEAM.satP(P1);$('sp_out').innerHTML=satKV(s1,P1);}}catch(e){$('sp_out').innerHTML=W(e.message);}
+ try{var t2=+$('st_t').value;
+  if(!(t2>=0))$('st_out').innerHTML=W(M_LOW);else if(t2>TC_C)$('st_out').innerHTML=W(M_HIGH);
+  else{var P2=TE.STEAM.PsatBar(t2);var s2=TE.STEAM.satP(P2);$('st_out').innerHTML=satKV(s2,P2);}}catch(e){$('st_out').innerHTML=W(e.message);}
+ try{var P3=Pa('su_p','su_pu'),T3=+$('su_t').value,sub3=P3<=PC,Ts3=(P3>=PMIN&&sub3)?TE.STEAM.satP(P3).TsC:null;
+  if(!(P3>=PMIN)){$('su_out').innerHTML='';$('su_warn').innerHTML=W(M_LOW);}
+  else if(P3>PMAX||T3>T2MAX){$('su_out').innerHTML='';$('su_warn').innerHTML=W('เกินช่วงของสมการไอร้อนยวดยิ่งที่เครื่องมือใช้ (IAPWS-IF97 region 2: ไม่เกิน 800 °C · 1,000 bar a)');}
+  else if(sub3&&T3<=Ts3){$('su_out').innerHTML='';$('su_warn').innerHTML='<div class="warn">T ≤ T อิ่มตัว ('+fx(Ts3,1)+' °C) — สภาวะนี้ไม่ใช่ superheated</div>';}
+  else if(P3>PB23MIN&&T3<tB23C(P3)){$('su_out').innerHTML='';$('su_warn').innerHTML=W('ใกล้จุดวิกฤต — ที่ความดันนี้สมการไอร้อนยวดยิ่ง (IAPWS-IF97 region 2) ใช้ได้เมื่อ T สูงกว่า '+fx(tB23C(P3),1)+' °C');}
+  else{$('su_warn').innerHTML=sub3?'<div class="hint">Superheat = '+fx(T3-Ts3,1)+' °C เหนืออิ่มตัว</div>':'<div class="hint">ความดันสูงกว่าจุดวิกฤต (220.64 bar a) — ไม่มีอุณหภูมิอิ่มตัว</div>';
+   $('su_out').innerHTML=K('h',TE.STEAM.hSup(P3,T3),'kJ/kg',1)+K('s',TE.STEAM.sSup(P3,T3),'kJ/kg·K',4)+K('v',TE.STEAM.vSup(P3,T3),'m³/kg',4)+K('T อิ่มตัว',Ts3,'°C',1);}}catch(e){$('su_warn').innerHTML=W(e.message);}
+ try{var P4=Pa('li_p','li_pu'),T4=+$('li_t').value,Ts4=(P4>=PMIN&&P4<=PC)?TE.STEAM.satP(P4).TsC:null;
+  if(!(P4>=PMIN))$('li_out').innerHTML=W(M_LOW);
+  else if(Ts4!=null&&T4>=Ts4)$('li_out').innerHTML=W('T ≥ T อิ่มตัว ('+fx(Ts4,1)+' °C) — สภาวะนี้ไม่ใช่น้ำ (ของเหลว)');
+  else if(!(T4>=0)||T4>T1MAX||P4>PMAX)$('li_out').innerHTML=W('เกินช่วงของสมการน้ำที่เครื่องมือใช้ (IAPWS-IF97 region 1: 0–350 °C · ไม่เกิน 1,000 bar a)');
+  else $('li_out').innerHTML=K('h',TE.STEAM.hLiq(P4,T4),'kJ/kg',1)+K('v',TE.STEAM.vLiq(P4,T4),'m³/kg',6)+K('ρ',1/TE.STEAM.vLiq(P4,T4),'kg/m³',1);}catch(e){$('li_out').innerHTML=W(e.message);}
+ try{var hi=+$('fl_hi').value,lo=+$('fl_lo').value,m=+$('fl_m').value||0,m5=satRangeP(hi)||satRangeP(lo);
+  if(m5)$('fl_out').innerHTML=W(m5);
+  else if(!(lo<hi))$('fl_out').innerHTML=W('ความดันแฟลชต้องต่ำกว่าความดันคอนเดนเสท — ไม่เกิดไอแฟลช');
+  else{var y=TE.STEAM.flashFrac(hi,lo);
+  $('fl_out').innerHTML=K('สัดส่วนแฟลช',y*100,'%',2)+K('ไอแฟลชที่ได้',m*y,'kg/h',1)+K('คอนเดนเสทเหลือ',m*(1-y),'kg/h',1)+K('T หลังแฟลช',TE.STEAM.satP(lo).TsC,'°C',1);}}catch(e){$('fl_out').innerHTML=W(e.message);}
+ try{var a=+$('tb_a').value,b=+$('tb_b').value,st=Math.max(0.1,+$('tb_s').value||1);var rows='';var n=0,skip=0,cap=false;
+  for(var p=a;p<=b+1e-9;p+=st){if(satRangeP(p)){skip++;if(skip>2000)break;continue;}if(n>=120){cap=true;break;}
+   var s=TE.STEAM.satP(p);rows+='<tr><td class="r">'+fx(p,2)+'</td><td class="r">'+fx(p-ATM,2)+'</td><td class="r">'+fx(s.TsC,2)+'</td><td class="r">'+fx(s.hf,1)+'</td><td class="r">'+fx(s.hfg,1)+'</td><td class="r">'+fx(s.hg,1)+'</td><td class="r">'+fx(s.vg,4)+'</td></tr>';n++;}
+  $('tb_out').innerHTML=(a>b?W('ค่า "จาก" ต้องไม่มากกว่า "ถึง"'):'')+(skip?W('ข้ามความดันที่อยู่นอกช่วงเส้นอิ่มตัว (0.0061–220.64 bar a)'):'')+(cap?W('แสดง 120 แถวแรก — เพิ่มค่า "ขั้น" เพื่อดูช่วงที่เหลือ'):'')
+   +'<table><tr><th class="r">bar a</th><th class="r">bar g</th><th class="r">T °C</th><th class="r">h_f</th><th class="r">h_fg</th><th class="r">h_g</th><th class="r">v_g m³/kg</th></tr>'+rows+'</table>';}catch(e){$('tb_out').innerHTML=W(e.message);}
 }
 document.addEventListener('input',go);go();
 
@@ -122,12 +155,25 @@ if(window.TE_I18N)TE_I18N.set({
 "T อิ่มตัว": "T sat",
 "ความดัน": "Pressure",
 "หน่วย": "Unit",
-"Superheat = – °C เหนืออิ่มตัว": "Superheat = – °C above saturation"
+"Superheat = – °C เหนืออิ่มตัว": "Superheat = – °C above saturation",
+/* [แก้ไข 16 พ.ย. 2569] คำแปลของข้อความด่านตรวจช่วงใช้งาน */
+"ต่ำกว่าช่วงเส้นอิ่มตัวของ IAPWS-IF97 (เริ่มที่ 0.0061 bar a · 0 °C)": "Below the IAPWS-IF97 saturation line (starts at 0.0061 bar a · 0 °C)",
+"เหนือจุดวิกฤตของน้ำ (220.64 bar a · 373.946 °C) — ไม่มีสภาวะอิ่มตัว": "Above the critical point of water (220.64 bar a · 373.946 °C) — no saturated state exists",
+"เกินช่วงของสมการไอร้อนยวดยิ่งที่เครื่องมือใช้ (IAPWS-IF97 region 2: ไม่เกิน 800 °C · 1,000 bar a)": "Outside the range of the superheated-steam equation used by this tool (IAPWS-IF97 region 2: up to 800 °C · 1,000 bar a)",
+"ความดันสูงกว่าจุดวิกฤต (220.64 bar a) — ไม่มีอุณหภูมิอิ่มตัว": "Pressure is above the critical point (220.64 bar a) — no saturation temperature",
+"เกินช่วงของสมการน้ำที่เครื่องมือใช้ (IAPWS-IF97 region 1: 0–350 °C · ไม่เกิน 1,000 bar a)": "Outside the range of the liquid-water equation used by this tool (IAPWS-IF97 region 1: 0–350 °C · up to 1,000 bar a)",
+"ความดันแฟลชต้องต่ำกว่าความดันคอนเดนเสท — ไม่เกิดไอแฟลช": "Flash pressure must be lower than the condensate pressure — no flash steam forms",
+"คิดจากคอนเดนเสทอิ่มตัวที่ความดันต้นทาง (ยังไม่เย็นตัวต่ำกว่าจุดเดือด)": "Assumes saturated condensate at the upstream pressure (not sub-cooled)",
+"ค่า \"จาก\" ต้องไม่มากกว่า \"ถึง\"": "\"From\" must not be greater than \"To\"",
+"ข้ามความดันที่อยู่นอกช่วงเส้นอิ่มตัว (0.0061–220.64 bar a)": "Pressures outside the saturation line (0.0061–220.64 bar a) are skipped",
+"แสดง 120 แถวแรก — เพิ่มค่า \"ขั้น\" เพื่อดูช่วงที่เหลือ": "Showing the first 120 rows — increase \"Step\" to see the rest"
 },[
 [/^(\s*)คำนวณด้วยเครื่องยนต์กลาง\s+te\-core\s+\(ใช้งานฟรีบน\s+tripleeenergytools\.com\)\s+·\s+สมบัติไอน้ำ\s+IAPWS\-IF(-?\d[\d,]*\.?\d*)\s+·\s+ลิขสิทธิ์\s+อ\.หนึ่ง\s+กลับทวี\s+·\s+Triple\s+E\s+Technology\s+Co\.,\s+Ltd\.(\s*)$/,"$1Computed by the te-core engine (free at tripleeenergytools.com) · steam properties IAPWS-IF$2 · © Aj. Nueng Klubtavee · Triple E Technology Co., Ltd.$3"],
 [/^(\s*)ตารางไอน้ำ\s+IF(-?\d[\d,]*\.?\d*)\s+—\s+อิ่มตัว\s+·\s+Superheated\s+·\s+น้ำป้อน\s+·\s+Flash(\s*)$/,"$1Steam tables IF$2 — saturated · superheated · feedwater · flash$3"],
 [/^(\s*)T\s+≤\s+T\s+อิ่มตัว\s+\((-?\d[\d,]*\.?\d*)\s+°C\)\s+—\s+สภาวะนี้ไม่ใช่\s+superheated(\s*)$/,"$1T ≤ T sat ($2 °C) — not superheated$3"],
-[/^(\s*)Superheat\s+=\s+(-?\d[\d,]*\.?\d*)\s+°C\s+เหนืออิ่มตัว(\s*)$/,"$1Superheat = $2 °C above saturation$3"]
+[/^(\s*)Superheat\s+=\s+(-?\d[\d,]*\.?\d*)\s+°C\s+เหนืออิ่มตัว(\s*)$/,"$1Superheat = $2 °C above saturation$3"],
+[/^(\s*)T\s+≥\s+T\s+อิ่มตัว\s+\((-?\d[\d,]*\.?\d*)\s+°C\)\s+—\s+สภาวะนี้ไม่ใช่น้ำ\s+\(ของเหลว\)(\s*)$/,"$1T ≥ T sat ($2 °C) — not a liquid at this state$3"],
+[/^(\s*)ใกล้จุดวิกฤต\s+—\s+ที่ความดันนี้สมการไอร้อนยวดยิ่ง\s+\(IAPWS-IF97\s+region\s+2\)\s+ใช้ได้เมื่อ\s+T\s+สูงกว่า\s+(-?\d[\d,]*\.?\d*)\s+°C(\s*)$/,"$1Near the critical point — at this pressure the superheated-steam equation (IAPWS-IF97 region 2) is valid only above $2 °C$3"]
 ]);
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
