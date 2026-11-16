@@ -747,6 +747,13 @@ function calcA(){
   const p = num('patm') || 101.325;
   const k = $('pair').value, a = num('v1'), b = num('v2');
   let t, W, warn='';
+  /* [แก้ไข 16 พ.ย. 2569] ช่องความสูงรับค่าใดก็ได้ (20,000 m → 4.3 kPa) โดยไม่เตือน
+     ที่มา ลำดับ 1 มาตรฐาน — ASHRAE Handbook—Fundamentals บท Psychrometrics หัวข้อ U.S. Standard Atmosphere (เปิดอ่าน 16 พ.ย. 2569 จากฉบับ SI ปี 2001 บทที่ 6 ·
+     ฉบับหลังย้ายเป็นบทที่ 1): Eq.(3) p = 101.325(1 − 2.25577×10⁻⁵ Z)^5.2559 และ Eq.(4) ใช้ได้แม่นในช่วง −5,000 ถึง 11,000 m
+     (สำเนาที่เปิดอ่านเครื่องหมายลบหน้า 5000 หลุดจากการแปลงไฟล์ — ตีความเป็น −5,000 m เพราะสมการเดียวกันใช้ที่ระดับน้ำทะเล Z = 0 และตารางของบทเริ่มต่ำกว่าระดับน้ำทะเล)
+     หลัก: ผู้ใช้ต้องเข้าใจชัดเจน ผลลัพธ์ปลอดภัย — นอกช่วงให้เตือนและแนะนำให้กรอกความดันโดยตรง (ไม่แตะสูตร TE_PSY.Palt) */
+  const warnAlt = ($('pMode').value==='alt' && (num('alt') < -5000 || num('alt') > 11000))
+    ? 'ความสูงอยู่นอกช่วงของสมการบรรยากาศมาตรฐาน (−5,000 ถึง 11,000 m) — ความดันที่คำนวณได้ไม่น่าเชื่อถือ ให้เลือก "ระบุความดันโดยตรง" แล้วกรอกค่าจากบารอมิเตอร์' : '';
 
   if(k==='db_rh'){ t=a; W=W_rh(t, Math.max(0,Math.min(100,b))/100, p); if(b>100||b<0) warn='RH ต้องอยู่ระหว่าง 0–100 % — ระบบปรับให้อัตโนมัติแล้ว'; }
   else if(k==='db_wb'){ t=a; if(b>a){ warn='WB ต้องไม่สูงกว่า DB — ปรับเป็น WB = DB (อากาศอิ่มตัว)'; } const twb=Math.min(b,a); W=W_wb(t,twb,p); }
@@ -770,7 +777,7 @@ function calcA(){
   const boil = isFinite(s.pw) && s.pw >= 0.999*p;
   if(boil) warn = `ความดันไอน้ำเท่ากับความดันบรรยากาศ — ที่ DB ${fmt(t,1)} °C และ ${fmt(p,3)} kPa น้ำเดือดแล้ว ไม่ใช่อากาศชื้น · ค่า W · h · v ใช้ไม่ได้ · RH สูงสุดที่เป็นไปได้ ≈ ${fmt(100*p/Pws(t),1)} %`;
   const NB = x => boil ? NaN : x;
-  $('warnA').innerHTML = warn ? `<span class="badge warn">${warn}</span>` : '';
+  $('warnA').innerHTML = [warnAlt,warn].filter(Boolean).map(w=>`<span class="badge warn">${w}</span>`).join(' ');
 
   $('kpiA').innerHTML = `
    <div class="kpi"><div class="lb">กระเปาะแห้ง DB</div><div class="val">${fmt(s.t,1)}</div><div class="un">°C</div></div>
@@ -1094,8 +1101,8 @@ function calcP(){
     &nbsp;·&nbsp; Q<sub>total</sub> = ṁ<sub>da</sub>·Δh &nbsp;·&nbsp; Q<sub>sensible</sub> = ṁ<sub>da</sub>·(1.006+1.86W̄)·Δt (c<sub>p</sub> = ${fmt(cp,4)} kJ/kg·K)<br>
     ${extra? '<b>รายละเอียด:</b> '+extra+'<br>':''}
     ${isMix? '<b>การผสม:</b> สภาวะผสมได้จาก W<sub>mix</sub> = Σṁ·W/Σṁ และ h<sub>mix</sub> = Σṁ·h/Σṁ — เป็นกระบวนการอะเดียแบติก ภาระความร้อนและน้ำ = 0 ใช้เฉพาะสภาวะผสม (จุด 2) ไปคำนวณคอยล์ขั้นต่อไป<br>':''}<!-- [แก้ไข 3 ต.ค. 2569 audit] -->
-    <b>ตรวจสอบ:</b> SHR ของคอยล์เย็นทั่วไปอยู่ที่ 0.65–0.80 — ถ้าต่ำกว่า 0.6 แสดงว่าภาระความชื้นสูงมาก
-    (ตรวจการรั่วของอากาศภายนอก) ถ้าสูงกว่า 0.9 คอยล์แทบไม่ลดความชื้น (ตรวจอุณหภูมิน้ำเย็น/สารทำความเย็น)<br>
+    ${pr==='coil' ? `<b>ตรวจสอบ:</b> SHR ของคอยล์เย็นทั่วไปอยู่ที่ 0.65–0.80 (ค่าแนวทางของเครื่องมือ) — ถ้าต่ำกว่า 0.6 แสดงว่าภาระความชื้นสูงมาก
+    (ตรวจการรั่วของอากาศภายนอก) ถ้าสูงกว่า 0.9 คอยล์แทบไม่ลดความชื้น (ตรวจอุณหภูมิน้ำเย็น/สารทำความเย็น)<br>` : ''}<!-- [แก้ไข 16 พ.ย. 2569] แสดงเฉพาะกระบวนการคอยล์เย็น (เดิมแสดงกับการให้ความร้อน/การผสม/การระเหยด้วย) และกำกับว่าช่วง 0.65–0.80 เป็นค่าแนวทางของเครื่องมือ ไม่ใช่เกณฑ์จากมาตรฐาน — หลัก: ผู้ใช้ต้องเข้าใจชัดเจน -->
     <b>หมายเหตุ:</b> 1 TR = 3.51685 kW &nbsp;·&nbsp; ค่าโหลดนี้เป็นภาระที่ “อากาศ” เท่านั้น
     ยังไม่รวมความร้อนจากพัดลม ท่อลม และการรั่วซึม`;
   drawP();
@@ -2533,6 +2540,7 @@ if(window.TE_I18N)TE_I18N.set({
 "ระบายความร้อนแบบระเหย — เอนทัลปีที่น้ำเติมให้อากาศ — รวม": "Evaporative cooling — enthalpy added by the make-up water — total",
 "ระบายความร้อนแบบระเหย — เอนทัลปีที่น้ำเติมให้อากาศ": "Evaporative cooling — enthalpy added by the make-up water",
 "ไอน้ำที่ฉีดเข้าอากาศ": "Steam injected into air",
+"ความสูงอยู่นอกช่วงของสมการบรรยากาศมาตรฐาน (−5,000 ถึง 11,000 m) — ความดันที่คำนวณได้ไม่น่าเชื่อถือ ให้เลือก \"ระบุความดันโดยตรง\" แล้วกรอกค่าจากบารอมิเตอร์": "Elevation is outside the range of the standard-atmosphere equation (−5,000 to 11,000 m) — the computed pressure is not reliable; choose \"Enter pressure directly\" and use a barometer reading",
 "WB สูงกว่า DB — ปรับเป็นอิ่มตัว": "WB above DB — set to saturation",
 "จุดน้ำค้างต้องไม่สูงกว่า DB — ปรับเป็นอิ่มตัว": "Dew point must not exceed DB — set to saturation",
 "สภาวะเกินเส้นอิ่มตัว (มีหมอก/ละอองน้ำ) — ปรับเป็นอากาศอิ่มตัวพอดี": "State beyond saturation (fog/droplets) — set to exactly saturated air",
@@ -2625,7 +2633,7 @@ if(window.TE_I18N)TE_I18N.set({
 [/: ภาระ (-?[\d.,]+) TR · น้ำทิ้ง (-?[\d.,]+) kg\/h ≈ (-?[\d.,]+) m³\/วัน ที่ทำงานต่อเนื่อง \(นำกลับไปใช้ที่หอผึ่งน้ำได้\)$/,": load $1 TR · condensate $2 kg/h ≈ $3 m³/day in continuous operation (reusable as cooling tower makeup)"],
 [/^(\s*)จุดสภาวะ: (?!จุด \d|P\d)/,"$1State point: "],
 [/^(\s*)สมการชุดนี้ใช้แบบจำลองก๊าซอุดมคติของอากาศชื้น\s+\(ASHRAE\s+simplified\)\s+ให้ความคลาดเคลื่อน\s+<\s+(-?\d[\d,]*\.?\d*)\s+%\s+ในช่วง\s+−(-?\d[\d,]*\.?\d*)\s+ถึง\s+(-?\d[\d,]*\.?\d*)\s+°C\s+ที่ความดันใกล้บรรยากาศ\s+สำหรับความดันสูงหรืออุณหภูมิเกิน\s+(-?\d[\d,]*\.?\d*)\s+°C\s+ควรใช้แบบจำลองที่รวมค่า\s+enhancement\s+factor(\s*)$/,"$1These equations use the ideal-gas model of moist air (ASHRAE simplified), error < $2 % from −$3 to $4 °C near atmospheric pressure. For high pressure or temperatures above $5 °C use a model that includes the enhancement factor$6"],
-[/^(\s*)SHR\s+ของคอยล์เย็นทั่วไปอยู่ที่\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+—\s+ถ้าต่ำกว่า\s+(-?\d[\d,]*\.?\d*)\s+แสดงว่าภาระความชื้นสูงมาก\s+\(ตรวจการรั่วของอากาศภายนอก\)\s+ถ้าสูงกว่า\s+(-?\d[\d,]*\.?\d*)\s+คอยล์แทบไม่ลดความชื้น\s+\(ตรวจอุณหภูมิน้ำเย็น\/สารทำความเย็น\)(\s*)$/,"$1Typical cooling-coil SHR is $2–$3 — below $4 means a very high moisture load (check outdoor air infiltration); above $5 the coil barely dehumidifies (check chilled water/refrigerant temperature)$6"],
+[/^(\s*)SHR\s+ของคอยล์เย็นทั่วไปอยู่ที่\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+\(ค่าแนวทางของเครื่องมือ\)\s+—\s+ถ้าต่ำกว่า\s+(-?\d[\d,]*\.?\d*)\s+แสดงว่าภาระความชื้นสูงมาก\s+\(ตรวจการรั่วของอากาศภายนอก\)\s+ถ้าสูงกว่า\s+(-?\d[\d,]*\.?\d*)\s+คอยล์แทบไม่ลดความชื้น\s+\(ตรวจอุณหภูมิน้ำเย็น\/สารทำความเย็น\)(\s*)$/,"$1Typical cooling-coil SHR is $2–$3 (tool guidance value) — below $4 means a very high moisture load (check outdoor air infiltration); above $5 the coil barely dehumidifies (check chilled water/refrigerant temperature)$6"],
 [/^(\s*)คัดลอกสองคอลัมน์สุดท้าย\s+\(DB\s+°C,\s+RH\s+%\)\s+จาก\s+Excel\/CSV\s+ของ\s+data\s+logger\s+—\s+ข้อมูลไม่ถูกส่งออกจากเครื่อง\s+·\s+หน่วย\s+DB\s+ตามระบบหน่วยที่เลือก(\s*)$/,"$1Copy the last two columns (DB °C, RH %) from the data logger's Excel/CSV — data never leaves your computer · DB unit follows the selected unit system$2"],
 [/^(\s*)ค่าที่สองของคู่ที่เลือก\s+\(RH\s+%\s+\/\s+WB\s+°C\s+\/\s+DP\s+°C\s+\/\s+W\s+g\/kg\s+\/\s+h\s+kJ\/kg\)\s+·\s+RH\s+ภายนอกไทย\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+%\s+·\s+WB\s+ออกแบบกรุงเทพฯ\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+°C\s+·\s+ที่มา:\s+เครื่องวัดชนิดเดียวกัน(\s*)$/,"$1Second value of the selected pair (RH % / WB °C / DP °C / W g/kg / h kJ/kg) · Thai outdoor RH $2–$3 % · Bangkok design WB $4–$5 °C · Source: same instrument$6"],
 [/^(\s*)เลือกคู่ค่าที่วัดได้จริง\s+·\s+เครื่องวัดดิจิทัล\s+\(hygrometer\)\s+ให้\s+DB\+RH\s+·\s+sling\s+psychrometer\s+ให้\s+DB\+WB\s+·\s+dew\-point\s+meter\s+ให้\s+DB\+DP(\s*)$/,"$1Choose the pair you actually measured · digital meters (hygrometer) give DB+RH · sling psychrometer gives DB+WB · dew-point meter gives DB+DP$2"],

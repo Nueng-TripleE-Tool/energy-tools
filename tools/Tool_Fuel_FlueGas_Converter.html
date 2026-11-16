@@ -337,6 +337,8 @@ header{background:linear-gradient(135deg,#0b3d91,#1e88e5)}
       <div class="fld"><label class="f">ไฮโดรเจน H <span class="unit">% ฐานแห้ง</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hH" data-auto="1" value="6.0" step="0.01"><div class="hint">ไฮโดรเจนในเชื้อเพลิง ฐานแห้ง (ultimate analysis) · ชีวมวล 5.5–6.5 % · ถ่านหิน 4–5.5 % · น้ำมันเตา 11–12 % · ที่มา: ผลแล็บ ASTM D5373 / ค่าจากคลัง</div></div>
       <div class="fld"><label class="f">ความชื้น M <span class="unit">% as-received</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hM" data-auto="1" value="15" step="0.1"><div class="hint">ความชื้นรวมตามที่รับจริง (total moisture, ar) · ไม้สับ 35–50 % · แกลบ 8–12 % · PKS 10–15 % · ทะลายปาล์ม 55–65 % · ที่มา: ASTM E871 / วัดหน้างานด้วย moisture meter</div></div>
       <div class="fld"><label class="f">เถ้า A <span class="unit">% ฐานแห้ง</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hA" data-auto="1" value="3" step="0.1"><div class="hint">เถ้า ฐานแห้ง (proximate analysis) · แกลบ 15–20 % · ไม้สับ 1–3 % · ถ่านหิน 8–15 % · ที่มา: ASTM D3174 / ผลแล็บ</div></div>
+      <!-- [แก้ไข 16 พ.ย. 2569] ช่องใหม่ hON สำหรับพจน์ 0.8·(O+N) ของ ISO 1928 Formula 18 — id เดิมไม่เปลี่ยน · ไฟล์ JSON เก่าไม่มีคีย์นี้ = ใช้ค่าที่เติมจากคลัง -->
+      <div class="fld"><label class="f">ออกซิเจน + ไนโตรเจน O+N <span class="unit">% ฐานแห้ง</span> <span class="unit" style="color:var(--teal,#0f766e)">⚡ จาก แท็บ 1</span></label><input type="number" id="hON" data-auto="1" value="42" step="0.1"><div class="hint">ผลรวมออกซิเจนและไนโตรเจนในเชื้อเพลิง ฐานแห้ง (ultimate analysis) · ไม่ทราบให้ใส่ 0 — พจน์นี้มีผลน้อย (0.0008 MJ/kg ต่อ 1 %) · ที่มา: ผลแล็บ / ค่าจากคลัง</div></div>
     </div>
     <div id="hvOut"></div>
   </div>
@@ -654,14 +656,20 @@ function renderCmp(){
 /* ── LHV ↔ HHV ── */
 function renderHV(){
   const dir=$('hDir').value, val=V('hIn'), basis=$('hBasis').value;
-  const H=V('hH'), M=V('hM'), A=V('hA');
+  const H=V('hH'), M=V('hM'), A=V('hA'), ON=$('hON')?V('hON'):0;
   /* แปลงค่าตั้งต้นเป็นฐาน as-received ก่อน */
   let arVal=val;
   if(basis==='dry') arVal=val*(1-M/100);
   else if(basis==='daf') arVal=val*(1-M/100)*(1-A/100);
   const Har=H*(1-M/100);                       // ไฮโดรเจนฐาน as-received
-  const water=9*Har/100 + M/100;               // kg น้ำ ต่อ kg เชื้อเพลิง ar
-  const dH=2.443*water;                        // MJ/kg ที่ 25 °C
+  const ONar=ON*(1-M/100);                     // O+N ฐาน as-received
+  /* [แก้ไข 16 พ.ย. 2569] ผลต่าง HHV − LHV ใช้สูตรเดียวกับคลังเชื้อเพลิงกลาง (TE_FUEL.lhvFromHhv)
+     เดิม: 2.443 × (9·H + M)/100 — สูตรอย่างง่าย ให้ผลต่างจากคลังกลางราว 0.01 MJ/kg (PKS M 12 %: 1.396 กับ 1.385) ทำให้ HHV ฐานแห้งของแท็บนี้
+     ไม่ตรงกับตาราง GCV / NCV ใต้ช่องเชื้อเพลิงของแท็บ 1 (20.768 กับ 20.758) — ผู้ใช้เห็นค่าความร้อนของเชื้อเพลิงเดียวกันสองค่าในเครื่องมือเดียว
+     ที่มา ลำดับ 1 มาตรฐาน — ISO 1928:2020 §12.2.1.1 Formula 18 ค่าความร้อนสุทธิที่ความดันคงที่ (ตัวบทและการยืนยันอยู่ในหมายเหตุของ TE_FUEL.lhvFromHhv ใน te-core
+     ซึ่งเปิดอ่านและลงมติไว้เมื่อ 11 พ.ย. 2569 — รอบนี้ไม่ได้เปิดตัวบทซ้ำ): NCV = GCV − [212.2·H + 0.8·(O+N) + 24.43·M]/1000 [MJ/kg] · H, O, N, M = % ฐาน as-received
+     หลักที่ใช้ตัดสิน (อ.หนึ่ง 16 พ.ย. 2569): ผู้ใช้ต้องเข้าใจชัดเจน ผลลัพธ์ปลอดภัย → ทั้งเครื่องมือใช้สูตรเดียว */
+  const dH=(typeof TE_FUEL!=='undefined'&&TE_FUEL.lhvFromHhv) ? -TE_FUEL.lhvFromHhv(0,Har,M,ONar,0) : (212.2*Har+0.8*ONar+24.43*M)/1000;   // MJ/kg
   const hhv=dir==='h2l'?arVal:arVal+dH;
   const lhv=dir==='h2l'?arVal-dH:arVal;
   const dryF=1-M/100;
@@ -670,7 +678,11 @@ function renderHV(){
   /* [แก้ไข 10 ก.ย. 2569] ส่ง HHV/LHV ที่คำนวณได้กลับไปแสดงเป็นบรรทัดข้อมูลในแท็บ 1 (ไม่เขียนทับ input) */
   { const lk=$('hvLink'); if(lk){ lk.style.display='block';
       lk.innerHTML=`ℹ จากแท็บ 3 (LHV ↔ HHV): HHV<sub>ar</sub> = <b>${fmt(hhv,3)}</b> · LHV<sub>ar</sub> = <b>${fmt(lhv,3)}</b> MJ/kg (H ${fmt(H,1)} % dry · M ${fmt(M,1)} % · A ${fmt(A,1)} % dry) — ค่าอ้างอิง ไม่เขียนทับช่องด้านบน`; } }
-  $('hvOut').innerHTML=linkWarn+`
+  /* [แก้ไข 16 พ.ย. 2569] เชื้อเพลิงที่เลือกในแท็บ 1 ไม่มีองค์ประกอบในคลัง (ก๊าซ · ไฟฟ้า) — ช่อง H/M/เถ้า/O+N ยังเป็นค่าของเชื้อเพลิงก่อนหน้า เดิมไม่บอก
+     หลัก: ผู้ใช้ต้องเข้าใจชัดเจน ผลลัพธ์ปลอดภัย */
+  const fk=$('fuel')?$('fuel').value:'', fNo=fk&&fk!=='custom'&&FUELS[fk]&&!FUELS[fk].ult&&['hH','hM','hA','hON'].some(id=>$(id)&&$(id).dataset.auto==='1');
+  const ultWarn=fNo?'<div class="note warn">⚠ เชื้อเพลิงที่เลือกในแท็บ 1 ไม่มีค่าไฮโดรเจน · ความชื้น · เถ้า ในคลัง — ช่องด้านบนยังเป็นค่าของเชื้อเพลิงก่อนหน้า ผลด้านล่างใช้ไม่ได้จนกว่าจะกรอกจากผลแล็บ</div>':'';
+  $('hvOut').innerHTML=linkWarn+ultWarn+`
    <div class="grid4" style="margin-top:12px">
      <div class="stat"><div class="big">${fmt(hhv,3)}</div><div class="bigu">HHV as-received · MJ/kg</div></div>
      <div class="stat"><div class="big s0">${fmt(lhv,3)}</div><div class="bigu">LHV as-received · MJ/kg</div></div>
@@ -685,9 +697,7 @@ function renderHV(){
          <td class="n">${fmt(dryF>0&&A<100?(lhv+2.443*M/100)/dryF/(1-A/100):null,3)}</td></tr>
    </table></div>
    <div class="note">
-     <b>สูตร</b> — LHV = HHV − 2.443 × (9H/100 + M/100) เมื่อ H และ M เป็น % โดยน้ำหนักฐาน as-received
-     ตัวเลข 2.443 MJ/kg คือความร้อนแฝงของการกลายเป็นไอที่ 25 °C
-     ส่วนตัวคูณ 9 มาจากอัตราส่วนมวล H₂O ต่อ H₂ (18/2)<br>
+     <b>สูตร</b> — LHV = HHV − [212.2·H + 0.8·(O + N) + 24.43·M] ÷ 1000 (MJ/kg) เมื่อ H, O, N และ M เป็น % โดยน้ำหนักฐาน as-received — ISO 1928 ค่าความร้อนสุทธิที่ความดันคงที่ สูตรเดียวกับคลังเชื้อเพลิงของเครื่องมือ · พจน์ 212.2·H คือน้ำที่เกิดจากไฮโดรเจนในเชื้อเพลิง · พจน์ 24.43·M คือความชื้นที่ติดมา (ความร้อนแฝง 2.443 MJ/kg น้ำ ที่ 25 °C) · พจน์ 0.8·(O + N) เป็นค่าแก้เล็กน้อย<br>
      <b>ที่ต้องระวังในทางปฏิบัติ</b> — ผลต่างในเคสนี้คือ ${fmt(hhv>0?dH/hhv*100:null,1)} % ของ HHV
      ${dH/hhv>0.08?`ซึ่ง<b>สูงมาก</b>เพราะความชื้น ${fmt(M,0)} %`:''}
      ประสิทธิภาพหม้อไอน้ำบนฐาน HHV กับ LHV จึงต่างกันเท่านี้เสมอ
@@ -833,7 +843,7 @@ function init(){
     x.addEventListener('input',calc); x.addEventListener('change',calc);
   });
   /* [แก้ไข 10 ก.ย. 2569] ผู้ใช้พิมพ์เองในช่องแท็บ 3 → เลิก auto-fill ช่องนั้น */
-  ['hIn','hH','hM','hA','hDir','hBasis'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('input',()=>{ el.dataset.auto='0'; },true); });   // [แก้ไข 3 ต.ค. 2569 audit] capture → ล้าง auto ก่อน calc() และเพิ่ม hDir/hBasis
+  ['hIn','hH','hM','hA','hON','hDir','hBasis'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('input',()=>{ el.dataset.auto='0'; },true); });   // [แก้ไข 3 ต.ค. 2569 audit] capture → ล้าง auto ก่อน calc() และเพิ่ม hDir/hBasis
   $('addRow').addEventListener('click',()=>{ CMP.push(['เชื้อเพลิงใหม่',16,2500,'THB/ton',0.6,80]); drawCmp(); renderCmp(); });
   $('clrRow').addEventListener('click',()=>{ CMP=[]; drawCmp(); renderCmp(); });
   $('demoRow').addEventListener('click',()=>{
@@ -861,7 +871,7 @@ function loadFuel(k){
   $('rho').value=f.rho||0; $('rhoU').value=f.rhoU||'kg/L';
   if(f.eff) $('eff').value=f.eff;
   /* [แก้ไข 10 ก.ย. 2569] เติม H/M/A ในแท็บ 3 จากคลังเชื้อเพลิง เฉพาะช่องที่ว่างหรือยังไม่ถูกแก้เอง (data-auto) */
-  if(f.ult){ [['hH',f.ult.H],['hM',f.ult.M],['hA',f.ult.A]].forEach(([id,v])=>{
+  if(f.ult){ [['hH',f.ult.H],['hM',f.ult.M],['hA',f.ult.A],['hON',f.ult.ON!=null?f.ult.ON:0]].forEach(([id,v])=>{
     const el=$(id); if(el&&(el.value===''||el.dataset.auto==='1')){ el.value=v; el.dataset.auto='1'; } }); }
   /* [แก้ไข 10 พ.ย. 2569] แสดงที่มาของค่า (คลังกลาง TE.FUEL ปรับความชื้น) */
   const fs=$('fuelSrc'); if(fs){ const en=(window.TE_I18N&&(typeof TE_I18N.lang==='function'?TE_I18N.lang():TE_I18N.lang))==='en'; fs.textContent=f.src?((en?'Source: ':'ที่มา: ')+f.src):''; }
@@ -869,7 +879,7 @@ function loadFuel(k){
   try{ if(window.TE_FUELINFO) TE_FUELINFO.render($('fuelInfo'), f.fid?TE.FUEL.byId(f.fid):null); }catch(e){}
 }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=[], FK_MEAS=['cMeas', 'o2m', 'gVal', 'wVal', 'wH2O', 'hv', 'rho', 'hH', 'hM', 'hA'], FK_SET=['fuel', 'hvU', 'rhoU', 'sref', 'price', 'priceU', 'mmbtuBasis', 'mmbtuHL', 'eff', 'hDir', 'hBasis', 'qty', 'qtyU', 'qtyH', 'o2r', 'gas', 'gU', 'wBase'], FK_CALC=['hIn'];
+var FK_DESIGN=[], FK_MEAS=['cMeas', 'o2m', 'gVal', 'wVal', 'wH2O', 'hv', 'rho', 'hH', 'hM', 'hA', 'hON'], FK_SET=['fuel', 'hvU', 'rhoU', 'sref', 'price', 'priceU', 'mmbtuBasis', 'mmbtuHL', 'eff', 'hDir', 'hBasis', 'qty', 'qtyU', 'qtyH', 'o2r', 'gas', 'gU', 'wBase'], FK_CALC=['hIn'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(/^cmp/.test(id))return null;if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -879,7 +889,7 @@ function tagFieldKinds(){var PRIO={calc:4,meas:3,design:2,set:1};var els=documen
 document.addEventListener('DOMContentLoaded',tagFieldKinds);
 /* [ระยะ 4 10 ก.ย. 2569] JSON: ensureAllCalc ของไฟล์นี้คือ calc() (เรียกทุก render) + state เพิ่มเติม: ตาราง CMP และสถานะ auto ของช่องแท็บ 3 */
 function recalcAll(){ try{calc();}catch(e){console.warn(e);} try{tagFieldKinds();}catch(e){} }
-function teExtra(){ var auto={}; ['hIn','hH','hM','hA','hDir','hBasis'].forEach(   /* [แก้ไข 3 ต.ค. 2569 audit] */function(id){var el=$(id); if(el) auto[id]=el.dataset.auto||'0';});
+function teExtra(){ var auto={}; ['hIn','hH','hM','hA','hON','hDir','hBasis'].forEach(   /* [แก้ไข 3 ต.ค. 2569 audit] */function(id){var el=$(id); if(el) auto[id]=el.dataset.auto||'0';});
   var tab=document.querySelector('.tab.on'); return {cmp:JSON.parse(JSON.stringify(CMP)),auto:auto,tab:tab?tab.dataset.t:'1'}; }
 function teRestoreExtra(x){ if(!x) return;
   if(Array.isArray(x.cmp)){ CMP=x.cmp.map(function(r){return r.slice();}); drawCmp(); renderCmp(); }
@@ -1158,6 +1168,11 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)มาตรฐานยุโรปและงานชีวมวลส่วนใหญ่ใช้\s+LHV\s+·\s+มาตรฐานอเมริกา\s+\(ASME\s+PTC\s+(-?\d[\d,]*\.?\d*)\)\s+ใช้\s+HHV\s+เป็นหลัก(\s*)$/,"$1European standards and most biomass work use LHV · US standards (ASME PTC $2) mainly use HHV$3"],
 [/^(\s*)ยังแปลงหน่วยนี้ไม่ได้\s+—\s+ต้องใส่ความหนาแน่นหรือค่าความร้อนในฐานที่ตรงกัน\s+\(ดูแท็บที่\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Cannot convert this unit yet — enter density or heating value on a matching basis (see tab $2)$3"],
 [/^(\s*)หน่วยของปริมาณ\s+—\s+ต้องมีค่าความร้อนหรือความหนาแน่นในฐานที่แปลงถึงกันได้\s+\(ดูแท็บ\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Quantity unit — needs heating value or density on a convertible basis (see tab $2)$3"],
+/* [แก้ไข 16 พ.ย. 2569] คำแปลของช่อง O+N · หมายเหตุสูตร ISO 1928 · คำเตือนเชื้อเพลิงไม่มีองค์ประกอบ */
+[/^(\s*)—\s+LHV\s+=\s+HHV\s+−\s+\[212\.2·H\s+\+\s+0\.8·\(O\s+\+\s+N\)\s+\+\s+24\.43·M\]\s+÷\s+1000\s+\(MJ\/kg\)\s+เมื่อ\s+H,\s+O,\s+N\s+และ\s+M\s+เป็น\s+%\s+โดยน้ำหนักฐาน\s+as-received\s+—\s+ISO\s+1928\s+ค่าความร้อนสุทธิที่ความดันคงที่\s+สูตรเดียวกับคลังเชื้อเพลิงของเครื่องมือ\s+·\s+พจน์\s+212\.2·H\s+คือน้ำที่เกิดจากไฮโดรเจนในเชื้อเพลิง\s+·\s+พจน์\s+24\.43·M\s+คือความชื้นที่ติดมา\s+\(ความร้อนแฝง\s+2\.443\s+MJ\/kg\s+น้ำ\s+ที่\s+25\s+°C\)\s+·\s+พจน์\s+0\.8·\(O\s+\+\s+N\)\s+เป็นค่าแก้เล็กน้อย(\s*)$/,"$1— LHV = HHV − [212.2·H + 0.8·(O + N) + 24.43·M] ÷ 1000 (MJ/kg) where H, O, N and M are wt% as-received — ISO 1928 net calorific value at constant pressure, the same formula as the tool's fuel library · 212.2·H is the water formed from hydrogen in the fuel · 24.43·M is the moisture carried in (latent heat 2.443 MJ/kg water at 25 °C) · 0.8·(O + N) is a small correction$2"],
+[/^(\s*)⚠\s+เชื้อเพลิงที่เลือกในแท็บ\s+1\s+ไม่มีค่าไฮโดรเจน\s+·\s+ความชื้น\s+·\s+เถ้า\s+ในคลัง\s+—\s+ช่องด้านบนยังเป็นค่าของเชื้อเพลิงก่อนหน้า\s+ผลด้านล่างใช้ไม่ได้จนกว่าจะกรอกจากผลแล็บ(\s*)$/,"$1⚠ The fuel selected in tab 1 has no hydrogen · moisture · ash data in the library — the fields above still hold the previous fuel's values; the results below are not valid until lab values are entered$2"],
+[/^(\s*)ผลรวมออกซิเจนและไนโตรเจนในเชื้อเพลิง\s+ฐานแห้ง\s+\(ultimate\s+analysis\)\s+·\s+ไม่ทราบให้ใส่\s+0\s+—\s+พจน์นี้มีผลน้อย\s+\(0\.0008\s+MJ\/kg\s+ต่อ\s+1\s+%\)\s+·\s+ที่มา:\s+ผลแล็บ\s+\/\s+ค่าจากคลัง(\s*)$/,"$1Sum of oxygen and nitrogen in the fuel, dry basis (ultimate analysis) · enter 0 if unknown — this term is small (0.0008 MJ/kg per 1 %) · source: lab result / library value$2"],
+[/^(\s*)ออกซิเจน\s+\+\s+ไนโตรเจน\s+O\+N(\s*)$/,"$1Oxygen + nitrogen O+N$2"],
 [/^(\s*)MJ\/kg\s+\(H\s+(-?\d[\d,]*\.?\d*)\s+%\s+dry\s+·\s+M\s+(-?\d[\d,]*\.?\d*)\s+%\s+·\s+A\s+(-?\d[\d,]*\.?\d*)\s+%\s+dry\)\s+—\s+ค่าอ้างอิง\s+ไม่เขียนทับช่องด้านบน(\s*)$/,"$1MJ/kg (H $2 % dry · M $3 % · A $4 % dry) — reference only, does not overwrite the field above$5"],
 [/^(\s*)kg\/L\s+สำหรับของเหลว\/ของแข็ง\s+\(bulk\s+density\)\s+·\s+kg\/Nm³\s+สำหรับก๊าซที่\s+(-?\d[\d,]*\.?\d*)\s+°C(\s*)$/,"$1kg/L for liquids/solids (bulk density) · kg/Nm³ for gases at $2 °C$3"],
 [/^(\s*)—\s+mg\/Nm³\s+=\s+ppm\s+×\s+MW\s+\/\s+(-?\d[\d,]*\.?\d*)\s+โดย\s+(-?\d[\d,]*\.?\d*)\s+คือปริมาตรโมลาร์ที่\s+(-?\d[\d,]*\.?\d*)\s+°C\s+และ\s+(-?\d[\d,]*\.?\d*)\s+kPa(\s*)$/,"$1— mg/Nm³ = ppm × MW / $2 where $3 is the molar volume at $4 °C and $5 kPa$6"],
