@@ -724,7 +724,8 @@ Saving = ΔW × hrs × tariff</div>
             </div>
             <div class="field">
               <label>กระแสเฉลี่ย I <span>(A)</span></label>
-              <input type="number" id="f_curr" value="14.5" step="0.1" onchange="calcField()">
+              <!-- [แก้ไข 16 พ.ย. 2569] ตัวอย่างตั้งต้นของแท็บ Field เดิม (14.5 A · 1,200 CFM) ให้ COP ภาคสนาม 1.46 และ "สมรรถนะตกต่ำมาก 55.8 %" เพราะกำลังไฟฟ้าเป็นของ Outdoor Unit ทั้งชุด แต่ปริมาณลมเป็นของ Indoor Unit เพียงบางเครื่อง · ที่มา (ลำดับ 2 หลักวิศวกรรม): สมดุลพลังงานต้องใช้ขอบเขตเดียวกัน — ความเย็นด้านอากาศต้องรวมทุก Indoor Unit ที่เดินอยู่ของ Outdoor Unit ที่วัดไฟ → ตัวอย่างเป็นกรณีปกติ 13.6 A · ลมรวม 2,400 CFM (ความเย็น ≈ Q_available ของแท็บ Capacity) -->
+              <input type="number" id="f_curr" value="13.6" step="0.1" onchange="calcField()">
             </div>
             <div class="field">
               <label>Power Factor <span>(PF)</span></label>
@@ -777,7 +778,7 @@ Saving = ΔW × hrs × tariff</div>
             </div>
             <div class="field">
               <label>อัตราการไหลอากาศ CFM <span>(CFM)</span></label>
-              <input type="number" id="f_cfm" value="1200" step="50" onchange="calcField()">
+              <input type="number" id="f_cfm" value="2400" step="50" onchange="calcField()">
             </div>
             <div class="field">
               <label>หรือ อัตราการไหล CMH <span>(m³/hr)</span></label>
@@ -1178,9 +1179,10 @@ function calcCOP() {
       <div class="result-item"><div class="r-label">COP (W/W)</div><div class="r-value">${fmtN(cop,3)}</div><div class="r-unit">= Q/W</div></div>
       <div class="result-item warm"><div class="r-label">EER (W/W)</div><div class="r-value warm">${fmtN(eer_calc,3)}</div><div class="r-unit">= Q/W (W/W) · = ${fmtN(eer_btu,2)} BTU/W·h</div></div>
       <div class="result-item gold"><div class="r-label">IEER (W/W)</div><div class="r-value gold">${fmtN(iplv_calc,3)}</div><div class="r-unit">AHRI 1230 weighted</div></div>
-      <div class="result-item ${!lab.inScope?'':eerOK?'green':'red'}"><div class="r-label">${lab.inScope?('เกณฑ์ฉลากเบอร์ 5 VRF (SEER ≥ '+fmtN(lab.thr[0],2)+')'):'เกณฑ์ฉลากเบอร์ 5 VRF'}</div>
-        <div class="r-value ${!lab.inScope?'':eerOK?'green':'red'}">${!lab.inScope?'—':eerOK?'✅ PASS':'❌ FAIL'}</div>
-        <div class="r-unit">${seerSrc} = ${fmtN(seerUse,2)} BTU/W·h</div></div>
+      ${''/* [แก้ไข 16 พ.ย. 2569] เดิมเมื่อยังไม่กรอก SEER ที่ฉลาก ช่องนี้ขึ้น "❌ FAIL = 0.00 BTU/W·h" ทั้งที่ยังไม่มีค่าให้ตัดสิน · ที่มา (ลำดับ 1 มาตรฐาน): ฉลากเบอร์ 5 ตัดสินด้วย SEER ที่ทดสอบตาม มอก. 2714 เล่ม 1-2558 (ตามข้อความเกณฑ์ในเครื่องมือ) — ไม่มี SEER จึงยังตัดสินผ่าน/ไม่ผ่านไม่ได้ → แสดง "—" */}
+      <div class="result-item ${(!lab.inScope||!hasSeer)?'':eerOK?'green':'red'}"><div class="r-label">${lab.inScope?('เกณฑ์ฉลากเบอร์ 5 VRF (SEER ≥ '+fmtN(lab.thr[0],2)+')'):'เกณฑ์ฉลากเบอร์ 5 VRF'}</div>
+        <div class="r-value ${(!lab.inScope||!hasSeer)?'':eerOK?'green':'red'}">${(!lab.inScope||!hasSeer)?'—':eerOK?'✅ PASS':'❌ FAIL'}</div>
+        <div class="r-unit">${hasSeer?(seerSrc+' = '+fmtN(seerUse,2)+' BTU/W·h'):'กรอก SEER ที่ฉลาก'}</div></div>
       <div class="result-item purple"><div class="r-label">ระดับฉลากเบอร์ 5</div>
         <div class="r-value purple" style="font-size:13px">${stars}</div><div class="r-unit">กฟผ. เกณฑ์ ${TE.ACLABEL.YEAR}</div></div>
     </div>
@@ -2104,5 +2106,7 @@ if(window.TE_I18N)TE_I18N.set({
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-03 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"คำนวณ Coefficient of Performance, Energy Efficiency Ratio และ Integrated Energy Efficiency Ratio (IEER) ตามมาตรฐาน AHRI 1230-2021": "Calculates the coefficient of performance, energy efficiency ratio and integrated energy efficiency ratio (IEER) per AHRI 1230-2021"},[[/AHRI 1230-2021 \(IEER\): น้ำหนักมากที่สุดอยู่ที่โหลด 75% \(61\.7%\) รองลงมา 50% \(23\.8%\)/g,"AHRI 1230-2021 (IEER): the largest weight is at 75% load (61.7%), then 50% (23.8%)"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-01 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ยังเทียบไม่ได้": "Not yet comparable"},[[/ยังเทียบระดับฉลากไม่ได้ — กรอก "SEER ที่ฉลาก" \(ฉลากเบอร์ 5 ตัดสินด้วย SEER ตามฤดูกาลที่ทดสอบตาม มอก\. 2714 เล่ม 1-2558 ส่วน EER เป็นค่าที่ภาระเต็มพิกัด จึงเทียบกันไม่ได้\) จึงยังไม่แสดงระดับและไม่คิดผลประหยัดเทียบเกณฑ์ฉลาก/g,"Label level cannot be assessed yet — enter the “label SEER” (Label No.5 is judged on seasonal SEER tested to TIS 2714 Part 1-2558, whereas EER is a full-load value, so the two are not comparable); no level is shown and no saving against the label criteria is calculated"],[/ไม่ใช้ EER พิกัดเทียบระดับฉลาก ต้องกรอก SEER ที่ฉลาก/g,"rated EER is not used for the label level — enter the label SEER"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-01 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/\[แก้ไข 15 พ\.ย\. 2569\] เกณฑ์ฉลากเบอร์ 5 ของ VRF ตัดสินด้วย SEER \(BTU\/W·h\) — /g,"[Revised 15 Nov 2026] The VRF Label No.5 is judged on SEER (BTU/W·h) — "]]);</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ คู่มือช่วง 1 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"กรอก SEER ที่ฉลาก": "Enter the SEER from the label"});</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ คู่มือช่วง 1 (กรณีปกติ) — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ยังไม่พบปัญหาจากข้อมูลที่คำนวณ — แนะนำตรวจสอบ Coil Cleaning ทุก 6 เดือน": "No problem found from the calculated data — coil cleaning check every 6 months is recommended"},[[/^(\s*)COP\s+Degradation\s+=\s+(-?\d[\d,]*\.?\d*)%\s+\(Nameplate\s+(-?\d[\d,]*\.?\d*)\s+→\s+Field\s+(-?\d[\d,]*\.?\d*)\)\s+✅\s+สมรรถนะอยู่ในเกณฑ์ดี(\s*)$/,"$1COP degradation = $2% (nameplate $3 → field $4) ✅ performance within a good range$5"],[/^(\s*)COP\s+Degradation\s+=\s+(-?\d[\d,]*\.?\d*)%\s+\(Nameplate\s+(-?\d[\d,]*\.?\d*)\s+→\s+Field\s+(-?\d[\d,]*\.?\d*)\)\s+⚠️\s+สมรรถนะลดลงพอควร\s+ควรตรวจสอบ(\s*)$/,"$1COP degradation = $2% (nameplate $3 → field $4) ⚠️ performance noticeably reduced — inspection advised$5"]]);</script>
 </body>
 </html>
