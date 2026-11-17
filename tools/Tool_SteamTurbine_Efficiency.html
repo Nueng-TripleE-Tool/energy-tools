@@ -308,7 +308,7 @@ var TE_JSON=(function(){
     <div class="info-box" id="method_desc" style="margin-top:5px;">Method 2: ใช้ h_out จาก T_out, P_out ที่วัด → η = Δh_act/Δh_isen</div>
     <div id="m3_inputs">
       <label>กำลังไฟฟ้าที่ผลิตได้ P_elec <span style="color:var(--red)">วัดจาก kWh meter</span> (kW)</label>
-      <input type="number" id="p_export" onchange="markStale()" value="9200" step="50">
+      <input type="number" id="p_export" onchange="markStale()" value="5930" step="50"><!-- [แก้ไข 17 พ.ย. 2569 #94] ค่าตั้งต้นเดิม 9,200 kW ไม่เข้าคู่กับกรณีตั้งต้น (BP 50 t/h 42→4 barA: W_shaft 6,206 kW → ไฟฟ้า 5,929 kW) — สลับเป็น Method 3 แล้วได้ η_is 129.5 % · ค่าใหม่ 5,930 kW ให้ Method 3 ≈ Method 2 (83.4 %) -->
       <div class="hint">วัดจาก Power meter / DCS (kW เฉลี่ยช่วงที่ตรวจ)</div>
       <label>ประสิทธิภาพ Generator η_gen (%)</label>
       <input type="number" id="eta_gen" value="96.5" step="0.1" onchange="markStale()">
@@ -635,7 +635,7 @@ var TE_JSON=(function(){
     <div id="M3" style="display:none;">
       <div class="step-box">
         <div><span class="step-num">1</span><span class="step-title">วัด P_elec (kW) ภาคสนาม + ṁ_in + ṁ_ext → W_shaft</span></div>
-        <div class="step-body">W_shaft = P_elec &divide; η_gen &nbsp;(kW) &nbsp;|&nbsp; ไม่ต้องการ T_out — เหมาะ Condensing / Wet outlet</div>
+        <div class="step-body">W_shaft = P_elec &divide; (η_gen &times; η_mech) &nbsp;(kW) &nbsp;|&nbsp; ไม่ต้องการ T_out — เหมาะ Condensing / Wet outlet</div><!-- [แก้ไข 17 พ.ย. 2569 #94] สูตรที่แสดงเติม η_mech ให้ตรงกับที่ te-core คำนวณจริง -->
       </div>
       <div class="step-box">
         <div><span class="step-num">2</span><span class="step-title">Mass Balance: m_out = m_in − Σm_ext</span></div>
@@ -647,7 +647,7 @@ var TE_JSON=(function(){
           <div class="fbox">
             <div class="ftitle">Method 3 Formula — รองรับ Multi-stream (แนะนำสำหรับภาคสนาม)</div>
             <div class="feq">W_isen = ṁ_in &times; (h_in &minus; h_out,isen)</div>
-            <div class="feq" style="margin-top:4px;">&#951;_is = W_shaft &divide; W_isen = (P_elec/&#951;_gen) &divide; [ṁ_in &times; &Delta;h_isen]</div>
+            <div class="feq" style="margin-top:4px;">&#951;_is = W_shaft &divide; W_isen = [P_elec/(&#951;_gen&times;&#951;_mech)] &divide; [ṁ_in &times; &Delta;h_isen]</div>
             <div class="feq" style="margin-top:4px;">h_out,actual = (ṁ_in&times;h_in &minus; &Sigma;ṁ_ext&times;h_ext &minus; W_shaft) &divide; ṁ_out</div>
           </div>
           <div class="ok-box" style="margin-top:6px;">&#10003; ใช้ได้ทั้ง Superheated และ Saturated/Wet outlet — เหมาะกับ Condensing Turbine และภาคสนาม</div>
@@ -745,7 +745,7 @@ var TE_JSON=(function(){
     <div class="fbox" style="margin-bottom:12px;">
       <div class="ftitle">Energy Balance — First Law (Multi-stream)</div>
       <div class="feq">W_shaft = ṁ_in&times;h_in &minus; &Sigma;(ṁ_ext&times;h_ext) &minus; ṁ_out&times;h_out,actual</div>
-      <div class="feq" style="margin-top:4px;">P_electric = W_shaft &times; &#951;_generator</div>
+      <div class="feq" style="margin-top:4px;">P_electric = W_shaft &times; &#951;_mech &times; &#951;_generator</div><!-- [แก้ไข 17 พ.ย. 2569 #94] เดิมไม่มี η_mech แต่ตัวเลขที่คำนวณคูณ η_mech อยู่แล้ว (6,205.6 × 0.965 × 0.99 = 5,928.5 kW) -->
     </div>
     <div class="kpi-grid">
       <div class="kpi blue"><div class="klbl">Q_in (Steam Energy)</div><div class="kval" id="r_ein">—</div><div class="kunit">kW</div></div>
@@ -1031,7 +1031,7 @@ function onMethodChange(){
   const isM3 = v('calcMethod')=='m3';
   document.getElementById('m3_inputs').style.display = isM3 ? 'block' : 'none';
   const desc = isM3
-    ? 'Method 3: วัด P_elec (kW) + ṁ_in → W_shaft = P_elec/η_gen → η = W_shaft/W_isen (แนะนำภาคสนาม)'
+    ? 'Method 3: วัด P_elec (kW) + ṁ_in → W_shaft = P_elec/(η_gen×η_mech) → η = W_shaft/W_isen (แนะนำภาคสนาม)'
     : 'Method 2: วัด T_out จริง → h_out จาก Steam Table → η = Δh_act/Δh_isen (ต้องการ T_out แม่นยำ)';
   const el = document.getElementById('method_desc');
   if(el) el.innerHTML = desc;
@@ -1200,8 +1200,8 @@ if(window.TE_I18N)TE_I18N.set({
 "อัตราไหลไอน้ำเข้ากังหันรวม (t/h) จาก steam flow meter/DCS เฉลี่ยช่วงทดสอบ — เทียบกับพิกัด nameplate": "Total turbine inlet steam flow (t/h) from steam flow meter/DCS, test-period average — compare with nameplate rating",
 "อุณหภูมิไอน้ำสกัด (°C) จาก DCS — ถ้าไม่มี superheater ที่จุดนี้ให้ใส่ ≤ T_sat (โปรแกรมใช้ h_g)": "Extraction steam temperature (°C) from DCS — if no superheat at this point enter ≤ T_sat (tool uses h_g)",
 "✓ ใช้ได้ทั้ง Superheated และ Saturated/Wet outlet — เหมาะกับ Condensing Turbine และภาคสนาม": "✓ Works for both superheated and saturated/wet outlet — suits condensing turbines and field work",
-"W_shaft = P_elec ÷ η_gen  (kW)  |  ไม่ต้องการ T_out — เหมาะ Condensing / Wet outlet": "W_shaft = P_elec ÷ η_gen (kW) | No T_out needed — suits condensing / wet outlet",
-"W_shaft = P_elec ÷ η_gen (kW) | ไม่ต้องการ T_out — เหมาะ Condensing / Wet outlet": "W_shaft = P_elec ÷ η_gen (kW) | No T_out needed — suits condensing / wet outlet",
+"W_shaft = P_elec ÷ (η_gen × η_mech)  (kW)  |  ไม่ต้องการ T_out — เหมาะ Condensing / Wet outlet": "W_shaft = P_elec ÷ (η_gen × η_mech) (kW) | No T_out needed — suits condensing / wet outlet",
+"W_shaft = P_elec ÷ (η_gen × η_mech) (kW) | ไม่ต้องการ T_out — เหมาะ Condensing / Wet outlet": "W_shaft = P_elec ÷ (η_gen × η_mech) (kW) | No T_out needed — suits condensing / wet outlet",
 "จาก s_in เปรียบกับ s_g และ s_f ที่ P_out → ระบุว่าเป็น Superheated หรือ Wet Steam": "Compare s_in with s_g and s_f at P_out → identifies superheated or wet steam",
 "ความดันไอน้ำเข้าพิกัด (barA) จาก nameplate/datasheet — ใช้เทียบกับค่าวัดจริง": "Rated inlet steam pressure (barA) from nameplate/datasheet — compared with measured value",
 "ไอน้ำทางออก > P_atm → Process Steam เหมาะโรงงานน้ำตาล/กระดาษ/เยื่อกระดาษ": "Exhaust > P_atm → process steam; suits sugar/paper/pulp mills",
@@ -1372,7 +1372,7 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)Method\s+(-?\d[\d,]*\.?\d*)\s+ใช้\s+T_out\s+\(เฉพาะขาออกยังเป็นไอดง\);\s+Method\s+(-?\d[\d,]*\.?\d*)\s+ใช้\s+kW\s+จากมิเตอร์\s+—\s+แนะนำสำหรับภาคสนาม\/กังหัน\s+condensing(\s*)$/,"$1Method $2 uses T_out (only if exhaust is still superheated); Method $3 uses metered kW — recommended for field work/condensing turbines$4"],
 [/^(\s*)η_isentropic\s+ออกแบบจาก\s+heat\s+balance\s+ผู้ผลิต\/acceptance\s+test\s+\(%\)\s+—\s+กังหันอุตสาหกรรม\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+%,\s+ยูทิลิตี้\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+%(\s*)$/,"$1Design η_isentropic from OEM heat balance/acceptance test (%) — industrial turbines $2–$3 %, utility $4–$5 %$6"],
 [/^(\s*)ไอน้ำเข้ากังหันปกติเป็นไอดง\s+\(ระบุ\s+T_in\);\s+เลือก\s+Wet\s+เฉพาะกังหันไอน้ำอิ่มตัว\s+\(ASME\s+PTC\s+(-?\d[\d,]*\.?\d*):\s+X\s+≥\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Turbine inlet is normally superheated (enter T_in); choose Wet only for saturated-steam turbines (ASME PTC $2: X ≥ $3)$4"],
-[/^(\s*)Method\s+(-?\d[\d,]*\.?\d*):\s+วัด\s+P_elec\s+\(kW\)\s+\+\s+ṁ_in\s+→\s+W_shaft\s+=\s+P_elec\/η_gen\s+→\s+η\s+=\s+W_shaft\/W_isen\s+\(แนะนำภาคสนาม\)(\s*)$/,"$1Method $2: measure P_elec (kW) + ṁ_in → W_shaft = P_elec/η_gen → η = W_shaft/W_isen (recommended for field)$3"],
+[/^(\s*)Method\s+(-?\d[\d,]*\.?\d*):\s+วัด\s+P_elec\s+\(kW\)\s+\+\s+ṁ_in\s+→\s+W_shaft\s+=\s+P_elec\/\(η_gen×η_mech\)\s+→\s+η\s+=\s+W_shaft\/W_isen\s+\(แนะนำภาคสนาม\)(\s*)$/,"$1Method $2: measure P_elec (kW) + ṁ_in → W_shaft = P_elec/(η_gen×η_mech) → η = W_shaft/W_isen (recommended for field)$3"],
 [/^(\s*)ความดันที่จุดสกัดที่\s+(-?\d[\d,]*\.?\d*)\s+\(เกจ\/DCS\s+แปลงเป็นหน่วยที่เลือก\)\s+—\s+ทั่วไป\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+bar\s+สำหรับ\s+process\s+steam(\s*)$/,"$1Pressure at extraction point $2 (gauge/DCS, converted to selected unit) — typically $3–$4 bar for process steam$5"],
 [/^(\s*)Method\s+(-?\d[\d,]*\.?\d*):\s+วัด\s+T_out\s+จริง\s+→\s+h_out\s+จาก\s+Steam\s+Table\s+→\s+η\s+=\s+Δh_act\/Δh_isen\s+\(ต้องการ\s+T_out\s+แม่นยำ\)(\s*)$/,"$1Method $2: measure actual T_out → h_out from steam table → η = Δh_act/Δh_isen (needs accurate T_out)$3"],
 [/^(\s*)•\s+η_is\s+=\s+(-?\d[\d,]*\.?\d*)\s+%\s+>\s+(-?\d[\d,]*\.?\d*)\s+%\s+—\s+เป็นไปไม่ได้\s+\(ตรวจ\s+P_elec,\s+ṁ,\s+η_gen\/η_mech,\s+T_out\s+หรือหน่วยความดัน\)(\s*)$/,"$1• η_is = $2 % > $3 % — impossible (check P_elec, ṁ, η_gen/η_mech, T_out or pressure units)$4"],
