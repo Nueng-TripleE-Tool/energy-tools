@@ -224,7 +224,7 @@ table td{vertical-align:middle}
   <div class="vcell"><div class="vlab">สมดุลพลังงานปิดที่</div>
     <div class="vnum mono" id="vCl">–</div><div class="vband" id="vClb">%</div></div>
   <div class="vcell"><div class="vlab">ความไม่แน่นอนของผล</div>
-    <div class="vnum mono" id="vU">–</div><div class="vband">± % ของ Q</div></div>
+    <div class="vnum mono" id="vU">–</div><div class="vband" id="vUb">± % ของผลต่าง</div></div>
   <div class="vcell"><div class="vlab">สมดุลอยู่ในช่วงคลาดเคลื่อนไหม</div>
     <div class="vnum mono" id="vOK" style="font-size:1.2rem">–</div><div class="vband" id="vOKb"></div></div>
   <div class="vcell"><div class="vlab">ข้อสรุป</div>
@@ -285,6 +285,21 @@ table td{vertical-align:middle}
     <div class="grid3">
       <div class="fld"><label class="f">ความคลาดเคลื่อนของอัตราการไหล <span class="unit">± %</span></label><input type="number" id="uF" value="3" step="0.5"></div>
       <div class="fld"><label class="f">ความคลาดเคลื่อนของ c<sub>p</sub> และความหนาแน่น <span class="unit">± %</span></label><input type="number" id="uCp" value="0.5" step="0.1"></div>
+      <div class="fld"><label class="f">ความคลาดเคลื่อนรวมของฝั่ง B <span class="unit">± %</span></label><input type="number" id="uB" value="8" step="0.5" placeholder="ว่าง = ใช้เครื่องมือชุดเดียวกับฝั่ง A"></div>
+    </div>
+    <!-- [แก้ไข 17 พ.ย. 2569] R5-34/35 ฐานของค่าที่กรอก + ตัวประกอบครอบคลุม k + ความไม่แน่นอนฝั่ง B แยกจากฝั่ง A -->
+    <div class="grid3">
+      <div class="fld"><label class="f">ค่า ± ที่กรอกมาจาก</label>
+        <select id="uBasis">
+          <option value="spec" selected>ค่าพิกัดของเครื่องมือ (spec) — หาร √3</option>
+          <option value="k2">ใบสอบเทียบ ระบุที่ k = 2 — หาร 2</option>
+        </select></div>
+      <div class="fld"><label class="f">ตัวประกอบครอบคลุม k</label>
+        <select id="kCov">
+          <option value="1">k = 1 (≈ 68 %)</option>
+          <option value="2" selected>k = 2 (≈ 95 %)</option>
+          <option value="3">k = 3 (≈ 99.7 %)</option>
+        </select></div>
     </div>
     <div id="uncOut"></div>
   </div>
@@ -333,7 +348,7 @@ table td{vertical-align:middle}
 
 <footer>
   <p><b>Triple E Technology Co., Ltd.</b> — Data Validation &amp; Heat Balance</p>
-  <p style="margin-top:5px">การกระจายความไม่แน่นอนแบบ RSS (root-sum-square) ตามแนวทาง ASHRAE Guideline 2 และ ISO/IEC Guide 98 (GUM)</p>
+  <p style="margin-top:5px">รวมความไม่แน่นอนมาตรฐานแบบ RSS (root-sum-square) และขยายด้วยตัวประกอบครอบคลุม k ตามหลัก GUM</p><!-- [แก้ไข 17 พ.ย. 2569] R5-34 ตัดการอ้าง ASHRAE Guideline 2 ที่ยังไม่ได้เปิดยืนยัน -->
 </footer>
 
 <script>
@@ -342,6 +357,7 @@ const V=id=>{const e=$(id);return e?(parseFloat(e.value)||0):0;};
 const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed(d===undefined?2:d);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const pill=(i,t)=>`<span class="pill p${i}">${t}</span>`;
+const L=(th,en)=>{let lg=null;try{if(window.TE_I18N&&TE_I18N.lang)lg=TE_I18N.lang;else{const m=location.search.match(/[?&]lang=(en|th)\b/);lg=m?m[1]:(localStorage.getItem('te_lang')||localStorage.getItem('te.lang'));}}catch(e){}return lg==='en'?en:th;};   /* [แก้ไข 17 พ.ย. 2569] R5-34/35 ข้อความใหม่สองภาษา (คำนวณใหม่เมื่อสลับภาษา) */
 
 /* ── นิยามคู่สมดุล ── */
 const PAIRS={
@@ -400,6 +416,8 @@ function buildInputs(){
   $('inA').querySelectorAll('input').forEach(x=>x.addEventListener('input',calc));
   $('inB').querySelectorAll('input').forEach(x=>x.addEventListener('input',calc));
   try{ tagFieldKinds(); }catch(e){}   /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่าหลังสร้าง DOM ใหม่ */
+  /* [แก้ไข 17 พ.ย. 2569] R5-34 ค่าตั้งต้นความคลาดเคลื่อนฝั่ง B ตามคู่สมดุล (ค่าแนวทางของเครื่องมือ) · ww ว่าง = เครื่องมือชุดเดียวกับฝั่ง A */
+  if($('uB')) $('uB').value = ({wa:8,ww:'',fs:3,ct:10,ee:5})[$('pair').value];
 }
 /* [ระยะ 4 10 ก.ย. 2569] hint ช่องกรอก (ช่องไดนามิกของแต่ละคู่สมดุล + ช่องคงที่) */
 var TE_HINTS={
@@ -438,13 +456,16 @@ var TE_HINTS={
  uPair:'matched pair = สอบเทียบคู่กันจึงหักล้าง bias ร่วม (ใช้กับงาน ΔT ต่ำ) · แยกกัน = ติดตั้งคนละชุด',
  uF:'ความคลาดเคลื่อน flow meter % · electromagnetic ±0.5–1 · ultrasonic clamp-on ±2–5 · จาก pump curve ±10',
  uCp:'ความคลาดเคลื่อนของ cp และ ρ % · น้ำบริสุทธิ์ 0.5 · น้ำผสม glycol ไม่ทราบสัดส่วน 2–3',
+ uB:'ความคลาดเคลื่อนรวมของการวัดฝั่ง B % · ค่าตั้งต้นตามคู่สมดุลเป็นค่าแนวทางของเครื่องมือ (อากาศด้วย anemometer 8 · ไอน้ำ 3 · ไฮดรอลิก 5 · ภาระประมาณการ 10) · ว่าง = ใช้เครื่องมือชุดเดียวกับฝั่ง A',
+ uBasis:'ค่าพิกัด ±a ที่ไม่ระบุการแจกแจง ถือเป็นแบบสี่เหลี่ยม u = a/√3 · ค่าจากใบสอบเทียบที่ระบุ k = 2 ใช้ u = a/2',
+ kCov:'U = k × u_c · k = 2 ให้ระดับความเชื่อมั่นราว 95 % (แจกแจงปกติ) — ใช้ตัดสินว่าสมดุลปิดหรือไม่',
  x1:'ค่าที่วัดด้วยวิธีที่ 1 เช่น ultrasonic flow meter',
  x2:'ค่าที่วัดด้วยวิธีที่ 2 เช่น จาก pump curve/BTU meter — ต่างกัน >5–10 % ให้สอบเทียบ',
  xu:'หน่วยของค่าที่เทียบ (แสดงในผล)'
 };
-function teInjectStaticHints(){ ['uT','uPair','uF','uCp','x1','x2','xu'].forEach(id=>{ const e=$(id); if(!e||!TE_HINTS[id]) return; if(e.nextElementSibling&&e.nextElementSibling.classList.contains('hint')) return; const d=document.createElement('div'); d.className='hint'; d.textContent=TE_HINTS[id]; e.insertAdjacentElement('afterend',d); }); }
+function teInjectStaticHints(){ ['uT','uPair','uF','uCp','uB','uBasis','kCov','x1','x2','xu'].forEach(id=>{ const e=$(id); if(!e||!TE_HINTS[id]) return; if(e.nextElementSibling&&e.nextElementSibling.classList.contains('hint')) return; const d=document.createElement('div'); d.className='hint'; d.textContent=TE_HINTS[id]; e.insertAdjacentElement('afterend',d); }); }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['eEff', 'pEff', 'ldQ', 'ldAux'], FK_MEAS=['wFlow', 'wIn', 'wOut', 'aFlow', 'aIn', 'aOut', 'aRhIn', 'aRhOut', 'h1', 'h2', 'h3', 'c1', 'c2', 'c3', 'fRate', 'fLhv', 'sRate', 'ctF', 'ctH', 'ctC', 'ekW', 'pQ', 'pH', 'x1', 'x2'], FK_SET=['pair', 'rhoA', 'rhoB', 'sH', 'fwH', 'uT', 'uPair', 'uF', 'uCp', 'xu', 'etaLo', 'etaHi'], FK_CALC=['uDT'];
+var FK_DESIGN=['eEff', 'pEff', 'ldQ', 'ldAux'], FK_MEAS=['wFlow', 'wIn', 'wOut', 'aFlow', 'aIn', 'aOut', 'aRhIn', 'aRhOut', 'h1', 'h2', 'h3', 'c1', 'c2', 'c3', 'fRate', 'fLhv', 'sRate', 'ctF', 'ctH', 'ctC', 'ekW', 'pQ', 'pH', 'x1', 'x2'], FK_SET=['pair', 'rhoA', 'rhoB', 'sH', 'fwH', 'uT', 'uPair', 'uF', 'uCp', 'xu', 'etaLo', 'etaHi', 'uB', 'uBasis', 'kCov'], FK_CALC=['uDT'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -471,7 +492,7 @@ function tab1DT(){
 function syncUDT(){
   const d=tab1DT();
   if(uDTauto&&d!==null&&d>0){ $('uDT').value=Number(d.toFixed(2)); $('uDTHint').textContent=`⚡ จาก แท็บ 1 (${$('hA').textContent}) · แก้เองได้`; }
-  else $('uDTHint').textContent=uDTauto?'คู่สมดุลนี้ไม่มี ΔT ของไหล — ไม่นำช่องนี้มาคิด [แก้ไข 3 ต.ค. 2569 audit]':'กรอกเอง (เปลี่ยนคู่สมดุลเพื่อกลับไปใช้ค่าจากแท็บ 1)';
+  else $('uDTHint').textContent=uDTauto?'คู่สมดุลนี้ไม่มี ΔT ของไหล — ไม่นำช่องนี้มาคิด':'กรอกเอง (เปลี่ยนคู่สมดุลเพื่อกลับไปใช้ค่าจากแท็บ 1)';
 }
 let S={};
 function calc(){
@@ -484,50 +505,64 @@ function calc(){
   $('qA').textContent=fmt(qa,1)+' kW';
   $('qB').textContent=fmt(qb,1)+' kW';
 
-  /* uncertainty */
-  /* [แก้ไข 3 ต.ค. 2569 audit] คู่ fs/ee ไม่มี ΔT ของไหล → ไม่ใช้เทอม ΔT (เดิมใช้ค่า uDT ที่ค้างจากคู่ก่อนหน้า) */
+  /* uncertainty — [แก้ไข 17 พ.ย. 2569] R5-34/35 รวมความไม่แน่นอนตามหลัก GUM
+     ค่า ±a ที่กรอก: ค่าพิกัด (ไม่ระบุการแจกแจง) → u = a/√3 · ใบสอบเทียบที่ k = 2 → u = a/2
+     ΔT: sensor แยกกัน u(ΔT) = √2·u_T · matched pair ถือสหสัมพันธ์ r = 0.75 → u(ΔT) = √(2(1−r))·u_T = u_T/√2 (ค่าแนวทางของเครื่องมือ)
+     u_A = √(u_F² + u_cp² + (u(ΔT)/ΔT)²) · u_B ของฝั่ง B แยกกัน · u_c = √(u_A² + u_B²) · U = k·u_c ใช้ตัดสิน
+     เดิม: ใช้ค่าพิกัดเป็นค่าความไม่แน่นอนตรง ๆ และคูณ √2 จากฝั่งเดียว ไม่ระบุ k */
+  /* [แก้ไข 3 ต.ค. 2569 audit] คู่ fs/ee ไม่มี ΔT ของไหล → ไม่ใช้เทอม ΔT */
   const pk0=$('pair').value, noDT=(pk0==='fs'||pk0==='ee');
+  const basis=($('uBasis')&&$('uBasis').value)||'spec', K=parseFloat(($('kCov')&&$('kCov').value)||'2')||2;
+  const toStd=a=>basis==='k2'?a/2:a/Math.sqrt(3);
   const dT=Math.abs(V('uDT')), uT=Math.abs(V('uT'));
   const matched=$('uPair').value==='matched';
-  /* [แก้ไข 10 ก.ย. 2569] เดิมโมเดลใช้ ±uT สำหรับ matched pair แต่ข้อความอธิบายว่า ±uT/√2 — ปรับโมเดลให้ตรงข้อความ */
-  const uDTrss = matched ? uT/Math.sqrt(2) : Math.sqrt(2)*uT;
-  const uDTworst = matched ? uT : 2*uT;
-  const relDT = noDT?0:(dT>0? uDTrss/dT*100 : Infinity);
+  const fDT = matched ? Math.SQRT1_2 : Math.SQRT2;
+  const uTs=toStd(uT), uDTstd=fDT*uTs;               // °C ความไม่แน่นอนมาตรฐานของ ΔT
+  const uDTrss=K*uDTstd;                             // °C ขยายที่ k (แสดงผล)
+  const uDTworst = matched ? uT : 2*uT;              // ค่าพิกัดบวกตรง (ไม่ใช่ GUM)
+  const relDTs = noDT?0:(dT>0? uDTstd/dT*100 : Infinity);
+  const relDT = K*relDTs;
   const relDTw= noDT?0:(dT>0? uDTworst/dT*100 : Infinity);
-  const uF=Math.abs(V('uF')), uCp=Math.abs(V('uCp'));
-  const uQ = Math.sqrt(relDT*relDT + uF*uF + uCp*uCp);
-  const uQw= relDTw + uF + uCp;
-  /* [แก้ไข 3 ต.ค. 2569 audit] ผลต่างของสองการวัดที่อิสระต่อกัน → ใช้ความไม่แน่นอนรวม √(uA²+uB²) (= √2·uQ เมื่อสองฝั่งใช้โมเดลเดียวกัน)
-     เดิมเทียบ closure กับ uQ ของฝั่งเดียว → เข้มเกินจริง */
-  const uComb = Math.SQRT2*uQ;
-  /* [แก้ไข 3 ต.ค. 2569 audit] คู่ fs (เชื้อเพลิงเข้า vs ไอน้ำออก): ส่วนต่าง = การสูญเสียของหม้อไอน้ำ ไม่ใช่ความคลาดเคลื่อน
-     → ตัดสินจาก η = B/A เทียบช่วงที่คาด (etaLo–etaHi) ± ความไม่แน่นอน แทนการเทียบ closure */
+  const uF=Math.abs(V('uF')), uCp=Math.abs(V('uCp')), uFs=toStd(uF), uCps=toStd(uCp);
+  const uA = Math.sqrt(relDTs*relDTs + uFs*uFs + uCps*uCps);   // % มาตรฐาน ฝั่ง A
+  const uBraw=($('uB')&&String($('uB').value).trim()!=='')?Math.abs(V('uB')):null;
+  let uB, uBsame=false;
+  if(uBraw!==null) uB=toStd(uBraw);
+  else { uBsame=true; const dTB = pk0==='ww'?Math.abs(V('c3')-V('c2')):(pk0==='wa'?Math.abs(V('aIn')-V('aOut')):0);
+    if(dTB>0){ const rB=uDTstd/dTB*100; uB=Math.sqrt(rB*rB+uFs*uFs+uCps*uCps); } else uB=uA; }
+  const uc = Math.sqrt(uA*uA + uB*uB);               // % มาตรฐานของผลต่าง
+  const U = K*uc;                                    // % ขยายที่ k — ใช้ตัดสิน
+  const uQ = K*uA;                                   // % ขยายของฝั่ง A
+  const uQw= relDTw + uF + uCp;                      // ค่าพิกัดบวกตรง (กรณีเลวร้ายสุด ไม่ใช่ GUM)
+  const uComb = U;
+  /* [แก้ไข 3 ต.ค. 2569 audit] คู่ fs: ส่วนต่าง = การสูญเสียของหม้อไอน้ำ → ตัดสินจาก η = B/A เทียบช่วงที่คาด ± U */
   let eta=null, etaLo=V('etaLo'), etaHi=V('etaHi'), uEta=null, pass;
   let cl;
   if(pk0==='fs'){
     eta = qa>0 ? qb/qa*100 : null;
-    if(eta!==null&&isFinite(eta)) uEta=eta*uComb/100;
+    if(eta!==null&&isFinite(eta)) uEta=eta*U/100;
     if(eta===null||!isFinite(eta)) cl=3;
     else if(eta>100) cl=3;
-    else { uEta=eta*uComb/100; const d = eta<etaLo ? etaLo-eta : (eta>etaHi ? eta-etaHi : 0);
+    else { const d = eta<etaLo ? etaLo-eta : (eta>etaHi ? eta-etaHi : 0);
            cl = d<=uEta?0:(d<=2*uEta?1:(d<=4*uEta?2:3)); }
     pass = cl===0;
   } else {
-    cl = closure===null?3:(closure<uComb?0:(closure<uComb*2?1:(closure<uComb*4?2:3)));
-    pass = closure!==null && closure<uComb;
+    cl = closure===null?3:(closure<=U?0:(closure<=U*2?1:(closure<=U*4?2:3)));
+    pass = closure!==null && closure<=U;
   }
   if($('fsBand')) $('fsBand').style.display = pk0==='fs'?'':'none';
 
   /* verdict */
-  $('vU').textContent='±'+fmt(uQ,1);
+  $('vU').textContent='±'+fmt(U,1);
+  if($('vUb')) $('vUb').textContent=L('± % ของผลต่าง (U, k = ','± % of the gap (U, k = ')+K+')';
   $('vCl').textContent=fmt(closure,1); $('vCl').className='vnum mono s'+cl;
   $('vClb').innerHTML=`% · ${pill(cl,['อยู่ในช่วงคลาดเคลื่อน','ใกล้ขอบ','เกินคลาดเคลื่อน','เกินมาก'][cl])}`;
   $('vOK').textContent = (closure===null&&pk0!=='fs')?'–':(pass?'ใช่':'ไม่');
   $('vOK').className='vnum mono s'+(pass?0:2);
   $('vOKb').textContent= pk0==='fs'
     ? `η = ${fmt(eta,1)} % เทียบช่วงคาด ${fmt(etaLo,0)}–${fmt(etaHi,0)} % ±${fmt(uEta,1)}`
-    : `สมดุล ${fmt(closure,1)} % เทียบคลาดเคลื่อนรวมสองฝั่ง ±${fmt(uComb,1)} %`;
-  const wide = uQ>15;   // tolerance กว้างจนการปิดสมดุลได้แทบไม่เป็นหลักฐาน
+    : L(`สมดุล ${fmt(closure,1)} % เทียบความไม่แน่นอนขยายสองฝั่ง ±${fmt(U,1)} % (k = ${K})`,`Gap ${fmt(closure,1)} % vs two-side expanded uncertainty ±${fmt(U,1)} % (k = ${K})`);
+  const wide = uQ>15;   // ค่าแนวทางของเครื่องมือ: U ฝั่ง A เกิน 15 % — ปิดสมดุลได้แทบไม่เป็นหลักฐาน
   const vd = cl===0 ? (wide?'ใช้ได้อย่างระวัง':'ใช้วินิจฉัยได้')
              : (cl===1?'ใช้ได้อย่างระวัง':'ต้องสอบเทียบก่อน');
   $('vVd').textContent=vd; $('vVd').className='vnum mono s'+(cl===0?(wide?1:0):cl);
@@ -549,65 +584,86 @@ function calc(){
    <div class="note ${cl<=1?'good':(cl===2?'warn':'bad')}" ${pk0==='fs'?'style="display:none"':''}>
      <b>${cl<=1?'สมดุลปิดได้ภายในความคลาดเคลื่อนของเครื่องมือ'
         :'สมดุลไม่ปิด — ส่วนต่างใหญ่กว่าที่ความคลาดเคลื่อนของเครื่องมืออธิบายได้'}</b><br>
-     ส่วนต่าง ${fmt(closure,1)} % เทียบกับความไม่แน่นอนรวมสองฝั่ง √(u<sub>A</sub>²+u<sub>B</sub>²) = ±${fmt(uComb,1)} % (ต่อฝั่ง ±${fmt(uQ,1)} %)
-     ${cl<=1?`— ข้อมูลชุดนี้ใช้วินิจฉัยต่อได้ ผลที่ได้จะมีความหมาย`
-      :`— แปลว่ามีอย่างน้อยหนึ่งค่าที่ผิดจริง ไม่ใช่แค่ความคลาดเคลื่อนปกติ
+     ${L(`ส่วนต่าง ${fmt(closure,1)} % เทียบกับความไม่แน่นอนขยายสองฝั่ง U = k·√(u<sub>A</sub>²+u<sub>B</sub>²) = ±${fmt(U,1)} % (k = ${K} · u<sub>A</sub> ${fmt(uA,2)} % · u<sub>B</sub> ${fmt(uB,2)} %)`,
+          `Gap ${fmt(closure,1)} % vs two-side expanded uncertainty U = k·√(u<sub>A</sub>²+u<sub>B</sub>²) = ±${fmt(U,1)} % (k = ${K} · u<sub>A</sub> ${fmt(uA,2)} % · u<sub>B</sub> ${fmt(uB,2)} %)`)}<br>
+     ${cl<=1?L(`ข้อมูลชุดนี้ใช้วินิจฉัยต่อได้ ผลที่ได้จะมีความหมาย`,`This data set can be used for diagnosis; results will be meaningful`)
+      :L(`แปลว่ามีอย่างน้อยหนึ่งค่าที่ผิดจริง ไม่ใช่แค่ความคลาดเคลื่อนปกติ
         <b>ตัวที่ควรสงสัยก่อนเสมอคืออัตราการไหล</b> เพราะ flow meter เป็นเครื่องมือที่คลาดเคลื่อนง่ายที่สุด
         (ติดตั้งใกล้ข้องอเกินไป ท่อไม่เต็ม อากาศปน สัมประสิทธิ์ตั้งค่าผิด)
-        รองลงมาคือ sensor อุณหภูมิที่ติดตั้งไม่ลึกพอหรืออยู่ในจุดที่น้ำแยกชั้น`}
+        รองลงมาคือ sensor อุณหภูมิที่ติดตั้งไม่ลึกพอหรืออยู่ในจุดที่น้ำแยกชั้น`,`At least one value is truly wrong, not just normal measurement error.
+        <b>Always suspect the flow rate first</b> — the flow meter is the instrument most prone to error
+        (too close to a bend, pipe not full, entrained air, wrong set coefficient),
+        followed by temperature sensors not inserted deep enough or placed where the water is stratified`)}
    </div>
-   ${wide?`<div class="note warn"><b>ข้อควรระวังที่สำคัญกว่าตัวเลขสมดุล</b> —
-     ความไม่แน่นอนของการวัดอยู่ที่ ±${fmt(uQ,1)} % ซึ่งกว้างมาก
+   ${wide?`<div class="note warn">${L(`<b>ข้อควรระวังที่สำคัญกว่าตัวเลขสมดุล</b> —
+     ความไม่แน่นอนขยายของการวัดฝั่ง A อยู่ที่ ±${fmt(uQ,1)} % (k = ${K}) ซึ่งกว้างมาก (เกณฑ์ 15 % เป็นค่าแนวทางของเครื่องมือ)
      ที่ช่วงกว้างขนาดนี้ สมดุลจะปิดได้ง่ายแม้ข้อมูลจะผิดพอสมควร —
      การปิดสมดุลได้จึง<b>ไม่ใช่หลักฐานที่หนักแน่นว่าข้อมูลถูก</b>
-     ถ้าจะใช้ข้อมูลชุดนี้ตัดสินใจสำคัญ ต้องลดความไม่แน่นอนลงก่อน (ดูแท็บ 2)</div>`:''}
+     ถ้าจะใช้ข้อมูลชุดนี้ตัดสินใจสำคัญ ต้องลดความไม่แน่นอนลงก่อน (ดูแท็บ 2)`,`<b>A caution more important than the balance figure</b> —
+     the expanded measurement uncertainty of side A is ±${fmt(uQ,1)} % (k = ${K}), which is very wide (the 15 % threshold is tool guidance).
+     With a band this wide the balance closes easily even when the data are fairly wrong —
+     closing the balance is therefore <b>not strong evidence that the data are right</b>.
+     Before using this data set for an important decision, reduce the uncertainty first (see tab 2)`)}</div>`:''}
    <div class="note">${p.note}</div>`;
 
-  /* uncertainty detail */
+  /* uncertainty detail — [แก้ไข 17 พ.ย. 2569] R5-34/35 แสดงความไม่แน่นอนมาตรฐานรายตัว · ฝั่ง B · U ที่ k */
+  const bTxt = basis==='k2'?L('ใบสอบเทียบ k = 2 → หาร 2','calibration certificate k = 2 → ÷ 2'):L('ค่าพิกัด → หาร √3','rated spec → ÷ √3');
   const terms=[
-    ['ΔT (ผลต่างอุณหภูมิ)',relDT,noDT?'คู่สมดุลนี้ไม่มี ΔT ของไหล — ไม่นับเทอมนี้ ['+'แก้ไข 3 ต.ค. 2569 audit]':'ΔT = '+fmt(dT,2)+' °C, sensor ±'+fmt(uT,2)+' °C'+(matched?' (matched pair → ÷√2)':' (แยกกัน → ×√2)')],
-    ['อัตราการไหล',uF,'ตามสเปกเครื่องมือ'],
-    ['c'+'\u209A'+' และความหนาแน่น',uCp,'จากตารางคุณสมบัติ']];
+    [L('ΔT (ผลต่างอุณหภูมิ)','ΔT (temperature difference)'),relDTs,noDT?L('คู่สมดุลนี้ไม่มี ΔT ของไหล — ไม่นับเทอมนี้','This pair has no fluid ΔT — term not counted'):'ΔT = '+fmt(dT,2)+' °C, sensor ±'+fmt(uT,2)+' °C → u(ΔT) = '+fmt(uDTstd,3)+' °C'+(matched?' (matched pair, r = 0.75)':L(' (แยกกัน ×√2)',' (separate ×√2)'))],
+    [L('อัตราการไหล','Flow rate'),uFs,'±'+fmt(uF,2)+' % · '+bTxt],
+    ['c'+'\u209A'+L(' และความหนาแน่น',' and density'),uCps,'±'+fmt(uCp,2)+' % · '+bTxt]];
   const dom=terms.reduce((a,b)=>b[1]>a[1]?b:a);
   $('uncOut').innerHTML=`
    <div class="grid4" style="margin-top:12px">
-     <div class="stat"><div class="big s${uQ>15?2:(uQ>8?1:0)}">±${fmt(uQ,1)}</div><div class="bigu">ความไม่แน่นอนรวม (RSS) · %</div></div>
-     <div class="stat"><div class="big">±${fmt(uQw,1)}</div><div class="bigu">กรณีเลวร้ายสุด (บวกตรง) · %</div></div>
-     <div class="stat"><div class="big s${relDT>10?2:(relDT>5?1:0)}">±${fmt(relDT,1)}</div><div class="bigu">เฉพาะจาก ΔT · %</div></div>
-     <div class="stat"><div class="big">±${fmt(uDTrss,2)}</div><div class="bigu">ความคลาดเคลื่อนของ ΔT · °C</div></div>
+     <div class="stat"><div class="big s${uQ>15?2:(uQ>8?1:0)}">±${fmt(uQ,1)}</div><div class="bigu">${L(`ความไม่แน่นอนขยายฝั่ง A (k = ${K}) · %`,`Expanded uncertainty, side A (k = ${K}) · %`)}</div></div>
+     <div class="stat"><div class="big">±${fmt(K*uB,1)}</div><div class="bigu">${L(`ฝั่ง B (k = ${K}) · %`,`Side B (k = ${K}) · %`)}${uBsame?L(' · เครื่องมือชุดเดียวกับฝั่ง A',' · same instruments as side A'):''}</div></div>
+     <div class="stat"><div class="big s${U>20?2:(U>10?1:0)}">±${fmt(U,1)}</div><div class="bigu">${L(`U รวมสองฝั่ง = k·√(u<sub>A</sub>²+u<sub>B</sub>²) · %`,`Two-side U = k·√(u<sub>A</sub>²+u<sub>B</sub>²) · %`)}</div></div>
+     <div class="stat"><div class="big">±${fmt(uQw,1)}</div><div class="bigu">${L(`ค่าพิกัดบวกตรงฝั่ง A (กรณีเลวร้ายสุด ไม่ใช่ GUM) · %`,`Rated limits added, side A (worst case, not GUM) · %`)}</div></div>
+   </div>
+   <div class="grid4" style="margin-top:8px">
+     <div class="stat"><div class="big s${relDT>10?2:(relDT>5?1:0)}">±${fmt(relDT,1)}</div><div class="bigu">${L(`เฉพาะจาก ΔT (k = ${K}) · %`,`From ΔT only (k = ${K}) · %`)}</div></div>
+     <div class="stat"><div class="big">±${fmt(uDTrss,2)}</div><div class="bigu">${L(`ความไม่แน่นอนขยายของ ΔT (k = ${K}) · °C`,`Expanded uncertainty of ΔT (k = ${K}) · °C`)}</div></div>
+     <div class="stat"><div class="big">${fmt(uc,2)}</div><div class="bigu">${L(`u<sub>c</sub> ความไม่แน่นอนมาตรฐานรวม · %`,`u<sub>c</sub> combined standard uncertainty · %`)}</div></div>
+     <div class="stat"><div class="big">k = ${K}</div><div class="bigu">${bTxt}</div></div>
    </div>
    <div class="tbl-wrap" style="margin-top:12px"><table>
-     <tr><th>ตัวแปร</th><th class="n">สัดส่วนความคลาดเคลื่อน %</th><th class="n">สัดส่วนของทั้งหมด</th><th>ที่มา</th></tr>
+     <tr><th>${L(`ตัวแปร (ฝั่ง A)`,`Variable (side A)`)}</th><th class="n">${L(`ความไม่แน่นอนมาตรฐาน u %`,`Standard uncertainty u %`)}</th><th class="n">${L(`สัดส่วนของ u<sub>A</sub>²`,`Share of u<sub>A</sub>²`)}</th><th>${L(`ที่มา`,`Source`)}</th></tr>
      ${terms.map(t=>`<tr${t[0]===dom[0]?' class="hl"':''}><td>${t[0]}</td>
-       <td class="n">±${fmt(t[1],2)}</td>
-       <td class="n">${fmt(t[1]*t[1]/(uQ*uQ)*100,0)} %</td><td class="legend">${t[2]}</td></tr>`).join('')}
+       <td class="n">${fmt(t[1],2)}</td>
+       <td class="n">${fmt(t[1]*t[1]/(uA*uA)*100,0)} %</td><td class="legend">${t[2]}</td></tr>`).join('')}
    </table></div>
+   <div class="note">${L(`เกณฑ์ตัดสิน (ค่าแนวทางของเครื่องมือ): ส่วนต่าง ≤ U = อยู่ในช่วงคลาดเคลื่อน · ≤ 2U = ใกล้ขอบ · ≤ 4U = เกินคลาดเคลื่อน · มากกว่านั้น = เกินมาก · U ฝั่ง A เกิน 15 % ถือว่ากว้าง`,`Verdict bands (tool guidance): gap ≤ U = within error · ≤ 2U = marginal · ≤ 4U = beyond error · larger = far beyond · side-A U above 15 % is considered wide`)}</div>
    <div class="note ${relDT>10?'bad':'warn'}">
-     <b>ตัวที่ครองความคลาดเคลื่อนคือ ${dom[0]}</b> — คิดเป็น ${fmt(dom[1]*dom[1]/(uQ*uQ)*100,0)} % ของความไม่แน่นอนทั้งหมด<br>
-     ${relDT>8?`นี่คือกับดักที่พบบ่อยที่สุดในงานระบบน้ำเย็น: sensor ที่ความคลาดเคลื่อน ±${fmt(uT,1)} °C
-       ฟังดูดีมากในสเปก แต่เมื่อนำไปหาผลต่างของสองค่า ความคลาดเคลื่อนจะรวมกันเป็น ±${fmt(uDTrss,2)} °C
+     ${L(`<b>ตัวที่ครองความคลาดเคลื่อนคือ ${dom[0]}</b> — คิดเป็น ${fmt(dom[1]*dom[1]/(uA*uA)*100,0)} % ของความไม่แน่นอนฝั่ง A`,`<b>The dominant contributor is ${dom[0]}</b> — ${fmt(dom[1]*dom[1]/(uA*uA)*100,0)} % of the side-A uncertainty`)}<br>
+     ${relDT>8?L(`นี่คือกับดักที่พบบ่อยที่สุดในงานระบบน้ำเย็น: sensor ที่ความคลาดเคลื่อน ±${fmt(uT,1)} °C
+       ฟังดูดีมากในสเปก แต่เมื่อนำไปหาผลต่างของสองค่า ความคลาดเคลื่อนจะรวมกันเป็น ±${fmt(uDTrss,2)} °C (k = ${K})
        และเมื่อ ΔT ที่วัดมีเพียง ${fmt(dT,2)} °C ผลลัพธ์จึงคลาดเคลื่อนได้ถึง <b>±${fmt(relDT,1)} %</b><br>
-       <b>ทางแก้ที่ได้ผลจริง</b> — ใช้ matched pair (ลดเหลือ ±${fmt(uT/Math.sqrt(2),2)} °C = u<sub>T</sub>/√2 เพราะ bias ร่วมหักล้างกันในผลต่าง)
-       และวัด ΔT ด้วย sensor คู่เดียวกันที่สอบเทียบพร้อมกัน ไม่ใช่หยิบสองตัวจากคนละล็อต`
-      :`สัดส่วนความคลาดเคลื่อนจาก ΔT อยู่ในเกณฑ์ที่ยอมรับได้`}
+       <b>ทางแก้ที่ได้ผลจริง</b> — ใช้ matched pair (u(ΔT) ลดเหลือ u<sub>T</sub>/√2 เมื่อความผิดพลาดของสองตัวสัมพันธ์กัน r ≈ 0.75 — ถ้าใบสอบเทียบให้ค่าคลาดเคลื่อนของคู่ ให้ใช้ค่านั้น)
+       และวัด ΔT ด้วย sensor คู่เดียวกันที่สอบเทียบพร้อมกัน ไม่ใช่หยิบสองตัวจากคนละล็อต`,`This is the most common trap in chilled-water work: a sensor rated ±${fmt(uT,1)} °C
+       sounds very good on paper, but when you take the difference of two readings the errors combine to ±${fmt(uDTrss,2)} °C (k = ${K}),
+       and with a measured ΔT of only ${fmt(dT,2)} °C the result can be off by <b>±${fmt(relDT,1)} %</b><br>
+       <b>The fix that actually works</b> — use a matched pair (u(ΔT) falls to u<sub>T</sub>/√2 when the two sensors' errors are correlated, r ≈ 0.75 — if the calibration certificate states the pair tolerance, use that)
+       and measure ΔT with one pair calibrated together, not two sensors from different lots`)
+      :L(`สัดส่วนความคลาดเคลื่อนจาก ΔT อยู่ในเกณฑ์ที่ยอมรับได้`,`The ΔT share of the uncertainty is acceptable`)}
    </div>`;
 
-  /* min ΔT */
+  /* min ΔT — ΔT ต่ำสุดที่ทำให้ U ฝั่ง A ไม่เกินเป้า */
   const targets=[5,10,15,20];
+  const dTmin=(t,fac)=>{const r=t*t-K*K*(uFs*uFs+uCps*uCps);return r>0?K*fac*uTs/(Math.sqrt(r)/100):Infinity;};
   $('minOut').innerHTML=`
    <div class="tbl-wrap"><table>
-     <tr><th>ถ้าต้องการความแม่นระดับ</th><th class="n">ΔT ต่ำสุดที่ต้องมี (matched pair)</th>
+     <tr><th>${L(`ถ้าต้องการ U ฝั่ง A (k = ${K}) ไม่เกิน`,`For side-A U (k = ${K}) of at most`)}</th><th class="n">ΔT ต่ำสุดที่ต้องมี (matched pair)</th>
          <th class="n">ΔT ต่ำสุด (sensor แยกกัน)</th></tr>
-     ${targets.map(t=>{
-       const eff=Math.sqrt(Math.max(t*t-uF*uF-uCp*uCp,0.01));
-       return `<tr${t===10?' class="hl"':''}><td>±${t} % ของ Q</td>
-         <td class="n">${fmt(uT/Math.sqrt(2)/(eff/100),2)} °C</td>${''/* [แก้ไข 10 ก.ย. 2569] matched pair ใช้ uT/√2 ให้ตรงโมเดล */}
-         <td class="n">${fmt(Math.sqrt(2)*uT/(eff/100),2)} °C</td></tr>`;}).join('')}
+     ${targets.map(t=>`<tr${t===10?' class="hl"':''}><td>±${t} % ของ Q</td>
+         <td class="n">${isFinite(dTmin(t,Math.SQRT1_2))?fmt(dTmin(t,Math.SQRT1_2),2)+' °C':L('ทำไม่ได้','not achievable')}</td>
+         <td class="n">${isFinite(dTmin(t,Math.SQRT2))?fmt(dTmin(t,Math.SQRT2),2)+' °C':L('ทำไม่ได้','not achievable')}</td></tr>`).join('')}
    </table></div>
    <div class="note">
-     <b>ความหมายในทางปฏิบัติ</b> — ระบบที่กำลังเกิด Low ΔT Syndrome มักมี ΔT เหลือเพียง 2–3 °C
+     ${L(`<b>ความหมายในทางปฏิบัติ</b> — ระบบที่กำลังเกิด Low ΔT Syndrome มักมี ΔT เหลือเพียง 2–3 °C
      ซึ่งเป็นช่วงที่การวัดยากที่สุดพอดี ถ้าใช้ sensor ทั่วไป ±0.5 °C แยกกันสองตัว
-     ผลที่ได้จะคลาดเคลื่อน ±${fmt(Math.sqrt(2)*0.5/2.5*100,0)} % ที่ ΔT = 2.5 °C<br>
+     ผลที่ได้จะคลาดเคลื่อน ±${fmt(K*Math.SQRT2*toStd(0.5)/2.5*100,0)} % ที่ ΔT = 2.5 °C (k = ${K})`,`<b>What it means in practice</b> — a system with Low ΔT Syndrome often has only 2–3 °C of ΔT left,
+     exactly where measurement is hardest. With two separate ordinary ±0.5 °C sensors
+     the result is uncertain by ±${fmt(K*Math.SQRT2*toStd(0.5)/2.5*100,0)} % at ΔT = 2.5 °C (k = ${K})`)}<br>
      <b>ยิ่งระบบมีปัญหา ยิ่งต้องใช้เครื่องมือที่ดี</b> — นี่คือความย้อนแย้งที่ทำให้หลายโครงการวินิจฉัยผิดทาง
      ทางออกคือใช้ matched pair สอบเทียบ ณ จุดใช้งาน และยืนยันด้วยการปิดสมดุลอีกฝั่งเสมอ
    </div>`;
@@ -653,6 +709,7 @@ function calc(){
      <div class="stat"><div class="big">${fmt((a+b)/2,2)}</div><div class="bigu">ค่าเฉลี่ย · ${u}</div></div>
      <div class="stat" style="display:flex;align-items:center">${pill(dl,['ตรงกันดี','ยอมรับได้','ต่างมาก','ต่างมากผิดปกติ'][dl])}</div>
    </div>
+   <div class="hint">${L(`เกณฑ์ต่างกัน &lt; 3 / 7 / 15 % เป็นค่าแนวทางของเครื่องมือ`,`The &lt; 3 / 7 / 15 % difference bands are tool guidance`)}</div>
    <div class="note ${dl>=2?'bad':'good'}">
      ${dl>=2?`สองวิธีให้ค่าต่างกัน ${fmt(dev,1)} % — ต้องหาว่าตัวไหนถูกก่อนใช้งาน
        อย่าใช้ค่าเฉลี่ยเพื่อ “ประนีประนอม” เพราะถ้าตัวหนึ่งผิดจริง ค่าเฉลี่ยก็ผิดครึ่งหนึ่งอยู่ดี`
@@ -676,7 +733,7 @@ function calc(){
    `<div class="zone"><div class="zi" style="background:var(--accent)"><i class="fas fa-list-check"></i></div>
     <div class="zt"><b>${i[0]}</b><span>${i[1]}</span></div></div>`).join('');
 
-  S={qa,qb,closure,uQ,uQw,relDT,uDTrss,dT,uT,matched,vd,dev,uComb,pass,eta,etaLo,etaHi,noDT,pk0}; /* [แก้ไข 3 ต.ค. 2569 audit] */
+  S={qa,qb,closure,uQ,uQw,relDT,uDTrss,dT,uT,matched,vd,dev,uComb,pass,eta,etaLo,etaHi,noDT,pk0,U,uA,uB,uc,K,basis,uEta,uBsame}; /* [แก้ไข 17 พ.ย. 2569] R5-34/35 */
   report();
 }
 
@@ -693,18 +750,22 @@ function report(){
 การกระจายความไม่แน่นอน
   ΔT ที่ใช้งาน          ${fmt(S.dT,2)} °C
   ความคลาดเคลื่อน sensor ±${fmt(S.uT,2)} °C ${S.matched?'(matched pair)':'(แยกกัน)'}
-  ความคลาดเคลื่อนของ ΔT  ±${fmt(S.uDTrss,2)} °C  =  ±${fmt(S.relDT,1)} % ของ ΔT
-  ความไม่แน่นอนรวม RSS   ±${fmt(S.uQ,1)} % ต่อฝั่ง · รวมสองฝั่ง ±${fmt(S.uComb,1)} %${S.noDT?' (ไม่มีเทอม ΔT)':''}${S.pk0==='fs'?'\n  η input–output         '+fmt(S.eta,1)+' % (ช่วงคาด '+fmt(S.etaLo,0)+'–'+fmt(S.etaHi,0)+' %)':''}
-  กรณีเลวร้ายสุด         ±${fmt(S.uQw,1)} %
+  ${L('ฐานค่าที่กรอก        ','Input basis          ')} ${S.basis==='k2'?L('ใบสอบเทียบ k = 2 (หาร 2)','calibration certificate k = 2 (÷ 2)'):L('ค่าพิกัด (หาร √3)','rated spec (÷ √3)')} · ${L('ตัวประกอบครอบคลุม','coverage factor')} k = ${S.K}
+  ความคลาดเคลื่อนของ ΔT  ±${fmt(S.uDTrss,2)} °C  =  ±${fmt(S.relDT,1)} % ของ ΔT (k = ${S.K})
+  ${L('ความไม่แน่นอนมาตรฐาน ','Standard uncertainty ')} u_A ${fmt(S.uA,2)} % · u_B ${fmt(S.uB,2)} %${S.uBsame?L(' (เครื่องมือชุดเดียวกับฝั่ง A)',' (same instruments as side A)'):''} · u_c ${fmt(S.uc,2)} %${S.noDT?L(' (ไม่มีเทอม ΔT)',' (no ΔT term)'):''}
+  ${L('ความไม่แน่นอนขยาย    ','Expanded uncertainty ')} U = k·u_c = ±${fmt(S.U,1)} %${S.pk0==='fs'?'\n  η input–output         '+fmt(S.eta,1)+' % (ช่วงคาด '+fmt(S.etaLo,0)+'–'+fmt(S.etaHi,0)+' %)':''}
+  ${L('ค่าพิกัดบวกตรงฝั่ง A  ','Rated limits added A  ')} ±${fmt(S.uQw,1)} % ${L('(กรณีเลวร้ายสุด ไม่ใช่ GUM)','(worst case, not GUM)')}
 
 ข้อสรุป: ${S.vd}
 ${S.pass
  ?'สมดุลปิดได้ภายในความคลาดเคลื่อนของเครื่องมือ ข้อมูลชุดนี้ใช้วินิจฉัยต่อได้'
  :'สมดุลไม่ปิดภายในความคลาดเคลื่อน — มีอย่างน้อยหนึ่งค่าที่ผิดจริง\nให้สอบเทียบอัตราการไหลและ sensor อุณหภูมิก่อนสรุปอาการใด ๆ'}
 
-หมายเหตุ: ความไม่แน่นอนรวมคำนวณแบบ RSS ตามแนวทาง ASHRAE Guideline 2 และ GUM
-sensor สองตัวที่แยกกันจะให้ความคลาดเคลื่อนของผลต่างเป็น √2 เท่าของตัวเดียว
-ขณะที่ matched pair จะหักล้าง bias ร่วมออกไปได้ (คิดเป็น 1/√2 เท่า) จึงเหมาะกับงานที่ ΔT ต่ำ`}</pre>`;
+${L(`หมายเหตุ: รวมความไม่แน่นอนมาตรฐานแบบ RSS ตามหลัก GUM แล้วขยายด้วย k
+ค่าพิกัด ±a ถือเป็นการแจกแจงสี่เหลี่ยม u = a/√3 · sensor สองตัวที่แยกกัน u(ΔT) = √2·u
+matched pair ถือสหสัมพันธ์ r = 0.75 → u(ΔT) = u/√2 (ค่าแนวทางของเครื่องมือ) จึงเหมาะกับงานที่ ΔT ต่ำ`,`Note: standard uncertainties are combined by RSS following GUM principles, then expanded by k
+a rated limit ±a is taken as a rectangular distribution, u = a/√3 · two separate sensors give u(ΔT) = √2·u
+a matched pair is taken as correlated with r = 0.75 → u(ΔT) = u/√2 (tool guidance), hence suited to low-ΔT work`)}`}</pre>`;
 }
 
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
@@ -726,6 +787,7 @@ $('btnCopy').addEventListener('click',()=>{
   }).catch(()=>{});
 });
 teInjectStaticHints(); buildInputs(); calc();   /* [ระยะ 4 10 ก.ย. 2569] hint ช่องคงที่ก่อนสร้างช่องไดนามิก */
+document.addEventListener('te-lang',()=>{try{calc();}catch(e){}});   /* [แก้ไข 17 พ.ย. 2569] ข้อความ L() ตามภาษา */
 </script>
 <!-- [แก้ไข 4 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
 <script src="../te-insight.js" defer></script>
@@ -1063,5 +1125,6 @@ if(window.TE_I18N)TE_I18N.set({
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
 <script src="../lib/te-scene.js?v=r8"></script>
+<script>/* [แก้ไข 17 พ.ย. 2569] R5-34/35 — คู่คำแปล EN ของช่องและข้อความใหม่ */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ความคลาดเคลื่อนรวมของฝั่ง B": "Combined error of side B", "ว่าง = ใช้เครื่องมือชุดเดียวกับฝั่ง A": "blank = same instruments as side A", "ความคลาดเคลื่อนรวมของการวัดฝั่ง B % · ค่าตั้งต้นตามคู่สมดุลเป็นค่าแนวทางของเครื่องมือ (อากาศด้วย anemometer 8 · ไอน้ำ 3 · ไฮดรอลิก 5 · ภาระประมาณการ 10) · ว่าง = ใช้เครื่องมือชุดเดียวกับฝั่ง A": "Combined measurement error of side B % · the per-pair default is tool guidance (air by anemometer 8 · steam 3 · hydraulic 5 · estimated load 10) · blank = same instruments as side A", "ค่า ± ที่กรอกมาจาก": "The ± values entered come from", "ค่าพิกัดของเครื่องมือ (spec) — หาร √3": "Instrument rated spec — divide by √3", "ใบสอบเทียบ ระบุที่ k = 2 — หาร 2": "Calibration certificate stated at k = 2 — divide by 2", "ค่าพิกัด ±a ที่ไม่ระบุการแจกแจง ถือเป็นแบบสี่เหลี่ยม u = a/√3 · ค่าจากใบสอบเทียบที่ระบุ k = 2 ใช้ u = a/2": "A rated limit ±a with no stated distribution is taken as rectangular, u = a/√3 · a calibration value stated at k = 2 uses u = a/2", "ตัวประกอบครอบคลุม k": "Coverage factor k", "U = k × u_c · k = 2 ให้ระดับความเชื่อมั่นราว 95 % (แจกแจงปกติ) — ใช้ตัดสินว่าสมดุลปิดหรือไม่": "U = k × u_c · k = 2 gives about 95 % confidence (normal distribution) — used to judge whether the balance closes", "คู่สมดุลนี้ไม่มี ΔT ของไหล — ไม่นำช่องนี้มาคิด": "This pair has no fluid ΔT — this field is not used", "รวมความไม่แน่นอนมาตรฐานแบบ RSS (root-sum-square) และขยายด้วยตัวประกอบครอบคลุม k ตามหลัก GUM": "Standard uncertainties combined by RSS (root-sum-square) and expanded by a coverage factor k following GUM principles", "± % ของผลต่าง": "± % of the gap"},[]);</script>
 </body>
 </html>
