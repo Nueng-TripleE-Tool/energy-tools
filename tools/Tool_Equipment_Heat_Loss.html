@@ -900,7 +900,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       <h3>ค) เกณฑ์อุณหภูมิผิวที่เริ่มทำให้ผิวหนังบาดเจ็บ</h3>
       <p class="note">ค่าอ้างอิงตาม <b>ISO 13732-1:2006</b> Table 1 (ขีดเริ่มเกิดการบาดเจ็บ — burn threshold)
         แนวคิดเดียวกับ <b>ASTM C1055</b> ที่โปรแกรม 3E Plus ใช้ ·
-        <span style="color:#9a6100">ควรทวนกับตัวมาตรฐานฉบับจริงก่อนอ้างอิงในเอกสารรับรอง</span></p>
+        <span style="color:#9a6100">ควรทวนกับตัวมาตรฐานฉบับจริงก่อนอ้างอิงในเอกสารรับรอง</span><br>
+        <span>ค่าที่ 60 วินาที 10 นาที และ 8 ชั่วโมง ตรงกับตาราง A.1 ของ CENELEC Guide 29 (อ้าง EN ISO 13732-1) · ค่าที่ 1 และ 10 วินาที อ่านจากกราฟช่วงในมาตรฐาน — ค่าแนวทางของเครื่องมือ</span><!-- [แก้ไข 17 พ.ย. 2569] R5-24 --></p>
       <div style="overflow-x:auto"><table id="tblBurn"><thead><tr>
         <th>ชนิดวัสดุผิวที่สัมผัส</th><th class="num">1 วินาที</th><th class="num">10 วินาที</th>
         <th class="num">60 วินาที</th><th class="num">10 นาที</th><th class="num">8 ชั่วโมง</th>
@@ -1881,7 +1882,7 @@ function calcAll(){
   /* ── ตารางรายชิ้น ── */
   let tb='';
   rows.forEach(r=>{
-    const safe=r.ins.Ts<=60, warn=r.ins.Ts<=80;
+    const _lim=_ppLim(), safe=r.ins.Ts<=_lim; /* [แก้ไข 17 พ.ย. 2569] R5-25: เดิมป้ายตายตัว 60/80 °C ขัดกับเกณฑ์ที่เลือกในการ์ดความปลอดภัยผิวสัมผัส → ใช้เกณฑ์เดียวกัน */
     const fc=FACES[r.c.key]||['',''];
     tb+=`<tr><td>${r.i+1}</td><td class="small">${r.c.sh.n}
       <div style="font-size:.72rem;color:#12703f;margin-top:2px">✔ ${fc[0]}</div>
@@ -1892,7 +1893,7 @@ function calcAll(){
       <td class="num">${fmt(r.bare.Ts,1)}</td><td class="num">${fmt(r.bare.Q*r.c.q,0)}</td>
       <td class="num">${fmt(r.ins.Ts,1)}</td><td class="num">${fmt(r.ins.Q*r.c.q,0)}</td>
       <td class="num">${fmt((r.bare.Q-r.ins.Q)*r.c.q,0)}</td>
-      <td><span class="badge ${safe?'ok':warn?'warn':'danger'}">${safe?'ปลอดภัย ≤ 60 °C':warn?'ระวัง 60–80 °C':'อันตราย > 80 °C'}</span>
+      <td><span class="badge ${safe?'ok':'danger'}">${safe?'<span>ผ่านเกณฑ์ผิวสัมผัส</span> ≤ '+fmt(_lim,0)+' °C':'<span>เกินเกณฑ์ผิวสัมผัส</span> '+fmt(_lim,0)+' °C'}</span>
       ${(r.ins.Tsi>=-12&&r.ins.Tsi<=175)?`<br><span class="badge warn" title="ผิวโลหะใต้ฉนวนอยู่ในช่วงที่เกิดสนิมใต้ฉนวนได้">⚠ เสี่ยง CUI (ผิวโลหะ ${fmt(r.ins.Tsi,0)} °C)</span>`:''}
       </td></tr>`;
   });
@@ -2281,8 +2282,9 @@ function drawOpt(D,opt,safe){
   g+=path('cost','#d1495b',1)+path('ann','#1e88e5',1)+path('tot','#e65100',0,2.8);
   g+=`<path d="${D.map((d,i)=>(i?'L':'M')+X(d.t).toFixed(1)+' '+Y2(d.Ts).toFixed(1)).join(' ')}"
       fill="none" stroke="#1e9e5a" stroke-width="1.8" stroke-dasharray="3 3" clip-path="url(#cp)"/>`;
-  g+=`<line x1="${L}" y1="${Y2(60)}" x2="${L+pw}" y2="${Y2(60)}" stroke="#1e9e5a" stroke-width="1" opacity=".5"/>
-      <text x="${L+pw-4}" y="${Y2(60)-5}" font-size="10" fill="#1e9e5a" text-anchor="end">เกณฑ์ผิวสัมผัส 60 °C</text>`;
+  const _lim=_ppLim(); /* [แก้ไข 17 พ.ย. 2569] R5-25 เส้นเกณฑ์ตามที่เลือก (เดิมตายตัว 60 °C) */
+  g+=`<line x1="${L}" y1="${Y2(_lim)}" x2="${L+pw}" y2="${Y2(_lim)}" stroke="#1e9e5a" stroke-width="1" opacity=".5"/>
+      <text x="${L+pw-4}" y="${Y2(_lim)-5}" font-size="10" fill="#1e9e5a" text-anchor="end">เกณฑ์ผิวสัมผัส ${fmt(_lim,0)} °C</text>`;
   /* เส้นอ้างอิงแนวตั้ง */
   const vline=(t,col,dash,lab,yTxt,anch)=>{
     if(!(t>=0&&t<=xMax)) return '';
@@ -2292,7 +2294,7 @@ function drawOpt(D,opt,safe){
   };
   const cur=num('insT');
   if(cur>0) g+=vline(cur,'#5b6b7b',1,`ความหนาที่ใช้อยู่ ${fmt(cur,0)} mm`,T+ph-12);
-  if(safe)  g+=vline(safe.t,'#1e9e5a',1,`ผิว ≤ 60 °C ที่ ${safe.t} mm`,T+18);
+  if(safe)  g+=vline(safe.t,'#1e9e5a',1,`ผิว ≤ ${fmt(_lim,0)} °C ที่ ${safe.t} mm`,T+18);
   g+=vline(opt.t,'#e65100',0,`คุ้มค่าที่สุด ${opt.t} mm`,T+38);
   g+=`<circle cx="${X(opt.t)}" cy="${Y(opt.tot)}" r="6" fill="#e65100" stroke="#fff" stroke-width="2"/>`;
   /* แกน */
@@ -2359,7 +2361,7 @@ function dewPoint(T,rh){
    b = ค่า effusivity √(k·ρ·c) โดยประมาณของวัสดุผิว ใช้คำนวณอุณหภูมิสัมผัสจริง  */
 const BURN={
  metal  :{n:'โลหะเปลือย',        b:1.30e4, e:[[1,65],[10,56],[60,51],[600,48],[28800,43]]},
- coated :{n:'โลหะทาสี/เคลือบ',   b:8.0e3,  e:[[1,70],[10,59],[60,53],[600,48],[28800,43]]},
+ coated :{n:'โลหะทาสี/เคลือบ',   b:8.0e3,  e:[[1,70],[10,59],[60,51],[600,48],[28800,43]]}, /* [แก้ไข 17 พ.ย. 2569] R5-24: 60 วินาที 53 → 51 °C ตาม CENELEC Guide 29 ตาราง A.1 (อ้าง EN ISO 13732-1) — 1 นาที โลหะทาสีเท่ากับโลหะเปลือย */
  ceramic:{n:'ฉาบปูน/เซรามิก/แก้ว',b:1.5e3,  e:[[1,80],[10,66],[60,56],[600,48],[28800,43]]},
  plastic:{n:'พลาสติก/ผ้าใยแก้ว', b:5.0e2,  e:[[1,85],[10,74],[60,60],[600,48],[28800,43]]}
 };
@@ -2803,6 +2805,9 @@ if(window.TE_I18N)TE_I18N.set({
 "ดูอุณหภูมิใช้งานสูงสุดก่อน (ระบบเตือนอัตโนมัติ) แล้วจึงดูราคา": "Check maximum service temperature first (auto warning), then price",
 "ตารางสรุป “ผิวที่นำมาคิด” ของทุกรูปทรง (Face Coverage Matrix)": "Summary of “surfaces included” for every shape (face coverage matrix)",
 "ตารางอ้างอิง — ขนาดท่อ · ความหนาเชิงพาณิชย์ · เกณฑ์ผิวสัมผัส": "Reference tables — pipe sizes · commercial thicknesses · contact-surface criteria",
+"ผ่านเกณฑ์ผิวสัมผัส": "Meets contact criterion",
+"เกินเกณฑ์ผิวสัมผัส": "Exceeds contact criterion",
+"ค่าที่ 60 วินาที 10 นาที และ 8 ชั่วโมง ตรงกับตาราง A.1 ของ CENELEC Guide 29 (อ้าง EN ISO 13732-1) · ค่าที่ 1 และ 10 วินาที อ่านจากกราฟช่วงในมาตรฐาน — ค่าแนวทางของเครื่องมือ": "Values at 60 s, 10 min and 8 h match Table A.1 of CENELEC Guide 29 (citing EN ISO 13732-1) · values at 1 s and 10 s are read from the range charts in the standard — tool guidance values",
 "ชื่อ/รหัสอุปกรณ์ตามป้ายหน้างาน ใช้พิมพ์บนรูปประกอบและรายงาน": "Equipment name/tag as on site label, printed on drawings and report",
 "ฝาแบน / หน้าตัดกลม — เลือกทิศทางผิวเอง (Flat Circular Face)": "Flat cover / circular face — choose orientation (flat circular face)",
 "A = π·OD·L · การพาความร้อน = ทรงกระบอกนอน (L_c = OD ภายนอก)": "A = π·OD·L · convection = horizontal cylinder (L_c = outer OD)",
