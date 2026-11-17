@@ -3041,7 +3041,7 @@ function csvTable(id, name){
 /* ═══════════════ PANEL C : CONDENSATE & DRYER SIZING ═══════════════
    วิธีคิดตาม Compressed Air Manual 6th ed. หัวข้อ 5.4.1
    น้ำเข้า  = φ · ρ_v,sat(T_amb) · FAD        (ต่อหน่วยลมอิสระ)
-   น้ำออก  = ρ_v,sat(T หรือ PDP) / อัตราส่วนความดัน · FAD
+   น้ำออก  = ṁ_อากาศแห้ง · W(T หรือ PDP, p_abs)   [แก้ไข 17 พ.ย. 2569] R5-44 เดิม ρ_v,sat/อัตราส่วนความดัน · FAD
    คอนเดนเสท = ผลต่าง                                                */
 /* [แก้ไข 10 ก.ย. 2569] อ่านค่า FAD จาก window.FLOWSTATE (ค่าเต็ม) แทนการดึงข้อความปัดเศษจากเซลล์ตาราง tblFlow — แนวเดียวกับ pushToCond() */
 function pullFad(){
@@ -3096,8 +3096,13 @@ function condCalc(){
 
   /* g ต่อนาที (คิดบนปริมาตรอากาศดูดเข้าจริง) */
   const wIn   = RHa/100 * cRhoSat(Tamb) * Vin;             // g/min
-  const wAfAC = cRhoSat(Tac)/ratio * Vin;                  // g/min หลัง aftercooler (อิ่มตัวที่ Tac)
-  const wAfDr = cRhoSat(PDP)/ratio * Vin;                  // g/min หลัง dryer
+  /* [แก้ไข 17 พ.ย. 2569] R5-44: เดิม ρ_v,sat(T)/อัตราส่วนความดัน × FAD สมมติว่าอากาศอัดมีอุณหภูมิเท่าอากาศดูดเข้า
+     → น้ำหลัง dryer ที่ PDP 3 °C สูงเกิน ~16 % · ใช้สมดุลมวลอากาศแห้ง: น้ำ = ṁ_da · W · W = 0.621945·e/(p_abs − e) */
+  const eIn = RHa/100*hPs(Tamb);                            // hPa ความดันไอน้ำอากาศดูดเข้า
+  const mDA = (patm - eIn)*100*Vin/(287.055*Tk);           // kg/min อากาศแห้ง
+  const Wsat = (t,p) => { const e = hE(t,p); return 0.621945*e/(p - e); };
+  const wAfAC = mDA*Wsat(Tac,pabs)*1000;                   // g/min หลัง aftercooler (อิ่มตัวที่ Tac)
+  const wAfDr = mDA*Wsat(PDP,pabs)*1000;                   // g/min หลัง dryer
   const condAC_total = Math.max(0, wIn - wAfAC);
   const condAC = condAC_total*sep, carry = condAC_total*(1-sep);
   const condDr = Math.max(0, wAfAC + carry - wAfDr);
@@ -3132,13 +3137,13 @@ function condCalc(){
    `<td class="small">≈ ${fmtA(kgh(totalCond)*hrs/1000)} ตัน/ปี ที่ ${fmtA(hrs)} ชม./ปี</td></tr></tbody>`;
 
   $('cAsm').innerHTML = `<b>สูตร:</b> น้ำเข้า = RH·ρ<sub>v,sat</sub>(T<sub>amb</sub>)·FAD &nbsp;;&nbsp;
-    น้ำที่เหลือ = ρ<sub>v,sat</sub>(T หรือ PDP) / (p<sub>abs</sub>/p<sub>atm</sub>) · FAD<br>
+    <br><span>น้ำที่เหลือหลังอาฟเตอร์คูลเลอร์และหลัง dryer คิดจากสมดุลมวลอากาศแห้ง:</span> ṁ<sub>da</sub>·W · W = 0.622·e/(p<sub>abs</sub> − e) · e = e<sub>s</sub>(T<sub>ac</sub> | PDP) · ṁ<sub>da</sub> = ${fmt(mDA,3)} kg/min<br>
     <b>สภาวะ:</b> p<sub>abs</sub> = ${fmt(pabs/1000,3)} bar a · อัตราส่วนความดัน = ${fmt(ratio,2)} ·
     ρ<sub>v,sat</sub>(${fmt(Tamb,0)} °C) = ${fmt(cRhoSat(Tamb),2)} g/m³ · ρ<sub>v,sat</sub>(${fmt(Tac,0)} °C) = ${fmt(cRhoSat(Tac),2)} g/m³
     · ρ<sub>v,sat</sub>(${fmt(PDP,0)} °C) = ${fmt(cRhoSat(PDP),3)} g/m³<br>
     <b>ฐานปริมาตร:</b> ค่าที่ป้อน ${fmt(FAD,2)} m³/min (ฐาน ${$('cFadBase') ? $('cFadBase').selectedOptions[0].text : 'สภาวะดูดเข้า'})
     → ปริมาตรอากาศดูดเข้าที่ใช้คำนวณ ${fmt(Vin,3)} m³/min ที่ ${fmt(Tamb,1)} °C (= ${fmt(Nm3min,3)} Nm³/min)<br>
-    <b>ที่มา:</b> วิธีคิดตาม Compressed Air Manual 6th ed. หัวข้อ 5.4.1 — ตัวหารด้วยอัตราส่วนความดันคือหัวใจของวิธีนี้
+    <b>ที่มา:</b> <span>แนวคิดตาม Compressed Air Manual 6th ed. หัวข้อ 5.4.1 — คิดบนมวลอากาศแห้ง ไม่สมมติว่าอากาศอัดมีอุณหภูมิเท่าอากาศดูดเข้า</span>
     <br><b>เกณฑ์เลือกกับดักระบายน้ำ:</b> เลือกขนาดที่รองรับได้อย่างน้อย 1.5–2 เท่าของค่าคอนเดนเสทรวม เผื่อวันที่อากาศชื้นสูงสุด`;
 
   /* ── dryer comparison ── */
@@ -4335,6 +4340,8 @@ if(window.TE_I18N)TE_I18N.set({
 "อ่านอุณหภูมิ T": "Temperature reading T ",
 "น้ำที่เข้าระบบ": "Water in",
 "น้ำเข้า = RH·ρ": "Water in = RH·ρ ",
+"น้ำที่เหลือหลังอาฟเตอร์คูลเลอร์และหลัง dryer คิดจากสมดุลมวลอากาศแห้ง:": "Water remaining after the aftercooler and after the dryer is computed from the dry-air mass balance:",
+"แนวคิดตาม Compressed Air Manual 6th ed. หัวข้อ 5.4.1 — คิดบนมวลอากาศแห้ง ไม่สมมติว่าอากาศอัดมีอุณหภูมิเท่าอากาศดูดเข้า": "Approach of Compressed Air Manual 6th ed. section 5.4.1 — computed on dry-air mass, without assuming the compressed air is at intake temperature",
 "ค่าไฟ (บาท/ปี)": "Electricity cost (THB/yr)",
 "จำนวนรอบที่จับ": "Number of cycles timed",
 "ค่าไฟที่เสียไป": "Electricity cost lost",
