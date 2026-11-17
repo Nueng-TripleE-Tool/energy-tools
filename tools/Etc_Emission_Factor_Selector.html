@@ -684,13 +684,23 @@ function buildStats() {
 }
 buildStats();
 
+/* [แก้ไข 17 พ.ย. 2569] #153 คำค้นภาษาไทย → ชื่อภาษาอังกฤษในฐาน EF (ตัวพิมพ์เล็ก) */
+const TH_SYN = {'ดีเซล':['diesel'],'เบนซิน':['gasoline'],'แก๊สโซฮอล':['gasohol'],'โซฮอล':['gasohol'],'ก๊าซธรรมชาติ':['natural gas'],'ก๊าซหุงต้ม':['lpg'],
+  'แอลพีจี':['lpg'],'ปิโตรเลียมเหลว':['lpg'],'เอ็นจีวี':['cng'],'น้ำมันเตา':['fuel oil'],'น้ำมันก๊าด':['kerosene'],'ถ่านหิน':['coal','lignite','anthracite'],
+  'ลิกไนต์':['lignite'],'ไบโอดีเซล':['biodiesel'],'เอทานอล':['ethanol'],'โพรเพน':['propane'],'บิวเทน':['butane'],'อะเซทิลีน':['acetylene'],'อีเทน':['ethane'],
+  'ไฟฟ้า':['grid','electric'],'ไอน้ำ':['steam'],'น้ำมันเครื่องบิน':['jet']};
 quickSearch.addEventListener('input', () => {
   const q = quickSearch.value.trim().toLowerCase();
   if (q.length < 2) { quickResults.classList.remove('active'); return; }
-  const matches = SEARCH_INDEX.filter(r =>
-    r.name.toLowerCase().includes(q) ||
-    r.activityLabel.toLowerCase().includes(q)
-  ).slice(0, 15);
+  /* [แก้ไข 17 พ.ย. 2569] #153 ชื่อเชื้อเพลิงใน Scope 1 เป็นภาษาอังกฤษ (Diesel, Gasoline, Natural Gas, Fuel Oil …) — พิมพ์ "ดีเซล" ตามคำแนะนำในช่องค้นหา
+     เดิมได้เพียง WTT ดีเซล (Scope 3, 0.6149) กับรถยนต์ส่วนตัว ไม่พบ Diesel ของ Scope 1 (2.7076) → ผู้ใช้อาจหยิบค่า WTT ไปใช้แทนค่าการเผาไหม้
+     → คำค้นภาษาไทยที่ตรงกับชื่อเชื้อเพลิง/สารภาษาอังกฤษ ค้นทั้งสองภาษา (ไม่เปลี่ยนฐานข้อมูล) */
+  const terms = [q];
+  Object.keys(TH_SYN).forEach(k => { if (q.includes(k)) TH_SYN[k].forEach(t => { if (terms.indexOf(t) < 0) terms.push(t); }); });
+  const matches = SEARCH_INDEX.filter(r => terms.some(t =>
+    r.name.toLowerCase().includes(t) ||
+    r.activityLabel.toLowerCase().includes(t)
+  )).slice(0, 15);
   if (matches.length === 0) {
     quickResults.innerHTML = '<div class="qr-item" style="color:var(--text-dim)">ไม่พบรายการ — ลอง: ดีเซล, ขยะ, เครื่องบิน, R-22, HDPE, B7, E10, ไฟฟ้า</div>';
   } else {
