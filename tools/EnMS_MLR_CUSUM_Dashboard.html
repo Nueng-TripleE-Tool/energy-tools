@@ -215,6 +215,15 @@
 /* [แก้ไข 17 พ.ย. 2569] ป้ายระดับ Pro ในคู่มือ + บรรทัดที่มาของเกณฑ์สถานะ */
 .pro-tag{display:inline-block;font-size:.78em;font-weight:600;color:#7a5200;background:#fff6dc;border:1px solid #e6c766;border-radius:10px;padding:1px 8px;margin-left:4px;white-space:normal}
 .status-src{font-size:.86em;color:#555;margin:6px 0 0;line-height:1.5}
+/* [แก้ไข 18 พ.ย. 2569] #290 กล่องเกณฑ์ CV(RMSE) ของสมการฐานตาม ASHRAE Guideline 14 (3 ระดับตามจำนวนเดือนช่วงรายงานผล) */
+.g14-note{font-size:.84em;color:#444;background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:8px 12px;margin:10px 0 12px;line-height:1.55}
+.g14-note .g14-h{font-weight:600;color:#333}
+.g14-note table{width:auto;max-width:100%;white-space:normal;font-size:1em;margin:6px 0}
+.g14-note th{background:#e9ecef;color:#333;position:static;padding:4px 10px;text-align:center}
+.g14-note td{padding:4px 10px;text-align:center}
+.g14-note tr.on td{background:#e8f5ec;font-weight:600}
+.g14-note .src{color:#5b6b7b;word-break:break-word;margin-top:4px}
+.g14-note .src a{color:#0B7373}
 </style>
 <script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
  * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
@@ -471,8 +480,10 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                     <div class="stat-card"><span>Observations (n)</span><strong id="obsVal">-</strong></div>
                     <div class="stat-card" id="r2StatusCard" style="border-left-color: #999;"><span>R² Status</span><strong id="r2StatusVal">-</strong></div>
                     <!-- [แก้ไข 3 ต.ค. 2569 audit] CV(RMSE) ตาม ASHRAE Guideline 14 ใช้ √(SSE/(n−p)) — เทียบเกณฑ์ G14 ได้โดยตรง -->
-                    <div class="stat-card" id="cvG14Card" title="ASHRAE Guideline 14-2014: CV(RMSE) = √(SSE/(n−p)) ÷ ค่าเฉลี่ย Y · เกณฑ์แบบจำลองรายเดือน ≤ 15 %, รายชั่วโมง ≤ 30 %"><span>CV(RMSE) ASHRAE G14 (n−p)</span><strong id="cvG14Val">-</strong></div>
+                    <!-- [แก้ไข 18 พ.ย. 2569] #290 title เดิม "เกณฑ์แบบจำลองรายเดือน ≤ 15 %, รายชั่วโมง ≤ 30 %" = เกณฑ์ calibrated simulation (G14 ข้อ 5.3.2.4(f)) → เกณฑ์สมการฐาน ข้อ 5.3.2.1(e) -->
+                    <div class="stat-card" id="cvG14Card" title="ASHRAE Guideline 14: CV(RMSE) = √(SSE/(n−p)) ÷ ค่าเฉลี่ย Y · เกณฑ์สมการฐาน (พลังงาน) ≤ 20 % / 25 % / 30 % เมื่อข้อมูลช่วงรายงานผล น้อยกว่า 12 / 12–60 / มากกว่า 60 เดือน (ข้อ 5.3.2.1(e))"><span>CV(RMSE) ASHRAE G14 (n−p)</span><strong id="cvG14Val">-</strong></div>
                 </div>
+                <div id="cvG14Note" class="g14-note" style="display:none;"></div>
                 <div style="overflow-x:auto;">
                     <table class="stats-table">
                         <thead>
@@ -1101,6 +1112,51 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             b.innerHTML = `📂 <strong>สมการที่โหลด${name ? ': ' + name : ''}</strong> — สัมประสิทธิ์ด้านล่างมาจากสมการที่บันทึกไว้ <u>การเปลี่ยนตัวแปร (ติ๊ก X) หรือกดคำนวณใหม่จะคำนวณทับ</u>สมการนี้`;
         } else { b.style.display = 'none'; b.innerHTML = ''; }
     }
+    /* [แก้ไข 18 พ.ย. 2569] #290 เกณฑ์ CV(RMSE) ของสมการฐานตาม ASHRAE Guideline 14 (หลัก: มาตรฐานก่อน · ผู้ใช้เข้าใจชัดเจน)
+       เดิม: ป้าย ✅/⚠️ ตัดที่ 15 % และ title "เกณฑ์แบบจำลองรายเดือน ≤ 15 %, รายชั่วโมง ≤ 30 %" — ตัวเลขชุดนี้เป็นเกณฑ์ของ
+             แบบจำลองคอมพิวเตอร์ที่ปรับเทียบ (calibrated simulation) ตาม G14 ข้อ 5.3.2.4(f) (CV 15 %/NMBE 5 % รายเดือน · 30 %/10 % รายชั่วโมง)
+             ไม่ใช่เกณฑ์ของสมการถดถอย (สมการฐาน)
+       ใหม่: G14 ข้อ 5.3.2.1(e) (whole building prescriptive path): CV(RMSE) ของสมการฐาน (พลังงาน) ≤ 20 % เมื่อข้อมูลหลังปรับปรุงที่ใช้คิด
+             ผลประหยัดน้อยกว่า 12 เดือน · ≤ 25 % เมื่อ 12–60 เดือน · ≤ 30 % เมื่อเกิน 60 เดือน (demand 30/35/40 % — เครื่องมือนี้คิดพลังงาน)
+             จำนวนเดือน = จำนวนแถวข้อมูลติดตามผลในส่วนที่ 2 (ไฟล์รายเดือน 1 แถว = 1 เดือน) · ยังไม่มีข้อมูลส่วนที่ 2 → 20 % (เข้มสุด)
+             แสดงตารางทั้งสามระดับ + เงื่อนไขอื่นของข้อ 5.3.2.1 (a)–(f) · สูตร CV(RMSE) เดิม (n−p) ไม่เปลี่ยน
+       อ้างอิง (เปิดอ่าน 18 พ.ย. 2569): ASHRAE Guideline 14-2002 ข้อ 5.3.2.1 และ 5.3.2.4(f)
+             https://www.eeperformance.org/uploads/8/6/5/0/8650231/ashrae_guideline_14-2002_measurement_of_energy_and_demand_saving.pdf
+             · ฉบับ 2014 ตัวเลขชุดเดียวกัน (เอกสารรอง: EVO M&V Focus ฉบับที่ 10 ต.ค. 2022, J. Avina — อ้างข้อความ G14-2014)
+             https://evo-world.org/en/m-v-community/mv-focus/903-m-v-focus-issue-no-10/1338-relaxing-cv-rmse-requirements-for-option-c-m-v-regressions */
+    var _cvG14Pct = NaN;
+    var G14_CV_TIERS = [{ lim: 20, th: 'น้อยกว่า 12 เดือน' }, { lim: 25, th: '12–60 เดือน' }, { lim: 30, th: 'มากกว่า 60 เดือน' }];
+    var G14_URL = 'https://www.eeperformance.org/uploads/8/6/5/0/8650231/ashrae_guideline_14-2002_measurement_of_energy_and_demand_saving.pdf';
+    var G14_URL_EVO = 'https://evo-world.org/en/m-v-community/mv-focus/903-m-v-focus-issue-no-10/1338-relaxing-cv-rmse-requirements-for-option-c-m-v-regressions';
+    function _cvG14Months() { return (typeof dataRecords !== 'undefined' && Array.isArray(dataRecords) && dataRecords.length) ? dataRecords.length : null; }
+    function cvG14Tier(months) { if (months === null || months === undefined || !isFinite(months)) return 0; return months < 12 ? 0 : (months <= 60 ? 1 : 2); }
+    function cvG14Limit() { return G14_CV_TIERS[cvG14Tier(_cvG14Months())].lim; }
+    function cvG14Render() {
+        const cv = isFinite(_cvG14Pct) ? Math.round(_cvG14Pct * 100) / 100 : NaN;   /* เทียบเกณฑ์ด้วยค่าที่แสดง (ทศนิยม 2 ตำแหน่ง) */
+        const mon = _cvG14Months(), ti = cvG14Tier(mon), lim = G14_CV_TIERS[ti].lim;
+        const ok = isFinite(cv) && cv <= lim;
+        const el = document.getElementById('cvG14Val'), cd = document.getElementById('cvG14Card'), nt = document.getElementById('cvG14Note');
+        if (el) { el.innerText = isFinite(cv) ? cv.toFixed(2) + ' %' + (ok ? ' ✅' : ' ⚠️') : '-'; el.style.color = ok ? '#28a745' : '#dc3545'; }
+        if (cd) cd.style.borderLeftColor = ok ? '#28a745' : '#dc3545';
+        if (!nt) return;
+        if (!isFinite(cv)) { nt.style.display = 'none'; nt.innerHTML = ''; return; }
+        let rows = '';
+        G14_CV_TIERS.forEach(function(t, i) {
+            const p = cv <= t.lim;
+            rows += '<tr' + (i === ti ? ' class="on"' : '') + '><td><span>' + t.th + '</span>' + (i === ti ? ' <b>◀ <span>ใช้เกณฑ์นี้</span></b>' : '') + '</td>' +
+                '<td>≤ ' + t.lim + ' %</td><td style="color:' + (p ? '#28a745' : '#dc3545') + ';">' + (p ? '✅ <span>ผ่าน</span>' : '⚠️ <span>ไม่ผ่าน</span>') + '</td></tr>';
+        });
+        nt.innerHTML = '<div class="g14-h"><span>เกณฑ์ CV(RMSE) ของสมการฐาน ตาม ASHRAE Guideline 14 — ขึ้นกับจำนวนเดือนของข้อมูลช่วงรายงานผล (หลังปรับปรุง) ที่ใช้คำนวณผลประหยัด</span></div>' +
+            '<table><thead><tr><th><span>ข้อมูลช่วงรายงานผล</span></th><th><span>เกณฑ์ CV(RMSE) (พลังงาน)</span></th><th><span>สมการนี้</span> ' + cv.toFixed(2) + ' %</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+            '<div>' + (mon === null
+                ? '<span>ใช้เกณฑ์ ≤ 20 % (เข้มที่สุด) — ยังไม่ทราบจำนวนเดือนของช่วงรายงานผล เพราะยังไม่ได้นำเข้าข้อมูลติดตามผลในส่วนที่ 2</span>'
+                : '<span>ใช้เกณฑ์</span> ≤ ' + lim + ' % — <span>ข้อมูลติดตามผลในส่วนที่ 2 มี</span> ' + mon + ' <span>เดือน (นับ 1 แถว = 1 เดือน ตามรูปแบบไฟล์รายเดือนของเครื่องมือ)</span>') + '</div>' +
+            '<div><span>เงื่อนไขอื่นของเกณฑ์นี้ (ข้อ 5.3.2.1): ผลประหยัดที่คาดไว้เกิน 10 % ของพลังงานที่วัด · ข้อมูลฐานต่อเนื่องอย่างน้อย 12 เดือน และอย่างน้อย 9 จุด · ไม่ตัดจุดข้อมูลฐานออก · ผ่านการทดสอบ net determination bias (ไม่เกิน 0.005 %, ข้อ 5.2.10)</span></div>' +
+            '<div>ℹ️ <span>CV(RMSE) 15 % และ NMBE 5 % (ข้อมูลรายเดือน) เป็นเกณฑ์ของแบบจำลองคอมพิวเตอร์ที่ปรับเทียบกับข้อมูลจริง (calibrated simulation, ข้อ 5.3.2.4(f)) ไม่ใช่เกณฑ์ของสมการถดถอย</span></div>' +
+            '<div class="src"><span>อ้างอิง: ASHRAE Guideline 14-2002 ข้อ 5.2.10 · 5.3.2.1 (a)–(f) · 5.3.2.4(f)</span> — <a href="' + G14_URL + '" target="_blank" rel="noopener">' + G14_URL + '</a>' +
+            ' · <span>ฉบับ 2014 ใช้ตัวเลขชุดเดียวกัน (เอกสารรอง: EVO M&amp;V Focus ฉบับที่ 10, ต.ค. 2022)</span> — <a href="' + G14_URL_EVO + '" target="_blank" rel="noopener">' + G14_URL_EVO + '</a></div>';
+        nt.style.display = 'block';
+    }
     function recalculateBaseline() {
         if (!globalBaselineData) return;
         const yChoice = document.getElementById('yVariableSelect').value;
@@ -1156,9 +1212,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             document.getElementById('rSquareVal').innerText = R2.toFixed(4);
             document.getElementById('adjRSquareVal').innerText = AdjR2.toFixed(4);
             document.getElementById('obsVal').innerText = n;
-            { /* [แก้ไข 3 ต.ค. 2569 audit] CV(RMSE) ASHRAE G14 */ const cvg = fit.meanY ? fit.RMSEg14 / fit.meanY * 100 : NaN; const el = document.getElementById('cvG14Val'), cd = document.getElementById('cvG14Card');
-              if (el) { el.innerText = isFinite(cvg) ? cvg.toFixed(2) + ' %' + (cvg <= 15 ? ' ✅' : ' ⚠️') : '-'; el.style.color = cvg <= 15 ? '#28a745' : '#dc3545'; }
-              if (cd) cd.style.borderLeftColor = cvg <= 15 ? '#28a745' : '#dc3545'; }
+            { /* [แก้ไข 3 ต.ค. 2569 audit] CV(RMSE) ASHRAE G14 · [แก้ไข 18 พ.ย. 2569] #290 เดิมตัดที่ 15 % → เกณฑ์สมการฐานตามจำนวนเดือนช่วงรายงานผล (cvG14Render) */
+              _cvG14Pct = fit.meanY ? fit.RMSEg14 / fit.meanY * 100 : NaN; cvG14Render(); }
             const r2Card = document.getElementById('r2StatusCard');
             const r2Val = document.getElementById('r2StatusVal');
             if (R2 >= 0.75) { r2Val.innerText = '✅ ผ่านเกณฑ์'; r2Card.style.borderLeftColor = '#28a745'; r2Val.style.color = '#28a745'; }
@@ -1285,6 +1340,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                 appendRowToTable(record);
             }
             refreshChartData();
+            cvG14Render();   /* [แก้ไข 18 พ.ย. 2569] #290 จำนวนเดือนช่วงรายงานผลเปลี่ยน → เลือกเกณฑ์ CV(RMSE) ของสมการฐานใหม่ */
             if (src === 'B') {
                 document.getElementById('th_actual').innerText = 'Actual Energy (MJ)';
                 document.getElementById('th_target').innerText = 'Target Energy (MJ)';
@@ -1374,7 +1430,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             document.getElementById('baselineFile').value = '';
             document.getElementById('monitoringFile').value = '';
             document.getElementById('statsContainer').style.display = 'none';
+            _cvG14Pct = NaN;   /* [แก้ไข 18 พ.ย. 2569] #290 */
         }
+        cvG14Render();   /* [แก้ไข 18 พ.ย. 2569] #290 ล้างข้อมูลส่วนที่ 2 → กลับไปใช้เกณฑ์เข้มสุด 20 % */
     }
 
     // ====== SAVE EQUATION — robust storage (memory + localStorage + sessionStorage fallback) ======
@@ -1801,7 +1859,7 @@ var mlrCore=TE.MLR.mlrCore, computeVIFArray=TE.MLR.computeVIFArray;
             ['Adjusted R²', M.Astat.AdjR2, M.B.AdjR2, 4, false],
             ['RMSE in-sample (MJ)', M.Astat.RMSE, M.B.RMSE, 2, true],
             ['CV(RMSE) in-sample √(SSE/n)', M.Astat.CV, M.B.CV, 4, true],
-            ['CV(RMSE) ASHRAE G14 √(SSE/(n−p)) — เทียบเกณฑ์ ≤ 0.15', M.Astat.CVg14, M.B.CVg14, 4, true], // [แก้ไข 3 ต.ค. 2569 audit]
+            ['CV(RMSE) ASHRAE G14 √(SSE/(n−p)) — เทียบเกณฑ์ ≤ ' + (cvG14Limit() / 100).toFixed(2), M.Astat.CVg14, M.B.CVg14, 4, true], // [แก้ไข 3 ต.ค. 2569 audit] · [แก้ไข 18 พ.ย. 2569] #290 เดิม ≤ 0.15 → เกณฑ์สมการฐาน G14 ข้อ 5.3.2.1(e) ตามจำนวนเดือนช่วงรายงานผล
             ['LOOCV RMSE (MJ)', M.Astat.loocvRMSE, M.B.loocvRMSE, 2, true],
             ['LOOCV CV(RMSE) ★ ตัวตัดสิน', M.Astat.loocvCV, M.B.loocvCV, 4, true]
         ];
@@ -3413,5 +3471,27 @@ if(window.TE_TASK)TE_TASK.mount({key:'mlr',status:false,bar:document.querySelect
 [/คอลัมน์ ([E-I]) ในไฟล์คือ "(.*?)" แต่สมการใช้ "(.*?)"/g,"column $1 in the file is \"$2\" but the equation uses \"$3\""],
 [/\(ว่าง\)/g,"(blank)"]
 ]);</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #290 คำแปล EN กล่องเกณฑ์ CV(RMSE) ของสมการฐาน (ASHRAE Guideline 14 ข้อ 5.3.2.1(e)) */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"ASHRAE Guideline 14: CV(RMSE) = √(SSE/(n−p)) ÷ ค่าเฉลี่ย Y · เกณฑ์สมการฐาน (พลังงาน) ≤ 20 % / 25 % / 30 % เมื่อข้อมูลช่วงรายงานผล น้อยกว่า 12 / 12–60 / มากกว่า 60 เดือน (ข้อ 5.3.2.1(e))":"ASHRAE Guideline 14: CV(RMSE) = √(SSE/(n−p)) ÷ mean Y · baseline-model limit (energy) ≤ 20 % / 25 % / 30 % when reporting-period data cover less than 12 / 12–60 / more than 60 months (clause 5.3.2.1(e))",
+"เกณฑ์ CV(RMSE) ของสมการฐาน ตาม ASHRAE Guideline 14 — ขึ้นกับจำนวนเดือนของข้อมูลช่วงรายงานผล (หลังปรับปรุง) ที่ใช้คำนวณผลประหยัด":"Baseline-model CV(RMSE) limit per ASHRAE Guideline 14 — depends on how many months of reporting-period (post-retrofit) data are used to compute savings",
+"ข้อมูลช่วงรายงานผล":"Reporting-period data",
+"เกณฑ์ CV(RMSE) (พลังงาน)":"CV(RMSE) limit (energy)",
+"สมการนี้":"This model",
+"น้อยกว่า 12 เดือน":"Less than 12 months",
+"12–60 เดือน":"12–60 months",
+"มากกว่า 60 เดือน":"More than 60 months",
+"ใช้เกณฑ์นี้":"applied",
+"ผ่าน":"Pass",
+"ไม่ผ่าน":"Fail",
+"ใช้เกณฑ์ ≤ 20 % (เข้มที่สุด) — ยังไม่ทราบจำนวนเดือนของช่วงรายงานผล เพราะยังไม่ได้นำเข้าข้อมูลติดตามผลในส่วนที่ 2":"Limit applied ≤ 20 % (strictest) — the reporting-period length is not known yet because no monitoring data has been imported in Part 2",
+"ใช้เกณฑ์":"Limit applied",
+"ข้อมูลติดตามผลในส่วนที่ 2 มี":"Part 2 monitoring data cover",
+"เดือน (นับ 1 แถว = 1 เดือน ตามรูปแบบไฟล์รายเดือนของเครื่องมือ)":"months (1 row = 1 month, per the tool's monthly file format)",
+"เงื่อนไขอื่นของเกณฑ์นี้ (ข้อ 5.3.2.1): ผลประหยัดที่คาดไว้เกิน 10 % ของพลังงานที่วัด · ข้อมูลฐานต่อเนื่องอย่างน้อย 12 เดือน และอย่างน้อย 9 จุด · ไม่ตัดจุดข้อมูลฐานออก · ผ่านการทดสอบ net determination bias (ไม่เกิน 0.005 %, ข้อ 5.2.10)":"Other conditions of this path (clause 5.3.2.1): expected savings above 10 % of measured energy use · at least 12 continuous months of baseline data with at least 9 points · no baseline data points excluded · pass the net determination bias test (no more than 0.005 %, clause 5.2.10)",
+"CV(RMSE) 15 % และ NMBE 5 % (ข้อมูลรายเดือน) เป็นเกณฑ์ของแบบจำลองคอมพิวเตอร์ที่ปรับเทียบกับข้อมูลจริง (calibrated simulation, ข้อ 5.3.2.4(f)) ไม่ใช่เกณฑ์ของสมการถดถอย":"CV(RMSE) 15 % and NMBE 5 % (monthly data) are the limits for a computer model calibrated to measured data (calibrated simulation, clause 5.3.2.4(f)) — not for a regression model",
+"อ้างอิง: ASHRAE Guideline 14-2002 ข้อ 5.2.10 · 5.3.2.1 (a)–(f) · 5.3.2.4(f)":"Reference: ASHRAE Guideline 14-2002 clauses 5.2.10 · 5.3.2.1 (a)–(f) · 5.3.2.4(f)",
+"ฉบับ 2014 ใช้ตัวเลขชุดเดียวกัน (เอกสารรอง: EVO M&V Focus ฉบับที่ 10, ต.ค. 2022)":"the 2014 edition keeps the same limits (secondary source: EVO M&V Focus Issue 10, Oct 2022)"
+});</script>
 </body>
 </html>
