@@ -1065,13 +1065,34 @@ function calcAll(){
   var qinBasis=v('qinBasis')||'fuel',Q_abs=m_fuel*LHV*eta_cc,Q_in=qinBasis==='absorbed'?Q_abs:m_fuel*LHV;
   var Q_exh=m_gas*(h(Z,T4)-h(Z,T1)),eta_th=P_elec/Q_in,HR=3600/eta_th,BWR=W_comp/W_turbine*100;
   var cpa_m=(h(Y,T2)-h(Y,T1))/(T2-T1),cpg_m=(h(Z,T3)-h(Z,T4))/(T3-T4);
-  var T2r_C=T2_C,eta_th_regen=eta_th,m_fuel_regen=m_fuel,Q_regen=0;
+  var T2r_C=T2_C,eta_th_regen=eta_th,m_fuel_regen=m_fuel,Q_regen=0,T5_C=T4_C;
+  var m_fuel_simple=m_fuel,eta_th_simple=eta_th,HR_simple=HR,P_elec_simple=P_elec;
+  /* [แก้ไข 17 พ.ย. 2569] #130 เมื่อมี Regenerator ให้ "วัฏจักรที่ใช้งาน" เป็นวัฏจักร regen ทั้งหน้า (KPI หลัก ตารางเทียบพิกัด สมดุลพลังงาน)
+     เดิม KPI/ตารางเทียบใช้ η วัฏจักรเปิด ทำให้ตัวอย่าง regen (พิกัด 38 %) ขึ้น LOW 26.8 %
+     วิธี: วนหา T₄ ↔ T₂r (เชื้อเพลิงลด → องค์ประกอบไอเสียเปลี่ยน → T₄ เปลี่ยนเล็กน้อย) · ไอเสียออกปล่องหลัง regen T₅ จาก h_g(T₅) = h_g(T₄) − Q_regen/ṁ_gas */
   if(hasRegen&&T4_C>T2_C){
-    T2r_C=T2_C+eps_r*(T4_C-T2_C);
-    var sr=solveF(Y,T2r_C+273.15,T3,(eta_cc>0?eta_cc:1)*LHV,fuel);
-    m_fuel_regen=m_comp_in*sr.f;
-    eta_th_regen=P_elec/(m_fuel_regen*LHV*(qinBasis==='absorbed'?eta_cc:1));
+    var sr=null,er=e,T4r=T4;
+    for(var it=0;it<12;it++){
+      var T2rK=T2+eps_r*(T4r-T2);
+      sr=solveF(Y,T2rK,T3,(eta_cc>0?eta_cc:1)*LHV,fuel);
+      er=expand(sr.Z,T3,rp_t,eta_t>0?eta_t:1);
+      var dT=Math.abs(er.T4-T4r);T4r=er.T4;if(dT<0.005)break;
+    }
+    T2r_C=T2+eps_r*(T4r-T2)-273.15;
+    fk=sr.f;Z=sr.Z;e=er;T4=er.T4;T4_C=T4-273.15;T4s_C=er.T4s-273.15;
+    m_fuel=m_comp_in*fk;FAR=m_air>0?m_fuel/m_air:NaN;m_gas=m_comp_in+m_fuel;
+    h0g=h(Z,273.15);h3=h(Z,T3)-h0g;h4s=h(Z,er.T4s)-h0g;h4=h(Z,T4)-h0g;
+    wt_isen=er.wis;wt_act=er.w;
+    W_turbine=m_gas*wt_act;P_shaft=W_turbine-W_comp;P_elec=P_shaft*eta_mech*eta_gen;w_net_kg=P_shaft/m_air;
+    Q_abs=m_fuel*LHV*eta_cc;Q_in=qinBasis==='absorbed'?Q_abs:m_fuel*LHV;
     Q_regen=m_comp_in*(h(Y,T2r_C+273.15)-h(Y,T2));
+    var hT5=h(Z,T4)-Q_regen/m_gas,lo=T1,hi=T4;
+    for(var k=0;k<60;k++){var mid=(lo+hi)/2;if(h(Z,mid)>hT5)hi=mid;else lo=mid;}
+    T5_C=(lo+hi)/2-273.15;
+    Q_exh=m_gas*(h(Z,T4)-h(Z,T1))-Q_regen;
+    eta_th=P_elec/Q_in;HR=3600/eta_th;BWR=W_comp/W_turbine*100;
+    cpg_m=(h(Z,T3)-h(Z,T4))/(T3-T4);
+    eta_th_regen=eta_th;m_fuel_regen=m_fuel;
   }
   var eta_th_field=eta_th,HR_field=HR;
   if(P_meas>0){eta_th_field=P_meas/Q_in;HR_field=3600/eta_th_field;}
@@ -1092,7 +1113,7 @@ function calcAll(){
     Q_in:Q_in,Q_exh:Q_exh,eta_th:eta_th,HR:HR,BWR:BWR,FAR:FAR,fk:fk,m_fuel:m_fuel,m_gas:m_gas,m_air:m_air,m_spray:m_spray,m_comp_in:m_comp_in,P_amb:P_amb,P4abs:P4abs,rp_t:rp_t,
     eta_th_field:eta_th_field,HR_field:HR_field,
     hasRegen:hasRegen,T2r_C:T2r_C,Q_regen:Q_regen,eta_th_regen:eta_th_regen,m_fuel_regen:m_fuel_regen,
-    m_fuel_save:hasRegen?m_fuel-m_fuel_regen:0,
+    m_fuel_save:hasRegen?m_fuel_simple-m_fuel_regen:0,m_fuel_simple:m_fuel_simple,eta_th_simple:eta_th_simple,HR_simple:HR_simple,P_elec_simple:P_elec_simple,T5_C:T5_C,
     rp:rp,eta_c:eta_c,eta_t:eta_t,eta_cc:eta_cc,eta_mech:eta_mech,eta_gen:eta_gen,LHV:LHV,
     ratedPow:vn('ratedPow'),ratedEff:vn('ratedEff')/100,ratedHR:vn('ratedHR'),
     cpa_m:cpa_m,cpg_m:cpg_m,Rg:Rm(Z),Ra:Rm(Y),Wamb:Ya._W,fuel:fuel,xH2Og:Z.H2O,yO2g:Z.O2
@@ -1144,12 +1165,12 @@ function buildCalcSteps(r){
   '  P_shaft                = '+f(r.P_shaft,1)+' kW',
   '  η_mech × η_gen         = '+f(r.eta_mech*100,1)+' % × '+f(r.eta_gen*100,1)+' %',
   '  P_electric             = '+f(r.P_display,1)+' kW',
-  '  Q_exhaust = ṁ_exhaust × [h_g(T₄) − h_g(T₁)] = '+f(r.Q_exh,1)+' kW  [T₄ = '+f(r.T4_C,1)+' °C]',
+  (r.hasRegen?'  Q_exhaust = ṁ_exhaust × [h_g(T₅) − h_g(T₁)] = '+f(r.Q_exh,1)+' kW  [T₅ stack after regenerator = '+f(r.T5_C,1)+' °C]':'  Q_exhaust = ṁ_exhaust × [h_g(T₄) − h_g(T₁)] = '+f(r.Q_exh,1)+' kW  [T₄ = '+f(r.T4_C,1)+' °C]'), /* [แก้ไข 17 พ.ย. 2569] #130 */
   '  Check: P_shaft + Q_exhaust ≈ ṁ_f × LHV × η_cc ?',
   '    '+f(r.P_shaft,1)+' + '+f(r.Q_exh,1)+' = '+f(bal,1)+' kW  |  Q_absorbed = '+f(r.Q_abs,1)+' kW  '+(Math.abs(bal-r.Q_abs)<r.Q_abs*0.01?'✓ OK (≤ 1 %)':'⚠ CHECK'),
   '  η_th = '+f(r.eta_th_field*100,3)+' %  |  HR = '+f(r.HR_field,1)+' kJ/kWh'
   ];
-  if(r.hasRegen)e.push('','REGENERATOR:','  T₂r = T₂ + ε×(T₄−T₂) = '+f(r.T2_C,1)+' + '+f(vn('eps_regen')/100,2)+'×('+f(r.T4_C,1)+'−'+f(r.T2_C,1)+') = '+f(r.T2r_C,2)+' °C','  Q_regen = ṁ_comp,in × [h_a(T₂r) − h_a(T₂)] = '+f(r.Q_regen,1)+' kW  |  ṁ_fuel saved = '+f(r.m_fuel_save,4)+' kg/s','  η_th,regen = '+f(r.eta_th_regen*100,2)+' %');
+  if(r.hasRegen)e.push('','REGENERATOR:','  T₂r = T₂ + ε×(T₄−T₂) = '+f(r.T2_C,1)+' + '+f(vn('eps_regen')/100,2)+'×('+f(r.T4_C,1)+'−'+f(r.T2_C,1)+') = '+f(r.T2r_C,2)+' °C','  Q_regen = ṁ_comp,in × [h_a(T₂r) − h_a(T₂)] = '+f(r.Q_regen,1)+' kW  |  ṁ_fuel saved = '+f(r.m_fuel_save,4)+' kg/s','  η_th,regen = '+f(r.eta_th_regen*100,2)+' %  (simple cycle without regenerator: '+f(r.eta_th_simple*100,2)+' %, HR '+f(r.HR_simple,0)+' kJ/kWh)','  T₅ (stack) = '+f(r.T5_C,1)+' °C  from h_g(T₅) = h_g(T₄) − Q_regen/ṁ_gas'); /* [แก้ไข 17 พ.ย. 2569] #130 */
   document.getElementById('energy_steps_text').textContent=e.join('\n');
   var a=document.getElementById('cpa_mean'),b=document.getElementById('cpg_mean');
   if(a)a.textContent=r.cpa_m.toFixed(4);if(b)b.textContent=r.cpg_m.toFixed(4);
