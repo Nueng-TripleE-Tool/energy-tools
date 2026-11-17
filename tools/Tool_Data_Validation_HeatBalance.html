@@ -272,7 +272,8 @@ table td{vertical-align:middle}
     <h2>การกระจายความไม่แน่นอน</h2>
     <div class="sub">Q = ṁ · c<sub>p</sub> · ΔT — ความคลาดเคลื่อนของแต่ละตัวส่งผลต่อผลลัพธ์ไม่เท่ากัน
       และตัวที่คนมองข้ามมากที่สุดคือ ΔT</div>
-    <div class="grid3">
+    <div class="hint" id="uPairNote" style="display:none"></div><!-- [แก้ไข 17 พ.ย. 2569] #131 คำอธิบายความหมายของช่องตามคู่สมดุล (fs/ee) -->
+    <div class="grid3" id="uDTGrid">
       <div class="fld"><label class="f">ΔT ที่ใช้งานจริง <span class="unit">°C</span></label><input type="number" id="uDT" value="2.5" step="0.1">
         <div class="hint" id="uDTHint"></div></div><!-- [แก้ไข 10 ก.ย. 2569] เติมค่าจาก ΔT แท็บ 1 อัตโนมัติ (แก้เองได้) -->
       <div class="fld"><label class="f">ความคลาดเคลื่อนของ sensor แต่ละตัว <span class="unit">± °C</span></label><input type="number" id="uT" value="0.5" step="0.1"></div>
@@ -283,9 +284,9 @@ table td{vertical-align:middle}
         </select></div>
     </div>
     <div class="grid3">
-      <div class="fld"><label class="f">ความคลาดเคลื่อนของอัตราการไหล <span class="unit">± %</span></label><input type="number" id="uF" value="3" step="0.5"></div>
-      <div class="fld"><label class="f">ความคลาดเคลื่อนของ c<sub>p</sub> และความหนาแน่น <span class="unit">± %</span></label><input type="number" id="uCp" value="0.5" step="0.1"></div>
-      <div class="fld"><label class="f">ความคลาดเคลื่อนรวมของฝั่ง B <span class="unit">± %</span></label><input type="number" id="uB" value="8" step="0.5" placeholder="ว่าง = ใช้เครื่องมือชุดเดียวกับฝั่ง A"></div>
+      <div class="fld"><label class="f"><span id="lbUF">ความคลาดเคลื่อนของอัตราการไหล</span> <span class="unit">± %</span></label><input type="number" id="uF" value="3" step="0.5"></div>
+      <div class="fld"><label class="f"><span id="lbUCp">ความคลาดเคลื่อนของ c<sub>p</sub> และความหนาแน่น</span> <span class="unit">± %</span></label><input type="number" id="uCp" value="0.5" step="0.1"></div>
+      <div class="fld"><label class="f"><span id="lbUB">ความคลาดเคลื่อนรวมของฝั่ง B</span> <span class="unit">± %</span></label><input type="number" id="uB" value="8" step="0.5" placeholder="ว่าง = ใช้เครื่องมือชุดเดียวกับฝั่ง A"></div>
     </div>
     <!-- [แก้ไข 17 พ.ย. 2569] R5-34/35 ฐานของค่าที่กรอก + ตัวประกอบครอบคลุม k + ความไม่แน่นอนฝั่ง B แยกจากฝั่ง A -->
     <div class="grid3">
@@ -494,6 +495,58 @@ function syncUDT(){
   if(uDTauto&&d!==null&&d>0){ $('uDT').value=Number(d.toFixed(2)); $('uDTHint').textContent=`⚡ จาก แท็บ 1 (${$('hA').textContent}) · แก้เองได้`; }
   else $('uDTHint').textContent=uDTauto?'คู่สมดุลนี้ไม่มี ΔT ของไหล — ไม่นำช่องนี้มาคิด':'กรอกเอง (เปลี่ยนคู่สมดุลเพื่อกลับไปใช้ค่าจากแท็บ 1)';
 }
+/* [แก้ไข 17 พ.ย. 2569] #131 ป้าย/คำอธิบายช่องความคลาดเคลื่อนเปลี่ยนตามคู่สมดุล
+   คู่ fs: ช่อง uF = อัตราป้อนเชื้อเพลิง · uCp = LHV as-fired · uB = ฝั่งไอน้ำ (อัตราไอน้ำ + เอนทาลปี)
+   คู่ ee: ช่อง uF = กำลังไฟฟ้าที่วัด · uCp = ประสิทธิภาพมอเตอร์ · uB = ฝั่งของไหล (อัตราไหล + เฮด + ประสิทธิภาพปั๊ม)
+   คู่ wa/ww/ct: คงความหมายเดิม (อัตราการไหล · c_p และ ρ · ฝั่ง B) — ไม่เปลี่ยน id ช่องหรือคีย์ JSON */
+function uLab(pk){
+  if(pk==='fs') return {
+    f:L('ความคลาดเคลื่อนของอัตราป้อนเชื้อเพลิง (ฝั่ง A)','Fuel feed rate error (side A)'),
+    c:L('ความคลาดเคลื่อนของค่า LHV as-fired (ฝั่ง A)','LHV as-fired error (side A)'),
+    b:L('ความคลาดเคลื่อนรวมฝั่ง B (อัตราไอน้ำ + เอนทาลปี)','Combined error, side B (steam rate + enthalpy)'),
+    tf:L('อัตราป้อนเชื้อเพลิง','Fuel feed rate'), tc:L('ค่า LHV as-fired','LHV as-fired'),
+    hf:L('ความคลาดเคลื่อนของการวัดอัตราป้อนเชื้อเพลิง % · ใช้ค่าจากสเปกหรือใบสอบเทียบของเครื่องชั่งหรือ flow meter เชื้อเพลิง · ถ้าประมาณจากจำนวนรอบรถตักหรือระดับถัง ความคลาดเคลื่อนจะสูงกว่ามาก',
+         'Fuel feed rate measurement error % · use the spec or calibration certificate of the fuel scale or fuel flow meter · estimates from loader buckets or tank levels carry much larger error'),
+    hc:L('ความคลาดเคลื่อนของค่าความร้อนเชื้อเพลิง % · ตัวอย่างส่งแล็บต้องเก็บช่วงเดียวกับการวัด · เชื้อเพลิงชีวมวลที่ความชื้นแกว่งทำให้ LHV as-fired ไม่แน่นอนสูง',
+         'Fuel heating value error % · the lab sample must be taken during the test period · biomass with swinging moisture makes the as-fired LHV highly uncertain'),
+    hb:L('ความคลาดเคลื่อนรวมของฝั่งไอน้ำ % · รวม steam flow meter (หรือ flow meter น้ำป้อน) กับเอนทาลปีไอน้ำและน้ำป้อนจากความดัน–อุณหภูมิ · ค่าตั้งต้น 3 เป็นค่าแนวทางของเครื่องมือ · ว่าง = ใช้ค่าเท่าฝั่ง A',
+         'Combined error of the steam side % · steam flow meter (or feedwater meter) plus steam and feedwater enthalpy from pressure–temperature · the default 3 is tool guidance · blank = same as side A'),
+    n:L('คู่หม้อไอน้ำ: ฝั่ง A = อัตราป้อนเชื้อเพลิง × LHV จึงไม่มีเทอม ΔT — ช่องความคลาดเคลื่อนแถวที่สองจึงหมายถึงอัตราป้อนเชื้อเพลิงและค่า LHV ส่วนฝั่ง B คือฝั่งไอน้ำ',
+        'Boiler pair: side A = fuel feed rate × LHV, so there is no ΔT term — the second row of error fields therefore means the fuel feed rate and the LHV, and side B is the steam side')};
+  if(pk==='ee') return {
+    f:L('ความคลาดเคลื่อนของกำลังไฟฟ้าที่วัด (ฝั่ง A)','Measured electrical power error (side A)'),
+    c:L('ความคลาดเคลื่อนของประสิทธิภาพมอเตอร์ (ฝั่ง A)','Motor efficiency error (side A)'),
+    b:L('ความคลาดเคลื่อนรวมฝั่ง B (อัตราไหล + เฮด + ประสิทธิภาพปั๊ม)','Combined error, side B (flow + head + pump efficiency)'),
+    tf:L('กำลังไฟฟ้าที่วัด','Measured electrical power'), tc:L('ประสิทธิภาพมอเตอร์','Motor efficiency'),
+    hf:L('ความคลาดเคลื่อนของเครื่องวัดกำลังไฟฟ้า % · รวม power analyzer กับ CT/PT · ใช้ค่าจากสเปกหรือใบสอบเทียบ · ถ้าคำนวณจาก V, I, PF ที่อ่านแยกกัน ความคลาดเคลื่อนจะสูงกว่า',
+         'Power meter error % · power analyzer plus CT/PT · use the spec or calibration certificate · computing from separately read V, I and PF carries larger error'),
+    hc:L('ความคลาดเคลื่อนของประสิทธิภาพมอเตอร์ % · ค่า nameplate ใช้ได้ที่ภาระพิกัด · ที่ภาระต่ำหรือมอเตอร์ที่พันขดลวดใหม่ ค่าจริงอาจต่างจาก nameplate มาก',
+         'Motor efficiency error % · the nameplate value holds at rated load · at low load or after rewinding the actual value may differ widely from the nameplate'),
+    hb:L('ความคลาดเคลื่อนรวมของฝั่งของไหล % · รวม flow meter, gauge วัดเฮด และประสิทธิภาพปั๊มจาก pump curve · ค่าตั้งต้น 5 เป็นค่าแนวทางของเครื่องมือ · ว่าง = ใช้ค่าเท่าฝั่ง A',
+         'Combined error of the fluid side % · flow meter, head gauges and pump efficiency from the pump curve · the default 5 is tool guidance · blank = same as side A'),
+    n:L('คู่มอเตอร์–ปั๊ม: ฝั่ง A = กำลังไฟฟ้าที่วัด × ประสิทธิภาพมอเตอร์ จึงไม่มีเทอม ΔT — ช่องความคลาดเคลื่อนแถวที่สองจึงหมายถึงกำลังไฟฟ้าที่วัดและประสิทธิภาพมอเตอร์ ส่วนฝั่ง B คือฝั่งของไหล',
+        'Motor–pump pair: side A = measured electrical power × motor efficiency, so there is no ΔT term — the second row of error fields therefore means the measured power and the motor efficiency, and side B is the fluid side')};
+  return {
+    f:L('ความคลาดเคลื่อนของอัตราการไหล','Flow rate error'),
+    c:L('ความคลาดเคลื่อนของ c<sub>p</sub> และความหนาแน่น','Error of c<sub>p</sub> and density'),
+    b:L('ความคลาดเคลื่อนรวมของฝั่ง B','Combined error of side B'),
+    tf:L('อัตราการไหล','Flow rate'), tc:'c'+'\u209A'+L(' และความหนาแน่น',' and density'),
+    hf:L(TE_HINTS.uF,'Flow meter error % · electromagnetic ±0.5–1 · ultrasonic clamp-on ±2–5 · from pump curve ±10'),
+    hc:L(TE_HINTS.uCp,'Error of cp and ρ % · pure water 0.5 · glycol mix of unknown ratio 2–3'),
+    hb:L(TE_HINTS.uB,'Combined measurement error of side B % · the per-pair default is tool guidance (air by anemometer 8 · steam 3 · hydraulic 5 · estimated load 10) · blank = same instruments as side A'),
+    n:''};
+}
+function setULabels(pk){
+  const u=uLab(pk);
+  const put=(id,html)=>{const e=$(id); if(e&&e.innerHTML!==html) e.innerHTML=html;};
+  put('lbUF',u.f); put('lbUCp',u.c); put('lbUB',u.b);
+  [['uF',u.hf],['uCp',u.hc],['uB',u.hb]].forEach(([id,t])=>{ const e=$(id); if(!e) return;
+    let d=e.nextElementSibling; if(!(d&&d.classList.contains('hint'))){ d=document.createElement('div'); d.className='hint'; e.insertAdjacentElement('afterend',d); }
+    if(d.textContent!==t) d.textContent=t; });
+  const nt=$('uPairNote'); if(nt){ if(nt.textContent!==u.n) nt.textContent=u.n; nt.style.display=u.n?'':'none'; }
+  const g=$('uDTGrid'); if(g) g.style.opacity=(pk==='fs'||pk==='ee')?'.55':'';
+  return u;
+}
 let S={};
 function calc(){
   const p=PAIRS[$('pair').value];
@@ -512,6 +565,7 @@ function calc(){
      เดิม: ใช้ค่าพิกัดเป็นค่าความไม่แน่นอนตรง ๆ และคูณ √2 จากฝั่งเดียว ไม่ระบุ k */
   /* [แก้ไข 3 ต.ค. 2569 audit] คู่ fs/ee ไม่มี ΔT ของไหล → ไม่ใช้เทอม ΔT */
   const pk0=$('pair').value, noDT=(pk0==='fs'||pk0==='ee');
+  const UL=setULabels(pk0);   /* [แก้ไข 17 พ.ย. 2569] #131 */
   const basis=($('uBasis')&&$('uBasis').value)||'spec', K=parseFloat(($('kCov')&&$('kCov').value)||'2')||2;
   const toStd=a=>basis==='k2'?a/2:a/Math.sqrt(3);
   const dT=Math.abs(V('uDT')), uT=Math.abs(V('uT'));
@@ -610,8 +664,8 @@ function calc(){
   const bTxt = basis==='k2'?L('ใบสอบเทียบ k = 2 → หาร 2','calibration certificate k = 2 → ÷ 2'):L('ค่าพิกัด → หาร √3','rated spec → ÷ √3');
   const terms=[
     [L('ΔT (ผลต่างอุณหภูมิ)','ΔT (temperature difference)'),relDTs,noDT?L('คู่สมดุลนี้ไม่มี ΔT ของไหล — ไม่นับเทอมนี้','This pair has no fluid ΔT — term not counted'):'ΔT = '+fmt(dT,2)+' °C, sensor ±'+fmt(uT,2)+' °C → u(ΔT) = '+fmt(uDTstd,3)+' °C'+(matched?' (matched pair, r = 0.75)':L(' (แยกกัน ×√2)',' (separate ×√2)'))],
-    [L('อัตราการไหล','Flow rate'),uFs,'±'+fmt(uF,2)+' % · '+bTxt],
-    ['c'+'\u209A'+L(' และความหนาแน่น',' and density'),uCps,'±'+fmt(uCp,2)+' % · '+bTxt]];
+    [UL.tf,uFs,'±'+fmt(uF,2)+' % · '+bTxt],   /* [แก้ไข 17 พ.ย. 2569] #131 ชื่อเทอมตามคู่สมดุล */
+    [UL.tc,uCps,'±'+fmt(uCp,2)+' % · '+bTxt]];
   const dom=terms.reduce((a,b)=>b[1]>a[1]?b:a);
   $('uncOut').innerHTML=`
    <div class="grid4" style="margin-top:12px">
