@@ -496,6 +496,8 @@ function renderResults(R){
   let lossRows='';
   R.items.forEach(i=>{lossRows+=`<tr><td>${i.useful?'🎯 ':''}${i.name}</td><td>${f(i.kW,1)}</td><td>${f(i.kW/R.grossHHV*100,2)}</td></tr>`;});
   lossRows+=`<tr><td>🌫️ ความสูญเสียทางปล่อง (Flue Gas Loss)</td><td>${f(R.flueLoss,1)}</td><td>${f(R.flueLoss/R.grossHHV*100,2)}</td></tr>`;
+  /* [แก้ไข 18 พ.ย. 2569] #161 ไอเสียออกจากเตารวมความร้อนที่อากาศเผาไหม้นำกลับเข้ามา (Q_preheat) — เดิมไม่มีแถวหัก แถวรวมได้เกิน 100 % (ติด recuperator ε 60 %: 124 %) */
+  const airCr=airCreditKW(R);if(airCr>0.05)lossRows+=`<tr><td>♻️ หัก: ความร้อนที่อากาศเผาไหม้นำกลับเข้าเตา (อุ่นอากาศ / อากาศเข้าร้อนกว่า 25 °C)</td><td>−${f(airCr,1)}</td><td>−${f(airCr/R.grossHHV*100,2)}</td></tr>`;
   $('resultsBody').innerHTML=`${(R.warns&&R.warns.length)?'<div id="fur_plaus_warn" style="background:#fdecec;border:1px solid #f5a0a0;border-radius:6px;padding:8px 10px;color:#b42318;font-size:13px;margin-bottom:8px">⛔ ค่าที่ป้อน/ผลลัพธ์เป็นไปไม่ได้ทางฟิสิกส์ — อย่านำไปรายงาน:<br>• '+R.warns.join('<br>• ')+'</div>':''}
    <div class="section-title" style="margin-top:0">สรุปผล (Annual Summary — ฐาน ${b})</div>
    <div class="summary-grid">
@@ -612,13 +614,16 @@ function o2CurveSVG(R){
    <text x="${W/2}" y="${H-2}" text-anchor="middle" font-size="10.5" fill="#8fa1b3">%O₂ ในก๊าซไอเสีย (dry)</text>
   </svg>`;
 }
+function airCreditKW(R){return R&&R.ah?Math.max(0,R.ah.Qpre*R.fuelKgH/3600):0;} /* [แก้ไข 18 พ.ย. 2569] #161 ความร้อนที่อากาศเผาไหม้นำกลับเข้าเตา (kW) */
 function sankeySVG(R){
   const W=1150,H=420,X0=40,XM=430,X1=820,BW=46;
   const total=R.grossHHV;if(!(total>0))return'<p class="desc">ยังไม่มีผล</p>';
   const scale=260/total; // px per kW
   const NAVY='#0f2a4a',TEAL='#12a4a4',GREY='#9fb0c0',RED='#d1495b',ORANGE='#e08a00';
   const flows=[];
-  flows.push({name:'สูญเสียปล่อง '+fmt(R.flueLoss,0)+' kW ('+fmt(R.flueLoss/total*100,1)+'%)',kW:R.flueLoss,color:RED});
+  /* [แก้ไข 18 พ.ย. 2569] #161 แถบปล่องใช้ค่าสุทธิ (หักความร้อนที่อากาศนำกลับ) — เดิมผลรวมแถบออกเกินแถบเข้า (ติด recuperator ล้นกรอบ) */
+  const stackNet=Math.max(0,R.flueLoss-airCreditKW(R));
+  flows.push({name:'สูญเสียปล่องสุทธิ '+fmt(stackNet,0)+' kW ('+fmt(stackNet/total*100,1)+'%)',kW:stackNet,color:RED});
   R.items.forEach(i=>flows.push({name:i.name.replace(/\s*\(.*\)/,'')+' '+fmt(i.kW,0)+' kW ('+fmt(i.kW/total*100,1)+'%)',kW:i.kW,color:i.useful?TEAL:GREY}));
   let y=40;
   let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:1150px;background:#fff;border:1px solid var(--line);border-radius:10px">`;
@@ -743,6 +748,7 @@ function renderReport(){
   let lossRows='';
   base.items.forEach(i=>{lossRows+=`<tr><td>${i.useful?'🎯 ':''}${i.name}</td><td>${f(i.kW,1)}</td><td>${f(i.kW/base.grossHHV*100,2)}</td></tr>`;});
   lossRows+=`<tr><td>ความสูญเสียทางปล่อง (Flue Gas)</td><td>${f(base.flueLoss,1)}</td><td>${f(base.flueLoss/base.grossHHV*100,2)}</td></tr>`;
+  {const cr=airCreditKW(base);if(cr>0.05)lossRows+=`<tr><td>♻️ หัก: ความร้อนที่อากาศเผาไหม้นำกลับเข้าเตา (อุ่นอากาศ / อากาศเข้าร้อนกว่า 25 °C)</td><td>−${f(cr,1)}</td><td>−${f(cr/base.grossHHV*100,2)}</td></tr>`;} /* [แก้ไข 18 พ.ย. 2569] #161 */
   html+='<table class="flowtbl"><tr><th>รายการ</th><th>kW</th><th>% ของ Gross</th></tr>'+lossRows+
    `<tr style="font-weight:700"><td>รวม Gross (HHV)</td><td>${f(base.grossHHV,1)}</td><td>100.00</td></tr></table>`;
   html+=sankeySVG(base);
@@ -1584,6 +1590,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 "📌 EF (kgCO₂/GJ): NG≈56.1 • น้ำมันเตา≈77.4 • ดีเซล≈74.1 • LPG≈63.1 • ถ่านหิน≈94.6 • ชีวมวล = biogenic (รายงานแยก, ใช้ 0 ในบัญชี fossil) — ใช้ EF ไทยของ สผ./TGO ปีล่าสุด · Excess Air คำนวณจาก O₂ (dry) ด้วยสมดุลมวลก๊าซไอเสียแห้งตามองค์ประกอบเชื้อเพลิง (สูตรลัด O₂/(20.9−O₂) ให้ค่าสูงกว่าเล็กน้อย) · อุณหภูมิอ้างอิงสมดุล 25°C ตามนิยาม HHV": "📌 EF (kgCO₂/GJ): NG≈56.1 • HFO≈77.4 • diesel≈74.1 • LPG≈63.1 • coal≈94.6 • biomass = biogenic (reported separately, 0 in the fossil inventory) — use the latest Thai ONEP/TGO EF · Excess Air is calculated from dry O₂ by a dry flue-gas mass balance on the fuel composition (the shortcut O₂/(20.9−O₂) gives slightly higher values) · balance reference temperature 25°C per HHV definition",
 "• Available Heat คำนวณจากองค์ประกอบเชื้อเพลิง, O₂ ในก๊าซไอเสีย (Excess Air จากสมดุลมวลก๊าซไอเสียแห้ง), อุณหภูมิก๊าซไอเสีย และเครดิตอุ่นอากาศเผาไหม้ — อุณหภูมิอ้างอิง 25°C": "• Available Heat is calculated from fuel composition, flue-gas O₂ (Excess Air from a dry flue-gas mass balance), flue-gas temperature and combustion-air preheat credit — reference temperature 25°C"
 });</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #161 EN แถวหักความร้อนที่อากาศนำกลับ + แถบปล่องสุทธิ */ if(window.TE_I18N)TE_I18N.set({
+"♻️ หัก: ความร้อนที่อากาศเผาไหม้นำกลับเข้าเตา (อุ่นอากาศ / อากาศเข้าร้อนกว่า 25 °C)": "♻️ Less: heat returned to the furnace by the combustion air (preheat / air above 25 °C)"
+},[[/^(\s*)สูญเสียปล่องสุทธิ\s+(-?\d[\d,]*\.?\d*)\s+kW\s+\((-?\d[\d,]*\.?\d*)%\)(\s*)$/,"$1Net stack loss $2 kW ($3%)$4"]]);</script>
 <script>/* ═════ EN r3 (6 พ.ย. 2569) — ข้อความแจ้งเตือน/รายงาน ═════ */ if(window.TE_I18N)TE_I18N.set({"ลบกรณีฐานไม่ได้": "The baseline cannot be deleted", "กรณีฐานยังไม่ได้เปิดรายการ Wall Loss": "Wall Loss is not enabled in the baseline", "กรณีฐานยังไม่ได้เปิดรายการ Opening Loss": "Opening Loss is not enabled in the baseline"},[
 [/^ลบ "(.*)" \?$/,function(m,n){n=n.replace(/^มาตรการที่ (\d+)$/,"Measure $1").replace(/^จูนการเผาไหม้ ลด O₂ → (.*)%$/,"Combustion tuning, O₂ → $1%").replace(/^ติด Recuperator \(ε (.*)% → อากาศ (.*)°C\)$/,"Recuperator (ε $1% → air $2°C)").replace(/^หุ้มฉนวนผนัง → ผิว (.*)°C$/,"Wall insulation → skin $1°C").replace(/^ลดการเปิดช่อง\/ประตู → (.*)% เวลา$/,"Less opening/door time → $1% of time");return 'Delete "'+n+'"?';}],
 [/^O₂ เป้าหมาย \((.*?)%\) ต้องต่ำกว่าค่าปัจจุบันของกรณีฐาน \((.*?)%\)$/,"Target O₂ ($1%) must be lower than the baseline value ($2%)"],
