@@ -741,16 +741,19 @@ function loadProject(ev){
 
 /* ============ Reference tab ============ */
 function renderRef(){
-  let h='<table><tr><th>ประเภทห้อง</th><th class="num">Quick (W/m²)</th><th class="num">m²/คน</th><th class="num">ไฟ (W/m²)</th><th class="num">อุปกรณ์ (W/m²)</th><th class="num">Fresh air (L/s·คน)</th><th class="num">T ห้อง (°C)</th><th class="num">ชม./ปี</th><th>หมายเหตุ</th></tr>';
+  let h='<table><tr><th>ประเภทห้อง</th><th class="num">Quick (W/m²)</th><th class="num">m²/คน</th><th class="num">ไฟ (W/m²)</th><th class="num">อุปกรณ์ (W/m²)</th><th class="num">Rp (L/s·คน)</th><th class="num">Ra (L/s·m²)</th><th class="num">T ห้อง (°C)</th><th class="num">ชม./ปี</th><th>หมายเหตุ</th></tr>';
   const notes={dc:'โหลด = IT kW เป็นหลัก · ASHRAE TC9.9',server:'ต้องมีเครื่องสำรอง 100%',
     mdb:'โหลด = heat loss อุปกรณ์ · พิจารณาพัดลมก่อน',ups:'แบต VRLA ต้องการ 25 °C',
     meet:'latent สูง คนแน่น',rest:'latent สูง + makeup air',prod:'มัก spot cooling/evaporative',
     control:'24 ชม. N+1',lab:'ตรวจ fume hood/exhaust'};
   Object.entries(PRESETS).forEach(([k,p])=>{
     h+='<tr><td>'+p.th+'</td><td class="num">'+(p.qWm2||'ตาม kW')+'</td><td class="num">'+p.den+
-    '</td><td class="num">'+p.li+'</td><td class="num">'+p.eq+'</td><td class="num">'+p.oa+
-    '</td><td class="num">'+p.ti+'</td><td class="num">'+fmt(p.hrs)+'</td><td style="color:var(--muted)">'+(notes[k]||'')+'</td></tr>';});
+    '</td><td class="num">'+p.li+'</td><td class="num">'+p.eq+'</td><td class="num">'+p.oa+(p.oaSrc==='a'?'':' *')+
+    '</td><td class="num">'+(p.ra!==undefined?p.ra:0)+(p.oaSrc==='a'?'':' *')+'</td><td class="num">'+p.ti+'</td><td class="num">'+fmt(p.hrs)+'</td><td style="color:var(--muted)">'+(notes[k]||'')+'</td></tr>';});
   h+='</table>';
+  /* [แก้ไข 17 พ.ย. 2569 #95] ตารางอ้างอิงแสดงทั้ง Rp และ Ra ให้ตรงกับสูตร Vbz = Rp·Pz + Ra·Az ที่ใช้คำนวณ (เดิมแสดงเฉพาะคอลัมน์ต่อคน "Fresh air")
+     และทำเครื่องหมาย * ให้ประเภทห้องที่เป็นค่าแนวทางของเครื่องมือ (ไม่อยู่ในตาราง ASHRAE 62.1) — ป้ายเดียวกับใต้ช่อง Ra ในแท็บ 1 */
+  h+='<p class="assump" style="margin:6px 0 0">Vbz = Rp·Pz + Ra·Az</p><p class="assump" style="margin:2px 0 0"><span>* </span><span>ค่าแนวทางของเครื่องมือ (ประเภทห้องนี้ไม่อยู่ในตาราง ASHRAE 62.1)</span></p>';
   $('refTable').innerHTML=h;
   let e='<table><tr><th>ระบบ</th><th>ช่วงขนาดเหมาะสม</th><th class="num">ประสิทธิภาพ typical</th><th>จุดแข็ง / ข้อควรระวัง</th></tr>';
   const eq=[
@@ -886,6 +889,7 @@ if(window.TE_I18N)TE_I18N.set({
 "ชื่อโครงการ/ลูกค้า": "Project/client name",
 "ค่าไฟฟ้า (บาท/kWh)": "Electricity price (THB/kWh)",
 "Fresh air (L/s·คน)": "Fresh air (L/s·person)",
+"Rp (L/s·คน)": "Rp (L/s·person)",
 "ห้อง Control Room": "Control room",
 "ห้องพยาบาล/คลินิก": "Infirmary/clinic",
 "ไฟแสงสว่าง (W/m²)": "Lighting (W/m²)",
