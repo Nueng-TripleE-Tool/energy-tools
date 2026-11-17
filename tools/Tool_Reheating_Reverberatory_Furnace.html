@@ -147,7 +147,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       <div class="field"><label>EF เชื้อเพลิง <span class="unit">kgCO₂/GJ</span></label><input type="number" id="ef_fuel" value="56.1" step="any"></div>
       <!-- [แก้ไข 3 ต.ค. 2569 audit] ฐานของ EF: EF ของ TGO/IPCC เป็นฐาน NCV (LHV) — เดิมคูณกับ GJ ฐาน HHV ทำให้ CO₂ เกิน ~10 % (NG) -->
       <div class="field"><label>ฐานของ EF <span class="unit">kgCO₂/GJ ต่อ</span></label><select id="ef_basis"><option value="NCV" selected>NCV/LHV (TGO/IPCC — แนะนำ)</option><option value="GCV">GCV/HHV</option></select></div>
-      <div class="field"><label>ฐานค่าความร้อน (แสดงผล/ราคา)</label><select id="basis"><option value="HHV">HHV (Gross — แบบ MEASUR)</option><option value="LHV">LHV (Net — แบบไทย/BS845)</option></select></div>
+      <div class="field"><label>ฐานค่าความร้อน (แสดงผล/ราคา)</label><select id="basis"><option value="HHV">HHV (Gross — แบบ MEASUR)</option><option value="LHV">LHV (Net — แบบงานตรวจวัดในไทย)</option><!-- [แก้ไข 17 พ.ย. 2569] ผลตรวจรอบ 5: BS 845 เป็นมาตรฐานหม้อไอน้ำ ไม่ใช้อ้างกับเตา --></select></div>
       <div class="field"><label>ชนิดเตา <span class="unit">สำหรับ benchmark/checklist</span></label><select id="ftype" onchange="renderFieldAudit()"><option value="reheat">เตาให้ความร้อน/อบ (Reheating, Heat Treat)</option><option value="melt">เตาหลอม (Reverberatory, Melting)</option></select></div>
     </div>
     <div class="section-title">② เชื้อเพลิง (Ultimate Analysis, % โดยมวล as-fired)</div>
@@ -266,7 +266,7 @@ const HINTS={
  c_fuel:'ที่มา: ใบแจ้งหนี้เชื้อเพลิง ÷ ค่าความร้อน (ต้องเป็นฐานเดียวกับที่เลือก HHV/LHV) เช่น (฿/kg) ÷ HV(MJ/kg) × 1000 = ฿/GJ',
  ef_fuel:'ที่มา: ตาราง EF รายเชื้อเพลิงของ TGO/สผ. ปีล่าสุด (kgCO₂/GJ) — ชีวมวล = biogenic รายงานแยก',
  ef_basis:'EF ของ TGO/สผ./IPCC (NG 56.1, LPG 63.1, น้ำมันเตา 77.4) เป็นฐาน NCV (LHV) — โปรแกรมคูณกับพลังงานเชื้อเพลิงฐานเดียวกับ EF เสมอ ไม่ขึ้นกับฐานแสดงผล/ราคา',
- basis:'MEASUR/สหรัฐฯ ใช้ HHV; งานไทย/BS 845/พพ. ใช้ LHV — เลือกให้ตรงกับฐานของราคาเชื้อเพลิงที่กรอก',
+ basis:'MEASUR/สหรัฐฯ ใช้ HHV; งานตรวจวัดในไทยมักรายงานฐาน LHV — เลือกให้ตรงกับฐานของราคาเชื้อเพลิงที่กรอก',
  ftype:'ใช้เลือกชุดเกณฑ์ benchmark, จุดตรวจวัด และ checklist ในแท็บ Field Audit ให้ตรงประเภทเตา',
  fuelKey:'เลือกค่า default จากคลัง หรือ "กำหนดเอง" แล้วกรอกผลวิเคราะห์จริงจากห้องปฏิบัติการ',
  fC:'ที่มา: ผลวิเคราะห์ ultimate analysis (as-fired) จากห้องปฏิบัติการ',
@@ -536,8 +536,9 @@ function renderResults(R){
 }
 // ===== Audit KPI + Benchmark + กราฟ η vs %O₂ (จาก engine Available Heat จริง) =====
 const BENCH={
- reheat:[['>55%','Excellent — มี Regenerative burner','var(--ok)'],['35–55%','Good — มี Recuperator','#1a6fb5'],['25–35%','Acceptable — ไม่มี WHR','var(--warn)'],['<25%','Poor — ควรปรับปรุงเร่งด่วน','var(--danger)']],
- melt:  [['>55%','Excellent — Oxy-fuel/Regenerative','var(--ok)'],['35–55%','Good — มี Recuperator','#1a6fb5'],['25–35%','Acceptable','var(--warn)'],['<25%','Poor — ควรปรับปรุงเร่งด่วน','var(--danger)']]};
+ /* [แก้ไข 17 พ.ย. 2569] ผลตรวจรอบ 5 (D6): ป้ายบอกระดับที่มักได้ ไม่ใช่บอกว่าเตานี้มีอุปกรณ์นั้น (เดิม 'มี Recuperator' ขึ้นทั้งที่ไม่ได้อุ่นอากาศ) · ช่วงเป็นค่าแนวทางของเครื่องมือ */
+ reheat:[['>55%','Excellent — ระดับเตาที่มี Regenerative burner','var(--ok)'],['35–55%','Good — ระดับเตาที่มี Recuperator','#1a6fb5'],['25–35%','Acceptable — ระดับเตาไม่มีการนำความร้อนกลับ','var(--warn)'],['<25%','Poor — ควรปรับปรุงเร่งด่วน','var(--danger)']],
+ melt:  [['>55%','Excellent — ระดับ Oxy-fuel/Regenerative','var(--ok)'],['35–55%','Good — ระดับเตาที่มี Recuperator','#1a6fb5'],['25–35%','Acceptable','var(--warn)'],['<25%','Poor — ควรปรับปรุงเร่งด่วน','var(--danger)']]};
 function auditKPIHTML(R){
   const f=fmt;
   const tph=R.chargeM/1000;
@@ -554,7 +555,7 @@ function auditKPIHTML(R){
     const active=(c===etaCol);
     bench+=`<div style="flex:1;min-width:130px;text-align:center;padding:8px 6px;border-radius:8px;border:${active?'2.5px solid '+c:'1px solid var(--line)'};background:${active?'#fff':'#f4f8fa'}">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:${c}">${v}</div>
-      <div style="font-size:10.5px;color:var(--muted)">${l}${active?' ◀ เตานี้':''}</div></div>`;
+      <div style="font-size:10.5px;color:var(--muted)">${l}${active?'<span> ◀ เตานี้</span>':''}</div></div>`;
   }
   return `<div class="section-title">KPI งานตรวจวัด & Benchmark (ชนิดเตา: ${R.ftype==='melt'?'เตาหลอม':'เตาให้ความร้อน/อบ'})</div>
    <div class="summary-grid">
@@ -574,7 +575,8 @@ function auditKPIHTML(R){
        <div class="row"><span class="k">Recuperator Effectiveness เป้า</span><span class="v">&gt; 60 %</span></div>
      </div>
    </div>
-   <div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px">${bench}</div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px">${bench}</div>
+   <div style="font-size:11px;color:var(--muted);margin:0 0 14px">ช่วง η และเกณฑ์อ้างอิงหน้างานเป็นค่าแนวทางของเครื่องมือ (ไม่มีมาตรฐานกำหนดตัวเลข) — ใช้เทียบเบื้องต้น</div>
    <div class="section-title">กราฟความไวต่อ %O₂ — Available Heat และประสิทธิภาพเตา (คำนวณจาก engine จริง)</div>
    ${o2CurveSVG(R)}`;
 }
@@ -749,7 +751,7 @@ function renderReport(){
    <p style="font-size:12.5px;color:var(--muted)">
    • วิธีคำนวณตามแนวทาง Process Heating Assessment (PHAST) ของโปรแกรม MEASUR (U.S. DOE/ORNL): Gross Heat Input = Σ(ความร้อนใช้ประโยชน์ + ความสูญเสียในเตา) / Available Heat<br>
    • Available Heat คำนวณจากองค์ประกอบเชื้อเพลิง, O₂ ในก๊าซไอเสีย (Excess Air ≈ O₂/(20.9−O₂)), อุณหภูมิก๊าซไอเสีย และเครดิตอุ่นอากาศเผาไหม้ — อุณหภูมิอ้างอิง 25°C<br>
-   • ฐาน HHV ตามธรรมเนียม MEASUR — แปลงเทียบผลตรวจวัดฐาน LHV (BS 845/ประกาศ พพ.) ด้วย η_LHV = η_HHV × (HHV/LHV)<br>
+   • ฐาน HHV ตามธรรมเนียม MEASUR — แปลงเทียบผลตรวจวัดฐาน LHV ด้วย η_LHV = η_HHV × (HHV/LHV)<br>
    • cp เฉลี่ยก๊าซไอเสียใช้การประมาณเชิงเส้น (±1–2%) · View factor ช่องเปิดใช้สูตรประมาณเทียบ curve PHAST · สัมประสิทธิ์พาความร้อนผนัง h = 1.31ΔT^⅓ พร้อมแฟกเตอร์ลม<br>
    • CO₂ ใช้ emission factor ที่ผู้ประเมินกำหนด (แนะนำ EF ของ สผ./TGO ปีล่าสุด; เชื้อเพลิงชีวมวลรายงาน biogenic CO₂ แยก) — ไม่ใช้ค่า eGRID สหรัฐฯ<br>
    • เครื่องมือนี้พัฒนาโดย Triple E Technology เพื่องานประเมินเบื้องต้นภาคสนาม ควรทวนสอบด้วยการตรวจวัดจริงก่อนตัดสินใจลงทุน</p>`;
@@ -955,17 +957,18 @@ function importJSON(input){
 function loadExample(){
   $('fuelKey').value='ng';applyFuelPreset();
   $('hr').value=6000;$('c_fuel').value=350;$('ef_fuel').value=56.1;$('basis').value='HHV';
-  $('o2d').value=5;$('t_flue').value=600;$('t_air').value=30;$('t_amb').value=30;$('humid').value=0.016;
+  $('o2d').value=5;$('t_flue').value=950;$('t_air').value=30; /* [แก้ไข 17 พ.ย. 2569] ผลตรวจรอบ 5: ตัวอย่างไม่อุ่นอากาศแต่ปล่อง 600 °C ได้ Excellent — เตาให้ความร้อนไม่มี recuperator ไอเสียออกราว 900–1,000 °C */$('t_amb').value=30;$('humid').value=0.016;
   $('charge_on').checked=true;$('charge_mat').value='steel';applyMaterial();
   $('charge_m').value=12000;$('charge_t_in').value=30;$('charge_t_out').value=1150;$('charge_pctMelt').value=0;$('charge_moist').value=0;$('charge_q_rxn').value=0;
   $('wall_on').checked=true;$('wall_A').value=150;$('wall_ts').value=85;$('wall_ta').value=30; /* [แก้ไข 10 ก.ย. 2569] ให้ตรงกับ t_amb=30 */$('wall_eps').value=0.85;$('wall_wind').value=0.5;
   $('opening_on').checked=true;$('opening_shape').value='rect';$('opening_dim1').value=1.2;$('opening_dim2').value=0.5;$('opening_thick').value=0.35;$('opening_t_in').value=1200;$('opening_pctOpen').value=15;$('opening_count').value=2;
   $('cooling_on').checked=true;$('cooling_flow').value=8;$('cooling_dt').value=6;
-  ['fixture','atmosphere','leakage','other'].forEach(k=>{$(k+'_on').checked=false;});
+  ['fixture','atmosphere','leakage'].forEach(k=>{$(k+'_on').checked=false;});
+  $('other_on').checked=true;$('other_kW').value=250; /* [แก้ไข 17 พ.ย. 2569] ความสูญเสียที่ไม่ได้แยกคิด (ราว 3–4 % ของความร้อนเข้า) — เดิมปิดไว้ */
   LOSS_ORDER.forEach(toggleLoss);
   saveActive();
   $('setupMsg').style.display='block';
-  $('setupMsg').innerHTML='โหลดตัวอย่างเตา Reheating เหล็ก 12 t/h (NG, O₂ 5%, ปล่อง 600°C) แล้ว — กดคำนวณ · ลองเพิ่มมาตรการ: ลด O₂ เหลือ 2.5% หรืออุ่นอากาศเป็น 350°C ด้วย recuperator';
+  $('setupMsg').innerHTML='โหลดตัวอย่างเตา Reheating เหล็ก 12 t/h (NG, O₂ 5%, ปล่อง 950°C) แล้ว — กดคำนวณ · ลองเพิ่มมาตรการ: ลด O₂ เหลือ 2.5% หรืออุ่นอากาศเป็น 350°C ด้วย recuperator';
 }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
 var FK_DESIGN=['charge_cps', 'charge_cpl', 'charge_tmelt', 'charge_lf', 'fixture_cp', 'wall_A', 'wall_eps', 'opening_dim1', 'opening_dim2', 'opening_thick', 'opening_count'], FK_MEAS=['fC', 'fH', 'fO', 'fN', 'fS', 'fM', 'fAsh', 'fHHV', 'o2d', 't_flue', 't_air', 't_amb', 'humid', 'charge_m', 'charge_t_in', 'charge_t_out', 'charge_moist', 'fixture_m', 'fixture_t_in', 'fixture_t_out', 'wall_ts', 'wall_wind', 'opening_t_in', 'opening_pctOpen', 'cooling_flow', 'cooling_dt', 'atmosphere_flow', 'atmosphere_t_in', 'atmosphere_t_out', 'leakage_m', 'leakage_t', 'other_kW'], FK_SET=['hr', 'c_fuel', 'ef_fuel', 'basis', 'ftype', 'fuelKey', 'ecm_o2', 'ecm_eff', 'ecm_ts', 'ecm_open', 'faultSel', 'rep_company', 'rep_assessor', 'rep_date', 'charge_mat', 'charge_pctMelt', 'charge_q_rxn', 'opening_shape', 'atmosphere_gas'], FK_CALC=['fLHV', 'wall_ta'];
@@ -1149,7 +1152,7 @@ if(window.TE_I18N)TE_I18N.set({
 "T น้ำหล่อเย็นเข้า/ออก": "Cooling water T in/out",
 "ไม่มี/ไม่ได้อุ่นอากาศ": "None/no air preheat",
 "%O₂ เป้าหมาย (NG/LPG)": "Target %O₂ (NG/LPG)",
-"Good — มี Recuperator": "Good — has recuperator",
+"Good — มี Recuperator": "Good — has recuperator", "Excellent — ระดับเตาที่มี Regenerative burner": "Excellent — level typical of regenerative burners", "Good — ระดับเตาที่มี Recuperator": "Good — level typical of a recuperator", "Acceptable — ระดับเตาไม่มีการนำความร้อนกลับ": "Acceptable — level typical without heat recovery", "Excellent — ระดับ Oxy-fuel/Regenerative": "Excellent — level typical of oxy-fuel/regenerative", "◀ เตานี้": "◀ this furnace", "ช่วง η และเกณฑ์อ้างอิงหน้างานเป็นค่าแนวทางของเครื่องมือ (ไม่มีมาตรฐานกำหนดตัวเลข) — ใช้เทียบเบื้องต้น": "The η bands and site reference criteria are tool guidance values (no standard sets these numbers) — use for a first comparison",
 "⭐ กรณีฐาน (Baseline)": "⭐ Baseline",
 "⚙️ ระบบ & เชื้อเพลิง": "⚙️ System & fuel",
 "อุณหภูมิอากาศเผาไหม้": "Combustion air temperature",
@@ -1469,6 +1472,10 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)(-?\d[\d,]*\.?\d*)\.\s+หมายเหตุและสมมุติฐาน(\s*)$/,"$1$2. Notes and assumptions$3"],
 [/^(\s*)สูญเสียปล่อง\s+(-?\d[\d,]*\.?\d*)\s+kW\s+\((-?\d[\d,]*\.?\d*)%\)(\s*)$/,"$1Stack loss $2 kW ($3%)$4"],
 [/^(\s*)LHV\s+\(Net\s+—\s+แบบไทย\/BS(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1LHV (Net — Thai/BS$2 style)$3"],
+/* [แก้ไข 17 พ.ย. 2569] ผลตรวจรอบ 5: ตัดการอ้าง BS 845 (มาตรฐานหม้อไอน้ำ) ในหน้าเตา */
+[/^(\s*)LHV\s+\(Net\s+—\s+แบบงานตรวจวัดในไทย\)(\s*)$/,"$1LHV (Net — Thai audit practice)$2"],
+[/^(\s*)MEASUR\/สหรัฐฯ\s+ใช้\s+HHV;\s+งานตรวจวัดในไทยมักรายงานฐาน\s+LHV\s+—\s+เลือกให้ตรงกับฐานของราคาเชื้อเพลิงที่กรอก(\s*)$/,"$1MEASUR/US use HHV; Thai audits usually report on LHV — choose the basis that matches the fuel price entered$2"],
+[/^(\s*)•\s+ฐาน\s+HHV\s+ตามธรรมเนียม\s+MEASUR\s+—\s+แปลงเทียบผลตรวจวัดฐาน\s+LHV\s+ด้วย\s+η_LHV\s+=\s+η_HHV\s+×\s+\(HHV\/LHV\)(\s*)$/,"$1• HHV basis per MEASUR convention — convert to compare with LHV-basis measurements using η_LHV = η_HHV × (HHV/LHV)$2"],
 [/^(\s*)Excess\s+Air\s+\(จาก\s+O₂\s+(-?\d[\d,]*\.?\d*)%\)(\s*)$/,"$1Excess Air (from O₂ $2%)$3"],
 [/^(\s*)(-?\d[\d,]*\.?\d*)\s+หมายเหตุและสมมุติฐาน(\s*)$/,"$1$2 Notes and assumptions$3"],
 [/^(\s*)หุ้มฉนวนผนัง\s+→\s+ผิว\s+(-?\d[\d,]*\.?\d*)°C(\s*)$/,"$1Wall insulation → skin $2°C$3"],
