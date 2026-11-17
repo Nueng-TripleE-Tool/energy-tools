@@ -196,7 +196,8 @@ body.nohints .hint{display:none}
           </select></div>
       </div>
       <div class="grid4">
-        <div><label>อากาศระบาย (Fresh air, L/s·คน)</label><input type="number" id="oaPerP" value="8.5" min="0" step="0.5" oninput="calc()"></div>
+        <div><label>อากาศระบายต่อคน (Rp, L/s·คน)</label><input type="number" id="oaPerP" value="2.5" min="0" step="0.1" oninput="calc()"></div><!-- [แก้ไข 17 พ.ย. 2569] R5-39: เดิม 8.5 L/s·คน (ค่ารวมของสำนักงานที่ความหนาแน่นตั้งต้น) → Rp + Ra ตาม ASHRAE 62.1 -->
+        <div><label>อากาศระบายต่อพื้นที่ (Ra, L/s·m²)</label><input type="number" id="oaPerA" value="0.3" min="0" step="0.1" oninput="calc()"><div class="hint" id="oaSrc" style="font-size:11px;color:var(--muted,#667)"></div></div>
         <div><label>อากาศรั่วซึม (Infiltration, ACH)</label><input type="number" id="ach" value="0.3" min="0" step="0.1" oninput="calc()"></div>
         <div><label>กิจกรรมของคน</label>
           <select id="activity" onchange="calc()">
@@ -451,6 +452,9 @@ function applyPreset(){
   $('tIn').value=p.ti;$('rhIn').value=p.rhi;
   $('sf').value=p.sf;$('qsf').value=p.sf;
   $('oaPerP').value=p.oa;$('ach').value=p.ach;
+  /* [แก้ไข 17 พ.ย. 2569] R5-39 Ra ตามประเภทห้อง + ป้ายที่มา (ASHRAE 62.1 ตาราง 6-1 หรือค่าแนวทางของเครื่องมือ) */
+  if($('oaPerA'))$('oaPerA').value=(p.ra!==undefined?p.ra:0);
+  if($('oaSrc'))$('oaSrc').innerHTML=(p.oaSrc==='a'?'<span>ค่าตั้งต้นตาม ASHRAE 62.1 ตาราง 6-1</span>':'<span>ค่าแนวทางของเครื่องมือ (ประเภทห้องนี้ไม่อยู่ในตาราง ASHRAE 62.1)</span>')+' · Vbz = Rp·Pz + Ra·Az';
   $('activity').value=p.act;
   const area=(+$('rw').value||0)*(+$('rl').value||0);
   $('npeople').value=Math.max(p.it?1:0, Math.round(area/p.den))||(p.it?1:2);
@@ -709,6 +713,8 @@ function loadProject(ev){
     // [แก้ไข 3 ต.ค. 2569 audit] คืนค่าฟอร์มข้อมูลห้อง (ไฟล์เก่าไม่มีคีย์ form → ข้าม)
     const hasForm=j.form&&typeof j.form==='object';
     if(hasForm){Object.keys(j.form).forEach(id=>{const e=$(id);if(!e||e.type==='file')return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!j.form[id];else e.value=j.form[id];});}
+    /* [แก้ไข 17 พ.ย. 2569] R5-39 ไฟล์ก่อนมีช่อง Ra: ค่าต่อคนเดิมรวมส่วนพื้นที่ไว้แล้ว → Ra = 0 เพื่อไม่นับซ้ำ */
+    if(hasForm&&!('oaPerA' in j.form)&&$('oaPerA'))$('oaPerA').value=0;
     // [แก้ไข 10 ก.ย. 2569] คืนค่า settings / clim / lastCalc (ไฟล์เก่าไม่มีคีย์ → ข้าม) แล้วรันท่อคำนวณ-เรนเดอร์ให้ครบทุกแท็บ
     if(j.settings&&typeof j.settings==='object'){
       ['tIn','hOp','tariff','eSrc','diurnal','provSel','sf','qsf','tOut','twbOut'].forEach(k=>{
@@ -774,7 +780,7 @@ function toggleHints(){document.body.classList.toggle('nohints');}
 
 /* ============ init ============ */
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['rw', 'rl', 'rh', 'npeople', 'wLight', 'wEquip', 'tOut', 'twbOut', 'expN', 'glN', 'expS', 'glS', 'expE', 'glE', 'expW', 'glW', 'wallType', 'glassType', 'shade', 'roofType'], FK_MEAS=['kwIT'], FK_SET=['roomName', 'roomType', 'tIn', 'rhIn', 'oaPerP', 'ach', 'activity', 'sf', 'qCond', 'qWm2', 'qsf', 'projName', 'divF', 'provSel', 'diurnal', 'eSrc', 'hOp', 'tariff'], FK_CALC=['rarea'];
+var FK_DESIGN=['rw', 'rl', 'rh', 'npeople', 'wLight', 'wEquip', 'tOut', 'twbOut', 'expN', 'glN', 'expS', 'glS', 'expE', 'glE', 'expW', 'glW', 'wallType', 'glassType', 'shade', 'roofType'], FK_MEAS=['kwIT'], FK_SET=['roomName', 'roomType', 'tIn', 'rhIn', 'oaPerP', 'oaPerA', 'ach', 'activity', 'sf', 'qCond', 'qWm2', 'qsf', 'projName', 'divF', 'provSel', 'diurnal', 'eSrc', 'hOp', 'tariff'], FK_CALC=['rarea'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -824,6 +830,12 @@ if(window.TE_I18N)TE_I18N.set({
 "ผลการคำนวณ (Cooling Load Result)": "Cooling load result",
 "ชั่วโมงใช้งาน/ปี (ห้อง comfort)": "Operating hours/yr (comfort rooms)",
 "อากาศระบาย (Fresh air, L/s·คน)": "Fresh air (L/s·person)",
+"อากาศระบายต่อคน (Rp, L/s·คน)": "Outdoor air per person (Rp, L/s·person)",
+"อากาศระบายต่อพื้นที่ (Ra, L/s·m²)": "Outdoor air per floor area (Ra, L/s·m²)",
+"ค่าตั้งต้นตาม ASHRAE 62.1 ตาราง 6-1": "Default per ASHRAE 62.1 Table 6-1",
+"ค่าแนวทางของเครื่องมือ (ประเภทห้องนี้ไม่อยู่ในตาราง ASHRAE 62.1)": "Tool guidance value (this room type is not in the ASHRAE 62.1 table)",
+"อากาศระบายต่อคน Rp ตาม ASHRAE 62.1 ตาราง 6-1: สำนักงาน/ประชุม 2.5 · ห้องเรียนบรรยาย/โถงรับรอง 3.8 · ร้านอาหาร 3.8 · ห้องปฏิบัติการ 5 L/s·คน — รวมกับ Ra × พื้นที่ (Vbz = Rp·Pz + Ra·Az)": "Outdoor air per person Rp per ASHRAE 62.1 Table 6-1: office/meeting 2.5 · lecture classroom/lobby 3.8 · restaurant 3.8 · laboratory 5 L/s·person — added to Ra × floor area (Vbz = Rp·Pz + Ra·Az)",
+"อากาศระบายต่อพื้นที่ Ra ตาม ASHRAE 62.1 ตาราง 6-1: สำนักงาน/ประชุม/ห้องพัก 0.3 · ร้านอาหาร/ห้องปฏิบัติการ 0.9 L/s·m² — ไฟล์โครงการเก่าที่ไม่มีช่องนี้จะใช้ 0 (ค่าต่อคนเดิมรวมส่วนพื้นที่ไว้แล้ว)": "Outdoor air per floor area Ra per ASHRAE 62.1 Table 6-1: office/meeting/guest room 0.3 · restaurant/laboratory 0.9 L/s·m² — older project files without this field use 0 (their per-person value already included the area part)",
 "ตารางอ้างอิง Preset ประเภทห้อง": "Room-type preset reference table",
 "เกณฑ์เลือกประเภทเครื่องโดยสรุป": "Equipment type selection summary",
 "พื้นที่ (m²) — คำนวณอัตโนมัติ": "Area (m²) — auto-calculated",
