@@ -13,7 +13,8 @@
        CDD(ฐาน Tb) = Σวัน max(0, T_วัน − Tb)   (อุณหภูมิรายวันจำลองจากค่าเฉลี่ยรายเดือนของเชียงใหม่/ภาคกลาง)
        OLS: β = (XᵀX)⁻¹Xᵀy  (normal equations, Gauss-Jordan + column scaling)
        R² = 1 − SSE/SST · adj R² = 1 − (1−R²)(n−1)/(n−p) · p = จำนวนพารามิเตอร์รวมค่าคงที่
-       RMSE = √(SSE/(n−p)) · CV(RMSE) = RMSE/ȳ × 100%  (ASHRAE Guideline 14: ≤ 15% สำหรับข้อมูลรายเดือน)
+       RMSE = √(SSE/(n−p)) · CV(RMSE) = RMSE/ȳ × 100%  (ASHRAE Guideline 14-2002 ข้อ 5.3.2.1(e): สมการฐาน ≤ 20% เมื่อช่วงรายงานผล < 12 เดือน · 25% เมื่อ 12–60 เดือน · 30% เมื่อ > 60 เดือน)
+       [แก้ไข 18 พ.ย. 2569] #292 เดิมเขียน "≤ 15% สำหรับข้อมูลรายเดือน" = เกณฑ์ calibrated simulation (G14 ข้อ 5.3.2.4(f)) ไม่ใช่สมการถดถอย
        SE(bj) = √(s²·[(XᵀX)⁻¹]jj), s² = SSE/(n−p) · t = bj/SE(bj) · p-value สองทาง จาก t-distribution df = n−p
        CUSUM_k = Σ(E_จริง − E_คาดการณ์) · ผลประหยัดสะสม = −CUSUM ปลายช่วงรายงาน (IPMVP Option C / ISO 50015)
      อ้างอิง: ISO 50006:2023 (EnB/EnPI), ISO 50015, IPMVP Core Concepts 2022, ASHRAE Guideline 14-2014 -->
@@ -416,7 +417,11 @@ table.coef .no{color:#b3261e;font-weight:700}
       <h3>2) ความเหมาะสมของโมเดล</h3>
       <code>R² = 1 − SSE/SST &nbsp;·&nbsp; adj R² = 1 − (1−R²)(n−1)/(n−p)<br>RMSE = √(SSE/(n−p)) &nbsp;·&nbsp; CV(RMSE) = RMSE/ȳ × 100%</code>
       <ul><li>n = จำนวนเดือน, p = จำนวนพารามิเตอร์ (รวมค่าคงที่ a)</li>
-        <li>ASHRAE Guideline 14: ข้อมูลรายเดือน CV(RMSE) ≤ 15% และ NMBE ≤ ±5% (OLS ให้ NMBE = 0 ในช่วง baseline เสมอ)</li></ul>
+        <!-- [แก้ไข 18 พ.ย. 2569] #292 เดิม "ASHRAE Guideline 14: ข้อมูลรายเดือน CV(RMSE) ≤ 15% และ NMBE ≤ ±5%" = เกณฑ์ calibrated simulation (ข้อ 5.3.2.4(f)) → เกณฑ์สมการฐาน ข้อ 5.3.2.1(e) -->
+        <li>ASHRAE Guideline 14 เกณฑ์สมการฐาน: CV(RMSE) ≤ 20% เมื่อข้อมูลช่วงรายงานผลน้อยกว่า 12 เดือน · ≤ 25% เมื่อ 12–60 เดือน · ≤ 30% เมื่อเกิน 60 เดือน</li>
+        <li>CV(RMSE) 15% และ NMBE 5% (ข้อมูลรายเดือน) เป็นเกณฑ์ของแบบจำลองคอมพิวเตอร์ที่ปรับเทียบกับข้อมูลจริง (calibrated simulation) ไม่ใช่เกณฑ์ของสมการถดถอย</li>
+        <li>OLS ที่มีค่าคงที่ a ให้ผลรวมของความคลาดเคลื่อนในช่วง baseline = 0 เสมอ จึงผ่านเกณฑ์ net determination bias ≤ 0.005%</li>
+        <li class="g14src">อ้างอิง: ASHRAE Guideline 14-2002 ข้อ 5.3.2.1(e) · 5.3.2.4(f) · 5.2.10 — <a href="https://www.eeperformance.org/uploads/8/6/5/0/8650231/ashrae_guideline_14-2002_measurement_of_energy_and_demand_saving.pdf" target="_blank" rel="noopener" style="color:inherit;word-break:break-all">https://www.eeperformance.org/uploads/8/6/5/0/8650231/ashrae_guideline_14-2002_measurement_of_energy_and_demand_saving.pdf</a></li></ul>
       <h3>3) ความมีนัยสำคัญของแต่ละตัวแปร</h3>
       <code>SE(bⱼ) = √(s²·[(XᵀX)⁻¹]ⱼⱼ), s² = SSE/(n−p)<br>t = bⱼ / SE(bⱼ) &nbsp;·&nbsp; p-value จาก t-distribution (df = n−p)</code>
       <ul><li>กฎหัวแม่มือ |t| &gt; 2 ≈ p &lt; 0.05 → ตัวแปรช่วยอธิบายจริง</li>
@@ -485,7 +490,7 @@ table.coef .no{color:#b3261e;font-weight:700}
       <div>④ ตัด outlier ได้เมื่อมีหลักฐานหน้างานเท่านั้น และต้องบันทึกเหตุผล</div>
       <div>⑤ CUSUM หักหัว = สมรรถนะเปลี่ยน · ผลประหยัด = Σ(คาดการณ์ − จริง)</div>
     </div>
-    <p class="small-note">เกณฑ์อ้างอิง: ASHRAE Guideline 14 (CV(RMSE) ≤ 15% รายเดือน) · ISO 50006 · IPMVP</p>
+    <p class="small-note"><!-- [แก้ไข 18 พ.ย. 2569] #292 เดิม "CV(RMSE) ≤ 15% รายเดือน" -->เกณฑ์อ้างอิง: ASHRAE Guideline 14-2002 ข้อ 5.3.2.1(e) (CV(RMSE) สมการฐาน ≤ 20% เมื่อช่วงรายงานผลน้อยกว่า 12 เดือน · 25% เมื่อ 12–60 เดือน) · ISO 50006 · IPMVP</p>
     <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
       <button class="big-btn small gray" id="homeBtn">🏠 หน้าแรก</button>
       <button class="big-btn" id="againBtn">↻ เล่นใหม่ทั้งหมด</button>
@@ -713,12 +718,17 @@ var VN={P:'ผลผลิต',C:'CDD',D:'วันทำงาน',K:'สีร
 var VU={P:'kWh/t',C:'kWh/(°C·วัน)',D:'kWh/วัน',K:'kWh/รหัส'};
 function eqHTML(m,keys,dec){var s='E = <b>'+fmt(m.B[0],0)+'</b>';
   keys.forEach(function(k,j){var b=m.B[j+1];s+=(b<0?' − ':' + ')+'<b>'+fmt(Math.abs(b),dec&&dec[j]!=null?dec[j]:2)+'</b>·'+VN[k];});return s+'  (kWh/เดือน)';}
-function metsHTML(m){var cvOk=m.cv<=15;
+/* [แก้ไข 18 พ.ย. 2569] #292 เกณฑ์ CV(RMSE) ของสมการฐานตาม ASHRAE Guideline 14-2002 ข้อ 5.3.2.1(e): ≤ 20% เมื่อข้อมูลช่วงรายงานผล
+   น้อยกว่า 12 เดือน · ≤ 25% เมื่อ 12–60 เดือน · ≤ 30% เมื่อเกิน 60 เดือน — เดิมตัดที่ 15% (เกณฑ์ calibrated simulation ข้อ 5.3.2.4(f))
+   ด่าน 1–4 ไม่มีช่วงรายงานผล → 20% (เข้มสุด) · ด่าน 5 ช่วงรายงานผล 12 เดือน (ปี 68) → 25% · เทียบด้วยค่าที่แสดง (ทศนิยม 1 ตำแหน่ง)
+   อ้างอิง: https://www.eeperformance.org/uploads/8/6/5/0/8650231/ashrae_guideline_14-2002_measurement_of_energy_and_demand_saving.pdf */
+function metsHTML(m,repMonths){var t12=(repMonths>=12),lim=t12?25:20,cvOk=Math.round(m.cv*10)/10<=lim;
   return '<div class="mets"><div class="met"><span class="k">R²</span><span class="v">'+m.r2.toFixed(3)+'</span></div>'+
    '<div class="met"><span class="k">adj R²</span><span class="v">'+m.adj.toFixed(3)+'</span></div>'+
    '<div class="met '+(cvOk?'ok':'bad')+'"><span class="k">CV(RMSE)</span><span class="v">'+m.cv.toFixed(1)+'%</span></div>'+
    '<div class="met"><span class="k">n · p</span><span class="v">'+m.n+' · '+m.k+'</span></div></div>'+
-   '<div class="ashrae">'+(cvOk?'✔ ผ่านเกณฑ์แนะนำ ASHRAE G14 (CV(RMSE) ≤ 15% รายเดือน)':'⚠ เกินเกณฑ์แนะนำ ASHRAE G14 (≤ 15%)')+'</div>';}
+   '<div class="ashrae">'+(cvOk?(t12?'✔ ผ่านเกณฑ์สมการฐาน ASHRAE G14 (CV(RMSE) ≤ 25% เมื่อช่วงรายงานผล 12–60 เดือน)':'✔ ผ่านเกณฑ์สมการฐาน ASHRAE G14 (CV(RMSE) ≤ 20% เมื่อช่วงรายงานผลน้อยกว่า 12 เดือน)')
+     :(t12?'⚠ เกินเกณฑ์สมการฐาน ASHRAE G14 (≤ 25% เมื่อช่วงรายงานผล 12–60 เดือน)':'⚠ เกินเกณฑ์สมการฐาน ASHRAE G14 (≤ 20% เมื่อช่วงรายงานผลน้อยกว่า 12 เดือน)'))+'</div>';}
 function coefHTML(m,keys){var h='<table class="coef"><tr><th>พารามิเตอร์</th><th>ค่า b</th><th>SE</th><th>t</th><th>p</th><th></th></tr>';
   var nm=['ค่าคงที่ a'].concat(keys.map(function(k){return VN[k];}));
   for(var j=0;j<m.k;j++){var ok=Math.abs(m.t[j])>2;
@@ -1063,7 +1073,7 @@ function initL5(seed){
     '<label style="font-weight:600;font-size:.9rem">'+(wear?'พลังงานสูญเสียสะสม ม.ค.–ธ.ค. 68 (kWh)':'ผลประหยัดสะสม ม.ค.–ธ.ค. 68 (kWh)')+'</label>'+
     '<input class="numIn" id="savIn" type="number" inputmode="numeric" placeholder="เช่น 150000">'+
     '<div class="small-note">ยอมรับคลาดเคลื่อน ±10% · '+(wear?'สูญเสีย = Σ(จริง − คาดการณ์) = CUSUM ปลายช่วง':'ผลประหยัด = Σ(คาดการณ์ − จริง) = −CUSUM ปลายช่วง')+' (CUSUM ณ ธ.ค. 67 = 0 พอดี)</div>';
-  $('stats').innerHTML='<div class="eq">Baseline ปี 66–67: '+eqHTML(m,['P','C'])+'</div>'+metsHTML(m);
+  $('stats').innerHTML='<div class="eq">Baseline ปี 66–67: '+eqHTML(m,['P','C'])+'</div>'+metsHTML(m,12);   /* [แก้ไข 18 พ.ย. 2569] #292 ช่วงรายงานผล ปี 68 = 12 เดือน */
   $('goBtn').textContent='ส่งคำตอบ ✔';
   $('savIn').addEventListener('input',chkL5);
   drawL5(true);
@@ -1648,5 +1658,17 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)(-?\d[\d,]*\.?\d*)\s+จุด(\s*)$/,"$1$2 pts$3"]
 ]);
 </script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #292 คำแปล EN เกณฑ์ CV(RMSE) ของสมการฐาน (ASHRAE Guideline 14-2002 ข้อ 5.3.2.1(e)) */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"✔ ผ่านเกณฑ์สมการฐาน ASHRAE G14 (CV(RMSE) ≤ 20% เมื่อช่วงรายงานผลน้อยกว่า 12 เดือน)":"✔ Meets the ASHRAE G14 baseline-model limit (CV(RMSE) ≤ 20% for a reporting period under 12 months)",
+"✔ ผ่านเกณฑ์สมการฐาน ASHRAE G14 (CV(RMSE) ≤ 25% เมื่อช่วงรายงานผล 12–60 เดือน)":"✔ Meets the ASHRAE G14 baseline-model limit (CV(RMSE) ≤ 25% for a 12–60 month reporting period)",
+"⚠ เกินเกณฑ์สมการฐาน ASHRAE G14 (≤ 20% เมื่อช่วงรายงานผลน้อยกว่า 12 เดือน)":"⚠ Exceeds the ASHRAE G14 baseline-model limit (≤ 20% for a reporting period under 12 months)",
+"⚠ เกินเกณฑ์สมการฐาน ASHRAE G14 (≤ 25% เมื่อช่วงรายงานผล 12–60 เดือน)":"⚠ Exceeds the ASHRAE G14 baseline-model limit (≤ 25% for a 12–60 month reporting period)",
+"ASHRAE Guideline 14 เกณฑ์สมการฐาน: CV(RMSE) ≤ 20% เมื่อข้อมูลช่วงรายงานผลน้อยกว่า 12 เดือน · ≤ 25% เมื่อ 12–60 เดือน · ≤ 30% เมื่อเกิน 60 เดือน":"ASHRAE Guideline 14 baseline-model limit: CV(RMSE) ≤ 20% when reporting-period data cover less than 12 months · ≤ 25% for 12–60 months · ≤ 30% for more than 60 months",
+"CV(RMSE) 15% และ NMBE 5% (ข้อมูลรายเดือน) เป็นเกณฑ์ของแบบจำลองคอมพิวเตอร์ที่ปรับเทียบกับข้อมูลจริง (calibrated simulation) ไม่ใช่เกณฑ์ของสมการถดถอย":"CV(RMSE) 15% and NMBE 5% (monthly data) are the limits for a computer model calibrated to measured data (calibrated simulation) — not for a regression model",
+"OLS ที่มีค่าคงที่ a ให้ผลรวมของความคลาดเคลื่อนในช่วง baseline = 0 เสมอ จึงผ่านเกณฑ์ net determination bias ≤ 0.005%":"OLS with a constant a always gives residuals that sum to 0 over the baseline, so it passes the net determination bias limit ≤ 0.005%",
+"อ้างอิง: ASHRAE Guideline 14-2002 ข้อ 5.3.2.1(e) · 5.3.2.4(f) · 5.2.10 —":"Reference: ASHRAE Guideline 14-2002 clauses 5.3.2.1(e) · 5.3.2.4(f) · 5.2.10 —",
+"เกณฑ์อ้างอิง: ASHRAE Guideline 14-2002 ข้อ 5.3.2.1(e) (CV(RMSE) สมการฐาน ≤ 20% เมื่อช่วงรายงานผลน้อยกว่า 12 เดือน · 25% เมื่อ 12–60 เดือน) · ISO 50006 · IPMVP":"Reference criteria: ASHRAE Guideline 14-2002 clause 5.3.2.1(e) (baseline-model CV(RMSE) ≤ 20% for a reporting period under 12 months · 25% for 12–60 months) · ISO 50006 · IPMVP"
+});</script>
 </body>
 </html>
