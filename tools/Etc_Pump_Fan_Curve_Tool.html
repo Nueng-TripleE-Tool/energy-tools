@@ -199,14 +199,15 @@ hr{border:none;border-top:1px solid #e8ecf4;margin:9px 0;}
   </div>
   <div class="ss">
     <div class="st">System Curve Parameters</div>
-    <label>ΔP_static (m หรือ Pa) <span style="color:#b45309;font-size:10px">★ วัดที่ Q=0 (ปิดวาล์ว)</span></label>
+    <label>ΔP_static (m หรือ Pa) <span style="color:#b45309;font-size:10px">★ ที่ Q=0: ผลต่างระดับ + ความดันปลายทาง (วัดตอนเครื่องหยุด ไม่ใช่ Shutoff)</span><!-- [แก้ไข 17 พ.ย. 2569] #104 เดิม "วัดที่ Q=0 (ปิดวาล์ว)" — ปิดวาล์วขณะปั๊มเดินได้ Shutoff head ของปั๊ม ไม่ใช่หัวคงที่ของระบบ --></label>
     <input type="number" id="staticHead" value="12" step="0.1">
     <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:6px 8px;margin-top:5px;font-size:10px;color:#78350f;line-height:1.65">
       ⚠️ K จาก 1 จุดสมมติ ΔP∝Q² (Turbulent)<br>
-      กรอก 2 จุดเพื่อ Validate ความแม่นยำ
+      กรอก 2 จุดเพื่อ Validate ความแม่นยำ<br>
+      <span>จุดอ้างอิง = Q กับ Head/ΔP ของเครื่องขณะเดินปกติ (วาล์ว/Damper อยู่ตำแหน่งใช้งาน)</span><!-- [แก้ไข 17 พ.ย. 2569] #104 -->
     </div>
     <label>จุดที่ 1: Q_ref₁</label><input type="number" id="qRef" value="60" placeholder="m³/h หรือ CMH">
-    <label>จุดที่ 1: ΔP_ref₁ ที่วัดจริง</label><input type="number" id="dpRef" value="28.5">
+    <label>จุดที่ 1: ΔP_ref₁ ที่วัดจริง</label><input type="number" id="dpRef" value="37.5">
     <label>จุดที่ 2: Q_ref₂ (optional)</label><input type="number" id="qRef2" value="" placeholder="จุดวัดที่ 2">
     <label>จุดที่ 2: ΔP_ref₂ (optional)</label><input type="number" id="dpRef2" value="" placeholder="ถ้ามีจะ Cross-check K">
     <div class="brow" style="margin-top:6px"><button class="btn" style="width:100%;justify-content:center" onclick="calcK()">⟳ คำนวณ K</button></div>
@@ -289,8 +290,8 @@ hr{border:none;border-top:1px solid #e8ecf4;margin:9px 0;}
         <div><label>RPM เดิม (N₁)</label><input type="number" id="an1" value="1450"></div>
         <div><label>RPM ใหม่ (N₂)</label><input type="number" id="an2" value="1160"></div>
         <div><label>Q₁ ที่ BEP</label><input type="number" id="aq1" value="55"></div>
-        <div><label>H₁/ΔP₁ ที่ BEP</label><input type="number" id="ah1" value="33.5"></div>
-        <div><label>P_shaft₁ (kW)</label><input type="number" id="ap1" value="8.2"></div>
+        <div><label>H₁/ΔP₁ ที่ BEP</label><input type="number" id="ah1" value="39.5"></div>
+        <div><label>P_shaft₁ (kW)</label><input type="number" id="ap1" value="7.54"></div>
         <div><label>สัดส่วนหัวคงที่ f (เว้นว่าง = ΔP_static ÷ H₁)</label><input type="number" id="affF" value="" step="0.05" min="0" max="0.95" placeholder="อัตโนมัติ"></div><!-- [แก้ไข 17 พ.ย. 2569] R5-52 วิธีหัวควบคุม (มติเดียวกับ R6-01) -->
         <div style="display:flex;align-items:flex-end"><button class="btn btn-p" style="width:100%;justify-content:center" onclick="calcAff()">คำนวณ →</button></div>
       </div>
@@ -312,7 +313,7 @@ hr{border:none;border-top:1px solid #e8ecf4;margin:9px 0;}
       <div class="ch-sm"><canvas id="chartAff"></canvas></div>
     </div>
     <div class="tip">💡 ระบบที่ไม่มี static head (เส้นระบบผ่านจุดกำเนิด): ลด RPM 20% → Flow ลด 20%, Head ลด 36%, P_shaft ลด 49%<br>
-    ระบบที่มี static head หรือคุมความดันประหยัดน้อยกว่านี้ — ตัวอย่างนี้ (f ≈ 0.36) ลดได้ราว 38%<br>
+    ระบบที่มี static head หรือคุมความดันประหยัดน้อยกว่านี้ — ตัวอย่างนี้ (f ≈ 0.30) ลดได้ราว 40%<br>
     VFD มักประหยัดกว่าการหรี่วาล์ว | ตัดใบพัด: D-ratio แทน N-ratio<br><!-- [แก้ไข 17 พ.ย. 2569] R5-52 เดิม "P_shaft ลดถึง 49%!" และ "ดีกว่าเสมอ" -->
     <span style="color:#b45309">⚠️ P_electrical ลดน้อยกว่า P_shaft เพราะ Motor η เปลี่ยนตาม Load — VFD Motor ต้องดู Efficiency Curve ที่ Part Load ด้วย</span>
   </div>
@@ -348,16 +349,18 @@ let drawnMain=false, drawnSys=false;
 const TABS=['input','curves','system','affinity','report'];
 
 // ══ SAMPLE DATA ════════════════════════════════════════════════
-const SP={proj:'โรงงาน A — ปั้มน้ำหล่อเย็น CW-P01',tester:'อ.หนึ่ง กลับทวี',tag:'P-101',rpm:1450,kw:22,dz:3,sh:12,qr:60,dpr:28.5,
+const SP={proj:'โรงงาน A — ปั้มน้ำหล่อเย็น CW-P01',tester:'อ.หนึ่ง กลับทวี',tag:'P-101',rpm:1450,kw:22,dz:3,sh:12,qr:60,dpr:37.5,/* [แก้ไข 17 พ.ย. 2569] #104 เดิม 28.5 ไม่อยู่บนเส้นปั๊ม (H ที่ 60 m³/h = 37.5 m) → จุดทำงานที่คำนวณได้ไปอยู่ 69 m³/h ไม่ตรงจุดอ้างอิง */
   rows:[{q:0,p1:0,p2:46,kw:4.2,n:'Shutoff (วาล์วปิดสนิท)'},{q:18,p1:1.2,p2:44.5,kw:5.1,n:'วาล์ว 25%'},
     {q:36,p1:1.8,p2:42.2,kw:6.8,n:'วาล์ว 50%'},{q:55,p1:2.0,p2:38.5,kw:8.2,n:'BEP — วาล์ว 65%'},
     {q:72,p1:2.3,p2:32.0,kw:9.5,n:'วาล์ว 75%'},{q:85,p1:2.5,p2:24.0,kw:10.8,n:'วาล์ว 90%'},
     {q:100,p1:2.8,p2:13.5,kw:12.1,n:'Runout (วาล์วเปิดสนิท)'}]};
-const SF={proj:'โรงงาน B — พัดลมระบายความร้อน CT-F01',tester:'อ.หนึ่ง กลับทวี',tag:'F-201',rpm:960,kw:11,rho:1.2,sh:50,qr:18000,dpr:380,
-  rows:[{q:0,p1:0,p2:520,kw:1.8,n:'Shutoff (Damper ปิด)'},{q:5000,p1:10,p2:502,kw:2.6,n:'Damper 25%'},
-    {q:10000,p1:20,p2:472,kw:4.1,n:'Damper 50%'},{q:16000,p1:30,p2:430,kw:6.0,n:'BEP — Damper 70%'},
-    {q:20000,p1:35,p2:390,kw:7.8,n:'Damper 85%'},{q:24000,p1:40,p2:320,kw:9.2,n:'Damper 95%'},
-    {q:28000,p1:45,p2:220,kw:10.5,n:'Runout (Damper เปิดสนิท)'}]};
+/* [แก้ไข 17 พ.ย. 2569] #104 กำลังไฟฟ้าตัวอย่างพัดลมเดิม (1.8–10.5 kW, มอเตอร์ 11 kW) ให้ η สูงสุดเพียง 33 % ที่ 10,000 CMH
+   ขัดกับหมายเหตุ "BEP — Damper 70%" ที่ 16,000 CMH → ปรับกำลังให้ η สูงสุด ≈ 65 % ที่ 16,000 CMH (มอเตอร์ 5.5 kW) · ความดันทุกแถวคงเดิม */
+const SF={proj:'โรงงาน B — พัดลมระบายความร้อน CT-F01',tester:'อ.หนึ่ง กลับทวี',tag:'F-201',rpm:960,kw:5.5,rho:1.2,sh:50,qr:18000,dpr:380,
+  rows:[{q:0,p1:0,p2:520,kw:1.3,n:'Shutoff (Damper ปิด)'},{q:5000,p1:10,p2:502,kw:1.85,n:'Damper 25%'},
+    {q:10000,p1:20,p2:472,kw:2.35,n:'Damper 50%'},{q:16000,p1:30,p2:430,kw:2.95,n:'BEP — Damper 70%'},
+    {q:20000,p1:35,p2:390,kw:3.45,n:'Damper 85%'},{q:24000,p1:40,p2:320,kw:4.05,n:'Damper 95%'},
+    {q:28000,p1:45,p2:220,kw:4.5,n:'Runout (Damper เปิดสนิท)'}]};
 
 // ══ INIT ══════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
@@ -448,7 +451,9 @@ function applyS(s,t,aq,ah,ap){
   document.getElementById('testRPM').value=s.rpm; document.getElementById('motorKW').value=s.kw;
   document.getElementById('staticHead').value=s.sh; document.getElementById('qRef').value=s.qr; document.getElementById('dpRef').value=s.dpr;
   document.getElementById('an1').value=s.rpm; document.getElementById('an2').value=Math.round(s.rpm*.8);
-  document.getElementById('aq1').value=aq; document.getElementById('ah1').value=ah; document.getElementById('ap1').value=ap;
+  /* [แก้ไข 17 พ.ย. 2569] #104 ap = P_elec ที่ BEP → แปลงเป็น P_shaft (ช่องนี้คือ P_shaft₁) ด้วย η มอเตอร์ × η คัปปลิ้งที่กรอก */
+  const _eM=parseFloat(document.getElementById('motorEff')?.value)||0.92, _eC=parseFloat(document.getElementById('couplingEff')?.value)||1.0;
+  document.getElementById('aq1').value=aq; document.getElementById('ah1').value=ah; document.getElementById('ap1').value=+(ap*_eM*_eC).toFixed(2);
   if(t==='pump') document.getElementById('staticZ').value=s.dz||0;
   else document.getElementById('airDensity').value=s.rho||1.2;
   rows=[];rid=0;
@@ -470,8 +475,8 @@ function applyS(s,t,aq,ah,ap){
   recomputeRows(); /* [แก้ไข 3 ต.ค. 2569 audit] ใช้ ρ ของเหลวที่เลือกจริง (เดิมบังคับ 1000) */
   calcK(); renderTbl();
 }
-function loadP(){applyS(SP,'pump',55,33.5,8.2);}
-function loadF(){applyS(SF,'fan',16000,400,6.0);}
+function loadP(){applyS(SP,'pump',55,39.5,8.2);} /* [แก้ไข 17 พ.ย. 2569] #104 H₁ เดิม 33.5 ≠ Head ที่ BEP ของตัวอย่าง (39.5 m) */
+function loadF(){applyS(SF,'fan',16000,400,2.95);}
 
 // ══ ROWS ══════════════════════════════════════════════════════
 function addRow(){rid++;rows.push({id:rid,q:'',p1:'',p2:'',head:'',kw:'',rpm:document.getElementById('testRPM').value||'',eff:'',note:''});renderTbl();}
@@ -752,7 +757,9 @@ function drawSys(Qs,Hs){
   for(let i=0;i<sys.length-1;i++){
     const h1=interp(sys[i].x,Qs,Hs),h2=interp(sys[i+1].x,Qs,Hs);
     if(h1!==null&&h2!==null&&(h1-sys[i].y)*(h2-sys[i+1].y)<=0){
-      opQ=(sys[i].x+sys[i+1].x)/2; opH=(h1+h2)/2; break;
+      /* [แก้ไข 17 พ.ย. 2569] #104 หาจุดตัดด้วยการประมาณเชิงเส้นในช่วงที่ผลต่างเปลี่ยนเครื่องหมาย (เดิมใช้กึ่งกลางช่วง คลาดได้ครึ่งช่วง ≈ 0.8 % ของ Q สูงสุด) */
+      const d1=h1-sys[i].y, d2=h2-sys[i+1].y, t=(d1===d2)?0.5:d1/(d1-d2);
+      opQ=sys[i].x+t*(sys[i+1].x-sys[i].x); opH=h1+t*(h2-h1); break;
     }
   }
   document.getElementById('opBox').style.display=opQ?'block':'none';
@@ -895,7 +902,7 @@ if(window.TE_I18N)TE_I18N.set({
 "จุดตัดของ Equipment Curve กับ System Curve = Operating Point จริง": "Intersection of equipment curve and system curve = actual operating point",
 "VFD ดีกว่า Throttle วาล์วเสมอ | ตัดใบพัด: D-ratio แทน N-ratio": "VFD always beats valve throttling | Impeller trim: D-ratio instead of N-ratio",
 "💡 ระบบที่ไม่มี static head (เส้นระบบผ่านจุดกำเนิด): ลด RPM 20% → Flow ลด 20%, Head ลด 36%, P_shaft ลด 49%": "💡 Systems without static head (system curve through the origin): 20% lower RPM → 20% less flow, 36% less head, 49% less shaft power",
-"ระบบที่มี static head หรือคุมความดันประหยัดน้อยกว่านี้ — ตัวอย่างนี้ (f ≈ 0.36) ลดได้ราว 38%": "Systems with static head or pressure control save less — this example (f ≈ 0.36) saves about 38%",
+"ระบบที่มี static head หรือคุมความดันประหยัดน้อยกว่านี้ — ตัวอย่างนี้ (f ≈ 0.30) ลดได้ราว 40%": "Systems with static head or pressure control save less — this example (f ≈ 0.30) saves about 40%",
 "VFD มักประหยัดกว่าการหรี่วาล์ว | ตัดใบพัด: D-ratio แทน N-ratio": "A VFD usually saves more than valve throttling | Impeller trim: D-ratio instead of N-ratio",
 "สัดส่วนหัวคงที่ f (เว้นว่าง = ΔP_static ÷ H₁)": "Fixed-head fraction f (blank = ΔP_static ÷ H₁)",
 "อัตโนมัติ": "auto",
@@ -1093,5 +1100,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>/* ═════ EN r3 (6 พ.ย. 2569) — ข้อความแจ้งเตือน/รายงาน ═════ */ if(window.TE_I18N)TE_I18N.set({"ล้างข้อมูล?": "Clear data?", "กรุณากรอกข้อมูลอย่างน้อย 2 จุด": "Please enter at least 2 data points", "กรุณากรอกข้อมูลให้ครบ": "Please fill in all fields"},[
 
 ]);</script>
+<script>/* [แก้ไข 17 พ.ย. 2569] #104 คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"★ ที่ Q=0: ผลต่างระดับ + ความดันปลายทาง (วัดตอนเครื่องหยุด ไม่ใช่ Shutoff)":"★ At Q=0: level difference + end-pressure difference (measure with the machine stopped, not shutoff)","จุดอ้างอิง = Q กับ Head/ΔP ของเครื่องขณะเดินปกติ (วาล์ว/Damper อยู่ตำแหน่งใช้งาน)":"Reference point = Q and head/ΔP of the machine in normal running (valves/dampers in their working position)"});</script>
 </body>
 </html>
