@@ -342,11 +342,25 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                     2. ข้อมูลสภาพแวดล้อม และ การผลิต
                 </span>
                 
-                <label><span class="marker-badge c-air mk-sm">A</span> อุณหภูมิอากาศ ($T_a$) <span class="unit-label">°C</span></label>
-                <input type="number" id="ta" value="32.0"><!-- [แก้ไข 11 พ.ย. 2569] M5 ค่าตั้งต้นตามคำแนะนำ ⓘ "ใช้ 32 °C" ให้ตรงกับการ์ดอื่น --><div class="hint">อุณหภูมิอากาศเข้าเผาไหม้ (°C) — วัดที่ทางดูดพัดลม FD / ห้องหม้อไอน้ำ ทั่วไป 28–38 °C (เทอร์โมมิเตอร์)</div>
+                <!-- [แก้ไข 18 พ.ย. 2569] #340 โหมดอุ่นอากาศเผาไหม้ด้วยไอเสีย (air preheater) — วิธีเดียวกับ Pro TH-BLR-01 v2.10 (#85 มติ อ.หนึ่ง 17 พ.ย. 2569 "ภายนอก + เครดิตอุ่นอากาศ")
+                     เดิมเครื่องมือนี้ไม่มีโหมดอุ่นอากาศ และไม่กันค่า Ta สูง: ใส่อากาศหลังอุ่น 150 °C (RH 60 %) ได้ η −32,777 % · 85 °C ได้ η สูงเกินจริง +4.3 จุด (ไม้สับชื้น 40 %)
+                     อ้างอิง: EN 12952-15:2003 ข้อ 1.1 (air heater เป็นส่วนหนึ่งของ steam generator) · ข้อ 3.1–3.2 (heat credits ในความร้อนนำเข้า) · ASME PTC 4-2008 หัวข้อ 1-4 Steam Generator Boundaries / 5-15 Credits -->
+                <label><span class="marker-badge c-air mk-sm">A</span> การอุ่นอากาศเผาไหม้</label>
+                <select id="aph_mode" onchange="aphUI()"><option value="none">ไม่อุ่น — อากาศภายนอกเข้าห้องเผาไหม้</option><option value="fg">อุ่นด้วยไอเสีย (air preheater)</option></select>
+                <div class="hint aph-off">มี air preheater: วัด T<sub>g</sub> ก่อนเข้า air preheater และวัดอากาศหลังอุ่น → เลือก “อุ่นด้วยไอเสีย” · ถ้าวัด T<sub>g</sub> ที่ปล่องหลัง air preheater ให้คงโหมดนี้ และกรอก T<sub>a</sub> = อากาศภายนอก (ขอบเขตรวม air preheater)</div>
+                <div class="hint aph-on" style="display:none">ขอบเขตคำนวณ = หม้อไอน้ำไม่รวม air preheater · ความสูญเสียคิดที่อากาศภายนอก แล้วบวกเครดิตความร้อนที่อากาศหลังอุ่นนำเข้ามา</div>
+                <div class="aph-on" style="display:none">
+                <label><span class="marker-badge c-air mk-sm">A</span> อุณหภูมิอากาศภายนอก (ก่อนอุ่น) <span class="unit-label">°C</span></label>
+                <input type="number" id="ta_amb" value="30" oninput="aphUI()"><div class="hint">วัดที่ทางดูดพัดลม FD · ไทย 28–36 °C · ความชื้นสัมพัทธ์ใช้ช่อง RH ในกล่องพัดลม FD (อากาศภายนอก)</div>
+                </div>
+
+                <label><span class="marker-badge c-air mk-sm">A</span> <span class="aph-off">อุณหภูมิอากาศ</span><span class="aph-on" style="display:none">อุณหภูมิอากาศหลังอุ่น</span> ($T_a$) <span class="unit-label">°C</span></label>
+                <input type="number" id="ta" value="32.0" oninput="aphUI()"><!-- [แก้ไข 11 พ.ย. 2569] M5 ค่าตั้งต้นตามคำแนะนำ ⓘ "ใช้ 32 °C" ให้ตรงกับการ์ดอื่น --><div class="hint aph-off">อุณหภูมิอากาศเข้าเผาไหม้ (°C) — วัดที่ทางดูดพัดลม FD / ห้องหม้อไอน้ำ ทั่วไป 28–38 °C (เทอร์โมมิเตอร์)</div><div class="hint aph-on" style="display:none">วัดที่ท่ออากาศร้อนหลัง air preheater ก่อนเข้าห้องเผาไหม้ · ไม่เกิน 450 °C</div>
+                <div class="hint aph-on" id="aphNote" style="display:none"></div>
+                <div class="hint aph-on" style="display:none">อ้างอิง: EN 12952-15:2003 ข้อ 1.1 (air heater เป็นส่วนของหม้อไอน้ำ) และข้อ 3.1–3.2 (heat credits) · ASME PTC 4-2008 หัวข้อ 1-4 (Steam Generator Boundaries) และ 5-15 (Credits) · วิธีเดียวกับรุ่น Pro TH-BLR-01</div>
                 
                 <label><span class="marker-badge c-gas mk-sm">C</span> อุณหภูมิไอเสีย ($T_g$) <span class="unit-label">°C</span></label>
-                <input type="number" id="tg" value="210"><div class="hint">อุณหภูมิไอเสียที่ปล่อง (°C) หลังอุปกรณ์แลกเปลี่ยนความร้อนตัวสุดท้าย — หัววัดเครื่องวิเคราะห์ก๊าซ; ถ่านหิน/ชีวมวล 150–250 °C, NG/น้ำมัน 180–260 °C</div>
+                <input type="number" id="tg" value="210"><div class="hint">อุณหภูมิไอเสียที่ปล่อง (°C) หลังอุปกรณ์แลกเปลี่ยนความร้อนตัวสุดท้าย — หัววัดเครื่องวิเคราะห์ก๊าซ; ถ่านหิน/ชีวมวล 150–250 °C, NG/น้ำมัน 180–260 °C</div><div class="hint aph-on" style="display:none;color:#b9770d">อุ่นอากาศด้วยไอเสีย: วัด T<sub>g</sub> ที่ไอเสียก่อนเข้า air preheater (ขอบเขตเดียวกับอากาศหลังอุ่น)</div><!-- [แก้ไข 18 พ.ย. 2569] #340 -->
                 
                 <label><span class="marker-badge c-gas mk-sm">C</span> ปริมาณออกซิเจน ($O_2$) <span class="unit-label">% Vol</span></label>
                 <input type="number" id="o2" value="7" step="0.1"><div class="hint">O₂ ในไอเสีย (% แห้ง) จากเครื่องวิเคราะห์ก๊าซ ที่จุดเดียวกับ T_g — เชื้อเพลิงแข็ง 6–9 %, น้ำมัน 3–5 %, NG 2–4 %</div>
@@ -428,11 +442,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                     <input type="number" id="fan_vol" value="11500"><div class="hint">ปริมาตรลมจากพัดลม FD (m³/h) — anemometer/pitot × พื้นที่หน้าตัดท่อ หรือ fan curve ที่ damper/VSD จริง</div>
 
                     <label>ความชื้นสัมพัทธ์อากาศ ($RH$) <span class="unit-label">%</span></label>
-                    <input type="number" id="fan_rh" value="60" min="0" max="100"><div class="hint">ความชื้นสัมพัทธ์อากาศ (%) จาก hygrometer — ประเทศไทย 55–80 % · เว้นว่าง = ใช้ RH 70 % ที่ Ta (ค่าแทนภูมิอากาศไทย) — ใช้ทั้ง 3 วิธี: ASME (ความชื้นอากาศ) · BS 845 (เทอม X) · JIS (1.61·z·m·A₀)</div>
+                    <input type="number" id="fan_rh" value="60" min="0" max="100"><div class="hint">ความชื้นสัมพัทธ์อากาศ (%) จาก hygrometer — ประเทศไทย 55–80 % · เว้นว่าง = ใช้ RH 70 % ที่ Ta (ค่าแทนภูมิอากาศไทย) — ใช้ทั้ง 3 วิธี: ASME (ความชื้นอากาศ) · BS 845 (เทอม X) · JIS (1.61·z·m·A₀)</div><div class="hint aph-on" style="display:none;color:#b9770d">โหมดอุ่นอากาศ: กรอก RH ของอากาศภายนอก (ก่อนอุ่น) — ความชื้นสัมบูรณ์คงที่ระหว่างอุ่น</div><!-- [แก้ไข 18 พ.ย. 2569] #340 -->
 
-                    <p style="font-size:0.78rem; color:#8a6d3b; margin:8px 0 0;">
+                    <p class="aph-off" style="font-size:0.78rem; color:#8a6d3b; margin:8px 0 0;">
                         *อุณหภูมิอากาศใช้ค่า $T_a$ ด้านบน &nbsp;|&nbsp; ค่า C,H,O,S, อัตราเชื้อเพลิง, $T_g$, $O_2$, $CO$ ดึงจากด้านบนอัตโนมัติ
                     </p>
+                    <p class="aph-on" style="display:none; font-size:0.78rem; color:#8a6d3b; margin:8px 0 0;">*โหมดอุ่นอากาศ: ความหนาแน่นลมพัดลม FD คิดที่อากาศภายนอก (ก่อนอุ่น) · ค่า C, H, O, S อัตราเชื้อเพลิง T<sub>g</sub> O₂ CO ดึงจากด้านบนอัตโนมัติ</p><!-- [แก้ไข 18 พ.ย. 2569] #340 -->
                 </div>
             </div>
             
@@ -465,6 +480,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                 </thead>
                 <tbody id="tableBody"></tbody>
             </table>
+            <div id="aphRes" class="aph-res" style="display:none; margin-top:10px; padding:8px 12px; border-left:4px solid #f39c12; background:#fef5e7; font-size:0.9rem; line-height:1.6;"></div><!-- [แก้ไข 18 พ.ย. 2569] #340 ผลเครดิตอุ่นอากาศ -->
             <div id="stdPick" style="display:none; margin-top:10px; padding:8px 12px; border-left:4px solid #d4ac0d; background:#fffbea; font-size:0.92rem;"></div><!-- [แก้ไข 14 พ.ย. 2569 · U6] มาตรฐานที่แนะนำให้รายงาน -->
         </div>
 
@@ -757,7 +773,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         if(!runASME && !runBS && !runJIS && !runTramp) { alert("กรุณาเลือกอย่างน้อย 1 รายการ"); return; }
 
         const Tg = parseFloat(document.getElementById('tg').value);
-        const Ta = parseFloat(document.getElementById('ta').value);
+        /* [แก้ไข 18 พ.ย. 2569] #340 โหมดอุ่นอากาศด้วยไอเสีย: สูตรมาตรฐานทุกข้อคิดที่อากาศภายนอก (Ta = T_amb · เชื้อเพลิงเข้าที่อุณหภูมินี้ · Tg = ไอเสียก่อนเข้า air preheater)
+           แล้วบวกเครดิตความร้อนที่อากาศหลังอุ่นนำเข้า (TE.COMB.aphCredit ชุดเดียวกับ Pro TH-BLR-01 v2.10) · โหมดไม่อุ่น = เหมือนเดิมทุกประการ */
+        const _aph = (typeof aphOn === 'function') && aphOn();
+        const Ta_in = parseFloat(document.getElementById('ta').value);
+        const Ta_amb = parseFloat((document.getElementById('ta_amb') || {}).value);
+        const Ta = _aph ? Ta_amb : Ta_in;
         const O2 = parseFloat(document.getElementById('o2').value);
         const CO_raw = parseFloat(document.getElementById('co_ppm').value);
         const CO_ppm = isFinite(CO_raw) && CO_raw >= 0 ? CO_raw : 0;   // [แก้ไข 3 ต.ค. 2569 audit] CO ว่าง → 0 ppm (เดิม NaN ทำให้ ASME/JIS เป็น NaN)
@@ -768,6 +789,24 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         if(!isFinite(O2) || O2 < 0 || O2 >= O2_AIR) boilerErrs.push('O₂ ในไอเสีย = ' + (isFinite(O2) ? O2 + ' %' : '(ว่าง)') + ' — ต้องอยู่ระหว่าง 0 ถึง < ' + O2_AIR + ' % (dry basis) — O₂ ว่าง/≥ 20.9 % ทำให้ Loss 1 = 0 และ η สูงเกินจริง (เช่น 91 %) หรือ JIS > 100 %');
         if(!isFinite(Tg) || !isFinite(Ta)) boilerErrs.push('กรุณากรอกอุณหภูมิไอเสีย T_g และอุณหภูมิอากาศ T_a');
         else if(Tg <= Ta) boilerErrs.push('T_g (' + Tg + ' °C) ≤ T_a (' + Ta + ' °C) — ค่าสูญเสียติดลบ เป็นไปไม่ได้');
+        /* [แก้ไข 18 พ.ย. 2569] #340 คัดกรองอุณหภูมิอากาศ — เกณฑ์เดียวกับ Pro TH-BLR-01 v2.10 (qcRules): ไม่อุ่น Ta > 60 °C เตือน · > 200 °C หรือ RH ที่ Ta เป็นไปไม่ได้ = ไม่คำนวณ
+           อุ่นอากาศ: อากาศภายนอก −10–60 °C · RH 0–100 % · อากาศหลังอุ่น ≥ อากาศภายนอก และ ≤ 450 °C · Tg (ก่อนเข้า air preheater) > อากาศหลังอุ่น */
+        { const _T2 = (th, en) => (window.TE_I18N && TE_I18N.lang === 'en') ? en : th, _f1 = v => (Math.round(v * 10) / 10).toString();
+          const _rhv = parseFloat((document.getElementById('fan_rh') || {}).value), _rh = _rhv > 0 ? _rhv : 70, APHMX = (TE.COMB && TE.COMB.APH_TMAX) || 450;
+          if(_aph) {
+            if(!(isFinite(Ta_amb) && Ta_amb >= -10 && Ta_amb <= 60) || !(_rh >= 0 && _rh <= 100)) boilerErrs.push(_T2('โหมดอุ่นอากาศ: กรอกอุณหภูมิอากาศภายนอก (−10–60 °C) และความชื้นสัมพัทธ์ของอากาศภายนอก (0–100 %) ให้ครบ', 'Air preheat mode: enter the ambient air temperature (−10–60 °C) and the ambient relative humidity (0–100 %)'));
+            else if(!isFinite(Ta_in)) boilerErrs.push(_T2('โหมดอุ่นอากาศ: กรอกอุณหภูมิอากาศหลังอุ่น T_a', 'Air preheat mode: enter the preheated air temperature T_a'));
+            else if(Ta_in < Ta_amb) boilerErrs.push(_T2('อุณหภูมิอากาศหลังอุ่น (' + _f1(Ta_in) + ' °C) ต้องไม่ต่ำกว่าอากาศภายนอก (' + _f1(Ta_amb) + ' °C)', 'The preheated air temperature (' + _f1(Ta_in) + ' °C) must not be below the ambient air (' + _f1(Ta_amb) + ' °C)'));
+            else if(Ta_in > APHMX) boilerErrs.push(_T2('อุณหภูมิอากาศหลังอุ่น (' + _f1(Ta_in) + ' °C) เกิน ' + APHMX + ' °C — นอกช่วงของเครื่องมือ', 'The preheated air temperature (' + _f1(Ta_in) + ' °C) exceeds ' + APHMX + ' °C — outside the tool range'));
+            else if(isFinite(Tg) && Tg <= Ta_in) boilerErrs.push(_T2('T_g (' + _f1(Tg) + ' °C) ≤ อุณหภูมิอากาศหลังอุ่น (' + _f1(Ta_in) + ' °C) — ไอเสียก่อนเข้า air preheater ต้องร้อนกว่าอากาศที่ออกจาก air preheater (วัด T_g ก่อนเข้า air preheater)', 'T_g (' + _f1(Tg) + ' °C) ≤ preheated air temperature (' + _f1(Ta_in) + ' °C) — the flue gas entering the air preheater must be hotter than the air leaving it (measure T_g before the air preheater)'));
+          } else if(isFinite(Ta) && Ta > 60) {
+            const _pw = _rh / 100 * TE_PSY.Pws(Ta), _w = TE_PSY.W_rh(Ta, _rh / 100, 101.325), _wmax = TE_PSY.Ws(60, 101.325);
+            const _go = _T2('ถ้าอุ่นอากาศด้วยไอเสีย เลือก “อุ่นด้วยไอเสีย (air preheater)” ที่ช่องการอุ่นอากาศเผาไหม้ แล้วกรอกอากาศภายนอก', 'if the air is preheated by flue gas, choose “Preheated by flue gas (air preheater)” under combustion air preheating and enter the ambient air');
+            if(Ta > ((TE.COMB && TE.COMB.APH_PSY_TMAX) || 200)) boilerErrs.push(_T2('T_a = ' + _f1(Ta) + ' °C เกิน 200 °C คำนวณความชื้นจาก RH ไม่ได้ — ', 'T_a = ' + _f1(Ta) + ' °C is above 200 °C, so humidity cannot be computed from RH — ') + _go);
+            else if(!(_pw < 101.325)) boilerErrs.push(_T2('RH ' + _f1(_rh) + ' % ที่ T_a ' + _f1(Ta) + ' °C เป็นไปไม่ได้ (ความดันไอน้ำ ' + _f1(_pw) + ' kPa เกินความดันบรรยากาศ) — ', 'RH ' + _f1(_rh) + ' % at T_a ' + _f1(Ta) + ' °C is impossible (vapour pressure ' + _f1(_pw) + ' kPa exceeds atmospheric) — ') + _go);
+            else if(!(_w <= _wmax)) boilerErrs.push(_T2('RH ' + _f1(_rh) + ' % ที่ T_a ' + _f1(Ta) + ' °C ให้ความชื้น ' + Math.round(_w * 1000) + ' g/kg เกินอากาศอิ่มตัวที่ 60 °C — ', 'RH ' + _f1(_rh) + ' % at T_a ' + _f1(Ta) + ' °C gives ' + Math.round(_w * 1000) + ' g/kg, above saturated air at 60 °C — ') + _go);
+            else boilerWarns.push(_T2('T_a = ' + _f1(Ta) + ' °C สูงกว่าอากาศภายนอกทั่วไป (เกิน 60 °C) — ', 'T_a = ' + _f1(Ta) + ' °C is above normal ambient air (over 60 °C) — ') + _go + _T2(' (ใส่อากาศร้อนเป็น T_a ตรง ๆ ทำให้ประสิทธิภาพสูงเกินจริง)', ' (entering hot air directly as T_a overstates the efficiency)'));
+          } }
         if(!isFinite(CO_raw)) boilerWarns.push('ไม่ได้กรอก CO — คิด CO = 0 ppm (Loss 3 = 0)');
         else if(CO_raw < 0) boilerWarns.push('CO ติดลบ — คิด CO = 0 ppm');
         if(!isFinite(LossRad_raw)) boilerWarns.push('ไม่ได้กรอก Radiation loss — คิด 0 %');
@@ -948,6 +987,27 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             }
         }
 
+        /* [แก้ไข 18 พ.ย. 2569] #340 เครดิตอุ่นอากาศ (% ของ GCV/NCV) บวกเข้า η ทุกมาตรฐาน — m_da จาก ASME PTC 4 (te-core r1 ชุดเดียวกับ Pro) ใช้ร่วม 3 มาตรฐาน · W จากอากาศภายนอก */
+        let aphCr = null;
+        if(_aph) {
+            const _rhv = parseFloat((document.getElementById('fan_rh') || {}).value), _rhA = _rhv > 0 ? _rhv : 70;
+            const _cr2 = parseFloat((document.getElementById('c_refuse') || {}).value);
+            const _hum = TE.COMB.aphHumid(Ta, _rhA, Ta_in);
+            const _ra = (mix.c > 0 || mix.h > 0) ? TE.COMB.lossASME({c:mix.c,h:mix.h,o:mix.o,n:mix.n,s:mix.s,ash:mix.ash||0,m:mix.m,hhv:mix.hhv,lhv:mix.lhv},
+                {Tg:Tg,Ta:Ta,O2:O2,CO_ppm:CO_ppm,Lrad:LossRad},{model:'r1',RH:_rhA,wA:_hum.w,cRefuse:(_cr2>0?_cr2:0)}) : {valid:false};
+            const _c = (_ra.valid && _hum.ok) ? TE.COMB.aphCredit(_ra.detail.mDA, _hum.w, Ta, Ta_in) : {ok:false};
+            if(_c.ok && GCV > 0 && NCV > 0) {
+                aphCr = {mda:_c.mda, w:_hum.w, dhA:_c.dhA, dhV:_c.dhV, q:_c.q, pG:_c.q / GCV * 100, pN:_c.q / NCV * 100, ta:Ta, th:Ta_in, rhH:_hum.rhH};
+                asme_Eff += aphCr.pG; bs_Eff_G += aphCr.pG; bs_Eff_N += aphCr.pN; jis_Eff_H += aphCr.pG; jis_Eff_L += aphCr.pN;
+            } else {
+                const _T2 = (th, en) => (window.TE_I18N && TE_I18N.lang === 'en') ? en : th;
+                document.getElementById('tableBody').innerHTML = '';
+                document.getElementById('results').style.display = 'block';
+                window.teBoilerWarn([_T2('คิดเครดิตอุ่นอากาศไม่ได้ — ต้องมีผลวิเคราะห์ธาตุของเชื้อเพลิง (C, H, O, N, S) เพื่อหาปริมาณอากาศ', 'The air preheat credit cannot be computed — the fuel ultimate analysis (C, H, O, N, S) is needed for the air quantity')], boilerWarns);
+                return;
+            }
+        }
+
         // == DIRECT METHOD ==
         const F = parseFloat(document.getElementById('fuel_flow').value);
         const isOilMode = document.getElementById('eq_oil').checked;
@@ -983,7 +1043,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         // [แก้ไข 3 ต.ค. 2569] เก็บผลหลักไว้ให้ teBuildECM() ใช้ (ไม่เปลี่ยนการคำนวณเดิม)
         window.TE_BOILER_RES = { asme_Eff: asme_Eff, bs_Eff_G: bs_Eff_G, bs_Eff_N: bs_Eff_N, jis_Eff_H: jis_Eff_H, jis_Eff_L: jis_Eff_L,
             bs_L1: bs_L1, bs_L2: bs_L2, bs_L3: bs_L3, LossRad: LossRad, Tg: Tg, Ta: Ta, O2: O2, CO_ppm: CO_ppm, Water_Pct: Water_Pct,
-            F: F, Q_out: Q_out, dir_HHV: dir_HHV, dir_LHV: dir_LHV, isOilMode: isOilMode, hhv: mix.hhv, lhv: mix.lhv, k: mix.k, co2max: mix.co2, c: mix.c, tramp: null }; // [แก้ไข 3 ต.ค. 2569]
+            F: F, Q_out: Q_out, dir_HHV: dir_HHV, dir_LHV: dir_LHV, isOilMode: isOilMode, hhv: mix.hhv, lhv: mix.lhv, k: mix.k, co2max: mix.co2, c: mix.c, tramp: null, aph: aphCr }; /* [แก้ไข 18 พ.ย. 2569] #340 +aph */ // [แก้ไข 3 ต.ค. 2569]
         // --- Render Result Table ---
         const headRow = document.getElementById('tableHeaderRow');
         const body = document.getElementById('tableBody');
@@ -1012,6 +1072,13 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         addRow('2. สูญเสียความชื้น (Q<sub>loss2</sub>)', runASME?asme_L2.toFixed(2)+'%':'', runBS?bs_L2.toFixed(2)+'%':'', runJIS?jis_Q_loss2_GCV.toFixed(2)+'%':'');
         addRow('3. สูญเสียเผาไหม้ไม่สมบูรณ์ (Q<sub>loss3</sub>)', runASME?asme_L3.toFixed(2)+'%':'', runBS?bs_L3.toFixed(2)+'%':'', runJIS?jis_Q_loss3_GCV.toFixed(2)+'%':'');
         if(runASME && asme_Luc>0) addRow('4. คาร์บอนไม่เผาไหม้ในเถ้า (Q<sub>uc</sub>) — ASME เท่านั้น', asme_Luc.toFixed(2)+'%', '', ''); // [แก้ไข 5 ต.ค. 2569 MAJOR v2.0]
+        if(aphCr) addRow('<span>เครดิตอุ่นอากาศ (หักออก)</span> B<sub>aph</sub>', '−'+aphCr.pG.toFixed(2)+'%', '−'+aphCr.pG.toFixed(2)+'%', '−'+aphCr.pG.toFixed(2)+'%'); /* [แก้ไข 18 พ.ย. 2569] #340 เท่ากันทุกมาตรฐาน (ฐาน GCV) */
+        { const _ar = document.getElementById('aphRes'); if(_ar) { if(aphCr) { const _L = (th, en) => (window.TE_I18N && TE_I18N.lang === 'en') ? en : th;
+            _ar.innerHTML = '<b>' + _L('โหมดอุ่นอากาศด้วยไอเสีย (air preheater)', 'Flue-gas air preheat mode (air preheater)') + '</b> — ' + _L('ความสูญเสียทุกข้อคิดที่อากาศภายนอก', 'all losses are taken at ambient air') + ' T<sub>a</sub> = ' + aphCr.ta.toFixed(1) + ' °C · ' +
+              _L('อากาศหลังอุ่น', 'preheated air') + ' ' + aphCr.th.toFixed(1) + ' °C · T<sub>g</sub> ' + _L('= ไอเสียก่อนเข้า air preheater', '= flue gas before the air preheater') + '<br>' +
+              _L('เครดิตอุ่นอากาศ', 'Air preheat credit') + ' B<sub>aph</sub> = m<sub>da</sub> ' + aphCr.mda.toFixed(2) + ' kg/kg × (Δh<sub>da</sub> ' + aphCr.dhA.toFixed(1) + ' + W ' + aphCr.w.toFixed(4) + ' × Δh<sub>v</sub> ' + aphCr.dhV.toFixed(1) + ') = ' + aphCr.q.toFixed(0) + ' kJ/kg = <b>' + aphCr.pG.toFixed(2) + ' % GCV</b> (' + aphCr.pN.toFixed(2) + ' % NCV) — ' +
+              _L('บวกเข้าประสิทธิภาพทุกมาตรฐาน', 'added to the efficiency of every standard') + '<br><span style="font-size:0.85em;color:#7a5a1e">' + _L('อ้างอิง: EN 12952-15:2003 ข้อ 1.1 และ 3.1–3.2 (heat credits) · ASME PTC 4-2008 หัวข้อ 1-4 และ 5-15 · วิธีเดียวกับรุ่น Pro TH-BLR-01', 'Reference: EN 12952-15:2003 cl. 1.1 and 3.1–3.2 (heat credits) · ASME PTC 4-2008 sections 1-4 and 5-15 · same method as the Pro card TH-BLR-01') + '</span>';
+            _ar.style.display = 'block'; } else { _ar.innerHTML = ''; _ar.style.display = 'none'; } } } /* [แก้ไข 18 พ.ย. 2569] #340 */
 
         addRow('Efficiency (HHV Basis)', 
             runASME ? asme_Eff.toFixed(2)+'%' : '', 
@@ -1128,8 +1195,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
                 <div class="calc-step-box">
                     <h4 class="step-title">Step 7: Total Boiler Efficiency (\\( \\eta_{ASME} \\)) — GCV Basis</h4>
-                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{ASME(GCV)} = 100\\% - (Q_{loss1} + Q_{loss2} + Q_{loss3} + Q_{uc} + L_{rad}) \\] ${asme_Luc>0?'(Q<sub>uc</sub> = '+asme_Luc.toFixed(2)+' % จากคาร์บอนในเถ้า)':''}</div></div>
-                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{ASME(GCV)} = 100\\% - (${asme_L1.toFixed(2)}\\% + ${asme_L2.toFixed(2)}\\% + ${asme_L3.toFixed(2)}\\% + ${LossRad.toFixed(2)}\\%) \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{ASME(GCV)} = 100\\% - (Q_{loss1} + Q_{loss2} + Q_{loss3} + Q_{uc} + L_{rad})${aphCr?' + B_{aph}':''} \\] ${asme_Luc>0?'(Q<sub>uc</sub> = '+asme_Luc.toFixed(2)+' % จากคาร์บอนในเถ้า)':''}</div></div>
+                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{ASME(GCV)} = 100\\% - (${asme_L1.toFixed(2)}\\% + ${asme_L2.toFixed(2)}\\% + ${asme_L3.toFixed(2)}\\% + ${LossRad.toFixed(2)}\\%)${aphCr?' + '+aphCr.pG.toFixed(2)+'\\%':''} \\]</div></div>
                     <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ \\eta_{ASME(GCV)} = ${asme_Eff.toFixed(2)}\\% \\]</div></div>
                     <hr style="border-top:1px dashed #eee; margin: 10px 0;">
                     <div class="calc-row"><div class="calc-label">LHV Basis:</div><div class="calc-content">\\[ \\eta_{ASME(NCV)} = \\eta_{ASME(GCV)} \\times \\frac{GCV}{NCV} = ${asme_Eff.toFixed(2)}\\% \\times \\frac{${GCV.toFixed(0)}}{${NCV.toFixed(0)}} = ${(asme_Eff * GCV/NCV).toFixed(2)}\\% \\]</div></div>
@@ -1185,14 +1252,14 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
             <div class="calc-step-box">
                 <h4 class="step-title">Step 5: Total Indirect Efficiency (\\( \\eta_{BS(GCV)} \\))</h4>
-                <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{BS(GCV)} = 100\\% - (Q_{loss1} + Q_{loss2} + X + Q_{loss3} + L_{rad}) \\]</div></div>
-                <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{BS(GCV)} = 100\\% - (${bs_L1.toFixed(2)}\\% + ${bs_L2.toFixed(2)}\\% + ${bs_LX.toFixed(2)}\\% + ${bs_L3.toFixed(2)}\\% + ${LossRad.toFixed(2)}\\%) \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{BS(GCV)} = 100\\% - (Q_{loss1} + Q_{loss2} + X + Q_{loss3} + L_{rad})${aphCr?' + B_{aph}':''} \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{BS(GCV)} = 100\\% - (${bs_L1.toFixed(2)}\\% + ${bs_L2.toFixed(2)}\\% + ${bs_LX.toFixed(2)}\\% + ${bs_L3.toFixed(2)}\\% + ${LossRad.toFixed(2)}\\%)${aphCr?' + '+aphCr.pG.toFixed(2)+'\\%':''} \\]</div></div>
                 <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ \\eta_{BS(GCV)} = ${bs_Eff_G.toFixed(2)}\\% \\]</div></div>
             </div>
 
             <div class="calc-step-box">
                 <h4 class="step-title">Step 6: LHV-Based Indirect Efficiency (\\( \\eta_{BS(NCV)} \\))</h4>
-                <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{BS(NCV)} = 100 - \\left[ (Q_{loss1} + Q_{loss3} + X + L_{rad}) \\frac{GCV}{NCV} + \\frac{(9H\\% + M\\%)(210 + 2.1T_g - 4.2T_a)}{NCV} \\right] \\quad \\text{(BS 845-1 eq.8, 11, 13, 23)} \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{BS(NCV)} = 100 - \\left[ (Q_{loss1} + Q_{loss3} + X + L_{rad}) \\frac{GCV}{NCV} + \\frac{(9H\\% + M\\%)(210 + 2.1T_g - 4.2T_a)}{NCV} \\right]${aphCr?' + B_{aph,NCV}':''} \\quad \\text{(BS 845-1 eq.8, 11, 13, 23)} \\]</div></div>
                 <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ Q_{loss2,net} = ${bs_L2n.toFixed(2)}\\%, \\; \\frac{GCV}{NCV} = \\frac{${GCV.toFixed(0)}}{${NCV.toFixed(0)}} \\; ${bs_qc&&isFinite(bs_qc.devPct)?'\\text{QC: }Q_c\\text{ two-basis diff }'+bs_qc.devPct.toFixed(2)+'\\%':''} \\]</div></div>
                 <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ \\eta_{BS(NCV)} = ${bs_Eff_N.toFixed(2)}\\% \\]</div></div>
             </div>
@@ -1266,15 +1333,15 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
                 <div class="calc-step-box">
                     <h4 class="step-title">Step 6: Total Efficiency on NCV Basis (\\( \\eta_{JIS(NCV)} \\)) — Primary Result</h4>
-                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{JIS(NCV)} = 100\\% - (Q_{loss1(NCV)} + Q_{loss3(NCV)} + L_{rad}) \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{JIS(NCV)} = 100\\% - (${jis_Q_loss1_NCV.toFixed(2)}\\% + ${jis_Q_loss3_NCV.toFixed(2)}\\% + ${LossRad.toFixed(2)}\\%) \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{JIS(NCV)} = 100\\% - (Q_{loss1(NCV)} + Q_{loss3(NCV)} + L_{rad})${aphCr?' + B_{aph,NCV}':''} \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{JIS(NCV)} = 100\\% - (${jis_Q_loss1_NCV.toFixed(2)}\\% + ${jis_Q_loss3_NCV.toFixed(2)}\\% + ${LossRad.toFixed(2)}\\%)${aphCr?' + '+aphCr.pN.toFixed(2)+'\\%':''} \\]</div></div>
                     <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ \\eta_{JIS(NCV)} = ${jis_Eff_L.toFixed(2)}\\% \\]</div></div>
                 </div>
 
                 <div class="calc-step-box">
                     <h4 class="step-title">Step 7: Total Efficiency on GCV Basis (\\( \\eta_{JIS(GCV)} \\))</h4>
-                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{JIS(GCV)} = 100\\% - (Q_{loss1(GCV)} + Q_{loss2(GCV)} + Q_{loss3(GCV)} + L_{rad}) \\]</div></div>
-                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{JIS(GCV)} = 100\\% - (${jis_Q_loss1_GCV.toFixed(2)}\\% + ${jis_Q_loss2_GCV.toFixed(2)}\\% + ${jis_Q_loss3_GCV.toFixed(2)}\\% + ${LossRad.toFixed(2)}\\%) \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ \\eta_{JIS(GCV)} = 100\\% - (Q_{loss1(GCV)} + Q_{loss2(GCV)} + Q_{loss3(GCV)} + L_{rad})${aphCr?' + B_{aph}':''} \\]</div></div>
+                    <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ \\eta_{JIS(GCV)} = 100\\% - (${jis_Q_loss1_GCV.toFixed(2)}\\% + ${jis_Q_loss2_GCV.toFixed(2)}\\% + ${jis_Q_loss3_GCV.toFixed(2)}\\% + ${LossRad.toFixed(2)}\\%)${aphCr?' + '+aphCr.pG.toFixed(2)+'\\%':''} \\]</div></div>
                     <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ \\eta_{JIS(GCV)} = ${jis_Eff_H.toFixed(2)}\\% \\]</div></div>
                     <hr style="border-top:1px dashed #eee; margin: 10px 0;">
                     <div class="calc-row"><div class="calc-label">Cross-check:</div><div class="calc-content">\\[ \\eta_{JIS(GCV)} \\approx \\eta_{JIS(NCV)} \\times \\frac{NCV}{GCV} = ${jis_Eff_L.toFixed(2)}\\% \\times \\frac{${NCV.toFixed(0)}}{${GCV.toFixed(0)}} = ${(jis_Eff_L * NCV/GCV).toFixed(2)}\\% \\]</div></div>
@@ -1419,10 +1486,21 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             trampHtml = `<p style="color:#b9770d; padding:20px; text-align:center; border:2px dashed #f5d28a; background:#fdf6e3; font-weight:bold;">*ติ๊กเลือก <b>Tramp Air (อากาศรั่ว)</b> ด้านบน เพื่อแสดงผลการวิเคราะห์</p>`;
         }
 
+        /* [แก้ไข 18 พ.ย. 2569] #340 ขั้นเครดิตอุ่นอากาศ — แสดงต้นแท็บ ASME / BS 845 / JIS เมื่ออยู่ในโหมดอุ่นอากาศ */
+        let aphStep = '';
+        if(aphCr) { const _L = (th, en) => (window.TE_I18N && TE_I18N.lang === 'en') ? en : th;
+            aphStep = `
+            <div class="calc-step-box" style="border-left:4px solid #f39c12;">
+                <h4 class="step-title">${_L('ขั้น 0: เครดิตอุ่นอากาศ', 'Step 0: Air preheat credit')} (\\( B_{aph} \\)) — ${_L('อุ่นอากาศด้วยไอเสีย (air preheater)', 'flue-gas air preheater')}</h4>
+                <div class="calc-row"><div class="calc-label">Formula:</div><div class="calc-content">\\[ B_{aph} = \\frac{m_{da}\\,[\\Delta h_{da} + W\\,\\Delta h_{v}]_{T_{amb} \\rightarrow T_{a,hot}}}{GCV} \\times 100 \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Substitution:</div><div class="calc-content">\\[ B_{aph} = \\frac{${aphCr.mda.toFixed(4)} \\times [${aphCr.dhA.toFixed(2)} + ${aphCr.w.toFixed(5)} \\times ${aphCr.dhV.toFixed(2)}]}{${GCV.toFixed(0)}} \\times 100 \\quad (${aphCr.ta.toFixed(1)} \\rightarrow ${aphCr.th.toFixed(1)}^\\circ\\text{C}) \\]</div></div>
+                <div class="calc-row"><div class="calc-label">Calculation:</div><div class="calc-content">\\[ B_{aph} = ${aphCr.q.toFixed(1)} \\text{ kJ/kg} = ${aphCr.pG.toFixed(2)}\\%\\,(GCV) = ${aphCr.pN.toFixed(2)}\\%\\,(NCV) \\]</div></div>
+                <div class="hint">${_L('ความสูญเสียทุกขั้นด้านล่างคิดที่อากาศภายนอก', 'Every loss below is taken at ambient air')} T<sub>a</sub> = ${aphCr.ta.toFixed(1)} °C · m<sub>da</sub> ${_L('= อากาศแห้งต่อ kg เชื้อเพลิง (ASME PTC 4)', '= dry air per kg of fuel (ASME PTC 4)')} · Δh<sub>da</sub> ${_L('อากาศแห้ง (NIST Shomate)', 'dry air (NIST Shomate)')} · Δh<sub>v</sub> ${_L('ไอน้ำ (IAPWS-IF97)', 'water vapour (IAPWS-IF97)')} · W ${_L('จากอากาศภายนอก คงที่ระหว่างอุ่น', 'from ambient air, unchanged by heating')}</div>
+            </div>`; }
         // แทรก Html ลงแท็บ
-        document.getElementById('tab_asme').innerHTML = runASME ? asmeHtml : '';
-        document.getElementById('tab_bs').innerHTML = runBS ? bsHtml : '';
-        document.getElementById('tab_jis').innerHTML = runJIS ? jisHtml : '';
+        document.getElementById('tab_asme').innerHTML = runASME ? aphStep + asmeHtml : '';
+        document.getElementById('tab_bs').innerHTML = runBS ? aphStep + bsHtml : '';
+        document.getElementById('tab_jis').innerHTML = runJIS ? aphStep + jisHtml : '';
         document.getElementById('tab_tramp').innerHTML = runTramp ? trampHtml : '';
 
         // ซ่อน/แสดงปุ่มแท็บ ตามการเลือก Checkbox ด้านบน
@@ -1469,7 +1547,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         'steam_flow','steam_press','steam_temp','cp_sup','feed_temp','h_steam',
         'oil_q_kcal','oil_flow','oil_cp','oil_tin','oil_tout',
         'fan_vol','fan_rh','c_refuse','co2_meas', /* [แก้ไข 10 พ.ย. 2569] */
-        'te_ecm_hours','te_ecm_price','te_ecm_o2t','te_ecm_tgt']; // [แก้ไข 3 ต.ค. 2569 audit] เดิมไม่บันทึกช่อง ECM 4 ช่อง → โหลดกลับแล้วมาตรการ/ค่าเงินหาย
+        'te_ecm_hours','te_ecm_price','te_ecm_o2t','te_ecm_tgt',
+        'aph_mode','ta_amb']; /* [แก้ไข 18 พ.ย. 2569] #340 คีย์ใหม่ (ไฟล์เก่าไม่มี = ไม่อุ่นอากาศ) */ // [แก้ไข 3 ต.ค. 2569 audit] เดิมไม่บันทึกช่อง ECM 4 ช่อง → โหลดกลับแล้วมาตรการ/ค่าเงินหาย
     const CUST_JSON_FIELDS = ['c','h','o','n','s','ash','w'];
 
     function jsGetVal(id){ const el = document.getElementById(id); return el ? el.value : ''; }
@@ -1568,9 +1647,11 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         jsSetChk(data.steamType === 'super' ? 'steam_super' : 'steam_sat', true);
 
         // 6) ค่าตรวจวัด / การผลิต ทั้งหมด
+        jsSetVal('aph_mode', 'none'); /* [แก้ไข 18 พ.ย. 2569] #340 ไฟล์เก่าไม่มีคีย์ aph_mode = ไม่อุ่นอากาศ */
         if(data.fields) {
             JSON_NUM_FIELDS.forEach(id => { if(id in data.fields) jsSetVal(id, data.fields[id]); });
         }
+        if(typeof aphUI === 'function') aphUI();
         if(data.meta && data.meta.note !== undefined) jsSetVal('save_note', data.meta.note);
 
         // 7) รีเฟรชส่วนที่คำนวณอัตโนมัติ
@@ -1642,7 +1723,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     };
 
     /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-    var FK_DESIGN=[], FK_MEAS=['ta','tg','o2','co_ppm','fuel_flow','steam_flow','steam_press','steam_temp','feed_temp','oil_q_kcal','oil_flow','oil_tin','oil_tout','fan_vol','fan_rh','c_refuse','co2_meas'], FK_SET=['rad_loss','oil_cp','save_note'], FK_CALC=['h_steam','h_water','cp_sup'];
+    var FK_DESIGN=[], FK_MEAS=['ta','ta_amb','tg','o2','co_ppm','fuel_flow','steam_flow','steam_press','steam_temp','feed_temp','oil_q_kcal','oil_flow','oil_tin','oil_tout','fan_vol','fan_rh','c_refuse','co2_meas'], FK_SET=['rad_loss','oil_cp','save_note'], FK_CALC=['h_steam','h_water','cp_sup'];
     var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
     function fieldKind(id){if(/^(c|h|o|n|s|ash|w)_cust_\d$/.test(id)||/^madj_cur_\d$/.test(id))return'meas';if(/^(hhv|lhv)_cust_\d$/.test(id)||/^madj_(ref|res)_\d$/.test(id))return'calc';if(/^p_\d+$/.test(id)||/^f_\d+$/.test(id))return'set';
       if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
@@ -1656,6 +1737,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     window.resetForm = function() {
         document.getElementById('calcForm').reset();
         document.getElementById('results').style.display = 'none';
+        if(typeof aphUI === 'function') aphUI(); /* [แก้ไข 18 พ.ย. 2569] #340 */
         document.querySelectorAll('.fuel-sel').forEach(sel => sel.innerHTML = '<option value="">-- เลือก --</option>');
         estEnthalpy();
         applyEquipMode();
@@ -1723,6 +1805,7 @@ function teBuildECM(){
       if (fuelKgh > 0 && price > 0) m.savingTHB = Math.round(fuelKgh * hours * pct / 100 / 1000 * price);
     }
     m.basis = m.basis + ' · η เดิม ' + etaB.toFixed(2) + '% → η ใหม่ ' + eta1.toFixed(2) + '% (GCV, BS 845-1) · savingPct = (1 − η เดิม/η ใหม่)×100'
+      + (R.aph ? ' · โหมดอุ่นอากาศ: η รวมเครดิตอุ่นอากาศ ' + R.aph.pG.toFixed(2) + '% (คงที่) · Tg = ไอเสียก่อนเข้า air preheater' : '') /* [แก้ไข 18 พ.ย. 2569] #340 */
       + (fuelGJh > 0 ? ' · เชื้อเพลิงฐาน ' + fuelGJh.toFixed(3) + ' GJ/h (' + fuelSrc + ')' + (fuelKgh > 0 ? ' ≈ ' + fuelKgh.toFixed(1) + ' kg/h' : '') : '')
       + (hours > 0 ? ' × ' + hours + ' ชม./ปี' : ' · ไม่ระบุชั่วโมงเดินเครื่อง จึงไม่คิดปริมาณรายปี');
     measures.push(m);
@@ -2073,5 +2156,52 @@ if(window.TE_I18N)TE_I18N.set({
 </script>
 <script>/* [แก้ไข 17 พ.ย. 2569] คำแปล EN ที่ตกหล่น: ข้อความจางในช่อง CO₂ ที่วัดได้ (placeholder "ไม่บังคับ") ยังเป็นภาษาไทยในโหมด ?lang=en — พบตอนทำคู่มือฉบับภาษาอังกฤษ · เพิ่มคำแปลอย่างเดียว */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ไม่บังคับ":"optional"});</script>
 <script>/* [แก้ไข 17 พ.ย. 2569] ป้ายการแก้ที่ปรากฏบนหน้าจอ 2 จุด: คำอธิบายช่องคาร์บอนในเถ้า ("[แก้ไข 5 ต.ค. 2569 MAJOR v2.0]") และหัวขั้นที่ 3 ของแท็บ ASME ("[MAJOR v2.0]") — ตัดออกจากข้อความที่แสดง · คู่คำแปล EN ของข้อความใหม่ (คู่เดิมยังอยู่ ไม่กระทบ) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"% คาร์บอนที่ไม่เผาไหม้ในเถ้าหนัก/เถ้าลอย จากผลแล็ป LOI — ถ่านหินตะกรับ 5–25 %, ชีวมวล 3–15 % · ใช้กับ ASME (ต้องมีเถ้าในเชื้อเพลิง) ค่าความร้อนคาร์บอน 33,727 kJ/kg ตาม ASME PTC 4 · ความชื้นอากาศของ ASME ใช้ RH จากช่อง Tramp air": "% unburned carbon in bottom/fly ash from lab LOI — grate coal 5–25 %, biomass 3–15 % · used by ASME (fuel must contain ash), carbon heating value 33,727 kJ/kg per ASME PTC 4 · ASME air humidity uses RH from the Tramp air field"},[[/—\s+ผลคำนวณใช้\s+enthalpy\s+NIST\s+Shomate\s+\(ตัวเลข\s+cp\s+เชิงเส้นด้านล่างแสดงเพื่อเปรียบเทียบ\)/,"— results use NIST Shomate enthalpy (linear cp values below shown for comparison)"]]);</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #340 โหมดอุ่นอากาศเผาไหม้ด้วยไอเสีย — สลับช่อง/ป้าย และแสดงความชื้นหลังอุ่น (TE.COMB.aphHumid ชุดเดียวกับ Pro TH-BLR-01 v2.10) · ไม่แตะสูตรมาตรฐาน */
+(function(){
+  function L(th,en){return (window.TE_I18N&&TE_I18N.lang==='en')?en:th;}
+  function num(id){var e=document.getElementById(id);return e?parseFloat(e.value):NaN;}
+  function f(v,d){return isFinite(v)?v.toFixed(d):'–';}
+  window.aphOn=function(){var e=document.getElementById('aph_mode');return !!(e&&e.value==='fg');};
+  window.aphUI=function(){var on=aphOn();
+    [].forEach.call(document.querySelectorAll('.aph-on'),function(e){e.style.display=on?'':'none';});
+    [].forEach.call(document.querySelectorAll('.aph-off'),function(e){e.style.display=on?'none':'';});
+    var n=document.getElementById('aphNote');if(!n)return;if(!on){n.innerHTML='';return;}
+    var rh=num('fan_rh');rh=rh>0?rh:70;var ta=num('ta_amb'),th=num('ta');
+    var h=(window.TE&&TE.COMB&&TE.COMB.aphHumid)?TE.COMB.aphHumid(ta,rh,th):{ok:false};
+    if(!h.ok){n.innerHTML='<span style="color:#c0392b">'+L('กรอกอุณหภูมิ (−10–60 °C) และความชื้นสัมพัทธ์ (0–100 %) ของอากาศภายนอกให้ครบ','Enter the ambient air temperature (−10–60 °C) and relative humidity (0–100 %)')+'</span>';return;}
+    var s=L('ความชื้นสัมบูรณ์','Humidity ratio')+' W = 0.622 × '+f(h.pv,3)+' ÷ (101.325 − '+f(h.pv,3)+') = <b>'+f(h.w*1000,1)+' g/kg '+L('อากาศแห้ง','dry air')+'</b> — '+L('คงที่ระหว่างอุ่น','unchanged by heating')+
+      '<br>'+L('ความดันไอน้ำ','Vapour pressure')+' p<sub>w</sub> = RH '+f(rh,1)+' % × '+f(h.pws,3)+' kPa ('+L('อิ่มตัวที่','saturation at')+' '+f(ta,1)+' °C) = '+f(h.pv,3)+' kPa';
+    if(isFinite(h.rhH))s+='<br>'+L('RH หลังอุ่นที่','RH after preheating at')+' '+f(th,1)+' °C = '+f(h.pv,3)+' ÷ '+f(h.ps,3)+' = <b>'+f(h.rhH,2)+' %</b>';
+    else if(isFinite(th)&&th>200)s+='<br>'+L('เกิน 200 °C ค่า RH ต่ำกว่า 0.2 % ไม่ใช้ในการคำนวณ — คำนวณด้วยความชื้นสัมบูรณ์ W','Above 200 °C RH is below 0.2 % and not used — the calculation uses the humidity ratio W');
+    s+='<br>'+L('สูตรมาตรฐานคิดความสูญเสียที่อากาศภายนอก (เชื้อเพลิงเข้าที่อุณหภูมินี้) แล้วบวกเครดิตความร้อนที่อากาศหลังอุ่นนำเข้ามา — กด Calculate Analysis เพื่อดูเครดิต','Standard losses are taken at ambient air (fuel enters at this temperature) plus a credit for the heat brought in by the preheated air — press Calculate Analysis to see the credit');
+    n.innerHTML=s;};
+  function init(){aphUI();var r=document.getElementById('fan_rh');if(r)r.addEventListener('input',aphUI);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+  document.addEventListener('te-lang',function(){aphUI();var res=document.getElementById('results');
+    if(res&&res.style.display==='block'&&typeof calculateAll==='function'){try{calculateAll();}catch(e){}}}); /* สลับภาษาหลังคำนวณ: วาดผล/คำเตือนใหม่ในภาษาที่เลือก */
+  if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+    "การอุ่นอากาศเผาไหม้":"Combustion air preheating",
+    "ไม่อุ่น — อากาศภายนอกเข้าห้องเผาไหม้":"None — ambient air enters the furnace",
+    "อุ่นด้วยไอเสีย (air preheater)":"Preheated by flue gas (air preheater)",
+    "มี air preheater: วัด T":"With an air preheater: measure T",
+    "ก่อนเข้า air preheater และวัดอากาศหลังอุ่น → เลือก “อุ่นด้วยไอเสีย” · ถ้าวัด T":"before the air preheater and the air after preheating → choose “Preheated by flue gas” · if T",
+    "ที่ปล่องหลัง air preheater ให้คงโหมดนี้ และกรอก T":"is measured at the stack after the air preheater, keep this mode and enter T",
+    "= อากาศภายนอก (ขอบเขตรวม air preheater)":"= ambient air (boundary includes the air preheater)",
+    "ขอบเขตคำนวณ = หม้อไอน้ำไม่รวม air preheater · ความสูญเสียคิดที่อากาศภายนอก แล้วบวกเครดิตความร้อนที่อากาศหลังอุ่นนำเข้ามา":"Calculation boundary = boiler excluding the air preheater · losses are taken at ambient air, plus a credit for the heat brought in by the preheated air",
+    "อุณหภูมิอากาศภายนอก (ก่อนอุ่น)":"Ambient air temperature (before preheating)",
+    "วัดที่ทางดูดพัดลม FD · ไทย 28–36 °C · ความชื้นสัมพัทธ์ใช้ช่อง RH ในกล่องพัดลม FD (อากาศภายนอก)":"Measure at the FD fan inlet · Thailand 28–36 °C · relative humidity uses the RH field in the FD fan box (ambient air)",
+    "อุณหภูมิอากาศ":"Air temperature",
+    "อุณหภูมิอากาศหลังอุ่น":"Preheated air temperature",
+    "วัดที่ท่ออากาศร้อนหลัง air preheater ก่อนเข้าห้องเผาไหม้ · ไม่เกิน 450 °C":"Measure in the hot-air duct after the air preheater, before the furnace · up to 450 °C",
+    "อ้างอิง: EN 12952-15:2003 ข้อ 1.1 (air heater เป็นส่วนของหม้อไอน้ำ) และข้อ 3.1–3.2 (heat credits) · ASME PTC 4-2008 หัวข้อ 1-4 (Steam Generator Boundaries) และ 5-15 (Credits) · วิธีเดียวกับรุ่น Pro TH-BLR-01":"Reference: EN 12952-15:2003 cl. 1.1 (the air heater is part of the steam generator) and cl. 3.1–3.2 (heat credits) · ASME PTC 4-2008 sections 1-4 (Steam Generator Boundaries) and 5-15 (Credits) · same method as the Pro card TH-BLR-01",
+    "อุ่นอากาศด้วยไอเสีย: วัด T":"Air preheated by flue gas: measure T",
+    "ที่ไอเสียก่อนเข้า air preheater (ขอบเขตเดียวกับอากาศหลังอุ่น)":"in the flue gas before the air preheater (same boundary as the preheated air)",
+    "โหมดอุ่นอากาศ: กรอก RH ของอากาศภายนอก (ก่อนอุ่น) — ความชื้นสัมบูรณ์คงที่ระหว่างอุ่น":"Air preheat mode: enter the RH of the ambient air (before preheating) — the humidity ratio does not change during heating",
+    "*โหมดอุ่นอากาศ: ความหนาแน่นลมพัดลม FD คิดที่อากาศภายนอก (ก่อนอุ่น) · ค่า C, H, O, S อัตราเชื้อเพลิง T":"*Air preheat mode: the FD fan air density is taken at ambient air (before preheating) · C, H, O, S, fuel rate, T",
+    "O₂ CO ดึงจากด้านบนอัตโนมัติ":", O₂ and CO are taken from above automatically",
+    "เครดิตอุ่นอากาศ (หักออก)":"Air preheat credit (deducted)"
+  });
+})();
+</script>
 </body>
 </html>
