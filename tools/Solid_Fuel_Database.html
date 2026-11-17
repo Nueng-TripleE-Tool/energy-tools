@@ -139,7 +139,8 @@ a{color:var(--teal)}
 </div>
 
 <div class="card hide" id="detailCard">
-  <h2 id="dTitle">รายละเอียด</h2>
+  <!-- [แก้ไข 17 พ.ย. 2569 #93] ปุ่มเลือกเปรียบเทียบในการ์ดรายละเอียด: มือถือ/จอสัมผัสกด Ctrl/⌘+คลิกไม่ได้ จึงเลือกเปรียบเทียบไม่ได้เลย · id dTitle คงเดิม (ย้ายไปอยู่ที่ span) -->
+  <h2><span id="dTitle">รายละเอียด</span> <button class="btn ghost" id="dCmp" style="float:right">เพิ่มในตารางเปรียบเทียบ</button></h2>
   <div class="detail-grid" id="dGrid"></div>
   <div class="note" id="dNote"></div>
 </div>
@@ -322,6 +323,7 @@ function sortRows(a){
 }
 
 const selected=new Set();
+let curId=null; // [แก้ไข 17 พ.ย. 2569 #93] รายการที่เปิดในการ์ดรายละเอียด (ใช้กับปุ่ม dCmp)
 function render(){
   filtered=sortRows(apply());
   $('cnt').textContent=filtered.length.toLocaleString()+' รายการ';
@@ -353,6 +355,7 @@ function detail(r){
   if(!r) return;
   $('detailCard').classList.remove('hide');
   $('dTitle').textContent=`#${r.id} — ${r.mat}`;
+  curId=r.id; setCmpBtn();
   const ash=r.ASH;
   const kv=(k,v,u,d)=> v===null||v===undefined?'':`<div class="kv"><span>${k}</span><span>${fmt(v,d===undefined?2:d)} <span class="unit">${u||''}</span></span></div>`;
   const oxSum=OX.reduce((s,k)=>s+(r[k]||0),0);
@@ -406,6 +409,7 @@ function detail(r){
 }
 
 function renderCmp(){
+  setCmpBtn();
   const rs=[...selected].map(id=>ROWS.find(r=>r.id===id));
   if(!rs.length){ $('cmpCard').classList.add('hide'); return; }
   $('cmpCard').classList.remove('hide');
@@ -422,6 +426,9 @@ function renderCmp(){
   $('cmpTbl').innerHTML=h+'</tbody>';
 }
 $('cmpClear').onclick=()=>{selected.clear();renderCmp();render();};
+// [แก้ไข 17 พ.ย. 2569 #93] ปุ่มเพิ่ม/นำออกจากตารางเปรียบเทียบ — ทำงานเหมือน Ctrl/⌘+คลิกแถว ใช้ได้บนมือถือ
+function setCmpBtn(){ if(curId===null) return; $('dCmp').textContent = selected.has(curId) ? 'นำออกจากตารางเปรียบเทียบ' : 'เพิ่มในตารางเปรียบเทียบ'; }
+$('dCmp').onclick=()=>{ if(curId===null) return; selected.has(curId)?selected.delete(curId):selected.add(curId); renderCmp(); render(); };
 
 function stats(){
   const K=[['ความชื้น M','M','wt% ar',2],['เถ้า ASH','ASH','wt% dry',2],
@@ -481,6 +488,8 @@ if(window.TE_I18N)TE_I18N.set({
 "มี Proximate": "Has proximate",
 "มีข้อมูลเถ้า": "Has ash data",
 "ล้างการเลือก": "Clear selection",
+"เพิ่มในตารางเปรียบเทียบ": "Add to comparison",
+"นำออกจากตารางเปรียบเทียบ": "Remove from comparison",
 "— ทุกหมวด —": "— All categories —",
 "HHV สูง→ต่ำ": "HHV high→low",
 "LHV สูง→ต่ำ": "LHV high→low",
