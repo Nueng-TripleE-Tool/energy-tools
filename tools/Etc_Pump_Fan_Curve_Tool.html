@@ -291,6 +291,7 @@ hr{border:none;border-top:1px solid #e8ecf4;margin:9px 0;}
         <div><label>Q₁ ที่ BEP</label><input type="number" id="aq1" value="55"></div>
         <div><label>H₁/ΔP₁ ที่ BEP</label><input type="number" id="ah1" value="33.5"></div>
         <div><label>P_shaft₁ (kW)</label><input type="number" id="ap1" value="8.2"></div>
+        <div><label>สัดส่วนหัวคงที่ f (เว้นว่าง = ΔP_static ÷ H₁)</label><input type="number" id="affF" value="" step="0.05" min="0" max="0.95" placeholder="อัตโนมัติ"></div><!-- [แก้ไข 17 พ.ย. 2569] R5-52 วิธีหัวควบคุม (มติเดียวกับ R6-01) -->
         <div style="display:flex;align-items:flex-end"><button class="btn btn-p" style="width:100%;justify-content:center" onclick="calcAff()">คำนวณ →</button></div>
       </div>
       <div class="ag">
@@ -298,14 +299,21 @@ hr{border:none;border-top:1px solid #e8ecf4;margin:9px 0;}
         <div class="ar"><div class="v" id="ah2">—</div><div class="l">H₂/ΔP₂</div><div class="f">H₂=H₁×(N₂/N₁)²</div></div>
         <div class="ar"><div class="v" id="ap2">—</div><div class="l">P_shaft₂ (kW)</div><div class="f">P₂=P₁×(N₂/N₁)³</div></div>
       </div>
+      <div class="ag"><!-- [แก้ไข 17 พ.ย. 2569] R5-52: ผลเมื่อระบบมี static head / คุมความดัน — r = Q₂/Q₁ -->
+        <div class="ar"><div class="v" id="affFv">—</div><div class="l">f ที่ใช้</div><div class="f">f = H_static ÷ H₁</div></div>
+        <div class="ar"><div class="v" id="ap2s">—</div><div class="l">P_shaft₂ เมื่อคิด static head (kW)</div><div class="f">P₂=P₁·r·[f+(1−f)·r²]</div></div>
+        <div class="ar"><div class="v" id="apSave">—</div><div class="l">ลดกำลัง: กำลังสาม / คิด static head</div><div class="f">r = Q₂/Q₁</div></div>
+      </div>
+      <div class="cs" style="margin-top:6px">ระบบที่มี static head หรือคุมความดันคงที่ (DP setpoint) ลด flow ได้น้อยกว่าลดรอบ — ใช้ผลแถวล่างประเมินผลประหยัด · กำลังสามใช้ได้เฉพาะเส้นระบบที่ผ่านจุดกำเนิด</div>
     </div>
     <div class="card">
       <div class="ct">📈 Q–H Curve เปรียบเทียบ N₁ vs N₂</div>
       <div class="leg" id="leg3"></div>
       <div class="ch-sm"><canvas id="chartAff"></canvas></div>
     </div>
-    <div class="tip">💡 ลด RPM 20% → Flow ลด 20%, Head ลด 36%, <b>P_shaft ลดถึง 49%!</b><br>
-    VFD ดีกว่า Throttle วาล์วเสมอ | ตัดใบพัด: D-ratio แทน N-ratio<br>
+    <div class="tip">💡 ระบบที่ไม่มี static head (เส้นระบบผ่านจุดกำเนิด): ลด RPM 20% → Flow ลด 20%, Head ลด 36%, P_shaft ลด 49%<br>
+    ระบบที่มี static head หรือคุมความดันประหยัดน้อยกว่านี้ — ตัวอย่างนี้ (f ≈ 0.36) ลดได้ราว 38%<br>
+    VFD มักประหยัดกว่าการหรี่วาล์ว | ตัดใบพัด: D-ratio แทน N-ratio<br><!-- [แก้ไข 17 พ.ย. 2569] R5-52 เดิม "P_shaft ลดถึง 49%!" และ "ดีกว่าเสมอ" -->
     <span style="color:#b45309">⚠️ P_electrical ลดน้อยกว่า P_shaft เพราะ Motor η เปลี่ยนตาม Load — VFD Motor ต้องดู Efficiency Curve ที่ Part Load ด้วย</span>
   </div>
   <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:9px 13px;margin-top:8px;font-size:11px;color:#1d4ed8;line-height:1.8">
@@ -828,6 +836,13 @@ function calcAff(){
   document.getElementById('aq2').textContent=(q1*r).toFixed(2);
   document.getElementById('ah2').textContent=(h1*r*r).toFixed(2);
   document.getElementById('ap2').textContent=(p1*r*r*r).toFixed(2);
+  /* [แก้ไข 17 พ.ย. 2569] R5-52 วิธีหัวควบคุม: P₂ = P₁·r·[f + (1−f)·r²] · f = ΔP_static ÷ H₁ (หรือค่าที่ผู้ใช้กรอก · ไม่มีข้อมูล = 0.4 ค่าแนวทางของเครื่องมือ) */
+  const fIn=(document.getElementById('affF')||{}).value, hs=parseFloat((document.getElementById('staticHead')||{}).value);
+  let f=(fIn!==''&&fIn!=null&&isFinite(+fIn))?+fIn:((isFinite(hs)&&h1>0)?hs/h1:0.4); f=Math.min(Math.max(f,0),0.95);
+  const p2s=p1*r*(f+(1-f)*r*r);
+  document.getElementById('affFv').textContent=f.toFixed(2);
+  document.getElementById('ap2s').textContent=p2s.toFixed(2);
+  document.getElementById('apSave').textContent=((1-r*r*r)*100).toFixed(1)+' / '+((1-p2s/p1)*100).toFixed(1)+' %';
   const v=rows.filter(x=>x.q!==''&&x.head!=='').sort((a,b)=>parseFloat(a.q)-parseFloat(b.q));
   if(v.length<2)return;
   const Qs=v.map(x=>parseFloat(x.q)),Hs=v.map(x=>parseFloat(x.head));
@@ -879,6 +894,15 @@ if(window.TE_I18N)TE_I18N.set({
 "• ✅ ถูกต้องสำหรับ Centrifugal Pump/Fan ที่ไม่มีการเปลี่ยน Geometry": "• ✅ Valid for centrifugal pumps/fans with no geometry change",
 "จุดตัดของ Equipment Curve กับ System Curve = Operating Point จริง": "Intersection of equipment curve and system curve = actual operating point",
 "VFD ดีกว่า Throttle วาล์วเสมอ | ตัดใบพัด: D-ratio แทน N-ratio": "VFD always beats valve throttling | Impeller trim: D-ratio instead of N-ratio",
+"💡 ระบบที่ไม่มี static head (เส้นระบบผ่านจุดกำเนิด): ลด RPM 20% → Flow ลด 20%, Head ลด 36%, P_shaft ลด 49%": "💡 Systems without static head (system curve through the origin): 20% lower RPM → 20% less flow, 36% less head, 49% less shaft power",
+"ระบบที่มี static head หรือคุมความดันประหยัดน้อยกว่านี้ — ตัวอย่างนี้ (f ≈ 0.36) ลดได้ราว 38%": "Systems with static head or pressure control save less — this example (f ≈ 0.36) saves about 38%",
+"VFD มักประหยัดกว่าการหรี่วาล์ว | ตัดใบพัด: D-ratio แทน N-ratio": "A VFD usually saves more than valve throttling | Impeller trim: D-ratio instead of N-ratio",
+"สัดส่วนหัวคงที่ f (เว้นว่าง = ΔP_static ÷ H₁)": "Fixed-head fraction f (blank = ΔP_static ÷ H₁)",
+"อัตโนมัติ": "auto",
+"f ที่ใช้": "f used",
+"P_shaft₂ เมื่อคิด static head (kW)": "P_shaft₂ with static head (kW)",
+"ลดกำลัง: กำลังสาม / คิด static head": "Power cut: cube law / with static head",
+"ระบบที่มี static head หรือคุมความดันคงที่ (DP setpoint) ลด flow ได้น้อยกว่าลดรอบ — ใช้ผลแถวล่างประเมินผลประหยัด · กำลังสามใช้ได้เฉพาะเส้นระบบที่ผ่านจุดกำเนิด": "With static head or a fixed pressure setpoint (DP setpoint), power falls less than the cube law — use the lower row to estimate savings · the cube law only holds for a system curve through the origin",
 "Eff ที่คำนวณใช้ P_shaft = P_elec × η_motor × η_coupling": "Calculated eff uses P_shaft = P_elec × η_motor × η_coupling",
 "คำนวณสมรรถนะที่ RPM ใหม่ — สำหรับ VFD หรือการตัดใบพัด": "Performance at new RPM — for VFD or impeller trimming",
 "Efficiency แสดงเป็น Hydraulic/Aerodynamic Efficiency": "Efficiency shown as hydraulic/aerodynamic efficiency",
