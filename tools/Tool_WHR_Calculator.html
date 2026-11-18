@@ -1287,7 +1287,7 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
           <div class="grid-2" style="margin-top:10px">
             <div class="field">
               <label>NCV วัสดุ (dry basis) <span>(MJ/kg_dry)</span></label>
-              <input type="number" id="d_ncv_dry" value="16.0" step="0.1" onchange="dryCalcAuto()"><div class="hint">ค่าความร้อนต่ำวัสดุแห้ง (MJ/kg dry) — ผล lab หรือฐานข้อมูลเชื้อเพลิงแข็ง; ไม้ 17–19, แกลบ 15–16, ทะลายปาล์ม 17–18</div>
+              <!-- [แก้ไข 18 พ.ย. 2569] #441 16.0 → 16.5 = ค่าของ "ไม้สับสด" ที่ถูกเลือกไว้ตั้งต้น (DRY_MAT_DEFAULTS) --><input type="number" id="d_ncv_dry" value="16.5" step="0.1" onchange="dryCalcAuto()"><div class="hint">ค่าความร้อนต่ำวัสดุแห้ง (MJ/kg dry) — ผล lab หรือฐานข้อมูลเชื้อเพลิงแข็ง; ไม้ 17–19, แกลบ 15–16, ทะลายปาล์ม 17–18</div>
             </div>
             <div class="field">
               <label>ค่าไฟหรือเชื้อเพลิงทดแทน <span>(บาท/GJ)</span></label>
@@ -1455,7 +1455,7 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
             </div>
             <div class="field">
               <label>ṁ_fg — อัตราไหลไอเสีย <span>(Nm³/hr)</span> <span style="color:var(--accent2);font-size:10px">⚡ จาก Global</span></label>
-              <input type="number" id="oil_mfg" value="155" step="1"><div class="hint">อัตราไหลไอเสีย (Nm³/hr) ดึงจาก Global — แก้ได้ถ้าวัดจริง</div>
+              <!-- [แก้ไข 18 พ.ย. 2569] #441 ค่าตั้งต้น 155 → 128 = ไอเสียของเชื้อเพลิงตัวอย่าง (ตรงกับแท็บอื่นตามมติ D16) --><input type="number" id="oil_mfg" value="128" step="1"><div class="hint">อัตราไหลไอเสีย (Nm³/hr) ดึงจาก Global — แก้ได้ถ้าวัดจริง</div>
             </div>
             <div class="field">
               <label>Cp_fg ค่าเฉลี่ย <span>(kJ/Nm³·K)</span></label>
@@ -2174,19 +2174,18 @@ function setRecupStage(n) {
   document.getElementById('recup2_box').setAttribute('opacity', op);
 }
 
+/* [แก้ไข 18 พ.ย. 2569] #441 ปุ่มตัวอย่าง/ล้างค่า = คืนค่าตั้งต้นของแท็บ (ค่าเดียวกับตอนเปิดหน้า) แล้วรับข้อมูลไอเสียร่วมใหม่
+   เดิมปุ่มตัวอย่างใส่ชุดตัวเลขเก่าก่อนมติ D16 (ṁ_fg 155 Nm³/hr ≠ ไอเสียของเชื้อเพลิงตัวอย่าง 128.3 · ตู้อบ 1,000 kg/hr · เหล็ก 800 kg/hr) */
+function teRestoreDefaults(ids) {
+  ids.forEach(id => { const e = document.getElementById(id); if (!e) return;
+    if (e.tagName === 'SELECT') { const o = [...e.options].find(o => o.defaultSelected) || e.options[0]; e.value = o.value; }
+    else e.value = e.defaultValue;
+    if (e.dataset) delete e.dataset.auto; });
+}
+function teResync() { const s0 = _teSilent; _teSilent = true; try { calcGlobal(); } catch(e) {} _teSilent = s0; }
 function loadSampleAir() {
-  // From "Heat Balance เตาเผา ไฟล์หลักอ้างอิง.xlsx" data
-  document.getElementById('a_tfg1').value = 745;
-  document.getElementById('a_tfg2').value = 527;
-  document.getElementById('a_tfg3').value = 331;
-  document.getElementById('a_tair1').value = 31;
-  document.getElementById('a_tair2').value = 274;
-  document.getElementById('a_tair3').value = 478;
-  document.getElementById('a_mair').value = 128;
-  document.getElementById('a_cpair').value = 1.30;
-  document.getElementById('a_mfg').value = 155;
-  document.getElementById('a_cpfg').value = 1.42;
-  setRecupStage(2);
+  teRestoreDefaults(['a_tfg1','a_tfg2','a_tfg3','a_tair1','a_tair2','a_tair3','a_mair','a_cpair','a_cpfg','a_mfg','a_hrs']);
+  setRecupStage(1); teResync(); calcAir();
 }
 
 
@@ -2196,20 +2195,14 @@ function loadSampleAir() {
 // ════════════════════════════════════════════════════════════
 function setWaterType() {
   const t = document.getElementById('w_type').value;
-  if (t === 'fw')   { document.getElementById('w_tw_in').value=25; document.getElementById('w_tw_out').value=90; }
+  if (t === 'fw')   { document.getElementById('w_tw_in').value=25; document.getElementById('w_tw_out').value=80; } // [แก้ไข 18 พ.ย. 2569] #441 90 → 80 = ค่าตั้งต้นของช่อง
   if (t === 'proc') { document.getElementById('w_tw_in').value=30; document.getElementById('w_tw_out').value=70; }
   if (t === 'hw')   { document.getElementById('w_tw_in').value=15; document.getElementById('w_tw_out').value=60; }
 }
 
-function loadSampleWater() {
-  document.getElementById('w_tfg_in').value  = 280;
-  document.getElementById('w_tfg_out').value = 160;
-  document.getElementById('w_mfg').value     = 155;
-  document.getElementById('w_cpfg').value    = 1.40;
-  document.getElementById('w_tw_in').value   = 25;
-  document.getElementById('w_tw_out').value  = 85;
-  document.getElementById('w_mwater').value  = 0;
-  document.getElementById('w_hrs').value     = 8000;
+function loadSampleWater() { // [แก้ไข 18 พ.ย. 2569] #441
+  teRestoreDefaults(['w_tfg_in','w_tfg_out','w_mfg','w_cpfg','w_type','w_tw_in','w_tw_out','w_mwater','w_hrs']);
+  teResync(); calcWater();
 }
 
 
@@ -2244,17 +2237,9 @@ function setOilFluid() {
   }
 }
 
-function loadSampleOil() {
-  document.getElementById('oil_fluid').value = 'mineral';
-  document.getElementById('oil_tfg_in').value  = 350;
-  document.getElementById('oil_tfg_out').value = 200;
-  document.getElementById('oil_mfg').value     = 155;
-  document.getElementById('oil_cpfg').value    = 1.42;
-  document.getElementById('oil_tin').value     = 150;
-  document.getElementById('oil_tout').value    = 280;
-  document.getElementById('oil_mfluid').value  = 0;
-  document.getElementById('oil_hrs').value     = 8000;
-  setOilFluid();
+function loadSampleOil() { // [แก้ไข 18 พ.ย. 2569] #441
+  teRestoreDefaults(['oil_fluid','oil_cp','oil_tfg_in','oil_tfg_out','oil_mfg','oil_cpfg','oil_tin','oil_tout','oil_mfluid','oil_hrs']);
+  setOilFluid(); teResync(); calcOil();
 }
 
 
@@ -2287,19 +2272,9 @@ function hrSrcChange() {
   try { if (R.hrsg.done) calcHRSG(); } catch(e) {}
 }
 
-function loadSampleHRSG() {
-  document.getElementById('hr_tgas_in').value = 520;
-  document.getElementById('hr_mfg').value     = 20000;
-  document.getElementById('hr_cpfg').value    = 1.40;
-  document.getElementById('hr_eta').value     = 0.85;
-  document.getElementById('hr_p').value       = 10;
-  document.getElementById('hr_tfw').value     = 105;
-  document.getElementById('hr_tsup').value    = 0;
-  document.getElementById('hr_cpsteam').value = 2.10;
-  document.getElementById('hr_pinch').value   = 20;
-  document.getElementById('hr_approach').value= 10;
-  document.getElementById('hr_hrs').value     = 8000;
-  updateHRSGSatHint();
+function loadSampleHRSG() { // [แก้ไข 18 พ.ย. 2569] #441 คืนค่าตั้งต้น (รวมแหล่งไอเสีย = แหล่งแยก)
+  teRestoreDefaults(['hr_src','hr_tgas_in','hr_mfg','hr_cpfg','hr_eta','hr_p','hr_tfw','hr_tsup','hr_cpsteam','hr_pinch','hr_approach','hr_hrs']);
+  hrSrcUI(); updateHRSGSatHint(); calcHRSG();
 }
 
 
@@ -2315,25 +2290,16 @@ function setMetalProps() {
   document.getElementById('m_rho_disp').textContent = m.rho;
 }
 
-function loadSampleMetal(type) {
+function loadSampleMetal(type) { // [แก้ไข 18 พ.ย. 2569] #441 เหล็ก = ค่าตั้งต้น · อะลูมิเนียม 500 → 250 kg/hr (ขนาดที่ไอเสียตัวอย่างให้ความร้อนพอ — แนวเดียวกับ R4-18)
+  teRestoreDefaults(['m_type','m_cp','m_rate','m_tin','m_tout','m_tfg_in','m_tfg_out','m_mfg','m_hrs']);
   document.getElementById('m_type').value = type; setMetalProps();
-  if (type === 'steel') {
-    document.getElementById('m_rate').value   = 800;
-    document.getElementById('m_tin').value    = 25;
-    document.getElementById('m_tout').value   = 300;
-    document.getElementById('m_tfg_in').value = 500;
-    document.getElementById('m_tfg_out').value= 200;
-    document.getElementById('m_mfg').value    = 155;
-    document.getElementById('m_hrs').value    = 6000;
-  } else {
-    document.getElementById('m_rate').value   = 500;
-    document.getElementById('m_tin').value    = 25;
+  if (type !== 'steel') {
+    document.getElementById('m_rate').value   = 250;
     document.getElementById('m_tout').value   = 200;
-    document.getElementById('m_tfg_in').value = 400;
     document.getElementById('m_tfg_out').value= 180;
-    document.getElementById('m_mfg').value    = 155;
     document.getElementById('m_hrs').value    = 5000;
   }
+  teResync(); calcMetal();
 }
 
 
@@ -2368,7 +2334,7 @@ function resetDrying() {
   document.getElementById('d_mc_in').value    = d.mc_in;
   document.getElementById('d_mc_out').value   = d.mc_out;
   document.getElementById('d_ncv_dry').value  = d.ncv_dry;
-  document.getElementById('d_m_wet').value    = 1000;
+  document.getElementById('d_m_wet').value    = document.getElementById('d_m_wet').defaultValue; // [แก้ไข 18 พ.ย. 2569] #441 เดิม 1000 (ค่าเก่าก่อน R4-18) → ค่าตั้งต้น 75 kg/hr
   document.getElementById('d_tdry').value     = 80;
   document.getElementById('d_tair_in').value  = 33;
   document.getElementById('d_hrs').value      = 6000;
