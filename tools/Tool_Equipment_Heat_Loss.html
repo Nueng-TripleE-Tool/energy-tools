@@ -506,7 +506,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       <h2><span class="g-tag">เศรษฐศาสตร์</span>ต้นทุนพลังงานและผลประหยัด (Energy &amp; Economics)</h2>
       <div class="grid4">
         <div><label>แหล่งพลังงานความร้อน</label><select id="fuel" onchange="onFuel()"></select><div class="hint">แหล่งความร้อนที่ผลิตความร้อนให้อุปกรณ์นี้ — เลือกแล้วระบบเติม LHV/ราคา/EF ให้ (แก้ทับได้) · ที่มา: ใบแจ้งหนี้เชื้อเพลิงของโรงงาน</div></div>
-        <div><label>ค่าความร้อน LHV (MJ/หน่วย)</label><input id="lhv" type="number" step="0.01" value="39.77" oninput="calcAll()"><div class="hint">ค่าความร้อนต่ำต่อหน่วยซื้อ · น้ำมันเตา 39.8 MJ/L · ดีเซล 36.4 MJ/L · LPG 46.1 MJ/kg · NG 36–38 MJ/Nm³ · ชีวมวล 10–17 MJ/kg · ไฟฟ้า 3.6 MJ/kWh · ที่มา: ใบรับรองผลวิเคราะห์/สเปคผู้ขาย</div></div>
+        <div><label>ค่าความร้อน LHV (MJ/หน่วย)</label><input id="lhv" type="number" step="0.01" value="39.77" oninput="calcAll()"><div class="hint">ค่าความร้อนต่ำ (LHV/NCV) ต่อหน่วยซื้อ — ต้องเป็นฐานเดียวกับ η · น้ำมันเตา 39.8 MJ/L · ดีเซล 36.4 MJ/L · LPG 46.1 MJ/kg · NG 949.6 MJ/MMBTU · ชีวมวล 10–17 MJ/kg · ไฟฟ้า 3.6 MJ/kWh · ที่มา: ใบรับรองผลวิเคราะห์/สเปคผู้ขาย</div><div class="note" id="lhv_src" style="font-size:11px"></div></div><!-- [แก้ไข 18 พ.ย. 2569] #390 ฐาน/ที่มาของค่าความร้อน (NG แปลงจาก GHV) -->
         <div><label>ราคาเชื้อเพลิง (บาท/หน่วย)</label><input id="price" type="number" step="0.01" value="22" oninput="calcAll()"><div class="hint">ราคาเชื้อเพลิงต่อหน่วยซื้อรวม VAT ส่งถึงโรงงาน · ปี 2569 โดยประมาณ: น้ำมันเตา 20–25 บาท/L · LPG 20–24 บาท/kg · NG 350–450 บาท/MMBtu · ไฟฟ้า 3.8–4.5 บาท/kWh · ที่มา: ใบแจ้งหนี้</div></div>
         <div><label>ประสิทธิภาพหม้อไอน้ำ/เครื่องกำเนิดความร้อน η (%)</label><input id="eff" type="number" step="1" value="85" oninput="calcAll()"><div class="hint">ประสิทธิภาพของหม้อไอน้ำ/เตาที่ผลิตความร้อน (ฐาน LHV) — ทุก 1 kWh ที่รั่วผ่านผิวต้องเผาเชื้อเพลิง 1/η kWh · หม้อไอน้ำน้ำมัน/ก๊าซ 85–90 % · ชีวมวล 70–82 % · ไฟฟ้า 100 % · ที่มา: ผลตรวจวัดจริง</div></div>
       </div>
@@ -1447,6 +1447,17 @@ const kSrcHTML=key=>(window.TE_INSK&&TE_INSK.TAB[key])
 
 /* ════════════════ FUELS ════════════════ */
 const EF_GRID=0.4750; // [แก้ไข 3 ต.ค. 2569 audit] EF ไฟฟ้ากริดไทย (TGO) kgCO₂e/kWh — จุดเดียว ใช้กับ FUELS.elec และงานเย็น (coldEF)
+/* [แก้ไข 18 พ.ย. 2569] #390 ฐานค่าความร้อนของก๊าซธรรมชาติ
+   ปัญหา: ng ใช้ 1,055.06 MJ/MMBTU ในช่อง "ค่าความร้อน LHV" — 1 MMBTU = 1,055.06 MJ เป็นค่าตามนิยามหน่วย และ MMBTU ที่ซื้อขาย/คิดค่าบริการ
+          (กกพ. คิดเป็น "บาทต่อล้านบีทียู") เป็นฐานค่าความร้อนสูง (GHV/GCV) ขณะที่ η ในการ์ดนี้เป็นฐาน LHV → พลังงานต่อ MMBTU สูงเกิน 1/0.90
+          → ปริมาณก๊าซ ค่าใช้จ่าย ผลประหยัด และ CO₂e ต่ำไปราว 10 %
+   ใหม่: 1 MMBTU (GHV) × NCV/GCV 0.90 = 949.55 MJ ฐาน LHV (ให้ตรงกับ η) · EF natural_gas_mmbtu (ฐาน HHV ต่อ MMBTU) คูณกับ MMBTU ที่ซื้อ — ฐานเดียวกันแล้ว ไม่เปลี่ยน
+   อ้างอิง: IPCC 2006 GL Vol.2 Ch.1 ข้อ 1.4.1.2 หน้า 1.16 "For most forms of natural and manufactured gas, the NCV is about 10 percent less."
+            https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/2_Volume2/V2_1_Ch1_Introduction.pdf
+            OECD/IEA/Eurostat Energy Statistics Manual (2005) Ch.3 Natural Gas ข้อ 3 หน้า 57 ("the net calorific value is on average 10% less than the gross value"
+            · "gas is purchased for its heating value") และข้อ 2 หน้า 56 ("Data are to be reported in gross calorific value")
+   ใบวิเคราะห์ก๊าซที่มี GHV และ NHV ให้ใช้ 1,055.06 × NHV/GHV แทน */
+const NG_MJ_MMBTU=1055.06, NG_NCV_GCV=0.90, NG_LHV_MMBTU=Math.round(NG_MJ_MMBTU*NG_NCV_GCV*100)/100;   // 949.55 MJ (LHV) ต่อ MMBTU (GHV)
 const FUELS={
  /* [แก้ไข 17 พ.ย. 2569] ผลตรวจรอบ 5 (ค่าเดียวกันไม่เท่ากันข้ามเครื่องมือ): EF เชื้อเพลิงให้ตรงคลัง TE_EF (อบก. ม.ค. 2569 / IPCC 2006)
     fo = fuel_oil_c 3.2455 · diesel = diesel_stat 2.7076 · lpg = lpg_kg 3.1133 · coal = bituminous 2.5125 · ng = natural_gas_mmbtu (HHV) 52.9545
@@ -1454,7 +1465,7 @@ const FUELS={
  fo    :{n:'น้ำมันเตา (Fuel Oil) — บาท/ลิตร',lhv:39.77,pr:22,ef:3.2455,u:'ลิตร'},
  diesel:{n:'น้ำมันดีเซล — บาท/ลิตร',lhv:36.42,pr:32,ef:2.7076,u:'ลิตร'},
  lpg   :{n:'LPG — บาท/กก.',lhv:46.15,pr:25,ef:3.1133,u:'กก.'},
- ng    :{n:'ก๊าซธรรมชาติ NG — บาท/MMBTU',lhv:1055.06,pr:420,ef:52.9545,u:'MMBTU'},
+ ng    :{n:'ก๊าซธรรมชาติ NG — บาท/MMBTU',lhv:NG_LHV_MMBTU,pr:420,ef:52.9545,u:'MMBTU'},   /* [แก้ไข 18 พ.ย. 2569] #390 เดิม lhv 1055.06 (= 1 MMBTU ฐาน GHV) คู่กับ η ฐาน LHV → ก๊าซ/ผลประหยัดต่ำไป ~10 % */
  coal  :{n:'ถ่านหินบิทูมินัส — บาท/กก.',lhv:25.80,pr:4.5,ef:2.5125,u:'กก.'},
  bio   :{n:'ชีวมวล ไม้สับ (ความชื้น 35 %) — บาท/กก.',lhv:12.50,pr:1.5,ef:0,u:'กก.'},
  elec  :{n:'ไฟฟ้า (ฮีตเตอร์) — บาท/kWh',lhv:3.6,pr:4.2,ef:EF_GRID,u:'kWh'}, // [แก้ไข 3 ต.ค. 2569 audit] EF กริด 0.4750 (เดิม 0.4999)
@@ -2137,6 +2148,36 @@ function ehlEFsrc(){
   el.innerHTML=(same?'<span>ที่มา:</span> ':'<span>ค่าที่กรอกเอง · ค่าคลัง:</span> '+d.ef+' · ')+'TE_EF '+d.key.split('.').pop()+' · kgCO₂e/'+d.unit+' · '+d.src+
     (k==='ng'?' · <span>ฐาน HHV ต่อ MMBTU</span>':'')+(k==='bio'?' · <span>นับเฉพาะ CH₄ + N₂O (Scope 1) · CO₂ ชีวภาพรายงานแยก</span>':'');
 }
+/* [แก้ไข 18 พ.ย. 2569] #390 ฐานและที่มาของค่าความร้อนตั้งต้นรายแหล่งความร้อน (ใต้ช่อง LHV) — ทุกค่าต้องเป็นฐาน LHV/NCV ให้ตรงกับ η
+   fo/diesel: ตารางค่าแปลงหน่วย พพ. (NCV) · lpg/coal: IPCC 2006 Vol.2 Ch.1 Table 1.2 (NCV) · elec: นิยามหน่วย · ng: GHV × 0.90 (ดู NG_NCV_GCV) */
+const EHL_URL={ipcc1:'https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/2_Volume2/V2_1_Ch1_Introduction.pdf',
+  dede:'https://data.go.th/dataset/df65e47e-1aaf-4356-960b-cae5f66a431c/resource/125857b4-bf78-4335-b39e-7fef52af1768/download/energy-balance-of-thailand-2015_reports.pdf',
+  iea:'https://geostat.ge/media/55677/8.-Manual-of-energy-statistics-%28Eurostat%2C-OECD%2C-International-Energy-Agency%29.pdf'};
+const ehlA=u=>` — <a href="${u}" target="_blank" rel="noopener" style="word-break:break-all">${u}</a>`;
+const EHL_LHVSRC={
+  fo:'<span>ฐาน NCV (ค่าความร้อนสุทธิ) ตามตารางค่าแปลงหน่วยของ พพ.:</span> 39.77 MJ/L · DEDE, Energy Balance of Thailand 2015, Conversion Factors p.62'+ehlA(EHL_URL.dede),
+  diesel:'<span>ฐาน NCV (ค่าความร้อนสุทธิ) ตามตารางค่าแปลงหน่วยของ พพ.:</span> 36.42 MJ/L · DEDE, Energy Balance of Thailand 2015, Conversion Factors p.62'+ehlA(EHL_URL.dede),
+  lpg:'<span>ฐาน NCV · 46.15 MJ/kg เป็นค่าแนวทางของเครื่องมือ อยู่ในช่วงของ IPCC:</span> LPG 47.3 (44.8–52.2) MJ/kg · IPCC 2006 Vol.2 Ch.1 Table 1.2 p.1.18'+ehlA(EHL_URL.ipcc1),
+  coal:'<span>ฐาน NCV ค่าตั้งต้นของ IPCC:</span> Other Bituminous Coal 25.8 MJ/kg · IPCC 2006 Vol.2 Ch.1 Table 1.2 p.1.18'+ehlA(EHL_URL.ipcc1),
+  elec:'<span>1 kWh = 3.6 MJ (นิยามหน่วย) · ฮีตเตอร์ไฟฟ้า η 100 %</span>'
+};
+function ehlLHVsrc(){
+  const el=$('lhv_src'); if(!el) return;
+  const k=$('fuel').value, v=num('lhv'), d=FUELS[k]?FUELS[k].lhv:null;
+  if(k==='ng'){
+    const ref='<span>อ้างอิง:</span> IPCC 2006 Vol.2 Ch.1 §1.4.1.2 p.1.16 (natural gas: “the NCV is about 10 percent less” than GCV) '+ehlA(EHL_URL.ipcc1)+' · OECD/IEA/Eurostat Energy Statistics Manual (2005) Ch.3 §2–3 p.56–57'+ehlA(EHL_URL.iea);
+    if(Math.abs(v-NG_MJ_MMBTU)<0.01){
+      el.innerHTML='<span style="color:#b3302f">⚠️ <span>1,055.06 MJ คือพลังงานของ 1 MMBTU ฐาน GHV (ค่าตามนิยามหน่วย) แต่ η เป็นฐาน LHV — ปริมาณก๊าซ ค่าใช้จ่าย และผลประหยัดจะต่ำไปราว 10 % · ค่าตั้งต้นฐาน LHV:</span> '+fmt(NG_LHV_MMBTU,2)+' MJ/MMBTU</span><br>'+ref;
+    }else{
+      el.innerHTML=(Math.abs(v-NG_LHV_MMBTU)<0.005?'':'<span>ค่าที่กรอกเอง · ค่าตั้งต้น:</span> '+fmt(NG_LHV_MMBTU,2)+' MJ/MMBTU · ')+
+        '<span>MMBTU ที่ซื้อขายก๊าซใช้ฐานค่าความร้อนสูง (GHV — ตรวจในสัญญา/ใบแจ้งหนี้) — แปลงเป็นฐาน LHV ให้ตรงกับ η:</span> 1,055.06 MJ × NCV/GCV '+fmt(NG_NCV_GCV,2)+' = '+fmt(NG_LHV_MMBTU,2)+' MJ · '+
+        '<span>มีใบวิเคราะห์ก๊าซให้ใช้ 1,055.06 × NHV/GHV ของก๊าซจริง</span><br>'+ref;
+    }
+    return;
+  }
+  const s=EHL_LHVSRC[k]; if(!s){ el.innerHTML=''; return; }
+  el.innerHTML=((d!=null&&Math.abs(v-d)>0.005)?'<span>ค่าที่กรอกเอง · ค่าตั้งต้น:</span> '+fmt(d,2)+' · ':'')+s;
+}
 function onFuel(){
   const f=FUELS[$('fuel').value];
   $('lhv').value=f.lhv; $('price').value=f.pr; $('ef').value=f.ef;
@@ -2197,6 +2238,7 @@ function eco(){
      <div class="val">${isFinite(pb)?fmt(pb,2):'—'}</div><div class="un">ปี</div></div>
    <div class="kpi good"><div class="lb">ลดการปล่อยก๊าซเรือนกระจก</div><div class="val">${(!(B.ef>0)&&(B.cold||$('fuel').value!=='bio'))?'<span style="font-size:.7em;color:#b3302f">ยังไม่รวม (EF ว่าง)</span>':fmt(Gs,2)}</div><div class="un">tCO₂e/ปี</div></div>`;
   try{ ehlEFsrc(); }catch(e){}   /* [แก้ไข 18 พ.ย. 2569] #367 */
+  try{ ehlLHVsrc(); }catch(e){}  /* [แก้ไข 18 พ.ย. 2569] #390 */
 
   const R=(a,b,c,d,u)=>`<tr><td>${a}</td><td class="num">${b}</td><td class="num">${c}</td><td class="num">${d}</td><td>${u}</td></tr>`;
   $('tblEco').querySelector('tbody').innerHTML=
@@ -3795,7 +3837,7 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)ประสิทธิภาพของหม้อไอน้ำ\/เตาที่ผลิตความร้อน\s+\(ฐาน\s+LHV\)\s+—\s+ทุก\s+(-?\d[\d,]*\.?\d*)\s+kWh\s+ที่รั่วผ่านผิวต้องเผาเชื้อเพลิง\s+(-?\d[\d,]*\.?\d*)\/η\s+kWh\s+·\s+หม้อไอน้ำน้ำมัน\/ก๊าซ\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+%\s+·\s+ชีวมวล\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+%\s+·\s+ไฟฟ้า\s+(-?\d[\d,]*\.?\d*)\s+%\s+·\s+ที่มา:\s+ผลตรวจวัดจริง(\s*)$/,"$1Efficiency of the boiler/heater supplying the heat (LHV basis) — every $2 kWh leaking through the surface needs $3/η kWh of fuel · oil/gas boiler $4–$5 % · biomass $6–$7 % · electric $8 % · source: actual measurement$9"],
 [/^(\s*)⚠\s+ฐานคือ\s+“ผิวเปลือยสนิท”\s+—\s+ฟลักซ์ก่อนปรับปรุง\s+(-?\d[\d,]*\.?\d*)\s+W\/m²\s+ซึ่งเป็นค่าของผิวโลหะร้อนที่ไม่มีฉนวนเลย\s+ต้องยืนยันหน้างานว่าอุปกรณ์เปลือยจริง\s+มิฉะนั้นผลประหยัดจะสูงเกินจริงหลายเท่า(\s*)$/,"$1⚠ Baseline is a “fully bare surface” — pre-retrofit flux $2 W/m² is the value for hot metal with no insulation at all; confirm on site that the equipment really is bare, otherwise savings will be overstated several times$3"],
 [/^(\s*)ยิ่งสูง\s+วัสดุยิ่งดึงความร้อนเข้าสู่ผิวหนังเร็ว\s+—\s+จึงเป็นเหตุผลที่ผิวโลหะที่อุณหภูมิเดียวกัน\s+“ร้อนกว่า”\s+ผิวผ้าใยแก้วอย่างชัดเจนเมื่อสัมผัส\s+\(ผิวหนังมนุษย์\s+b\s+≈\s+(-?\d[\d,]*\.?\d*)\s+J\/m²·K·√s\)(\s*)$/,"$1The higher it is, the faster the material draws heat into the skin — which is why metal at the same temperature feels clearly “hotter” than glass cloth on contact (human skin b ≈ $2 J/m²·K·√s)$3"],
-[/^(\s*)ค่าความร้อนต่ำต่อหน่วยซื้อ\s+·\s+น้ำมันเตา\s+(-?\d[\d,]*\.?\d*)\s+MJ\/L\s+·\s+ดีเซล\s+(-?\d[\d,]*\.?\d*)\s+MJ\/L\s+·\s+LPG\s+(-?\d[\d,]*\.?\d*)\s+MJ\/kg\s+·\s+NG\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+MJ\/Nm³\s+·\s+ชีวมวล\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+MJ\/kg\s+·\s+ไฟฟ้า\s+(-?\d[\d,]*\.?\d*)\s+MJ\/kWh\s+·\s+ที่มา:\s+ใบรับรองผลวิเคราะห์\/สเปคผู้ขาย(\s*)$/,"$1LHV per purchase unit · fuel oil $2 MJ/L · diesel $3 MJ/L · LPG $4 MJ/kg · NG $5–$6 MJ/Nm³ · biomass $7–$8 MJ/kg · electricity $9 MJ/kWh · source: certificate of analysis/supplier spec$10"],
+[/^(\s*)ค่าความร้อนต่ำ\s+\(LHV\/NCV\)\s+ต่อหน่วยซื้อ\s+—\s+ต้องเป็นฐานเดียวกับ\s+η\s+·\s+น้ำมันเตา\s+(-?\d[\d,]*\.?\d*)\s+MJ\/L\s+·\s+ดีเซล\s+(-?\d[\d,]*\.?\d*)\s+MJ\/L\s+·\s+LPG\s+(-?\d[\d,]*\.?\d*)\s+MJ\/kg\s+·\s+NG\s+(-?\d[\d,]*\.?\d*)\s+MJ\/MMBTU\s+·\s+ชีวมวล\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+MJ\/kg\s+·\s+ไฟฟ้า\s+(-?\d[\d,]*\.?\d*)\s+MJ\/kWh\s+·\s+ที่มา:\s+ใบรับรองผลวิเคราะห์\/สเปคผู้ขาย(\s*)$/,"$1Lower heating value (LHV/NCV) per purchase unit — must be on the same basis as η · fuel oil $2 MJ/L · diesel $3 MJ/L · LPG $4 MJ/kg · NG $5 MJ/MMBTU · biomass $6–$7 MJ/kg · electricity $8 MJ/kWh · source: certificate of analysis/supplier spec$9"],  /* [แก้ไข 18 พ.ย. 2569] #390 */
 [/^(\s*)ชนิดฉนวนที่จะใช้\s+·\s+ใยหิน\s+\(rockwool\)\s+ใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+°C\s+ราคาถูกที่สุด\s+·\s+ใยแก้ว\s+≤\s+(-?\d[\d,]*\.?\d*)\s+°C\s+·\s+แคลเซียมซิลิเกต\s+≤\s+(-?\d[\d,]*\.?\d*)\s+°C\s+·\s+เซรามิกไฟเบอร์\s+>\s+(-?\d[\d,]*\.?\d*)\s+°C\s+·\s+ที่มา:\s+ใบเสนอราคา\/datasheet\s+ฉนวน(\s*)$/,"$1Insulation type to use · rockwool up to $2 °C, cheapest · glass wool ≤ $3 °C · calcium silicate ≤ $4 °C · ceramic fiber > $5 °C · source: quotation/insulation datasheet$6"],
 [/^(\s*)ที่ความหนาแต่ละค่า\s+คำนวณ\s+Q\s+ใหม่ทั้งอุปกรณ์\s+\(ค่า\s+k\s+ปรับตามอุณหภูมิเฉลี่ยของฉนวน\s+และพื้นที่ผิวนอกโตขึ้นตามความหนา\)\s+→\s+ค่าพลังงานสูญเสียต่อปี\s+=\s+\|Q\|\s+×\s+(-?\d[\d,]*\.?\d*)\s+h\s+×\s+(-?\d[\d,]*\.?\d*)\s+บาท\/kWh(\s*)$/,"$1At each thickness, Q is recomputed for the whole equipment (k adjusted to mean insulation temperature and outer area growing with thickness) → annual energy loss cost = |Q| × $2 h × $3 THB/kWh $4"],
 [/^(\s*)ราคาเชื้อเพลิงต่อหน่วยซื้อรวม\s+VAT\s+ส่งถึงโรงงาน\s+·\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+โดยประมาณ:\s+น้ำมันเตา\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+บาท\/L\s+·\s+LPG\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+บาท\/kg\s+·\s+NG\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+บาท\/MMBtu\s+·\s+ไฟฟ้า\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+บาท\/kWh\s+·\s+ที่มา:\s+ใบแจ้งหนี้(\s*)$/,"$1Delivered fuel price per purchase unit incl. VAT · approx. year $2 BE: fuel oil $3–$4 THB/L · LPG $5–$6 THB/kg · NG $7–$8 THB/MMBtu · electricity $9–$10 THB/kWh · source: invoices$11"],
@@ -4335,5 +4377,6 @@ if(window.TE_I18N)TE_I18N.set({
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"ถังผสมสารเคมี MT-01": "Chemical mixing tank MT-01"});}</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #363 EN — ที่มาของ k(T) ฉนวน (ตาราง ASTM ใน TE_INSK) */ if(window.TE_I18N)TE_I18N.set({"ที่มาของ k(T):": "Source of k(T):", "— ค่าสูงสุดตามข้อกำหนดวัสดุ ประมาณเชิงเส้นระหว่างจุดในตาราง": "— maximum values of the material specification, linear interpolation between table points", "— ค่าแนวทางของเครื่องมือ (ไม่มีตารางข้อกำหนดที่เปิดตรวจได้)": "— tool guidance value (no checkable specification table)", "จากตารางค่าสูงสุดของข้อกำหนดวัสดุ ASTM ตามชนิดฉนวน — ประมาณเชิงเส้นระหว่างจุดในตาราง ต่ำกว่าจุดแรกใช้ค่าจุดแรก เกินจุดสุดท้ายต่อเส้นตรงจากสองจุดท้าย": "from the maximum-value table of the ASTM material specification for that insulation — linear interpolation between table points; below the first point the first value is used, above the last point it is extrapolated from the last two", "อ้างอิง k(T): ใยหิน ASTM C547-22a Table 1 Type II · ใยแก้ว C547-22a Type I · แคลเซียมซิลิเกต C533-17 Table 1 Type I · เซรามิกไฟเบอร์ C892-17 Table 2 Grade 8 · เพอร์ไลต์ C610-17 Table 2 · แอโรเจล C1728-23 Table 1 Type III · โฟมแก้ว C552-22 Table 1 Type II · PU/PIR C591-17 Table 1 Type I · ยางโฟม C534/C534M-23 Table 1 Grade 1 · อิฐฉนวน/คอนกรีตทนไฟ: ค่าแนวทางของเครื่องมือ k = 0.20 + 1.5×10⁻⁴·T · วิธีคิด k ที่อุณหภูมิเฉลี่ยรายชั้น: ISO 12241:2022 ข้อ 4.1.1": "k(T) references: rock wool ASTM C547-22a Table 1 Type II · glass wool C547-22a Type I · calcium silicate C533-17 Table 1 Type I · ceramic fibre C892-17 Table 2 Grade 8 · perlite C610-17 Table 2 · aerogel C1728-23 Table 1 Type III · cellular glass C552-22 Table 1 Type II · PU/PIR C591-17 Table 1 Type I · elastomeric foam C534/C534M-23 Table 1 Grade 1 · insulating brick/refractory concrete: tool guidance value k = 0.20 + 1.5×10⁻⁴·T · k at each layer's mean temperature: ISO 12241:2022 clause 4.1.1"});</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #367 EN — ที่มา/ฐานของ EF (มติ R6-02) */ if(window.TE_I18N)TE_I18N.set({"ช่อง EF ว่าง/0 — ยังไม่รวมก๊าซเรือนกระจกของแหล่งความร้อนนี้": "EF field blank/0 — GHG of this heat source not included", "ไอน้ำซื้อไม่มีในคลัง EF — 150 kgCO₂e/ตัน เป็นค่าสมมติ ให้ใช้ค่าของผู้ขายไอน้ำ": "Purchased steam is not in the EF library — 150 kgCO₂e/t is an assumed value; use the steam supplier's figure", "ที่มา:": "Source:", "ค่าที่กรอกเอง · ค่าคลัง:": "User-entered · library value:", "ฐาน HHV ต่อ MMBTU": "HHV basis per MMBTU", "นับเฉพาะ CH₄ + N₂O (Scope 1) · CO₂ ชีวภาพรายงานแยก": "CH₄ + N₂O only (Scope 1) · biogenic CO₂ reported separately", "ยังไม่รวม (EF ว่าง)": "not included (EF blank)"});</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #390 EN — ฐาน/ที่มาของค่าความร้อน (NG แปลงจาก GHV เป็น LHV) */ if(window.TE_I18N)TE_I18N.set({"ฐาน NCV (ค่าความร้อนสุทธิ) ตามตารางค่าแปลงหน่วยของ พพ.:": "NCV basis (net calorific value) per the DEDE conversion-factor table:", "ฐาน NCV · 46.15 MJ/kg เป็นค่าแนวทางของเครื่องมือ อยู่ในช่วงของ IPCC:": "NCV basis · 46.15 MJ/kg is a tool guidance value within the IPCC range:", "ฐาน NCV ค่าตั้งต้นของ IPCC:": "NCV basis, IPCC default:", "1 kWh = 3.6 MJ (นิยามหน่วย) · ฮีตเตอร์ไฟฟ้า η 100 %": "1 kWh = 3.6 MJ (unit definition) · electric heater η 100 %", "อ้างอิง:": "Reference:", "1,055.06 MJ คือพลังงานของ 1 MMBTU ฐาน GHV (ค่าตามนิยามหน่วย) แต่ η เป็นฐาน LHV — ปริมาณก๊าซ ค่าใช้จ่าย และผลประหยัดจะต่ำไปราว 10 % · ค่าตั้งต้นฐาน LHV:": "1,055.06 MJ is the energy of 1 MMBTU on GHV basis (unit definition) but η is on LHV basis — gas quantity, cost and savings come out about 10 % low · LHV-basis default:", "ค่าที่กรอกเอง · ค่าตั้งต้น:": "User-entered · default:", "MMBTU ที่ซื้อขายก๊าซใช้ฐานค่าความร้อนสูง (GHV — ตรวจในสัญญา/ใบแจ้งหนี้) — แปลงเป็นฐาน LHV ให้ตรงกับ η:": "Gas is traded in MMBTU on gross heating value (GHV — check the contract/invoice) — converted to LHV basis to match η:", "มีใบวิเคราะห์ก๊าซให้ใช้ 1,055.06 × NHV/GHV ของก๊าซจริง": "with a gas analysis, use 1,055.06 × NHV/GHV of the actual gas"});</script>
 </body>
 </html>
