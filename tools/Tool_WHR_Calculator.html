@@ -2213,12 +2213,12 @@ function loadSampleWater() { // [แก้ไข 18 พ.ย. 2569] #441
 // Cp suggestion correlations [kJ/(kg·K)] vs mean fluid temp (°C)
 //  • Mineral thermal oil  (เช่น Shell Thermia / Mobiltherm)   : 1.840 + 0.00340·T
 //  • Synthetic / aromatic (เช่น Therminol VP-1 / Dowtherm)    : 1.500 + 0.00280·T
-//  • Pressurized hot water : ใช้ cpWater(T) (IAPWS fit)
-function oilCpSuggest(kind, Tmean) {
+//  • Pressurized hot water : Δh/ΔT จาก IAPWS-IF97 (TE.WHRCALC.cpWaterIF97) — [แก้ไข 18 พ.ย. 2569] #443 เดิม cpWater(T) สูตรถดถอย
+function oilCpSuggest(kind, Tmean, t1, t2) {
   const T = isFinite(Tmean) ? Tmean : 200;
   if (kind === 'mineral')   return Math.round((1.840 + 0.00340 * T) * 1000) / 1000;
   if (kind === 'synthetic') return Math.round((1.500 + 0.00280 * T) * 1000) / 1000;
-  if (kind === 'hotwater')  return cpWater(T);
+  if (kind === 'hotwater')  return (isFinite(t1) && isFinite(t2)) ? Math.round(TE.WHRCALC.cpWaterIF97(t1, t2) * 1000) / 1000 : cpWater(T);
   return null; // custom → ไม่เปลี่ยน
 }
 
@@ -2227,7 +2227,7 @@ function setOilFluid() {
   const tin  = parseFloat(document.getElementById('oil_tin').value);
   const tout = parseFloat(document.getElementById('oil_tout').value);
   const tmean = (isFinite(tin) && isFinite(tout)) ? (tin + tout) / 2 : 200;
-  const cp = oilCpSuggest(kind, tmean);
+  const cp = oilCpSuggest(kind, tmean, tin, tout);
   const hint = document.getElementById('oil_cp_hint');
   if (cp !== null) {
     document.getElementById('oil_cp').value = cp.toFixed(3);
@@ -3027,6 +3027,7 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 "Cp ไอเสียเฉลี่ย (kJ/Nm³·K) ช่วง Tgas_in→ปล่อง — แหล่งแยก: กรอกเอง (ไอเสียกังหันก๊าซ ก๊าซธรรมชาติ O₂ ~15 % ≈ 1.40 ช่วง 150→520 °C) · ข้อมูลร่วม: คำนวณจากองค์ประกอบไอเสียให้":"Mean flue-gas Cp (kJ/Nm³·K) over Tgas_in→stack — separate source: enter it (natural-gas turbine exhaust at O₂ ~15 % ≈ 1.40 over 150→520 °C) · shared data: calculated from the flue-gas composition",
 "Cp ไอเสียเฉลี่ย (คำนวณจากองค์ประกอบไอเสีย) ~ 1.41–1.59 kJ/Nm³·K ที่ 150–745 °C":"Mean flue-gas Cp (from the flue-gas composition) ~ 1.41–1.59 kJ/Nm³·K at 150–745 °C"
 },[
+[/Cp_w = Δh\/ΔT จาก IAPWS-IF97 \(TE_STEAM\)/g,"Cp_w = Δh/ΔT from IAPWS-IF97 (TE_STEAM)"],
 [/Cp_air = cp เฉลี่ยของอากาศ \(N₂ 79 % \+ O₂ 21 %\) ช่วง Tair เข้า→ออก — แก้ในช่องได้/g,"Cp_air = mean cp of air (N₂ 79 % + O₂ 21 %) over Tair in→out — editable in the field"]
 ]);</script>
 </body>
