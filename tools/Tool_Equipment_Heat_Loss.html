@@ -512,7 +512,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       </div>
       <div class="grid4">
         <div><label>Emission Factor (kgCO₂e/หน่วย)</label><input id="ef" type="number" step="0.0001" value="3.2455" oninput="calcAll()">
-          <div class="note">ตรวจสอบค่าล่าสุดที่ Emission Factor Selector (TGO)</div></div>
+          <div class="note">ตรวจสอบค่าล่าสุดที่ Emission Factor Selector (TGO)</div><div class="note" id="ef_src" style="font-size:11px"></div></div><!-- [แก้ไข 18 พ.ย. 2569] #367 ที่มา/ฐานของ EF -->
         <div><label>ต้นทุนฉนวนติดตั้ง — ค่าคงที่ (บาท/m²)</label><input id="cA" type="number" step="10" value="350" oninput="calcAll()">
           <div class="note">ค่าแรง + วัสดุหุ้ม + อุปกรณ์ยึด (ไม่ขึ้นกับความหนา) ทั่วไป <b>250–500</b> บาท/m²</div></div>
         <div><label>ต้นทุนฉนวนติดตั้ง — ต่อความหนา (บาท/m²·mm)</label><input id="cB" type="number" step="0.5" value="9" oninput="calcAll()">
@@ -2112,6 +2112,31 @@ function drawAsm(rows){
 }
 
 /* ════════════════ ECONOMICS ════════════════ */
+/* [แก้ไข 18 พ.ย. 2569] #367 มติ R6-02 — EF ของแหล่งความร้อนอ่านจากคลังกลาง TE_EF (lib/te-core.js — โหลดแล้วตั้งแต่ #363) แทนตัวเลขที่คัดลอกไว้
+   เดิม: ef ในตาราง FUELS พิมพ์ตัวเลขเอง (ตรงกับ TE_EF ณ 17 พ.ย. 2569) ไม่บอกฐาน/ที่มาบนจอ · ชีวมวล ef 0 (ไม่นับ CH₄ + N₂O) · ช่อง EF ว่าง = 0 ไม่เตือน
+   ใหม่: fo = fuel_oil_c · diesel = diesel_stat · lpg = lpg_kg · ng = natural_gas_mmbtu (ฐาน HHV ต่อ MMBTU) · coal = bituminous
+         bio = fuel_wood (Scope 1 = CH₄ + N₂O 0.0304 kgCO₂e/kg · CO₂ ชีวภาพ 1.7909 รายงานแยก) · elec = กริด TE_EF.DEFAULT.grid (0.4750)
+         ไอน้ำซื้อไม่มีในคลัง → คงค่าสมมติ 150 และบอกบนจอ · ใต้ช่อง EF แสดงคีย์ TE_EF · หน่วย · ฐาน · ที่มา
+         ช่อง EF ว่าง/0 (ยกเว้นชีวมวล) → KPI ก๊าซเรือนกระจกขึ้น "ยังไม่รวม" แทน 0 */
+const EHL_EFKEY={fo:'CFO.S1.stationary.fuel_oil_c',diesel:'CFO.S1.stationary.diesel_stat',lpg:'CFO.S1.stationary.lpg_kg',ng:'CFO.S1.stationary.natural_gas_mmbtu',
+  coal:'CFO.S1.stationary.bituminous',bio:'CFO.S1.stationary.fuel_wood',elec:null};
+function ehlEF(k){
+  try{
+    if(!window.TE_EF) return null;
+    const key=k==='elec'?TE_EF.DEFAULT.grid:EHL_EFKEY[k]; if(!key) return null;
+    const e=TE_EF.get(key); return {key:key,ef:e.ef,unit:e.unit,name:e.name,src:e.src,note:e.note||'',bio:!!e.biogenic};
+  }catch(err){ return null; }
+}
+Object.keys(FUELS).forEach(k=>{ const d=ehlEF(k); if(d) FUELS[k].ef=d.ef; });
+function ehlEFsrc(){
+  const el=$('ef_src'); if(!el) return;
+  const k=$('fuel').value, d=ehlEF(k), v=$('ef').value;
+  if(!(+v>0)&&k!=='bio'){ el.innerHTML='<span style="color:#b3302f">⚠️ <span>ช่อง EF ว่าง/0 — ยังไม่รวมก๊าซเรือนกระจกของแหล่งความร้อนนี้</span></span>'; return; }
+  if(!d){ el.innerHTML=k==='steam'?'<span>ไอน้ำซื้อไม่มีในคลัง EF — 150 kgCO₂e/ตัน เป็นค่าสมมติ ให้ใช้ค่าของผู้ขายไอน้ำ</span>':''; return; }
+  const same=Math.abs(+v-d.ef)<1e-9;
+  el.innerHTML=(same?'<span>ที่มา:</span> ':'<span>ค่าที่กรอกเอง · ค่าคลัง:</span> '+d.ef+' · ')+'TE_EF '+d.key.split('.').pop()+' · kgCO₂e/'+d.unit+' · '+d.src+
+    (k==='ng'?' · <span>ฐาน HHV ต่อ MMBTU</span>':'')+(k==='bio'?' · <span>นับเฉพาะ CH₄ + N₂O (Scope 1) · CO₂ ชีวภาพรายงานแยก</span>':'');
+}
 function onFuel(){
   const f=FUELS[$('fuel').value];
   $('lhv').value=f.lhv; $('price').value=f.pr; $('ef').value=f.ef;
@@ -2170,7 +2195,8 @@ function eco(){
    <div class="kpi"><div class="lb">เงินลงทุนฉนวน</div><div class="val">${fmt(cap,0)}</div><div class="un">บาท (${fmt(Ai,1)} m²)</div></div>
    <div class="kpi ${pb<=3?'good':pb<=5?'':'bad'}"><div class="lb">ระยะเวลาคืนทุนอย่างง่าย</div>
      <div class="val">${isFinite(pb)?fmt(pb,2):'—'}</div><div class="un">ปี</div></div>
-   <div class="kpi good"><div class="lb">ลดการปล่อยก๊าซเรือนกระจก</div><div class="val">${fmt(Gs,2)}</div><div class="un">tCO₂e/ปี</div></div>`;
+   <div class="kpi good"><div class="lb">ลดการปล่อยก๊าซเรือนกระจก</div><div class="val">${(!(B.ef>0)&&(B.cold||$('fuel').value!=='bio'))?'<span style="font-size:.7em;color:#b3302f">ยังไม่รวม (EF ว่าง)</span>':fmt(Gs,2)}</div><div class="un">tCO₂e/ปี</div></div>`;
+  try{ ehlEFsrc(); }catch(e){}   /* [แก้ไข 18 พ.ย. 2569] #367 */
 
   const R=(a,b,c,d,u)=>`<tr><td>${a}</td><td class="num">${b}</td><td class="num">${c}</td><td class="num">${d}</td><td>${u}</td></tr>`;
   $('tblEco').querySelector('tbody').innerHTML=
@@ -4308,5 +4334,6 @@ if(window.TE_I18N)TE_I18N.set({
 </script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"ถังผสมสารเคมี MT-01": "Chemical mixing tank MT-01"});}</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #363 EN — ที่มาของ k(T) ฉนวน (ตาราง ASTM ใน TE_INSK) */ if(window.TE_I18N)TE_I18N.set({"ที่มาของ k(T):": "Source of k(T):", "— ค่าสูงสุดตามข้อกำหนดวัสดุ ประมาณเชิงเส้นระหว่างจุดในตาราง": "— maximum values of the material specification, linear interpolation between table points", "— ค่าแนวทางของเครื่องมือ (ไม่มีตารางข้อกำหนดที่เปิดตรวจได้)": "— tool guidance value (no checkable specification table)", "จากตารางค่าสูงสุดของข้อกำหนดวัสดุ ASTM ตามชนิดฉนวน — ประมาณเชิงเส้นระหว่างจุดในตาราง ต่ำกว่าจุดแรกใช้ค่าจุดแรก เกินจุดสุดท้ายต่อเส้นตรงจากสองจุดท้าย": "from the maximum-value table of the ASTM material specification for that insulation — linear interpolation between table points; below the first point the first value is used, above the last point it is extrapolated from the last two", "อ้างอิง k(T): ใยหิน ASTM C547-22a Table 1 Type II · ใยแก้ว C547-22a Type I · แคลเซียมซิลิเกต C533-17 Table 1 Type I · เซรามิกไฟเบอร์ C892-17 Table 2 Grade 8 · เพอร์ไลต์ C610-17 Table 2 · แอโรเจล C1728-23 Table 1 Type III · โฟมแก้ว C552-22 Table 1 Type II · PU/PIR C591-17 Table 1 Type I · ยางโฟม C534/C534M-23 Table 1 Grade 1 · อิฐฉนวน/คอนกรีตทนไฟ: ค่าแนวทางของเครื่องมือ k = 0.20 + 1.5×10⁻⁴·T · วิธีคิด k ที่อุณหภูมิเฉลี่ยรายชั้น: ISO 12241:2022 ข้อ 4.1.1": "k(T) references: rock wool ASTM C547-22a Table 1 Type II · glass wool C547-22a Type I · calcium silicate C533-17 Table 1 Type I · ceramic fibre C892-17 Table 2 Grade 8 · perlite C610-17 Table 2 · aerogel C1728-23 Table 1 Type III · cellular glass C552-22 Table 1 Type II · PU/PIR C591-17 Table 1 Type I · elastomeric foam C534/C534M-23 Table 1 Grade 1 · insulating brick/refractory concrete: tool guidance value k = 0.20 + 1.5×10⁻⁴·T · k at each layer's mean temperature: ISO 12241:2022 clause 4.1.1"});</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #367 EN — ที่มา/ฐานของ EF (มติ R6-02) */ if(window.TE_I18N)TE_I18N.set({"ช่อง EF ว่าง/0 — ยังไม่รวมก๊าซเรือนกระจกของแหล่งความร้อนนี้": "EF field blank/0 — GHG of this heat source not included", "ไอน้ำซื้อไม่มีในคลัง EF — 150 kgCO₂e/ตัน เป็นค่าสมมติ ให้ใช้ค่าของผู้ขายไอน้ำ": "Purchased steam is not in the EF library — 150 kgCO₂e/t is an assumed value; use the steam supplier's figure", "ที่มา:": "Source:", "ค่าที่กรอกเอง · ค่าคลัง:": "User-entered · library value:", "ฐาน HHV ต่อ MMBTU": "HHV basis per MMBTU", "นับเฉพาะ CH₄ + N₂O (Scope 1) · CO₂ ชีวภาพรายงานแยก": "CH₄ + N₂O only (Scope 1) · biogenic CO₂ reported separately", "ยังไม่รวม (EF ว่าง)": "not included (EF blank)"});</script>
 </body>
 </html>
