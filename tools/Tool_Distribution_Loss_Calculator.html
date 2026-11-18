@@ -1146,9 +1146,22 @@ function steamProp(P_barg) {
 // เลือก h คงที่ (6/9/15/25/50) ได้เหมือนเดิม → ได้ผลตามแบบเดิมทุกตัวเลข (ใช้กับไฟล์ JSON เก่า)
 const DL_SB = 5.670374419e-8;
 const DL_INSK = {'0.04':'rockwool','0.035':'glasswool','0.065':'calsil','0.025':'pu','0.037':'elasto','0.018':'aerogel'};
-const DL_INSP = { rockwool:[0.03600,6.215e-5,3.381e-7], glasswool:[0.03162,1.2571e-4,3.810e-7], calsil:[0.05063,6.500e-5,8.750e-8],
-                  pu:[0.02150,1.100e-4,0], elasto:[0.03400,1.200e-4,0], aerogel:[0.01942,2.186e-5,5.524e-8] };
-function dlKofT(k0, Tm){ const key = DL_INSK[String(+k0)]; if(!key) return k0; const c = DL_INSP[key]; return Math.max(0.005, c[0]+c[1]*Tm+c[2]*Tm*Tm); }
+/* [แก้ไข 18 พ.ย. 2569] #363 เดิม DL_INSP = พหุนาม k = a + b·T + c·T² (ชุดเดียวกับ Equipment Heat Loss) ไม่มีแหล่งอ้างอิง
+     rockwool [0.036, 6.215e-5, 3.381e-7] · glasswool [0.03162, 1.2571e-4, 3.81e-7] · calsil [0.05063, 6.5e-5, 8.75e-8]
+     pu [0.0215, 1.1e-4, 0] · elasto [0.034, 1.2e-4, 0] · aerogel [0.01942, 2.186e-5, 5.524e-8]
+   → ตารางค่า k สูงสุดตามอุณหภูมิเฉลี่ยของข้อกำหนดวัสดุ ASTM (TE_INSK ใน lib/te-core.js — ชุดเดียวกับ Equipment Heat Loss)
+     ใยหิน C547 Type II · ใยแก้ว C547 Type I · แคลเซียมซิลิเกต C533 Type I · PU/PIR C591 Type I · ยางโฟม C534 Grade 1 · แอโรเจล C1728 Type III
+     เทียบที่ T_m 100 °C: ใยหิน 0.0456 → 0.0460 · ใยแก้ว 0.0480 → 0.0466 · แคลเซียมซิลิเกต 0.0580 → 0.0659 (+14 %) · แอโรเจล 0.0222 → 0.0233
+     ที่ T_m 20 °C: PU 0.0237 → 0.0267 (+13 %) · ยางโฟม 0.0364 → 0.0398 (+9 %) — ตัวเลือกวัสดุ (value) เดิมไม่เปลี่ยน */
+function dlKofT(k0, Tm){ const key = DL_INSK[String(+k0)]; if(!key) return k0; return TE_INSK.k(key, Tm); }
+/* [แก้ไข 18 พ.ย. 2569] #363 บรรทัดที่มาของ k(T) บนจอ (ชื่อเอกสาร · ตาราง · ช่วงตาราง · URL) */
+function dlKsrcHTML(key, Tm){
+  if(!key || !window.TE_INSK || !TE_INSK.TAB[key]) return '';
+  const w = TE_INSK.where(key, Tm);
+  return `<br><span class="unit"><span>ที่มาของ k(T):</span> ${TE_INSK.src(key)} <span>— ค่าสูงสุดตามข้อกำหนดวัสดุ ประมาณเชิงเส้นระหว่างจุดในตาราง</span>` +
+    (w === 'below' ? ' · <span>อุณหภูมิเฉลี่ยต่ำกว่าจุดแรกของตาราง ใช้ค่าจุดแรก</span>' : (w === 'above' ? ' · <span>อุณหภูมิเฉลี่ยเกินจุดสุดท้ายของตาราง ต่อเส้นตรงจากสองจุดท้าย</span>' : '')) +
+    ` — <a href="${TE_INSK.url(key)}" target="_blank" rel="noopener" style="word-break:break-all">${TE_INSK.url(key)}</a></span>`;
+}
 function dlAirProps(TK){ // เหมือน airProps() ของ EHL
   TK = Math.min(Math.max(TK,180),1500);
   const mu = 1.458e-6*Math.pow(TK,1.5)/(TK+110.4);
@@ -1304,29 +1317,41 @@ function ductHeatLoss({
 
   // R per unit length for flat plate approximation: R = t / (k * P_mean)
   const R_wall = t_wall_m / (k_wall * P_mean);
-  let R_ins = 0;
-  const R_ins_each = [];
-  insulations.forEach(ins => {
-    const R = (ins.thickness/1000) / (ins.k * P_mean);
-    R_ins += R;
-    R_ins_each.push({...ins, R});
-  });
-
-  // Iterative surface temp for radiation
+  /* [แก้ไข 18 พ.ย. 2569] #364 ดักท์: เดิม k ฉนวนคงที่ (ค่าป้ายของตัวเลือก) → k ที่อุณหภูมิเฉลี่ยของชั้นฉนวน (TE_INSK ชุดเดียวกับท่อ #363)
+     วนซ้ำ T ผิว ↔ T ชั้น ↔ k จน k เปลี่ยน < 1e-7 · วัสดุนอกคลัง (k ที่ไม่ตรงตัวเลือก) ใช้ k คงที่เหมือนเดิม
+     อ้างอิง: ISO 12241:2022 ข้อ 4.1.1 (ค่าออกแบบ k ที่อุณหภูมิเฉลี่ยของแต่ละชั้น) · ตาราง ASTM ตาม TE_INSK */
+  const kT = insulations.length > 0 && insulations.every(l => DL_INSK[String(+l.k)] != null);
+  const kL = insulations.map(l => dlKofT(l.k, (T_fluid + T_amb) / 2));
+  let R_ins = 0, R_ins_each = [], layT = [];
   const sigma = 5.67e-8;
   const T_amb_K = T_amb + 273.15;
-
   let T_s = (T_fluid + T_amb) / 2;
-  for (let iter = 0; iter < 25; iter++) {
-    const T_s_K = T_s + 273.15;
-    const h_rad = eps_out * sigma * (T_s_K*T_s_K + T_amb_K*T_amb_K) * (T_s_K + T_amb_K);
-    const h_combined = h_out + h_rad;
-    const R_out = 1 / (h_combined * P_out);
-    const R_tot = R_wall + R_ins + R_out;
-    const q_per_L = (T_fluid - T_amb) / R_tot;
-    const T_s_new = T_amb + q_per_L * R_out;
-    if (Math.abs(T_s_new - T_s) < 0.02) { T_s = T_s_new; break; }
-    T_s = T_s_new;
+  for (let it = 0; it < 30; it++) {
+    R_ins = 0; R_ins_each = [];
+    insulations.forEach((ins, j) => {
+      const R = (ins.thickness/1000) / (kL[j] * P_mean);
+      R_ins += R;
+      R_ins_each.push({...ins, k0: ins.k, k: kL[j], R});
+    });
+    // Iterative surface temp for radiation
+    for (let iter = 0; iter < 25; iter++) {
+      const T_s_K = T_s + 273.15;
+      const h_rad = eps_out * sigma * (T_s_K*T_s_K + T_amb_K*T_amb_K) * (T_s_K + T_amb_K);
+      const h_combined = h_out + h_rad;
+      const R_out = 1 / (h_combined * P_out);
+      const R_tot = R_wall + R_ins + R_out;
+      const q_per_L = (T_fluid - T_amb) / R_tot;
+      const T_s_new = T_amb + q_per_L * R_out;
+      if (Math.abs(T_s_new - T_s) < 0.02) { T_s = T_s_new; break; }
+      T_s = T_s_new;
+    }
+    if (!kT) break;
+    const T_s_K0 = T_s + 273.15;
+    const h_c0 = h_out + eps_out * sigma * (T_s_K0*T_s_K0 + T_amb_K*T_amb_K) * (T_s_K0 + T_amb_K);
+    const q0 = (T_fluid - T_amb) / (R_wall + R_ins + 1 / (h_c0 * P_out));
+    let Ti = T_fluid - q0 * R_wall, maxd = 0; layT = [];
+    for (let j = 0; j < R_ins_each.length; j++) { const To = Ti - q0 * R_ins_each[j].R, kn = dlKofT(insulations[j].k, (Ti + To) / 2); maxd = Math.max(maxd, Math.abs(kn - kL[j])); kL[j] = kn; layT.push({Ti, To, Tm: (Ti + To) / 2, k: kn}); Ti = To; }
+    if (maxd < 1e-7 && it > 0) break;
   }
 
   const T_s_K = T_s + 273.15;
@@ -1340,7 +1365,8 @@ function ductHeatLoss({
     q_per_L, R_total, R_wall, R_ins, R_out, R_ins_each,
     T_s, h_rad, h_combined,
     P_in, P_out, P_mean,
-    W_out, H_out
+    W_out, H_out,
+    kT, k_ins_eff: (kT && layT.length) ? layT[0].k : null, Tm_ins: (kT && layT.length) ? layT[0].Tm : null, layT   /* [แก้ไข 18 พ.ย. 2569] #364 */
   };
 }
 
@@ -1386,6 +1412,7 @@ function makePipeForm(containerId, opts) {
           <option value="0.95">ผิวดำหนัก (0.95)</option>
         </select>
       </div>
+      <div class="unit" style="grid-column:1/-1;margin-top:-4px"><span>k ฉนวนคิดตามอุณหภูมิเฉลี่ยของชั้นจากตารางค่าสูงสุดของข้อกำหนดวัสดุ ASTM — C547-22a (ใยหิน Type II · ใยแก้ว Type I) · C533-17 Type I (แคลเซียมซิลิเกต) · C591-17 Type I (PU/PIR) · C534/C534M-23 Grade 1 (ยางโฟม) · C1728-23 Type III (แอโรเจล) · ตัวเลขในวงเล็บเป็นค่าป้ายของตัวเลือก</span></div><!-- [แก้ไข 18 พ.ย. 2569] #363 -->
     </div>
 
     <div class="section-title">🌡️ สภาวะการใช้งาน</div>
@@ -1455,6 +1482,7 @@ function makeDuctForm(containerId, opts) {
           <option value="0.85">ทาสี (0.85)</option>
         </select>
       </div>
+      <div class="unit" style="grid-column:1/-1;margin-top:-4px"><span>k ฉนวนคิดตามอุณหภูมิเฉลี่ยของชั้นจากตารางค่าสูงสุดของข้อกำหนดวัสดุ ASTM — C547-22a (ใยหิน Type II · ใยแก้ว Type I) · C533-17 Type I (แคลเซียมซิลิเกต) · C591-17 Type I (PU/PIR) · C534/C534M-23 Grade 1 (ยางโฟม) · C1728-23 Type III (แอโรเจล) · ตัวเลขในวงเล็บเป็นค่าป้ายของตัวเลือก</span></div><!-- [แก้ไข 18 พ.ย. 2569] #363 -->
     </div>
 
     <div class="section-title">🌡️ สภาวะ</div>
@@ -1526,7 +1554,7 @@ function renderPipeResult(prefix, inputs, result) {
         <div class="label">③ ความต้านทานการนำผ่านฉนวน (Insulation Conduction)</div>
         <div class="formula">
           R<sub>ins</sub> = ln(r<sub>outer</sub>/r<sub>p,o</sub>) / (2π × k<sub>ins</sub>)<br>
-          R<sub>ins</sub> = ln(<span class="num">${fmt(r.r_outer,5)}</span>/<span class="num">${fmt(r.r_pipe_o,5)}</span>) / (2π × <span class="num">${r.k_ins_eff && (isC680 || r.kT) ? fmt(r.k_ins_eff,4) : inputs.kins}</span>)${r.k_ins_eff && (isC680 || r.kT) ? ` <span class="unit">(k(T<sub>m</sub>) ที่อุณหภูมิเฉลี่ยฉนวน ${fmt(r.Tm_ins,1)} °C — ค่าป้าย ${inputs.kins})</span><br><span class="unit">อ้างอิง: ISO 12241:2022 ข้อ 4.1.1 (k ที่อุณหภูมิเฉลี่ยของแต่ละชั้น) · ASTM C680-14 ข้อ 6.6</span>` : (inputs.tins > 0 ? ' <span class="unit">(k ที่กรอกคงที่ — วัสดุนอกคลังไม่มีสมการ k(T))</span>' : '')}<!-- [แก้ไข 18 พ.ย. 2569] #332 (#164) โหมด h คงที่ใช้ k(T_m) ของชั้นฉนวนเหมือนโหมด C680 (เดิม k ค่าป้ายคงที่: ท่อไอน้ำ 7 barg ฉนวน 50 mm h 25 ได้ q 54.95 → 63.09 W/m) -->
+          R<sub>ins</sub> = ln(<span class="num">${fmt(r.r_outer,5)}</span>/<span class="num">${fmt(r.r_pipe_o,5)}</span>) / (2π × <span class="num">${r.k_ins_eff && (isC680 || r.kT) ? fmt(r.k_ins_eff,4) : inputs.kins}</span>)${r.k_ins_eff && (isC680 || r.kT) ? ` <span class="unit">(k(T<sub>m</sub>) ที่อุณหภูมิเฉลี่ยฉนวน ${fmt(r.Tm_ins,1)} °C — ค่าป้าย ${inputs.kins})</span><br><span class="unit">อ้างอิง: ISO 12241:2022 ข้อ 4.1.1 (k ที่อุณหภูมิเฉลี่ยของแต่ละชั้น) · ASTM C680-14 ข้อ 6.6</span>${dlKsrcHTML(DL_INSK[String(+inputs.kins)], r.Tm_ins)}` : (inputs.tins > 0 ? ' <span class="unit">(k ที่กรอกคงที่ — วัสดุนอกคลังไม่มีสมการ k(T))</span>' : '')}<!-- [แก้ไข 18 พ.ย. 2569] #332 (#164) โหมด h คงที่ใช้ k(T_m) ของชั้นฉนวนเหมือนโหมด C680 (เดิม k ค่าป้ายคงที่: ท่อไอน้ำ 7 barg ฉนวน 50 mm h 25 ได้ q 54.95 → 63.09 W/m) -->
           = <span class="num">${fmt(r.R_ins,4)} m·K/W</span>
         </div>
       </div>
@@ -1608,8 +1636,8 @@ function renderDuctResult(prefix, inputs, result) {
           = <span class="num">${inputs.tw/1000}</span> / (<span class="num">${inputs.kw}</span> × <span class="num">${fmt(r.P_mean,3)}</span>)
           = <span class="num">${fmt(r.R_wall,5)} m·K/W</span><br>
           R<sub>ins</sub> = t<sub>ins</sub> / (k<sub>ins</sub> × P<sub>mean</sub>)
-          = <span class="num">${inputs.tins/1000}</span> / (<span class="num">${inputs.kins}</span> × <span class="num">${fmt(r.P_mean,3)}</span>)
-          = <span class="num">${fmt(r.R_ins,4)} m·K/W</span>
+          = <span class="num">${inputs.tins/1000}</span> / (<span class="num">${r.kT && r.k_ins_eff ? fmt(r.k_ins_eff,4) : inputs.kins}</span> × <span class="num">${fmt(r.P_mean,3)}</span>)
+          = <span class="num">${fmt(r.R_ins,4)} m·K/W</span>${r.kT && r.k_ins_eff ? ` <span class="unit">(k(T<sub>m</sub>) ที่อุณหภูมิเฉลี่ยฉนวน ${fmt(r.Tm_ins,1)} °C — ค่าป้าย ${inputs.kins})</span><br><span class="unit">อ้างอิง: ISO 12241:2022 ข้อ 4.1.1 (k ที่อุณหภูมิเฉลี่ยของแต่ละชั้น) · ASTM C680-14 ข้อ 6.6</span>${dlKsrcHTML(DL_INSK[String(+inputs.kins)], r.Tm_ins)}` : ''}<!-- [แก้ไข 18 พ.ย. 2569] #364 ดักท์ใช้ k(T_m) ของชั้นฉนวน -->
         </div>
       </div>
 
@@ -1870,7 +1898,7 @@ window.addEventListener('DOMContentLoaded', function() {
             R<sub>pipe</sub> = ln(r<sub>p,o</sub>/r<sub>p,i</sub>)/(2π·k<sub>p</sub>) = <span class="num">${fmt(r.R_pipe,5)} m·K/W</span><br>
             R<sub>ins</sub> = ln(r<sub>outer</sub>/r<sub>p,o</sub>)/(2π·k<sub>ins</sub>) = <span class="num">${fmt(r.R_ins,4)} m·K/W</span><br>
             R<sub>out</sub> = 1/(h<sub>total</sub>·2π·r<sub>outer</sub>) = <span class="num">${fmt(r.R_out,4)} m·K/W</span>
-            [h<sub>conv</sub>=${fmt(r.h_conv,2)}${r.model==='c680'?' (C680: Churchill–Chu, k ฉนวน '+fmt(r.k_ins_eff,4)+' ที่ T<sub>m</sub> '+fmt(r.Tm_ins,1)+' °C)':(r.k_ins_eff&&r.kT?' (ค่าคงที่ที่เลือก, k ฉนวน '+fmt(r.k_ins_eff,4)+' ที่ T<sub>m</sub> '+fmt(r.Tm_ins,1)+' °C)':' (ค่าคงที่ที่เลือก)')}, h<sub>rad</sub>=${fmt(r.h_rad,2)}, h<sub>total</sub>=${fmt(r.h_combined,2)} W/m²·K]<br><!-- [แก้ไข 3 ต.ค. 2569 audit] -->
+            [h<sub>conv</sub>=${fmt(r.h_conv,2)}${r.model==='c680'?' (C680: Churchill–Chu, k ฉนวน '+fmt(r.k_ins_eff,4)+' ที่ T<sub>m</sub> '+fmt(r.Tm_ins,1)+' °C)':(r.k_ins_eff&&r.kT?' (ค่าคงที่ที่เลือก, k ฉนวน '+fmt(r.k_ins_eff,4)+' ที่ T<sub>m</sub> '+fmt(r.Tm_ins,1)+' °C)':' (ค่าคงที่ที่เลือก)')}, h<sub>rad</sub>=${fmt(r.h_rad,2)}, h<sub>total</sub>=${fmt(r.h_combined,2)} W/m²·K]${r.k_ins_eff && (r.model==='c680' || r.kT) ? dlKsrcHTML(DL_INSK[String(+inputs.kins)], r.Tm_ins) : ''}<br><!-- [แก้ไข 3 ต.ค. 2569 audit] · [แก้ไข 18 พ.ย. 2569] #363 ที่มาของ k(T) -->
             <b>R<sub>total</sub> = <span class="num">${fmt(r.R_total,4)} m·K/W</span></b>
           </div>
         </div>
@@ -2163,46 +2191,45 @@ window.addEventListener('DOMContentLoaded', function() {
     // R_conv,in per unit length: 1/(h_in × 2π × r_in)
     const R_in  = 1 / (h_in * 2 * Math.PI * r_in);
 
-    // Conduction resistances
-    let R_cond_total = 0;
-    const R_cond_each = [];
-    layer_radii.forEach(L => {
-      const R = Math.log(L.r_out / L.r_in) / (2 * Math.PI * L.k);
-      R_cond_total += R;
-      R_cond_each.push({...L, R});
-    });
-
-    // Outer convection + radiation (iterative)
+    /* [แก้ไข 18 พ.ย. 2569] #364 ชั้นที่มี tk (ตาราง ASTM ใน TE_INSK) ใช้ k ที่อุณหภูมิเฉลี่ยของชั้น วนซ้ำจนนิ่ง · ชั้นอื่น k คงที่เหมือนเดิม */
+    const kL = layers.map(L => L.tk ? TE_INSK.k(L.tk, (T_fluid + T_amb) / 2) : L.k);
+    let R_cond_total, R_cond_each, T_s = (T_fluid + T_amb) / 2, h_rad, h_combined, R_out, R_total, q_per_L, interfaces;
     const sigma = 5.67e-8;
     const T_amb_K = T_amb + 273.15;
-    let T_s = (T_fluid + T_amb) / 2;
-    for (let i = 0; i < 30; i++) {
+    for (let it = 0; it < 40; it++) {
+      R_cond_total = 0; R_cond_each = [];
+      layer_radii.forEach((L, j) => {
+        const R = Math.log(L.r_out / L.r_in) / (2 * Math.PI * kL[j]);
+        R_cond_total += R;
+        R_cond_each.push({...L, k0: (L.k0 !== undefined ? L.k0 : L.k), k: kL[j], R});
+      });
+      for (let i = 0; i < 30; i++) {
+        const T_s_K = T_s + 273.15;
+        const h_rad1 = eps_out * sigma * (T_s_K*T_s_K + T_amb_K*T_amb_K) * (T_s_K + T_amb_K);
+        const R_out1 = 1 / ((h_out + h_rad1) * 2 * Math.PI * r_outer);
+        const q1 = (T_fluid - T_amb) / (R_in + R_cond_total + R_out1);
+        const T_s_new = T_amb + q1 * R_out1;
+        if (Math.abs(T_s_new - T_s) < 0.02) { T_s = T_s_new; break; }
+        T_s = T_s_new;
+      }
       const T_s_K = T_s + 273.15;
-      const h_rad = eps_out * sigma * (T_s_K*T_s_K + T_amb_K*T_amb_K) * (T_s_K + T_amb_K);
-      const h_combined = h_out + h_rad;
-      const R_out = 1 / (h_combined * 2 * Math.PI * r_outer);
-      const R_tot = R_in + R_cond_total + R_out;
-      const q_per_L = (T_fluid - T_amb) / R_tot;
-      const T_s_new = T_amb + q_per_L * R_out;
-      if (Math.abs(T_s_new - T_s) < 0.02) { T_s = T_s_new; break; }
-      T_s = T_s_new;
+      h_rad = eps_out * sigma * (T_s_K*T_s_K + T_amb_K*T_amb_K) * (T_s_K + T_amb_K);
+      h_combined = h_out + h_rad;
+      R_out = 1 / (h_combined * 2 * Math.PI * r_outer);
+      R_total = R_in + R_cond_total + R_out;
+      q_per_L = (T_fluid - T_amb) / R_total;
+      interfaces = [];
+      let T_running = T_fluid - q_per_L * R_in, maxd = 0;
+      interfaces.push({name: "ผิวด้านในชั้นแรก", T: T_running});
+      R_cond_each.forEach((L, idx) => {
+        const Ti = T_running;
+        T_running -= q_per_L * L.R;
+        interfaces.push({name: `ผิวด้านนอกชั้น ${idx+1} (${L.name})`, T: T_running});
+        L.Tm = (Ti + T_running) / 2;
+        if (L.tk) { const kn = TE_INSK.k(L.tk, L.Tm); maxd = Math.max(maxd, Math.abs(kn - kL[idx])); kL[idx] = kn; }
+      });
+      if (maxd < 1e-7) break;
     }
-    const T_s_K = T_s + 273.15;
-    const h_rad = eps_out * sigma * (T_s_K*T_s_K + T_amb_K*T_amb_K) * (T_s_K + T_amb_K);
-    const h_combined = h_out + h_rad;
-    const R_out = 1 / (h_combined * 2 * Math.PI * r_outer);
-    const R_total = R_in + R_cond_total + R_out;
-    const q_per_L = (T_fluid - T_amb) / R_total;
-
-    // Interface temperatures (left-to-right from inner gas)
-    // T_in_wall = T_fluid - q_per_L × R_in
-    const interfaces = [];
-    let T_running = T_fluid - q_per_L * R_in;
-    interfaces.push({name: "ผิวด้านในชั้นแรก", T: T_running});
-    R_cond_each.forEach((L, idx) => {
-      T_running -= q_per_L * L.R;
-      interfaces.push({name: `ผิวด้านนอกชั้น ${idx+1} (${L.name})`, T: T_running});
-    });
 
     return {
       q_per_L, R_total, R_in, R_cond_total, R_cond_each, R_out,
@@ -2227,42 +2254,45 @@ window.addEventListener('DOMContentLoaded', function() {
     const P_mean = (P_in + P_out) / 2;
 
     const R_in = 1 / (h_in * P_in);
-    let R_cond_total = 0;
-    const R_cond_each = [];
-    layers.forEach(L => {
-      const R = (L.thickness/1000) / (L.k * P_mean);
-      R_cond_total += R;
-      R_cond_each.push({...L, R});
-    });
-
+    /* [แก้ไข 18 พ.ย. 2569] #364 ชั้นที่มี tk (ตาราง ASTM ใน TE_INSK) ใช้ k ที่อุณหภูมิเฉลี่ยของชั้น วนซ้ำจนนิ่ง · ชั้นอื่น k คงที่เหมือนเดิม */
+    const kL = layers.map(L => L.tk ? TE_INSK.k(L.tk, (T_fluid + T_amb) / 2) : L.k);
+    let R_cond_total, R_cond_each, T_s = (T_fluid + T_amb) / 2, h_rad, h_combined, R_out, R_total, q_per_L, interfaces;
     const sigma = 5.67e-8;
     const T_amb_K = T_amb + 273.15;
-    let T_s = (T_fluid + T_amb) / 2;
-    for (let i = 0; i < 30; i++) {
+    for (let it = 0; it < 40; it++) {
+      R_cond_total = 0; R_cond_each = [];
+      layers.forEach((L, j) => {
+        const R = (L.thickness/1000) / (kL[j] * P_mean);
+        R_cond_total += R;
+        R_cond_each.push({...L, k0: (L.k0 !== undefined ? L.k0 : L.k), k: kL[j], R});
+      });
+      for (let i = 0; i < 30; i++) {
+        const T_s_K = T_s + 273.15;
+        const h_rad1 = eps_out * sigma * (T_s_K*T_s_K + T_amb_K*T_amb_K) * (T_s_K + T_amb_K);
+        const R_out1 = 1 / ((h_out + h_rad1) * P_out);
+        const q1 = (T_fluid - T_amb) / (R_in + R_cond_total + R_out1);
+        const T_s_new = T_amb + q1 * R_out1;
+        if (Math.abs(T_s_new - T_s) < 0.02) { T_s = T_s_new; break; }
+        T_s = T_s_new;
+      }
       const T_s_K = T_s + 273.15;
-      const h_rad = eps_out * sigma * (T_s_K*T_s_K + T_amb_K*T_amb_K) * (T_s_K + T_amb_K);
-      const h_combined = h_out + h_rad;
-      const R_out = 1 / (h_combined * P_out);
-      const R_tot = R_in + R_cond_total + R_out;
-      const q_per_L = (T_fluid - T_amb) / R_tot;
-      const T_s_new = T_amb + q_per_L * R_out;
-      if (Math.abs(T_s_new - T_s) < 0.02) { T_s = T_s_new; break; }
-      T_s = T_s_new;
+      h_rad = eps_out * sigma * (T_s_K*T_s_K + T_amb_K*T_amb_K) * (T_s_K + T_amb_K);
+      h_combined = h_out + h_rad;
+      R_out = 1 / (h_combined * P_out);
+      R_total = R_in + R_cond_total + R_out;
+      q_per_L = (T_fluid - T_amb) / R_total;
+      interfaces = [];
+      let T_running = T_fluid - q_per_L * R_in, maxd = 0;
+      interfaces.push({name: "ผิวด้านในชั้นแรก", T: T_running});
+      R_cond_each.forEach((L, idx) => {
+        const Ti = T_running;
+        T_running -= q_per_L * L.R;
+        interfaces.push({name: `ผิวด้านนอกชั้น ${idx+1} (${L.name})`, T: T_running});
+        L.Tm = (Ti + T_running) / 2;
+        if (L.tk) { const kn = TE_INSK.k(L.tk, L.Tm); maxd = Math.max(maxd, Math.abs(kn - kL[idx])); kL[idx] = kn; }
+      });
+      if (maxd < 1e-7) break;
     }
-    const T_s_K = T_s + 273.15;
-    const h_rad = eps_out * sigma * (T_s_K*T_s_K + T_amb_K*T_amb_K) * (T_s_K + T_amb_K);
-    const h_combined = h_out + h_rad;
-    const R_out = 1 / (h_combined * P_out);
-    const R_total = R_in + R_cond_total + R_out;
-    const q_per_L = (T_fluid - T_amb) / R_total;
-
-    const interfaces = [];
-    let T_running = T_fluid - q_per_L * R_in;
-    interfaces.push({name: "ผิวด้านในชั้นแรก", T: T_running});
-    R_cond_each.forEach((L, idx) => {
-      T_running -= q_per_L * L.R;
-      interfaces.push({name: `ผิวด้านนอกชั้น ${idx+1} (${L.name})`, T: T_running});
-    });
 
     return {
       q_per_L, R_total, R_in, R_cond_total, R_cond_each, R_out,
@@ -2276,10 +2306,13 @@ window.addEventListener('DOMContentLoaded', function() {
     {name: "Castable Refractory (densitfy 2.2)",  k: 1.30, t_max: 1500},
     {name: "Firebrick (High Alumina)",            k: 1.10, t_max: 1700},
     {name: "Insulating Firebrick (IFB)",          k: 0.30, t_max: 1300},
-    {name: "Calcium Silicate (high-temp)",        k: 0.075, t_max: 815},
-    {name: "Ceramic Fiber Blanket (1260°C)",      k: 0.15, t_max: 1260},
-    {name: "Ceramic Fiber Blanket (1430°C)",      k: 0.20, t_max: 1430},
-    {name: "Rockwool (industrial grade)",         k: 0.045, t_max: 750},
+    /* [แก้ไข 18 พ.ย. 2569] #364 tk = ตาราง k(T) ใน TE_INSK (ASTM) — ชั้นเหล่านี้ใช้ k ที่อุณหภูมิเฉลี่ยของชั้น · k ในวงเล็บคงไว้เป็นค่าป้าย/คีย์ของตัวเลือก
+       C533 Type II (≤ 927 °C) · C892 Grade 8 (≈ 128 kg/m³ — ความหนาแน่นสมมุติของผ้าห่มเซรามิกไฟเบอร์ทั่วไป) · C547 Type II
+       วัสดุทนไฟ (castable · firebrick · IFB) แผ่นใยแร่ และเหล็ก ยังใช้ k คงที่ (ค่าแนวทางของเครื่องมือ — ไม่มีตารางข้อกำหนดที่เปิดตรวจได้) */
+    {name: "Calcium Silicate (high-temp)",        k: 0.075, t_max: 815, tk: 'calsil_hi'},
+    {name: "Ceramic Fiber Blanket (1260°C)",      k: 0.15, t_max: 1260, tk: 'ceramic'},
+    {name: "Ceramic Fiber Blanket (1430°C)",      k: 0.20, t_max: 1430, tk: 'ceramic'},
+    {name: "Rockwool (industrial grade)",         k: 0.045, t_max: 750, tk: 'rockwool'},
     {name: "Mineral Wool Board",                  k: 0.04, t_max: 700},
     {name: "Carbon Steel Shell",                  k: 52,   t_max: 425},
     {name: "Stainless Steel (310)",               k: 14,   t_max: 1100},
@@ -2446,7 +2479,7 @@ window.addEventListener('DOMContentLoaded', function() {
     let materialWarnings = [];
     r.R_cond_each.forEach((layer, idx) => {
       const T_inner = r.interfaces[idx].T;
-      const mat = FG_MATERIALS.find(m => Math.abs(m.k - layer.k) < 0.001);
+      const mat = FG_MATERIALS.find(m => Math.abs(m.k - (layer.k0 !== undefined ? layer.k0 : layer.k)) < 0.001);   /* [แก้ไข 18 พ.ย. 2569] #364 k อาจเป็น k(T) → เทียบด้วย k ค่าป้าย */
       if (mat && T_inner > mat.t_max) {
         materialWarnings.push(`⚠️ ชั้น ${idx+1} (${mat.name}): T_inner = ${fmt(T_inner,0)}°C เกินขีดจำกัด ${mat.t_max}°C`);
       }
@@ -2462,8 +2495,13 @@ window.addEventListener('DOMContentLoaded', function() {
     // Layer breakdown table
     let layerRows = '';
     r.R_cond_each.forEach((L, idx) => {
-      layerRows += `<tr><td>ชั้น ${idx+1}</td><td>${L.name}</td><td>${L.thickness} mm</td><td>${L.k}</td><td>${fmt(L.R,4)}</td><td>${fmt(r.interfaces[idx].T,0)} → ${fmt(r.interfaces[idx+1].T,0)} °C</td></tr>`;
+      layerRows += `<tr><td>ชั้น ${idx+1}</td><td>${L.name}</td><td>${L.thickness} mm</td><td>${L.tk ? fmt(L.k,4) + ' <span class="unit">(k(T<sub>m</sub>) ' + fmt(L.Tm,0) + ' °C · <span>ค่าป้าย</span> ' + L.k0 + ')</span>' : L.k + ' <span class="unit"><span>(คงที่)</span></span>'}</td><td>${fmt(L.R,4)}</td><td>${fmt(r.interfaces[idx].T,0)} → ${fmt(r.interfaces[idx+1].T,0)} °C</td></tr>`;
     });
+    /* [แก้ไข 18 พ.ย. 2569] #364 ที่มาของ k(T) ของชั้นที่มีตาราง ASTM + ชั้นที่ใช้ k คงที่ */
+    const fgKsrc = (function(){ const ks = []; r.R_cond_each.forEach(L => { if (L.tk && ks.indexOf(L.tk) < 0) ks.push(L.tk); });
+      return (ks.length ? ks.map(k => dlKsrcHTML(k, NaN)).join('') : '') +
+        (r.R_cond_each.some(L => !L.tk) ? '<br><span class="unit"><span>ชั้นที่ระบุ (คงที่): k คงที่ตามตัวเลือก — ค่าแนวทางของเครื่องมือ (วัสดุทนไฟ แผ่นใยแร่ และเหล็กไม่มีตารางข้อกำหนดที่เปิดตรวจได้)</span></span>' : '') +
+        (ks.length ? '<br><span class="unit"><span>อ้างอิงวิธี: ISO 12241:2022 ข้อ 4.1.1 (k ที่อุณหภูมิเฉลี่ยของแต่ละชั้น)</span></span>' : ''); })();
 
     let geometryStep = '';
     if (isCyl) {
@@ -2511,7 +2549,7 @@ window.addEventListener('DOMContentLoaded', function() {
             ${layerRows}
           </table>
           <div class="formula">
-            <b>ΣR<sub>cond</sub> = <span class="num">${fmt(r.R_cond_total,4)} m·K/W</span></b>
+            <b>ΣR<sub>cond</sub> = <span class="num">${fmt(r.R_cond_total,4)} m·K/W</span></b>${fgKsrc}
           </div>
         </div>
 
@@ -2574,7 +2612,8 @@ window.addEventListener('DOMContentLoaded', function() {
       const k = +document.getElementById('fg_k'+i).value;
       const sel = document.getElementById('fg_k'+i);
       const name = sel.options[sel.selectedIndex].dataset.name || `Layer ${i}`;
-      if (t > 0) layers.push({thickness: t, k: k, name: name});
+      const fm = FG_MATERIALS.find(m => m.name === name);   /* [แก้ไข 18 พ.ย. 2569] #364 */
+      if (t > 0) layers.push({thickness: t, k: k, k0: k, name: name, tk: (fm && fm.tk && window.TE_INSK) ? fm.tk : null});
     }
     if (layers.length === 0) {
       document.getElementById('fg_result').innerHTML = `
@@ -4847,5 +4886,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>/* [แก้ไข 18 พ.ย. 2569] #187 EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[
  [/\(≈\s*(-?[\d.,]+)\s*kW ต่อ m³\/min\s*·\s*ช่วงแนวทางเดียวกับ Compressed Air\/Flow Converter ที่ 7 bar g:\s*ดี 6\.0–6\.5\s*·\s*ยอมรับได้ 6\.5–7\.5\s*·\s*อ้างอิง:\s*CAC\/DOE Fact Sheet #8 \(Rev\. 1, 2026\) หน้า F8-1\)/g,"(≈ $1 kW per m³/min · same guidance band as Compressed Air/Flow Converter at 7 bar g: good 6.0–6.5 · acceptable 6.5–7.5 · reference: CAC/DOE Fact Sheet #8 (Rev. 1, 2026) p. F8-1)"]
 ]);</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #363 #364 EN — ที่มาของ k(T) ฉนวน (ตาราง ASTM ใน TE_INSK) · ดักท์/ปล่องไอเสียใช้ k(T) */ if(window.TE_I18N)TE_I18N.set({"ที่มาของ k(T):": "Source of k(T):", "— ค่าสูงสุดตามข้อกำหนดวัสดุ ประมาณเชิงเส้นระหว่างจุดในตาราง": "— maximum values of the material specification, linear interpolation between table points", "อุณหภูมิเฉลี่ยต่ำกว่าจุดแรกของตาราง ใช้ค่าจุดแรก": "mean temperature below the first table point — first-point value used", "อุณหภูมิเฉลี่ยเกินจุดสุดท้ายของตาราง ต่อเส้นตรงจากสองจุดท้าย": "mean temperature above the last table point — extrapolated from the last two points", "ค่าป้าย": "nameplate", "(คงที่)": "(constant)", "ชั้นที่ระบุ (คงที่): k คงที่ตามตัวเลือก — ค่าแนวทางของเครื่องมือ (วัสดุทนไฟ แผ่นใยแร่ และเหล็กไม่มีตารางข้อกำหนดที่เปิดตรวจได้)": "Layers marked (constant): k fixed as selected — tool guidance value (refractories, mineral-wool board and steel have no checkable specification table)", "อ้างอิงวิธี: ISO 12241:2022 ข้อ 4.1.1 (k ที่อุณหภูมิเฉลี่ยของแต่ละชั้น)": "Method reference: ISO 12241:2022 clause 4.1.1 (k at the mean temperature of each layer)", "k ฉนวนคิดตามอุณหภูมิเฉลี่ยของชั้นจากตารางค่าสูงสุดของข้อกำหนดวัสดุ ASTM — C547-22a (ใยหิน Type II · ใยแก้ว Type I) · C533-17 Type I (แคลเซียมซิลิเกต) · C591-17 Type I (PU/PIR) · C534/C534M-23 Grade 1 (ยางโฟม) · C1728-23 Type III (แอโรเจล) · ตัวเลขในวงเล็บเป็นค่าป้ายของตัวเลือก": "Insulation k is evaluated at the layer mean temperature from the maximum-value tables of the ASTM material specifications — C547-22a (rock wool Type II · glass wool Type I) · C533-17 Type I (calcium silicate) · C591-17 Type I (PU/PIR) · C534/C534M-23 Grade 1 (elastomeric foam) · C1728-23 Type III (aerogel) · the number in brackets is the option's nameplate value"});</script>
 </body>
 </html>
