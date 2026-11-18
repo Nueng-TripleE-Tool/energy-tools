@@ -612,7 +612,7 @@ h_fg (water evap.) ≈ 2,260 kJ/kg @ 100°C</div>
         <p style="font-size:12px;color:var(--text2);line-height:1.6">นำไอเสียอุ่น<strong>น้ำมันร้อน (Thermal Oil)</strong> หรือของเหลวถ่ายเทความร้อนอื่น เลือกชนิดของไหลและแก้ไข Cp ได้ตาม data sheet — ใช้กับระบบ Hot Oil Heater</p>
         <div class="formula-box">Q = ṁ_fluid × Cp_fluid(T) × (T_out − T_in)
 Cp แก้ไขได้: Mineral / Synthetic / Custom</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:6px">อ้างอิง: Cp ตามเอกสารข้อมูลของน้ำมันที่ใช้จริง — สูตรตั้งต้นในเครื่องมือเป็นค่าแนวทาง</div><!-- [แก้ไข 18 พ.ย. 2569] #449 ไม่อ้างชื่อผู้ผลิต -->
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">อ้างอิง: น้ำมันแร่ — C. S. Cragoe, Thermal Properties of Petroleum Products, NBS Misc. Publ. 97 (1929) สมการ (5) หน้า 26 · น้ำมันสังเคราะห์ = ค่าแนวทางของเครื่องมือ · ใส่ Cp ตามเอกสารข้อมูลของน้ำมันที่ใช้จริง</div><!-- [แก้ไข 18 พ.ย. 2569] #449 ไม่อ้างชื่อผู้ผลิต · [แก้ไข 19 พ.ย. 2569] #497 -->
       </div>
     </div>
     <div class="card" style="border-top:3px solid var(--accent)">
@@ -1485,7 +1485,7 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
                 <option value="synthetic">น้ำมันร้อนสังเคราะห์ (Synthetic aromatic)</option><!-- [แก้ไข 18 พ.ย. 2569] #449 ไม่ใช้ชื่อการค้า -->
                 <option value="hotwater">น้ำร้อนความดัน (Pressurized Hot Water)</option>
                 <option value="custom">Custom (กรอก Cp เอง)</option>
-              </select><div class="hint">ชนิดของไหลนำความร้อน — โปรแกรมเติม Cp ตามอุณหภูมิเฉลี่ย (mineral oil 2.3–2.7, synthetic 2.0–2.4 kJ/kg·K)</div>
+              </select><div class="hint">ชนิดของไหลนำความร้อน — โปรแกรมเติม Cp ตามอุณหภูมิเฉลี่ย: น้ำมันแร่ = สมการ Cragoe (NBS 1929) ที่ SG 0.88 → 2.16–2.88 kJ/kg·K ที่ 100–300 °C · สังเคราะห์ = ค่าแนวทางของเครื่องมือ 1.78–2.34 kJ/kg·K · ใส่ Cp จากเอกสารข้อมูลน้ำมันจริงเมื่อมี</div><!-- [แก้ไข 19 พ.ย. 2569] #497 เดิม "mineral oil 2.3–2.7, synthetic 2.0–2.4" ไม่มีที่มา -->
             </div>
             <div class="field">
               <label>Cp ของไหล <span>(kJ/kg·K, แก้ไขได้)</span></label>
@@ -2258,13 +2258,19 @@ function loadSampleWater() { // [แก้ไข 18 พ.ย. 2569] #441
 // MODE 5: HOT OIL / THERMAL FLUID
 // ════════════════════════════════════════════════════════════
 // Cp suggestion correlations [kJ/(kg·K)] vs mean fluid temp (°C)
-//  • Mineral thermal oil (น้ำมันแร่)                          : 1.840 + 0.00340·T   — ค่าแนวทางของเครื่องมือ
-//  • Synthetic / aromatic (น้ำมันสังเคราะห์กลุ่มอะโรมาติก)        : 1.500 + 0.00280·T   — ค่าแนวทางของเครื่องมือ
+//  • Mineral thermal oil (น้ำมันแร่) — [แก้ไข 19 พ.ย. 2569] #497 เดิม 1.840 + 0.00340·T (ไม่มีที่มา) → สมการ Cragoe:
+//      c [Btu/lb·°F = cal/g·°C] = (0.388 + 0.00045·t[°F]) ÷ √d   (d = ความถ่วงจำเพาะ 60/60 °F)
+//      อ้างอิง: C. S. Cragoe, Thermal Properties of Petroleum Products, Miscellaneous Publication of the Bureau of Standards No. 97
+//      (U.S. Dept. of Commerce, 9 Nov 1929) Section VII สมการ (5) หน้า 26 — ข้อมูลน้ำมัน 30 ชนิด d 0.75–0.96, 32–400 °F ต่างเฉลี่ย < 2 % สูงสุด ~4 %
+//      (ตรวจตาราง 12: d 1.0000 → 0.478 · 0.9340 → 0.495 · 0.8762 → 0.511 ที่ 200 °F = 0.478/√d) https://nvlpubs.nist.gov/nistpubs/Legacy/MP/nbsmiscellaneouspub97.pdf
+//      SI: c [kJ/kg·K] = 4.1868 × (0.4024 + 0.00081·T[°C]) ÷ √d = (1.68477 + 0.0033913·T) ÷ √d · d = 0.88 = ค่าแนวทางของเครื่องมือ (ผู้ใช้ใส่ Cp จากเอกสารข้อมูลได้)
+//  • Synthetic / aromatic (น้ำมันสังเคราะห์กลุ่มอะโรมาติก)        : 1.500 + 0.00280·T   — ค่าแนวทางของเครื่องมือ (ไม่พบเอกสารที่ไม่ใช่ของผู้ผลิต · SG สังเคราะห์อะโรมาติกเกินช่วงของ Cragoe)
 //    [แก้ไข 18 พ.ย. 2569] #449 ตัดชื่อการค้าออก (ไม่อ้างผู้ผลิต) — ผู้ใช้ควรใส่ Cp จากเอกสารข้อมูลของน้ำมันที่ใช้จริง
 //  • Pressurized hot water : Δh/ΔT จาก IAPWS-IF97 (TE.WHRCALC.cpWaterIF97) — [แก้ไข 18 พ.ย. 2569] #443 เดิม cpWater(T) สูตรถดถอย
+const OIL_SG_MINERAL = 0.88; // [แก้ไข 19 พ.ย. 2569] #497 ความถ่วงจำเพาะ 60/60 °F ของน้ำมันแร่ที่ใช้ในสมการ Cragoe — ค่าแนวทางของเครื่องมือ (อยู่ในช่วงข้อมูล 0.75–0.96 ของสมการ)
 function oilCpSuggest(kind, Tmean, t1, t2) {
   const T = isFinite(Tmean) ? Tmean : 200;
-  if (kind === 'mineral')   return Math.round((1.840 + 0.00340 * T) * 1000) / 1000;
+  if (kind === 'mineral')   return Math.round((1.68477 + 0.0033913 * T) / Math.sqrt(OIL_SG_MINERAL) * 1000) / 1000; // [แก้ไข 19 พ.ย. 2569] #497 Cragoe (NBS MP 97, 1929) eq. 5
   if (kind === 'synthetic') return Math.round((1.500 + 0.00280 * T) * 1000) / 1000;
   if (kind === 'hotwater')  return (isFinite(t1) && isFinite(t2)) ? Math.round(TE.WHRCALC.cpWaterIF97(t1, t2) * 1000) / 1000 : cpWater(T);
   return null; // custom → ไม่เปลี่ยน
@@ -2279,7 +2285,7 @@ function setOilFluid() {
   const hint = document.getElementById('oil_cp_hint');
   if (cp !== null) {
     document.getElementById('oil_cp').value = cp.toFixed(3);
-    if (hint) hint.textContent = `Cp @ ${fmtN(tmean,0)}°C ≈ ${cp.toFixed(3)} kJ/(kg·K)`;
+    if (hint) hint.textContent = `Cp @ ${fmtN(tmean,0)}°C ≈ ${cp.toFixed(3)} kJ/(kg·K)` + (kind === 'mineral' ? ` (Cragoe NBS 1929 · SG ${OIL_SG_MINERAL})` : kind === 'synthetic' ? ' (ค่าแนวทางของเครื่องมือ)' : ' (IAPWS-IF97)'); // [แก้ไข 19 พ.ย. 2569] #497
   } else {
     if (hint) hint.textContent = 'โหมด Custom — กรอก Cp เองตาม data sheet';
   }
@@ -3139,6 +3145,8 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 "📌 ε ≤ 100 % เสมอ · เกณฑ์ ε > 70 % ดี / < 40 % ควรทบทวน = ค่าแนวทางของเครื่องมือ (เอกสารรอง BEE India Ch.8: heat wheel ถึง 85 % p.180 · heat pipe 60–80 % p.181)":"📌 ε ≤ 100 % always · thresholds ε > 70 % good / < 40 % review = tool guidance (secondary source BEE India Ch.8: heat wheel up to 85 % p.180 · heat pipe 60–80 % p.181)",
 "Pinch point = Tgas ออก evaporator − Tsat (°C) — ค่าออกแบบ · เอกสารรอง (R. Gicquel, MINES ParisTech): pinch ต่ำสุดที่ใช้ทั่วไปประมาณ 5–15 K · ค่าตั้งต้น 20 °C = ค่าแนวทางของเครื่องมือ (เผื่อพื้นที่ evaporator — pinch ยิ่งต่ำ พื้นที่ HX ยิ่งมาก)":"Pinch point = Tgas leaving evaporator − Tsat (°C) — design value · secondary source (R. Gicquel, MINES ParisTech): the usual minimum pinch is about 5–15 K · default 20 °C = tool guidance (margin on evaporator area — the lower the pinch, the larger the HX area)",
 "Approach = Tsat − T น้ำออก economizer (°C) — ค่าออกแบบ · เอกสารรอง (R. Gicquel, MINES ParisTech): มักตั้งประมาณ 10 K · ต้องไม่ติดลบ (กันน้ำเดือดใน economizer)":"Approach = Tsat − T water leaving economizer (°C) — design value · secondary source (R. Gicquel, MINES ParisTech): usually set at about 10 K · must not be negative (prevents boiling in the economizer)",
+"ชนิดของไหลนำความร้อน — โปรแกรมเติม Cp ตามอุณหภูมิเฉลี่ย: น้ำมันแร่ = สมการ Cragoe (NBS 1929) ที่ SG 0.88 → 2.16–2.88 kJ/kg·K ที่ 100–300 °C · สังเคราะห์ = ค่าแนวทางของเครื่องมือ 1.78–2.34 kJ/kg·K · ใส่ Cp จากเอกสารข้อมูลน้ำมันจริงเมื่อมี":"Heat-transfer fluid type — Cp is filled from the mean temperature: mineral oil = Cragoe equation (NBS 1929) at SG 0.88 → 2.16–2.88 kJ/kg·K at 100–300 °C · synthetic = tool guidance 1.78–2.34 kJ/kg·K · enter the Cp from the actual oil data sheet when available",
+"อ้างอิง: น้ำมันแร่ — C. S. Cragoe, Thermal Properties of Petroleum Products, NBS Misc. Publ. 97 (1929) สมการ (5) หน้า 26 · น้ำมันสังเคราะห์ = ค่าแนวทางของเครื่องมือ · ใส่ Cp ตามเอกสารข้อมูลของน้ำมันที่ใช้จริง":"Reference: mineral oil — C. S. Cragoe, Thermal Properties of Petroleum Products, NBS Misc. Publ. 97 (1929) equation (5) p. 26 · synthetic oil = tool guidance · enter the Cp from the data sheet of the oil actually used",
 "%O₂ ต้องไม่ติดลบและน้อยกว่า 21 % — ไม่อัปเดตข้อมูลร่วม (ค่าที่กรอก)":"%O₂ must be non-negative and below 21 % — shared data not updated (value entered)",
 "อัปเดตข้อมูลไอเสียร่วมแล้ว":"Shared flue-gas data updated",
 "อากาศส่วนเกิน":"Excess air",
@@ -3158,6 +3166,7 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 "อ้างอิง: U.S. DOE (2015) Improving Process Heating System Performance 3rd ed., Table 6 p.49 · BCS/U.S. DOE (2008) Waste Heat Recovery, Table 8 p.30, §3.1.1 p.12 · BEE India Guide Book 2 Ch.8 p.178":"Reference: U.S. DOE (2015) Improving Process Heating System Performance 3rd ed., Table 6 p.49 · BCS/U.S. DOE (2008) Waste Heat Recovery, Table 8 p.30, §3.1.1 p.12 · BEE India Guide Book 2 Ch.8 p.178"
 },[
 [/^(\s*)⭐ แนะนำ (.+?)(\s*)$/,"$1⭐ Recommended: $2$3"],
+[/ \(ค่าแนวทางของเครื่องมือ\)$/,"" + " (tool guidance)"],
 [/วิธี Single-Pressure Pinch — pinch (\S+)°C, approach (\S+)°C \(ค่าออกแบบที่กรอก\) · นิยาม pinch\/approach: R\. Gicquel, MINES ParisTech Thermoptim \(เอกสารรอง\) · สมบัติไอน้ำ IAPWS-IF97/g,"Single-pressure pinch method — pinch $1°C, approach $2°C (design values entered) · pinch/approach definition: R. Gicquel, MINES ParisTech Thermoptim (secondary source) · steam properties IAPWS-IF97"],
 [/ε ของการออกแบบนี้ = (\S+) % \(ช่วง η ทั่วไปของชนิดนี้ (\S+) %\)/g,"ε of this design = $1 % (typical η range of this type $2 %)"],
 [/ไอเสียเกิน 1,093 °C \(ขีดจำกัด recuperator โลหะ\): ใช้ recuperator ท่อเซรามิก หรือ regenerator \(BCS\/U\.S\. DOE 2008 §3\.1\.1 p\.12, §3\.1\.2\) · /g,"Flue gas above 1,093 °C (metallic recuperator limit): use a ceramic-tube recuperator or a regenerator (BCS/U.S. DOE 2008 §3.1.1 p.12, §3.1.2) · "],
