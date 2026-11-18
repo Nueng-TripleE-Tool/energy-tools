@@ -1801,23 +1801,29 @@ function fgAutoCp(id, tin, tout){
 
 
 // ─── HX ADVISOR: recommend HX for given conditions ────────────
+// [แก้ไข 19 พ.ย. 2569] #490 เกณฑ์ใหม่: (1) ชนิดการแลกเปลี่ยนตรงโหมด (suitable) (2) ไอเสียเข้าอยู่ในช่วงใช้งานตามเอกสาร tlo–thi (TE.WHRCALC.HX_TYPES)
+//   (3) ในช่วงเดียวกันเรียงตาม TE.WHRCALC.HX_ORDER — เดิมคะแนน = tmax + approach + ความกว้างช่วง η ÷ 2 (ไม่มีที่มา) จึงแนะนำ Radiation Recuperator
+//   (ช่วง η กว้างสุด) ให้ไอเสีย 745 °C ก่อน Metallic Recuperator · approach ต่ำกว่า dt_min ของชนิดยังแสดงเป็นข้อสังเกต ไม่ใช้จัดอันดับ
+//   อ้างอิง: U.S. DOE (2015) Process Heating Sourcebook 3rd ed. Table 6 หน้า 49 · BCS/U.S. DOE (2008) Table 8 หน้า 30 · BEE India Ch.8 หน้า 178
+var HX_ORDER=TE.WHRCALC.HX_ORDER;
+function hxBandTxt(hx){
+  const f=v=>fmtN(v,0);
+  if(!isFinite(hx.tlo)&&!isFinite(hx.thi)) return '—';
+  if(!isFinite(hx.tlo)) return '≤ '+f(hx.thi)+' °C';
+  if(!isFinite(hx.thi)) return '≥ '+f(hx.tlo)+' °C';
+  return f(hx.tlo)+'–'+f(hx.thi)+' °C';
+}
 function hxAdvisor(mode, tfg_in, tfg_out, t_cold_in, t_cold_out) {
-  const results = [];
-  for (const [key, hx] of Object.entries(HX_TYPES)) {
-    if (!hx.suitable.includes(mode)) continue;
-    const dt_hot_end  = tfg_in  - t_cold_out;  // Hot end ΔT (counter-flow)
-    const dt_cold_end = tfg_out - t_cold_in;    // Cold end ΔT
-    const dt_min_actual = Math.min(dt_hot_end, dt_cold_end);
-    const tmax_ok = tfg_in <= hx.tmax;
-    const approach_ok = dt_min_actual >= hx.dt_min;
-    let score = 0;
-    if (tmax_ok) score += 30;
-    if (approach_ok) score += 30;
-    if (dt_min_actual >= hx.dt_min * 1.5) score += 20;
-    score += Math.min(20, (hx.eta_high - hx.eta_low) / 2);
-    results.push({ key, hx, score, tmax_ok, approach_ok, dt_min_actual });
-  }
-  results.sort((a,b) => b.score - a.score);
+  const order = (HX_ORDER[mode] || Object.keys(HX_TYPES)).filter(k => HX_TYPES[k] && HX_TYPES[k].suitable.includes(mode));
+  const dt_hot_end  = tfg_in  - t_cold_out;  // Hot end ΔT (counter-flow)
+  const dt_cold_end = tfg_out - t_cold_in;    // Cold end ΔT
+  const dt_min_actual = Math.min(dt_hot_end, dt_cold_end);
+  const results = order.map((key, i) => {
+    const hx = HX_TYPES[key];
+    const inBand = tfg_in >= hx.tlo && tfg_in <= hx.thi;
+    return { key, hx, inBand, tmax_ok: tfg_in <= hx.thi, approach_ok: dt_min_actual >= hx.dt_min, dt_min_actual, rank: i };
+  });
+  results.sort((a,b) => (b.inBand - a.inBand) || (a.rank - b.rank));
   return results;
 }
 
@@ -1866,6 +1872,7 @@ function renderHXPanel(containerId, mode, q_kW, lmtd, tfg_in, tfg_out, t_cold_in
       onclick="selectHX('${containerId}','${r.key}',${q_kW},${lmtd},${tfg_in},${tfg_out},${t_cold_in},${t_cold_out})">
       <span class="hx-icon">${r.hx.icon}</span>
       <span class="hx-name">${r.hx.name}</span>
+      <span class="hx-u">T_fg,in ${hxBandTxt(r.hx)}${r.inBand ? '' : ' ✗'}</span>
       <span class="hx-u">U = ${r.hx.U_low}–${r.hx.U_high} W/(m²·K)</span>
       <span class="hx-eta">η = ${r.hx.eta_low}–${r.hx.eta_high}%</span>
     </div>`;
@@ -1873,11 +1880,15 @@ function renderHXPanel(containerId, mode, q_kW, lmtd, tfg_in, tfg_out, t_cold_in
 
   // Best recommendation pills
   const bestKey = recs[0]?.key;
+  // [แก้ไข 19 พ.ย. 2569] #490 ⭐ เฉพาะชนิดที่ไอเสียเข้าอยู่ในช่วงตามเอกสาร · นอกช่วงแสดง ✗
+  const nIn = recs.filter(r => r.inBand).length;
   const recPills = recs.slice(0, 4).map((r, i) => {
-    const cls = i === 0 ? 'best' : i <= 2 ? 'good' : 'good';
+    if (!r.inBand) return `<span class="rec-pill" style="opacity:.6">✗ ${r.hx.name} (นอกช่วง ${hxBandTxt(r.hx)})</span>`;
+    const cls = i === 0 ? 'best' : 'good';
     const lbl = i === 0 ? '⭐ แนะนำ' : `#${i+1}`;
     return `<span class="rec-pill ${cls}">${lbl} ${r.hx.name}</span>`;
   }).join('');
+  const bandNote = `<div class="hint" style="margin:2px 0 8px">${nIn ? '' : `⚠️ ไม่มีชนิดที่ช่วงใช้งานครอบคลุมไอเสียเข้า ${fmtN(tfg_in,0)} °C — พื้นที่ด้านล่างเป็นค่าประเมินเท่านั้น · `}${(!nIn && mode === 'air' && tfg_in > 1093) ? 'ไอเสียเกิน 1,093 °C (ขีดจำกัด recuperator โลหะ): ใช้ recuperator ท่อเซรามิก หรือ regenerator (BCS/U.S. DOE 2008 §3.1.1 p.12, §3.1.2) · ' : ''}เกณฑ์: ไอเสียเข้า ${fmtN(tfg_in,0)} °C อยู่ในช่วงใช้งานของชนิด HX ตามเอกสาร · ช่วงเดียวกันเรียง recuperator แบบพาความร้อนก่อนแบบรังสี (กะทัดรัดกว่า effectiveness สูงกว่า) · ลำดับอื่นเป็นค่าแนวทางของเครื่องมือ<br>อ้างอิง: U.S. DOE (2015) Improving Process Heating System Performance 3rd ed., Table 6 p.49 · BCS/U.S. DOE (2008) Waste Heat Recovery, Table 8 p.30, §3.1.1 p.12 · BEE India Guide Book 2 Ch.8 p.178</div>`;
 
   // Initial area calc with best HX
   const bestHX = recs[0]?.hx;
@@ -1916,12 +1927,13 @@ function renderHXPanel(containerId, mode, q_kW, lmtd, tfg_in, tfg_out, t_cold_in
         <p style="font-size:12px;font-weight:700;color:var(--text);margin:12px 0 6px">
           🔧 เลือกชนิด Heat Exchanger <span style="font-weight:400;color:var(--text3)">(คลิกเพื่อคำนวณพื้นที่)</span>
         </p>
-        <div style="margin-bottom:8px">${recPills}</div>
+        <div style="margin-bottom:4px">${recPills}</div>
+        ${bandNote}
         <div class="hx-card-grid">${hxBtns}</div>
 
         <!-- HX Result Panel -->
         <div id="hxresult_${containerId}">
-          ${bestHX ? renderHXResult(containerId, bestKey, q_kW, lmtd, bestHX) : ''}
+          ${bestHX ? renderHXResult(containerId, bestKey, q_kW, lmtd, bestHX, tfg_in) : ''}
         </div>
       </div>
     </div>`;
@@ -1930,8 +1942,10 @@ function renderHXPanel(containerId, mode, q_kW, lmtd, tfg_in, tfg_out, t_cold_in
   if (bestHX) recalcFanPenalty(containerId, q_kW);
 }
 
-function renderHXResult(containerId, hxKey, q_kW, lmtd, hx) {
+function renderHXResult(containerId, hxKey, q_kW, lmtd, hx, tfg_in) {
   if (!hx || !lmtd || lmtd <= 0) return '';
+  // [แก้ไข 19 พ.ย. 2569] #490 เตือนเมื่อชนิดที่เลือกอยู่นอกช่วงอุณหภูมิไอเสียเข้าตามเอกสาร
+  const outBand = isFinite(tfg_in) && !(tfg_in >= hx.tlo && tfg_in <= hx.thi);
   const A_low  = calcHXArea(q_kW, lmtd, hx.U_high); // Conservative U → large area
   const A_mid  = calcHXArea(q_kW, lmtd, hx.U_mid);
   const A_high = calcHXArea(q_kW, lmtd, hx.U_low);  // Low U → largest area
@@ -1947,6 +1961,7 @@ function renderHXResult(containerId, hxKey, q_kW, lmtd, hx) {
       <div style="font-size:13px;font-weight:700;margin-bottom:8px">
         ${hx.icon} ${hx.name} — ผลการคำนวณพื้นที่ HX
       </div>
+      ${outBand ? `<div class="warn" style="margin-bottom:8px">⚠️ ไอเสียเข้า ${fmtN(tfg_in,0)} °C อยู่นอกช่วงใช้งานของ ${hx.name} ตามเอกสาร (${hxBandTxt(hx)}) — ใช้เพื่อเปรียบเทียบเท่านั้น</div>` : ''}
       <div class="hx-result-row">
         <div class="hx-kpi">
           <div class="kpi-val">${fmtN(A_mid,1)} m²</div>
@@ -2094,7 +2109,7 @@ function selectHX(containerId, hxKey, q_kW, lmtd, tfg_in, tfg_out, t_cold_in, t_
   if (btn) btn.classList.add('selected');
   // Render result
   const hx = HX_TYPES[hxKey];
-  document.getElementById('hxresult_' + containerId).innerHTML = renderHXResult(containerId, hxKey, q_kW, lmtd, hx);
+  document.getElementById('hxresult_' + containerId).innerHTML = renderHXResult(containerId, hxKey, q_kW, lmtd, hx, tfg_in); // [แก้ไข 19 พ.ย. 2569] #490
   recalcFanPenalty(containerId, q_kW);   // auto-compute fan penalty on selection
   if (typeof tagFieldKinds === 'function') tagFieldKinds(); // [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่าบนช่อง fan_* ที่สร้างใหม่
 }
@@ -3092,6 +3107,19 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 [/^(\s*)\((\S+) GJ\/yr = 2\.442 MJ\/kg × น้ำที่ระเหย\)(\s*)$/,"$1($2 GJ/yr = 2.442 MJ/kg × water evaporated)$3"],
 [/Cp_w = Δh\/ΔT จาก IAPWS-IF97 \(TE_STEAM\)/g,"Cp_w = Δh/ΔT from IAPWS-IF97 (TE_STEAM)"],
 [/Cp_air = cp เฉลี่ยของอากาศ \(N₂ 79 % \+ O₂ 21 %\) ช่วง Tair เข้า→ออก — แก้ในช่องได้/g,"Cp_air = mean cp of air (N₂ 79 % + O₂ 21 %) over Tair in→out — editable in the field"]
+]);</script>
+<script>/* [แก้ไข 19 พ.ย. 2569] #490–#499 (ผู้ช่วย B) — คู่คำแปล EN ของข้อความที่เพิ่ม/เปลี่ยน */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"อ้างอิง: U.S. DOE (2015) Improving Process Heating System Performance 3rd ed., Table 6 p.49 · BCS/U.S. DOE (2008) Waste Heat Recovery, Table 8 p.30, §3.1.1 p.12 · BEE India Guide Book 2 Ch.8 p.178":"Reference: U.S. DOE (2015) Improving Process Heating System Performance 3rd ed., Table 6 p.49 · BCS/U.S. DOE (2008) Waste Heat Recovery, Table 8 p.30, §3.1.1 p.12 · BEE India Guide Book 2 Ch.8 p.178"
+},[
+[/^(\s*)⭐ แนะนำ (.+?)(\s*)$/,"$1⭐ Recommended: $2$3"],
+[/ไอเสียเกิน 1,093 °C \(ขีดจำกัด recuperator โลหะ\): ใช้ recuperator ท่อเซรามิก หรือ regenerator \(BCS\/U\.S\. DOE 2008 §3\.1\.1 p\.12, §3\.1\.2\) · /g,"Flue gas above 1,093 °C (metallic recuperator limit): use a ceramic-tube recuperator or a regenerator (BCS/U.S. DOE 2008 §3.1.1 p.12, §3.1.2) · "],
+[/^(\s*)✗ (.+?) \(นอกช่วง (.+?)\)(\s*)$/,"$1✗ $2 (out of range $3)$4"],
+[/^(\s*)(.+?) — ผลการคำนวณพื้นที่ HX(\s*)$/,"$1$2 — HX area results$3"],
+[/^(\s*)⚠️ ไม่มีชนิดที่ช่วงใช้งานครอบคลุมไอเสียเข้า (\S+) °C — พื้นที่ด้านล่างเป็นค่าประเมินเท่านั้น · /,"$1⚠️ No type has an operating range covering the inlet flue gas of $2 °C — the area below is an estimate only · "],
+[/^(\s*)เกณฑ์: ไอเสียเข้า (\S+) °C อยู่ในช่วงใช้งานของชนิด HX ตามเอกสาร · ช่วงเดียวกันเรียง recuperator แบบพาความร้อนก่อนแบบรังสี \(กะทัดรัดกว่า effectiveness สูงกว่า\) · ลำดับอื่นเป็นค่าแนวทางของเครื่องมือ(\s*)$/,"$1Criterion: inlet flue gas $2 °C within the documented operating range of the HX type · within the same range, convection recuperators are listed before radiation recuperators (more compact, higher effectiveness) · other ordering is tool guidance$3"],
+[/เกณฑ์: ไอเสียเข้า (\S+) °C อยู่ในช่วงใช้งานของชนิด HX ตามเอกสาร · ช่วงเดียวกันเรียง recuperator แบบพาความร้อนก่อนแบบรังสี \(กะทัดรัดกว่า effectiveness สูงกว่า\) · ลำดับอื่นเป็นค่าแนวทางของเครื่องมือ/g,"Criterion: inlet flue gas $1 °C within the documented operating range of the HX type · within the same range, convection recuperators are listed before radiation recuperators (more compact, higher effectiveness) · other ordering is tool guidance"],
+[/^(\s*)⚠️ ไอเสียเข้า (\S+) °C อยู่นอกช่วงใช้งานของ (.+?) ตามเอกสาร \((.+?)\) — ใช้เพื่อเปรียบเทียบเท่านั้น(\s*)$/,"$1⚠️ Inlet flue gas $2 °C is outside the documented operating range of $3 ($4) — for comparison only$5"]
 ]);</script>
 </body>
 </html>
