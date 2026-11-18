@@ -697,9 +697,19 @@ quickSearch.addEventListener('input', () => {
      → คำค้นภาษาไทยที่ตรงกับชื่อเชื้อเพลิง/สารภาษาอังกฤษ ค้นทั้งสองภาษา (ไม่เปลี่ยนฐานข้อมูล) */
   const terms = [q];
   Object.keys(TH_SYN).forEach(k => { if (q.includes(k)) TH_SYN[k].forEach(t => { if (terms.indexOf(t) < 0) terms.push(t); }); });
+  /* [แก้ไข 18 พ.ย. 2569] #406 โหมด EN (?lang=en): ชื่อรายการในฐาน EF ที่เป็นภาษาไทย (เช่น "WTT (Well-to-Tank) ดีเซล") แสดงบนจอเป็นอังกฤษ
+     แต่การค้นเทียบเฉพาะชื่อดิบภาษาไทย — พิมพ์ "diesel" จึงไม่พบ WTT diesel (Scope 3, 0.6149) และรายการไทยอื่นที่ผู้ใช้เห็นเป็นอังกฤษ
+     → โหมด EN ค้นเทียบชื่อที่แสดงบนจอด้วย (แปลด้วยคำแปลชุดเดียวกับหน้าจอ · ไม่เปลี่ยนฐานข้อมูล ลำดับ หรือจำนวนสูงสุด 15) */
+  const enShown = s => {
+    if (!(window.TE_I18N && TE_I18N.lang === 'en') || !/[฀-๿]/.test(s)) return '';
+    const c = enShown.c || (enShown.c = {});
+    if (c[s] == null) { const d = document.createElement('div'); d.textContent = s; TE_I18N.apply(d); c[s] = d.textContent.toLowerCase(); }
+    return c[s];
+  };
   const matches = SEARCH_INDEX.filter(r => terms.some(t =>
     r.name.toLowerCase().includes(t) ||
-    r.activityLabel.toLowerCase().includes(t)
+    r.activityLabel.toLowerCase().includes(t) ||
+    enShown(r.name).includes(t) || enShown(r.activityLabel).includes(t)
   )).slice(0, 15);
   if (matches.length === 0) {
     quickResults.innerHTML = '<div class="qr-item" style="color:var(--text-dim)">ไม่พบรายการ — ลอง: ดีเซล, ขยะ, เครื่องบิน, R-22, HDPE, B7, E10, ไฟฟ้า</div>';
