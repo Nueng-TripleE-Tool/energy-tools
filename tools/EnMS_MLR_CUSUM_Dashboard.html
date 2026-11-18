@@ -224,6 +224,14 @@
 .g14-note tr.on td{background:#e8f5ec;font-weight:600}
 .g14-note .src{color:#5b6b7b;word-break:break-word;margin-top:4px}
 .g14-note .src a{color:#0B7373}
+/* [แก้ไข 18 พ.ย. 2569] #360 ตารางตรวจเงื่อนไขข้อมูลฐาน ASHRAE G14 ข้อ 5.3.2.1 (prescriptive) / 5.3.2.2 (performance) */
+.g14-note table.g14-chk td{text-align:left;vertical-align:top}
+.g14-note table.g14-chk td.c{text-align:center;white-space:nowrap}
+.g14-note .g14-path{margin:6px 0 4px;padding:6px 10px;border-radius:6px;font-weight:600}
+.g14-note .g14-path.ok{background:#e8f5ec;color:#1e6b34}
+.g14-note .g14-path.warn{background:#fff6dc;color:#7a5200}
+.g14-note .g14-path.bad{background:#fdecea;color:#a12622}
+.g14-note ul.g14-perf{margin:4px 0 6px 18px;padding:0}
 </style>
 <script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
  * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
@@ -972,6 +980,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         const btn = document.querySelector(`.tab-btn[data-tab="${name}"]`);
         if (btn) btn.classList.add('active');
         if (name === 'saved') renderSavedList();
+        if (name === 'baseline') { try { cvG14Render(); } catch (e) {} }   /* [แก้ไข 18 พ.ย. 2569] #360 เหตุผลการตัดจุดที่กรอกในส่วนที่ 3 → นับใหม่ */
         if (name === 'scatter') initScatterTab();
         if (name === 'multi') initMultiTab();
     }
@@ -1151,11 +1160,156 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             '<div>' + (mon === null
                 ? '<span>ใช้เกณฑ์ ≤ 20 % (เข้มที่สุด) — ยังไม่ทราบจำนวนเดือนของช่วงรายงานผล เพราะยังไม่ได้นำเข้าข้อมูลติดตามผลในส่วนที่ 2</span>'
                 : '<span>ใช้เกณฑ์</span> ≤ ' + lim + ' % — <span>ข้อมูลติดตามผลในส่วนที่ 2 มี</span> ' + mon + ' <span>เดือน (นับ 1 แถว = 1 เดือน ตามรูปแบบไฟล์รายเดือนของเครื่องมือ)</span>') + '</div>' +
-            '<div><span>เงื่อนไขอื่นของเกณฑ์นี้ (ข้อ 5.3.2.1): ผลประหยัดที่คาดไว้เกิน 10 % ของพลังงานที่วัด · ข้อมูลฐานต่อเนื่องอย่างน้อย 12 เดือน และอย่างน้อย 9 จุด · ไม่ตัดจุดข้อมูลฐานออก · ผ่านการทดสอบ net determination bias (ไม่เกิน 0.005 %, ข้อ 5.2.10)</span></div>' +
+            g14CondHtml(cv, lim) +   /* [แก้ไข 18 พ.ย. 2569] #360 เดิมเป็นข้อความเงื่อนไขอื่นของข้อ 5.3.2.1 เฉย ๆ → ตรวจอัตโนมัติทีละข้อ + บอก prescriptive/performance path */
             '<div>ℹ️ <span>CV(RMSE) 15 % และ NMBE 5 % (ข้อมูลรายเดือน) เป็นเกณฑ์ของแบบจำลองคอมพิวเตอร์ที่ปรับเทียบกับข้อมูลจริง (calibrated simulation, ข้อ 5.3.2.4(f)) ไม่ใช่เกณฑ์ของสมการถดถอย</span></div>' +
-            '<div class="src"><span>อ้างอิง: ASHRAE Guideline 14-2002 ข้อ 5.2.10 · 5.3.2.1 (a)–(f) · 5.3.2.4(f)</span> — <a href="' + G14_URL + '" target="_blank" rel="noopener">' + G14_URL + '</a>' +
+            '<div class="src"><span>อ้างอิง: ASHRAE Guideline 14-2002 ข้อ 5.2.10 · 5.3.2.1 (a)–(f) · 5.3.2.2 (a)–(f) · 5.3.2.4(f)</span> — <a href="' + G14_URL + '" target="_blank" rel="noopener">' + G14_URL + '</a>' +
             ' · <span>ฉบับ 2014 ใช้ตัวเลขชุดเดียวกัน (เอกสารรอง: EVO M&amp;V Focus ฉบับที่ 10, ต.ค. 2022)</span> — <a href="' + G14_URL_EVO + '" target="_blank" rel="noopener">' + G14_URL_EVO + '</a></div>';
         nt.style.display = 'block';
+    }
+
+    /* [แก้ไข 18 พ.ย. 2569] #360 เงื่อนไขอื่นของ ASHRAE Guideline 14 ข้อ 5.3.2.1 (whole building prescriptive path) — เดิมเป็นข้อความอย่างเดียว
+       ตรวจอัตโนมัติจากข้อมูลฐานที่ใช้สร้างสมการ (หลัก: มาตรฐานก่อน · ผู้ใช้เข้าใจชัดเจน · ผลลัพธ์ปลอดภัย):
+         (a) ผลประหยัดเกิน 10 % ของพลังงานที่วัด — ใช้ F ที่วัดได้ในส่วนที่ 2 แทนค่าที่คาดไว้ (ยังไม่มีข้อมูล = รอ)
+         (b) ฐานต่อเนื่องอย่างน้อย 12 เดือน ไม่มีช่วงขาดของพลังงานหรือตัวแปรอิสระ — อ่านป้าย Period (คอลัมน์ A) เป็นเดือน
+             (YYMM เช่น 6701 · YYYYMM · 2024-01 · 01/2024 · วันที่ Excel · ชื่อเดือนไทย/อังกฤษ + ปี) แล้วหาเดือนที่ขาด/ซ้ำ
+             + แถวที่ Y ว่าง/0 หรือ X ที่เลือกเป็น 0 ทั้งหมด (เครื่องมือข้ามอัตโนมัติ = ช่วงขาดของข้อมูล)
+             ป้ายอ่านเป็นเดือนไม่ได้ → นับ 1 แถว = 1 เดือน และบอกให้ตรวจเดือนที่ขาดเอง (ไม่ติ๊กผ่านให้)
+         (c) จุดข้อมูลวัดจริงอย่างน้อย 9 จุด — n ของสมการ
+         (d) ห้ามตัดจุดข้อมูลฐาน — จุดที่ตัดด้วยส่วนที่ 3 (คัดกรอง) แล้วส่งเข้า 1A
+         (e) CV(RMSE) ตามจำนวนเดือนช่วงรายงานผล (#290)   (f) net determination bias ≤ 0.005 % (ข้อ 5.2.10) = Σ(Y − Ŷ) ÷ ΣY × 100 ของข้อมูลฐาน
+       ตัดจุดฐาน → ไม่เข้า prescriptive path ต้องใช้ performance path ข้อ 5.3.2.2: (a) ข้อมูลฐานครอบคลุมช่วงปกติของตัวแปรอิสระ
+         (b) รายงานเหตุผลของช่วงข้อมูลที่ขาด/การตัด/การประมาณค่า และตัดได้ไม่เกิน 25 % ของข้อมูลที่วัด (e) รายงาน ±U ทุกรายงานรายปี
+         (f) ±U ที่ความเชื่อมั่น 68 % น้อยกว่า 50 % ของผลประหยัด — นับเหตุผลที่บันทึกในช่อง "ผลทวนสอบ / สาเหตุจากหน้างาน" ของส่วนที่ 3
+       prescriptive path ใช้เมื่อรายงานผลประหยัดโดยไม่คำนวณความไม่แน่นอน (คำนำข้อ 5.3.2.1)
+       อ้างอิง (เปิดอ่านตัวเล่ม 18 พ.ย. 2569): ASHRAE Guideline 14-2002 ข้อ 5.2.10 · 5.3.2.1 (a)–(f) · 5.3.2.2 (a)–(f)
+             https://www.eeperformance.org/uploads/8/6/5/0/8650231/ashrae_guideline_14-2002_measurement_of_energy_and_demand_saving.pdf */
+    var _g14Base = null;   /* ผลตรวจข้อมูลฐานของสมการล่าสุด (ตั้งใน recalculateBaseline) */
+    function _g14MonthKey(p) {
+        if (p === null || p === undefined || p === '') return null;
+        if (typeof p === 'number' && p > 20000 && p < 80000) { const dt = new Date(Math.round((p - 25569) * 86400000)); return dt.getUTCFullYear() * 12 + dt.getUTCMonth(); }   /* วันที่ Excel */
+        const s = String(p).trim(), Y = y => (y > 2300 ? y - 543 : y);
+        let m = s.match(/^(\d{2})(\d{2})$/);                                     /* YYMM เช่น 6701 = พ.ศ. 2567 เดือน 01 */
+        if (m && +m[2] >= 1 && +m[2] <= 12) { const y = +m[1]; return (y >= 40 ? 2500 + y - 543 : 2000 + y) * 12 + (+m[2]) - 1; }
+        m = s.match(/^(\d{4})(\d{2})$/);                                         /* YYYYMM */
+        if (m && +m[2] >= 1 && +m[2] <= 12) return Y(+m[1]) * 12 + (+m[2]) - 1;
+        m = s.match(/^(\d{4})\s*[-\/.]\s*(\d{1,2})(?:\s*[-\/.]\s*\d{1,2})?$/);   /* 2024-01 · 2024-01-31 */
+        if (m && +m[2] >= 1 && +m[2] <= 12) return Y(+m[1]) * 12 + (+m[2]) - 1;
+        m = s.match(/^(?:\d{1,2}\s*[\/.]\s*)?(\d{1,2})\s*[-\/.]\s*(\d{4})$/);   /* 01/2024 · 31/01/2024 */
+        if (m && +m[1] >= 1 && +m[1] <= 12) return Y(+m[2]) * 12 + (+m[1]) - 1;
+        const TH = ['ม.ค', 'ก.พ', 'มี.ค', 'เม.ย', 'พ.ค', 'มิ.ย', 'ก.ค', 'ส.ค', 'ก.ย', 'ต.ค', 'พ.ย', 'ธ.ค'];
+        const EN = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        const low = s.toLowerCase(); let mi = -1;
+        for (let i = 0; i < 12 && mi < 0; i++) if (s.indexOf(TH[i]) >= 0) mi = i;
+        for (let i = 0; i < 12 && mi < 0; i++) if (low.indexOf(EN[i]) >= 0) mi = i;
+        if (mi < 0) return null;
+        const yy = s.match(/(\d{2,4})\s*$/); if (!yy) return null;
+        let y = +yy[1]; if (y < 100) y = y >= 40 ? 2500 + y - 543 : 2000 + y; else y = Y(y);
+        return y * 12 + mi;
+    }
+    /* ตรวจข้อมูลฐานทั้งไฟล์ (ก่อนคัดกรอง) ด้วยกติกาคัดแถวเดียวกับ recalculateBaseline */
+    function _g14Audit(yChoice, act, fit, yArr) {
+        const raw = (baselineRawData || globalBaselineData) || [];
+        const exRows = (baselineRawData && scrPushInfo && Array.isArray(scrPushInfo.rows)) ? scrPushInfo.rows.slice() : [];
+        let nRows = 0, nInv = 0, nValid = 0; const keys = [], lbl = {};
+        for (let i = 1; i < raw.length; i++) {
+            const row = raw[i];
+            if (!row || row.length < 2) continue;
+            let any = false;
+            for (let j = 1; j < row.length; j++) { const v = row[j]; if (v !== null && v !== undefined && String(v).trim() !== '') { any = true; break; } }
+            if (!any) continue;                                                  /* แถวว่างทั้งแถว (ท้ายตาราง Excel) ไม่นับ */
+            nRows++;
+            const k = _g14MonthKey(row[0]);                                       /* เดือนของทุกแถวที่มีข้อมูล (แถวไม่ครบนับแยก ไม่นับซ้ำเป็นเดือนที่ขาด) */
+            if (k !== null) { keys.push(k); if (lbl[k] === undefined) lbl[k] = row[0]; }
+            const y = getSelectedYValue(row, yChoice), xs = [];
+            for (let j = 1; j <= 5; j++) xs.push(parseFloat(row[j + 3]) || 0);
+            if (isNaN(y) || y === 0 || !act.some(k2 => xs[k2 - 1] !== 0)) { nInv++; continue; }
+            nValid++;
+        }
+        let cont = { parsed: false };
+        if (nRows && keys.length === nRows) {
+            const u = Array.from(new Set(keys)).sort((a, b) => a - b), span = u[u.length - 1] - u[0] + 1;
+            cont = { parsed: true, span: span, missing: span - u.length, dup: keys.length - u.length, from: lbl[u[0]], to: lbl[u[u.length - 1]] };
+        }
+        let sY = 0, sE = 0;
+        for (let i = 0; i < yArr.length; i++) { sY += yArr[i]; sE += fit.resid[i]; }
+        return { nRows: nRows, nInv: nInv, nValid: nValid, nUsed: fit.n, cont: cont, exRows: exRows, nEx: exRows.length, ndb: sY ? sE / sY * 100 : NaN };
+    }
+    function _g14Noted() {   /* จำนวนจุดที่ตัดซึ่งบันทึกเหตุผลไว้แล้ว (ช่อง "ผลทวนสอบ / สาเหตุจากหน้างาน" ส่วนที่ 3) · null = ตรวจไม่ได้ */
+        const B = _g14Base;
+        if (!B || !B.nEx || !baselineRawData || scatterData !== baselineRawData) return null;
+        return B.exRows.filter(r => String((scrState.notes || {})[r - 1] || '').trim()).length;
+    }
+    function _g14Mark(st) { return st === 'ok' ? '✅' : (st === 'bad' ? '❌' : (st === 'warn' ? '⚠️' : 'ℹ️')); }
+    function _g14Fmt(v, d) { return (v === null || v === undefined || !isFinite(v)) ? '-' : v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+    function g14CondHtml(cv, lim) {
+        const B = _g14Base;
+        if (!B) return '';
+        const S = (t) => '<span>' + t + '</span>';
+        const rows = [];
+        /* (a) */
+        const mv = (typeof dataRecords !== 'undefined' && Array.isArray(dataRecords) && dataRecords.length) ? dataRecords : null;
+        let stA = 'info', rA = S('รอข้อมูลติดตามผลในส่วนที่ 2');
+        if (mv) {
+            let st = 0, sa = 0; mv.forEach(r => { st += r.tgt; sa += r.act; });
+            const F = st ? (st - sa) / st * 100 : NaN;
+            stA = isFinite(F) && F > 10 ? 'ok' : 'warn';
+            rA = 'F = ' + _g14Fmt(F, 2) + ' % ' + S('(ผลประหยัดที่วัดได้ในส่วนที่ 2 ใช้แทนค่าที่คาดไว้)');
+        }
+        rows.push(['5.3.2.1(a)', S('ผลประหยัดที่คาดไว้เกิน 10 % ของพลังงานที่วัด'), rA, stA]);
+        /* (b) */
+        const C = B.cont;
+        let stB, rB;
+        const inv = B.nInv ? ' · ' + S('แถวข้อมูลไม่ครบ (Y ว่าง/0 หรือ X ที่เลือกเป็น 0 ทั้งหมด)') + ' ' + B.nInv + ' ' + S('แถว') : '';
+        if (C.parsed) {
+            stB = (C.span >= 12 && !C.missing && !C.dup && !B.nInv) ? 'ok' : 'warn';
+            rB = String(C.from) + ' – ' + String(C.to) + ' = ' + C.span + ' ' + S('เดือน') +
+                (C.missing ? ' · ' + S('ขาด') + ' ' + C.missing + ' ' + S('เดือน') : '') +
+                (C.dup ? ' · ' + S('ป้ายเดือนซ้ำ') + ' ' + C.dup + ' ' + S('แถว') : '') + inv;
+        } else {
+            stB = (B.nValid >= 12 && !B.nInv) ? 'info' : 'warn';
+            rB = B.nValid + ' ' + S('แถว (ถือ 1 แถว = 1 เดือน) — ป้าย Period อ่านเป็นเดือนไม่ได้ ให้ตรวจเดือนที่ขาดเอง') + inv;
+        }
+        rows.push(['5.3.2.1(b)', S('ข้อมูลฐานต่อเนื่องอย่างน้อย 12 เดือน ไม่มีช่วงขาดของพลังงานหรือตัวแปรอิสระ'), rB, stB]);
+        /* (c) */
+        rows.push(['5.3.2.1(c)', S('จุดข้อมูลวัดจริงในข้อมูลฐานอย่างน้อย 9 จุด'), 'n = ' + B.nUsed, B.nUsed >= 9 ? 'ok' : 'warn']);
+        /* (d) */
+        rows.push(['5.3.2.1(d)', S('ไม่ตัดจุดข้อมูลฐานออก'),
+            B.nEx ? S('ตัดออก') + ' ' + B.nEx + ' ' + S('จุด (แถว Excel') + ' ' + B.exRows.join(', ') + ')' : S('ไม่ได้ตัดจุดข้อมูลฐาน'), B.nEx ? 'bad' : 'ok']);
+        /* (e) */
+        rows.push(['5.3.2.1(e)', S('CV(RMSE) ของสมการฐานไม่เกินเกณฑ์ตามจำนวนเดือนช่วงรายงานผล (ตารางด้านบน)'), _g14Fmt(cv, 2) + ' % ≤ ' + lim + ' %', (isFinite(cv) && cv <= lim) ? 'ok' : 'warn']);
+        /* (f) */
+        const ndb = isFinite(B.ndb) && Math.abs(B.ndb) < 5e-6 ? 0 : B.ndb;
+        rows.push(['5.3.2.1(f) · 5.2.10', S('net determination bias ไม่เกิน 0.005 % (Σ(Y − Ŷ) ÷ ΣY ของข้อมูลฐาน)'), _g14Fmt(ndb, 5) + ' %', (isFinite(ndb) && Math.abs(ndb) <= 0.005) ? 'ok' : 'warn']);
+        let tb = '<table class="g14-chk"><thead><tr><th>' + S('ข้อ') + '</th><th>' + S('เงื่อนไข prescriptive path') + '</th><th>' + S('ผลตรวจจากข้อมูลนี้') + '</th><th></th></tr></thead><tbody>';
+        rows.forEach(r => { tb += '<tr><td class="c">' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td class="c">' + _g14Mark(r[3]) + '</td></tr>'; });
+        tb += '</tbody></table>';
+        /* คำตัดสิน */
+        const fails = rows.filter(r => r[3] === 'warn').map(r => r[0].replace(/^5\.3\.2\.1/, '').split(' ')[0]);
+        const infos = rows.filter(r => r[3] === 'info').map(r => r[0].replace(/^5\.3\.2\.1/, ''));
+        let verdict = '';
+        const perf = function () {
+            const nd = _g14Noted(), pct = B.nValid ? B.nEx / B.nValid * 100 : NaN, L = (typeof _mvLast !== 'undefined') ? _mvLast : null;
+            let h = '<ul class="g14-perf">';
+            if (B.nEx) h += '<li>' + S('รายงานเหตุผลของการตัดทุกจุด (ข้อ 5.3.2.2(b))') + ' — ' +
+                (nd === null ? S('บันทึกเหตุผลไว้ในรายงาน') : S('บันทึกแล้ว') + ' ' + nd + ' / ' + B.nEx + ' ' + S('จุด') + ' ' + (nd === B.nEx ? '✅' : '⚠️') + ' ' + S('(ช่อง “ผลทวนสอบ / สาเหตุจากหน้างาน” ในส่วนที่ 3)')) + '</li>' +
+                '<li>' + S('ตัดข้อมูลที่วัดได้ไม่เกิน 25 % (ข้อ 5.3.2.2(b))') + ' — ' + B.nEx + ' / ' + B.nValid + ' = ' + _g14Fmt(pct, 1) + ' % ' + (pct <= 25 ? '✅' : '⚠️') + '</li>';
+            else h += '<li>' + S('รายงานเหตุผลของช่วงข้อมูลที่ขาดหรือการประมาณค่า (ข้อ 5.3.2.2(b))') + '</li>';
+            h += '<li>' + S('รายงานความไม่แน่นอน ±U ทุกรายงานรายปี และ ±U ที่ความเชื่อมั่น 68 % ต้องน้อยกว่า 50 % ของผลประหยัด (ข้อ 5.3.2.2(e), (f))') + ' — ' +
+                (L && isFinite(L.f68) ? 'FSU (68 %) = ' + _g14Fmt(L.f68, 1) + ' % ' + (L.f68 < 50 ? '✅' : '⚠️') + ' ' + S('(สรุป M&amp;V ส่วนที่ 2)') : S('ดูสรุป M&amp;V ในส่วนที่ 2 หลังนำเข้าข้อมูลติดตามผล')) + '</li>' +
+                '<li>' + S('ข้อมูลฐานครอบคลุมช่วงการทำงานปกติของตัวแปรอิสระทุกตัว (ข้อ 5.3.2.2(a)) — ตรวจเอง') + '</li>' +
+                '<li>' + S('เกณฑ์ CV(RMSE) ในตารางด้านบนเป็นของ prescriptive path — ใน performance path ใช้เป็นข้อมูลประกอบ เกณฑ์ตัดสินคือ ±U ข้อ (f)') + '</li></ul>';
+            return h;
+        };
+        if (B.nEx) {
+            verdict = '<div class="g14-path bad">❌ ' + S('ตัดจุดข้อมูลฐานออก จึงไม่เข้า prescriptive path (ข้อ 5.3.2.1(d)) — ต้องใช้ performance path (ข้อ 5.3.2.2) ซึ่งต้อง:') + '</div>' + perf();
+        } else if (fails.length) {
+            verdict = '<div class="g14-path warn">⚠️ ' + S('ยังไม่ผ่านเงื่อนไข prescriptive path ข้อ') + ' ' + fails.join(' ') + ' — ' + S('ถ้าใช้ข้อมูลชุดนี้ ให้ใช้ performance path (ข้อ 5.3.2.2) ซึ่งต้อง:') + '</div>' + perf();
+        } else {
+            verdict = '<div class="g14-path ok">✅ ' + S('ข้อมูลฐานผ่านเงื่อนไข prescriptive path (ข้อ 5.3.2.1) ทุกข้อที่ตรวจได้') +
+                (infos.length ? ' · ℹ️ ' + S('ข้อที่ยังต้องตรวจ/รอข้อมูล:') + ' ' + infos.join(' ') : '') + '</div>';
+        }
+        return '<div class="g14-h" style="margin-top:8px;"><span>เงื่อนไขอื่นของ ASHRAE Guideline 14 สำหรับข้อมูลฐาน — ตรวจอัตโนมัติ</span></div>' + tb + verdict +
+            '<div><span>prescriptive path (ข้อ 5.3.2.1) ใช้เมื่อรายงานผลประหยัดโดยไม่คำนวณความไม่แน่นอน · ถ้ารายงาน ±U ด้วย ให้ตรวจตาม performance path (ข้อ 5.3.2.2)</span></div>';
     }
     function recalculateBaseline() {
         if (!globalBaselineData) return;
@@ -1212,6 +1366,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             document.getElementById('rSquareVal').innerText = R2.toFixed(4);
             document.getElementById('adjRSquareVal').innerText = AdjR2.toFixed(4);
             document.getElementById('obsVal').innerText = n;
+            /* [แก้ไข 18 พ.ย. 2569] #360 ตรวจเงื่อนไขข้อมูลฐาน (G14 ข้อ 5.3.2.1) */
+            try { _g14Base = _g14Audit(yChoice, activeXIndices, fit, yArr); } catch (eA) { _g14Base = null; console.error(eA); }
             { /* [แก้ไข 3 ต.ค. 2569 audit] CV(RMSE) ASHRAE G14 · [แก้ไข 18 พ.ย. 2569] #290 เดิมตัดที่ 15 % → เกณฑ์สมการฐานตามจำนวนเดือนช่วงรายงานผล (cvG14Render) */
               _cvG14Pct = fit.meanY ? fit.RMSEg14 / fit.meanY * 100 : NaN; cvG14Render(); }
             const r2Card = document.getElementById('r2StatusCard');
@@ -1250,6 +1406,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             for (let i = 1; i <= 5; i++) document.getElementById(`coeff_x${i}`).value = 0;
             try { updateEquationDisplay(); } catch(e2) {}
             document.getElementById('statsContainer').style.display = 'none';
+            _g14Base = null;   /* [แก้ไข 18 พ.ย. 2569] #360 สมการเดิมถูกล้าง */
             const nPts = yArr.length, kSel = activeXIndices.length;
             if (nPts <= kSel + 1) alert('จุดข้อมูลไม่พอ: มี ' + nPts + ' จุด สำหรับตัวแปร X ' + kSel + ' ตัว — ต้องมีอย่างน้อย ' + (kSel + 2) + ' จุด (n > p = k+1) และควรมี ≥ 12 เดือนตาม ISO 50006 · ล้างสมการเดิมออกแล้ว');
             else alert("เกิดข้อผิดพลาดในการคำนวณ — ข้อมูลตัวแปรที่เลือกอาจซ้ำซ้อนหรือคงที่ (" + err.message + ") · ล้างสมการเดิมออกแล้ว");
@@ -1431,6 +1588,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             document.getElementById('monitoringFile').value = '';
             document.getElementById('statsContainer').style.display = 'none';
             _cvG14Pct = NaN;   /* [แก้ไข 18 พ.ย. 2569] #290 */
+            _g14Base = null;   /* [แก้ไข 18 พ.ย. 2569] #360 */
         }
         cvG14Render();   /* [แก้ไข 18 พ.ย. 2569] #290 ล้างข้อมูลส่วนที่ 2 → กลับไปใช้เกณฑ์เข้มสุด 20 % */
     }
@@ -2520,7 +2678,9 @@ var mlrCore=TE.MLR.mlrCore, computeVIFArray=TE.MLR.computeVIFArray;
         b.style.display = 'block';
         b.innerHTML = `🧹 <b>สมการนี้คำนวณจากข้อมูลที่คัดกรองแล้ว</b> — ใช้ ${I.nKept} จาก ${I.nRaw} แถว · ตัดออกแถว Excel: <b>${I.rows.join(', ')}</b><br>` +
             `<span style="font-size:0.9em;">เกณฑ์: ${_scrEsc(I.method)} ±${I.tol}% (คู่ ${_scrEsc(I.pair)}) · ${_scrEsc(I.at)} · ดูรายละเอียดที่แท็บ "ส่วนที่ 3"</span> ` +
-            `<button class="btn-primary no-print" style="padding:4px 10px; font-size:0.85em; margin-left:6px;" onclick="scrRestoreRawBaseline(true)">↩️ กลับไปใช้ข้อมูลดิบ</button>`;
+            `<button class="btn-primary no-print" style="padding:4px 10px; font-size:0.85em; margin-left:6px;" onclick="scrRestoreRawBaseline(true)">↩️ กลับไปใช้ข้อมูลดิบ</button>` +
+            /* [แก้ไข 18 พ.ย. 2569] #360 ตัดจุดฐาน = ไม่เข้า prescriptive path ของ ASHRAE G14 (ข้อ 5.3.2.1(d)) → performance path (ข้อ 5.3.2.2(b)) */
+            '<br><span style="font-size:0.9em;">⚠️ <span>ตัดจุดข้อมูลฐาน → ไม่เข้า prescriptive path ของ ASHRAE Guideline 14 (ข้อ 5.3.2.1(d)) ต้องใช้ performance path (ข้อ 5.3.2.2): บันทึกเหตุผลของทุกจุดที่ตัด · ตัดได้ไม่เกิน 25 % ของข้อมูลที่วัด · รายงาน ±U — ดูรายละเอียดใต้การ์ด CV(RMSE)</span></span>';
     }
     function scrExportExcel() {
         const scr = scrLast;
@@ -2790,6 +2950,7 @@ var mlrCore=TE.MLR.mlrCore, computeVIFArray=TE.MLR.computeVIFArray;
             if(Array.isArray(X.savedEquations)){ const ex=getSavedEquations(); const ids=new Set(ex.map(x=>x.id)); const nw=X.savedEquations.filter(x=>!ids.has(x.id)); if(nw.length) setSavedEquations([...nw,...ex]); }
             renderSavedList();
             A(inp);   // late-fix pass
+            try { cvG14Render(); } catch (eR) {}   /* [แก้ไข 18 พ.ย. 2569] #360 เหตุผลการตัดจุด (ส่วนที่ 3) คืนมาหลังคำนวณ 1A → นับใหม่ */
             tagFieldKinds();
             teUpdatePrintHeader();
             const meta=d.meta||{}; document.getElementById('teJsonBadge').textContent='✓ โหลดแล้ว: '+(meta.exportedAt?new Date(meta.exportedAt).toLocaleString('th-TH'):'')+(inp.projName?' · '+inp.projName:'');
@@ -3492,6 +3653,50 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 "CV(RMSE) 15 % และ NMBE 5 % (ข้อมูลรายเดือน) เป็นเกณฑ์ของแบบจำลองคอมพิวเตอร์ที่ปรับเทียบกับข้อมูลจริง (calibrated simulation, ข้อ 5.3.2.4(f)) ไม่ใช่เกณฑ์ของสมการถดถอย":"CV(RMSE) 15 % and NMBE 5 % (monthly data) are the limits for a computer model calibrated to measured data (calibrated simulation, clause 5.3.2.4(f)) — not for a regression model",
 "อ้างอิง: ASHRAE Guideline 14-2002 ข้อ 5.2.10 · 5.3.2.1 (a)–(f) · 5.3.2.4(f)":"Reference: ASHRAE Guideline 14-2002 clauses 5.2.10 · 5.3.2.1 (a)–(f) · 5.3.2.4(f)",
 "ฉบับ 2014 ใช้ตัวเลขชุดเดียวกัน (เอกสารรอง: EVO M&V Focus ฉบับที่ 10, ต.ค. 2022)":"the 2014 edition keeps the same limits (secondary source: EVO M&V Focus Issue 10, Oct 2022)"
+});</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #360 คำแปล EN — ตารางตรวจเงื่อนไขข้อมูลฐาน (ASHRAE G14 ข้อ 5.3.2.1 prescriptive / 5.3.2.2 performance) */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"รอข้อมูลติดตามผลในส่วนที่ 2": "Awaiting Part 2 monitoring data",
+"(ผลประหยัดที่วัดได้ในส่วนที่ 2 ใช้แทนค่าที่คาดไว้)": "(measured savings from Part 2 used in place of expected savings)",
+"ผลประหยัดที่คาดไว้เกิน 10 % ของพลังงานที่วัด": "Expected savings exceed 10 % of measured energy use",
+"แถวข้อมูลไม่ครบ (Y ว่าง/0 หรือ X ที่เลือกเป็น 0 ทั้งหมด)": "incomplete rows (blank/zero Y or all selected X = 0)",
+"แถว": "rows",
+"เดือน": "months",
+"ขาด": "missing",
+"ป้ายเดือนซ้ำ": "duplicate month labels",
+"แถว (ถือ 1 แถว = 1 เดือน) — ป้าย Period อ่านเป็นเดือนไม่ได้ ให้ตรวจเดือนที่ขาดเอง": "rows (1 row = 1 month assumed) — the Period labels cannot be read as months; check for missing months manually",
+"ข้อมูลฐานต่อเนื่องอย่างน้อย 12 เดือน ไม่มีช่วงขาดของพลังงานหรือตัวแปรอิสระ": "Baseline spans at least 12 continuous months with no gaps in energy or independent-variable data",
+"จุดข้อมูลวัดจริงในข้อมูลฐานอย่างน้อย 9 จุด": "At least 9 valid measured baseline data points",
+"ไม่ตัดจุดข้อมูลฐานออก": "No baseline data points eliminated",
+"ตัดออก": "Eliminated",
+"จุด (แถว Excel": "point(s) (Excel rows",
+"ไม่ได้ตัดจุดข้อมูลฐาน": "No baseline points eliminated",
+"CV(RMSE) ของสมการฐานไม่เกินเกณฑ์ตามจำนวนเดือนช่วงรายงานผล (ตารางด้านบน)": "Baseline-model CV(RMSE) within the limit for the reporting-period length (table above)",
+"net determination bias ไม่เกิน 0.005 % (Σ(Y − Ŷ) ÷ ΣY ของข้อมูลฐาน)": "Net determination bias no more than 0.005 % (Σ(Y − Ŷ) ÷ ΣY over the baseline data)",
+"ข้อ": "Clause",
+"เงื่อนไข prescriptive path": "Prescriptive-path condition",
+"ผลตรวจจากข้อมูลนี้": "Result for this data",
+"รายงานเหตุผลของการตัดทุกจุด (ข้อ 5.3.2.2(b))": "Report the reason for every eliminated point (clause 5.3.2.2(b))",
+"บันทึกเหตุผลไว้ในรายงาน": "record the reasons in the report",
+"บันทึกแล้ว": "recorded",
+"จุด": "points",
+"(ช่อง “ผลทวนสอบ / สาเหตุจากหน้างาน” ในส่วนที่ 3)": "(“Verification result / cause on site” column in Part 3)",
+"ตัดข้อมูลที่วัดได้ไม่เกิน 25 % (ข้อ 5.3.2.2(b))": "No more than 25 % of the measured data excluded (clause 5.3.2.2(b))",
+"รายงานเหตุผลของช่วงข้อมูลที่ขาดหรือการประมาณค่า (ข้อ 5.3.2.2(b))": "Report the reasons for data gaps or estimated values (clause 5.3.2.2(b))",
+"รายงานความไม่แน่นอน ±U ทุกรายงานรายปี และ ±U ที่ความเชื่อมั่น 68 % ต้องน้อยกว่า 50 % ของผลประหยัด (ข้อ 5.3.2.2(e), (f))": "Report the uncertainty ±U with every annual report; ±U at 68 % confidence must be less than 50 % of the savings (clause 5.3.2.2(e), (f))",
+"(สรุป M&V ส่วนที่ 2)": "(Part 2 M&V summary)",
+"ดูสรุป M&V ในส่วนที่ 2 หลังนำเข้าข้อมูลติดตามผล": "see the Part 2 M&V summary after importing monitoring data",
+"ข้อมูลฐานครอบคลุมช่วงการทำงานปกติของตัวแปรอิสระทุกตัว (ข้อ 5.3.2.2(a)) — ตรวจเอง": "Baseline data span the normal full range of every independent variable (clause 5.3.2.2(a)) — check manually",
+"เกณฑ์ CV(RMSE) ในตารางด้านบนเป็นของ prescriptive path — ใน performance path ใช้เป็นข้อมูลประกอบ เกณฑ์ตัดสินคือ ±U ข้อ (f)": "The CV(RMSE) limits in the table above belong to the prescriptive path — on the performance path they are supporting information; the deciding criterion is ±U, item (f)",
+"ตัดจุดข้อมูลฐานออก จึงไม่เข้า prescriptive path (ข้อ 5.3.2.1(d)) — ต้องใช้ performance path (ข้อ 5.3.2.2) ซึ่งต้อง:": "Baseline points were eliminated, so the prescriptive path does not apply (clause 5.3.2.1(d)) — use the performance path (clause 5.3.2.2), which requires:",
+"ยังไม่ผ่านเงื่อนไข prescriptive path ข้อ": "Prescriptive-path conditions not met:",
+"ถ้าใช้ข้อมูลชุดนี้ ให้ใช้ performance path (ข้อ 5.3.2.2) ซึ่งต้อง:": "with this data set, use the performance path (clause 5.3.2.2), which requires:",
+"ข้อมูลฐานผ่านเงื่อนไข prescriptive path (ข้อ 5.3.2.1) ทุกข้อที่ตรวจได้": "Baseline data meet every checkable prescriptive-path condition (clause 5.3.2.1)",
+"ข้อที่ยังต้องตรวจ/รอข้อมูล:": "items still to check / awaiting data:",
+"เงื่อนไขอื่นของ ASHRAE Guideline 14 สำหรับข้อมูลฐาน — ตรวจอัตโนมัติ": "Other ASHRAE Guideline 14 conditions for the baseline data — checked automatically",
+"prescriptive path (ข้อ 5.3.2.1) ใช้เมื่อรายงานผลประหยัดโดยไม่คำนวณความไม่แน่นอน · ถ้ารายงาน ±U ด้วย ให้ตรวจตาม performance path (ข้อ 5.3.2.2)": "The prescriptive path (clause 5.3.2.1) applies when savings are reported without uncertainty calculations · if ±U is reported, check against the performance path (clause 5.3.2.2)",
+"อ้างอิง: ASHRAE Guideline 14-2002 ข้อ 5.2.10 · 5.3.2.1 (a)–(f) · 5.3.2.2 (a)–(f) · 5.3.2.4(f)": "Reference: ASHRAE Guideline 14-2002 clauses 5.2.10 · 5.3.2.1 (a)–(f) · 5.3.2.2 (a)–(f) · 5.3.2.4(f)",
+"ตัดจุดข้อมูลฐาน → ไม่เข้า prescriptive path ของ ASHRAE Guideline 14 (ข้อ 5.3.2.1(d)) ต้องใช้ performance path (ข้อ 5.3.2.2): บันทึกเหตุผลของทุกจุดที่ตัด · ตัดได้ไม่เกิน 25 % ของข้อมูลที่วัด · รายงาน ±U — ดูรายละเอียดใต้การ์ด CV(RMSE)": "Baseline points eliminated → the ASHRAE Guideline 14 prescriptive path does not apply (clause 5.3.2.1(d)); use the performance path (clause 5.3.2.2): record the reason for every eliminated point · exclude no more than 25 % of the measured data · report ±U — details below the CV(RMSE) card"
 });</script>
 </body>
 </html>
