@@ -231,8 +231,8 @@ function unitHTML(...a){return TE.PUMPFAN.make(__pfEnv()).unitHTML(...a);}
 function auditHTML(...a){return TE.PUMPFAN.make(__pfEnv()).auditHTML(...a);}
 function faultTreeHTML(...a){return TE.PUMPFAN.make(__pfEnv()).faultTreeHTML(...a);}
 function calcPerf(...a){return TE.PUMPFAN.make(__pfEnv()).calcPerf(...a);}
-function calcAffinity(...a){return TE.PUMPFAN.make(__pfEnv()).calcAffinity(...a);}
-function calcCompare(...a){return TE.PUMPFAN.make(__pfEnv()).calcCompare(...a);} /* [แก้ไข 18 พ.ย. 2569] #421 เทียบวิธีลดอัตราไหล */
+function calcAffinity(...a){var r=TE.PUMPFAN.make(__pfEnv()).calcAffinity(...a);try{ecmPreview(a[0]);}catch(e){}return r;} /* [แก้ไข 18 พ.ย. 2569] #430 อัปเดตฐานผลประหยัดที่จะส่งออก TE_ECM */
+function calcCompare(...a){var r=TE.PUMPFAN.make(__pfEnv()).calcCompare(...a);try{ecmPreview(a[0]);}catch(e){}return r;} /* [แก้ไข 18 พ.ย. 2569] #421 เทียบวิธีลดอัตราไหล · #430 อัปเดตฐานผลประหยัดที่จะส่งออก */
 function drawCurves(...a){return TE.PUMPFAN.make(__pfEnv()).drawCurves(...a);}
 function calcSystemK(...a){return TE.PUMPFAN.make(__pfEnv()).calcSystemK(...a);}
 function applyTrimPct(...a){return TE.PUMPFAN.make(__pfEnv()).applyTrimPct(...a);}
@@ -507,50 +507,114 @@ var TE_ECM=(function(){
   return{save:save,clean:clean};
 })();
 /* [แก้ไข 3 ต.ค. 2569] teBuildECM — สร้างมาตรการ VFD/กลึงใบพัด (Pump & Fan) จากจุดฐาน Affinity → kWh/ปี */
+/* [แก้ไข 18 พ.ย. 2569] #430 ฐานผลประหยัดที่ส่งออก TE_ECM: เดิมใช้กฎกำลังสามอย่างเดียว ซึ่งสูงเกินจริงเมื่อระบบมีหัวคงที่
+   (เคสคู่มือ โรงงาน A ลดรอบ 80 %: ส่งออกเดิม 25,497 kWh/ปี (P_e ลด 47.2 % · η_VSD 0.97) · VFD จากเส้นโค้งที่วัด × เส้นระบบ 20,251 kWh/ปี (ลด 37.5 %))
+   → มีจุดวัดเส้นโค้ง (P_e ≥ 2 จุด) + System Curve ที่กรอก Static แล้ว = ใช้ผลจากตารางเทียบวิธีลดอัตราไหล (calcCompare)
+     มาตรการที่ปรับรอบ (VFD · VFD + กลึง) = แถว "VFD ลดรอบ" · กลึงอย่างเดียว = แถวกลึงใบพัด (ปั๊ม) / ลดรอบถาวร (พัดลม: กำลัง P_e(Q_A) × r³ เท่ากัน)
+     ตารางคิดได้แต่ไม่ลดกำลัง = ไม่ส่งออก (ไม่ย้อนไปใช้กำลังสาม)
+   → ข้อมูลไม่ครบ = กฎกำลังสามเหมือนเดิม + หมายเหตุ "ยังไม่หักผลของหัวคงที่ อาจสูงเกินจริง" (บนจอ · ในไฟล์ · ใน alert ตอนส่งออก)
+   · η_VSD ใช้ช่อง "η VSD" ของตารางเทียบวิธี (ค่าตั้งต้น 0.95) ทั้งสองฐาน — เดิมฐานกำลังสามใช้ 0.97 ตายตัว (สองค่าในแท็บเดียวทำให้สับสน · 0.95 = ค่าต่ำของช่วง DOE 95–97 % ด้านปลอดภัย)
+   · คีย์ใหม่ savingBasis:'curve'|'affinity' · คีย์เดิมทั้งหมดคงชื่อและชนิด (MG-ECM-01 อ่านได้เหมือนเดิม)
+   อ้างอิง: Europump/HI Variable Speed Pumping – Executive Summary (2004) หน้า 3, 5 · U.S. DOE Pumping Sourcebook 2nd ed. (2006) หน้า 49–52, 54 · U.S. DOE Fan Sourcebook (2003) หน้า 35–36, 46 */
+var ECM_REF={pump:'อ้างอิง Europump/HI Variable Speed Pumping – Executive Summary (2004) หน้า 3, 5 · U.S. DOE Improving Pumping System Performance 2nd ed. (2006) หน้า 49–52, 54',
+  fan:'อ้างอิง U.S. DOE Improving Fan System Performance (2003) หน้า 35–36, 46 · Europump/HI Variable Speed Pumping – Executive Summary (2004) หน้า 3, 5'};
+function ecmCalc(t){
+  var num=function(id){var e=byId(id);if(!e||e.value==='')return NaN;var v=parseFloat(e.value);return isFinite(v)?v:NaN;};
+  var p=t==='pump', c=CFG[t], tag=gv(t+'_tag')||c.name, who=(p?'ปั๊ม':'พัดลม')+' '+tag;
+  var N1=num(t+'_aN1'),N2=num(t+'_aN2'),D1=num(t+'_aD1'),D2=num(t+'_aD2'),P1=num(t+'_aP1');
+  if(!(N1>0&&N2>0&&P1>0))return {st:'none',who:who,why:'กรอก N₁ · N₂ · P_shaft₁ ในแท็บนี้ก่อน'};
+  var em=num(t+'_em');if(!(em>0))em=0.92; var ec=num(t+'_ec');if(!(ec>0))ec=1.0;
+  var rN=N2/N1, rD=(D1>0&&D2>0)?D2/D1:1, f=rN*rD, f3=f*f*f;
+  var vsd=rN<0.999, trim=rD<0.999;
+  if(!vsd&&!trim)return {st:'none',who:who,why:'N₂ = N₁ และ D₂ = D₁ — ยังไม่มีมาตรการ'};
+  /* [แก้ไข 17 พ.ย. 2569] #150 แท็บ Affinity เตือน "Head₂ ต่ำกว่า static — ที่รอบนี้ส่งของไหลไม่ได้ ผลประหยัดใช้ไม่ได้" แต่ปุ่มส่งออก ECM ยังส่งผลประหยัดกำลังสามออกไป
+     (เช่น ปั๊มตัวอย่าง N₂ 700 rpm: H₂ 7.5 m < static 12 m ยังส่ง 51,502 kWh/ปี) → ไม่ส่งออกมาตรการนั้น และแจ้งผู้ใช้ */
+  /* [แก้ไข 17 พ.ย. 2569] #151 เดิมส่งออกทั้งปั๊มและพัดลมเสมอ — ผู้ใช้ตรวจเฉพาะปั๊มแล้วกดส่งออก ได้มาตรการ "พัดลม F-201" 16,609 kWh/ปี จากข้อมูลตัวอย่างที่ไม่ได้แตะติดไปด้วย
+     → ถ้าค่าวัด/ค่าป้าย/รอบเป้าหมายของชนิดนั้นยังตรงกับข้อมูลตัวอย่างทุกช่อง ไม่ส่งออก และแจ้งผู้ใช้ */
+  var smp=c.sample, same=function(id,v){var x=num(t+'_'+id);return x===parseFloat(v);};
+  if(same('q',smp.q)&&same('p1',smp.p1)&&same('p2',smp.p2)&&same('pe',smp.pe)&&same('kw',smp.kw)&&same('n',smp.n)&&same('aN2',Math.round(smp.n*0.8))&&same('aD2',smp.d2))
+    return {st:'skip',who:who,why:'ยังเป็นข้อมูลตัวอย่าง (ยังไม่ได้กรอกค่าวัดจริง)'};
+  var hs=num(t+'_sysH'), H1=num(t+'_aH1');
+  if(hs>0&&H1>0&&H1*f*f<hs)return {st:'skip',who:who,why:c.hName+'₂ '+(H1*f*f).toFixed(1)+' '+c.hU+' ต่ำกว่า static '+hs+' '+c.hU+' — ที่รอบ/ขนาดนี้ส่งของไหลไม่ได้'};
+  var ev=num(t+'_cmpEv'); if(!(ev>0&&ev<=1))ev=0.95;
+  var hrs=num(t+'_ecmHrs'), tar=num(t+'_ecmTariff'), capex=num(t+'_ecmCapex'), life=num(t+'_ecmLife');
+  /* ── ฐานเส้นโค้งที่วัด × เส้นระบบ (ตารางเทียบวิธี) ── */
+  var cr=null, whyNot='';
+  if(gv(t+'_sysH')==='') whyNot='ไม่ได้กรอก Static ในแท็บ Curve & System';
+  else{ try{ cr=TE.PUMPFAN.make(__pfEnv()).calcCompare(t); }catch(e){ cr=null; }
+    if(!cr) whyNot='ตารางเทียบวิธีลดอัตราไหลคิดไม่ได้ — ดูข้อความในตารางด้านล่าง';
+    else if(!(cr.r>0)) whyNot='หาจุด A บนเส้นโค้งที่วัดไม่ได้ (Q เป้าหมายอยู่นอกช่วงที่วัด)'; }
+  var Pc=(cr&&cr.r>0)?(vsd?cr.Pvfd:cr.Pfix):null;
+  var curve=!!(cr&&cr.r>0&&cr.Pop!=null&&isFinite(cr.Pop)&&cr.Pop>0&&Pc!=null&&isFinite(Pc));
+  if(cr&&cr.r>0&&!curve&&!whyNot) whyNot='ไม่มี P_e ที่จุดทำงานเดิมจากเส้นกำลังที่วัด';
+  var basis=curve?'curve':'affinity', rowLb=curve?(vsd?'VFD ลดรอบ':(p?'กลึงใบพัด (รอบเดิม)':'ลดรอบถาวร: เปลี่ยนพูลเลย์')):'';
+  var etaV=vsd?ev:1, Pe1, Pe2;
+  if(curve){ Pe1=cr.Pop; Pe2=Pc; } else { Pe1=P1/(em*ec); Pe2=P1*f3/(em*ec*etaV); }
+  var dkW=Pe1-Pe2, out={who:who,basis:basis,whyNot:whyNot,rowLb:rowLb,Pe1:Pe1,Pe2:Pe2,dkW:dkW,cr:cr,vsd:vsd,trim:trim,f:f,ev:ev,hrs:hrs,tar:tar};
+  if(!(dkW>0))return Object.assign(out,{st:'none',why:curve?'ตารางเทียบวิธีไม่พบผลประหยัด (P_e หลังปรับ ≥ จุดทำงานเดิม)':'ไม่มีผลประหยัด (P_e หลังปรับ ≥ ก่อนปรับ)'});
+  if(!(hrs>0&&hrs<=8784))return Object.assign(out,{st:'none',why:'กรอกชั่วโมงเดินเครื่อง 1–8,784 ชม./ปี'});
+  var kwh=dkW*hrs;
+  var nm=(p?'ปั๊ม ':'พัดลม ')+tag+' — '+(vsd&&trim?'ติดตั้ง VFD ปรับรอบ + กลึงใบพัด':vsd?'ติดตั้ง VFD ปรับรอบ':'กลึงใบพัด (Impeller trim)');
+  var tail=' ลด '+dkW.toFixed(2)+' kW × '+hrs+' ชม./ปี = '+Math.round(kwh).toLocaleString()+' kWh/ปี'+(tar>0?' × '+tar+' ฿/kWh':'');
+  var bTxt;
+  if(curve){ var hsV=parseFloat(gv(t+'_sysH'));
+    bTxt='เส้นโค้งที่วัด × เส้นระบบ (หักผลของหัวคงที่แล้ว) — แถว "'+rowLb+'" ของตารางเทียบวิธีลดอัตราไหล: Q_t = '+cr.Qt.toFixed(2)+' '+c.qU+' · '+c.hName+'_sys = '+hsV+' + K × Q_t² = '+cr.Hsys.toFixed(2)+' '+c.hU
+      +' · จุดทำงานเดิม Q '+cr.op.q.toFixed(2)+' '+c.qU+' P_e '+cr.Pop.toFixed(2)+' kW · จุด A Q_A '+cr.qA.toFixed(2)+' → r = Q_t ÷ Q_A = '+cr.r.toFixed(4)
+      +(vsd&&cr.N2?' · N '+cr.N2.toFixed(0)+' rpm':'')+' · P_e = P_e(Q_A) '+cr.PA.toFixed(2)+' kW × r³'+(vsd?' ÷ η_VSD '+ev:'')+' = '+Pc.toFixed(2)+' kW ·'+tail
+      +(vsd&&trim?' (มาตรการ VFD + กลึง: ใช้ผลแถว VFD ที่ Q เป้าหมายเดียวกัน)':'')+' · ถือ η มอเตอร์คงที่ · '+ECM_REF[t];
+  } else {
+    bTxt='Affinity law: f=(N₂/N₁)×(D₂/D₁)='+(N2+'/'+N1)+'×'+(rD===1?'1':(D2+'/'+D1))+'='+f.toFixed(4)+' · P_shaft₂=P_shaft₁×f³='+P1+'×'+f3.toFixed(4)+'='+(P1*f3).toFixed(2)+' kW · P_elec₁=P_shaft₁/(η_m '+em+'×η_c '+ec+')='+Pe1.toFixed(2)+' kW · P_elec₂=P_shaft₂/(η_m×η_c'+(vsd?'×η_VSD '+ev:'')+')='+Pe2.toFixed(2)+' kW ·'+tail
+      +' (สมมุติระบบรับอัตราไหลที่ลดลงได้; ไม่รวม static head) · ⚠ ยังไม่หักผลของหัวคงที่ — อาจสูงเกินจริง ('+whyNot+') · '+ECM_REF[t];
+  }
+  var kp=['P_elec (kW) มอเตอร์ก่อน/หลัง','ชั่วโมงเดินเครื่อง','อัตราไหล Q ('+c.qU+')','ความเร็วรอบ N (rpm)'];
+  if(curve) kp=kp.concat(['จุดวัดเส้นโค้ง Q · '+c.hName+' · P_e','เส้นระบบ: Static + จุดอ้างอิง']);
+  out.m={id:t+'-'+(vsd?'vfd':'')+(vsd&&trim?'-':'')+(trim?'trim':'')+'-'+String(tag).replace(/[^A-Za-z0-9_-]+/g,''),
+    name:nm, system:p?'pump':'fan', effect:'direct', carrier:'electricity', unit:'kWh',
+    savingQty:Math.round(kwh), baselineQty:Math.round(Pe1*hrs),
+    primary:{electricity_kWh:Math.round(kwh)},
+    savingTHB:tar>0?Math.round(kwh*tar):undefined,
+    capex:capex>0?capex:undefined, life:life>0?life:undefined,
+    mvOption:'B', keyParams:kp,
+    group:'estimate',
+    basis:bTxt,
+    savingBasis:basis}; /* [แก้ไข 18 พ.ย. 2569] #430 คีย์ใหม่: 'curve' = เส้นโค้งที่วัด × เส้นระบบ · 'affinity' = กฎกำลังสาม (ยังไม่หักหัวคงที่) */
+  out.kwh=kwh; out.st='ok';
+  return out;
+}
+/* [แก้ไข 18 พ.ย. 2569] #430 บนจอบอกฐานผลประหยัดที่จะส่งออก (ใต้ช่องข้อมูลส่งออก TE_ECM) — อัปเดตเมื่อคำนวณ Affinity / เทียบวิธี / แก้ชั่วโมง ค่าไฟ η VSD */
+function ecmPreview(t){
+  var el=byId(t+'_ecmBasis'); if(!el) return null;
+  var r; try{ r=ecmCalc(t); }catch(e){ return null; }
+  var nf=function(v,d){return Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});};
+  if(r.st!=='ok'){ el.innerHTML='<div class="alert al-i" style="font-size:11px;margin:0;line-height:1.7"><span>ℹ️</span><div><strong><span>ยังไม่ส่งออกมาตรการนี้</span></strong><br><span>'+r.why+'</span></div></div>'; return r; }
+  var c=CFG[t], pct=r.dkW/r.Pe1*100;
+  var nums='P_e '+r.Pe1.toFixed(2)+' → '+r.Pe2.toFixed(2)+' kW · <span>ลด</span> '+r.dkW.toFixed(2)+' kW ('+pct.toFixed(1)+' %) × '+nf(r.hrs,0)+' <span>ชม./ปี</span> = <strong>'+nf(Math.round(r.kwh),0)+'</strong> <span>kWh/ปี</span>'+(r.tar>0?' · ≈ '+nf(Math.round(r.kwh*r.tar),0)+' <span>฿/ปี</span>':'');
+  if(r.basis==='curve'){ const cr=r.cr;
+    el.innerHTML='<div class="alert al-s" style="font-size:11px;margin:0;line-height:1.7"><span>✅</span><div><strong><span>ฐานที่ส่งออก: เส้นโค้งที่วัด × เส้นระบบ (หักผลของหัวคงที่แล้ว)</span></strong><br><span>ใช้แถว</span> <strong><span>'+r.rowLb+'</span></strong> <span>ของตารางเทียบวิธีลดอัตราไหลด้านล่าง</span> · Q_t '+cr.Qt.toFixed(1)+' '+c.qU+(r.vsd&&cr.N2?' · N '+nf(cr.N2,0)+' rpm':'')+(r.vsd?' · η_VSD '+r.ev:'')+'<br>'+nums+'</div></div>';
+  } else {
+    el.innerHTML='<div class="alert al-w" style="font-size:11px;margin:0;line-height:1.7"><span>⚠️</span><div><strong><span>ฐานที่ส่งออก: กฎกำลังสาม (Affinity) P₂ = P₁ × f³</span></strong><br><strong><span>ยังไม่หักผลของหัวคงที่ — อาจสูงเกินจริง</span></strong> · <span>'+r.whyNot+'</span><br>f '+r.f.toFixed(4)+(r.vsd?' · η_VSD '+r.ev:'')+' · '+nums+'</div></div>';
+  }
+  return r;
+}
 function teBuildECM(){
   try{ if(typeof recalcAll==='function') recalcAll(); }catch(e){}
-  var num=function(id){var e=byId(id);if(!e||e.value==='')return NaN;var v=parseFloat(e.value);return isFinite(v)?v:NaN;};
-  var measures=[], skipped=[]; /* [แก้ไข 17 พ.ย. 2569] #150 skipped = มาตรการที่ไม่ส่งออก พร้อมเหตุผล */
+  var measures=[], skipped=[], cube=[]; /* [แก้ไข 17 พ.ย. 2569] #150 skipped = มาตรการที่ไม่ส่งออก พร้อมเหตุผล · [แก้ไข 18 พ.ย. 2569] #430 cube = มาตรการที่ส่งออกด้วยกฎกำลังสาม พร้อมเหตุผล */
   ['pump','fan'].forEach(function(t){
-    var p=t==='pump', c=CFG[t];
-    var N1=num(t+'_aN1'),N2=num(t+'_aN2'),D1=num(t+'_aD1'),D2=num(t+'_aD2'),P1=num(t+'_aP1');
-    if(!(N1>0&&N2>0&&P1>0))return;
-    var em=num(t+'_em');if(!(em>0))em=0.92; var ec=num(t+'_ec');if(!(ec>0))ec=1.0;
-    var rN=N2/N1, rD=(D1>0&&D2>0)?D2/D1:1, f=rN*rD, f3=f*f*f;
-    var vsd=rN<0.999, trim=rD<0.999;
-    if(!vsd&&!trim)return;
-    /* [แก้ไข 17 พ.ย. 2569] #150 แท็บ Affinity เตือน "Head₂ ต่ำกว่า static — ที่รอบนี้ส่งของไหลไม่ได้ ผลประหยัดใช้ไม่ได้" แต่ปุ่มส่งออก ECM ยังส่งผลประหยัดกำลังสามออกไป
-       (เช่น ปั๊มตัวอย่าง N₂ 700 rpm: H₂ 7.5 m < static 12 m ยังส่ง 51,502 kWh/ปี) → ไม่ส่งออกมาตรการนั้น และแจ้งผู้ใช้ */
-    /* [แก้ไข 17 พ.ย. 2569] #151 เดิมส่งออกทั้งปั๊มและพัดลมเสมอ — ผู้ใช้ตรวจเฉพาะปั๊มแล้วกดส่งออก ได้มาตรการ "พัดลม F-201" 16,609 kWh/ปี จากข้อมูลตัวอย่างที่ไม่ได้แตะติดไปด้วย
-       → ถ้าค่าวัด/ค่าป้าย/รอบเป้าหมายของชนิดนั้นยังตรงกับข้อมูลตัวอย่างทุกช่อง ไม่ส่งออก และแจ้งผู้ใช้ */
-    var smp=c.sample, same=function(id,v){var x=num(t+'_'+id);return x===parseFloat(v);};
-    if(same('q',smp.q)&&same('p1',smp.p1)&&same('p2',smp.p2)&&same('pe',smp.pe)&&same('kw',smp.kw)&&same('n',smp.n)&&same('aN2',Math.round(smp.n*0.8))&&same('aD2',smp.d2)){
-      skipped.push((p?'ปั๊ม':'พัดลม')+' '+(gv(t+'_tag')||c.name)+': ยังเป็นข้อมูลตัวอย่าง (ยังไม่ได้กรอกค่าวัดจริง)'); return; }
-    var hs=num(t+'_sysH'), H1=num(t+'_aH1');
-    if(hs>0&&H1>0&&H1*f*f<hs){ skipped.push((p?'ปั๊ม':'พัดลม')+' '+(gv(t+'_tag')||c.name)+': '+c.hName+'₂ '+(H1*f*f).toFixed(1)+' '+c.hU+' ต่ำกว่า static '+hs+' '+c.hU+' — ที่รอบ/ขนาดนี้ส่งของไหลไม่ได้'); return; }
-    var etaV=vsd?0.97:1;
-    var Pe1=P1/(em*ec), Pe2=P1*f3/(em*ec*etaV), dkW=Pe1-Pe2;
-    if(!(dkW>0))return;
-    var hrs=num(t+'_ecmHrs'), tar=num(t+'_ecmTariff'), capex=num(t+'_ecmCapex'), life=num(t+'_ecmLife');
-    if(!(hrs>0&&hrs<=8784))return;
-    var tag=gv(t+'_tag')||c.name, kwh=dkW*hrs;
-    var nm=(p?'ปั๊ม ':'พัดลม ')+tag+' — '+(vsd&&trim?'ติดตั้ง VFD ปรับรอบ + กลึงใบพัด':vsd?'ติดตั้ง VFD ปรับรอบ':'กลึงใบพัด (Impeller trim)');
-    var m={id:t+'-'+(vsd?'vfd':'')+(vsd&&trim?'-':'')+(trim?'trim':'')+'-'+String(tag).replace(/[^A-Za-z0-9_-]+/g,''),
-      name:nm, system:p?'pump':'fan', effect:'direct', carrier:'electricity', unit:'kWh',
-      savingQty:Math.round(kwh), baselineQty:Math.round(Pe1*hrs),
-      primary:{electricity_kWh:Math.round(kwh)},
-      savingTHB:tar>0?Math.round(kwh*tar):undefined,
-      capex:capex>0?capex:undefined, life:life>0?life:undefined,
-      mvOption:'B', keyParams:['P_elec (kW) มอเตอร์ก่อน/หลัง','ชั่วโมงเดินเครื่อง','อัตราไหล Q ('+c.qU+')','ความเร็วรอบ N (rpm)'],
-      group:'estimate',
-      basis:'Affinity law: f=(N₂/N₁)×(D₂/D₁)='+(N2+'/'+N1)+'×'+(rD===1?'1':(D2+'/'+D1))+'='+f.toFixed(4)+' · P_shaft₂=P_shaft₁×f³='+P1+'×'+f3.toFixed(4)+'='+(P1*f3).toFixed(2)+' kW · P_elec₁=P_shaft₁/(η_m '+em+'×η_c '+ec+')='+Pe1.toFixed(2)+' kW · P_elec₂=P_shaft₂/(η_m×η_c'+(vsd?'×η_VSD 0.97':'')+')='+Pe2.toFixed(2)+' kW · ลด '+dkW.toFixed(2)+' kW × '+hrs+' ชม./ปี = '+Math.round(kwh).toLocaleString()+' kWh/ปี'+(tar>0?' × '+tar+' ฿/kWh':'')+' (สมมุติระบบรับอัตราไหลที่ลดลงได้; ไม่รวม static head)'};
-    measures.push(m);
+    var r=ecmCalc(t);
+    if(r.st==='skip'){ skipped.push(r.who+': '+r.why); return; }
+    if(r.st!=='ok') return;
+    if(r.basis==='affinity') cube.push(r.who+': '+r.whyNot);
+    measures.push(r.m);
   });
   var site=gv('ck_plant')||'';
-  return {measures:measures, pools:[], site:site, skipped:skipped};
+  return {measures:measures, pools:[], site:site, skipped:skipped, cube:cube};
 }
 window.teBuildECM=teBuildECM;
-function teExportECM(){var r=teBuildECM();if(r.skipped&&r.skipped.length)alert('ไม่ส่งออกมาตรการต่อไปนี้:\n'+r.skipped.join('\n'));TE_ECM.save('Tool_Pump_Fan_Audit',r.site,r.measures,r.pools);} // [แก้ไข 3 ต.ค. 2569] · [แก้ไข 17 พ.ย. 2569] #150 แจ้งมาตรการที่ไม่ส่งออก
+function teExportECM(){var r=teBuildECM(),msg=[];
+  if(r.skipped&&r.skipped.length)msg.push('ไม่ส่งออกมาตรการต่อไปนี้:',...r.skipped);
+  if(r.measures.length&&r.cube&&r.cube.length)msg.push('ส่งออกด้วยกฎกำลังสาม — ยังไม่หักผลของหัวคงที่ อาจสูงเกินจริง:',...r.cube); /* [แก้ไข 18 พ.ย. 2569] #430 */
+  if(msg.length)alert(msg.join('\n'));
+  TE_ECM.save('Tool_Pump_Fan_Audit',r.site,r.measures,r.pools);} // [แก้ไข 3 ต.ค. 2569] · [แก้ไข 17 พ.ย. 2569] #150 แจ้งมาตรการที่ไม่ส่งออก · [แก้ไข 18 พ.ย. 2569] #430 แจ้งมาตรการที่ใช้กฎกำลังสาม
 
 
 window.addEventListener('DOMContentLoaded',()=>{
@@ -562,6 +626,8 @@ window.addEventListener('DOMContentLoaded',()=>{
   ['pump','fan'].forEach(t=>{ loadSample(t); trimNote(t); });
   /* [แก้ไข 18 พ.ย. 2569] #420 ช่องที่เปลี่ยนฐานการคำนวณรายจุด → คิดตารางใหม่ (ย้ายจาก Curve Builder refreshRowsBasis) */
   [['pump',['pump_em','pump_ec','pump_dz','pump_fluid','pump_rho','pump_ds','pump_dd']],['fan',['fan_em','fan_ec','fan_rho']]].forEach(([t,ids])=>ids.forEach(id=>{ const e=byId(id); if(e) e.addEventListener('change',()=>refreshRowsBasis(t)); }));
+  /* [แก้ไข 18 พ.ย. 2569] #430 แก้ชั่วโมง/ค่าไฟ/เงินลงทุน/อายุ/η VSD → อัปเดตฐานผลประหยัดที่จะส่งออกทันที */
+  ['pump','fan'].forEach(t=>{ [t+'_ecmHrs',t+'_ecmTariff',t+'_ecmCapex',t+'_ecmLife',t+'_cmpEv'].forEach(id=>{ const e=byId(id); if(e) e.addEventListener('input',()=>ecmPreview(t)); }); ecmPreview(t); });
   calcAir();
   setTimeout(()=>drawCurves('pump'),120);
   tagFieldKinds(); // [ระยะ 4 10 ก.ย. 2569] ติดป้ายชนิดค่าหลังสร้าง DOM จาก template
@@ -921,5 +987,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 [/^(\s*)— Q เป้าหมาย ([\d.]+) ≥ ([\d.]+) (\S+) — วิธีลดอัตราไหลใช้ไม่ได้(\s*)$/,"$1— target Q $2 ≥ $3 $4 — flow-reduction methods do not apply$5"]
 ]);</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #422 คู่คำแปล EN — หมายเหตุ ρ_air ของพัดลม */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ρ ไม่มีผลต่อ η พัดลม (η = Q·ΔP ÷ P_shaft) · เส้นโค้งผู้ผลิตส่วนใหญ่อ้างอากาศมาตรฐาน 0.075 lb/ft³ (≈ 1.2 kg/m³) — ก่อนเทียบ ΔP กับ datasheet ต้องแก้ค่าตามความต่างของความหนาแน่น เครื่องมือไม่ได้ปรับให้ (อ้างอิง: U.S. DOE Fan Sourcebook (2003) หน้า 34)": "ρ does not affect fan η (η = Q·ΔP ÷ P_shaft) · most maker's fan curves assume standard air of 0.075 lb/ft³ (≈ 1.2 kg/m³) — correct ΔP for the density difference before comparing with the datasheet; the tool does not correct it (ref.: U.S. DOE Fan Sourcebook (2003) p. 34)"});</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #430 คู่คำแปล EN — ฐานผลประหยัดที่ส่งออก TE_ECM (กล่องข้อมูลส่งออก · ช่องแสดงฐาน · alert ตอนส่งออก) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ฐานผลประหยัดที่ส่งออก: ① มีจุดวัดเส้นโค้ง (มี P_e อย่างน้อย 2 จุด) + System Curve ที่กรอก Static → ใช้ผลจากตารางเทียบวิธีลดอัตราไหลด้านล่าง (แถว VFD ลดรอบ · ถ้าไม่ปรับรอบใช้แถวกลึงใบพัด / ลดรอบถาวร) ซึ่งหักผลของหัวคงที่แล้ว ② ข้อมูลไม่ครบ → กฎกำลังสาม P_elec₂ = P_shaft₁ × f³ ÷ (η_m × η_c × η_VSD) ยังไม่หักผลของหัวคงที่ อาจสูงเกินจริง · η_VSD ใช้ช่องเดียวกับตารางเทียบวิธี": "Export savings basis: ① measured curve points (P_e at ≥ 2 points) + a system curve with Static entered → uses the result of the flow-reduction comparison table below (VFD speed-reduction row · without a speed change, the impeller-trim / permanent speed-cut row), which accounts for static head ② data incomplete → cube law P_elec₂ = P_shaft₁ × f³ ÷ (η_m × η_c × η_VSD), static head not accounted for, may overstate savings · η_VSD uses the same field as the comparison table", "Europump/HI, Variable Speed Pumping – Executive Summary (2004) หน้า 3 (จุดทำงาน = จุดตัดเส้นปั๊มกับเส้นระบบ) หน้า 5 (ระบบมีหัวคงที่ ใช้กฎ affinity คิดผลประหยัด \"can also lead to major errors\") · U.S. DOE Pumping Sourcebook 2nd ed. (2006) หน้า 50 (ผลกลึงใบพัดขึ้นกับเส้นระบบ) หน้า 51–52 (ลดรอบ: เส้นโค้งเลื่อนลงซ้าย · ระบบหัวคงที่สูงต้องระวัง) หน้า 54 (VFD 95–97 %) · U.S. DOE Fan Sourcebook (2003) หน้า 35 (ประหยัดได้เมื่อพัดลมยังส่งลมพอที่รอบต่ำ) หน้า 36 (ภาระคงที่: เปลี่ยนพูลเลย์) หน้า 46 (ความดันคงที่ที่ระบบต้องการเกินความดันพัดลม = ไม่มีลม · VFD 98 % ที่โหลดเต็ม)": "Europump/HI, Variable Speed Pumping – Executive Summary (2004) p. 3 (operating point = intersection of pump and system curves) p. 5 (systems with static head: using the affinity laws for energy savings \"can also lead to major errors\") · U.S. DOE Pumping Sourcebook 2nd ed. (2006) p. 50 (trimming result depends on the system curve) pp. 51–52 (speed reduction: curves drop down and to the left · caution with high static head) p. 54 (VFD 95–97 %) · U.S. DOE Fan Sourcebook (2003) p. 35 (savings if the fan can still serve the system at a lower speed) p. 36 (constant load: sheave change) p. 46 (system static pressure above fan pressure = no airflow · VFD 98 % at full load)", "ยังไม่ส่งออกมาตรการนี้": "This measure is not exported yet", "กรอก N₁ · N₂ · P_shaft₁ ในแท็บนี้ก่อน": "Enter N₁ · N₂ · P_shaft₁ on this tab first", "N₂ = N₁ และ D₂ = D₁ — ยังไม่มีมาตรการ": "N₂ = N₁ and D₂ = D₁ — no measure yet", "ยังเป็นข้อมูลตัวอย่าง (ยังไม่ได้กรอกค่าวัดจริง)": "Still the sample data (no measured values entered)", "ไม่ได้กรอก Static ในแท็บ Curve & System": "Static not entered on the Curve & System tab", "ตารางเทียบวิธีลดอัตราไหลคิดไม่ได้ — ดูข้อความในตารางด้านล่าง": "The flow-reduction comparison table cannot be computed — see the message in the table below", "หาจุด A บนเส้นโค้งที่วัดไม่ได้ (Q เป้าหมายอยู่นอกช่วงที่วัด)": "Point A cannot be found on the measured curve (target Q outside the measured range)", "ไม่มี P_e ที่จุดทำงานเดิมจากเส้นกำลังที่วัด": "No P_e at the original operating point from the measured power curve", "ตารางเทียบวิธีไม่พบผลประหยัด (P_e หลังปรับ ≥ จุดทำงานเดิม)": "The comparison table shows no saving (P_e after ≥ original operating point)", "ไม่มีผลประหยัด (P_e หลังปรับ ≥ ก่อนปรับ)": "No saving (P_e after ≥ before)", "กรอกชั่วโมงเดินเครื่อง 1–8,784 ชม./ปี": "Enter operating hours of 1–8,784 h/yr", "ฐานที่ส่งออก: เส้นโค้งที่วัด × เส้นระบบ (หักผลของหัวคงที่แล้ว)": "Export basis: measured curve × system curve (static head accounted for)", "ใช้แถว": "Uses the row", "ของตารางเทียบวิธีลดอัตราไหลด้านล่าง": "of the flow-reduction comparison table below", "ฐานที่ส่งออก: กฎกำลังสาม (Affinity) P₂ = P₁ × f³": "Export basis: cube law (affinity) P₂ = P₁ × f³", "ยังไม่หักผลของหัวคงที่ — อาจสูงเกินจริง": "Static head not accounted for — may overstate savings", "ชม./ปี": "h/yr", "kWh/ปี": "kWh/yr", "฿/ปี": "THB/yr", "ส่งออกด้วยกฎกำลังสาม — ยังไม่หักผลของหัวคงที่ อาจสูงเกินจริง:": "Exported with the cube law — static head not accounted for, may overstate savings:"},[
+[/^(\s*)(.+?) ต่ำกว่า static (.+?) — ที่รอบ\/ขนาดนี้ส่งของไหลไม่ได้(\s*)$/,"$1$2 below static $3 — cannot deliver flow at this speed/size$4"],
+[/^(ปั๊ม|พัดลม) (.+?): (ไม่ได้กรอก\ Static\ ในแท็บ\ Curve\ \&\ System|ตารางเทียบวิธีลดอัตราไหลคิดไม่ได้\ —\ ดูข้อความในตารางด้านล่าง|หาจุด\ A\ บนเส้นโค้งที่วัดไม่ได้\ \(Q\ เป้าหมายอยู่นอกช่วงที่วัด\)|ไม่มี\ P_e\ ที่จุดทำงานเดิมจากเส้นกำลังที่วัด)$/,function(m,k,tag,w){var E={"ไม่ได้กรอก Static ในแท็บ Curve & System": "Static not entered on the Curve & System tab", "ตารางเทียบวิธีลดอัตราไหลคิดไม่ได้ — ดูข้อความในตารางด้านล่าง": "The flow-reduction comparison table cannot be computed — see the message in the table below", "หาจุด A บนเส้นโค้งที่วัดไม่ได้ (Q เป้าหมายอยู่นอกช่วงที่วัด)": "Point A cannot be found on the measured curve (target Q outside the measured range)", "ไม่มี P_e ที่จุดทำงานเดิมจากเส้นกำลังที่วัด": "No P_e at the original operating point from the measured power curve"};return (k==='ปั๊ม'?'Pump':'Fan')+' '+tag+': '+(E[w]||w);}]
+]);</script>
 </body>
 </html>
