@@ -1851,6 +1851,7 @@ function renderHXPanel(containerId, mode, q_kW, lmtd, tfg_in, tfg_out, t_cold_in
   if (!el) return;
 
   const recs = hxAdvisor(mode, tfg_in, tfg_out, t_cold_in, t_cold_out);
+  (window._hxT = window._hxT || {})[containerId] = { tfg_in, tfg_out, t_cold_in, t_cold_out }; // [แก้ไข 19 พ.ย. 2569] #491 อุณหภูมิสำหรับ ε ในผลพื้นที่
   const dt_hot  = tfg_in  - t_cold_out;
   const dt_cold = tfg_out - t_cold_in;
   const dt_min  = Math.min(dt_hot, dt_cold);
@@ -1953,8 +1954,14 @@ function renderHXResult(containerId, hxKey, q_kW, lmtd, hx, tfg_in) {
   const A_design = A_high / F; // With F correction + 15% fouling margin
   const A_margin = A_design * 1.15;
 
-  const etaAdj_kW = q_kW * (hx.eta_low / 100);
-  const etaAdj_kWhi = q_kW * (hx.eta_high / 100);
+  // [แก้ไข 19 พ.ย. 2569] #491 เดิม "ความร้อนที่กู้คืนจริง (ปรับด้วย η)" = Q × η_low…η_high ของชนิด HX — Q ที่ส่งเข้ามาคิดจากอุณหภูมิเข้า–ออกจริง/ที่กำหนด
+  //   (รวมผลของประสิทธิภาพ HX แล้ว) จึงเป็นการคูณ η ซ้ำ (ค่าตั้งต้นแท็บอากาศ 10.27 kW แสดงเป็น 5.6–7.7 kW) · แสดงเฉพาะบนจอ ไม่เข้าเงิน/CO₂/ไฟล์งาน
+  //   → แสดง Q ครั้งเดียว + ε ของการออกแบบนี้ = ΔT ของกระแส C_min ÷ (Tfg_in − T_c,in) = max(ΔT ไอเสีย, ΔT ด้านรับ) ÷ ΔT_max (นิยาม ε = Q ÷ Q_max)
+  //   เทียบกับช่วง η ทั่วไปของชนิด (ค่าแนวทางของเครื่องมือ) — ใช้ตรวจความสมเหตุสมผลของอุณหภูมิออก ไม่ใช้คูณ
+  const tT = (window._hxT || {})[containerId] || {};
+  const dTmax = tT.tfg_in - tT.t_cold_in;
+  const epsD = (dTmax > 0) ? Math.max(tT.tfg_in - tT.tfg_out, tT.t_cold_out - tT.t_cold_in) / dTmax * 100 : NaN;
+  const epsTxt = isFinite(epsD) ? ` · ε ของการออกแบบนี้ = ${fmtN(epsD,1)} % (ช่วง η ทั่วไปของชนิดนี้ ${hx.eta_low}–${hx.eta_high} %)` : '';
 
   return `
     <div style="background:rgba(9,105,218,0.04);border:1px solid rgba(9,105,218,0.2);border-radius:6px;padding:12px;margin-top:10px">
@@ -1981,7 +1988,7 @@ function renderHXResult(containerId, hxKey, q_kW, lmtd, hx, tfg_in) {
         LMTD_eff = F × LMTD = 0.90 × ${fmtN(lmtd,1)} = ${fmtN(lmtd*F,1)} °C<br>
         <strong>ช่วงพื้นที่:</strong> A = ${fmtN(A_low,1)} – ${fmtN(A_high,1)} m²
         (U = ${hx.U_high}–${hx.U_low} W/m²K)<br>
-        <strong>ความร้อนที่กู้คืนจริง (ปรับด้วย η):</strong> ${fmtN(etaAdj_kW,1)} – ${fmtN(etaAdj_kWhi,1)} kW
+        <strong>ความร้อนที่กู้คืน (คิดจากอุณหภูมิเข้า–ออก — รวมผลประสิทธิภาพ HX แล้ว ไม่คูณ η ซ้ำ):</strong> ${fmtN(q_kW,1)} kW${epsTxt}
       </div>
       <div style="margin-top:8px;font-size:12px;background:var(--surface2);border-radius:4px;padding:8px">
         <strong>ข้อดี:</strong> ${hx.pros}<br>
@@ -3110,9 +3117,11 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 ]);</script>
 <script>/* [แก้ไข 19 พ.ย. 2569] #490–#499 (ผู้ช่วย B) — คู่คำแปล EN ของข้อความที่เพิ่ม/เปลี่ยน */
 if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"ความร้อนที่กู้คืน (คิดจากอุณหภูมิเข้า–ออก — รวมผลประสิทธิภาพ HX แล้ว ไม่คูณ η ซ้ำ):":"Recovered heat (from inlet–outlet temperatures — already includes HX performance, η not applied again):",
 "อ้างอิง: U.S. DOE (2015) Improving Process Heating System Performance 3rd ed., Table 6 p.49 · BCS/U.S. DOE (2008) Waste Heat Recovery, Table 8 p.30, §3.1.1 p.12 · BEE India Guide Book 2 Ch.8 p.178":"Reference: U.S. DOE (2015) Improving Process Heating System Performance 3rd ed., Table 6 p.49 · BCS/U.S. DOE (2008) Waste Heat Recovery, Table 8 p.30, §3.1.1 p.12 · BEE India Guide Book 2 Ch.8 p.178"
 },[
 [/^(\s*)⭐ แนะนำ (.+?)(\s*)$/,"$1⭐ Recommended: $2$3"],
+[/ε ของการออกแบบนี้ = (\S+) % \(ช่วง η ทั่วไปของชนิดนี้ (\S+) %\)/g,"ε of this design = $1 % (typical η range of this type $2 %)"],
 [/ไอเสียเกิน 1,093 °C \(ขีดจำกัด recuperator โลหะ\): ใช้ recuperator ท่อเซรามิก หรือ regenerator \(BCS\/U\.S\. DOE 2008 §3\.1\.1 p\.12, §3\.1\.2\) · /g,"Flue gas above 1,093 °C (metallic recuperator limit): use a ceramic-tube recuperator or a regenerator (BCS/U.S. DOE 2008 §3.1.1 p.12, §3.1.2) · "],
 [/^(\s*)✗ (.+?) \(นอกช่วง (.+?)\)(\s*)$/,"$1✗ $2 (out of range $3)$4"],
 [/^(\s*)(.+?) — ผลการคำนวณพื้นที่ HX(\s*)$/,"$1$2 — HX area results$3"],
