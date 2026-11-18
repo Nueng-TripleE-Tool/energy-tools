@@ -1768,6 +1768,7 @@ details.guide ol,details.guide ul{margin:.2rem 0 .2rem 1.1rem;padding:0}
         <div><label>ความดันเริ่มต้น (bar g)</label><input id="lP1" type="number" step="0.1" value="7" oninput="leakCalc()"></div>
         <div><label>ความดันสุดท้าย (bar g)</label><input id="lP2" type="number" step="0.1" value="5" oninput="leakCalc()"></div>
         <div><label>เวลาที่ใช้ (วินาที)</label><input id="lT" type="number" step="1" value="180" oninput="leakCalc()"></div>
+        <div><label>อุณหภูมิอากาศในถัง/ท่อขณะทดสอบ (°C)</label><input id="lTline" type="number" step="0.5" value="35" oninput="leakCalc()"></div><!-- [แก้ไข 18 พ.ย. 2569] #334 ช่องใหม่ (ค่าตั้งต้นเท่า Compressed Air System) -->
       </div>
       <div class="kpis" id="lKpi" style="margin-top:12px"></div>
       <p class="assump" id="lAsm"></p>
@@ -3262,8 +3263,16 @@ function leakCalc(){
     formula = `Q<sub>leak</sub> = FAD × t<sub>load</sub> / (t<sub>load</sub> + t<sub>unload</sub>) = ${fmt(fad,2)} × ${fmt(ton,0)} / (${fmt(ton,0)} + ${fmt(toff,0)})`;
   } else {
     const V=num('lVol'), p1=num('lP1'), p2=num('lP2'), t=num('lT');
-    leak = t>0 ? V*(p1-p2)/patmBar*(60/t) : NaN;      // m³ ลมอิสระ ต่อ นาที
-    formula = `Q<sub>leak</sub> = V × (p<sub>1</sub> − p<sub>2</sub>) / p<sub>atm</sub> × 60/t = ${fmt(V,2)} m³ × ${fmt(p1-p2,2)} bar ÷ ${fmt(patmBar,4)} bar × 60/${fmt(t,0)} s`;
+    /* [แก้ไข 18 พ.ย. 2569] #334 เดิม Q = V·Δp/p_atm·60/t (ปริมาตรที่ความดันบรรยากาศและอุณหภูมิในถัง) → สูงกว่า Compressed Air System 3.5 % ที่ 35 °C
+       ใหม่: เทียบเป็นปริมาตร FAD ที่สภาวะอ้างอิงของแท็บการไหล (T_FAD · P_FAD · RH_FAD) ด้วยกฎแก๊สอุดมคติ — ความดันที่ลดเป็นของอากาศแห้ง
+       Q = V·Δp·(60/t)·(T_FAD/T_line) ÷ p_dry,FAD · p_dry,FAD = P_FAD − RH_FAD·p_ws(T_FAD) (สูตรเดียวกับ Compressed Air System ที่ชุดอ้างอิง Triple E)
+       อ้างอิง: CAC/DOE Fact Sheet #7 Compressed Air System Leaks (Rev. 1, May 2026) p. F7-2 */
+    const tLv=parseFloat($('lTline')?$('lTline').value:35), tL=isFinite(tLv)?tLv:35;
+    const tRef=parseFloat($('tFad')?$('tFad').value:20), pRefB=(parseFloat($('pFad')?$('pFad').value:101.325)||101.325)/100, rhRef=parseFloat($('rhFad')?$('rhFad').value:65);
+    const tR=isFinite(tRef)?tRef:20, rhR=isFinite(rhRef)?rhRef:65;
+    const pDryRef = pRefB - rhR/100*hPsW(tR)/1000;     // bar
+    leak = (t>0 && pDryRef>0) ? V*(p1-p2)*(60/t)*(tR+273.15)/(tL+273.15)/pDryRef : NaN;      // m³/min FAD (สภาวะอ้างอิง)
+    formula = `Q<sub>leak</sub> = V × (p<sub>1</sub> − p<sub>2</sub>) × 60/t × T<sub>FAD</sub>/T<sub>line</sub> ÷ p<sub>dry,FAD</sub> = ${fmt(V,2)} m³ × ${fmt(p1-p2,2)} bar × 60/${fmt(t,0)} s × ${fmt(tR+273.15,2)}/${fmt(tL+273.15,2)} K ÷ ${fmt(pDryRef,4)} bar`;
   }
   const pct = fad>0 ? 100*leak/fad : NaN;
   const spFad = $('sFad') ? num('sFad') : 0;
@@ -3286,7 +3295,8 @@ function leakCalc(){
   $('lAsm').innerHTML = `<b>สูตร:</b> ${formula}<br>
     <b>เงื่อนไขการทดสอบ:</b> ต้องปิดเครื่องจักรผู้ใช้ลมทั้งหมดจริง ๆ และปิดวาล์วสาขาที่ไม่ได้ใช้ มิฉะนั้นค่าที่ได้จะรวมการใช้ลมจริงเข้าไปด้วย<br>
     <b>Specific power ที่ใช้คิดค่าไฟ:</b> ${fmt(sp,2)} kW/(m³/min) ดึงมาจากหัวข้อที่ 1 · ชั่วโมงทำงาน ${fmtA(hrs)} ชม./ปี · ค่าไฟ ${fmt(tar,2)} บาท/kWh<br>
-    <b>เกณฑ์อ้างอิง:</b> ระบบที่ดูแลดีควรรั่วต่ำกว่า 10 % ของกำลังผลิต · เกิน 20 % ถือว่าสูงและมักคืนทุนภายในไม่กี่เดือน`;
+    <b>เกณฑ์อ้างอิง:</b> ระบบที่ดูแลดีควรรั่วต่ำกว่า 10 % ของกำลังผลิต · เกิน 20 % ถือว่าสูงและมักคืนทุนภายในไม่กี่เดือน<br>
+    <span>${m==='duty'?'อ้างอิง: Compressed Air Challenge / U.S. DOE — Fact Sheet #7 Compressed Air System Leaks (Rev. 1, พ.ค. 2026) หน้า F7-2 วิธี load/unload: Leakage (%) = T × 100 ÷ (T + t)':'อ้างอิง: Compressed Air Challenge / U.S. DOE, Improving Compressed Air System Performance — Fact Sheet #7 Compressed Air System Leaks (Rev. 1, พ.ค. 2026) หน้า F7-2 วิธี pressure decay (ปริมาตรระบบ × ความดันที่ลด ÷ ความดันบรรยากาศ ÷ เวลา) · แปลงเป็นปริมาตรที่สภาวะอ้างอิงด้วยกฎแก๊สอุดมคติ (อุณหภูมิอากาศในระบบ · ความดันอากาศแห้ง) ฐานเดียวกันทั้ง Compressed Air System และ Flow Converter · CAC คูณ 1.25 เพื่อเทียบที่ความดันใช้งานเมื่อปล่อยให้ความดันลดถึงราวครึ่งหนึ่ง — เครื่องมือไม่คูณ ผลจึงอยู่ด้านต่ำ'}</span>`;  /* [แก้ไข 18 พ.ย. 2569] #334 */
 }
 
 /* ═══════════════ PANEL S-3 : PRESSURE REDUCTION ═══════════════ */
@@ -4944,5 +4954,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
 </script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"ดูดเข้า": "Intake", "ทางออกโรเตอร์": "Rotor outlet", "หลังอาฟเตอร์คูลเลอร์": "After aftercooler", "ถังพักลมเปียก": "Wet receiver", "หลังเครื่องทำลมแห้ง": "After the dryer", "ถังพักลมแห้ง": "Dry receiver", "ท่อส่งลมหลัก": "Main air line", "หลังชุดปรับความดัน": "After pressure regulator", "ปล่อยสู่บรรยากาศ": "Vent to atmosphere", "จุดใหม่": "New point", "ทางดูดอากาศเข้า": "Air intake", "เครื่องอัดอากาศ": "Air compressor", "อาฟเตอร์คูลเลอร์": "Aftercooler", "ทำลมแห้ง สารทำความเย็น": "Refrigerated air dryer", "ทำลมแห้ง สารดูดความชื้น": "Desiccant air dryer", "ชุดกรองลม": "Air filters", "ชุดปรับความดัน": "Pressure regulator", "จุดใช้งาน / ปล่อยสู่บรรยากาศ": "Point of use / vent to atmosphere"});if(TE_I18N.lang==='en'&&typeof wDefSt==='function'){try{WST=wDefSt();wRender();wCalc();}catch(e){}}}</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #334 EN — ช่องอุณหภูมิในถัง + หมายเหตุอ้างอิงวิธีทดสอบรั่ว */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"อุณหภูมิอากาศในถัง/ท่อขณะทดสอบ (°C)":"Air temperature in receiver/piping during the test (°C)","อ้างอิง: Compressed Air Challenge / U.S. DOE, Improving Compressed Air System Performance — Fact Sheet #7 Compressed Air System Leaks (Rev. 1, พ.ค. 2026) หน้า F7-2 วิธี pressure decay (ปริมาตรระบบ × ความดันที่ลด ÷ ความดันบรรยากาศ ÷ เวลา) · แปลงเป็นปริมาตรที่สภาวะอ้างอิงด้วยกฎแก๊สอุดมคติ (อุณหภูมิอากาศในระบบ · ความดันอากาศแห้ง) ฐานเดียวกันทั้ง Compressed Air System และ Flow Converter · CAC คูณ 1.25 เพื่อเทียบที่ความดันใช้งานเมื่อปล่อยให้ความดันลดถึงราวครึ่งหนึ่ง — เครื่องมือไม่คูณ ผลจึงอยู่ด้านต่ำ":"Reference: Compressed Air Challenge / U.S. DOE, Improving Compressed Air System Performance — Fact Sheet #7 Compressed Air System Leaks (Rev. 1, May 2026), p. F7-2, pressure-decay method (system volume × pressure drop ÷ atmospheric pressure ÷ time) · converted to volume at the reference condition with the ideal-gas law (air temperature in the system · dry-air pressure), the same basis in Compressed Air System and Flow Converter · CAC multiplies by 1.25 to express leakage at normal operating pressure when pressure is allowed to fall to about one-half — the tool does not, so the result is on the low side","อ้างอิง: Compressed Air Challenge / U.S. DOE — Fact Sheet #7 Compressed Air System Leaks (Rev. 1, พ.ค. 2026) หน้า F7-2 วิธี load/unload: Leakage (%) = T × 100 ÷ (T + t)":"Reference: Compressed Air Challenge / U.S. DOE — Fact Sheet #7 Compressed Air System Leaks (Rev. 1, May 2026), p. F7-2, load/unload method: Leakage (%) = T × 100 ÷ (T + t)"});</script>
 </body>
 </html>
