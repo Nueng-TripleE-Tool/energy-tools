@@ -1458,6 +1458,12 @@ const EF_GRID=0.4750; // [แก้ไข 3 ต.ค. 2569 audit] EF ไฟฟ้
             · "gas is purchased for its heating value") และข้อ 2 หน้า 56 ("Data are to be reported in gross calorific value")
    ใบวิเคราะห์ก๊าซที่มี GHV และ NHV ให้ใช้ 1,055.06 × NHV/GHV แทน */
 const NG_MJ_MMBTU=1055.06, NG_NCV_GCV=0.90, NG_LHV_MMBTU=Math.round(NG_MJ_MMBTU*NG_NCV_GCV*100)/100;   // 949.55 MJ (LHV) ต่อ MMBTU (GHV)
+/* [แก้ไข 18 พ.ย. 2569] #392 ชีวมวลไม้สับ ความชื้น 35 % — ค่าความร้อนฐาน LHV ตามสภาพที่รับ (as received) ให้ตรงกับ η ฐาน LHV
+   สูตร IPCC 2006 Vol.2 Ch.1 Box 1.1 หน้า 1.17: NetCV = GrossCV − 0.212H − 0.0245M − 0.008Y (MJ/kg, as received; H M Y เป็น %)
+   เมื่อ GrossCV H Y แปรตาม (1 − M/100) → NCV_ar = NCV_dry × (1 − M/100) − 0.0245 × M
+   NCV_dry ของไม้ส่วนใหญ่ 18.5–20 MJ/kg (IFRF Combustion Handbook: What data is available on main wood fuel properties? 2001 · Table 1a/1b)
+   https://ifrf.net/research/handbook/what-data-is-available-on-main-wood-fuel-properties/ → ที่ M 35 %: 11.17–12.14 MJ/kg · ใช้ค่าบน 12.14 (ไม่ให้ผลประหยัดสูงเกิน) */
+const BIO_NCV_DRY=20.0, BIO_M=35, BIO_LHV_AR=Math.round((BIO_NCV_DRY*(1-BIO_M/100)-0.0245*BIO_M)*100)/100;   // 12.14 MJ/kg
 const FUELS={
  /* [แก้ไข 17 พ.ย. 2569] ผลตรวจรอบ 5 (ค่าเดียวกันไม่เท่ากันข้ามเครื่องมือ): EF เชื้อเพลิงให้ตรงคลัง TE_EF (อบก. ม.ค. 2569 / IPCC 2006)
     fo = fuel_oil_c 3.2455 · diesel = diesel_stat 2.7076 · lpg = lpg_kg 3.1133 · coal = bituminous 2.5125 · ng = natural_gas_mmbtu (HHV) 52.9545
@@ -1467,7 +1473,7 @@ const FUELS={
  lpg   :{n:'LPG — บาท/กก.',lhv:46.15,pr:25,ef:3.1133,u:'กก.'},
  ng    :{n:'ก๊าซธรรมชาติ NG — บาท/MMBTU',lhv:NG_LHV_MMBTU,pr:420,ef:52.9545,u:'MMBTU'},   /* [แก้ไข 18 พ.ย. 2569] #390 เดิม lhv 1055.06 (= 1 MMBTU ฐาน GHV) คู่กับ η ฐาน LHV → ก๊าซ/ผลประหยัดต่ำไป ~10 % */
  coal  :{n:'ถ่านหินบิทูมินัส — บาท/กก.',lhv:25.80,pr:4.5,ef:2.5125,u:'กก.'},
- bio   :{n:'ชีวมวล ไม้สับ (ความชื้น 35 %) — บาท/กก.',lhv:12.50,pr:1.5,ef:0,u:'กก.'},
+ bio   :{n:'ชีวมวล ไม้สับ (ความชื้น 35 %) — บาท/กก.',lhv:BIO_LHV_AR,pr:1.5,ef:0,u:'กก.'},   /* [แก้ไข 18 พ.ย. 2569] #392 เดิม lhv 12.50 ไม่มีที่มา สูงกว่าช่วง LHV ที่ความชื้น 35 % (11.17–12.14) */
  elec  :{n:'ไฟฟ้า (ฮีตเตอร์) — บาท/kWh',lhv:3.6,pr:4.2,ef:EF_GRID,u:'kWh'}, // [แก้ไข 3 ต.ค. 2569 audit] EF กริด 0.4750 (เดิม 0.4999)
  steam :{n:'ไอน้ำซื้อ — บาท/ตัน (ใช้ 2,100 MJ/ตัน · EF 150 kgCO₂e/t เป็นค่าสมมติ — ใช้ค่าของผู้ขายไอน้ำ)',lhv:2100,pr:900,ef:150,u:'ตัน'}
 };
@@ -2152,7 +2158,8 @@ function ehlEFsrc(){
    fo/diesel: ตารางค่าแปลงหน่วย พพ. (NCV) · lpg/coal: IPCC 2006 Vol.2 Ch.1 Table 1.2 (NCV) · elec: นิยามหน่วย · ng: GHV × 0.90 (ดู NG_NCV_GCV) */
 const EHL_URL={ipcc1:'https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/2_Volume2/V2_1_Ch1_Introduction.pdf',
   dede:'https://data.go.th/dataset/df65e47e-1aaf-4356-960b-cae5f66a431c/resource/125857b4-bf78-4335-b39e-7fef52af1768/download/energy-balance-of-thailand-2015_reports.pdf',
-  iea:'https://geostat.ge/media/55677/8.-Manual-of-energy-statistics-%28Eurostat%2C-OECD%2C-International-Energy-Agency%29.pdf'};
+  iea:'https://geostat.ge/media/55677/8.-Manual-of-energy-statistics-%28Eurostat%2C-OECD%2C-International-Energy-Agency%29.pdf',
+  ifrf:'https://ifrf.net/research/handbook/what-data-is-available-on-main-wood-fuel-properties/'};
 const ehlA=u=>` — <a href="${u}" target="_blank" rel="noopener" style="word-break:break-all">${u}</a>`;
 const EHL_LHVSRC={
   fo:'<span>ฐาน NCV (ค่าความร้อนสุทธิ) ตามตารางค่าแปลงหน่วยของ พพ.:</span> 39.77 MJ/L · DEDE, Energy Balance of Thailand 2015, Conversion Factors p.62'+ehlA(EHL_URL.dede),
@@ -2160,6 +2167,7 @@ const EHL_LHVSRC={
   lpg:'<span>ฐาน NCV · 46.15 MJ/kg เป็นค่าแนวทางของเครื่องมือ อยู่ในช่วงของ IPCC:</span> LPG 47.3 (44.8–52.2) MJ/kg · IPCC 2006 Vol.2 Ch.1 Table 1.2 p.1.18'+ehlA(EHL_URL.ipcc1),
   coal:'<span>ฐาน NCV ค่าตั้งต้นของ IPCC:</span> Other Bituminous Coal 25.8 MJ/kg · IPCC 2006 Vol.2 Ch.1 Table 1.2 p.1.18'+ehlA(EHL_URL.ipcc1),
   elec:'<span>1 kWh = 3.6 MJ (นิยามหน่วย) · ฮีตเตอร์ไฟฟ้า η 100 %</span>',
+  bio:'<span>ไม้สับชื้น 35 % ฐาน LHV ตามสภาพที่รับ:</span> NCV = 20 × (1 − 0.35) − 0.0245 × 35 = 12.14 MJ/kg · <span>NCV แห้ง 20 MJ/kg = ค่าบนของช่วง 18.5–20 MJ/kg ของไม้ส่วนใหญ่ (ค่าบนเพื่อไม่ให้ผลประหยัดสูงเกิน) — ใช้ผลวิเคราะห์ความชื้นและค่าความร้อนของล็อตจริง</span> · <span>สูตร</span> IPCC 2006 Vol.2 Ch.1 Box 1.1 p.1.17'+ehlA(EHL_URL.ipcc1)+' · IFRF Combustion Handbook (2001) Table 1a/1b'+ehlA(EHL_URL.ifrf),   /* [แก้ไข 18 พ.ย. 2569] #392 */
   /* [แก้ไข 18 พ.ย. 2569] #391 ไอน้ำซื้อ — h_fg จาก TE_STEAM (IAPWS-IF97) ใน lib/te-core.js: 5 bara 2,107.9 · 6 bara 2,085.6 kJ/kg */
   steam:'<span>ไอน้ำซื้อ 2,100 MJ/ตัน ≈ ความร้อนแฝงของไอน้ำอิ่มตัวราว 4–5 barg (2,108 kJ/kg ที่ 5 bara · 2,086 kJ/kg ที่ 6 bara) = ความร้อนที่ได้เมื่อไอน้ำควบแน่น · ประสิทธิภาพหม้อไอน้ำรวมอยู่ในราคาไอน้ำแล้ว จึงใช้ η 100 % — ใช้ความดันไอน้ำจริงและค่าของผู้ขาย</span> · TE_STEAM (IAPWS-IF97)'
 };
@@ -4383,5 +4391,6 @@ if(window.TE_I18N)TE_I18N.set({
 <script>/* [แก้ไข 18 พ.ย. 2569] #367 EN — ที่มา/ฐานของ EF (มติ R6-02) */ if(window.TE_I18N)TE_I18N.set({"ช่อง EF ว่าง/0 — ยังไม่รวมก๊าซเรือนกระจกของแหล่งความร้อนนี้": "EF field blank/0 — GHG of this heat source not included", "ไอน้ำซื้อไม่มีในคลัง EF — 150 kgCO₂e/ตัน เป็นค่าสมมติ ให้ใช้ค่าของผู้ขายไอน้ำ": "Purchased steam is not in the EF library — 150 kgCO₂e/t is an assumed value; use the steam supplier's figure", "ที่มา:": "Source:", "ค่าที่กรอกเอง · ค่าคลัง:": "User-entered · library value:", "ฐาน HHV ต่อ MMBTU": "HHV basis per MMBTU", "นับเฉพาะ CH₄ + N₂O (Scope 1) · CO₂ ชีวภาพรายงานแยก": "CH₄ + N₂O only (Scope 1) · biogenic CO₂ reported separately", "ยังไม่รวม (EF ว่าง)": "not included (EF blank)"});</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #390 EN — ฐาน/ที่มาของค่าความร้อน (NG แปลงจาก GHV เป็น LHV) */ if(window.TE_I18N)TE_I18N.set({"ฐาน NCV (ค่าความร้อนสุทธิ) ตามตารางค่าแปลงหน่วยของ พพ.:": "NCV basis (net calorific value) per the DEDE conversion-factor table:", "ฐาน NCV · 46.15 MJ/kg เป็นค่าแนวทางของเครื่องมือ อยู่ในช่วงของ IPCC:": "NCV basis · 46.15 MJ/kg is a tool guidance value within the IPCC range:", "ฐาน NCV ค่าตั้งต้นของ IPCC:": "NCV basis, IPCC default:", "1 kWh = 3.6 MJ (นิยามหน่วย) · ฮีตเตอร์ไฟฟ้า η 100 %": "1 kWh = 3.6 MJ (unit definition) · electric heater η 100 %", "อ้างอิง:": "Reference:", "1,055.06 MJ คือพลังงานของ 1 MMBTU ฐาน GHV (ค่าตามนิยามหน่วย) แต่ η เป็นฐาน LHV — ปริมาณก๊าซ ค่าใช้จ่าย และผลประหยัดจะต่ำไปราว 10 % · ค่าตั้งต้นฐาน LHV:": "1,055.06 MJ is the energy of 1 MMBTU on GHV basis (unit definition) but η is on LHV basis — gas quantity, cost and savings come out about 10 % low · LHV-basis default:", "ค่าที่กรอกเอง · ค่าตั้งต้น:": "User-entered · default:", "MMBTU ที่ซื้อขายก๊าซใช้ฐานค่าความร้อนสูง (GHV — ตรวจในสัญญา/ใบแจ้งหนี้) — แปลงเป็นฐาน LHV ให้ตรงกับ η:": "Gas is traded in MMBTU on gross heating value (GHV — check the contract/invoice) — converted to LHV basis to match η:", "มีใบวิเคราะห์ก๊าซให้ใช้ 1,055.06 × NHV/GHV ของก๊าซจริง": "with a gas analysis, use 1,055.06 × NHV/GHV of the actual gas"});</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #391 EN — ไอน้ำซื้อ η 100 % */ if(window.TE_I18N)TE_I18N.set({"ไอน้ำซื้อ 2,100 MJ/ตัน ≈ ความร้อนแฝงของไอน้ำอิ่มตัวราว 4–5 barg (2,108 kJ/kg ที่ 5 bara · 2,086 kJ/kg ที่ 6 bara) = ความร้อนที่ได้เมื่อไอน้ำควบแน่น · ประสิทธิภาพหม้อไอน้ำรวมอยู่ในราคาไอน้ำแล้ว จึงใช้ η 100 % — ใช้ความดันไอน้ำจริงและค่าของผู้ขาย": "Purchased steam 2,100 MJ/t ≈ latent heat of saturated steam at about 4–5 barg (2,108 kJ/kg at 5 bara · 2,086 kJ/kg at 6 bara) = heat released when the steam condenses · boiler efficiency is already in the steam price, so η = 100 % — use the actual steam pressure and the supplier's figures", "ไอน้ำซื้อ: η ในช่องไม่ใช่ 100 % — ประสิทธิภาพหม้อไอน้ำรวมอยู่ในราคาไอน้ำแล้ว ปริมาณไอน้ำและผลประหยัดจะสูงเกิน 1/η": "Purchased steam: η is not 100 % — boiler efficiency is already in the steam price; steam quantity and savings will be overstated by 1/η"});</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #392 EN — ค่าความร้อนชีวมวลฐาน LHV */ if(window.TE_I18N)TE_I18N.set({"ไม้สับชื้น 35 % ฐาน LHV ตามสภาพที่รับ:": "Wood chips at 35 % moisture, LHV as received:", "NCV แห้ง 20 MJ/kg = ค่าบนของช่วง 18.5–20 MJ/kg ของไม้ส่วนใหญ่ (ค่าบนเพื่อไม่ให้ผลประหยัดสูงเกิน) — ใช้ผลวิเคราะห์ความชื้นและค่าความร้อนของล็อตจริง": "dry NCV 20 MJ/kg = upper end of the 18.5–20 MJ/kg range for most wood (upper end so savings are not overstated) — use the moisture and heating value of the actual lot", "สูตร": "formula"});</script>
 </body>
 </html>
