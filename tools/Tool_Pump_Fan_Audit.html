@@ -283,35 +283,44 @@ function onFluid(){ byId('pump_rho_grp').style.display = byId('pump_fluid').valu
 function loadSample(t){
   const c=CFG[t];
   S[t].rows=[]; S[t].rid=0;
-  c.sample.rows.forEach(([q,h,kw,note])=>{ S[t].rid++; S[t].rows.push({id:S[t].rid,q:String(q),h:String(h),kw:String(kw),eff:'',note}); });
+  c.sample.rows.forEach(([q,h,kw,note])=>{ S[t].rid++; S[t].rows.push({id:S[t].rid,q:String(q),p1:'',p2:'',h:String(h),kw:String(kw),n:'',eff:'',note}); }); /* [แก้ไข 18 พ.ย. 2569] #420 ช่อง P₁/P₂/N ว่าง */
   byId(`${t}_sysH`).value=c.sample.sh; byId(`${t}_sysQ1`).value=c.sample.sq; byId(`${t}_sysD1`).value=c.sample.sdp;
   renderTable(t); calcSystemK(t);
 }
 function clearData(t){ if(confirm('ล้างข้อมูล?')){ S[t].rows=[]; S[t].rid=0; renderTable(t); } }
-function addRow(t){ S[t].rid++; S[t].rows.push({id:S[t].rid,q:'',h:'',kw:'',eff:'',note:''}); renderTable(t); }
+function addRow(t){ S[t].rid++; S[t].rows.push({id:S[t].rid,q:'',p1:'',p2:'',h:'',kw:'',n:'',eff:'',note:''}); renderTable(t); }
+/* [แก้ไข 18 พ.ย. 2569] #420 แม่แบบ 7 จุด (ย้ายจาก Pump & Fan Curve Builder) — ถามก่อนแทนที่ถ้าตารางมีข้อมูล */
+const BLANK7={pump:['Shutoff (วาล์วปิด)','วาล์ว 25%','วาล์ว 50%','BEP (จุดทำงาน)','วาล์ว 75%','วาล์ว 90%','Runout (วาล์วเปิดสนิท)'],
+  fan:['Shutoff (Damper ปิด)','Damper 25%','Damper 50%','BEP (จุดทำงาน)','Damper 75%','Damper 90%','Runout (Damper เปิดสนิท)']};
+function addBlank(t){
+  if(S[t].rows.some(r=>r.q!==''||r.h!==''||r.kw!=='')&&!confirm('แทนที่ตารางเดิมด้วยแม่แบบ 7 จุด?')) return;
+  const sv=x=>{try{return (window.TE_I18N&&TE_I18N.sv)?TE_I18N.sv(x):x;}catch(e){return x;}};
+  S[t].rows=[]; S[t].rid=0; S[t].plotted=false;
+  BLANK7[t].forEach(n=>{ S[t].rid++; S[t].rows.push({id:S[t].rid,q:'',p1:'',p2:'',h:'',kw:'',n:'',eff:'',note:sv(n)}); });
+  renderTable(t);
+}
 function delRow(t,id){ S[t].rows=S[t].rows.filter(r=>r.id!==id); renderTable(t); }
 function updRow(t,id,f,v){ const r=S[t].rows.find(x=>x.id===id); if(r){ r[f]=v; recalcEff(t); renderTable(t); } }
-function recalcEff(t){
-  const p=t==='pump', rho=getRho(t), em=g(`${t}_em`)||0.92, ec=g(`${t}_ec`)||1.0;
-  S[t].rows.forEach(r=>{
-    const q=parseFloat(r.q), h=parseFloat(r.h), kw=parseFloat(r.kw);
-    if(q>0&&h>0&&kw>0){
-      const psh=kw*em*ec*1000;
-      const e = p ? rho*G*(q/3600)*h/psh*100 : (q/3600)*h/psh*100;
-      r.eff=(e>0&&e<=100)?e.toFixed(1):'';
-    } else r.eff='';
-  });
+/* [แก้ไข 18 พ.ย. 2569] #420 สูตรรายจุดย้ายเข้า te-core TE.PUMPFAN.recalcRows (เพิ่ม P₁/P₂ → H และคิดใหม่จากค่าปัจจุบันทุกครั้ง) */
+function recalcEff(t){ TE.PUMPFAN.make(__pfEnv()).recalcRows(t); }
+/* [แก้ไข 18 พ.ย. 2569] #420 แก้ η มอเตอร์ / η ส่งกำลัง / ΔZ / ρ / ขนาดท่อ / n_sp → คิดทุกแถวใหม่ และวาดกราฟใหม่ถ้าเคยวาดแล้ว (เดิมตารางและ BEP ค้างค่าเก่า) */
+function refreshRowsBasis(t){
+  renderTable(t);
+  if(S[t].plotted && S[t].rows.filter(r=>r.q!==''&&r.h!=='').length>=2){ try{ drawCurves(t); }catch(e){} }
 }
 function renderTable(t){
   recalcEff(t);
-  const c=CFG[t];
+  const c=CFG[t], v=x=>(x==null?'':x);
   byId(`${t}_curveBody`).innerHTML = S[t].rows.map((r,i)=>`<tr>
     <td style="color:var(--text3)">${i+1}</td>
     <td><input type="number" value="${r.q}" onchange="updRow('${t}',${r.id},'q',this.value)"></td>
-    <td><input type="number" value="${r.h}" onchange="updRow('${t}',${r.id},'h',this.value)" style="color:${c.accent};font-weight:600"></td>
+    <td><input type="number" value="${v(r.p1)}" onchange="updRow('${t}',${r.id},'p1',this.value)" style="width:64px"></td>
+    <td><input type="number" value="${v(r.p2)}" onchange="updRow('${t}',${r.id},'p2',this.value)" style="width:64px"></td>
+    <td><input type="number" value="${r.h}" onchange="updRow('${t}',${r.id},'h',this.value)" style="color:${c.accent};font-weight:600${r.hAuto?';background:#eef6ff':''}"${r.hAuto?' readonly title="คิดจาก P₁ และ P₂ — แก้ที่ P₁/P₂ หรือลบ P₁/P₂ เพื่อกรอกเอง"':''}></td>
     <td><input type="number" value="${r.kw}" onchange="updRow('${t}',${r.id},'kw',this.value)"></td>
+    <td><input type="number" value="${v(r.n)}" onchange="updRow('${t}',${r.id},'n',this.value)" style="width:60px"></td>
     <td style="color:var(--green);font-weight:600">${r.eff||'—'}</td>
-    <td><input type="text" class="txt" value="${r.note}" onchange="updRow('${t}',${r.id},'note',this.value)"></td>
+    <td><input type="text" class="txt" value="${String(v(r.note)).replace(/"/g,'&quot;')}" onchange="updRow('${t}',${r.id},'note',this.value)"></td>
     <td><button onclick="delRow('${t}',${r.id})" style="border:none;background:none;color:var(--text3);cursor:pointer;font-size:14px">✕</button></td>
   </tr>`).join('');
 }
@@ -417,8 +426,11 @@ function exportCSV(){
     if(!rows.length) return;
     any=true;
     lines.push(`# ${c.name} (${gv(tt+'_tag')||'-'})`);
-    lines.push(`No,Q(${c.qU}),${c.hName}(${c.hU}),Power_kW,Eff_%,Note`);
-    rows.forEach((r,i)=>lines.push([i+1,r.q,r.h,r.kw,r.eff,`"${r.note}"`].join(',')));
+    /* [แก้ไข 18 พ.ย. 2569] #420 เพิ่มคอลัมน์ต่อท้ายจาก Curve Builder: P₁ · P₂ · N · P_shaft และค่าที่แปลงเป็น n_sp (คอลัมน์เดิมคงลำดับ) */
+    const em=g(tt+'_em')||0.92, ec=g(tt+'_ec')||1.0, nsp=g(tt+'_cvN'), x=v=>(v==null?'':v);
+    lines.push(`No,Q(${c.qU}),${c.hName}(${c.hU}),Power_kW,Eff_%,Note,P1(${c.pU}),P2(${c.pU}),N_rpm,P_shaft_kW,n_sp_rpm,Q_at_n_sp(${c.qU}),${c.hName}_at_n_sp(${c.hU}),Power_at_n_sp_kW`);
+    rows.forEach((r,i)=>{ const n=parseFloat(r.n), k=(nsp>0&&n>0)?nsp/n:null, q=parseFloat(r.q), h=parseFloat(r.h), kw=parseFloat(r.kw);
+      lines.push([i+1,r.q,r.h,r.kw,r.eff,`"${String(x(r.note)).replace(/"/g,'""')}"`,x(r.p1),x(r.p2),x(r.n),isFinite(kw)?(kw*em*ec).toFixed(3):'',k?nsp:'',k&&isFinite(q)?(q*k).toFixed(2):'',k&&isFinite(h)?(h*k*k).toFixed(2):'',k&&isFinite(kw)?(kw*k*k*k).toFixed(3):''].join(',')); });
     lines.push('');
   });
   if(!any){ alert('ไม่มีข้อมูลในตาราง Pump/Fan'); return; }
@@ -445,7 +457,7 @@ function exportCSV(){
 
 /* ══════════════ [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll + ป้ายชนิดค่า ══════════════ */
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['X_ds', 'X_dd', 'X_kw', 'X_dq', 'X_dh', 'X_n', 'X_em', 'X_ec', 'X_npshr', 'X_dgEtaD', 'X_aD1', 'X_dgNr', 'au_em', 'au_et', 'au_ev', 'ck_model', 'ck_kw'], FK_MEAS=['X_q', 'X_p1', 'X_p2', 'X_pe', 'X_na', 'X_dz', 'X_ts', 'X_T', 'X_P', 'X_RH', 'X_hfs', 'X_sysQ1', 'X_sysD1', 'X_sysQ2', 'X_sysD2', 'X_dgQbep', 'X_dgVib', 'X_dgTde'], FK_SET=['X_tag', 'X_fluid', 'X_rho', 'X_patm', 'X_pv', 'X_sysH', 'X_aN1', 'X_aN2', 'X_aD2', 'X_aTrim', 'au_type', 'au_rho', 'ck_plant', 'ck_date', 'ck_auditor'], FK_CALC=['X_aQ1', 'X_aH1', 'X_aP1', 'X_dgQ', 'X_dgH', 'X_dgEta', 'X_dgNa', 'au_q', 'au_h', 'au_pe', 'ck_tag'];
+var FK_DESIGN=['X_ds', 'X_dd', 'X_kw', 'X_dq', 'X_dh', 'X_n', 'X_em', 'X_ec', 'X_npshr', 'X_dgEtaD', 'X_aD1', 'X_dgNr', 'au_em', 'au_et', 'au_ev', 'ck_model', 'ck_kw'], FK_MEAS=['X_q', 'X_p1', 'X_p2', 'X_pe', 'X_na', 'X_dz', 'X_ts', 'X_T', 'X_P', 'X_RH', 'X_hfs', 'X_sysQ1', 'X_sysD1', 'X_sysQ2', 'X_sysD2', 'X_dgQbep', 'X_dgVib', 'X_dgTde'], FK_SET=['X_tag', 'X_fluid', 'X_rho', 'X_patm', 'X_pv', 'X_sysH', 'X_cvN', 'X_aN1', 'X_aN2', 'X_aD2', 'X_aTrim', 'au_type', 'au_rho', 'ck_plant', 'ck_date', 'ck_auditor'], FK_CALC=['X_aQ1', 'X_aH1', 'X_aP1', 'X_dgQ', 'X_dgH', 'X_dgEta', 'X_dgNa', 'au_q', 'au_h', 'au_pe', 'ck_tag'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){id=id.replace(/^(pump|fan)_/,'X_');if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -547,6 +559,8 @@ window.addEventListener('DOMContentLoaded',()=>{
   buildWalk(); buildChk(); auTypeChange();
   byId('ck_date').value=new Date().toISOString().split('T')[0];
   ['pump','fan'].forEach(t=>{ loadSample(t); trimNote(t); });
+  /* [แก้ไข 18 พ.ย. 2569] #420 ช่องที่เปลี่ยนฐานการคำนวณรายจุด → คิดตารางใหม่ (ย้ายจาก Curve Builder refreshRowsBasis) */
+  [['pump',['pump_em','pump_ec','pump_dz','pump_fluid','pump_rho','pump_ds','pump_dd']],['fan',['fan_em','fan_ec','fan_rho']]].forEach(([t,ids])=>ids.forEach(id=>{ const e=byId(id); if(e) e.addEventListener('change',()=>refreshRowsBasis(t)); }));
   calcAir();
   setTimeout(()=>drawCurves('pump'),120);
   tagFieldKinds(); // [ระยะ 4 10 ก.ย. 2569] ติดป้ายชนิดค่าหลังสร้าง DOM จาก template
@@ -838,13 +852,16 @@ afterHead(head(/เชื้อเพลิงผสม|Fuel blend/),{id:'blr-bl
  {h:S('② ปรับความชื้น','② Adjust moisture'),b:S('ใส่ความชื้นตามที่ป้อนจริง (as received) จากการอบตัวอย่างวันทดสอบ — ค่าความร้อนปรับตาม','Enter the as-received moisture from samples dried on the test day — the heating value follows')},
  {h:S('③ สัดส่วนผสม','③ Blend ratio'),b:S('เป็น % โดยมวลตามที่ป้อนจริง (ฐานเปียก) รวมกันต้องได้ 100 — เช่น ถ่านหิน 70 + ไม้สับ 30','Mass % as fed (wet basis), must total 100 — e.g. coal 70 + wood chips 30')}]});
 /* ───── G4 · Free ───── */
-add(host(tbl(/P₁ \(|P1 \(/)),{id:'pf-field',open:false,title:S('วิธีเก็บจุดสมรรถนะภาคสนาม (เส้นโค้งปั๊ม/พัดลม)','How to collect field performance points (pump/fan curve)'),steps:[
+add(host(tbl(/✓.*P₁ \(|✓.*P1 \(/)),{id:'pf-field',open:false,title:S('วิธีเก็บจุดสมรรถนะภาคสนาม (เส้นโค้งปั๊ม/พัดลม)','How to collect field performance points (pump/fan curve)'),steps:[
  {h:S('① ปรับทีละขั้น','① Step the valve/damper'),b:S('ปรับวาล์ว/แดมเปอร์ทีละขั้นจากเปิดสุดไปหรี่ บันทึกอย่างน้อย 5–7 จุดครอบช่วงใช้งาน รอให้นิ่งทุกจุด','Throttle the valve/damper step by step from fully open, record 5–7 points covering the operating range, let each settle')},
  {h:S('② ค่าที่บันทึก','② What to record'),b:S('Q จาก flow meter/ultrasonic · P₁ ด้านดูด และ P₂ ด้านส่ง (แปลงเป็น m หรือ Pa ตามหัวคอลัมน์) · ระบบคิด Head = P₂ − P₁ (+ ΔZ ของเกจ)','Q from a flow meter/ultrasonic · P₁ suction and P₂ discharge (in m or Pa as headed) · the tool computes Head = P₂ − P₁ (+ gauge ΔZ)')},
  {h:S('③ จุดที่ใช้ได้','③ Usable points'),b:S('จุดเขียวในคอลัมน์ ✓ = มี Q และ Head ครบ ใช้วาดกราฟ · จุดที่วัดตอนค่ายังไม่นิ่งให้ลบด้วยปุ่ม ✕','A green dot in the ✓ column = Q and head complete, used in the charts · delete points read before values settled with ✕')}]}); /* [แก้ไข 17 พ.ย. 2569] #106 เดิม "ติ๊ก ✓ เพื่อ fit เส้นโค้ง" — คอลัมน์ ✓ เป็นไฟสถานะ ไม่มีช่องติ๊ก และเครื่องมือไม่ fit · ตัวจับตารางเดิมไปติดตาราง Q/Head ของ Pump & Fan Audit ด้วย (ไม่มี P₁/P₂) */
 add(host(tbl(/η Hyd|η Aer/)),{id:'pfa-pts',open:false,title:S('วิธีกรอกจุดวัดสมรรถนะปั๊ม/พัดลม','How to fill in pump/fan performance points'),steps:[
  {h:S('① ต่อจุดวัด','① Each point'),b:S('Q, Head (ปั๊ม) หรือ ΔP total (พัดลม) และ kW ไฟฟ้า P_e วัดพร้อมกันที่สภาวะนิ่ง · ระบบคิด η ให้','Q, Head (pump) or total ΔP (fan) and electric kW P_e measured together at steady state · η is calculated')},
- {h:S('② กี่จุด','② How many'),b:S('จุดใช้งานปกติ 1 จุดพอสำหรับประเมิน · ต้องการเส้นโค้งให้เก็บ 3–5 จุด','One normal operating point is enough for an assessment · 3–5 points for a curve')}]});
+ {h:S('② กี่จุด','② How many'),b:S('จุดใช้งานปกติ 1 จุดพอสำหรับประเมิน · ต้องการเส้นโค้งให้เก็บ 3–5 จุด','One normal operating point is enough for an assessment · 3–5 points for a curve')},
+ /* [แก้ไข 18 พ.ย. 2569] #420 ขั้นตอนเก็บจุดหน้างาน (ย้ายจากคำแนะนำการวัดของ Pump & Fan Curve Builder) */
+ {h:S('③ เก็บเส้นโค้งหน้างาน','③ Field curve test'),b:S('ปิดวาล์ว/Damper ด้านส่ง → บันทึก Shutoff (Q = 0) ให้สั้นที่สุด แล้วเปิดทีละขั้น 25 % → 50 % → BEP → 75 % → 90 % → เปิดสุด (Runout) · รอให้ค่านิ่งก่อนบันทึก (ค่าแนวทางของเครื่องมือ 2–3 นาที) · ปั๊ม: ultrasonic flow meter + เกจด้านดูด/ส่ง · พัดลม: pitot traverse + manometer · ทุกจุดใช้ power meter และ tachometer','Close the discharge valve/damper → record shutoff (Q = 0) as briefly as possible, then open in steps 25 % → 50 % → BEP → 75 % → 90 % → fully open (runout) · let readings settle before recording (tool guide value 2–3 min) · pump: ultrasonic flow meter + suction/discharge gauges · fan: pitot traverse + manometer · every point: power meter and tachometer')},
+ {h:S('④ P₁/P₂ และรอบรายจุด','④ P₁/P₂ and speed per point'),b:S('กรอก P₁ กับ P₂ ครบคู่ เครื่องมือคิด Head ด้วยสูตรแท็บ Performance (ใช้ ΔZ ρ และขนาดท่อจากแท็บนั้น) · รอบแต่ละจุดไม่เท่ากัน กรอก N และ n_sp เพื่อแปลงเป็นรอบเดียวกัน','Enter P₁ and P₂ as a pair and the tool computes the head with the Performance-tab formula (ΔZ, ρ and pipe sizes from that tab) · if speeds differ between points, enter N and n_sp to translate to one speed')}]});
 add(host(document.getElementById('comp-table')),{id:'cas-free-reg',open:false,title:S('วิธีกรอกตารางเครื่องอัดอากาศ','How to fill in the compressor table'),steps:[
  {h:S('① ป้าย','① Plate'),b:S('FAD (m³/min) และ kW โหลดเต็มจากป้าย/แคตตาล็อก','FAD (m³/min) and full-load kW from the plate/catalogue')},
  {h:S('② วัดจริง','② Measured'),b:S('kW ขณะ load/unload ด้วย power meter · สัดส่วนเวลาโหลดจากมิเตอร์ชั่วโมงบนหน้าจอเครื่อง (ชั่วโมงโหลด ÷ ชั่วโมงเดิน)','Loaded/unloaded kW with a power meter · load fraction from the controller hour meters (loaded hours ÷ running hours)')}]});
@@ -888,5 +905,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"อ.หนึ่ง กลับทวี": "Aj. Nueng Klubtavee"});}</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #381 EN — ปุ่มส่งออก TE_ECM ชี้ MG-ECM-01 (ถ้อยคำเดียวกับ #368) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ส่งออกมาตรการเป็นไฟล์ TE_ECM เพื่อนำเข้า MG-ECM-01 บัญชีมาตรการอนุรักษ์พลังงาน (ระดับ Pro) — Tool_ECM_Portfolio รุ่น Free ย้ายไปเป็น MG-ECM-01 แล้ว": "Export measures as a TE_ECM file for import into MG-ECM-01 ECM Portfolio (Pro tier) — the Free Tool_ECM_Portfolio has moved to MG-ECM-01", "📤 ส่งออก TE_ECM → MG-ECM-01 (Pro)": "📤 Export TE_ECM → MG-ECM-01 (Pro)"});</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #376 EN — หัวกล่องข้อมูลส่งออก TE_ECM → MG-ECM-01 */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"📤 ข้อมูลส่งออก TE_ECM → MG-ECM-01 (ผลประหยัดรายปี)":"📤 Data exported as TE_ECM → MG-ECM-01 (annual savings)"});</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #420 คู่คำแปล EN — ตารางเส้นโค้งหลายจุดที่รวมจาก Pump & Fan Curve Builder · ค่าตั้งต้นของแม่แบบ 7 จุด (vals) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"P_shaft = P_e × η มอเตอร์ × η ส่งกำลัง": "P_shaft = P_e × motor η × transmission η", "· η คิดใหม่ทุกครั้งที่แก้ η มอเตอร์ / η ส่งกำลัง / ΔZ / ρ / ขนาดท่อ": "· η is recalculated whenever motor η / transmission η / ΔZ / ρ / pipe sizes change", "กรอก Head (H) ตรง ๆ หรือกรอก P₁ กับ P₂ ครบทั้งคู่ให้เครื่องมือคิด Head (H) ด้วยสูตรเดียวกับแท็บ Performance": "Enter Head (H) directly, or enter both P₁ and P₂ and the tool computes Head (H) with the same formula as the Performance tab", "กรอก ΔP Total ตรง ๆ หรือกรอก P₁ กับ P₂ ครบทั้งคู่ให้เครื่องมือคิด ΔP Total ด้วยสูตรเดียวกับแท็บ Performance": "Enter ΔP Total directly, or enter both P₁ and P₂ and the tool computes ΔP Total with the same formula as the Performance tab", "กรอกเมื่อจุดวัดแต่ละจุดเดินรอบไม่เท่ากัน (กรอก N รายจุดในตาราง) — เครื่องมือแปลงทุกจุดเป็นรอบนี้ด้วยกฎ affinity · ใส่รอบของเส้นโค้งผู้ผลิตเมื่อจะเทียบ datasheet · เว้นว่าง = ใช้ค่าที่วัดตรง ๆ": "Use when the points were run at different speeds (enter N per point in the table) — the tool translates every point to this speed with the affinity laws · enter the speed of the maker's curve to compare with the datasheet · blank = use the measured values as they are", "การแปลงเป็นรอบอ้างอิง: 10 CFR 431 Subpart Y Appendix A ข้อ I.D.3 (ปรับข้อมูลที่วัดเป็นรอบ nominal ตาม HI 40.6) · กฎ affinity: U.S. DOE, Improving Pumping System Performance – A Sourcebook for Industry (2006) หน้า 49–50, 52 · U.S. DOE, Improving Fan System Performance – A Sourcebook for Industry (2003) หน้า 4": "Translation to a reference speed: 10 CFR 431 Subpart Y Appendix A section I.D.3 (normalize measured data to the nominal speed per HI 40.6) · affinity laws: U.S. DOE, Improving Pumping System Performance – A Sourcebook for Industry (2006) pp. 49–50, 52 · U.S. DOE, Improving Fan System Performance – A Sourcebook for Industry (2003) p. 4", "ข้อ 3.2.12–3.2.15 (total head = z + p/ρg + U²/2g) · ข้อ 3.2.26 และ 3.2.29 (P_h = ρgQH · η = P_h ÷ กำลังเข้าปั๊ม)": "clauses 3.2.12–3.2.15 (total head = z + p/ρg + U²/2g) · clauses 3.2.26 and 3.2.29 (P_h = ρgQH · η = P_h ÷ pump power input)", "ด้วยกฎ affinity: Q × k · H × k² · P × k³ · η คงที่ (k = n_sp ÷ N) · แถวที่ไม่กรอก N ใช้ค่าที่วัด · กราฟ จุดทำงาน และ BEP ใช้ค่าที่แปลงแล้ว": "with the affinity laws: Q × k · H × k² · P × k³ · η unchanged (k = n_sp ÷ N) · rows without N use the measured values · chart, operating point and BEP use the translated values", "มีจุดที่รอบต่างจาก n_sp เกิน 20 % — กฎ affinity เป็นค่าประมาณสำหรับการเปลี่ยนแปลงเล็กน้อย (DOE Pumping Sourcebook หน้า 50) ตรวจค่า N ที่กรอก · เกณฑ์ 20 % เป็นค่าแนวทางของเครื่องมือ": "Some points differ from n_sp by more than 20 % — the affinity laws are an approximation for small changes (DOE Pumping Sourcebook p. 50); check the N values · the 20 % limit is a tool guide value", "กรอก n_sp แล้วแต่ยังไม่มีแถวที่กรอก N — ใช้ค่าที่วัดตรง ๆ": "n_sp is set but no row has N — measured values are used as they are", "รอบอ้างอิงของเส้นโค้ง n_sp (rpm)": "Reference speed of the curve n_sp (rpm)", "อ้างอิง:": "References:", "แปลงเป็นรอบอ้างอิง n_sp =": "Translated to reference speed n_sp =", "📄 ตารางจุดทดสอบ (รายงาน)": "📄 Test-point table (report)", "📄 แม่แบบ 7 จุด": "📄 7-point template", "คิดจาก P₁ และ P₂ — แก้ที่ P₁/P₂ หรือลบ P₁/P₂ เพื่อกรอกเอง": "Computed from P₁ and P₂ — edit P₁/P₂, or clear P₁/P₂ to enter it yourself", "เว้นว่าง = ไม่แปลง": "blank = no translation", "แทนที่ตารางเดิมด้วยแม่แบบ 7 จุด?": "Replace the current table with the 7-point template?"}); if(window.TE_I18N&&TE_I18N.vals)TE_I18N.vals({"Shutoff (วาล์วปิด)": "Shutoff (valve closed)", "วาล์ว 25%": "Valve 25%", "วาล์ว 50%": "Valve 50%", "BEP (จุดทำงาน)": "BEP (operating point)", "วาล์ว 75%": "Valve 75%", "วาล์ว 90%": "Valve 90%", "Runout (วาล์วเปิดสนิท)": "Runout (valve fully open)", "Shutoff (Damper ปิด)": "Shutoff (damper closed)", "Runout (Damper เปิดสนิท)": "Runout (damper fully open)"});</script>
 </body>
 </html>
