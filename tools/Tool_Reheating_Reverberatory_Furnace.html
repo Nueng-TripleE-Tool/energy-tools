@@ -144,7 +144,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <div class="grid-4">
       <div class="field"><label>ชั่วโมงทำงาน/ปี <span class="unit">hr/yr</span></label><input type="number" id="hr" value="6000" step="any"></div>
       <div class="field"><label>ราคาเชื้อเพลิง <span class="unit">฿/GJ (ฐานตามที่เลือก)</span></label><input type="number" id="c_fuel" value="350" step="any"></div>
-      <div class="field"><label>EF เชื้อเพลิง <span class="unit">kgCO₂/GJ</span></label><input type="number" id="ef_fuel" value="56.1" step="any"></div>
+      <div class="field"><label>EF เชื้อเพลิง <span class="unit">kgCO₂e/GJ</span></label><input type="number" id="ef_fuel" value="56.2" step="any" data-auto="1" oninput="this.dataset.auto='0';furnEFsrc()"><div class="unit" id="ef_src" style="font-size:11px;line-height:1.4"></div></div><!-- [แก้ไข 18 พ.ย. 2569] #366 ค่าตั้งต้นตามชนิดเชื้อเพลิง (มติ R6-02) -->
       <!-- [แก้ไข 3 ต.ค. 2569 audit] ฐานของ EF: EF ของ TGO/IPCC เป็นฐาน NCV (LHV) — เดิมคูณกับ GJ ฐาน HHV ทำให้ CO₂ เกิน ~10 % (NG) -->
       <div class="field"><label>ฐานของ EF <span class="unit">kgCO₂/GJ ต่อ</span></label><select id="ef_basis"><option value="NCV" selected>NCV/LHV (TGO/IPCC — แนะนำ)</option><option value="GCV">GCV/HHV</option></select></div>
       <div class="field"><label>ฐานค่าความร้อน (แสดงผล/ราคา)</label><select id="basis"><option value="HHV">HHV (Gross — แบบ MEASUR)</option><option value="LHV">LHV (Net — แบบงานตรวจวัดในไทย)</option><!-- [แก้ไข 17 พ.ย. 2569] ผลตรวจรอบ 5: BS 845 เป็นมาตรฐานหม้อไอน้ำ ไม่ใช้อ้างกับเตา --></select></div>
@@ -171,7 +171,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       <div class="field"><label>อุณหภูมิแวดล้อม <span class="unit">°C</span></label><input type="number" id="t_amb" value="30" step="any" onchange="syncWallTa()"></div><!-- [แก้ไข 10 ก.ย. 2569] t_amb เปลี่ยน → เติม wall_ta อัตโนมัติ -->
       <div class="field"><label>ความชื้นอากาศ <span class="unit">kg/kg dry air</span></label><input type="number" id="humid" value="0.016" step="any"></div>
     </div>
-    <div class="note">📌 EF (kgCO₂/GJ): NG≈56.1 • น้ำมันเตา≈77.4 • ดีเซล≈74.1 • LPG≈63.1 • ถ่านหิน≈94.6 • ชีวมวล = biogenic (รายงานแยก, ใช้ 0 ในบัญชี fossil) — ใช้ EF ไทยของ สผ./TGO ปีล่าสุด · Excess Air คำนวณจาก O₂ (dry) ด้วยสมดุลมวลก๊าซไอเสียแห้งตามองค์ประกอบเชื้อเพลิง (สูตรลัด O₂/(20.9−O₂) ให้ค่าสูงกว่าเล็กน้อย) · อุณหภูมิอ้างอิงสมดุล 25°C ตามนิยาม HHV</div><!-- [แก้ไข 18 พ.ย. 2569] #160 ข้อความเดิมบอก EA ≈ O₂/(20.9−O₂) แต่ engine (TE.FURN.combustion) ใช้สมดุลมวลไอเสียแห้งตั้งแต่ 11 พ.ย. 2569 — NG O₂ 5 %: หน้าจอ 28.1 % ขณะสูตรที่บอก 31.4 % -->
+    <div class="note">📌 <span id="ef_list">EF ตั้งต้น (kgCO₂e/GJ ฐาน NCV) เปลี่ยนตามเชื้อเพลิงที่เลือก — ดูใต้ช่อง EF</span> · Excess Air คำนวณจาก O₂ (dry) ด้วยสมดุลมวลก๊าซไอเสียแห้งตามองค์ประกอบเชื้อเพลิง (สูตรลัด O₂/(20.9−O₂) ให้ค่าสูงกว่าเล็กน้อย) · อุณหภูมิอ้างอิงสมดุล 25°C ตามนิยาม HHV</div><!-- [แก้ไข 18 พ.ย. 2569] #160 ข้อความเดิมบอก EA ≈ O₂/(20.9−O₂) แต่ engine (TE.FURN.combustion) ใช้สมดุลมวลไอเสียแห้งตั้งแต่ 11 พ.ย. 2569 — NG O₂ 5 %: หน้าจอ 28.1 % ขณะสูตรที่บอก 31.4 % -->
     <div class="btn-row">
       <button class="btn" onclick="runModel()">▶️ คำนวณ (Solve)</button>
       <button class="btn secondary" onclick="loadExample()">📋 ตัวอย่าง: เตา Reheating เหล็ก 12 t/h</button>
@@ -264,8 +264,8 @@ function showTab(id,el){document.querySelectorAll('.panel').forEach(p=>p.classLi
 const HINTS={
  hr:'ที่มา: บันทึกการเดินเตา/ฝ่ายผลิต — ชั่วโมงเดินเตาจริงต่อปี อย่าใช้ 8,760 โดยอัตโนมัติ',
  c_fuel:'ที่มา: ใบแจ้งหนี้เชื้อเพลิง ÷ ค่าความร้อน (ต้องเป็นฐานเดียวกับที่เลือก HHV/LHV) เช่น (฿/kg) ÷ HV(MJ/kg) × 1000 = ฿/GJ',
- ef_fuel:'ที่มา: ตาราง EF รายเชื้อเพลิงของ TGO/สผ. ปีล่าสุด (kgCO₂/GJ) — ชีวมวล = biogenic รายงานแยก',
- ef_basis:'EF ของ TGO/สผ./IPCC (NG 56.1, LPG 63.1, น้ำมันเตา 77.4) เป็นฐาน NCV (LHV) — โปรแกรมคูณกับพลังงานเชื้อเพลิงฐานเดียวกับ EF เสมอ ไม่ขึ้นกับฐานแสดงผล/ราคา',
+ ef_fuel:'ค่าตั้งต้นเปลี่ยนตามชนิดเชื้อเพลิง (ฐาน NCV, kgCO₂e/GJ = CO₂ + CH₄ + N₂O ด้วย GWP AR5): NG 56.2 จากคลัง EF ของเครื่องมือ (อบก. ม.ค. 2569 / IPCC 2006) · เชื้อเพลิงอื่นจาก IPCC 2006 Vol.2 Ch.2 Table 2.3 · ชีวมวล = CH₄ + N₂O เท่านั้น (CO₂ ชีวภาพรายงานแยก) · พิมพ์ค่าเองได้ — จะไม่ถูกเขียนทับเมื่อเปลี่ยนเชื้อเพลิง',
+ ef_basis:'EF ของ อบก./IPCC เป็นฐาน NCV (LHV) — โปรแกรมคูณกับพลังงานเชื้อเพลิงฐานเดียวกับ EF เสมอ ไม่ขึ้นกับฐานแสดงผล/ราคา · ค่าตั้งต้นทุกค่าเป็นฐาน NCV',
  basis:'MEASUR/สหรัฐฯ ใช้ HHV; งานตรวจวัดในไทยมักรายงานฐาน LHV — เลือกให้ตรงกับฐานของราคาเชื้อเพลิงที่กรอก',
  ftype:'ใช้เลือกชุดเกณฑ์ benchmark, จุดตรวจวัด และ checklist ในแท็บ Field Audit ให้ตรงประเภทเตา',
  fuelKey:'เลือกค่า default จากคลัง หรือ "กำหนดเอง" แล้วกรอกผลวิเคราะห์จริงจากห้องปฏิบัติการ',
@@ -338,10 +338,46 @@ function applyHints(){
 function initFuelSelect(){
   $('fuelKey').innerHTML=Object.entries(FUELS).map(([k,f])=>`<option value="${k}">${f.name}</option>`).join('');
 }
+
+/* [แก้ไข 18 พ.ย. 2569] #366 มติ R6-02 — EF เชื้อเพลิงของเตา
+   เดิม: EF ตั้งต้น 56.1 (NG, CO₂ อย่างเดียว) ไม่เปลี่ยนเมื่อเลือกเชื้อเพลิงอื่น (เลือกถ่านหินก็ยังคูณ 56.1) · ช่องว่างอ่านเป็น 0 แล้วรายงาน CO₂ 0 โดยไม่เตือน
+   ใหม่: ค่าตั้งต้นตามชนิดเชื้อเพลิง ฐาน NCV หน่วย kgCO₂e/GJ (CO₂ + CH₄ + N₂O · GWP AR5 จาก TE_EF.GWP_AR5)
+     NG = TE_EF 'CFO.S1.stationary.natural_gas_mj' (0.0562 kgCO₂e/MJ · อบก. ม.ค. 2569 อ้าง IPCC 2006 V.2 Ch.2 Table 2.3) — ค่าเดียวกับ MG-ECM-01/Boiler (R6-02)
+     LPG 63,100/1/0.1 · น้ำมันเตา (Residual Fuel Oil) 77,400/3/0.6 · ดีเซล (Gas/Diesel Oil) 74,100/3/0.6 · ถ่านหินบิทูมินัส (Other Bituminous) 94,600/10/1.5
+     ซับบิทูมินัส 96,100/10/1.5 kg CO₂/CH₄/N₂O ต่อ TJ — IPCC 2006 Guidelines Vol.2 Ch.2 Table 2.3 (Manufacturing Industries and Construction) หน้า 2.18–2.19
+     ไม้สับ (Wood/Wood Waste) และแกลบ (Other Primary Solid Biomass): CH₄ 30 · N₂O 4 kg/TJ (CO₂ ชีวภาพ 112,000 / 100,000 kg/TJ รายงานแยกเป็นรายการข้อมูล)
+     https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/2_Volume2/V2_2_Ch2_Stationary_Combustion.pdf
+     กำหนดเอง (custom) ไม่มีค่าตั้งต้น · ผู้ใช้พิมพ์ EF เอง → ไม่เขียนทับเมื่อเปลี่ยนเชื้อเพลิง (data-auto = 0)
+     ช่อง EF ว่าง/0 กับเชื้อเพลิงฟอสซิล → กล่องเตือน "ยังไม่รวม CO₂e … GJ/ปี" (หลัก: ผลลัพธ์ปลอดภัย · ผู้ใช้เข้าใจชัดเจน) */
+const FURN_EF_IPCC={lpg:[63100,1,0.1],hfo:[77400,3,0.6],diesel:[74100,3,0.6],bitum:[94600,10,1.5],subbit:[96100,10,1.5],wood:[0,30,4,112000],husk:[0,30,4,100000]};
+const FURN_EF_URL='https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/2_Volume2/V2_2_Ch2_Stationary_Combustion.pdf';
+function furnEFdef(key){
+  if(key==='ng'){ try{ const e=TE_EF.get('CFO.S1.stationary.natural_gas_mj'); return {ef:+(e.ef*1000).toFixed(2),src:'TE_EF (<span>อบก. ม.ค. 2569</span>) · '+e.src,bio:false}; }catch(err){ return null; } }
+  const c=FURN_EF_IPCC[key]; if(!c) return null;
+  const G=(window.TE_EF&&TE_EF.GWP_AR5)||{CH4_fossil:30,CH4_bio:28,N2O:265}, bio=c.length>3;
+  const ef=(c[0]+c[1]*(bio?G.CH4_bio:G.CH4_fossil)+c[2]*G.N2O)/1000;
+  return {ef:+ef.toFixed(2),src:'IPCC 2006 V.2 Ch.2 Table 2.3',bio:bio,bioCO2:bio?c[3]/1000:0};
+}
+function furnIsBio(key){ return key==='wood'||key==='husk'; }
+function furnEFsrc(){
+  const el=$('ef_src'); if(!el) return;
+  const key=$('fuelKey').value, d=furnEFdef(key), v=$('ef_fuel').value, auto=$('ef_fuel').dataset.auto!=='0';
+  if(!(+v>0)&&!furnIsBio(key)){ el.innerHTML='<span style="color:#b42318">⚠️ <span>ช่อง EF ว่าง/0 — CO₂e ของเชื้อเพลิงจะยังไม่ถูกนับ</span></span>'; return; }
+  if(d&&auto){ el.innerHTML='<span>ค่าตั้งต้นของเชื้อเพลิงนี้ ฐาน NCV —</span> '+d.src+(d.bio?' · <span>CH₄ + N₂O เท่านั้น · CO₂ ชีวภาพ</span> '+d.bioCO2+' <span>kg/GJ รายงานแยก</span>':'')+' — <a href="'+FURN_EF_URL+'" target="_blank" rel="noopener" style="word-break:break-all">IPCC 2006 V.2 Ch.2</a>'; return; }
+  el.innerHTML=d?'<span>ค่าที่กรอกเอง (ค่าตั้งต้นของเชื้อเพลิงนี้</span> '+d.ef+' <span>kgCO₂e/GJ ฐาน NCV)</span>':'<span>เชื้อเพลิงกำหนดเอง — กรอก EF ให้ตรงเชื้อเพลิงและฐานในช่องถัดไป</span>';
+}
+function furnApplyEF(force){
+  const el=$('ef_fuel'); if(!el) return;
+  const d=furnEFdef($('fuelKey').value);
+  if(d&&(force||el.dataset.auto!=='0')){ el.value=d.ef; el.dataset.auto='1'; if($('ef_basis'))$('ef_basis').value='NCV'; }
+  else if(!d&&el.dataset.auto!=='0'){ el.value=''; }   /* กำหนดเอง: ไม่มีค่าตั้งต้น → เว้นว่างให้กรอก (ขึ้นเตือนจนกว่าจะกรอก) ไม่ค้างค่าของเชื้อเพลิงก่อนหน้า */
+  furnEFsrc();
+}
 function applyFuelPreset(){
   const f=FUELS[$('fuelKey').value];
   ['C','H','O','N','S','M','Ash','HHV'].forEach(k=>$('f'+k).value=f[k]);
   updateLHV();
+  try{ furnApplyEF(false); }catch(e){}   /* [แก้ไข 18 พ.ย. 2569] #366 EF ตั้งต้นตามเชื้อเพลิง (ไม่ทับค่าที่ผู้ใช้กรอก) */
 }
 function updateLHV(){
   const f=readFuel();
@@ -417,10 +453,11 @@ function collectUI(){
   return inp;
 }
 function applyUI(inp){
-  $('basis').value=inp.basis||'HHV';if($('ef_basis'))$('ef_basis').value=inp.ef_basis||'NCV';/* [แก้ไข 3 ต.ค. 2569 audit] ไฟล์เก่าไม่มี ef_basis → ใช้ NCV (ค่าที่ถูก) */$('ftype').value=inp.ftype||'reheat';$('hr').value=inp.hr;$('c_fuel').value=inp.c_fuel;$('ef_fuel').value=inp.ef_fuel;
+  $('basis').value=inp.basis||'HHV';if($('ef_basis'))$('ef_basis').value=inp.ef_basis||'NCV';/* [แก้ไข 3 ต.ค. 2569 audit] ไฟล์เก่าไม่มี ef_basis → ใช้ NCV (ค่าที่ถูก) */$('ftype').value=inp.ftype||'reheat';$('hr').value=inp.hr;$('c_fuel').value=inp.c_fuel;$('ef_fuel').value=inp.ef_fuel;{const _d=furnEFdef((inp.fuel&&inp.fuel.key)||'ng');$('ef_fuel').dataset.auto=(_d&&Math.abs(+inp.ef_fuel-_d.ef)<1e-9&&(inp.ef_basis||'NCV')==='NCV')?'1':'0';}/* [แก้ไข 18 พ.ย. 2569] #366 ค่าเท่าค่าตั้งต้น = อัตโนมัติ · ค่าอื่น (รวมไฟล์เก่า 56.1) = ค่าที่ผู้ใช้กำหนด ไม่เขียนทับ */
   $('fuelKey').value=inp.fuel.key||'ng';
   ['C','H','O','N','S','M','Ash','HHV'].forEach(k=>$('f'+k).value=inp.fuel[k]);
   updateLHV();
+  try{ furnEFsrc(); }catch(e){}   /* [แก้ไข 18 พ.ย. 2569] #366 */
   $('o2d').value=inp.o2d;$('t_flue').value=inp.t_flue;$('t_air').value=inp.t_air;$('t_amb').value=inp.t_amb;$('humid').value=inp.humid;
   const L=inp.losses;
   const p=(id,v)=>{if($(id)!=null&&v!=null)$(id).value=v;};
@@ -498,7 +535,10 @@ function renderResults(R){
   lossRows+=`<tr><td>🌫️ ความสูญเสียทางปล่อง (Flue Gas Loss)</td><td>${f(R.flueLoss,1)}</td><td>${f(R.flueLoss/R.grossHHV*100,2)}</td></tr>`;
   /* [แก้ไข 18 พ.ย. 2569] #161 ไอเสียออกจากเตารวมความร้อนที่อากาศเผาไหม้นำกลับเข้ามา (Q_preheat) — เดิมไม่มีแถวหัก แถวรวมได้เกิน 100 % (ติด recuperator ε 60 %: 124 %) */
   const airCr=airCreditKW(R);if(airCr>0.05)lossRows+=`<tr><td>♻️ หัก: ความร้อนที่อากาศเผาไหม้นำกลับเข้าเตา (อุ่นอากาศ / อากาศเข้าร้อนกว่า 25 °C)</td><td>−${f(airCr,1)}</td><td>−${f(airCr/R.grossHHV*100,2)}</td></tr>`;
-  $('resultsBody').innerHTML=`${(R.warns&&R.warns.length)?'<div id="fur_plaus_warn" style="background:#fdecec;border:1px solid #f5a0a0;border-radius:6px;padding:8px 10px;color:#b42318;font-size:13px;margin-bottom:8px">⛔ ค่าที่ป้อน/ผลลัพธ์เป็นไปไม่ได้ทางฟิสิกส์ — อย่านำไปรายงาน:<br>• '+R.warns.join('<br>• ')+'</div>':''}
+  /* [แก้ไข 18 พ.ย. 2569] #366 EF ว่าง/0 กับเชื้อเพลิงฟอสซิล → เตือนว่ายังไม่รวม CO₂e (เดิมรายงาน 0 เงียบ ๆ) */
+  const efMiss=!(R.ef_fuel>0)&&!furnIsBio(R.fuel&&R.fuel.key);
+  const efWarn=efMiss?'<div id="fur_ef_warn" style="background:#fff6dc;border:1px solid #e6c766;border-radius:6px;padding:8px 10px;color:#7a5200;font-size:13px;margin-bottom:8px">⚠️ <span>ยังไม่รวม CO₂e ของเชื้อเพลิง — ช่อง EF ว่างหรือเป็น 0 · พลังงานเชื้อเพลิง</span> '+f(R.GJyrEF,0)+' <span>GJ/ปี</span> ('+(R.efBasis||'NCV')+') <span>ยังไม่ได้คูณ EF</span></div>':'';
+  $('resultsBody').innerHTML=efWarn+`${(R.warns&&R.warns.length)?'<div id="fur_plaus_warn" style="background:#fdecec;border:1px solid #f5a0a0;border-radius:6px;padding:8px 10px;color:#b42318;font-size:13px;margin-bottom:8px">⛔ ค่าที่ป้อน/ผลลัพธ์เป็นไปไม่ได้ทางฟิสิกส์ — อย่านำไปรายงาน:<br>• '+R.warns.join('<br>• ')+'</div>':''}
    <div class="section-title" style="margin-top:0">สรุปผล (Annual Summary — ฐาน ${b})</div>
    <div class="summary-grid">
      <div class="sum-box"><div class="head">พลังงานเข้าเตา (Gross Heat Input)</div>
@@ -515,7 +555,7 @@ function renderResults(R){
      </div>
      <div class="sum-box"><div class="head">ค่าใช้จ่าย & CO₂</div>
        <div class="row"><span class="k">ค่าเชื้อเพลิง</span><span class="v big">${f(R.fuelCost,0)} ฿/ปี</span></div>
-       <div class="row"><span class="k">CO₂ (EF ฐาน ${R.efBasis||'NCV'})</span><span class="v">${f(R.CO2,0)} tCO₂/ปี</span></div>
+       <div class="row"><span class="k">CO₂e (EF ฐาน ${R.efBasis||'NCV'})</span><span class="v">${efMiss?'<span style="color:#b42318">ยังไม่รวม (EF ว่าง)</span>':f(R.CO2,0)+' tCO₂e/ปี'}</span></div>
        <div class="row"><span class="k">ชั่วโมงทำงาน</span><span class="v">${f(R.hr,0)} hr/ปี</span></div>
        <div class="row"><span class="k">ความร้อนใช้ประโยชน์ (Charge)</span><span class="v">${f(R.useful,0)} kW</span></div>
      </div>
@@ -665,7 +705,7 @@ function compareTableHTML(all){
   html+=row('พลังงานต่อปี',R=>R.GJyr,0,'GJ/ปี');
   html+='<tr class="sect"><td colspan="'+(all.length+1)+'">ค่าใช้จ่ายและ CO₂</td></tr>';
   html+=row('ค่าเชื้อเพลิง',R=>R.fuelCost,0,'฿/ปี');
-  html+=row('CO₂',R=>R.CO2,1,'tCO₂/ปี');
+  html+=row('CO₂e',R=>R.CO2,1,'tCO₂e/ปี');   /* [แก้ไข 18 พ.ย. 2569] #366 EF รวม CH₄ + N₂O */
   html+='<tr class="sect"><td colspan="'+(all.length+1)+'">ผลประหยัดเทียบกรณีฐาน</td></tr>';
   const srow=(label,get,d=0)=>{
     let r=`<tr><td>${label}</td>`;
@@ -675,7 +715,7 @@ function compareTableHTML(all){
     return r+'</tr>';};
   html+=srow('ประหยัดพลังงาน (GJ/ปี)',R=>R.GJyr,0);
   html+=srow('ประหยัดค่าเชื้อเพลิง (฿/ปี)',R=>R.fuelCost,0);
-  html+=srow('ลด CO₂ (tCO₂/ปี)',R=>R.CO2,1);
+  html+=srow('ลด CO₂e (tCO₂e/ปี)',R=>R.CO2,1);
   let r1='<tr><td>% ประหยัดพลังงาน</td>';
   all.forEach((a,i)=>{if(i===0){r1+='<td>—</td>';return;}
     const v=(base.GJyr-a.R.GJyr)/base.GJyr*100;
@@ -969,7 +1009,7 @@ function importJSON(input){
 // ---- example: reheating furnace 12 t/h ----
 function loadExample(){
   $('fuelKey').value='ng';applyFuelPreset();
-  $('hr').value=6000;$('c_fuel').value=350;$('ef_fuel').value=56.1;$('basis').value='HHV';
+  $('hr').value=6000;$('c_fuel').value=350;furnApplyEF(true);$('basis').value='HHV';   /* [แก้ไข 18 พ.ย. 2569] #366 เดิม EF 56.1 (CO₂ อย่างเดียว) → ค่าตั้งต้น NG จาก TE_EF 56.2 kgCO₂e/GJ */
   $('o2d').value=5;$('t_flue').value=950;$('t_air').value=30; /* [แก้ไข 17 พ.ย. 2569] ผลตรวจรอบ 5: ตัวอย่างไม่อุ่นอากาศแต่ปล่อง 600 °C ได้ Excellent — เตาให้ความร้อนไม่มี recuperator ไอเสียออกราว 900–1,000 °C */$('t_amb').value=30;$('humid').value=0.016;
   $('charge_on').checked=true;$('charge_mat').value='steel';applyMaterial();
   $('charge_m').value=12000;$('charge_t_in').value=30;$('charge_t_out').value=1150;$('charge_pctMelt').value=0;$('charge_moist').value=0;$('charge_q_rxn').value=0;
@@ -1611,5 +1651,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"บริษัท ทริปเปิ้ลอี เทคโนโลยี จำกัด": "Triple E Technology Co., Ltd.", "กรณีฐาน (Baseline)": "Baseline"});if(TE_I18N.lang==='en'){try{if(scenarios[0]&&scenarios[0].name==='กรณีฐาน (Baseline)'){scenarios[0].name='Baseline';renderScenBar();}var rd=document.getElementById('rep_date');if(rd&&rd.value===thaiDate())rd.value=enDate();}catch(e){}}}</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #333 EN — คำอธิบายช่องอุณหภูมิไอเสีย + ช่วงอ้างอิง */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ที่มา: thermocouple จุดเดียวกับที่วัด O₂ — วัดก่อนเข้า recuperator และก่อนมีอากาศรั่วเจือจาง · ค่าทั่วไปก่อนนำความร้อนกลับ: เตาอุ่นเหล็ก 930–1,040 °C · เตาหลอมอะลูมิเนียมแบบ reverberatory 1,100–1,200 °C (อ้างอิง: U.S. DOE/BCS, Waste Heat Recovery: Technology and Opportunities in U.S. Industry, มี.ค. 2008, ตาราง 4 หน้า 8)":"Source: thermocouple at the same point as the O₂ measurement — before the recuperator and before air in-leakage dilutes it · typical values before heat recovery: steel reheating furnace 930–1,040 °C · aluminum reverberatory melting furnace 1,100–1,200 °C (Reference: U.S. DOE/BCS, Waste Heat Recovery: Technology and Opportunities in U.S. Industry, Mar 2008, Table 4, p. 8)"});</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #365 EN — ป้ายระดับประสิทธิภาพเตา + ช่วงอ้างอิง */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"Excellent — ประสิทธิภาพสูงมาก": "Excellent — very high efficiency", "Good — ประสิทธิภาพดี": "Good — good efficiency", "Acceptable — ประสิทธิภาพพอใช้": "Acceptable — fair efficiency", "Poor — ประสิทธิภาพต่ำ ควรปรับปรุงเร่งด่วน": "Poor — low efficiency, improve urgently", "ป้ายบอกระดับประสิทธิภาพเท่านั้น ไม่ได้บอกว่าเตามีอุปกรณ์นำความร้อนกลับ — ดูแถว Recuperator Effectiveness ด้านบน": "The label states the efficiency level only, not whether the furnace has heat-recovery equipment — see the Recuperator Effectiveness row above", "เทียบช่วงอ้างอิง: BEE (อินเดีย) Guide Book 2 บทที่ 4 ตาราง 4.1 ประสิทธิภาพเตาอุตสาหกรรมทั่วไป (เตาต่อเนื่องอุณหภูมิต่ำ 15–25 % · เตา pusher/rotary อุณหภูมิสูง 7–15 %) และตัวอย่างเตาอุ่นเหล็กในบทเดียวกันได้ราว 25 % · U.S. DOE/BCS (มี.ค. 2008) Waste Heat Recovery ตาราง 2: การอุ่นอากาศเผาไหม้เพิ่มประสิทธิภาพเตาได้ถึงราว 50 %": "Reference ranges for comparison: BEE (India) Guide Book 2 Chapter 4 Table 4.1 typical industrial furnace efficiencies (low-temperature continuous furnaces 15–25 % · high-temperature pusher/rotary furnaces 7–15 %) and the chapter's reheating-furnace example at about 25 % · U.S. DOE/BCS (Mar 2008) Waste Heat Recovery Table 2: combustion-air preheat can raise furnace efficiency by up to about 50 %"});</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #366 EN — EF เชื้อเพลิงตามชนิด (มติ R6-02) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"· Excess Air คำนวณจาก O₂ (dry) ด้วยสมดุลมวลก๊าซไอเสียแห้งตามองค์ประกอบเชื้อเพลิง (สูตรลัด O₂/(20.9−O₂) ให้ค่าสูงกว่าเล็กน้อย) · อุณหภูมิอ้างอิงสมดุล 25°C ตามนิยาม HHV": "· Excess Air is calculated from dry O₂ by a dry flue-gas mass balance on the fuel composition (the shortcut O₂/(20.9−O₂) gives slightly higher values) · balance reference temperature 25°C per HHV definition", "อบก. ม.ค. 2569": "TGO Jan 2026", "kgCO₂e/GJ": "kgCO₂e/GJ", "EF ตั้งต้น (kgCO₂e/GJ ฐาน NCV) เปลี่ยนตามเชื้อเพลิงที่เลือก — ดูใต้ช่อง EF": "Default EF (kgCO₂e/GJ, NCV basis) follows the selected fuel — see below the EF field", "ช่อง EF ว่าง/0 — CO₂e ของเชื้อเพลิงจะยังไม่ถูกนับ": "EF field blank/0 — fuel CO₂e will not be counted", "ค่าตั้งต้นของเชื้อเพลิงนี้ ฐาน NCV —": "Default for this fuel, NCV basis —", "CH₄ + N₂O เท่านั้น · CO₂ ชีวภาพ": "CH₄ + N₂O only · biogenic CO₂", "kg/GJ รายงานแยก": "kg/GJ reported separately", "ค่าที่กรอกเอง (ค่าตั้งต้นของเชื้อเพลิงนี้": "User-entered value (default for this fuel", "kgCO₂e/GJ ฐาน NCV)": "kgCO₂e/GJ, NCV basis)", "เชื้อเพลิงกำหนดเอง — กรอก EF ให้ตรงเชื้อเพลิงและฐานในช่องถัดไป": "Custom fuel — enter an EF matching the fuel and the basis in the next field", "ยังไม่รวม CO₂e ของเชื้อเพลิง — ช่อง EF ว่างหรือเป็น 0 · พลังงานเชื้อเพลิง": "Fuel CO₂e not included — the EF field is blank or 0 · fuel energy", "GJ/ปี": "GJ/yr", "ยังไม่ได้คูณ EF": "not yet multiplied by an EF", "ยังไม่รวม (EF ว่าง)": "not included (EF blank)", "CO₂e (EF ฐาน NCV)": "CO₂e (EF NCV basis)", "CO₂e (EF ฐาน GCV)": "CO₂e (EF GCV basis)", "tCO₂e/ปี": "tCO₂e/yr", "ลด CO₂e (tCO₂e/ปี)": "CO₂e reduction (tCO₂e/yr)", "ค่าตั้งต้นเปลี่ยนตามชนิดเชื้อเพลิง (ฐาน NCV, kgCO₂e/GJ = CO₂ + CH₄ + N₂O ด้วย GWP AR5): NG 56.2 จากคลัง EF ของเครื่องมือ (อบก. ม.ค. 2569 / IPCC 2006) · เชื้อเพลิงอื่นจาก IPCC 2006 Vol.2 Ch.2 Table 2.3 · ชีวมวล = CH₄ + N₂O เท่านั้น (CO₂ ชีวภาพรายงานแยก) · พิมพ์ค่าเองได้ — จะไม่ถูกเขียนทับเมื่อเปลี่ยนเชื้อเพลิง": "The default follows the fuel (NCV basis, kgCO₂e/GJ = CO₂ + CH₄ + N₂O with AR5 GWP): NG 56.2 from the tool's EF library (TGO Jan 2026 / IPCC 2006) · other fuels from IPCC 2006 Vol.2 Ch.2 Table 2.3 · biomass = CH₄ + N₂O only (biogenic CO₂ reported separately) · you may type your own value — it will not be overwritten when the fuel changes", "EF ของ อบก./IPCC เป็นฐาน NCV (LHV) — โปรแกรมคูณกับพลังงานเชื้อเพลิงฐานเดียวกับ EF เสมอ ไม่ขึ้นกับฐานแสดงผล/ราคา · ค่าตั้งต้นทุกค่าเป็นฐาน NCV": "TGO/IPCC EFs are on an NCV (LHV) basis — the tool always multiplies by fuel energy on the same basis as the EF, independent of the display/price basis · every default is NCV-based"});</script>
 </body>
 </html>
