@@ -246,6 +246,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             <div><label for="te_ecm_o2t">O₂ เป้าหมายหลังจูน (%)</label><input type="number" id="te_ecm_o2t" step="0.1" placeholder="เช่น 6" style="width:90px;"><div class="hint">มาตรการปรับอากาศส่วนเกิน — ว่างไว้ = ไม่ส่งมาตรการนี้</div></div>
             <div><label for="te_ecm_tgt">T<sub>g</sub> เป้าหมาย (°C)</label><input type="number" id="te_ecm_tgt" placeholder="เช่น 160" style="width:90px;"><div class="hint">มาตรการ economizer/ลดอุณหภูมิไอเสีย — ว่างไว้ = ไม่ส่ง</div></div>
         </div>
+        <p class="hint" style="font-size:0.8em; color:#6c3483; margin:6px auto 0; max-width:920px; text-align:center;">พลังงานเชื้อเพลิงในไฟล์ TE_ECM เป็น GJ ฐาน NCV (LHV) · เครื่องมือนี้ไม่คิด GHG — เมื่อคิด GHG ในเครื่องมือรวมมาตรการ ให้แยกบรรทัดเชื้อเพลิง (การปล่อยทางตรง ประเภทที่ 1) กับไฟฟ้า (ทางอ้อมจากพลังงานนำเข้า ประเภทที่ 2) และใช้ EF ต่อ GJ ฐาน NCV ให้ตรงกับ GJ นี้ · อ้างอิง: ISO 14064-1:2018 ข้อ 5.2.4 a–b · อบก. คู่มือคาร์บอนฟุตพริ้นท์องค์กรรายสาขาอุตสาหกรรม (2558) หน้า 4</p><!-- [แก้ไข 18 พ.ย. 2569] #345 มติ R6-02: ฐาน GJ ที่ส่งออก + แยก GHG ไฟฟ้า/เชื้อเพลิง (Pro TH-BLR-02 ส่ง GJ ฐาน GCV — ประกาศ hvBasis:'HHV') -->
         <p id="json_status" style="font-size:0.85em; color:#666; margin-top:8px;">*บันทึกค่าที่กรอกทั้งหมดเป็นไฟล์ JSON (เชื้อเพลิงผสม, Custom Fuel 1–3, ข้อมูลตรวจวัด, ไอน้ำ/น้ำมันร้อน, FD Fan) เพื่อโหลดกลับมาใช้งานภายหลัง</p>
     </div>
 
@@ -1796,7 +1797,7 @@ function teBuildECM(){
     if (!(etaB > 0) || !(dEta > 0)) return;
     var eta1 = etaB + dEta, pct = (1 - etaB / eta1) * 100;
     if (!(pct > 0)) return;
-    m.system = 'boiler'; m.effect = 'conversion'; m.carrier = carrier; m.unit = unit; m.group = 'measured';
+    m.system = 'boiler'; m.effect = 'conversion'; m.carrier = carrier; m.unit = unit; m.group = 'measured'; m.hvBasis = 'LHV'; /* [แก้ไข 18 พ.ย. 2569] #345 ฐาน GJ ของ primary.fuel_GJ (เหมือน pool) */
     m.savingPct = r(pct, 3);
     if (isFinite(baseSec)) m.baselineQty = r(baseSec, 1);
     if (fuelName) m.fuelName = fuelName;
@@ -1806,7 +1807,7 @@ function teBuildECM(){
     }
     m.basis = m.basis + ' · η เดิม ' + etaB.toFixed(2) + '% → η ใหม่ ' + eta1.toFixed(2) + '% (GCV, BS 845-1) · savingPct = (1 − η เดิม/η ใหม่)×100'
       + (R.aph ? ' · โหมดอุ่นอากาศ: η รวมเครดิตอุ่นอากาศ ' + R.aph.pG.toFixed(2) + '% (คงที่) · Tg = ไอเสียก่อนเข้า air preheater' : '') /* [แก้ไข 18 พ.ย. 2569] #340 */
-      + (fuelGJh > 0 ? ' · เชื้อเพลิงฐาน ' + fuelGJh.toFixed(3) + ' GJ/h (' + fuelSrc + ')' + (fuelKgh > 0 ? ' ≈ ' + fuelKgh.toFixed(1) + ' kg/h' : '') : '')
+      + (fuelGJh > 0 ? ' · เชื้อเพลิงฐาน ' + fuelGJh.toFixed(3) + ' GJ/h ฐาน NCV (' + fuelSrc + ')' + (fuelKgh > 0 ? ' ≈ ' + fuelKgh.toFixed(1) + ' kg/h' : '') : '')
       + (hours > 0 ? ' × ' + hours + ' ชม./ปี' : ' · ไม่ระบุชั่วโมงเดินเครื่อง จึงไม่คิดปริมาณรายปี');
     measures.push(m);
   }
@@ -2203,5 +2204,6 @@ if(window.TE_I18N)TE_I18N.set({
   });
 })();
 </script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #345 EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"พลังงานเชื้อเพลิงในไฟล์ TE_ECM เป็น GJ ฐาน NCV (LHV) · เครื่องมือนี้ไม่คิด GHG — เมื่อคิด GHG ในเครื่องมือรวมมาตรการ ให้แยกบรรทัดเชื้อเพลิง (การปล่อยทางตรง ประเภทที่ 1) กับไฟฟ้า (ทางอ้อมจากพลังงานนำเข้า ประเภทที่ 2) และใช้ EF ต่อ GJ ฐาน NCV ให้ตรงกับ GJ นี้ · อ้างอิง: ISO 14064-1:2018 ข้อ 5.2.4 a–b · อบก. คู่มือคาร์บอนฟุตพริ้นท์องค์กรรายสาขาอุตสาหกรรม (2558) หน้า 4": "Fuel energy in the TE_ECM file is GJ on an NCV (LHV) basis · this tool does not compute GHG — when GHG is computed in the measure-portfolio tool, keep fuel (direct emissions, Category 1 / Scope 1) and electricity (indirect from imported energy, Category 2 / Scope 2) on separate lines and use a per-GJ EF on the NCV basis to match these GJ · Reference: ISO 14064-1:2018 cl. 5.2.4 a–b · TGO organisational carbon footprint guide by industry sector (2015) p. 4"});</script>
 </body>
 </html>
