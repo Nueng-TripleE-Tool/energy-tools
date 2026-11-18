@@ -1535,13 +1535,21 @@ C_min = min(ṁ_fg×Cp_fg, ṁ_air×Cp_air)</div>
         <div class="card-header"><div class="dot red"></div>ข้อมูลฝั่งไอเสีย (Flue Gas Side)</div>
         <div class="card-body">
           <div class="grid-2">
+            <!-- [แก้ไข 18 พ.ย. 2569] #440 เลือกแหล่งไอเสียของ HRSG (ค่าตั้งต้น = แหล่งแยก) — เดิมกด "อัพเดตทุก Mode" แล้ว ṁ_fg ของเตาตัวอย่างทับค่า HRSG -->
+            <div class="field" style="grid-column:1/-1">
+              <label>แหล่งไอเสียของ HRSG</label>
+              <select id="hr_src" onchange="hrSrcChange()">
+                <option value="own">แหล่งแยก — กรอก Tgas_in · ṁ_fg · Cp_fg ในแท็บนี้เอง</option>
+                <option value="global">ใช้ไอเสียจากข้อมูลร่วม (หน้าภาพรวม)</option>
+              </select><div class="hint">HRSG มักใช้กับแหล่งไอเสียขนาดใหญ่ที่ต่างจากเตาในหน้าภาพรวม (เช่น ไอเสียกังหันก๊าซ) — ตัวอย่างนี้ 20,000 Nm³/hr · เลือก "ข้อมูลร่วม" เมื่อ HRSG ติดตั้งที่เตาเดียวกัน: Tgas_in = Tfg₁ และ ṁ_fg · Cp_fg คำนวณจากเชื้อเพลิงให้</div>
+            </div>
             <div class="field">
               <label>Tgas_in — ไอเสียเข้า HRSG <span>(°C)</span></label>
               <input type="number" id="hr_tgas_in" value="520" step="1"><div class="hint">อุณหภูมิไอเสียเข้า HRSG (°C) — วัดจริง; ไอเสีย GT 450–550 °C, เตาหลอม/เตาเผา 400–700 °C</div>
             </div>
             <div class="field">
-              <label>ṁ_fg — อัตราไหลไอเสีย <span>(Nm³/hr)</span> <span style="color:var(--accent2);font-size:10px">⚡ จาก Global</span></label>
-              <input type="number" id="hr_mfg" value="20000" step="100"><div class="hint">อัตราไหลไอเสีย (Nm³/hr) ดึงจาก Global — แก้ได้ถ้าวัดจริง (HRSG ต้องการปริมาณมาก ≥ 10,000 Nm³/hr)</div>
+              <label>ṁ_fg — อัตราไหลไอเสีย <span>(Nm³/hr)</span> <span id="hr_mfg_src" style="color:var(--accent2);font-size:10px">✍ กรอกเอง</span></label>
+              <input type="number" id="hr_mfg" value="20000" step="100"><div class="hint">อัตราไหลไอเสียที่เข้า HRSG (Nm³/hr) — วัดจริง (pitot) หรือจากผลคำนวณของแหล่งไอเสีย · เลือก "ข้อมูลร่วม" ด้านบน = ดึงจากหน้าภาพรวม</div>
             </div>
             <div class="field">
               <label>Cp_fg ค่าเฉลี่ย <span>(kJ/Nm³·K)</span></label>
@@ -2267,6 +2275,18 @@ function updateHRSGSatHint() {
   }
 }
 
+// [แก้ไข 18 พ.ย. 2569] #440 แหล่งไอเสียของ HRSG: แยก (กรอกเอง) / ข้อมูลร่วม (คัดลอก Tfg₁ · ṁ_fg · Cp_fg จากหน้าภาพรวม)
+function hrSrcUI() {
+  const g = (document.getElementById('hr_src')||{}).value === 'global';
+  const s = document.getElementById('hr_mfg_src'); if (s) s.textContent = g ? '⚡ จาก Global' : '✍ กรอกเอง';
+  ['hr_tgas_in','hr_mfg','hr_cpfg'].forEach(id => { const e = document.getElementById(id); if (e) e.style.background = g ? 'var(--surface2)' : ''; });
+}
+function hrSrcChange() {
+  hrSrcUI();
+  if ((document.getElementById('hr_src')||{}).value === 'global') { const s0 = _teSilent; _teSilent = true; try { calcGlobal(); } catch(e) {} _teSilent = s0; }
+  try { if (R.hrsg.done) calcHRSG(); } catch(e) {}
+}
+
 function loadSampleHRSG() {
   document.getElementById('hr_tgas_in').value = 520;
   document.getElementById('hr_mfg').value     = 20000;
@@ -2461,12 +2481,13 @@ function buildSankey(modes, total) {
 function recalcAll(){
   const T=fn=>{try{fn();}catch(e){}};
   // updateFuelProps/calcGlobal จะเขียนทับช่อง mfg/cpfg/ncv/ef ของทุกโหมด → เก็บค่าที่ผู้ใช้กรอก/โหลดไว้แล้วคืนหลังคำนวณ
-  const KEEP=['a_tfg1','a_mfg','a_cpfg','a_tair1','w_mfg','w_cpfg','m_mfg','oil_mfg','hr_mfg','oil_cpfg','hr_cpfg','p_ncv','p_ef'];
+  const KEEP=['a_tfg1','a_mfg','a_cpfg','a_tair1','w_mfg','w_cpfg','m_mfg','oil_mfg','hr_mfg','oil_cpfg','hr_cpfg','hr_tgas_in','p_ncv','p_ef']; // [แก้ไข 18 พ.ย. 2569] #440 +hr_tgas_in
   const snap={};KEEP.forEach(id=>{const e=document.getElementById(id);if(e)snap[id]=e.value;});
   _teSilent=true;
   T(updateFuelProps);T(calcGlobal);
   _teSilent=false;
   KEEP.forEach(id=>{const e=document.getElementById(id);if(e&&snap[id]!==undefined&&snap[id]!=='')e.value=snap[id];});
+  T(hrSrcUI); // [แก้ไข 18 พ.ย. 2569] #440
   T(calcAir);T(calcWater);T(calcMetal);T(()=>calcDrying(true));T(calcOil);T(updateHRSGSatHint);T(calcHRSG);T(buildSummary);
   T(tagFieldKinds);
 }
@@ -2497,9 +2518,9 @@ function teLoadJSON(file){
 }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
 var FK_DESIGN=['w_tw_out','w_mwater','m_tout','d_mc_out','d_tdry','oil_tout','oil_mfluid','hr_p','hr_tsup','hr_pinch','hr_approach'],
-    FK_MEAS=['g_fuel_flow','g_o2','g_tfg_in','g_tamb','a_tfg1','a_tfg2','a_tfg3','a_tair1','a_tair2','a_tair3','a_mair','w_tfg_in','w_tfg_out','w_tw_in','m_rate','m_tin','m_tfg_in','m_tfg_out','d_mc_in','d_m_wet','d_tair_in','oil_tfg_in','oil_tfg_out','oil_tin','hr_tgas_in','hr_tfw'],
-    FK_SET=['g_fuel','a_cpair','a_hrs','w_type','w_cp','w_hrs','m_type','m_cp','m_hrs','d_hrs','d_ncv_dry','d_fuel_price_gj','d_eta','oil_fluid','oil_cp','oil_hrs','hr_eta','hr_hrs','p_fuel_price','p_capex'],
-    FK_CALC=['a_mfg','a_cpfg','w_mfg','w_cpfg','m_mfg','oil_mfg','oil_cpfg','hr_mfg','hr_cpfg','hr_cpsteam','p_ncv','p_ef'];
+    FK_MEAS=['g_fuel_flow','g_o2','g_tfg_in','g_tamb','a_tfg1','a_tfg2','a_tfg3','a_tair1','a_tair2','a_tair3','a_mair','w_tfg_in','w_tfg_out','w_tw_in','m_rate','m_tin','m_tfg_in','m_tfg_out','d_mc_in','d_m_wet','d_tair_in','oil_tfg_in','oil_tfg_out','oil_tin','hr_tgas_in','hr_tfw','hr_mfg'],
+    FK_SET=['g_fuel','a_cpair','a_hrs','w_type','w_cp','w_hrs','m_type','m_cp','m_hrs','d_hrs','d_ncv_dry','d_fuel_price_gj','d_eta','oil_fluid','oil_cp','oil_hrs','hr_eta','hr_hrs','p_fuel_price','p_capex','hr_src','hr_cpfg'],
+    FK_CALC=['a_mfg','a_cpfg','w_mfg','w_cpfg','m_mfg','oil_mfg','oil_cpfg','hr_cpsteam','p_ncv','p_ef']; /* [แก้ไข 18 พ.ย. 2569] #440 hr_mfg → วัดจริง · hr_cpfg → ตั้งค่า (แหล่งแยกเป็นค่าตั้งต้น) */
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(/^fan_(dp|flow|eta|hrs)_/.test(id))return'set';if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(!l){var ps=e.previousElementSibling;if(ps&&ps.tagName==='LABEL')l=ps;}if(!l){var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}}return l;}
@@ -2521,6 +2542,10 @@ window.addEventListener('DOMContentLoaded', () => {
   setOilFluid();
   updateHRSGSatHint();
   document.getElementById('hr_p').addEventListener('input', updateHRSGSatHint);
+  // [แก้ไข 18 พ.ย. 2569] #440 คำนวณข้อมูลไอเสียร่วมตั้งแต่เปิดหน้า (เงียบ) — ทุกแท็บใช้ ṁ_fg/Cp_fg ชุดเดียวกันตั้งแต่แรก
+  //   (เดิม Excess Air/ṁ_fg/Cp_fg ขึ้น "—" จนกว่าจะกดปุ่ม แท็บต่าง ๆ ใช้ Cp ตั้งต้น 1.40–1.42 และแท็บอบแห้งไม่ตรวจพลังงานไอเสีย)
+  hrSrcUI();
+  { const s0 = _teSilent; _teSilent = true; try { calcGlobal(); } catch(e) {} _teSilent = s0; }
 });
 </script>
 <!-- [แก้ไข 4 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
@@ -3021,5 +3046,14 @@ if(window.TE_I18N)TE_I18N.set({
 <script src="../lib/te-scene.js?v=r8"></script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-16 (พบเพิ่มจากด่านตรวจ) — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"รวม": "Total"},[[/สมดุลพลังงานไม่ปิด: อากาศรับ (\S+) kW มากกว่าความร้อนที่ไอเสียให้ (\S+) kW เกิน 10 % — เป็นไปไม่ได้/g,"Energy balance does not close: the air gains $1 kW, over 10 % more than the $2 kW given up by the flue gas — impossible"],[/ตรวจ ṁ_air \/ ṁ_fg \/ cp \/ อุณหภูมิที่วัด \(ปกติ Q_air ≤ Q_fg − ความร้อนสูญเสียผิว HX\)/g,"Check ṁ_air / ṁ_fg / cp / measured temperatures (normally Q_air ≤ Q_fg − HX surface heat loss)"],[/ความร้อนที่กู้คืน \(Water\)/g,"Heat recovered (water)"],[/อัตราน้ำที่อุ่นได้/g,"Water flow that can be heated"],[/Tw_out จริง/g,"Actual Tw_out"],[/ตรวจ Tfg_out > Acid Dew Point เพื่อป้องกันกัดกร่อน/g,"Check Tfg_out > acid dew point to prevent corrosion"],[/ความร้อนที่น้ำต้องการ \(Q_water_demand\)/g,"Heat required by the water (Q_water_demand)"],[/Cp_water = f\(T_mean\) จาก NIST fit/g,"Cp_water = f(T_mean) from a NIST fit"],[/\(คำนวณจากความร้อน FG\)/g,"(calculated from FG heat)"],[/อัตราระเหยน้ำ \(ṁ_evap\)/g,"Water evaporation rate (ṁ_evap)"],[/วัสดุแห้งออก \(m_dry_out\)/g,"Dried material out (m_dry_out)"],[/ความร้อนจริงที่ต้องการ \(Q_actual\)/g,"Actual heat required (Q_actual)"],[/ความร้อนที่ต้องการ \(Q_dry\)/g,"Heat required (Q_dry)"],[/พลังงานอบแห้งต่อปี/g,"Annual drying energy"],[/NCV สด \(ก่อน→หลัง\)/g,"As-received NCV (before→after)"],[/SMER \(ประสิทธิภาพอบ\)/g,"SMER (drying efficiency)"],[/FG มีพลังงานไม่พอ:/g,"FG energy is insufficient:"],[/FG ให้ได้ (\S+) kW แต่ตู้อบต้องการ (\S+) kW/g,"FG can supply $1 kW but the dryer needs $2 kW"],[/— คำนวณจากพลังงาน FG จริง ควรเพิ่มแหล่งความร้อนเสริม/g,"— calculated from the actual FG energy; add a supplementary heat source"],[/มูลค่าความร้อนทดแทน:/g,"Value of displaced heat:"],[/พลังงานเพิ่มจาก NCV:/g,"Extra energy from NCV:"],[/มูลค่ารวม:/g,"Total value:"],[/แสดงขั้นตอนการคำนวณละเอียด/g,"Show detailed calculation steps"],[/ไม้สับสด/g,"fresh wood chips"],[/มวลของแข็งแห้ง \(m_dry_solid\)/g,"Dry solid mass (m_dry_solid)"],[/มวลผลผลิตหลังอบ \(m_wet_out\)/g,"Product mass after drying (m_wet_out)"],[/ความชื้นลดจาก /g,"Moisture reduced from "],[/ความร้อนแฝงระเหย h_fg @ T_dry/g,"Latent heat of evaporation h_fg @ T_dry"],[/→ รวม (\S+) kJ\/kg/g,"→ total $1 kJ/kg"],[/ความร้อนทฤษฎีอบแห้ง \(Q_theory\)/g,"Theoretical drying heat (Q_theory)"],[/÷ 3,600 แปลงหน่วย kJ\/hr → kW/g,"÷ 3,600 converts kJ/hr → kW"],[/NCV วัสดุ \(ก่อน → หลังอบ\)/g,"Material NCV (before → after drying)"],[/พลังงานที่กู้คืนได้จริงต่อปี/g,"Energy actually recovered per year"],[/อัตราการผลิตไอน้ำ \(สมดุลเหนือ Pinch = SH\+EVAP\)/g,"Steam generation rate (balance above the pinch = SH+EVAP)"],[/อัตราผลิตไอน้ำ/g,"Steam generation rate"],[/ความร้อนกู้คืนรวม/g,"Total heat recovered"],[/เหนือ Dew Point/g,"above the dew point"],[/💡 ไอน้ำ ≈/g,"💡 Steam ≈"],[/พลังงานต่อปี/g,"Energy per year"],[/ประหยัดเชื้อเพลิง/g,"Fuel saving"],[/คุณสมบัติไอน้ำอิ่มตัว @P/g,"Saturated steam properties @P"],[/= ไอน้ำอิ่มตัว \(Saturated\)/g,"= saturated steam"],[/จุด Pinch ฝั่งไอเสีย/g,"Gas-side pinch point"],[/อุณหภูมิไอเสียขณะออกจาก Evaporator \(จุดที่ ΔT แคบสุด\)/g,"Flue gas temperature leaving the evaporator (narrowest ΔT)"],[/เอนทาลปีน้ำออก Economizer \(subcooled\)/g,"Enthalpy of water leaving the economizer (subcooled)"],[/น้ำป้อน (\S+)°C → ออก economizer ที่ ~(\S+)°C/g,"Feedwater $1°C → leaves the economizer at ~$2°C"],[/แยกภาระความร้อน 3 ส่วน/g,"Heat duty split into 3 zones"],[/เชื้อเพลิงที่ประหยัดได้ \(แทนที่ Boiler\)/g,"Fuel saved (displacing the boiler)"],[/HRSG แทนความร้อนที่ boiler \(η=(\S+)\) ต้องผลิต/g,"HRSG displaces heat the boiler (η=$1) would have to produce"],[/ส่วน \(Zone\)/g,"Zone"],[/ไอเสีย เข้า→ออก \(°C\)/g,"Flue gas in→out (°C)"],[/% รวม/g,"% of total"],[/— \(ไม่มี\)/g,"— (none)"],[/วิธี Single-Pressure Pinch — pinch (\S+)°C, approach (\S+)°C ตาม ASME\/HRSG practice \(Ganapathy\)/g,"Single-pressure pinch method — pinch $1°C, approach $2°C per ASME/HRSG practice (Ganapathy)"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-18 ตัวอย่างตั้งต้น WHR — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/พลังงานเพียงพอ:/g,"Energy is sufficient:"],[/FG มีพลังงานเพียงพอสำหรับการอบแห้ง/g,"the FG has enough energy for drying"]]);</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #440–#449 (ผู้ช่วย R) — คู่คำแปล EN ของข้อความที่เพิ่ม/เปลี่ยน */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"แหล่งไอเสียของ HRSG":"HRSG flue-gas source",
+"แหล่งแยก — กรอก Tgas_in · ṁ_fg · Cp_fg ในแท็บนี้เอง":"Separate source — enter Tgas_in · ṁ_fg · Cp_fg on this tab",
+"ใช้ไอเสียจากข้อมูลร่วม (หน้าภาพรวม)":"Use the shared flue-gas data (Overview page)",
+"HRSG มักใช้กับแหล่งไอเสียขนาดใหญ่ที่ต่างจากเตาในหน้าภาพรวม (เช่น ไอเสียกังหันก๊าซ) — ตัวอย่างนี้ 20,000 Nm³/hr · เลือก \"ข้อมูลร่วม\" เมื่อ HRSG ติดตั้งที่เตาเดียวกัน: Tgas_in = Tfg₁ และ ṁ_fg · Cp_fg คำนวณจากเชื้อเพลิงให้":"An HRSG usually serves a large flue-gas source that differs from the furnace on the Overview page (e.g. gas-turbine exhaust) — this example is 20,000 Nm³/hr · choose \"shared data\" when the HRSG sits on the same furnace: Tgas_in = Tfg₁ and ṁ_fg · Cp_fg are calculated from the fuel",
+"✍ กรอกเอง":"✍ entered here",
+"อัตราไหลไอเสียที่เข้า HRSG (Nm³/hr) — วัดจริง (pitot) หรือจากผลคำนวณของแหล่งไอเสีย · เลือก \"ข้อมูลร่วม\" ด้านบน = ดึงจากหน้าภาพรวม":"Flue-gas flow entering the HRSG (Nm³/hr) — measured (pitot) or from the source's own calculation · choosing \"shared data\" above takes it from the Overview page"
+},[]);</script>
 </body>
 </html>
