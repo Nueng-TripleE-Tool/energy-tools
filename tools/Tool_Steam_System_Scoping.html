@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Steam System Scoping — ประเมินตนเองระบบไอน้ำ</title>
+<!-- [แก้ไข 23 พ.ย. 2569] WP-30 เครื่องมือใหม่: ประเมินตนเองระบบไอน้ำ (ดัดแปลงจาก Steam System Scoping Tool v1.0d ของ U.S. Department of Energy) -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script data-te-lock="L0-r1">/*! TE_L0_LOCK r1 (3 พ.ย. 2569) — ล็อกผิวระยะ 1: เครื่องมือนี้ให้ใช้ฟรีบนเว็บ tripleeenergytools.com เท่านั้น
+ * สำเนาไฟล์ที่บันทึกออกไปจะคำนวณไม่ได้ · ระยะ 2 จะย้ายแกนคำนวณเข้า te-core (ล็อกแท้) · ลิขสิทธิ์ อ.หนึ่ง กลับทวี · Triple E Technology */
+(function(){var A=['tripleeenergytools.com','www.tripleeenergytools.com','app.tripleeenergytools.com','nueng-triplee-tool.github.io','localhost','127.0.0.1','[::1]'];
+var ok=true,why='';try{var h=String(location.hostname||'').toLowerCase();ok=A.indexOf(h)>=0;if(!ok)why=h?('โดเมน '+h+' ไม่ได้รับอนุญาต'):'เปิดจากไฟล์ในเครื่อง (file://)';}catch(e){ok=false;why='ตรวจสอบแหล่งที่มาไม่ได้';}
+if(ok)return;window.TE_L0_LOCKED=true;
+var MSG='เครื่องมือนี้ใช้งานฟรีได้ที่ https://tripleeenergytools.com เท่านั้น — สำเนาไฟล์ที่บันทึกออกไปใช้คำนวณไม่ได้ ('+why+') · Free to use at https://tripleeenergytools.com only — saved copies cannot calculate.';
+function kill(){try{var els=document.querySelectorAll('button,input,select,textarea');for(var i=0;i<els.length;i++){els[i].disabled=true;els[i].style.opacity='0.45';}}catch(e){}}
+function banner(){try{if(document.getElementById('teL0bar')||!document.body)return;var d=document.createElement('div');d.id='teL0bar';
+d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7a1f1f;color:#fff;font:14px/1.7 sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+d.innerHTML='\u26a0 '+MSG+' — <a href="https://tripleeenergytools.com" style="color:#ffd54f;font-weight:700">เปิดเว็บจริง / Open the website</a>';
+document.body.appendChild(d);}catch(e){}}
+function block(ev){var t=ev.target;if(t&&t.closest&&t.closest('#teL0bar'))return;ev.stopImmediatePropagation();ev.preventDefault();banner();}
+['click','dblclick','submit','change','input','keydown','pointerdown','touchstart'].forEach(function(t){document.addEventListener(t,block,true);});
+function arm(){banner();kill();setInterval(function(){banner();kill();},1500);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm);else arm();
+})();</script>
+<script src="../lib/te-core.js"></script>
+<script>
+/* [แก้ไข 23 พ.ย. 2569] TE_JSON — บันทึก/โหลดทุกช่องกรอก (input/select/textarea ที่มี id) + state เพิ่มเติม (บล็อกมาตรฐานชุดระยะ 4) */
+var TE_JSON=(function(){
+  function collect(){var o={};var els=document.querySelectorAll('input[id],select[id],textarea[id]');for(var i=0;i<els.length;i++){var e=els[i];if(e.type==='file'||e.type==='button')continue;o[e.id]=(e.type==='checkbox'||e.type==='radio')?e.checked:e.value;}return o;}
+  function applyOnce(o){Object.keys(o).forEach(function(id){var e=document.getElementById(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!o[id];else e.value=o[id];});}
+  function apply(o,after){applyOnce(o);try{if(after)after();}catch(e){}applyOnce(o);try{if(after)after();}catch(e){}} // late-fix pass: ช่องที่ถูกสร้างระหว่างคำนวณ
+  function save(name,extra){var d={meta:{tool:name||document.title,exportedAt:new Date().toISOString(),schema:1},inputs:collect(),extra:extra||null};
+    var b=new Blob([JSON.stringify(d,null,1)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'tool')+'_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},2000);}
+  function load(file,after,onExtra){if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(onExtra&&d.extra)onExtra(d.extra);apply(d.inputs||d,after);}catch(e){alert('ไฟล์ JSON ไม่ถูกต้อง: '+e.message);}};r.readAsText(file);}
+  return{collect:collect,apply:apply,save:save,load:load};
+})();
+</script>
+<style>
+:root{
+  --navy:#0f2a4a;--teal:#12a4a4;
+  --header-grad:linear-gradient(135deg,var(--navy),var(--teal));
+  --bg:#f4f7fa;--card:#fff;--ink:#1c2b3a;--muted:#5b6b7b;--line:#e2e8f0;
+  --accent:#12a4a4;--warn:#e08a00;--ok:#1e9e5a;--danger:#d1495b;
+  --radius:14px;--shadow:0 6px 20px rgba(15,42,74,.08);
+}
+*{box-sizing:border-box}
+html,body{overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Thai",sans-serif;line-height:1.55;overflow-wrap:anywhere}
+header{background:var(--header-grad);color:#fff;padding:20px 20px 16px}
+header h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:1.9rem;margin:0;letter-spacing:.3px}
+header p{margin:.25rem 0 0;opacity:.92;font-size:.95rem}
+.hdr-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.badge{display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:4px 12px;font-size:.85rem}
+.badge b{font-family:"IBM Plex Mono",monospace}
+.te-json{display:inline-flex;flex-wrap:wrap;gap:6px}
+.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12.5px;padding:7px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;margin:0;min-height:36px;display:inline-flex;align-items:center}
+.wrap{max-width:1100px;margin:18px auto;padding:0 14px;display:grid;gap:16px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;min-width:0}
+.card h2{font-family:"Barlow Condensed",sans-serif;color:var(--navy);margin:.1rem 0 .8rem;font-size:1.35rem}
+.card h3{font-family:"Barlow Condensed",sans-serif;color:var(--navy);margin:1rem 0 .5rem;font-size:1.12rem}
+label.fl{display:block;font-size:.86rem;color:var(--ink);margin:.7rem 0 .25rem;font-weight:500}
+input[type=text],input[type=number],input[type=date],textarea{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-family:"IBM Plex Mono",monospace;font-size:.92rem;background:#fff;min-height:40px}
+textarea{font-family:"IBM Plex Sans Thai",sans-serif;min-height:64px}
+.unit{font-family:"IBM Plex Mono",monospace;color:var(--muted);font-size:.8rem;margin-left:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 14px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:0 14px}
+button.btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer;font-size:.95rem;font-family:"IBM Plex Sans Thai",sans-serif;min-height:44px}
+button.btn.sec{background:#fff;color:var(--navy);border:1.5px solid var(--line)}
+.tbar{display:flex;flex-wrap:wrap;gap:8px}
+.hint{font-size:.78rem;color:var(--muted);margin-top:4px;line-height:1.5;background:#f7fafc;border-left:3px solid #cfe0ea;padding:4px 9px;border-radius:0 8px 8px 0}
+.note{background:#fff8ec;border:1px solid #f0dcb0;border-radius:10px;padding:10px 14px;font-size:.86rem;margin-top:10px}
+.reco{background:#eef8f4;border:1px solid #bfe4d4;border-radius:10px;padding:10px 14px;font-size:.88rem;margin-top:10px}
+.warnbox{background:#fdecee;border:1px solid #f3b8c0;color:#8a1f2d;border-radius:10px;padding:8px 12px;font-size:.85rem;margin-top:8px}
+.muted{color:var(--muted)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--line)}
+.tab{padding:9px 12px;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;font-size:.9rem;background:none;border-top:0;border-left:0;border-right:0;font-family:inherit;min-height:44px}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab .tsc{font-family:"IBM Plex Mono",monospace;font-size:.78rem;font-weight:500;margin-left:4px;color:var(--muted)}
+.tabpane{display:none}
+.tabpane.active{display:grid;gap:16px}
+.sec-card .sec-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:baseline}
+details.why{margin:6px 0 4px;font-size:.86rem}
+details.why summary{cursor:pointer;color:var(--teal);font-weight:600}
+.todo{font-size:.88rem;background:#f0f8f8;border-left:3px solid var(--teal);padding:6px 10px;border-radius:0 8px 8px 0;margin:4px 0}
+.todo b,.whyt b{color:var(--navy)}
+.whyt{padding:6px 10px;color:var(--ink)}
+.q{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px}
+.q.ans{border-color:#9ad6b6;background:#fbfefc}
+.qh{font-weight:600;color:var(--navy);margin-bottom:6px}
+.qid{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.8rem;background:var(--navy);color:#fff;border-radius:6px;padding:1px 7px;margin-right:6px}
+.qtype{font-size:.76rem;color:var(--muted);font-weight:400;margin-left:4px}
+.opt{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer;min-height:44px;margin:2px 0}
+.opt:hover{background:#f4f9f9}
+.opt input{margin-top:4px;width:18px;height:18px;flex:0 0 auto;accent-color:var(--teal)}
+.opt .ol{flex:1 1 auto;min-width:0}
+.opt .op{flex:0 0 auto;font-family:"IBM Plex Mono",monospace;font-size:.82rem;color:var(--teal);white-space:nowrap}
+.opt.none .ol{color:var(--muted);font-style:italic}
+.qs{font-size:.84rem;color:var(--muted);text-align:right;margin-top:4px}
+.qs b{font-family:"IBM Plex Mono",monospace;color:var(--navy)}
+.kpirow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:8px 0}
+.kpi{background:#f7fafc;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kpi .v{font-family:"Barlow Condensed",sans-serif;font-size:1.8rem;color:var(--navy);line-height:1.15}
+.kpi .v small{font-size:1rem;color:var(--muted)}
+.kpi .l{font-size:.8rem;color:var(--muted)}
+.scroll-x{overflow-x:auto;max-width:100%}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.88rem}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#f0f4f8;font-weight:600;color:var(--navy)}
+td.qcell{white-space:nowrap;font-family:"IBM Plex Mono",monospace}
+td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace;white-space:nowrap}
+tr.catrow td{background:#eef6f6;font-weight:600;color:var(--navy)}
+tr.totrow td{background:#0f2a4a;color:#fff;font-weight:700}
+.barrow{margin:10px 0}
+.barrow .bl{display:flex;justify-content:space-between;gap:8px;font-size:.88rem;flex-wrap:wrap}
+.barrow .bl b{color:var(--navy)}
+.barrow .bv{font-family:"IBM Plex Mono",monospace;white-space:nowrap}
+.barrow svg{display:block;width:100%;height:16px;margin-top:3px}
+.prio{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:10px}
+.prio.top{border-color:#f2c88a;background:#fffaf2}
+.prio .ph{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.prio .rk{font-family:"Barlow Condensed",sans-serif;font-size:1.2rem;color:var(--warn);min-width:26px}
+.prio .lost{margin-left:auto;font-family:"IBM Plex Mono",monospace;color:var(--danger);font-size:.85rem;white-space:nowrap}
+.prio .pa{font-size:.84rem;color:var(--muted);margin-top:2px}
+.prio .pt{font-size:.85rem;margin-top:4px}
+.links{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px}
+.links a{display:inline-flex;align-items:center;min-height:36px;padding:5px 10px;border-radius:8px;border:1px solid #9fd8d8;background:#eef8f8;color:#0b6f6f;text-decoration:none;font-size:.84rem;font-weight:600}
+.fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
+.fchip.design{background:#fff4e0;color:#9a5b00;border-color:#f2c88a}.fchip.meas{background:#e6f5ec;color:#176b3c;border-color:#9ad6b6}
+.fchip.set{background:#eef2f7;color:#3a4f72;border-color:#cbd5e1}.fchip.calc{background:#ede9fb;color:#5c35a0;border-color:#c9bdf0}
+.foot{text-align:center;color:var(--muted);font-size:.8rem;padding:18px 14px 70px}
+.foot strong{color:var(--ink)}
+.print-only{display:none}
+@media(max-width:720px){.grid2,.grid3,.grid4{grid-template-columns:1fr}header h1{font-size:1.55rem}.card{padding:16px}}
+@media print{
+  body{background:#fff}
+  header{padding:12px 16px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .no-print,.tabs,#teLangChip,.tei-fab,.tei-ov,.tei-toast,#te-consent{display:none!important}
+  .card{box-shadow:none;border:1px solid var(--line)}
+  .tabpane{display:none!important}
+  #pane-sum{display:grid!important}
+  .print-only{display:block}
+  .prio,.barrow,tr{page-break-inside:avoid}
+  .scroll-x{overflow:visible}
+  a{color:inherit}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>STEAM SYSTEM SCOPING</h1>
+  <p id="hdrSub">ประเมินตนเองระบบไอน้ำ 26 ข้อ 340 คะแนน · ดัดแปลงจาก Steam System Scoping Tool v1.0d ของ U.S. Department of Energy</p>
+  <div class="hdr-row">
+    <span class="badge" id="hdrBadge"></span>
+    <span class="te-json no-print">
+      <button type="button" onclick="teSaveJSON()">💾 บันทึก JSON</button>
+      <label><span>📂 โหลด JSON</span><input type="file" id="fileLoad" accept=".json" hidden onchange="teLoadJSON(this.files[0]);this.value=''"></label>
+      <button type="button" onclick="tePrint()">🖨 พิมพ์รายงาน</button>
+    </span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card no-print" id="introCard"></div>
+  <div class="no-print"><div class="tabs" id="tabs" role="tablist"></div></div>
+  <div class="tabpane active" id="pane-basic"></div>
+  <div class="tabpane" id="pane-c1"></div>
+  <div class="tabpane" id="pane-c2"></div>
+  <div class="tabpane" id="pane-c3"></div>
+  <div class="tabpane" id="pane-c4"></div>
+  <div class="tabpane" id="pane-sum"></div>
+</div>
+<div class="foot" id="foot"></div>
+
+<script type="application/json" id="ssst-data">
+{
+"cats": [
+{
+"id": 1,
+"en": "Steam System Profiling",
+"th": "ภาวะการณ์ระบบไอน้ำ",
+"tab": {
+"en": "Profiling",
+"th": "ภาวะการณ์ระบบไอน้ำ"
+}
+},
+{
+"id": 2,
+"en": "Steam System Operating Practices",
+"th": "แนวปฏิบัติการใช้งานระบบไอน้ำทั้งระบบ",
+"tab": {
+"en": "Total Steam System",
+"th": "แนวปฏิบัติทั้งระบบ"
+}
+},
+{
+"id": 3,
+"en": "Boiler Plant Operating Practices",
+"th": "แนวปฏิบัติโรงผลิตไอน้ำ/หม้อไอน้ำ",
+"tab": {
+"en": "Boiler Plant",
+"th": "โรงผลิตไอน้ำ/หม้อไอน้ำ"
+}
+},
+{
+"id": 4,
+"en": "Distribution, End Use, Recovery Operating Practices",
+"th": "แนวปฏิบัติระบบจ่าย การใช้ และการนำกลับ",
+"tab": {
+"en": "Distribution, End Use, Recovery",
+"th": "ระบบจ่าย-ใช้-นำกลับ"
+}
+}
+],
+"secs": [
+{
+"id": "SC",
+"cat": 1,
+"en": "Steam Costs",
+"th": "ต้นทุนไอน้ำ",
+"todo": {
+"en": "Identify what it costs at your facility to produce steam (cost per tonne of steam), and use this as a benchmark for evaluating opportunities for improving your steam operations. Start with determining what your fuel costs are to make steam, then add other costs associated with your operations (chemical costs, labor, etc).",
+"th": "หาต้นทุนการผลิตไอน้ำของโรงงาน (ต้นทุนต่อตันไอน้ำ) แล้วใช้เป็นค่าเทียบในการประเมินโอกาสปรับปรุง เริ่มจากต้นทุนเชื้อเพลิงในการผลิตไอน้ำ แล้วเพิ่มต้นทุนอื่นที่เกี่ยวข้อง เช่น สารเคมีและค่าแรง"
+},
+"why": {
+"en": "Understanding the cost to make steam can be an eye-opener - producing steam is not free! Any opportunity that reduces the amount of steam generated saves money, so understanding the cost to make steam is a key step to being able to quantify improvement opportunities.",
+"th": "การรู้ต้นทุนการผลิตไอน้ำทำให้เห็นชัดว่าไอน้ำไม่ได้ได้มาฟรี ทุกโอกาสที่ลดปริมาณไอน้ำที่ต้องผลิตคือเงินที่ประหยัดได้ การรู้ต้นทุนจึงเป็นขั้นสำคัญในการคิดมูลค่าของโอกาสปรับปรุง"
+}
+},
+{
+"id": "BM",
+"cat": 1,
+"en": "Steam/Product Benchmarks",
+"th": "ค่าเทียบไอน้ำต่อผลิตภัณฑ์",
+"todo": {
+"en": "Identify how much steam it takes to make your key products. Then track this benchmark: a) with what other facilities in your company do; b) with what other similar plants in your industry do; and c) with how this benchmark varies in your operations over time.",
+"th": "หาปริมาณไอน้ำที่ใช้ผลิตสินค้าหลัก แล้วติดตามค่าเทียบนี้เปรียบกับ ก) โรงงานอื่นในบริษัทเดียวกัน ข) โรงงานลักษณะเดียวกันในอุตสาหกรรม และ ค) การเปลี่ยนแปลงของค่านี้ในโรงงานเองตามเวลา"
+},
+"why": {
+"en": "The bottom line of your operation is how cost effectively you make your products, and steam use has an impact on your productivity. Steam/product benchmarking is an excellent way to monitor productivity and how steam improvements translate to improved productivity.",
+"th": "ผลลัพธ์สุดท้ายของโรงงานคือการผลิตสินค้าได้คุ้มต้นทุน และการใช้ไอน้ำมีผลต่อผลิตภาพ ค่าเทียบไอน้ำต่อผลิตภัณฑ์เป็นวิธีที่ดีในการติดตามผลิตภาพ และดูว่าการปรับปรุงระบบไอน้ำช่วยเพิ่มผลิตภาพได้เพียงใด"
+}
+},
+{
+"id": "MS",
+"cat": 1,
+"en": "Steam System Measurements",
+"th": "การตรวจวัดระบบไอน้ำ",
+"todo": {
+"en": "Identify key steam operational parameters that you should monitor and ensure that you are adequately measuring them.",
+"th": "ระบุตัวแปรการทำงานหลักของระบบไอน้ำที่ควรติดตาม และตรวจว่ามีการวัดอย่างเพียงพอ"
+},
+"why": {
+"en": "You Can't Manage What You Don't Measure! Measurement of key steam system parameters assists you in monitoring your system, diagnosing potential system problems, and ensuring that system improvements continue to provide benefits to your operations.",
+"th": "สิ่งที่ไม่ได้วัดย่อมจัดการไม่ได้ การวัดตัวแปรหลักของระบบไอน้ำช่วยติดตามการทำงาน วินิจฉัยปัญหาที่อาจเกิด และยืนยันว่าผลของการปรับปรุงยังคงอยู่"
+}
+},
+{
+"id": "ST",
+"cat": 2,
+"en": "Steam Trap Maintenance",
+"th": "การบำรุงรักษากับดักไอน้ำ",
+"todo": {
+"en": "Implement a comprehensive program to correctly select, test, and maintain your steam traps.",
+"th": "จัดทำแผนงานที่ครอบคลุมการเลือก การทดสอบ และการบำรุงรักษากับดักไอน้ำอย่างถูกต้อง"
+},
+"why": {
+"en": "Steam traps play three important functions: a) prevent steam from escaping from the system before the heat is utilized; b) remove condensate from the system; and c) vent noncondensable gases. Poor steam trap selection, testing, and maintenance can result in many system problems including water hammer, ineffective process heat transfer, steam leakage, and system corrosion. An effective steam trap selection and maintenance program is often an excellent investment with paybacks of less than half a year.",
+"th": "กับดักไอน้ำมีหน้าที่สำคัญสามอย่าง คือ ก) กันไอน้ำหลุดออกจากระบบก่อนนำความร้อนไปใช้ ข) ระบายคอนเดนเสทออกจากระบบ และ ค) ระบายก๊าซที่ไม่ควบแน่น การเลือก ทดสอบ และบำรุงรักษาที่ไม่ดีก่อปัญหาหลายอย่าง เช่น Water Hammer การถ่ายเทความร้อนในกระบวนการไม่ดี ไอน้ำรั่ว และการกัดกร่อน แผนงานกับดักไอน้ำที่ได้ผลมักเป็นการลงทุนที่คืนทุนภายในไม่ถึงครึ่งปี"
+}
+},
+{
+"id": "WT",
+"cat": 2,
+"en": "Water Treatment Program",
+"th": "แผนงานปรับสภาพน้ำ",
+"todo": {
+"en": "Implement and maintain an effective Water Treatment Program in your steam system.",
+"th": "จัดทำและรักษาแผนงานปรับสภาพน้ำที่ได้ผลในระบบไอน้ำ"
+},
+"why": {
+"en": "An effective steam system Water Treatment Program: a) reduces the potential for waterside fouling problems in your boilers; b) is critical to minimizing boiler blowdown and the resulting energy losses; c) can reduce the generation of wet steam; and d) greatly reduces the potential for corrosion problems throughout your steam system. Most effective water treatment programs include both mechanical (filtration, softening, and deaeration) and chemical treatment. Problems in this area can lead to significant plant productivity issues related to equipment failure and downtime - be sure to consult with a chemical treatment specialist on an ongoing basis.",
+"th": "แผนงานปรับสภาพน้ำที่ได้ผล ก) ลดโอกาสเกิดตะกรันด้านน้ำในหม้อไอน้ำ ข) เป็นหัวใจของการลดโบลว์ดาวน์และพลังงานที่สูญเสียไปกับโบลว์ดาวน์ ค) ลดการเกิดไอน้ำเปียก และ ง) ลดโอกาสการกัดกร่อนทั่วทั้งระบบไอน้ำ แผนงานที่ได้ผลส่วนใหญ่มีทั้งการปรับสภาพเชิงกล (กรอง ทำน้ำอ่อน ไล่อากาศ) และทางเคมี ปัญหาด้านนี้ทำให้อุปกรณ์เสียหายและต้องหยุดเครื่อง กระทบผลิตภาพมาก ควรปรึกษาผู้เชี่ยวชาญด้านเคมีปรับสภาพน้ำอย่างต่อเนื่อง"
+}
+},
+{
+"id": "IN",
+"cat": 2,
+"en": "System Insulation",
+"th": "ฉนวนในระบบไอน้ำ",
+"todo": {
+"en": "Ensure that the appropriate major components of your steam system are well insulated. Determine the economic insulation thickness for your system components, and perform system insulation reviews to identify exposed surfaces that should be insulated and/or unrestored or damaged insulation.",
+"th": "ดูแลให้อุปกรณ์หลักในระบบไอน้ำหุ้มฉนวนอย่างดี หาความหนาฉนวนที่คุ้มค่าทางเศรษฐศาสตร์ และสำรวจฉนวนเป็นระยะเพื่อหาผิวที่ควรหุ้มแต่ยังไม่หุ้ม หรือฉนวนที่ชำรุดและยังไม่ได้ซ่อม"
+},
+"why": {
+"en": "Effective insulation - on piping, valves, fittings, and vessels - serves many important purposes. Insulation keeps steam energy within the system to be effectively used by processes, it can reduce temperature fluctuations in the system, it can reduce space conditioning requirements, and it can reduce the potential for personnel burns.",
+"th": "ฉนวนที่ดีบนท่อ วาล์ว ข้อต่อ และถัง มีประโยชน์หลายด้าน คือ เก็บพลังงานไอน้ำไว้ในระบบเพื่อใช้ในกระบวนการ ลดความผันผวนของอุณหภูมิในระบบ ลดภาระการปรับอากาศในพื้นที่ และลดโอกาสที่พนักงานจะถูกความร้อนลวก"
+}
+},
+{
+"id": "LK",
+"cat": 2,
+"en": "Steam Leaks",
+"th": "ไอน้ำรั่ว",
+"todo": {
+"en": "Identify and quickly repair steam leaks in your steam system.",
+"th": "ตรวจหาและซ่อมจุดไอน้ำรั่วในระบบโดยเร็ว"
+},
+"why": {
+"en": "Steam leaks can result from failures associated with such things as improper piping design, corrosion problems, and joint and valve seal failures. In high-pressure industrial steam systems, energy costs associated with steam leaks can be substantial. Identifying and repairing steam leaks is essential to properly balancing your steam system.",
+"th": "ไอน้ำรั่วเกิดได้จากการออกแบบท่อไม่เหมาะสม การกัดกร่อน และซีลข้อต่อหรือวาล์วเสีย ในระบบไอน้ำอุตสาหกรรมความดันสูง ต้นทุนพลังงานจากไอน้ำรั่วอาจสูงมาก การตรวจหาและซ่อมจุดรั่วจึงจำเป็นต่อการปรับสมดุลระบบไอน้ำ"
+}
+},
+{
+"id": "WH",
+"cat": 2,
+"en": "Water Hammer",
+"th": "Water Hammer (ค้อนน้ำ)",
+"todo": {
+"en": "Detect and quickly eliminate Water Hammer in your steam system.",
+"th": "ตรวจหาและขจัด Water Hammer ในระบบไอน้ำโดยเร็ว"
+},
+"why": {
+"en": "Water Hammer is a serious concern - it can lead to failure and rupture of piping and valves, and in many cases significant personnel injury due to contact with steam and condensate. There are two main types of water hammer: one caused by accumulation of condensate in steam distribution piping and transport of this condensate by high-velocity steam; and the other caused by a pressure pulse resulting from steam collapse (rapid condensation) in condensate return lines and heat exchange equipment. Water Hammer in your steam system always says FIX ME!!",
+"th": "Water Hammer เป็นเรื่องร้ายแรง ทำให้ท่อและวาล์วเสียหายหรือแตก และหลายกรณีทำให้พนักงานบาดเจ็บสาหัสจากไอน้ำและคอนเดนเสท มีสองแบบหลัก คือ แบบที่คอนเดนเสทสะสมในท่อจ่ายไอน้ำแล้วถูกไอน้ำความเร็วสูงพัดไป และแบบที่เกิดคลื่นความดันจากไอน้ำยุบตัว (ควบแน่นฉับพลัน) ในท่อคอนเดนเสทกลับและอุปกรณ์แลกเปลี่ยนความร้อน เมื่อพบ Water Hammer ต้องแก้ไขเสมอ"
+}
+},
+{
+"id": "MN",
+"cat": 2,
+"en": "Maintaining Effective Steam System Operations",
+"th": "การบำรุงรักษาให้ระบบไอน้ำทำงานได้ผล",
+"todo": {
+"en": "Establish and carry out a comprehensive steam system maintenance program.",
+"th": "จัดทำและดำเนินแผนบำรุงรักษาระบบไอน้ำอย่างครบถ้วน"
+},
+"why": {
+"en": "Effective steam system operating practices and improvements can provide benefits to your steam operations year after year - IF you have an effective system maintenance program in place. Major areas of maintenance that will provide year-after-year benefits to your operations include: a) steam traps; b) boiler performance; c) water treatment; d) turbines, piping, heat exchangers, pumps, motors, and valves; and e) system insulation.",
+"th": "แนวปฏิบัติและการปรับปรุงที่ดีให้ประโยชน์ต่อเนื่องทุกปี หากมีแผนบำรุงรักษาที่ได้ผลรองรับ งานบำรุงรักษาหลักที่ให้ผลระยะยาว ได้แก่ ก) กับดักไอน้ำ ข) สมรรถนะหม้อไอน้ำ ค) การปรับสภาพน้ำ ง) กังหัน ท่อ อุปกรณ์แลกเปลี่ยนความร้อน ปั๊ม มอเตอร์ และวาล์ว และ จ) ฉนวนในระบบ"
+}
+},
+{
+"id": "BE",
+"cat": 3,
+"en": "Boiler Efficiency",
+"th": "ประสิทธิภาพหม้อไอน้ำ",
+"todo": {
+"en": "Measure, trend, and look for opportunities to improve the efficiency of your boilers.",
+"th": "วัด ติดตามแนวโน้ม และหาโอกาสปรับปรุงประสิทธิภาพหม้อไอน้ำ"
+},
+"why": {
+"en": "One of the key boiler plant functions is to generate steam at the highest possible efficiency. Major sources of boiler efficiency losses include: a) combustion and flue gas energy losses [typically the largest]; b) blowdown losses; and c) refractory insulation losses. It is important to measure and trend boiler efficiency, flue gas temperature, flue gas oxygen content, and flue gas carbon monoxide content on a regular basis. Measurement and control of excess oxygen is critical to minimizing boiler combustion energy losses. Trending flue gas temperature can provide indications of other potential boiler problems, such as waterside or fireside fouling problems.",
+"th": "หน้าที่หลักของโรงผลิตไอน้ำคือผลิตไอน้ำที่ประสิทธิภาพสูงที่สุด แหล่งสูญเสียหลัก ได้แก่ ก) การเผาไหม้และพลังงานในก๊าซไอเสีย (มักมากที่สุด) ข) โบลว์ดาวน์ และ ค) ผนังและฉนวนวัสดุทนไฟ ควรวัดและติดตามแนวโน้มประสิทธิภาพหม้อไอน้ำ อุณหภูมิ ออกซิเจน และคาร์บอนมอนอกไซด์ในก๊าซไอเสียสม่ำเสมอ การวัดและควบคุมออกซิเจนส่วนเกินสำคัญมากต่อการลดความสูญเสียจากการเผาไหม้ แนวโน้มอุณหภูมิก๊าซไอเสียยังบอกปัญหาอื่นได้ เช่น ตะกรันด้านน้ำหรือคราบด้านไฟ"
+}
+},
+{
+"id": "HR",
+"cat": 3,
+"en": "Heat Recovery Equipment",
+"th": "อุปกรณ์นำความร้อนกลับมาใช้",
+"todo": {
+"en": "Evaluate installation of Heat Recovery Equipment on your Boiler Plant.",
+"th": "ประเมินการติดตั้งอุปกรณ์นำความร้อนกลับมาใช้ในโรงผลิตไอน้ำ"
+},
+"why": {
+"en": "In some boilers, high flue gas temperatures and high continuous blowdown rates can provide opportunities for installation of heat recovery equipment. Feedwater economizers and combustion air preheaters can, under appropriate conditions, be installed to extract excess flue gas energy and effectively increase the boiler efficiency. Blowdown heat recovery equipment can also, for some systems, be installed to extract otherwise lost heat from the blowdown system. For either potential opportunity, an economic analysis is needed to determine the feasibility of the opportunity, and the equipment should be designed and installed by qualified professionals.",
+"th": "หม้อไอน้ำบางเครื่องมีอุณหภูมิก๊าซไอเสียสูงและโบลว์ดาวน์ต่อเนื่องสูง จึงมีโอกาสติดตั้งอุปกรณ์นำความร้อนกลับ อีโคโนไมเซอร์อุ่นน้ำป้อนและเครื่องอุ่นอากาศเผาไหม้ช่วยดึงพลังงานส่วนเกินจากก๊าซไอเสียและเพิ่มประสิทธิภาพหม้อไอน้ำได้เมื่อเงื่อนไขเหมาะสม บางระบบติดตั้งอุปกรณ์นำความร้อนจากโบลว์ดาวน์กลับมาใช้ได้ด้วย ทั้งสองทางต้องวิเคราะห์ความคุ้มค่าก่อน และให้ผู้เชี่ยวชาญที่มีคุณสมบัติเหมาะสมออกแบบและติดตั้ง"
+}
+},
+{
+"id": "DS",
+"cat": 3,
+"en": "Generating Dry Steam",
+"th": "การผลิตไอน้ำแห้ง",
+"todo": {
+"en": "Ensure that you generate high-quality dry steam in your boiler plant.",
+"th": "ดูแลให้โรงผลิตไอน้ำผลิตไอน้ำแห้งคุณภาพสูง"
+},
+"why": {
+"en": "Steam of 100% quality contains no liquid water; wet steam contains liquid droplets. Generating wet steam in your boiler can cause many system problems, including: a) inefficient process heat transfer; b) equipment failure by water hammer; c) equipment failure by corrosion and erosion; and d) steam trap failure by overloading. Some typical causes for creation of wet steam and boiler carryover are: a) wide swings in boiler water level; b) reduced operating pressure; c) boiler overload; and d) poor boiler total dissolved solids (TDS) control. A critical step to ensuring generation of high-quality steam is to measure the quality of steam leaving your boiler; this is typically done using steam calorimeters.",
+"th": "ไอน้ำคุณภาพ 100% ไม่มีน้ำปน ส่วนไอน้ำเปียกมีหยดน้ำปน ไอน้ำเปียกก่อปัญหาหลายอย่าง ได้แก่ ก) การถ่ายเทความร้อนในกระบวนการไม่ดี ข) อุปกรณ์เสียหายจาก Water Hammer ค) อุปกรณ์เสียหายจากการกัดกร่อนและสึกกร่อน และ ง) กับดักไอน้ำเสียเพราะรับภาระเกิน สาเหตุที่พบบ่อยของไอน้ำเปียกและน้ำพาออกจากหม้อไอน้ำ (carryover) คือ ก) ระดับน้ำในหม้อไอน้ำแกว่งมาก ข) เดินที่ความดันต่ำกว่าปกติ ค) หม้อไอน้ำรับภาระเกิน และ ง) ควบคุมของแข็งละลายทั้งหมด (TDS) ไม่ดี ขั้นสำคัญคือวัดคุณภาพไอน้ำที่ออกจากหม้อไอน้ำ ซึ่งมักใช้แคลอริมิเตอร์ไอน้ำ"
+}
+},
+{
+"id": "GB",
+"cat": 3,
+"en": "General Boiler Operation",
+"th": "การเดินหม้อไอน้ำทั่วไป",
+"todo": {
+"en": "Ensure that your boilers perform their functions without large fluctuations in operating conditions.",
+"th": "ดูแลให้หม้อไอน้ำทำงานโดยสภาวะการทำงานไม่แกว่งมาก"
+},
+"why": {
+"en": "How you control boiler operation can effect many elements of the steam system - including the operating life of the boiler, the quality of steam produced, and the effectiveness of steam use throughout your production operations.",
+"th": "วิธีควบคุมการเดินหม้อไอน้ำส่งผลต่อหลายส่วนของระบบไอน้ำ รวมถึงอายุการใช้งานหม้อไอน้ำ คุณภาพไอน้ำที่ผลิต และประสิทธิผลของการใช้ไอน้ำทั่วทั้งการผลิต"
+}
+},
+{
+"id": "PR",
+"cat": 4,
+"en": "Options For Reducing Steam Pressure - Minimize Steam Flow Through PRVs",
+"th": "ทางเลือกในการลดความดันไอน้ำ – ลดการไหลของไอน้ำผ่าน PRV",
+"todo": {
+"en": "Investigate potential to use backpressure turbines in parallel with pressure reducing valves in your steam system.",
+"th": "ศึกษาศักยภาพการใช้กังหันไอน้ำแบบแบ็กเพรสเชอร์ติดตั้งขนานกับวาล์วลดความดัน (PRV) ในระบบไอน้ำ"
+},
+"why": {
+"en": "In many steam systems, pressure reducing valves (PRVs) are used to provide steam at pressures lower than generated from the boiler. A potential opportunity for improving a steam system is to minimize the flow of steam through PRVs. One opportunity for doing this is to install backpressure turbines in parallel with PRVs in your steam system; in this way you can provide the low-pressure steam required and generate electricity or shaft power that can be utilized. A detailed economic analysis must be performed to evaluate this type of opportunity.",
+"th": "ระบบไอน้ำจำนวนมากใช้วาล์วลดความดัน (PRV) เพื่อจ่ายไอน้ำที่ความดันต่ำกว่าที่หม้อไอน้ำผลิต โอกาสปรับปรุงคือลดปริมาณไอน้ำที่ไหลผ่าน PRV วิธีหนึ่งคือติดตั้งกังหันไอน้ำแบบแบ็กเพรสเชอร์ขนานกับ PRV ซึ่งจ่ายไอน้ำความดันต่ำได้ตามต้องการ และได้ไฟฟ้าหรือกำลังเพลาไปใช้งาน โอกาสแบบนี้ต้องวิเคราะห์เศรษฐศาสตร์อย่างละเอียด"
+}
+},
+{
+"id": "CR",
+"cat": 4,
+"en": "Recover And Utilize Available Condensate",
+"th": "การนำคอนเดนเสทกลับมาใช้",
+"todo": {
+"en": "Determine how much of your available condensate you recover and utilize.",
+"th": "หาว่าคอนเดนเสทที่มีอยู่ถูกนำกลับมาใช้ได้มากเพียงใด"
+},
+"why": {
+"en": "Returning a substantial portion of your condensate to your boiler can have both energy and chemical treatment benefits: a) condensate is hotter than makeup water, so less energy is required to convert condensate to steam; and b) condensate requires significantly less chemical treatment than makeup water, so there may be savings in chemical treatment costs associated with returning condensate. Returning as much condensate as possible also can help to reduce boiler blowdown (because fewer impurities are resident in condensate), and so minimize blowdown energy losses.",
+"th": "การส่งคอนเดนเสทกลับหม้อไอน้ำให้ได้มากให้ประโยชน์ทั้งด้านพลังงานและการปรับสภาพน้ำ คือ ก) คอนเดนเสทร้อนกว่าน้ำเติม จึงใช้พลังงานน้อยกว่าในการทำเป็นไอน้ำ และ ข) คอนเดนเสทต้องปรับสภาพด้วยสารเคมีน้อยกว่าน้ำเติมมาก จึงอาจประหยัดค่าสารเคมี การนำกลับให้มากที่สุดยังช่วยลดโบลว์ดาวน์ (เพราะคอนเดนเสทมีสิ่งเจือปนน้อย) และลดพลังงานที่สูญเสียกับโบลว์ดาวน์"
+}
+},
+{
+"id": "FS",
+"cat": 4,
+"en": "Use High-Pressure Condensate To Make Low-Pressure Steam",
+"th": "การใช้คอนเดนเสทความดันสูงผลิตไอน้ำความดันต่ำ",
+"todo": {
+"en": "Investigate opportunity to utilize high-pressure condensate to produce useable low-pressure steam.",
+"th": "ศึกษาโอกาสใช้คอนเดนเสทความดันสูงผลิตไอน้ำความดันต่ำที่ใช้งานได้"
+},
+"why": {
+"en": "An opportunity for utilizing high-pressure condensate is to allow it to pass through a flash tank and utilize the flash steam in low-pressure steam applications. The remainder of the condensate, now at lower pressure and temperature, can then be sent back to the boiler for use in producing steam.",
+"th": "วิธีหนึ่งคือปล่อยคอนเดนเสทความดันสูงผ่านถังแฟลช แล้วนำไอน้ำแฟลชไปใช้กับงานไอน้ำความดันต่ำ คอนเดนเสทส่วนที่เหลือซึ่งความดันและอุณหภูมิลดลงแล้วส่งกลับหม้อไอน้ำเพื่อผลิตไอน้ำต่อ"
+}
+}
+],
+"qs": [
+{
+"id": "SC1",
+"sec": "SC",
+"type": "single",
+"q": {
+"en": "Do you monitor your Fuel Cost To Generate Steam - in terms of (Cost) / (Tonne of steam produced)?",
+"th": "ท่านติดตามต้นทุนเชื้อเพลิงในการผลิตไอน้ำในรูป (ต้นทุน) / (ตันไอน้ำที่ผลิต) หรือไม่"
+},
+"short": {
+"en": "Measure Fuel Cost To Generate Steam",
+"th": "วัดต้นทุนเชื้อเพลิงในการผลิตไอน้ำ"
+},
+"opts": [
+{
+"en": "yes",
+"th": "ใช่",
+"pts": 10
+},
+{
+"en": "no",
+"th": "ไม่ใช่",
+"pts": 0
+}
+]
+},
+{
+"id": "SC2",
+"sec": "SC",
+"type": "single",
+"q": {
+"en": "How often do you calculate and trend your Fuel Cost To Generate Steam?",
+"th": "ท่านคำนวณและติดตามแนวโน้มต้นทุนเชื้อเพลิงในการผลิตไอน้ำบ่อยเพียงใด"
+},
+"short": {
+"en": "Trend Fuel Cost To Generate Steam",
+"th": "ติดตามแนวโน้มต้นทุนเชื้อเพลิงในการผลิตไอน้ำ"
+},
+"opts": [
+{
+"en": "at least quarterly",
+"th": "อย่างน้อยไตรมาสละครั้ง",
+"pts": 10
+},
+{
+"en": "at least yearly",
+"th": "อย่างน้อยปีละครั้ง",
+"pts": 5
+},
+{
+"en": "less than yearly",
+"th": "น้อยกว่าปีละครั้ง",
+"pts": 0
+}
+]
+},
+{
+"id": "BM1",
+"sec": "BM",
+"type": "single",
+"q": {
+"en": "Do you Measure your Steam/Product Benchmark - in terms of (kg of steam needed) / (unit of product produced)?",
+"th": "ท่านวัดค่าเทียบไอน้ำต่อผลิตภัณฑ์ในรูป (kg ไอน้ำที่ใช้) / (หน่วยผลิตภัณฑ์ที่ผลิต) หรือไม่"
+},
+"short": {
+"en": "Measure Steam/Product Benchmarks",
+"th": "วัดค่าเทียบไอน้ำต่อผลิตภัณฑ์"
+},
+"opts": [
+{
+"en": "yes",
+"th": "ใช่",
+"pts": 10
+},
+{
+"en": "no",
+"th": "ไม่ใช่",
+"pts": 0
+}
+]
+},
+{
+"id": "BM2",
+"sec": "BM",
+"type": "single",
+"q": {
+"en": "How often do you Measure and Trend your Steam/Product Benchmark - in terms of (kg of steam needed) / (unit of product produced)?",
+"th": "ท่านวัดและติดตามแนวโน้มค่าเทียบไอน้ำต่อผลิตภัณฑ์ในรูป (kg ไอน้ำที่ใช้) / (หน่วยผลิตภัณฑ์ที่ผลิต) บ่อยเพียงใด"
+},
+"short": {
+"en": "Trend Steam/Product Benchmarks",
+"th": "ติดตามแนวโน้มค่าเทียบไอน้ำต่อผลิตภัณฑ์"
+},
+"opts": [
+{
+"en": "at least quarterly",
+"th": "อย่างน้อยไตรมาสละครั้ง",
+"pts": 10
+},
+{
+"en": "at least yearly",
+"th": "อย่างน้อยปีละครั้ง",
+"pts": 5
+},
+{
+"en": "less than yearly",
+"th": "น้อยกว่าปีละครั้ง",
+"pts": 0
+}
+]
+},
+{
+"id": "MS1",
+"sec": "MS",
+"type": "multi",
+"q": {
+"en": "Do you measure and record Critical Energy Parameters for your Steam System?",
+"th": "ท่านวัดและบันทึกตัวแปรพลังงานที่สำคัญของระบบไอน้ำต่อไปนี้หรือไม่"
+},
+"short": {
+"en": "Measure/Record Steam System Critical Energy Parameters",
+"th": "วัดและบันทึกตัวแปรพลังงานที่สำคัญของระบบไอน้ำ"
+},
+"opts": [
+{
+"en": "Steam Production Rate (to obtain total steam production)",
+"th": "อัตราการผลิตไอน้ำ (เพื่อหาปริมาณไอน้ำที่ผลิตทั้งหมด)",
+"pts": 10
+},
+{
+"en": "Fuel Flow Rate (to obtain total fuel consumption)",
+"th": "อัตราการไหลของเชื้อเพลิง (เพื่อหาปริมาณเชื้อเพลิงที่ใช้ทั้งหมด)",
+"pts": 6
+},
+{
+"en": "Feedwater Flow Rate",
+"th": "อัตราการไหลของน้ำป้อน",
+"pts": 6
+},
+{
+"en": "Makeup Water Flow Rate",
+"th": "อัตราการไหลของน้ำเติม",
+"pts": 4
+},
+{
+"en": "Blowdown Flow Rate",
+"th": "อัตราการไหลของโบลว์ดาวน์",
+"pts": 2
+},
+{
+"en": "Chemical Input Flow Rate",
+"th": "อัตราการป้อนสารเคมี",
+"pts": 2
+}
+],
+"none": {
+"en": "no to all of above",
+"th": "ไม่ได้วัดทุกข้อข้างต้น"
+}
+},
+{
+"id": "MS2",
+"sec": "MS",
+"type": "single",
+"q": {
+"en": "How intensely do you meter your steam flows? - CHOOSE ONE OF FIVE ANSWERS",
+"th": "ท่านติดมาตรวัดอัตราไหลไอน้ำละเอียดเพียงใด – เลือกหนึ่งในห้าคำตอบ"
+},
+"short": {
+"en": "Intensity Of Measuring Steam Flows",
+"th": "ความละเอียดของการวัดอัตราไหลไอน้ำ"
+},
+"opts": [
+{
+"en": "by major user/equip",
+"th": "แยกตามผู้ใช้/อุปกรณ์หลัก",
+"pts": 20
+},
+{
+"en": "by process unit",
+"th": "แยกตามหน่วยกระบวนการ",
+"pts": 10
+},
+{
+"en": "by area or building",
+"th": "แยกตามพื้นที่หรืออาคาร",
+"pts": 5
+},
+{
+"en": "by plant as a whole (i.e., total boiler output)",
+"th": "ทั้งโรงงานรวมกัน (คือ ไอน้ำออกจากหม้อไอน้ำรวม)",
+"pts": 2
+},
+{
+"en": "not at all",
+"th": "ไม่ได้วัดเลย",
+"pts": 0
+}
+]
+},
+{
+"id": "ST1",
+"sec": "ST",
+"type": "multi",
+"q": {
+"en": "Does Your System Steam Trap Maintenance Program Include The Following Activities?",
+"th": "แผนบำรุงรักษากับดักไอน้ำของระบบท่านมีกิจกรรมต่อไปนี้หรือไม่"
+},
+"short": {
+"en": "Steam Trap Maintenance Practices",
+"th": "แนวปฏิบัติการบำรุงรักษากับดักไอน้ำ"
+},
+"opts": [
+{
+"en": "Proper Trap Selection For Application",
+"th": "เลือกกับดักไอน้ำให้เหมาะกับการใช้งาน",
+"pts": 10
+},
+{
+"en": "At Least Annual Testing Of All Traps",
+"th": "ทดสอบกับดักไอน้ำทุกตัวอย่างน้อยปีละครั้ง",
+"pts": 10
+},
+{
+"en": "Maintaining A Steam Trap Database",
+"th": "มีและปรับปรุงฐานข้อมูลกับดักไอน้ำ",
+"pts": 10
+},
+{
+"en": "Repairing/Replacing Defective Traps",
+"th": "ซ่อม/เปลี่ยนกับดักไอน้ำที่ชำรุด",
+"pts": 10
+}
+],
+"none": {
+"en": "none of the above",
+"th": "ไม่มีกิจกรรมใดข้างต้น"
+}
+},
+{
+"id": "WT1",
+"sec": "WT",
+"type": "single",
+"q": {
+"en": "How often do you ensure that your Water Chemical Treatment System is functioning properly?",
+"th": "ท่านตรวจว่าระบบปรับสภาพน้ำด้วยสารเคมีทำงานถูกต้องบ่อยเพียงใด"
+},
+"short": {
+"en": "Water Treatment - Ensuring Function",
+"th": "ปรับสภาพน้ำ – ตรวจการทำงาน"
+},
+"opts": [
+{
+"en": "at least daily",
+"th": "อย่างน้อยวันละครั้ง",
+"pts": 10
+},
+{
+"en": "at least weekly",
+"th": "อย่างน้อยสัปดาห์ละครั้ง",
+"pts": 5
+},
+{
+"en": "less than weekly",
+"th": "น้อยกว่าสัปดาห์ละครั้ง",
+"pts": 0
+}
+]
+},
+{
+"id": "WT2",
+"sec": "WT",
+"type": "single",
+"q": {
+"en": "How often do you NEED to clean Fireside or Waterside deposits in your Boiler?",
+"th": "ท่านจำเป็นต้องล้างคราบด้านไฟหรือตะกรันด้านน้ำในหม้อไอน้ำบ่อยเพียงใด"
+},
+"short": {
+"en": "Cleaning Boiler Fireside/Waterside Deposits",
+"th": "การล้างคราบด้านไฟ/ด้านน้ำของหม้อไอน้ำ"
+},
+"opts": [
+{
+"en": "every 5-10 years",
+"th": "ทุก 5–10 ปี",
+"pts": 10
+},
+{
+"en": "every 1-5 years",
+"th": "ทุก 1–5 ปี",
+"pts": 5
+},
+{
+"en": "once/year or more",
+"th": "ปีละครั้งหรือบ่อยกว่า",
+"pts": 0
+}
+]
+},
+{
+"id": "WT3",
+"sec": "WT",
+"type": "single",
+"q": {
+"en": "How often do you measure Conductivity (or Total Dissolved Solids [TDS]) in your Boiler and determine what your Steam and Mud Drum Blowdown Rate (or Top and Bottom Boiler Blowdown Rate) should be?",
+"th": "ท่านวัดค่าการนำไฟฟ้า (หรือของแข็งละลายทั้งหมด [TDS]) ในหม้อไอน้ำ และกำหนดอัตราโบลว์ดาวน์ของดรัมไอน้ำและดรัมโคลน (หรืออัตราโบลว์ดาวน์ด้านบนและด้านล่าง) บ่อยเพียงใด"
+},
+"short": {
+"en": "Measuring Boiler TDS, Top/Bottom Blowdown Rates",
+"th": "วัด TDS และกำหนดอัตราโบลว์ดาวน์ด้านบน/ล่าง"
+},
+"opts": [
+{
+"en": "continuous, or at least once/shift",
+"th": "ต่อเนื่อง หรืออย่างน้อยกะละครั้ง",
+"pts": 10
+},
+{
+"en": "once/day",
+"th": "วันละครั้ง",
+"pts": 5
+},
+{
+"en": "once/week or less",
+"th": "สัปดาห์ละครั้งหรือน้อยกว่า",
+"pts": 0
+}
+]
+},
+{
+"id": "IN1",
+"sec": "IN",
+"type": "single",
+"q": {
+"en": "Is your Boiler Plant equipment and piping system insulation (refractory, piping, valves, flanges, vessels, etc.) maintained and in good condition?",
+"th": "ฉนวนของอุปกรณ์และท่อในโรงผลิตไอน้ำ (วัสดุทนไฟ ท่อ วาล์ว หน้าแปลน ถัง ฯลฯ) ได้รับการดูแลและอยู่ในสภาพดีหรือไม่"
+},
+"short": {
+"en": "Insulation - Boiler Plant",
+"th": "ฉนวน – โรงผลิตไอน้ำ"
+},
+"opts": [
+{
+"en": "insulation excellent",
+"th": "ฉนวนดีเยี่ยม",
+"pts": 10
+},
+{
+"en": "insulation good, but can be improved",
+"th": "ฉนวนดี แต่ยังปรับปรุงได้",
+"pts": 7
+},
+{
+"en": "insulation inadequate",
+"th": "ฉนวนไม่เพียงพอ",
+"pts": 0
+}
+]
+},
+{
+"id": "IN2",
+"sec": "IN",
+"type": "single",
+"q": {
+"en": "Is your Steam Distribution, End Use, and Condensate Recovery equipment insulation (piping, valves, flanges, heat exchangers, etc.) maintained and in good condition?",
+"th": "ฉนวนของอุปกรณ์ระบบจ่ายไอน้ำ อุปกรณ์ปลายทางที่ใช้ไอน้ำ และระบบนำคอนเดนเสทกลับ (ท่อ วาล์ว หน้าแปลน อุปกรณ์แลกเปลี่ยนความร้อน ฯลฯ) ได้รับการดูแลและอยู่ในสภาพดีหรือไม่"
+},
+"short": {
+"en": "Insulation - Distribution/End Use/Recovery",
+"th": "ฉนวน – ระบบจ่าย/ปลายทาง/นำกลับ"
+},
+"opts": [
+{
+"en": "insulation excellent",
+"th": "ฉนวนดีเยี่ยม",
+"pts": 20
+},
+{
+"en": "insulation good, but can be improved",
+"th": "ฉนวนดี แต่ยังปรับปรุงได้",
+"pts": 14
+},
+{
+"en": "insulation inadequate",
+"th": "ฉนวนไม่เพียงพอ",
+"pts": 0
+}
+]
+},
+{
+"id": "LK1",
+"sec": "LK",
+"type": "single",
+"q": {
+"en": "How would you characterize Steam Leaks in your Steam System?",
+"th": "ท่านประเมินสภาพไอน้ำรั่วในระบบไอน้ำอย่างไร"
+},
+"short": {
+"en": "Steam Leaks - Severity",
+"th": "ไอน้ำรั่ว – ความรุนแรง"
+},
+"opts": [
+{
+"en": "none",
+"th": "ไม่มี",
+"pts": 10
+},
+{
+"en": "minor",
+"th": "เล็กน้อย",
+"pts": 8
+},
+{
+"en": "moderate",
+"th": "ปานกลาง",
+"pts": 3
+},
+{
+"en": "numerous",
+"th": "จำนวนมาก",
+"pts": 0
+}
+]
+},
+{
+"id": "WH1",
+"sec": "WH",
+"type": "single",
+"q": {
+"en": "How often do you detect noticeable Water Hammer in your Steam and Condensate Recovery System?",
+"th": "ท่านพบ Water Hammer ที่สังเกตได้ในระบบไอน้ำและระบบนำคอนเดนเสทกลับบ่อยเพียงใด"
+},
+"short": {
+"en": "Water Hammer - How Often",
+"th": "Water Hammer – ความถี่"
+},
+"opts": [
+{
+"en": "less than once a month",
+"th": "น้อยกว่าเดือนละครั้ง",
+"pts": 10
+},
+{
+"en": "monthly or weekly",
+"th": "รายเดือนหรือรายสัปดาห์",
+"pts": 5
+},
+{
+"en": "daily or hourly",
+"th": "รายวันหรือรายชั่วโมง",
+"pts": 0
+}
+]
+},
+{
+"id": "MN1",
+"sec": "MN",
+"type": "multi",
+"q": {
+"en": "Do you periodically - at least once a year - inspect the following important Steam Plant Operational Equipment?",
+"th": "ท่านตรวจอุปกรณ์สำคัญของระบบไอน้ำต่อไปนี้เป็นระยะ อย่างน้อยปีละครั้ง หรือไม่"
+},
+"short": {
+"en": "Inspecting Important Steam Plant Equipment",
+"th": "ตรวจอุปกรณ์สำคัญของระบบไอน้ำ"
+},
+"opts": [
+{
+"en": "Boiler Plant Equipment - boiler, deaerator, feedwater tank, chemical treatment equipment, blowdown equipment, economizer, combustion air preheater, insulation, etc.?",
+"th": "อุปกรณ์โรงผลิตไอน้ำ – หม้อไอน้ำ ดีแอเรเตอร์ ถังน้ำป้อน อุปกรณ์ปรับสภาพน้ำด้วยสารเคมี อุปกรณ์โบลว์ดาวน์ อีโคโนไมเซอร์ เครื่องอุ่นอากาศเผาไหม้ ฉนวน ฯลฯ",
+"pts": 5
+},
+{
+"en": "Distribution System Equipment - piping (including design), steam traps (types, sizes, locations), air vents, valves, pressure reducing stations, insulation, etc.?",
+"th": "อุปกรณ์ระบบจ่ายไอน้ำ – ท่อ (รวมการออกแบบ) กับดักไอน้ำ (ชนิด ขนาด ตำแหน่ง) วาล์วระบายอากาศ วาล์ว สถานีลดความดัน ฉนวน ฯลฯ",
+"pts": 5
+},
+{
+"en": "End Use System Equipment - turbines, piping (including design), heat exchangers, coils, jacketed kettles, steam traps (types, sizes, locations), air vents, vacuum breakers, pressure reducing valves, insulation, etc.?",
+"th": "อุปกรณ์ปลายทางที่ใช้ไอน้ำ – กังหัน ท่อ (รวมการออกแบบ) อุปกรณ์แลกเปลี่ยนความร้อน คอยล์ หม้อต้มแบบมีเปลือกหุ้ม กับดักไอน้ำ (ชนิด ขนาด ตำแหน่ง) วาล์วระบายอากาศ วาล์วกันสุญญากาศ วาล์วลดความดัน ฉนวน ฯลฯ",
+"pts": 5
+},
+{
+"en": "Recovery System Equipment - piping (including design), valves, fittings, flash tanks, condensate pumps, condensate meters, insulation, etc.?",
+"th": "อุปกรณ์ระบบนำกลับ – ท่อ (รวมการออกแบบ) วาล์ว ข้อต่อ ถังแฟลช ปั๊มคอนเดนเสท มาตรวัดคอนเดนเสท ฉนวน ฯลฯ",
+"pts": 5
+}
+],
+"none": {
+"en": "no to all of above",
+"th": "ไม่ได้ตรวจทุกข้อข้างต้น"
+}
+},
+{
+"id": "BE1",
+"sec": "BE",
+"type": "single",
+"q": {
+"en": "How often do you measure your overall Boiler Efficiency - [(heat absorbed to create steam) / (energy input from fuel)]?",
+"th": "ท่านวัดประสิทธิภาพรวมของหม้อไอน้ำ [(ความร้อนที่รับไปผลิตไอน้ำ) / (พลังงานที่ได้จากเชื้อเพลิง)] บ่อยเพียงใด"
+},
+"short": {
+"en": "Measuring Boiler Efficiency - How Often",
+"th": "ความถี่ในการวัดประสิทธิภาพหม้อไอน้ำ"
+},
+"opts": [
+{
+"en": "at least quarterly",
+"th": "อย่างน้อยไตรมาสละครั้ง",
+"pts": 10
+},
+{
+"en": "at least yearly",
+"th": "อย่างน้อยปีละครั้ง",
+"pts": 5
+},
+{
+"en": "less than yearly",
+"th": "น้อยกว่าปีละครั้ง",
+"pts": 0
+}
+]
+},
+{
+"id": "BE2",
+"sec": "BE",
+"type": "multi",
+"q": {
+"en": "Do you measure the following parameters as a function of boiler load and ambient temperature?",
+"th": "ท่านวัดตัวแปรต่อไปนี้ตามภาระหม้อไอน้ำและอุณหภูมิแวดล้อมหรือไม่"
+},
+"short": {
+"en": "Flue Gas Temperature, O2, CO Measurement",
+"th": "การวัดอุณหภูมิ O2 และ CO ของก๊าซไอเสีย"
+},
+"opts": [
+{
+"en": "Flue gas temperature",
+"th": "อุณหภูมิก๊าซไอเสีย",
+"pts": 5
+},
+{
+"en": "Flue gas Oxygen content",
+"th": "ปริมาณออกซิเจนในก๊าซไอเสีย",
+"pts": 5
+},
+{
+"en": "Flue gas CO content",
+"th": "ปริมาณ CO ในก๊าซไอเสีย",
+"pts": 5
+}
+],
+"none": {
+"en": "no to all of above",
+"th": "ไม่ได้วัดทุกข้อข้างต้น"
+}
+},
+{
+"id": "BE3",
+"sec": "BE",
+"type": "single",
+"q": {
+"en": "How do you control Excess Air in your Boiler to maximize Boiler Efficiency?",
+"th": "ท่านควบคุมอากาศส่วนเกินในหม้อไอน้ำเพื่อให้ได้ประสิทธิภาพสูงสุดอย่างไร"
+},
+"short": {
+"en": "Controlling Boiler Excess Air",
+"th": "การควบคุมอากาศส่วนเกินของหม้อไอน้ำ"
+},
+"opts": [
+{
+"en": "automatically",
+"th": "อัตโนมัติ",
+"pts": 10
+},
+{
+"en": "manually",
+"th": "ปรับด้วยมือ",
+"pts": 5
+},
+{
+"en": "not at all",
+"th": "ไม่ได้ควบคุม",
+"pts": 0
+}
+]
+},
+{
+"id": "HR1",
+"sec": "HR",
+"type": "multi",
+"q": {
+"en": "Do you have any of the following Heat Recovery Equipment installed on your Boilers?",
+"th": "หม้อไอน้ำของท่านติดตั้งอุปกรณ์นำความร้อนกลับต่อไปนี้หรือไม่"
+},
+"short": {
+"en": "Boiler Heat Recovery Equipment",
+"th": "อุปกรณ์นำความร้อนกลับของหม้อไอน้ำ"
+},
+"opts": [
+{
+"en": "Feedwater Economizer and/or Combustion Air Preheater",
+"th": "อีโคโนไมเซอร์อุ่นน้ำป้อน และ/หรือ เครื่องอุ่นอากาศเผาไหม้",
+"pts": 10
+},
+{
+"en": "Blowdown Heat Recovery",
+"th": "อุปกรณ์นำความร้อนจากโบลว์ดาวน์กลับมาใช้",
+"pts": 5
+}
+],
+"none": {
+"en": "no to all of above",
+"th": "ไม่มีทุกข้อข้างต้น"
+}
+},
+{
+"id": "DS1",
+"sec": "DS",
+"type": "single",
+"q": {
+"en": "How often do you check the Quality of Steam that is output from your Boiler to the Distribution System, and ensure that you are generating Dry Steam?",
+"th": "ท่านตรวจคุณภาพไอน้ำที่ออกจากหม้อไอน้ำเข้าสู่ระบบจ่าย และยืนยันว่าผลิตไอน้ำแห้ง บ่อยเพียงใด"
+},
+"short": {
+"en": "Checking Boiler Steam Quality",
+"th": "ตรวจคุณภาพไอน้ำจากหม้อไอน้ำ"
+},
+"opts": [
+{
+"en": "at least quarterly",
+"th": "อย่างน้อยไตรมาสละครั้ง",
+"pts": 10
+},
+{
+"en": "at least yearly",
+"th": "อย่างน้อยปีละครั้ง",
+"pts": 5
+},
+{
+"en": "less than yearly",
+"th": "น้อยกว่าปีละครั้ง",
+"pts": 0
+}
+]
+},
+{
+"id": "GB1",
+"sec": "GB",
+"type": "single",
+"q": {
+"en": "Do you have an operational automatic blowdown controller on your Boiler?",
+"th": "หม้อไอน้ำของท่านมีตัวควบคุมโบลว์ดาวน์อัตโนมัติที่ใช้งานอยู่หรือไม่"
+},
+"short": {
+"en": "Automatic Boiler Blowdown Control",
+"th": "การควบคุมโบลว์ดาวน์อัตโนมัติ"
+},
+"opts": [
+{
+"en": "yes",
+"th": "มี",
+"pts": 5
+},
+{
+"en": "no",
+"th": "ไม่มี",
+"pts": 0
+}
+]
+},
+{
+"id": "GB2",
+"sec": "GB",
+"type": "single",
+"q": {
+"en": "What is the frequency of High Level Alarms (possibly indicating boiler undersized) or Low Level Alarms (possibly indicating boiler oversized) for your Boiler?",
+"th": "หม้อไอน้ำของท่านมีสัญญาณเตือนระดับน้ำสูง (อาจบ่งว่าหม้อไอน้ำเล็กเกินไป) หรือระดับน้ำต่ำ (อาจบ่งว่าหม้อไอน้ำใหญ่เกินไป) บ่อยเพียงใด"
+},
+"short": {
+"en": "Frequency Of Boiler High/Low Level Alarms",
+"th": "ความถี่ของสัญญาณเตือนระดับน้ำสูง/ต่ำ"
+},
+"opts": [
+{
+"en": "less than 1/month",
+"th": "น้อยกว่า 1 ครั้งต่อเดือน",
+"pts": 10
+},
+{
+"en": "1-5 per month",
+"th": "1–5 ครั้งต่อเดือน",
+"pts": 5
+},
+{
+"en": "more than 5/month",
+"th": "มากกว่า 5 ครั้งต่อเดือน",
+"pts": 0
+}
+]
+},
+{
+"id": "GB3",
+"sec": "GB",
+"type": "single",
+"q": {
+"en": "How often do you experience steam pressure fluctuations of greater than 10% of your Boiler Operating Pressure?",
+"th": "ท่านพบความดันไอน้ำแกว่งเกิน 10% ของความดันใช้งานหม้อไอน้ำบ่อยเพียงใด"
+},
+"short": {
+"en": "Frequency Of Boiler Steam Pressure Fluctuations",
+"th": "ความถี่ของความดันไอน้ำแกว่ง"
+},
+"opts": [
+{
+"en": "less than 1/month",
+"th": "น้อยกว่า 1 ครั้งต่อเดือน",
+"pts": 5
+},
+{
+"en": "1-5 per month",
+"th": "1–5 ครั้งต่อเดือน",
+"pts": 3
+},
+{
+"en": "more than 5/month",
+"th": "มากกว่า 5 ครั้งต่อเดือน",
+"pts": 0
+}
+]
+},
+{
+"id": "PR1",
+"sec": "PR",
+"type": "single",
+"q": {
+"en": "How do you reduce steam pressure in your steam system?",
+"th": "ท่านลดความดันไอน้ำในระบบอย่างไร"
+},
+"short": {
+"en": "Options For Reducing Steam Pressure",
+"th": "ทางเลือกในการลดความดันไอน้ำ"
+},
+"opts": [
+{
+"en": "steam generated at required pressure, or PRVs appropriately applied",
+"th": "ผลิตไอน้ำที่ความดันตามที่ต้องการ หรือใช้ PRV อย่างเหมาะสม",
+"pts": 10
+},
+{
+"en": "backpressure turbines used in parallel with PRVs",
+"th": "ใช้กังหันไอน้ำแบบแบ็กเพรสเชอร์ขนานกับ PRV",
+"pts": 10
+},
+{
+"en": "boiler control used to reduce pressure",
+"th": "ใช้การควบคุมหม้อไอน้ำเพื่อลดความดัน",
+"pts": 5
+},
+{
+"en": "excess steam vented and/or used inefficiently",
+"th": "ระบายไอน้ำส่วนเกินทิ้ง และ/หรือ ใช้อย่างไม่มีประสิทธิภาพ",
+"pts": 0
+}
+]
+},
+{
+"id": "CR1",
+"sec": "CR",
+"type": "single",
+"q": {
+"en": "How much of your available Condensate do you recover and utilize?",
+"th": "ท่านนำคอนเดนเสทที่มีอยู่กลับมาใช้ได้เท่าใด"
+},
+"short": {
+"en": "Recovering And Utilizing Available Condensate",
+"th": "การนำคอนเดนเสทกลับมาใช้"
+},
+"opts": [
+{
+"en": "greater than 80%",
+"th": "มากกว่า 80%",
+"pts": 10
+},
+{
+"en": "40% to 80%",
+"th": "40% ถึง 80%",
+"pts": 6
+},
+{
+"en": "20% to 40%",
+"th": "20% ถึง 40%",
+"pts": 3
+},
+{
+"en": "less than 20%",
+"th": "น้อยกว่า 20%",
+"pts": 0
+}
+]
+},
+{
+"id": "FS1",
+"sec": "FS",
+"type": "single",
+"q": {
+"en": "How much of your available Flash Steam do you recover and utilize?",
+"th": "ท่านนำไอน้ำแฟลชที่มีอยู่กลับมาใช้ได้เท่าใด"
+},
+"short": {
+"en": "Recovering And Utilizing Available Flash Steam",
+"th": "การนำไอน้ำแฟลชกลับมาใช้"
+},
+"opts": [
+{
+"en": "greater than 80%, or flash steam unavailable",
+"th": "มากกว่า 80% หรือไม่มีไอน้ำแฟลช",
+"pts": 10
+},
+{
+"en": "40% to 80%",
+"th": "40% ถึง 80%",
+"pts": 6
+},
+{
+"en": "20% to 40%",
+"th": "20% ถึง 40%",
+"pts": 3
+},
+{
+"en": "less than 20%",
+"th": "น้อยกว่า 20%",
+"pts": 0
+}
+]
+}
+],
+"tips": [
+{
+"cat": 1,
+"items": [
+{
+"en": "Benchmark the Fuel Costs of Steam Generation",
+"th": "เทียบต้นทุนเชื้อเพลิงในการผลิตไอน้ำ"
+}
+]
+},
+{
+"cat": 2,
+"items": [
+{
+"en": "Inspect and Repair Steam Traps",
+"th": "ตรวจและซ่อมกับดักไอน้ำ"
+},
+{
+"en": "Insulate Steam Distribution and Condensate Return Lines",
+"th": "หุ้มฉนวนท่อจ่ายไอน้ำและท่อคอนเดนเสทกลับ"
+},
+{
+"en": "Install Removable Insulation on Uninsulated Valves and Fittings",
+"th": "ติดฉนวนแบบถอดได้ที่วาล์วและข้อต่อที่ยังไม่หุ้ม"
+}
+]
+},
+{
+"cat": 3,
+"items": [
+{
+"en": "Improve Your Boiler's Combustion Efficiency",
+"th": "ปรับปรุงประสิทธิภาพการเผาไหม้ของหม้อไอน้ำ"
+},
+{
+"en": "Use Feedwater Economizers for Waste Heat Recovery",
+"th": "ใช้อีโคโนไมเซอร์อุ่นน้ำป้อนนำความร้อนทิ้งกลับมาใช้"
+},
+{
+"en": "Clean Boiler Waterside Heat Transfer Surfaces",
+"th": "ล้างผิวถ่ายเทความร้อนด้านน้ำของหม้อไอน้ำ"
+},
+{
+"en": "Minimize Boiler Blowdown",
+"th": "ลดโบลว์ดาวน์ให้น้อยที่สุด"
+},
+{
+"en": "Recover Heat from Boiler Blowdown",
+"th": "นำความร้อนจากโบลว์ดาวน์กลับมาใช้"
+},
+{
+"en": "Minimize Boiler Short Cycling Losses",
+"th": "ลดความสูญเสียจากการตัด-ต่อการทำงานของหม้อไอน้ำถี่เกินไป (short cycling)"
+},
+{
+"en": "Deaerators in Industrial Steam",
+"th": "ดีแอเรเตอร์ในระบบไอน้ำอุตสาหกรรม"
+}
+]
+},
+{
+"cat": 4,
+"items": [
+{
+"en": "Replace Pressure-Reducing Valves with Backpressure Turbogenerators",
+"th": "ใช้กังหันผลิตไฟฟ้าแบบแบ็กเพรสเชอร์แทนวาล์วลดความดัน"
+},
+{
+"en": "Consider Steam Turbine Drives for Rotating Equipment",
+"th": "พิจารณาใช้กังหันไอน้ำขับเครื่องจักรหมุน"
+},
+{
+"en": "Return Condensate to the Boiler",
+"th": "ส่งคอนเดนเสทกลับหม้อไอน้ำ"
+},
+{
+"en": "Flash High-Pressure Condensate to Regenerate Low-Pressure Steam",
+"th": "แฟลชคอนเดนเสทความดันสูงให้เป็นไอน้ำความดันต่ำ"
+},
+{
+"en": "Use a Vent Condenser to Recover Flash Steam Energy",
+"th": "ใช้เครื่องควบแน่นที่ช่องระบายเพื่อนำพลังงานไอน้ำแฟลชกลับมาใช้"
+},
+{
+"en": "Use Low Grade Waste Steam to Power Absorption Chillers",
+"th": "ใช้ไอน้ำทิ้งเกรดต่ำขับเครื่องทำน้ำเย็นแบบดูดซึม"
+},
+{
+"en": "Use Vapor Recompression to Recover Low-Pressure Waste Steam",
+"th": "ใช้การอัดไอซ้ำเพื่อนำไอน้ำทิ้งความดันต่ำกลับมาใช้"
+},
+{
+"en": "Cover Heated, Open Vessels",
+"th": "ปิดฝาถังเปิดที่ให้ความร้อน"
+}
+]
+}
+],
+"version": "SSST v1.0d_Metric (DOE) — WP-30 r1"
+}
+</script>
+<script src="../lib/te-i18n.js?v=r6"></script>
+<script>
+/* [แก้ไข 23 พ.ย. 2569] WP-30 Steam System Scoping v1.0.0
+   - ข้อมูลคำถาม/ตัวเลือก/คะแนน อยู่ในบล็อก #ssst-data (ตรวจเทียบไฟล์ต้นฉบับ .xls ด้วย _wp30/check_data.py)
+   - คะแนนข้อเลือกเดียว = คะแนนของตัวเลือก · ข้อเลือกหลายรายการ (MS1 ST1 MN1 BE2 HR1) = ผลรวมของรายการที่ตอบ "ใช่" ตามโครงแผ่น 3–6
+   - ข้อที่ยังไม่ตอบ = 0 คะแนน (ต้นฉบับคิดคะแนนเฉพาะช่องที่กรอก)
+   - ต้นฉบับแผ่น 7–8 ไม่มีเกณฑ์แปลผลช่วงคะแนน จึงแสดงเฉพาะคะแนนและร้อยละ */
+var TOOL_VER='1.0.0';
+var D=JSON.parse(document.getElementById('ssst-data').textContent);
+var CATS=D.cats,SECS=D.secs,QS=D.qs;
+var SECMAP={};SECS.forEach(function(s){SECMAP[s.id]=s;});
+var QMAP={};QS.forEach(function(q){q.cat=SECMAP[q.sec].cat;q.max=q.type==='multi'?q.opts.reduce(function(a,o){return a+o.pts;},0):Math.max.apply(null,q.opts.map(function(o){return o.pts;}));QMAP[q.id]=q;});
+CATS.forEach(function(c){c.max=QS.filter(function(q){return q.cat===c.id;}).reduce(function(a,q){return a+q.max;},0);});
+var MAXTOT=CATS.reduce(function(a,c){return a+c.max;},0);
+
+/* ลิงก์เครื่องมือ Free ที่เกี่ยวข้อง (ไฟล์ใน tools/ — ตรวจว่ามีจริงด้วย _wp30/test.js) */
+var TOOLS={
+  dist:{f:'Tool_Distribution_Loss_Calculator.html',th:'การสูญเสียในระบบส่งจ่าย',en:'Distribution Loss Calculator'},
+  heat:{f:'Tool_Equipment_Heat_Loss.html',th:'ความร้อนสูญเสียจากอุปกรณ์และฉนวน',en:'Equipment Heat Loss & Insulation'},
+  blr:{f:'EnPI_Boiler_Efficiency_Calculator.html',th:'ประสิทธิภาพหม้อไอน้ำ',en:'Boiler Efficiency Calculator'},
+  fuel:{f:'Tool_Fuel_FlueGas_Converter.html',th:'แปลงค่าเชื้อเพลิงและก๊าซไอเสีย',en:'Fuel & Flue Gas Converter'},
+  whr:{f:'Tool_WHR_Calculator.html',th:'การนำความร้อนทิ้งกลับมาใช้',en:'Waste Heat Recovery Calculator'},
+  stm:{f:'Tool_Steam_Properties.html',th:'สมบัติไอน้ำ',en:'Steam Properties'}
+};
+var QLINKS={ST1:['dist'],LK1:['dist'],CR1:['dist'],FS1:['dist','stm'],IN1:['heat'],IN2:['heat'],
+  BE1:['blr','fuel'],BE2:['blr','fuel'],BE3:['blr','fuel'],HR1:['whr'],DS1:['stm'],PR1:['stm']};
+
+/* ข้อมูลพื้นฐาน (แผ่น 2) — ไม่คิดคะแนน */
+var FUELS=[['b_f_coal','Coal','ถ่านหิน'],['b_f_oil6','Fuel Oil (#6)','น้ำมันเตา (#6)'],['b_f_oil2','No. 2 Fuel Oil','น้ำมันเชื้อเพลิงเบอร์ 2'],['b_f_ng','Natural Gas','ก๊าซธรรมชาติ'],
+  ['b_f_whr','Process Waste Heat','ความร้อนทิ้งจากกระบวนการ'],['b_f_bio','Biomass','ชีวมวล'],['b_f_sw','Solid Wastes','ขยะ/ของเสียของแข็ง'],['b_f_oth','Other','อื่น ๆ']];
+
+function LG(){return (window.TE_I18N&&TE_I18N.lang==='en')?'en':'th';}
+function L(th,en){return LG()==='en'?en:th;}
+function T(o){return o?(LG()==='en'?o.en:o.th):'';}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function G(id){return document.getElementById(id);}
+function fmt1(x){return (Math.round(x*10)/10).toFixed(1);}
+function pct(s,m){return m>0?s/m*100:0;}
+
+/* ---------- ส่วนแสดงผลที่สร้างจากข้อมูล ---------- */
+function renderIntro(){
+  G('introCard').innerHTML=
+   '<h2>'+L('ประเมินตนเองระบบไอน้ำ (Steam System Scoping)','Steam System Self-Assessment (Steam System Scoping)')+'</h2>'+
+   '<p>'+L('แบบประเมินตนเองเชิงแนวปฏิบัติ 26 ข้อ คะแนนเต็ม 340 แบ่ง 4 หมวด ช่วยให้เห็นภาพรวมการจัดการระบบไอน้ำ และชี้ว่าควรปรับปรุงเรื่องใดก่อน',
+           'A 26-question practice-based self-assessment, 340 points in 4 categories, to help you see how well your steam system is managed and what to improve first.')+'</p>'+
+   '<ol style="margin:.3rem 0 .4rem 1.2rem;padding:0">'+
+   '<li>'+L('กรอกข้อมูลพื้นฐานของระบบไอน้ำ (ไม่คิดคะแนน)','Fill in the basic data of your steam system (not scored).')+'</li>'+
+   '<li>'+L('ตอบคำถามในแท็บหมวด 1–4 ตามสภาพจริงของโรงงาน','Answer the questions in category tabs 1–4 based on actual plant practice.')+'</li>'+
+   '<li>'+L('ดูแท็บสรุปผล แล้วบันทึกไฟล์งานหรือพิมพ์รายงาน','Review the Summary tab, then save the job file or print the report.')+'</li></ol>'+
+   '<div class="tbar">'+
+   '<button type="button" class="btn sec" onclick="fillExample()">'+L('ใส่ตัวอย่าง (ข้อมูลสมมุติ)','Load example (fictitious data)')+'</button>'+
+   '<button type="button" class="btn sec" onclick="clearAll()">'+L('ล้างคำตอบทั้งหมด','Clear all answers')+'</button>'+
+   '<button type="button" class="btn" onclick="goTab(\'sum\')">'+L('ไปที่สรุปผล','Go to summary')+'</button></div>'+
+   '<div class="note">'+L('ดัดแปลงจาก Steam System Scoping Tool v1.0d ของ U.S. Department of Energy · เครื่องมือนี้ไม่ได้รับการรับรองจากหน่วยงานดังกล่าว',
+     'Adapted from the Steam System Scoping Tool v1.0d, U.S. Department of Energy · This tool is not endorsed by that agency.')+'</div>';
+}
+function renderTabs(){
+  var h='<button type="button" class="tab" data-tab="basic" onclick="goTab(\'basic\')">'+L('ข้อมูลพื้นฐาน','Basic data')+'</button>';
+  CATS.forEach(function(c){h+='<button type="button" class="tab" data-tab="c'+c.id+'" onclick="goTab(\'c'+c.id+'\')">'+c.id+') '+esc(T(c.tab))+'<span class="tsc" id="tsc_'+c.id+'"></span></button>';});
+  h+='<button type="button" class="tab" data-tab="sum" onclick="goTab(\'sum\')">'+L('สรุปผล','Summary')+'</button>';
+  G('tabs').innerHTML=h;markTab();
+}
+var CUR_TAB='basic';
+function markTab(){[].forEach.call(document.querySelectorAll('.tab'),function(t){t.classList.toggle('active',t.getAttribute('data-tab')===CUR_TAB);});
+  [].forEach.call(document.querySelectorAll('.tabpane'),function(p){p.classList.toggle('active',p.id==='pane-'+CUR_TAB);});}
+function goTab(k){CUR_TAB=k;markTab();try{if(window.TE_INSIGHT)TE_INSIGHT.track('tab',k);}catch(e){}}
+
+function fld(id,th,en,unit,hintTh,hintEn,kind,type){
+  var chip=kind?'<span class="fchip '+kind+'">'+({design:L('ออกแบบ','Design'),meas:L('วัดจริง','Measured'),set:L('ตั้งค่า','Setting'),calc:L('คำนวณ','Calculated')}[kind])+'</span>':'';
+  var inp=type==='textarea'?'<textarea id="'+id+'"></textarea>':'<input type="'+(type||'number')+'" id="'+id+'"'+(type?'':' min="0" step="any" inputmode="decimal"')+'>';
+  return '<div><label class="fl" for="'+id+'">'+th+(en?'':'')+(unit?' <span class="unit">'+unit+'</span>':'')+chip+'</label>'+inp+(hintTh?'<div class="hint">'+L(hintTh,hintEn)+'</div>':'')+'</div>';
+}
+function renderBasic(){
+  var h='<div class="card"><h2>'+L('ข้อมูลพื้นฐานของระบบไอน้ำ','Steam System Basic Data')+'</h2>'+
+   '<div class="todo"><b>'+L('ต้องทำอะไร','What To Do')+'</b> — '+L('บันทึกข้อมูลการทำงานพื้นฐานของระบบไอน้ำ','Document some of the basic operating information about your steam system.')+'</div>'+
+   '<div class="todo"><b>'+L('ทำไมถึงสำคัญ','Why Important')+'</b> — '+L('ข้อมูลพื้นฐานช่วยให้รู้สภาพการทำงานปัจจุบันของระบบไอน้ำ และใช้เป็นฐาน/ค่าเทียบสำหรับอ้างอิงในอนาคต',
+     'Documenting basic steam system data is important to help you to identify the current conditions of your steam system operations, and to establish a baseline/benchmark that you can refer to in the future.')+'</div>'+
+   '<p class="muted" style="font-size:.85rem">'+L('ส่วนนี้ไม่คิดคะแนน กรอกเฉพาะที่ทราบ','This section is not scored — fill in what you know.')+'</p>'+
+   '<div class="grid2">'+
+   fld('p_name',L('ชื่องาน/สถานที่ (ไม่บังคับ)','Job / site name (optional)'),'',  '',  'ใช้แสดงบนหัวรายงานที่พิมพ์','Shown on the printed report header','', 'text')+
+   fld('p_date',L('วันที่ทำแบบประเมิน','Date you completed this questionnaire'),'','','','','', 'date')+
+   '</div>'+
+   fld('b_desc',L('a) ลักษณะการผลิตของโรงงาน','a) Type of production at your plant'),'','',
+     'อธิบายสั้น ๆ ว่าโรงงานผลิตอะไร ถ้าทราบรหัสประเภทอุตสาหกรรม (SIC) ให้ใส่ด้วย','Briefly describe the type of production that your plant does. If you know the Standard Industrial Code (SIC) for your industry, please include it.','','textarea')+
+   '<div class="note">'+L('ถ้าใช้ไอน้ำแต่ไม่ได้ผลิตไอน้ำเอง ให้ข้ามไปข้อ g','If you consume steam but do not generate any of your own, skip to question g.')+'</div>'+
+   '<div class="grid2">'+
+   fld('b_steam_yr',L('b) ปริมาณไอน้ำที่ผลิตทั้งปี','b) Total annual steam production'),'',L('ตัน/ปี','tonnes/yr'),'รวมจากมาตรวัดไอน้ำหรือบันทึกการเดินหม้อไอน้ำ','Total from steam meters or boiler logs','meas')+
+   fld('b_hours',L('c) ชั่วโมงทำงานของระบบต่อปี','c) Hours per year the system is in operation'),'',L('ชม./ปี','hours/year'),'ชั่วโมงที่ระบบไอน้ำเดินจริงในหนึ่งปี','Hours the steam system actually runs in a year','meas')+
+   fld('b_cap_t',L('d) กำลังการผลิตไอน้ำรวม','d) Total steam generation capacity'),'',L('ตัน/ชม.','tonnes/hour'),'ผลรวมพิกัดของหม้อไอน้ำทุกเครื่อง (จากป้ายชื่อ) กรอกช่องนี้หรือช่อง kW','Sum of boiler ratings (nameplate) — fill this or the kW field','design')+
+   fld('b_cap_kw',L('d) หรือ กำลังหม้อไอน้ำ','d) or Boiler kW'),'','kW','','','design')+
+   fld('b_avg_t',L('e) อัตราการผลิตไอน้ำเฉลี่ย','e) Average steam generation rate'),'',L('ตัน/ชม.','tonnes/hour'),'ค่าเฉลี่ยขณะเดินเครื่อง กรอกช่องนี้หรือช่อง kW','Average while running — fill this or the kW field','meas')+
+   fld('b_avg_kw',L('e) หรือ กำลังหม้อไอน้ำเฉลี่ย','e) or average Boiler kW'),'','kW','','','meas')+
+   '</div>'+
+   '<h3>'+L('f) สัดส่วนแหล่งพลังงานที่ใช้ผลิตไอน้ำ (คิดตามพลังงาน)','f) % distribution (on a Btu basis) of fuel sources for steam generation')+'</h3><div class="grid4">';
+  FUELS.forEach(function(f){h+=fld(f[0],L(f[2],f[1]),'','%','','','meas');});
+  h+='</div><div id="fuelTot" style="margin-top:8px"></div>'+
+   '<h3>'+L('g) เครื่องจักรความร้อนที่ใช้งานในโรงงาน','g) Heat engines in use on site')+'</h3><div class="grid2">'+
+   fld('b_bpt_n',L('กังหันไอน้ำแบบแบ็กเพรสเชอร์ – จำนวน','Back pressure steam turbines – number'),'',L('เครื่อง','units'),'','','design')+
+   fld('b_bpt_kw',L('กังหันไอน้ำแบบแบ็กเพรสเชอร์ – กำลังรวม','Back pressure steam turbines – total capacity'),'','kW','','','design')+
+   fld('b_cst_n',L('กังหันไอน้ำแบบควบแน่น – จำนวน','Condensing steam turbines – number'),'',L('เครื่อง','units'),'','','design')+
+   fld('b_cst_kw',L('กังหันไอน้ำแบบควบแน่น – กำลังรวม','Condensing steam turbines – total capacity'),'','kW','','','design')+
+   fld('b_gt_kw',L('กังหันก๊าซที่ไม่มี HRSG – กำลังรวม','Combustion gas turbines without HRSGs – total capacity'),'','kW','HRSG = หม้อไอน้ำนำความร้อนทิ้งกลับ (Heat Recovery Steam Generator)','HRSG = Heat Recovery Steam Generator','design')+
+   fld('b_gth_kw',L('กังหันก๊าซที่มี HRSG – กำลังรวม','Combustion gas turbines with HRSGs – total capacity'),'','kW','','','design')+
+   fld('b_oth_type',L('อื่น ๆ (ระบุชนิด)','Other (specify type)'),'','','','','', 'text')+
+   fld('b_oth_kw',L('อื่น ๆ – กำลังรวม','Other – total capacity'),'','kW','','','design')+
+   '</div><div class="grid3">'+
+   fld('b_buy',L('h) ไอน้ำที่ซื้อจากภายนอกต่อปี','h) Steam bought annually from others'),'',L('ตัน/ปี','tonnes/year'),'','','meas')+
+   fld('b_traps',L('i) จำนวนกับดักไอน้ำในระบบ','i) Number of steam traps in the system'),'',L('ตัว','traps'),'จากทะเบียนกับดักไอน้ำ ถ้าไม่มีให้ประมาณ','From the trap register, or an estimate','meas')+
+   fld('b_bd',L('j) อัตราโบลว์ดาวน์เฉลี่ยของหม้อไอน้ำ','j) Average boiler blowdown rate'),'',L('% ของอัตราน้ำป้อนเฉลี่ย','% of average feedwater flow'),'','','meas')+
+   '</div></div>';
+  G('pane-basic').innerHTML=h;
+}
+function renderCat(c){
+  var h='<div class="card"><h2>'+c.id+') '+esc(T(c))+' <span class="muted" style="font-size:1rem">('+L('คะแนนเต็ม','max')+' '+c.max+')</span></h2>'+
+    '<div class="muted" style="font-size:.85rem">'+L('ตอบตามสภาพจริง ข้อที่มีช่องสี่เหลี่ยมเลือกได้หลายรายการ คะแนนรวมตามรายการที่ทำอยู่','Answer based on actual practice. Questions with square boxes allow several answers; the score is the sum of the items you do.')+'</div></div>';
+  SECS.filter(function(s){return s.cat===c.id;}).forEach(function(s){
+    h+='<div class="card sec-card"><div class="sec-head"><h3 style="margin:0">'+esc(T(s))+'</h3></div>'+
+      '<div class="todo"><b>'+L('ต้องทำอะไร','What To Do')+'</b> — '+esc(T(s.todo))+'</div>'+
+      '<details class="why"><summary>'+L('ทำไมถึงสำคัญ','Why Important')+'</summary><div class="whyt">'+esc(T(s.why))+'</div></details>';
+    QS.filter(function(q){return q.sec===s.id;}).forEach(function(q){
+      var multi=q.type==='multi';
+      h+='<div class="q" id="qbox_'+q.id+'"><div class="qh"><span class="qid">'+q.id+'</span>'+esc(T(q.q))+
+        '<span class="qtype">'+(multi?L('(เลือกได้หลายรายการ)','(select all that apply)'):L('(เลือกหนึ่งคำตอบ)','(choose one)'))+'</span></div>';
+      q.opts.forEach(function(o,i){
+        h+='<label class="opt"><input type="'+(multi?'checkbox':'radio')+'" name="q_'+q.id+'" id="q_'+q.id+'_'+i+'" data-q="'+q.id+'" data-i="'+i+'">'+
+          '<span class="ol">'+esc(T(o))+(multi?' — <b>'+L('ใช่','yes')+'</b>':'')+'</span><span class="op">'+o.pts+' '+L('คะแนน','pts')+'</span></label>';
+      });
+      if(multi)h+='<label class="opt none"><input type="checkbox" id="q_'+q.id+'_none" data-q="'+q.id+'" data-none="1"><span class="ol">'+esc(T(q.none))+'</span><span class="op">0 '+L('คะแนน','pts')+'</span></label>';
+      h+='<div class="qs" id="qsl_'+q.id+'"></div></div>';
+    });
+    h+='</div>';
+  });
+  G('pane-c'+c.id).innerHTML=h;
+}
+function renderFoot(){
+  G('foot').innerHTML='<strong>'+L('พัฒนาโดย อ.หนึ่ง กลับทวี','Developed by Aj. Nueng Klubtavee')+'</strong> · '+L('บริษัท ทริปเปิ้ล อี เทคโนโลยี จำกัด','Triple E Technology Co., Ltd.')+'<br>'+
+   'Steam System Scoping v'+TOOL_VER+' · '+L('ดัดแปลงจาก Steam System Scoping Tool v1.0d ของ U.S. Department of Energy','Adapted from the Steam System Scoping Tool v1.0d, U.S. Department of Energy')+' · '+
+   L('เครื่องมือนี้ไม่ได้รับการรับรองจากหน่วยงานดังกล่าว','This tool is not endorsed by that agency.')+
+   '<div class="print-only" style="margin-top:6px">'+L('ฉบับฟรี — Triple E Energy Tools · tripleeenergytools.com · ผลประเมินขึ้นกับคำตอบที่ผู้ใช้ป้อน ผู้จัดทำรับผิดชอบข้อมูลนำเข้า',
+   'Free edition — Triple E Energy Tools · tripleeenergytools.com · Results depend on the answers entered; the preparer is responsible for the input data.')+'</div>';
+  G('hdrSub').textContent=L('ประเมินตนเองระบบไอน้ำ 26 ข้อ 340 คะแนน · ดัดแปลงจาก Steam System Scoping Tool v1.0d ของ U.S. Department of Energy',
+   'Steam system self-assessment, 26 questions, 340 points · Adapted from the Steam System Scoping Tool v1.0d, U.S. Department of Energy');
+}
+function renderAll(){
+  var snap=TE_JSON.collect();
+  renderIntro();renderTabs();renderBasic();CATS.forEach(renderCat);renderFoot();
+  Object.keys(snap).forEach(function(id){var e=G(id);if(!e)return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!snap[id];else e.value=snap[id];});
+  recalc();
+}
+
+/* ---------- คำนวณคะแนน (สายเดียว) ---------- */
+var _res=null;
+function qState(q){
+  var r={id:q.id,max:q.max,score:0,answered:false,sel:[],none:false};
+  if(q.type==='multi'){
+    q.opts.forEach(function(o,i){var e=G('q_'+q.id+'_'+i);if(e&&e.checked){r.score+=o.pts;r.sel.push(i);}});
+    var n=G('q_'+q.id+'_none');r.none=!!(n&&n.checked);r.answered=r.sel.length>0||r.none;
+  }else{
+    q.opts.forEach(function(o,i){var e=G('q_'+q.id+'_'+i);if(e&&e.checked){r.score=o.pts;r.sel=[i];r.answered=true;}});
+  }
+  r.lost=r.max-r.score;return r;
+}
+function recalc(){
+  var R={q:{},cat:{},total:0,max:MAXTOT,answered:0};
+  CATS.forEach(function(c){R.cat[c.id]={score:0,max:c.max,answered:0,n:0};});
+  QS.forEach(function(q){var s=qState(q);R.q[q.id]=s;var cc=R.cat[q.cat];cc.score+=s.score;cc.n++;if(s.answered){cc.answered++;R.answered++;}R.total+=s.score;});
+  R.pct=pct(R.total,R.max);_res=R;
+  QS.forEach(function(q){var s=R.q[q.id],el=G('qsl_'+q.id);if(el)el.innerHTML=s.answered?(L('คะแนนข้อนี้','Score')+' <b>'+s.score+' / '+s.max+'</b>'):L('ยังไม่ตอบ','Not answered')+' · '+L('คะแนนเต็ม','max')+' '+s.max;
+    var b=G('qbox_'+q.id);if(b)b.classList.toggle('ans',s.answered);});
+  CATS.forEach(function(c){var t=G('tsc_'+c.id);if(t)t.textContent=R.cat[c.id].score+'/'+c.max;});
+  G('hdrBadge').innerHTML=L('คะแนนรวม','Total score')+' <b id="hdr_total">'+R.total+'</b> / '+R.max+' · '+fmt1(R.pct)+'%';
+  var ft=0,any=false;FUELS.forEach(function(f){var v=parseFloat(G(f[0])&&G(f[0]).value);if(isFinite(v)){ft+=v;any=true;}});
+  var fe=G('fuelTot');if(fe)fe.innerHTML='<b>'+L('รวม','Total')+' '+(any?fmt1(ft):'0.0')+' %</b> '+(any&&Math.abs(ft-100)>0.05?'<span class="warnbox" style="display:inline-block;margin:0 0 0 6px">'+L('ผลรวมควรเท่ากับ 100%','Total should add up to 100%')+'</span>':'<span class="muted">'+L('(ผลรวมควรเท่ากับ 100%)','(should add up to 100%)')+'</span>');
+  renderSummary(R);
+  return R;
+}
+function ansText(q,s){
+  if(!s.answered)return '<span class="muted">'+L('ยังไม่ตอบ','Not answered')+'</span>';
+  if(q.type==='multi'){if(!s.sel.length)return esc(T(q.none));return s.sel.map(function(i){return esc(T(q.opts[i]));}).join('<br>');}
+  return esc(T(q.opts[s.sel[0]]));
+}
+function bar(p,color){var w=Math.max(0,Math.min(100,p));return '<svg viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="'+fmt1(p)+'%"><rect x="0" y="0" width="100" height="10" rx="2" fill="#e2e8f0"/><rect x="0" y="0" width="'+w.toFixed(2)+'" height="10" rx="2" fill="'+color+'"/></svg>';}
+function barColor(p){return p>=75?'#1e9e5a':(p>=50?'#12a4a4':(p>=25?'#e08a00':'#d1495b'));}
+function basicSummary(){
+  var rows=[];function add(id,lab,unit){var e=G(id);if(e&&String(e.value).trim()!=='')rows.push('<tr><td>'+lab+'</td><td class="num">'+esc(e.value)+(unit?' '+unit:'')+'</td></tr>');}
+  add('b_desc',L('ลักษณะการผลิต','Type of production'));add('b_steam_yr',L('ไอน้ำที่ผลิตทั้งปี','Annual steam production'),L('ตัน/ปี','tonnes/yr'));
+  add('b_hours',L('ชั่วโมงทำงานต่อปี','Operating hours'),L('ชม./ปี','hours/year'));add('b_cap_t',L('กำลังการผลิตไอน้ำรวม','Steam generation capacity'),L('ตัน/ชม.','tonnes/hour'));
+  add('b_cap_kw',L('กำลังหม้อไอน้ำรวม','Boiler capacity'),'kW');add('b_avg_t',L('อัตราการผลิตไอน้ำเฉลี่ย','Average steam generation rate'),L('ตัน/ชม.','tonnes/hour'));
+  add('b_avg_kw',L('กำลังหม้อไอน้ำเฉลี่ย','Average boiler output'),'kW');
+  FUELS.forEach(function(f){add(f[0],L('สัดส่วนเชื้อเพลิง: ','Fuel share: ')+L(f[2],f[1]),'%');});
+  add('b_bpt_n',L('กังหันแบ็กเพรสเชอร์ (จำนวน)','Back pressure turbines (number)'));add('b_bpt_kw',L('กังหันแบ็กเพรสเชอร์ (กำลังรวม)','Back pressure turbines (capacity)'),'kW');
+  add('b_cst_n',L('กังหันแบบควบแน่น (จำนวน)','Condensing turbines (number)'));add('b_cst_kw',L('กังหันแบบควบแน่น (กำลังรวม)','Condensing turbines (capacity)'),'kW');
+  add('b_gt_kw',L('กังหันก๊าซไม่มี HRSG','Gas turbines without HRSG'),'kW');add('b_gth_kw',L('กังหันก๊าซมี HRSG','Gas turbines with HRSG'),'kW');
+  add('b_oth_type',L('เครื่องจักรความร้อนอื่น','Other heat engine'));add('b_oth_kw',L('เครื่องจักรความร้อนอื่น (กำลังรวม)','Other heat engine (capacity)'),'kW');
+  add('b_buy',L('ไอน้ำที่ซื้อต่อปี','Steam bought per year'),L('ตัน/ปี','tonnes/year'));add('b_traps',L('จำนวนกับดักไอน้ำ','Number of steam traps'));
+  add('b_bd',L('อัตราโบลว์ดาวน์เฉลี่ย','Average blowdown rate'),L('% ของน้ำป้อน','% of feedwater'));
+  return rows.length?'<div class="scroll-x"><table><tbody>'+rows.join('')+'</tbody></table></div>':'<p class="muted">'+L('ยังไม่ได้กรอกข้อมูลพื้นฐาน','No basic data entered yet.')+'</p>';
+}
+function renderSummary(R){
+  var h='<div class="card" id="sumCard"><div class="print-only" id="prHead"></div>'+
+    '<h2>'+L('สรุปผลการประเมิน','Summary Results')+'</h2>'+
+    '<div class="kpirow">'+
+     '<div class="kpi"><div class="v"><span id="sum_total">'+R.total+'</span> <small>/ <span id="sum_max">'+R.max+'</span></small></div><div class="l">'+L('คะแนนรวม','Total questionnaire score')+'</div></div>'+
+     '<div class="kpi"><div class="v"><span id="sum_pct">'+fmt1(R.pct)+'</span><small>%</small></div><div class="l">'+L('คะแนนรวม (ร้อยละ)','Total score (%)')+'</div></div>'+
+     '<div class="kpi"><div class="v"><span id="sum_ans">'+R.answered+'</span> <small>/ '+QS.length+'</small></div><div class="l">'+L('จำนวนข้อที่ตอบแล้ว','Questions answered')+'</div></div>'+
+    '</div>';
+  if(R.answered<QS.length)h+='<div class="note">'+L('ยังตอบไม่ครบ ข้อที่ยังไม่ตอบนับเป็น 0 คะแนน','Not all questions are answered; unanswered questions count as 0 points.')+' ('+(QS.length-R.answered)+')</div>';
+  h+='<h3>'+L('คะแนนรายหมวด','Score by category')+'</h3>';
+  CATS.forEach(function(c){var cc=R.cat[c.id],p=pct(cc.score,cc.max);
+    h+='<div class="barrow" id="bar_'+c.id+'"><div class="bl"><b>'+c.id+') '+esc(T(c))+'</b><span class="bv"><span id="cs_'+c.id+'">'+cc.score+'</span> / '+cc.max+' · <span id="cp_'+c.id+'">'+fmt1(p)+'</span>%</span></div>'+bar(p,barColor(p))+'</div>';});
+  h+='<div class="barrow"><div class="bl"><b>'+L('รวมทั้งหมด','Total')+'</b><span class="bv">'+R.total+' / '+R.max+' · '+fmt1(R.pct)+'%</span></div>'+bar(R.pct,'#0f2a4a')+'</div>'+
+    '<p class="muted" style="font-size:.8rem">'+L('สีแถบใช้ช่วยอ่านเท่านั้น ต้นฉบับ (แผ่น 7 SUMMARY RESULTS และแผ่น 8 NEXT STEPS) ไม่มีเกณฑ์แปลผลช่วงคะแนน เครื่องมือนี้จึงแสดงเฉพาะคะแนนและร้อยละ',
+       'Bar colours are a reading aid only. The original (sheet 7 SUMMARY RESULTS and sheet 8 NEXT STEPS) gives no score-band interpretation, so this tool shows scores and percentages only.')+'</p></div>';
+  /* จุดที่ควรปรับปรุงก่อน */
+  var lst=QS.map(function(q,i){return{q:q,s:R.q[q.id],i:i};}).filter(function(x){return x.s.lost>0;})
+    .sort(function(a,b){return (b.s.lost-a.s.lost)||(b.q.max-a.q.max)||(a.i-b.i);});
+  h+='<div class="card" id="prioCard"><h2>'+L('จุดที่ควรปรับปรุงก่อน','Where to improve first')+'</h2>'+
+    '<p class="muted" style="font-size:.85rem">'+L('เรียงตามคะแนนที่เสียไปมากที่สุด (คะแนนเต็ม − คะแนนที่ได้) พร้อมสิ่งที่ควรทำตามต้นฉบับ และเครื่องมือฟรีที่ช่วยประเมินเชิงตัวเลขต่อ',
+     'Sorted by points lost (maximum − your score), with the recommended action from the original and free tools for a quantitative follow-up.')+'</p>';
+  if(!lst.length)h+='<div class="reco">'+L('ได้คะแนนเต็มทุกข้อ','Full score on every question.')+'</div>';
+  lst.forEach(function(x,k){var q=x.q,s=x.s,sec=SECMAP[q.sec];
+    var ln=(QLINKS[q.id]||[]).map(function(t){var o=TOOLS[t];return '<a href="'+o.f+'" target="_blank" rel="noopener">↗ '+esc(L(o.th,o.en))+'</a>';}).join('');
+    h+='<div class="prio'+(k<5?' top':'')+'" data-q="'+q.id+'"><div class="ph"><span class="rk">'+(k+1)+'</span><span class="qid">'+q.id+'</span><b>'+esc(T(q.short))+'</b>'+
+      '<span class="lost">'+L('เสีย','lost')+' <span class="pl">'+s.lost+'</span> / '+s.max+'</span></div>'+
+      '<div class="pa">'+L('คำตอบ','Answer')+': '+ansText(q,s)+'</div>'+
+      '<div class="pt"><b>'+L('ต้องทำอะไร','What To Do')+'</b> ('+esc(T(sec))+') — '+esc(T(sec.todo))+'</div>'+
+      (ln?'<div class="links">'+ln+'</div>':'')+'</div>';});
+  h+='</div>';
+  /* ตารางรายข้อ */
+  h+='<div class="card" id="qtabCard"><h2>'+L('คะแนนรายข้อ','Score by question')+'</h2><div class="scroll-x"><table id="qtab"><thead><tr><th>'+L('ข้อ','No.')+'</th><th>'+L('หัวข้อ','Question')+'</th><th>'+L('คำตอบ','Answer')+'</th><th class="num">'+L('ได้','Score')+'</th><th class="num">'+L('เต็ม','Max')+'</th></tr></thead><tbody>';
+  CATS.forEach(function(c){var cc=R.cat[c.id];
+    h+='<tr class="catrow"><td colspan="3">'+c.id+') '+esc(T(c))+'</td><td class="num">'+cc.score+'</td><td class="num">'+cc.max+'</td></tr>';
+    QS.filter(function(q){return q.cat===c.id;}).forEach(function(q){var s=R.q[q.id];
+      h+='<tr><td class="qcell">'+q.id+'</td><td>'+esc(T(q.short))+'</td><td style="font-size:.82rem">'+ansText(q,s)+'</td><td class="num" id="qs_'+q.id+'">'+s.score+'</td><td class="num">'+s.max+'</td></tr>';});
+  });
+  h+='<tr class="totrow"><td colspan="3">'+L('คะแนนรวมทั้งหมด','Total scoping tool questionnaire score')+'</td><td class="num">'+R.total+'</td><td class="num">'+R.max+'</td></tr></tbody></table></div></div>';
+  h+='<div class="card" id="basicSumCard"><h2>'+L('ข้อมูลพื้นฐาน (ไม่คิดคะแนน)','Basic data (not scored)')+'</h2>'+basicSummary()+'</div>';
+  /* ขั้นต่อไป — แผ่น 8 */
+  h+='<div class="card" id="nextCard"><h2>'+L('ขั้นต่อไป: แหล่งข้อมูลเพิ่มเติมของ DOE','Next steps: additional DOE BestPractices Steam resources')+'</h2>'+
+    '<p style="font-size:.88rem">'+L('ต้นฉบับแนะนำเอกสารต่อไปนี้ของโครงการ DOE BestPractices Steam (ค้นตามชื่อเอกสาร): Steam System Survey Guide (คู่มืออ้างอิงเชิงเทคนิคสำหรับประเมินโอกาสปรับปรุงเชิงปริมาณ) · Improving Steam System Performance: A Sourcebook for Industry · โปรแกรมประเมินฉนวน 3E-Plus · และเอกสาร Steam Tip Sheets ตามหัวข้อด้านล่าง',
+      'The original points to these DOE BestPractices Steam resources (search by title): Steam System Survey Guide (a technical reference for quantifying improvement opportunities) · Improving Steam System Performance: A Sourcebook for Industry · 3E-Plus insulation appraisal software · and the Steam Tip Sheets listed below.')+'</p>';
+  D.tips.forEach(function(t){var c=CATS[t.cat-1];h+='<h3>'+c.id+') '+esc(T(c))+'</h3><ul style="margin:.2rem 0 .4rem 1.1rem;padding:0;font-size:.88rem">'+t.items.map(function(i){return '<li>'+esc(T(i))+'</li>';}).join('')+'</ul>';});
+  h+='</div>';
+  G('pane-sum').innerHTML=h;
+  var nm=G('p_name'),dt=G('p_date');
+  G('prHead').innerHTML='<b>'+L('รายงานประเมินตนเองระบบไอน้ำ','Steam System Self-Assessment Report')+'</b>'+(nm&&nm.value?' — '+esc(nm.value):'')+(dt&&dt.value?' · '+esc(dt.value):'');
+}
+
+/* ---------- เหตุการณ์ ---------- */
+var DIRTY=false;
+document.addEventListener('change',function(ev){
+  var t=ev.target;if(!t||!t.id)return;
+  if(t.type==='checkbox'&&t.dataset.q){
+    var q=QMAP[t.dataset.q];
+    if(t.dataset.none==='1'&&t.checked){q.opts.forEach(function(o,i){var e=G('q_'+q.id+'_'+i);if(e)e.checked=false;});}
+    else if(t.checked){var n=G('q_'+q.id+'_none');if(n)n.checked=false;}
+  }
+  if(t.id!=='fileLoad')DIRTY=true;
+  recalc();
+});
+document.addEventListener('input',function(ev){var t=ev.target;if(t&&t.id&&(t.type==='number'||t.type==='text'||t.tagName==='TEXTAREA')){DIRTY=true;recalc();}});
+window.addEventListener('beforeunload',function(e){if(DIRTY){e.preventDefault();e.returnValue=L('ข้อมูลที่กรอกจะหาย — บันทึก JSON ก่อนออก','Entered data will be lost — save JSON before leaving');return e.returnValue;}});
+/* ค่าตัวอย่างข้อความ (ข้อมูลสมมุติ) — สลับตามภาษาเมื่อผู้ใช้ยังไม่ได้แก้ค่า */
+var EXV=[['p_name','โรงงานตัวอย่าง (สมมุติ)','Example plant (fictitious)'],
+  ['b_desc','โรงงานแปรรูปอาหาร ใช้ไอน้ำในการต้มและฆ่าเชื้อ (ข้อมูลสมมุติ)','Food processing plant using steam for cooking and sterilising (fictitious data)']];
+function exVal(id){for(var i=0;i<EXV.length;i++)if(EXV[i][0]===id)return LG()==='en'?EXV[i][2]:EXV[i][1];return '';}
+function swapExampleVals(){EXV.forEach(function(x){var e=G(x[0]);if(e&&(e.value===x[1]||e.value===x[2]))e.value=LG()==='en'?x[2]:x[1];});}
+document.addEventListener('te-lang',function(){swapExampleVals();renderAll();});
+
+function clearAll(skipConfirm){
+  if(!skipConfirm&&_res&&_res.answered>0&&!confirm(L('ล้างคำตอบทั้งหมด?','Clear all answers?')))return;
+  [].forEach.call(document.querySelectorAll('input[data-q]'),function(e){e.checked=false;});
+  recalc();
+}
+function fillExample(){
+  if(_res&&_res.answered>0&&!confirm(L('แทนที่คำตอบปัจจุบันด้วยตัวอย่าง?','Replace current answers with the example?')))return;
+  /* ข้อมูลสมมุติ — ไม่ใช่โรงงานจริง */
+  var B={p_name:exVal('p_name'),b_desc:exVal('b_desc'),
+    b_steam_yr:'48000',b_hours:'6000',b_cap_t:'15',b_avg_t:'8',b_f_coal:'60',b_f_bio:'40',b_traps:'180',b_bd:'5'};
+  Object.keys(B).forEach(function(k){if(G(k))G(k).value=B[k];});
+  var A={SC1:0,SC2:1,BM1:0,BM2:2,MS1:[0,1],MS2:3,ST1:[0,3],WT1:0,WT2:1,WT3:1,IN1:1,IN2:1,LK1:2,WH1:1,MN1:[0,1],BE1:1,BE2:[0],BE3:1,HR1:[0],DS1:2,GB1:1,GB2:0,GB3:1,PR1:2,CR1:2,FS1:3};
+  [].forEach.call(document.querySelectorAll('input[data-q]'),function(e){e.checked=false;});
+  Object.keys(A).forEach(function(k){var v=A[k];(Array.isArray(v)?v:[v]).forEach(function(i){var e=G('q_'+k+'_'+i);if(e)e.checked=true;});});
+  DIRTY=true;recalc();
+}
+function teSaveJSON(){recalc();TE_JSON.save('Tool_Steam_System_Scoping',{tool:'Steam System Scoping',version:TOOL_VER,total:_res.total,max:_res.max});DIRTY=false;try{if(window.TE_INSIGHT)TE_INSIGHT.track('save','json');}catch(e){}}
+function teLoadJSON(file){TE_JSON.load(file,function(){swapExampleVals();recalc();DIRTY=false;});}
+function tePrint(){recalc();try{if(window.TE_INSIGHT)TE_INSIGHT.track('print','report');}catch(e){}window.print();}
+window.addEventListener('beforeprint',function(){recalc();});
+function ensureAllCalc(){return recalc();}
+var recalcAll=ensureAllCalc;
+
+if(window.TE_I18N){
+  TE_I18N.set({
+   "Steam System Scoping — ประเมินตนเองระบบไอน้ำ":"Steam System Scoping — Steam System Self-Assessment",
+   "💾 บันทึก JSON":"💾 Save JSON","📂 โหลด JSON":"📂 Load JSON","🖨 พิมพ์รายงาน":"🖨 Print report",
+   "ไฟล์ JSON ไม่ถูกต้อง:":"Invalid JSON file:"
+  },[[/^ไฟล์ JSON ไม่ถูกต้อง: /,'Invalid JSON file: ']]);
+}
+renderAll();
+</script>
+<!-- [แก้ไข 23 พ.ย. 2569] ก้อน 0A: สถิติการใช้งาน -->
+<script src="../te-insight.js" defer></script>
+</body>
+</html>
