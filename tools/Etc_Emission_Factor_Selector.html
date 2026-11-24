@@ -714,12 +714,14 @@ quickSearch.addEventListener('input', () => {
   if (matches.length === 0) {
     quickResults.innerHTML = '<div class="qr-item" style="color:var(--text-dim)">ไม่พบรายการ — ลอง: ดีเซล, ขยะ, เครื่องบิน, R-22, HDPE, B7, E10, ไฟฟ้า</div>';
   } else {
+    /* [แก้ไข 25 พ.ย. 2569] #419 ผลค้นหาเร็วแสดงหน่วยของค่า EF ผิดสำหรับรายการหน่วย MWh (ค่า Grid EF ของ T-VER เป็น tCO₂eq/MWh แต่แสดง "kgCO₂eq/MWh" — ผิด 1,000 เท่า)
+       และรายการหน่วย fraction/% (แสดง "kgCO₂eq/fraction") → ใช้กติกาหน่วยชุดเดียวกับช่องผล OUTPUT (#152 · 17 พ.ย. 2569) · ไม่เปลี่ยนค่า EF ฐานข้อมูล หรือการคำนวณ */
     quickResults.innerHTML = matches.map(m => `
       <div class="qr-item" data-pj="${m.project}" data-sc="${m.scope || ''}" data-ac="${m.activity}" data-it="${m.item}">
         <div class="qr-name">${m.name}${m.isNew ? '<span class="new-tag">NEW</span>' : ''}</div>
         <div class="qr-meta">
           ${m.project}${m.scope ? ' · ' + m.scope : ''} · ${m.activityLabel}
-          ${m.ef !== null ? ' · <span class="qr-ef">' + m.ef + ' kgCO₂eq/' + m.unit + '</span>' : ''}
+          ${m.ef !== null ? ' · <span class="qr-ef">' + m.ef + (m.unit === 'MWh' ? ' tCO₂eq/MWh' : (m.unit === 'fraction' || m.unit === '%') ? ' ' + m.unit : ' kgCO₂eq/' + m.unit) + '</span>' : ''}
         </div>
       </div>
     `).join('');
