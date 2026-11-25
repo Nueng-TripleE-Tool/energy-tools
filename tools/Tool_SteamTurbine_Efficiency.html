@@ -236,7 +236,7 @@ var TE_JSON=(function(){
     <select id="inletPhase" onchange="onInletPhaseChange()">
       <option value="SH">Superheated — ระบุ T_in (°C)</option>
       <option value="WET">Wet Steam — ระบุ Dryness X_in (&gt; 0.90)</option>
-    </select><div class="hint">ไอน้ำเข้ากังหันปกติเป็นไอดง (ระบุ T_in); เลือก Wet เฉพาะกังหันไอน้ำอิ่มตัว (ASME PTC 6: X ≥ 0.90)</div>
+    </select><div class="hint">ไอน้ำเข้ากังหันปกติเป็นไอดง (ระบุ T_in); เลือก Wet เฉพาะกังหันไอน้ำอิ่มตัว (X ≥ 0.90 — ค่าแนวทางของเครื่องมือ)</div><!-- [แก้ไข 25 พ.ย. 2569] #522 ตัดการอ้าง ASME PTC 6 กับเกณฑ์ X ≥ 0.90 — PTC 6 เป็นวิธีทดสอบสมรรถนะ (สารบัญฉบับ 2004 ไม่มีข้อกำหนดความแห้งขาเข้า) จึงเขียนเป็นค่าแนวทางของเครื่องมือ ตรงกับคำใบ้ช่อง X_in -->
     <div id="inlet_sh_row">
       <label>อุณหภูมิขาเข้า T_in (°C)</label>
       <input type="number" id="t_in" onchange="markStale()" value="400" step="1"><div class="hint">อุณหภูมิไอน้ำเข้ากังหัน (°C) จาก DCS/เทอร์โมเวลล์ก่อน stop valve — ต้องสูงกว่า T_sat ที่ P_in; กังหันอุตสาหกรรม 350–510 °C</div>
@@ -777,6 +777,8 @@ var TE_JSON=(function(){
         <tr><td class="hl">m_steam (t/h)</td><td id="ct_sf_des">—</td><td id="ct_sf_act">—</td><td id="ct_sf_dev">—</td><td id="ct_sf_st">—</td></tr>
       </table>
     </div>
+    <!-- [แก้ไข 25 พ.ย. 2569] #523 เกณฑ์ ±15 % ของ Power Output ค้นเอกสารต้นทางที่เปิดได้ไม่พบ → กำกับว่าเป็นค่าแนวทางของเครื่องมือ · ตัวเลขไม่เปลี่ยน -->
+    <div class="hint" id="ct_crit_note" style="margin-top:6px">เกณฑ์สถานะ: Power Output ต่างจากค่าพิกัดไม่เกิน ±15 % = OK เกินกว่านั้น = CHECK · η_is ≥ 80 % GOOD · 70–80 % FAIR · &lt; 70 % LOW — ทั้งหมดเป็นค่าแนวทางของเครื่องมือ ใช้คัดกรองเบื้องต้น ไม่ใช่เกณฑ์ทดสอบรับมอบตามมาตรฐาน</div>
   </div>
 </div><!-- P2 end -->
 
@@ -856,7 +858,9 @@ function getSuperheat(P,T){
    ค่าที่ค้างจากชนิดมีสกัดจึงถูกหักออกจากไอน้ำขาออก (mass balance) ทั้งที่ช่องซ่อนอยู่ · ค่ายังอยู่ในช่องเผื่อสลับกลับ · แก้ที่หน้าเครื่องมือ ไม่แตะสูตรในไลบรารี */
 function __stHasExt(){return /^EXT/.test(v('turbineType')||'');}
 function __stV(id){if(/^[ptm]_ext[123]$/.test(id)&&!__stHasExt())return '';return v(id);}
-function __stEnv(){return {v:__stV,setH:setH,getSat:getSat,getSuperheat:getSuperheat,P_ATM:P_ATM,pressureUnit:pressureUnit};}
+/* [แก้ไข 25 พ.ย. 2569] #522 ข้อความลำดับวิธีคำนวณของไลบรารีเขียน "(ASME PTC 6 X≥0.90 ✓)" — PTC 6 ไม่ได้กำหนดเกณฑ์นี้ (เป็นค่าแนวทางของเครื่องมือ) จึงแทนข้อความก่อนแสดง · ไม่แตะไลบรารี */
+function __stSetH(id,val){if(typeof val==='string')val=val.split('(ASME PTC 6 X≥0.90 ✓)').join('(X ≥ 0.90 ✓ · ค่าแนวทางของเครื่องมือ)');return setH(id,val);}
+function __stEnv(){return {v:__stV,setH:__stSetH,getSat:getSat,getSuperheat:getSuperheat,P_ATM:P_ATM,pressureUnit:pressureUnit};}
 /* [แก้ไข 15 พ.ย. 2569] ผลตรวจรอบ 3 ข้อ B4 — ตารางไอน้ำอิ่มตัวและค่ารั่วในการ์ด ECM คำนวณจาก te-core ตอนโหลดหน้า (ไม่พิมพ์ค่าตายตัว) */
 function buildSatTable(){
   var tb=document.getElementById('satTbl'); if(!tb||!window.TE_STEAM) return;
@@ -869,7 +873,10 @@ function buildSatTable(){
   var q=document.getElementById('ecmPrv'); if(q&&TE_STEAM.isoOut){ var dh=TE_STEAM.hSup(40,350)-TE_STEAM.isoOut(40,350,4).h; q.textContent=Math.round(dh/3.6*0.6)+'–'+Math.round(dh/3.6*0.8); }
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',buildSatTable); else buildSatTable();
-function calcAll(){var r=TE.STMEFF.make(__stEnv()).calcAll();if(r===undefined)return;RES=r;updateUI();}
+/* [แก้ไข 25 พ.ย. 2569] #522 ตรวจ X_in ของไอน้ำเปียกที่หน้าเครื่องมือก่อนเรียกแกนคำนวณ (ข้อความเตือนของไลบรารีอ้างว่า ASME PTC 6 กำหนด X ≥ 0.90 ซึ่งยืนยันจากเอกสารไม่ได้)
+   เงื่อนไขและค่าตั้งต้นเหมือนไลบรารีทุกประการ (X ว่าง → 0.95 · ตัดช่วง 0–1 · X < 0.90 ไม่คำนวณ) ต่างเพียงข้อความ = ค่าแนวทางของเครื่องมือ + เหตุผลทางวิศวกรรม */
+function calcAll(){if(v('inletPhase')==='WET'){var X=Math.min(1.0,Math.max(0.0,+v('x_in')||0.95));if(X<0.90){alert('X_in = '+X.toFixed(3)+' < 0.90\n⚠ ไอน้ำขาเข้าควร X ≥ 0.90 เพื่อลดการสึกกร่อนของใบกังหัน (ค่าแนวทางของเครื่องมือ)');return;}}
+ var r=TE.STMEFF.make(__stEnv()).calcAll();if(r===undefined)return;RES=r;updateUI();}
 function hIsen(P_out,s_in){return TE.STMEFF.make(__stEnv()).hIsen(P_out,s_in);}
 function drawSLD(type,cfg){return TE.STMEFF.make(__stEnv()).drawSLD(type,cfg);}
 function buildSteps(r){return TE.STMEFF.make(__stEnv()).buildSteps(r);}
@@ -1378,7 +1385,7 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)อุณหภูมิไอน้ำเข้ากังหัน\s+\(°C\)\s+จาก\s+DCS\/เทอร์โมเวลล์ก่อน\s+stop\s+valve\s+—\s+ต้องสูงกว่า\s+T_sat\s+ที่\s+P_in;\s+กังหันอุตสาหกรรม\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+°C(\s*)$/,"$1Turbine inlet steam temperature (°C) from DCS/thermowell before the stop valve — must exceed T_sat at P_in; industrial turbines $2–$3 °C$4"],
 [/^(\s*)Method\s+(-?\d[\d,]*\.?\d*)\s+ใช้\s+T_out\s+\(เฉพาะขาออกยังเป็นไอดง\);\s+Method\s+(-?\d[\d,]*\.?\d*)\s+ใช้\s+kW\s+จากมิเตอร์\s+—\s+แนะนำสำหรับภาคสนาม\/กังหัน\s+condensing(\s*)$/,"$1Method $2 uses T_out (only if exhaust is still superheated); Method $3 uses metered kW — recommended for field work/condensing turbines$4"],
 [/^(\s*)η_isentropic\s+ออกแบบจาก\s+heat\s+balance\s+ผู้ผลิต\/acceptance\s+test\s+\(%\)\s+—\s+กังหันอุตสาหกรรม\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+%,\s+ยูทิลิตี้\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+%(\s*)$/,"$1Design η_isentropic from OEM heat balance/acceptance test (%) — industrial turbines $2–$3 %, utility $4–$5 %$6"],
-[/^(\s*)ไอน้ำเข้ากังหันปกติเป็นไอดง\s+\(ระบุ\s+T_in\);\s+เลือก\s+Wet\s+เฉพาะกังหันไอน้ำอิ่มตัว\s+\(ASME\s+PTC\s+(-?\d[\d,]*\.?\d*):\s+X\s+≥\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Turbine inlet is normally superheated (enter T_in); choose Wet only for saturated-steam turbines (ASME PTC $2: X ≥ $3)$4"],
+[/^(\s*)ไอน้ำเข้ากังหันปกติเป็นไอดง\s+\(ระบุ\s+T_in\);\s+เลือก\s+Wet\s+เฉพาะกังหันไอน้ำอิ่มตัว\s+\(X\s+≥\s+(-?\d[\d,]*\.?\d*)\s+—\s+ค่าแนวทางของเครื่องมือ\)(\s*)$/,"$1Turbine inlet is normally superheated (enter T_in); choose Wet only for saturated-steam turbines (X ≥ $2 — tool guideline value)$3"], /* [แก้ไข 25 พ.ย. 2569] #522 */
 [/^(\s*)Method\s+(-?\d[\d,]*\.?\d*):\s+วัด\s+P_elec\s+\(kW\)\s+\+\s+ṁ_in\s+→\s+W_shaft\s+=\s+P_elec\/\(η_gen×η_mech\)\s+→\s+η\s+=\s+W_shaft\/W_isen\s+\(แนะนำภาคสนาม\)(\s*)$/,"$1Method $2: measure P_elec (kW) + ṁ_in → W_shaft = P_elec/(η_gen×η_mech) → η = W_shaft/W_isen (recommended for field)$3"],
 [/^(\s*)ความดันที่จุดสกัดที่\s+(-?\d[\d,]*\.?\d*)\s+\(เกจ\/DCS\s+แปลงเป็นหน่วยที่เลือก\)\s+—\s+ทั่วไป\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+bar\s+สำหรับ\s+process\s+steam(\s*)$/,"$1Pressure at extraction point $2 (gauge/DCS, converted to selected unit) — typically $3–$4 bar for process steam$5"],
 [/^(\s*)Method\s+(-?\d[\d,]*\.?\d*):\s+วัด\s+T_out\s+จริง\s+→\s+h_out\s+จาก\s+Steam\s+Table\s+→\s+η\s+=\s+Δh_act\/Δh_isen\s+\(ต้องการ\s+T_out\s+แม่นยำ\)(\s*)$/,"$1Method $2: measure actual T_out → h_out from steam table → η = Δh_act/Δh_isen (needs accurate T_out)$3"],
@@ -1451,6 +1458,9 @@ if(window.TE_I18N)TE_I18N.set({
 <script>/* ═════ EN r3 (6 พ.ย. 2569) — ข้อความแจ้งเตือน/รายงาน ═════ */ if(window.TE_I18N)TE_I18N.set({},[
 [/^ไฟล์ JSON ไม่ถูกต้อง:(.*)$/,"Invalid JSON file:$1"]
 ]);</script>
+<script>/* [แก้ไข 25 พ.ย. 2569] #522 #523 คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"เกณฑ์สถานะ: Power Output ต่างจากค่าพิกัดไม่เกิน ±15 % = OK เกินกว่านั้น = CHECK · η_is ≥ 80 % GOOD · 70–80 % FAIR · < 70 % LOW — ทั้งหมดเป็นค่าแนวทางของเครื่องมือ ใช้คัดกรองเบื้องต้น ไม่ใช่เกณฑ์ทดสอบรับมอบตามมาตรฐาน":"Status limits: Power Output within ±15 % of rating = OK, beyond = CHECK · η_is ≥ 80 % GOOD · 70–80 % FAIR · < 70 % LOW — all are tool guideline values for screening only, not standard acceptance-test criteria"
+},[[/\(X ≥ 0\.90 ✓ · ค่าแนวทางของเครื่องมือ\)/g,"(X ≥ 0.90 ✓ · tool guideline value)"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] R4-18 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/Sample: Condensing Turbine \(ตัวอย่างเครื่องที่มีปัญหา\)/g,"Sample: Condensing Turbine (problem-case example)"],[/ตัวอย่างเครื่องที่มีปัญหา \(η ต่ำ\)/g,"problem-case example (low η)"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ ทะเบียนเกณฑ์ — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/\(เกณฑ์ 80 \/ 70 % เป็นค่าแนวทางของเครื่องมือ\)/g,"(the 80 / 70 % limits are tool guide values)"]]);</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"อ.หนึ่ง กลับทวี": "Aj. Nueng Klubtavee", "โรงงานน้ำตาลตัวอย่าง — Cogen": "Sample sugar mill — Cogen", "กังหันไอน้ำตัวอย่าง (สมมุติ)": "Sample steam turbine (hypothetical)", "ตัวอย่างสมมุติ — กังหันสกัด-ควบแน่น 12 MW": "Hypothetical example — 12 MW extraction-condensing turbine", "Condensing Turbine — ตัวอย่างเครื่องที่มีปัญหา (η ต่ำ)": "Condensing Turbine — example of a problem unit (low η)", "MEASUR Wet Steam — BP Turbine (ตรวจสอบกับ Screenshot)": "MEASUR Wet Steam — BP Turbine (check against screenshot)"});}</script>
