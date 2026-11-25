@@ -728,6 +728,9 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
         <input type="number" id="a_kwFL" value="75" oninput="runAudit()"><div class="hint">kW ขณะ full load · power meter · เทียบกับ nameplate ไม่ควรเกิน 110 %</div>
         <label>kW No Load (Unload)</label>
         <input type="number" id="a_kwNL" value="18" oninput="runAudit()"><div class="hint">kW ขณะ unload · power meter · screw ทั่วไป 20–35 % ของ full load</div>
+        <!-- [แก้ไข 25 พ.ย. 2569] #752 F3 ช่องใหม่ (id/คีย์ไฟล์งานใหม่ a_loadPct · ไม่เปลี่ยน id เดิม) — สัดส่วนเวลาที่เครื่องเดิน load ใช้กับมาตรการ "ลด Set Pressure" · เว้นว่าง = ค่าแนวทางของเครื่องมือ 50 % พร้อมข้อความแจ้ง (มติ อ.หนึ่ง 25 พ.ย. 2569 18:51) -->
+        <label for="a_loadPct">สัดส่วนเวลาที่เครื่องเดิน load (%)</label>
+        <input type="number" id="a_loadPct" value="" min="1" max="100" step="1" placeholder="เว้นว่าง = 50 % (ค่าแนวทางของเครื่องมือ)" oninput="runAudit()"><div class="hint">= ชั่วโมง load ÷ ชั่วโมงทำงาน × 100 · อ่านจากตัวนับชั่วโมงของเครื่อง (load hours / running hours) หรือบันทึกเดินเครื่อง · รับ 1–100 % · เว้นว่าง = ใช้ค่าแนวทางของเครื่องมือ 50 % · ใช้กับมาตรการลด Set Pressure</div>
       </div>
     </div>
 
@@ -966,9 +969,12 @@ function calcProps() {
 }
 
 function calcAmbient() {
-  const T = parseFloat(document.getElementById('t_amb').value)||32;
-  const P = parseFloat(document.getElementById('p_atm').value)||1.013;
-  const RH = parseFloat(document.getElementById('rh_amb').value)||70;
+  /* [แก้ไข 25 พ.ย. 2569] #750 F1: เดิม ||32 / ||1.013 / ||70 — 0 °C และ RH 0 % ใช้จริง · P_atm ต้อง > 0 */
+  const badAm = caCheck(['t_amb','p_atm','rh_amb'], ['p_atm']);
+  if (badAm.length) { const el = document.getElementById('amb-result'); el.style.display = 'block'; el.innerHTML = caBadBox(badAm); return; }
+  const T = caNum('t_amb');
+  const P = caNum('p_atm');
+  const RH = caNum('rh_amb');
   const rho = airDensity(T, P, RH).toFixed(4);
   const psat = getPsat(T);
   const pvap = (RH/100)*psat;
@@ -986,10 +992,14 @@ let pvResizeT = null;
 window.addEventListener('resize', () => { if (!pvDrawn) return; clearTimeout(pvResizeT); pvResizeT = setTimeout(() => { try { drawPV(); } catch (e) {} }, 150); });
 
 function drawPV() {
-  const P1 = parseFloat(document.getElementById('pv_p1').value)||1.013;
-  const P2 = parseFloat(document.getElementById('pv_p2').value)||8.013;
-  const n  = parseFloat(document.getElementById('pv_n').value)||1.3;
-  const k  = parseFloat(document.getElementById('pv_k').value)||1.4;
+  /* [แก้ไข 25 พ.ย. 2569] #750 F1: เดิม ||1.013 / ||8.013 / ||1.3 / ||1.4 — ว่างหรือ 0 → แจ้ง ล้างภาพเดิม ไม่วาด (ความดันสัมบูรณ์และดัชนีต้อง > 0) */
+  const badPv = caCheck(['pv_p1','pv_p2','pv_n','pv_k'], ['pv_p1','pv_p2','pv_n','pv_k']);
+  if (badPv.length) { const cv = document.getElementById('pv-canvas'); try { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); } catch (e) {}
+    const el = document.getElementById('pv-results'); el.style.display = 'block'; el.innerHTML = caBadBox(badPv); pvDrawn = false; return; }
+  const P1 = caNum('pv_p1');
+  const P2 = caNum('pv_p2');
+  const n  = caNum('pv_n');
+  const k  = caNum('pv_k');
   const V1 = 1.0; // normalized
 
   const canvas = document.getElementById('pv-canvas');
@@ -1117,10 +1127,14 @@ function calcPerf() {
   const P1   = parseFloat(document.getElementById('pi_perf').value);
   const k    = parseFloat(document.getElementById('k_perf').value);
   const P_elec = parseFloat(document.getElementById('p_elec').value);
-  const eta_m  = parseFloat(document.getElementById('eta_motor').value)||0.93;
-  const SPC_d  = parseFloat(document.getElementById('spc_design').value)||6.5;
+  const eta_m  = caNum('eta_motor');   /* [แก้ไข 25 พ.ย. 2569] #750 F1: เดิม ||0.93 / ||6.5 (ว่างหรือ 0 ถูกแทนเงียบ ๆ) */
+  const SPC_d  = caNum('spc_design');
 
   if ([FAD,T,RH,Pd_g,P1,P_elec].some(isNaN)) { alert('กรุณากรอกข้อมูลให้ครบ'); return; }
+  const badPf = caCheck(['eta_motor','spc_design'], ['spc_design']); /* [แก้ไข 25 พ.ย. 2569] #750 F1: η_motor ช่วง 0–1 ตรวจด้านล่างตามเดิม · SEC design ต้อง > 0 */
+  if (badPf.length) { document.getElementById('perf-kpis').innerHTML = `<div style="grid-column:1/-1">${caBadBox(badPf)}</div>`;
+    document.getElementById('perf-detail').innerHTML = ''; document.getElementById('perf-saving').innerHTML = '';
+    document.getElementById('perf-result').style.display = 'block'; return; }
   // [แก้ไข 3 ต.ค. 2569 audit] กัน FAD/P_elec ≤ 0 → SEC = Infinity
   if (!(FAD > 0) || !(P_elec > 0) || !(eta_m > 0 && eta_m <= 1)) {
     document.getElementById('perf-kpis').innerHTML = `<div class="warn-box" style="grid-column:1/-1">⚠️ ค่าที่กรอกเป็นไปไม่ได้: FAD และ P_elec ต้อง &gt; 0 และ η_motor อยู่ระหว่าง 0–1 — ไม่คำนวณ SEC (จะได้ ∞)</div>`;
@@ -1179,10 +1193,14 @@ function calcPerf() {
   const saving_kw = (SEC_e - SPC_d) * FAD_n;   // kW ไฟฟ้า (SEC ทั้งสองค่าเป็นฐานกำลังไฟฟ้าเข้า)
   if (saving_kw > 0) {
     // [แก้ไข 3 ต.ค. 2569 audit] ใช้ seq_hours/seq_rate · [แก้ไข 15 พ.ย. 2569] B1: ผลต่าง SEC ฐานไฟฟ้าเข้า × FAD อ้างอิง = kW ไฟฟ้าโดยตรง (ไม่ต้อง ÷ η_motor)
-    const hrsP = parseFloat(document.getElementById('seq_hours')?.value) || 6000;
-    const rateP = parseFloat(document.getElementById('seq_rate')?.value) || 4.5;
+    const hrsP = caNum('seq_hours');   /* [แก้ไข 25 พ.ย. 2569] #750 F1: เดิม ||6000 / ||4.5 · ว่าง → แสดง kW และแจ้งช่อง (kWh/บาท คิดไม่ได้) · 0 ใช้จริง */
+    const rateP = caNum('seq_rate');
     const kwhP = saving_kw * hrsP, thbP = kwhP * rateP;
-    document.getElementById('perf-saving').innerHTML = `
+    const badHr = caCheck(['seq_hours','seq_rate'], []);
+    if (badHr.length) document.getElementById('perf-saving').innerHTML = `
+      <div class="warn-box">💡 ถ้าปรับ SEC จาก <b>${SEC_e.toFixed(2)}</b> กลับมาที่ Design <b>${SPC_d.toFixed(2)}</b> kW/(m³/min) (ฐานกำลังไฟฟ้าเข้า)<br>
+      ประหยัดได้ <b>${saving_kw.toFixed(1)} kW ไฟฟ้า</b> ≈ <b>—</b> <span>kWh/ปี</span> ≈ <b>—</b> <span>บาท/ปี</span></div>${caBadBox(badHr)}`;
+    else document.getElementById('perf-saving').innerHTML = `
       <div class="warn-box">💡 ถ้าปรับ SEC จาก <b>${SEC_e.toFixed(2)}</b> กลับมาที่ Design <b>${SPC_d.toFixed(2)}</b> kW/(m³/min) (ฐานกำลังไฟฟ้าเข้า)<br>
       ประหยัดได้ <b>${saving_kw.toFixed(1)} kW ไฟฟ้า</b> ≈ <b>${Math.round(kwhP).toLocaleString()} kWh/ปี</b> ≈ <b>${Math.round(thbP).toLocaleString()} บาท/ปี</b><br>
       <span style="font-size:11px">(ชั่วโมง ${hrsP.toLocaleString()} h/ปี × ค่าไฟ ${rateP} บาท/kWh — จาก Tab Sequencing)</span></div>`;
@@ -1268,14 +1286,17 @@ function _addCompRow(d={}) {
     <td style="font-family:var(--mono);font-size:11px;padding:5px 8px">${id}</td>
     <td><input type="text" value="${d.name||'Comp-'+id}"></td>
     <td><select><option value="fixed" ${d.type==='fixed'?'selected':''}>Fixed Speed</option><option value="vsd" ${d.type==='vsd'?'selected':''}>VSD</option></select></td>
-    <td><input type="number" step="0.1" value="${d.fad||10}" class="fad"></td>
-    <td><input type="number" step="0.1" value="${d.fl||55}" class="fl"></td>
-    <td><input type="number" step="0.1" value="${d.nl||15}" class="nl"></td>
+    <td><input type="number" step="0.1" value="${caRowVal(d.fad,10)}" class="fad"></td>
+    <td><input type="number" step="0.1" value="${caRowVal(d.fl,55)}" class="fl"></td>
+    <td><input type="number" step="0.1" value="${caRowVal(d.nl,15)}" class="nl"></td>
     <td><button class="btn" style="padding:3px 8px" onclick="document.getElementById('crow-${id}').remove()">✕</button></td>`;
   tb.appendChild(tr);
 }
 
 function addCompRow() { _addCompRow(); }
+/* [แก้ไข 25 พ.ย. 2569] #750 F1: ค่าในแถวที่สร้าง/โหลด — ไม่มีคีย์ (แถวใหม่) = ค่าตั้งต้นของแถวเหมือนเดิม · 0 คงเป็น 0 (เดิมกลายเป็นค่าตั้งต้น) · '' (ช่องว่างที่บันทึกไว้) คงว่าง */
+function caRowVal(v, dflt) { return (v === undefined || v === null) ? dflt : v; }
+function caCellNum(e) { const v = String(e.value).trim(); return v === '' ? '' : +v; } // บันทึกไฟล์งาน: ช่องว่าง = '' (เดิม +'' = 0)
 
 function simulatePower(demand, comps) {
   let rem = demand, totalKW = 0, details = [];
@@ -1295,10 +1316,18 @@ function simulatePower(demand, comps) {
 }
 
 function calcSeq() {
-  const demand = parseFloat(document.getElementById('seq_demand').value)||18;
-  const hours  = parseFloat(document.getElementById('seq_hours').value)||6000;
-  const rate   = parseFloat(document.getElementById('seq_rate').value)||4.5;
-  const leakPct= parseFloat(document.getElementById('seq_leak').value)||20;
+  /* [แก้ไข 25 พ.ย. 2569] #750 F1: เดิม ||18 / ||6000 / ||4.5 / ||20 (Leak 0 % กลายเป็น 20 %) และช่องในตารางเครื่องว่าง = 0 เงียบ ๆ
+     → ว่าง = แจ้งไม่คำนวณ · Demand ต้อง > 0 (SEC ระบบ = kW ÷ demand) · Leak % 0 ถึงน้อยกว่า 100 (100 % → demand หลังลดรั่ว = 0) · ชั่วโมง/ค่าไฟ 0 ใช้จริง
+     ตารางเครื่อง: FAD ต้อง > 0 (สัดส่วนภาระ = demand ที่เหลือ ÷ FAD) · kW Full/No Load ต้องมีค่า (0 ใช้จริง) */
+  const badSq = caCheck(['seq_demand','seq_hours','seq_rate','seq_leak'], ['seq_demand']);
+  const lkv = caNum('seq_leak'); if (isFinite(lkv) && !(lkv >= 0 && lkv < 100)) badSq.push(['seq_leak', 'range']);
+  const rowsB = Array.from(document.querySelectorAll('#comp-tbody tr')).map((r, i) => ({n: i + 1, el: r.querySelectorAll('input')}));
+  const badRow = caRowBad(rowsB, [[1, 'FAD (m³/min)', 'pos'], [2, 'Full Load (kW)', 'nn'], [3, 'No Load (kW)', 'nn']]);
+  if (badSq.length || badRow.length) { const el = document.getElementById('seq-result'); el.style.display = 'block'; el.innerHTML = caBadBox(badSq.concat(badRow)); return; }
+  const demand = caNum('seq_demand');
+  const hours  = caNum('seq_hours');
+  const rate   = caNum('seq_rate');
+  const leakPct= lkv;
 
   const rows = document.querySelectorAll('#comp-tbody tr');
   const comps = Array.from(rows).map(r=>{
@@ -1379,6 +1408,10 @@ function calcSeq() {
 function caNum(id) { const e = document.getElementById(id); if (!e) return NaN; const v = String(e.value).trim(); return v === '' ? NaN : parseFloat(v); }
 const CA_LBL = {lk_p1:'ความดันต้นทาง P₁ (bar g)', lk_T:'อุณหภูมิอากาศ T (°C)', lk_D:'ขนาดรูรั่ว D (mm)', lk_Cd:'ค่า Cd (Auto จาก Geometry)', lk_rate:'ค่าไฟฟ้า (บาท/kWh)', lk_SPC:'SEC ระบบ (kW/(m³/min อ้างอิง))',
   dp_p1:'ความดันเริ่มต้น P₁ (bar g)', dp_p2:'ความดันสุดท้าย P₂ (bar g)', dp_t:'เวลาทดสอบ t (นาที)', dp_V:'ปริมาตรระบบ V_system (m³)', dp_Tline:'อุณหภูมิอากาศในระบบ T (°C)', dp_fad:'FAD รวมระบบ (m³/min อ้างอิง)', dp_spc:'SEC ระบบ (kW/(m³/min อ้างอิง))', dp_rate:'ค่าไฟฟ้า (บาท/kWh)',
+  t_amb:'อุณหภูมิ T_amb (°C)', p_atm:'ความดันบรรยากาศ P_atm (bar a)', rh_amb:'ความชื้นสัมพัทธ์ RH (%)',
+  pv_p1:'ความดันขาเข้า P₁ (bar a)', pv_p2:'ความดันขาออก P₂ (bar a)', pv_n:'Polytropic Index n', pv_k:'Isentropic Index k (air)',
+  eta_motor:'Motor Efficiency η_motor', spc_design:'SEC ที่ Nameplate / Design (kW/(m³/min))',
+  seq_demand:'Demand เฉลี่ย (m³/min)', seq_hours:'ชั่วโมงทำงาน/ปี (h)', seq_rate:'ค่าไฟฟ้า (บาท/kWh)', seq_leak:'Leak % (ประมาณ)',
   pd_Q:'อัตราการไหล Q (Nm³/min)', pd_Pline:'ความดัน P_line (bar g)', pd_T:'อุณหภูมิ T (°C)', pd_ID:'ขนาดท่อ ID (mm)', pd_L:'ความยาวท่อ L (m)', pd_eps:'ความหยาบผิวท่อ ε (mm)', pd_Leq:'K-fitting รวม (Equivalent Length)'};
 // ตรวจรายการช่อง: req = ต้องมีค่า · pos = ต้อง > 0 · คืนรายการปัญหา (ว่าง/ต้อง > 0)
 function caCheck(req, pos) {
@@ -1388,7 +1421,17 @@ function caCheck(req, pos) {
 }
 function caBadBox(bad) {
   return `<div class="warn-box">⚠️ <span>ยังคำนวณส่วนนี้ไม่ได้ — กรอกค่าให้ครบ/ถูกต้อง:</span><br>` +
-    bad.map(([id, k]) => `• <span>${CA_LBL[id] || id}</span> — <span>${k === 'blank' ? 'ยังว่าง' : 'ต้องมากกว่า 0'}</span>`).join('<br>') + `</div>`;
+    bad.map(([id, k, lbl]) => `• <span>${lbl || CA_LBL[id] || id}</span> — <span>${k === 'blank' ? 'ยังว่าง' : k === 'range' ? 'ต้องอยู่ระหว่าง 0 ถึงน้อยกว่า 100' : 'ต้องมากกว่า 0'}</span>${/^seq_(hours|rate)$/.test(id) ? ' <span>(แท็บ Performance ส่วน Sequencing)</span>' : ''}`).join('<br>') + `</div>`;
+}
+/* [แก้ไข 25 พ.ย. 2569] #750 F1 ช่องว่าง ≠ ศูนย์ ในแท็บที่เหลือ (รายงาน WP-40L ข้อ 5): calcAmbient · drawPV · calcPerf (η_motor · SEC design · ชั่วโมง/ค่าไฟ) · calcSeq (ช่องหลัก + ตารางเครื่อง) · ชั่วโมงทำงาน (seq_hours) ที่ Orifice / Pressure Decay ใช้ · Pressure Map
+   เดิม parseFloat(x)||ค่าตั้งต้น → ว่างหรือ 0 ถูกแทนเงียบ ๆ (เช่น Leak % 0 → 20 · ชั่วโมงว่าง → 6,000) · ตอนนี้ว่าง = แจ้งชื่อช่องและไม่คำนวณส่วนนั้น (หรือแสดง — เฉพาะค่าเงินที่ขึ้นกับชั่วโมง) · 0 ที่มีความหมายใช้ 0 จริง
+   ค่าตั้งต้นอยู่ในช่อง (value) ตั้งแต่เปิดหน้า ผลของเคสตัวอย่างจึงเท่าเดิม */
+function caRowBad(rows, cols) { // ตารางแถว: rows = [{n, el:[input…]}] · cols = [[ดัชนีช่อง, ป้ายคอลัมน์, 'pos'|'nn']] → รายการปัญหา (ว่าง · ต้อง > 0)
+  const bad = [];
+  rows.forEach(r => cols.forEach(([i, lbl, kind]) => { const v = String(r.el[i].value).trim(); const x = v === '' ? NaN : parseFloat(v);
+    const L = `<span>แถวที่</span> ${r.n} · <span>${lbl}</span>`;
+    if (!isFinite(x)) bad.push(['row', 'blank', L]); else if (kind === 'pos' && !(x > 0)) bad.push(['row', 'pos', L]); }));
+  return bad;
 }
 
 function calcLeakage() {
@@ -1441,7 +1484,7 @@ function calcLeakage() {
   const volFlow_ref = volFlow_m3min / nm3PerRef;        // m³/min ที่สภาวะอ้างอิง
   const kw_lost = volFlow_ref * SPC;
   // [แก้ไข 3 ต.ค. 2569 audit] ใช้ชั่วโมงเดินเครื่อง (seq_hours) แทน 8,760 h — รั่วเฉพาะช่วงที่ระบบมีความดัน
-  const hrsLk = parseFloat(document.getElementById('seq_hours')?.value) || 6000;
+  const hrsLk = caNum('seq_hours');   /* [แก้ไข 25 พ.ย. 2569] #750 F1: เดิม ||6000 · ว่าง → ค่าเงินแสดง — และแจ้งช่อง (อัตรารั่ว/kW ยังคำนวณ) */
   const cost_yr = kw_lost * hrsLk * rate;
 
   document.getElementById('leak-result').style.display='block';
@@ -1457,8 +1500,8 @@ function calcLeakage() {
       <div class="kpi amber"><div class="kpi-lbl">kW Lost</div><div class="kpi-val" style="color:var(--amber)">${kw_lost.toFixed(3)}</div><div class="kpi-unit">kW</div></div>
     </div>
     <div style="background:var(--red-lt);border:1px solid #f5a0a0;border-radius:7px;padding:10px;font-size:12px;color:var(--red);margin-top:8px">
-      💰 ค่าพลังงานที่สูญเสีย (${hrsLk.toLocaleString()} h/ปี จาก Tab Sequencing): <b>${(cost_yr/1000).toFixed(1)} พัน บาท/ปี</b><br>
-      <span style="color:var(--text2);font-size:11px">ถ้ามีรอยรั่ว 10 จุด ขนาด ${D_mm}mm = ${(cost_yr*10/1000).toFixed(0)} พัน บาท/ปี</span>
+      ${isFinite(hrsLk) ? `💰 ค่าพลังงานที่สูญเสีย (${hrsLk.toLocaleString()} h/ปี จาก Tab Sequencing): <b>${(cost_yr/1000).toFixed(1)} พัน บาท/ปี</b><br>
+      <span style="color:var(--text2);font-size:11px">ถ้ามีรอยรั่ว 10 จุด ขนาด ${D_mm}mm = ${(cost_yr*10/1000).toFixed(0)} พัน บาท/ปี</span>` : `💰 <span>ค่าพลังงานที่สูญเสีย:</span> <b>—</b> · <span>ชั่วโมงทำงาน/ปี (h)</span> — <span>ยังว่าง</span> <span>(แท็บ Performance ส่วน Sequencing)</span>`}
     </div>
     <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:6px">
       D=${D_mm}mm · ${posMode?'α':'Cd'}=${Cd} · P1=${P1_a.toFixed(3)}bar · A=${(A_m2*1e6).toFixed(4)}mm²
@@ -1986,7 +2029,7 @@ function calcDPLeak() {
   const leak_pct  = FAD > 0 ? Q_leak_free / FAD * 100 : 0;
   const kW_lost   = Q_leak_free * SPC;
   // [แก้ไข 3 ต.ค. 2569 audit] ใช้ชั่วโมงเดินเครื่อง (seq_hours) แทน 8,760 h
-  const hrsDP = parseFloat(document.getElementById('seq_hours')?.value) || 6000;
+  const hrsDP = caNum('seq_hours');   /* [แก้ไข 25 พ.ย. 2569] #750 F1: เดิม ||6000 · ว่าง → ค่าเงินแสดง — และแจ้งช่อง */
   const cost_yr   = kW_lost * hrsDP * rate;
   const cost_save = cost_yr * 0.7; // assume 70% recoverable with repair
 
@@ -2015,8 +2058,8 @@ function calcDPLeak() {
       </div>
       <div class="kpi red">
         <div class="kpi-lbl">ค่าพลังงานสูญเสีย</div>
-        <div class="kpi-val" style="color:var(--red);font-size:22px">${(cost_yr/1000).toFixed(1)}</div>
-        <div class="kpi-unit">พัน บาท/ปี (${hrsDP.toLocaleString()} h)</div>
+        <div class="kpi-val" style="color:var(--red);font-size:22px">${isFinite(hrsDP) ? (cost_yr/1000).toFixed(1) : '—'}</div>
+        <div class="kpi-unit">${isFinite(hrsDP) ? `พัน บาท/ปี (${hrsDP.toLocaleString()} h)` : `<span>พัน บาท/ปี</span> · <span>ชั่วโมงทำงาน/ปี (h)</span> — <span>ยังว่าง</span> <span>(แท็บ Performance ส่วน Sequencing)</span>`}</div>
       </div>
     </div>
     <div style="background:var(--bg4);border:1px solid var(--border);border-radius:7px;padding:11px 13px;font-size:12px;font-family:var(--mono);line-height:2.1;margin-top:10px">
@@ -2030,7 +2073,7 @@ function calcDPLeak() {
     ${leak_pct >= 10 ? `<div class="warn-box" style="margin-top:8px">
       🔍 <b>แนะนำ Leak Survey:</b> ใช้ Ultrasonic Leak Detector<br>
       จุดที่ต้องตรวจ: Fitting, Union, Valve Stem, Quick-Coupler, Auto Drain, Filter Bowl<br>
-      Payback ซ่อม 70% ของจุดรั่ว ≈ <b>${(cost_save/1000).toFixed(1)} พัน บาท/ปี</b>
+      Payback ซ่อม 70% ของจุดรั่ว ≈ <b>${isFinite(cost_save) ? (cost_save/1000).toFixed(1) : '—'} พัน บาท/ปี</b>
     </div>` : ''}`;
 
   // ✨ Auto-fill Audit Tab leak field
@@ -2059,8 +2102,8 @@ function addPmapRow(d={}) {
   tr.innerHTML = `
     <td style="font-family:var(--mono);font-size:11px;color:var(--text3);padding:5px 8px">${pmapRid}</td>
     <td><input type="text" value="${d.label||''}" placeholder="ชื่อจุดวัด" style="width:170px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 7px;color:var(--text)"></td>
-    <td><input type="number" step="0.05" value="${d.p||7.0}" placeholder="bar g" style="width:80px;font-family:var(--mono);font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 7px;color:var(--text)"></td>
-    <td><input type="number" step="1" value="${d.dist||0}" placeholder="m" style="width:65px;font-family:var(--mono);font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 7px;color:var(--text)"></td>
+    <td><input type="number" step="0.05" value="${caRowVal(d.p,7.0)}" placeholder="bar g" style="width:80px;font-family:var(--mono);font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 7px;color:var(--text)"></td>
+    <td><input type="number" step="1" value="${caRowVal(d.dist,0)}" placeholder="m" style="width:65px;font-family:var(--mono);font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 7px;color:var(--text)"></td>
     <td id="pdp-${pmapRid}" style="font-family:var(--mono);font-size:12px;color:var(--text3)">—</td>
     <td id="pst-${pmapRid}">—</td>
     <td><button class="btn" style="padding:3px 8px;font-size:11px" onclick="document.getElementById('pmap-${pmapRid}').remove()">✕</button></td>`;
@@ -2070,14 +2113,17 @@ function addPmapRow(d={}) {
 function calcPmap() {
   const rows = document.querySelectorAll('#pmap-body tr');
   if (rows.length < 2) { alert('เพิ่มจุดวัดอย่างน้อย 2 จุด'); return; }
+  /* [แก้ไข 25 พ.ย. 2569] #750 F1: เดิม parseFloat()||0 — ความดันว่างกลายเป็น 0 bar g (ΔP เท่าความดันต้นทาง) · ระยะว่างกลายเป็น 0 m → ว่าง = แจ้งไม่คำนวณ · 0 ใช้จริง */
+  const badPm = caRowBad(Array.from(rows).map((r, i) => ({n: i + 1, el: r.querySelectorAll('input')})), [[1, 'ความดัน (bar g)', 'nn'], [2, 'ระยะจาก Comp (m)', 'nn']]);
+  if (badPm.length) { const el = document.getElementById('pmap-result'); el.style.display = 'block'; el.innerHTML = caBadBox(badPm); return; }
 
   const pts = Array.from(rows).map(r => {
     const inputs = r.querySelectorAll('input');
     return {
       id: r.id,
       label: inputs[0].value || '—',
-      p: parseFloat(inputs[1].value) || 0,
-      dist: parseFloat(inputs[2].value) || 0,
+      p: parseFloat(inputs[1].value),
+      dist: parseFloat(inputs[2].value),
     };
   }).sort((a,b) => a.dist - b.dist);
 
@@ -2108,10 +2154,11 @@ function calcPmap() {
   html += `</tbody></table></div>`;
 
   const totalDrop = pts[pts.length-1] ? P_ref - pts[pts.length-1].p : 0;
+  /* [แก้ไข 25 พ.ย. 2569] #752 F3: ข้อความ "ทุก 0.1 bar ที่ลด SEC ลดได้ ~0.5%" (= 5 %/bar) → ~0.6 % (= 6 %/bar ชุดเดียวกับสูตรมาตรการลด Set Pressure) กำกับค่าแนวทางของเครื่องมือ */
   html += `<div style="margin-top:10px;background:var(--bg4);border:1px solid var(--border);border-radius:7px;padding:11px;font-size:12px;font-family:var(--mono);line-height:2">
     ΔP ต้นทาง→ปลายทาง = <b>${totalDrop.toFixed(3)} bar</b> (${(totalDrop/P_ref*100).toFixed(1)}%)<br>
     ${maxSeg > 0 ? `ช่วงที่ความดันตกมากที่สุด: <b style="color:var(--red)">${maxSegTxt}</b> (${maxSeg.toFixed(3)} bar) → ตรวจ Valve / Filter / Dryer / Fitting ในช่วงนั้น<br>` : ''}
-    ${totalDrop > 0.5 ? `❌ ΔP รวม > 0.5 bar — ต้องปรับปรุงระบบท่อ (ทุก 0.1 bar ที่ลด SEC ลดได้ ~0.5%)` : totalDrop > 0.2 ? `⚠ ΔP รวม 0.2–0.5 bar — ตรวจ Fitting/Valve` : `✅ ΔP รวม < 0.2 bar — ระบบท่ออยู่ในเกณฑ์ดี`}<br><span style="color:var(--text3)">เกณฑ์สถานะ (ΔP ต่อจุด 0.1 / 0.3 bar · รวม 0.2 / 0.5 bar) เป็นค่าแนวทางของเครื่องมือ</span>
+    ${totalDrop > 0.5 ? `❌ ΔP รวม > 0.5 bar — ต้องปรับปรุงระบบท่อ (ทุก 0.1 bar ที่ลด SEC ลดได้ ~0.6 % · ค่าแนวทางของเครื่องมือ ชุดเดียวกับมาตรการลด Set Pressure 6 %/bar)` : totalDrop > 0.2 ? `⚠ ΔP รวม 0.2–0.5 bar — ตรวจ Fitting/Valve` : `✅ ΔP รวม < 0.2 bar — ระบบท่ออยู่ในเกณฑ์ดี`}<br><span style="color:var(--text3)">เกณฑ์สถานะ (ΔP ต่อจุด 0.1 / 0.3 bar · รวม 0.2 / 0.5 bar) เป็นค่าแนวทางของเครื่องมือ</span>
   </div>`;
 
   document.getElementById('pmap-result').style.display = 'block';
@@ -2163,12 +2210,16 @@ const ECM_LIBRARY = [
     condition: d => d.Pdis > 6.5 && d.Pplant < d.Pdis - 0.8,
     // [แก้ไข 3 ต.ค. 2569 audit] เดิมไม่คูณค่าไฟ (แสดง kWh/1000 เป็น "พัน บาท") และใช้ 1 bar ตายตัว → ΔP ลดได้ = min(1, P_dis − P_plant − 0.3) bar (ลด ΔP ท่อเหลือ 0.3 bar แล้วลด set point)
     dP: d => Math.min(1, Math.max(0, d.Pdis - d.Pplant - 0.3)),
-    kwh: d => d.kwFL * 0.04 * Math.min(1, Math.max(0, d.Pdis - d.Pplant - 0.3)) * d.hours * 0.5, // ~4%/bar, 50% ของเวลาเป็น load
-    saving: d => d.kwFL * 0.04 * Math.min(1, Math.max(0, d.Pdis - d.Pplant - 0.3)) * d.hours * 0.5 * d.rate / 1000,
+    /* [แก้ไข 25 พ.ย. 2569] #752 F3 มติ อ.หนึ่ง 25 พ.ย. 2569 18:47 + 18:51: เดิม kW_FL × 4 %/bar × ΔP × ชั่วโมง × 0.5 → kW_FL × 6 %/bar × ΔP × ชั่วโมง × สัดส่วนเวลา load
+       (a_loadPct ÷ 100 · เว้นว่าง = 0.5 ค่าแนวทางของเครื่องมือ พร้อมข้อความแจ้ง · นอกช่วง 1–100 % หรือ 0 = ไม่คำนวณมาตรการนี้) · ที่ 0.5 ผลประหยัด = เดิม × 1.5
+       เทียบ (เปิดอ่านจริง): U.S. DOE/CAC Compressed Air Sourcebook 3rd ed. Fact Sheet 1 p.22 · Fact Sheet 5 p.34 — ราว 1 % ต่อ 2 psi (≈ 7.3 %/bar) ที่อัตราไหลเต็ม ระบบราว 100 psig */
+    kPerBar: 0.06,
+    kwh: d => d.kwFL * 0.06 * Math.min(1, Math.max(0, d.Pdis - d.Pplant - 0.3)) * d.hours * d.loadFrac,
+    saving: d => d.kwFL * 0.06 * Math.min(1, Math.max(0, d.Pdis - d.Pplant - 0.3)) * d.hours * d.loadFrac * d.rate / 1000,
     cost_kthb: 0, payback: 0,
     /* [แก้ไข 25 พ.ย. 2569] #604 L3: ข้อความเดิม "ทุก 1 bar ที่ลด → SEC ลง ~5–7%" ไม่ตรงกับสูตร kwh() (kW_FL × 4 %/bar × ΔP × ชั่วโมง × 0.5) → ข้อความบอกตามสูตร + กำกับค่าแนวทางของเครื่องมือ · สูตรไม่เปลี่ยน
        เอกสารที่เปิดอ่าน: U.S. DOE/CAC Improving Compressed Air System Performance: A Sourcebook for Industry (3rd ed.) Fact Sheet 1 หน้า 22 และ Fact Sheet 5 หน้า 34 — ราว 1 % ต่อ 2 psi ที่ภาระเต็ม (ระบบ ~100 psig) — ผู้รวมชุดตัดสินว่าจะอ้าง/ปรับสูตรรอบถัดไป */
-    detail: 'ค่าแนวทางของเครื่องมือ: กำลังไฟฟ้าเต็มภาระ kW_FL ลด 4 % ต่อ 1 bar ที่ลด คิด 50 % ของชั่วโมงเดินเครื่อง · ตรวจ P_plant ที่จุดใช้งานจริงก่อน'
+    detail: '<span>ค่าแนวทางของเครื่องมือ: กำลังไฟฟ้าเต็มภาระ kW_FL ลด 6 % ต่อ 1 bar ที่ลด × สัดส่วนเวลาที่เครื่องเดิน load · ตรวจ P_plant ที่จุดใช้งานจริงก่อน</span>' /* [แก้ไข 25 พ.ย. 2569] #752 F3 เดิม "… ลด 4 % ต่อ 1 bar ที่ลด คิด 50 % ของชั่วโมงเดินเครื่อง …" */
   },
   {
     id:'fix_leaks', title:'ซ่อมรอยรั่ว Leak Rate &gt;5%',
@@ -2239,10 +2290,24 @@ function caAuditData(){
     Tin: dv(num('a_Tin'),32), Pdis: dv(num('a_Pdis'),7.0), Pplant: dv(num('a_Pplant'),6.0),
     kwFL: dv(num('a_kwFL'),75), kwNL: dv(num('a_kwNL'),18), leak: num('a_leak'),
     Tac: num('a_Tac'), dp: num('a_dp'), kwNP: pos(num('a_kwNP'),75),
-    rate: pos(num('seq_rate'),4.5), hours: Math.min(8760, pos(num('seq_hours'),6000)),
+    /* [แก้ไข 25 พ.ย. 2569] #750 F1: เดิม pos(…,4.5) / pos(…,6000) — ว่างหรือ 0 ถูกแทนเงียบ ๆ → ว่าง = แจ้งและไม่คำนวณมาตรการ (caAuditMissing) · ชั่วโมงต้อง > 0 · ค่าไฟ 0 ใช้จริง · เพดาน 8,760 h ตามเดิม */
+    rate: num('seq_rate'), hours: (function(){ const h=num('seq_hours'); return h===null ? null : Math.min(8760, h); })(),
+    /* [แก้ไข 25 พ.ย. 2569] #752 F3 สัดส่วนเวลา load: ว่าง → 0.5 (src 'default' แจ้งบนจอ) · 1–100 % → ค่าที่กรอก (src 'user') · อื่น ๆ (0 · ติดลบ · เกิน 100) → NaN (src 'bad' ไม่คำนวณมาตรการลด Set Pressure) */
+    loadPct: num('a_loadPct'),
+    loadSrc: (function(){ const v=num('a_loadPct'); return v===null ? 'default' : (v>=1 && v<=100) ? 'user' : 'bad'; })(),
+    loadFrac: (function(){ const v=num('a_loadPct'); return v===null ? 0.5 : (v>=1 && v<=100) ? v/100 : NaN; })(),
     hrPrice: dv(num('a_hr_price'),0.55), hrEta: hrEta,
     etaM: (function(){ const v=num('eta_motor'); return (v>0&&v<=1)?v:0.93; })()
   };
+}
+function caAuditMissing(d){ // [แก้ไข 25 พ.ย. 2569] #750 F1: ชั่วโมงทำงาน/ค่าไฟ (แท็บ Performance ส่วน Sequencing) ว่าง → ไม่คำนวณมาตรการ · ชั่วโมงต้อง > 0
+  const m=[];
+  if (d.hours === null) m.push(['seq_hours','blank']); else if (!(d.hours > 0)) m.push(['seq_hours','pos']);
+  if (d.rate === null) m.push(['seq_rate','blank']);
+  return m;
+}
+function caLoadTxt(d){ // [แก้ไข 25 พ.ย. 2569] #752 F3 ข้อความสัดส่วนเวลา load ที่ใช้จริง (บรรทัดรายละเอียด/ไฟล์ TE_ECM)
+  return (d.loadFrac*100).toFixed(0)+' % ('+(d.loadSrc==='user'?'ค่าที่กรอก':'ค่าแนวทางของเครื่องมือ — ไม่ได้กรอก')+')';
 }
 function caAuditInvalid(d){ // [แก้ไข 3 ต.ค. 2569 audit] ค่าที่เป็นไปไม่ได้ → ไม่เสนอมาตรการ
   const m=[];
@@ -2266,6 +2331,7 @@ function caSecBand(pg){
 function runAudit() {
   const data = caAuditData(); // [แก้ไข 3 ต.ค. 2569 audit] ใช้ตัวอ่านข้อมูลกลาง (0 ไม่ถูกแทนด้วย 75)
   const invalid = caAuditInvalid(data);
+  const missing = caAuditMissing(data); // [แก้ไข 25 พ.ย. 2569] #750 F1
 
   // SPC Benchmark
   const SBa = caSecBand(data.Pdis);   /* [แก้ไข 18 พ.ย. 2569] #335 */
@@ -2289,19 +2355,26 @@ function runAudit() {
   if (data.dp !== null && data.dp > 10) alerts += `<div style="background:var(--amber-lt);border:1px solid #f5c060;border-radius:6px;padding:9px 12px;margin-bottom:7px;font-size:12px;color:var(--amber)">⚠️ <b>Dew Point หลัง Dryer สูง (${data.dp}°C)</b> — PDP ควร +2 ถึง +10°C สำหรับ Refrigerant Dryer</div>`;
   if (loadFactor !== null && loadFactor > 95) alerts += `<div style="background:var(--amber-lt);border:1px solid #f5c060;border-radius:6px;padding:9px 12px;margin-bottom:7px;font-size:12px;color:var(--amber)">⚠️ <b>Load Factor สูง (${loadFactor.toFixed(0)}%)</b> — Motor ทำงานใกล้ Full Load ตลอดเวลา พิจารณาเพิ่ม Capacity</div>`;
   if (invalid.length) alerts = `<div class="warn-box" style="margin-bottom:7px">⚠️ <b>ค่าที่กรอกเป็นไปไม่ได้:</b> ${invalid.join(' · ')} — ไม่คำนวณมาตรการประหยัดจนกว่าจะแก้ไข</div>` + alerts; // [แก้ไข 3 ต.ค. 2569 audit]
+  if (missing.length) alerts = caBadBox(missing).replace('<div class="warn-box">', '<div class="warn-box" style="margin-bottom:7px">') + `<div class="warn-box" style="margin-bottom:7px">⚠️ <span>ไม่คำนวณมาตรการประหยัดจนกว่าจะกรอกค่าให้ครบ</span></div>` + alerts; // [แก้ไข 25 พ.ย. 2569] #750 F1
+  if (data.loadSrc === 'bad') alerts += `<div class="warn-box" style="margin-bottom:7px">⚠️ <span>สัดส่วนเวลาที่เครื่องเดิน load (%)</span> = ${data.loadPct} — <span>ต้องอยู่ระหว่าง 1–100 % (เว้นว่าง = ค่าแนวทางของเครื่องมือ 50 %)</span> — <span>ไม่คำนวณมาตรการลด Set Pressure</span></div>`; // [แก้ไข 25 พ.ย. 2569] #752 F3
   if (!alerts) alerts = `<div style="background:var(--green-lt);border:1px solid #6ddbaa;border-radius:6px;padding:9px 12px;font-size:12px;color:var(--green)">✅ ค่าที่กรอกอยู่ในเกณฑ์ปกติ — กรอกข้อมูลเพิ่มเติมเพื่อวิเคราะห์ละเอียด</div>`;
   document.getElementById('audit-alerts').innerHTML = alerts;
 
   // ✨ ECM Priority Matrix
-  const ecms = invalid.length ? [] : ECM_LIBRARY.map(ecm => { // [แก้ไข 3 ต.ค. 2569 audit]
+  const ecms = (invalid.length || missing.length) ? [] : ECM_LIBRARY.map(ecm => { // [แก้ไข 3 ต.ค. 2569 audit] · [แก้ไข 25 พ.ย. 2569] #750 F1 ช่องว่าง
     const triggered = ecm.condition(data);
     if (!triggered) return null;
+    if (ecm.id === 'reduce_pressure' && !(data.loadFrac > 0)) return null; // [แก้ไข 25 พ.ย. 2569] #752 F3 สัดส่วนเวลา load ผิดช่วง → ไม่คำนวณ (แจ้งในกล่องแจ้งเตือนแล้ว)
     // Fix detail template that references data
     let detail = ecm.detail;
     if (ecm.id === 'fix_leaks' && data.leak !== null) detail = `Leak Rate ที่วัดได้ = ${data.leak.toFixed(1)}% · เป้าหมาย &lt;5% · ซ่อม 70% ของจุดรั่วก่อน`;
     if (ecm.id === 'inlet_cooling') detail = `T_intake = ${data.Tin}°C ทุก 3°C ที่ลด → SEC ลง ~1% (กำลังอัด ∝ T_abs: ลด ${data.Tin}→32°C = ${(Math.max(0,(data.Tin-32)/(data.Tin+273.15))*100).toFixed(1)} %) · ติด Air Duct ดูดอากาศจากภายนอก`;
     // [แก้ไข 3 ต.ค. 2569 audit] แสดงสมมติฐานที่ใช้คำนวณ
-    if (ecm.id === 'reduce_pressure') detail += ` · ΔP ลดได้ = min(1, ${data.Pdis}−${data.Pplant}−0.3) = ${ecm.dP(data).toFixed(2)} bar · ${Math.round(ecm.kwh(data)).toLocaleString()} kWh/ปี × ${data.rate} บาท/kWh`;
+    /* [แก้ไข 25 พ.ย. 2569] #752 F3 บรรทัดรายละเอียด: แสดงสัดส่วนเวลา load ที่ใช้จริง + ระบุว่าเป็นค่าที่กรอกหรือค่าแนวทาง · ข้อความแจ้งเมื่อไม่ได้กรอก · ที่มาของ 6 %/bar และ 0.5 */
+    if (ecm.id === 'reduce_pressure') detail += ` · <span>ΔP ลดได้</span> = min(1, ${data.Pdis}−${data.Pplant}−0.3) = ${ecm.dP(data).toFixed(2)} bar · <span>สัดส่วนเวลา load</span> ${(data.loadFrac*100).toFixed(0)} % <span>${data.loadSrc==='user'?'(ค่าที่กรอก)':'(ค่าแนวทางของเครื่องมือ — ไม่ได้กรอก)'}</span>`
+      + ` · kW_FL × 6 %/bar × ΔP × h × load = ${data.kwFL} × 0.06 × ${ecm.dP(data).toFixed(2)} × ${data.hours.toLocaleString()} × ${data.loadFrac.toFixed(2)} = ${Math.round(ecm.kwh(data)).toLocaleString()} <span>kWh/ปี</span> × ${data.rate} <span>บาท/kWh</span>`
+      + (data.loadSrc === 'default' ? `<div class="warn-box" style="margin:6px 0 2px">⚠️ <span>ไม่ได้กรอกสัดส่วนเวลา load — ใช้ค่าแนวทางของเครื่องมือ 50 %</span></div>` : '<br>')
+      + `<span style="font-size:11px;color:var(--text3)"><span>6 %/bar และสัดส่วนเวลา load 0.5 = ค่าแนวทางของเครื่องมือ (มติผู้จัดทำ 25 พ.ย. 2569) · เทียบ U.S. DOE/CAC Compressed Air Sourcebook: ราว 1 % ต่อ 2 psi (≈ 7 %/bar) ที่ full load</span><br><span>อ้างอิง: U.S. DOE / Compressed Air Challenge, Improving Compressed Air System Performance: A Sourcebook for Industry (3rd ed.) — Fact Sheet 1 หน้า 22 (ระบบราว 100 psig: ทุก 2 psi ที่เพิ่ม พลังงานเพิ่มราว 1 % ที่อัตราไหลเต็ม) · Fact Sheet 5 หน้า 34 (ทุก 2 psi ที่ลด พลังงานลดราว 1 %)</span></span>`;
     if (ecm.id === 'heat_recovery') detail += ` · ความร้อน ${Math.round(ecm.heat_kWh(data)).toLocaleString()} kWh_th/ปี × 3.6 MJ ÷ η ${data.hrEta} × ${data.hrPrice} บาท/MJ`;
     if (typeof ecm.kwh === 'function' && ecm.id !== 'reduce_pressure') detail += ` · ${Math.round(ecm.kwh(data)).toLocaleString()} kWh/ปี (${data.hours.toLocaleString()} h)`;
     const savKthb = typeof ecm.saving === 'function' ? ecm.saving(data) : 0;
@@ -2345,8 +2418,8 @@ function runAudit() {
 // ══════════════════════════════════════════════════════════════
 //  [ระยะ 4 10 ก.ย. 2569] JSON บันทึก/โหลด + recalcAll (ensureAllCalc) + ป้ายชนิดค่า
 // ══════════════════════════════════════════════════════════════
-function teCompRows(){return Array.from(document.querySelectorAll('#comp-tbody tr')).map(r=>{const i=r.querySelectorAll('input'),s=r.querySelector('select');return{name:i[0].value,type:s.value,fad:+i[1].value,fl:+i[2].value,nl:+i[3].value};});}
-function tePmapRows(){return Array.from(document.querySelectorAll('#pmap-body tr')).map(r=>{const i=r.querySelectorAll('input');return{label:i[0].value,p:+i[1].value,dist:+i[2].value};});}
+function teCompRows(){return Array.from(document.querySelectorAll('#comp-tbody tr')).map(r=>{const i=r.querySelectorAll('input'),s=r.querySelector('select');return{name:i[0].value,type:s.value,fad:caCellNum(i[1]),fl:caCellNum(i[2]),nl:caCellNum(i[3])};});} /* [แก้ไข 25 พ.ย. 2569] #750 F1: ช่องว่าง = '' */
+function tePmapRows(){return Array.from(document.querySelectorAll('#pmap-body tr')).map(r=>{const i=r.querySelectorAll('input');return{label:i[0].value,p:caCellNum(i[1]),dist:caCellNum(i[2])};});}
 function teExtra(){return{comps:teCompRows(),pmap:tePmapRows(),seqShown:document.getElementById('seq-result').style.display!=='none',puShown:document.getElementById('pumpup-result').style.display!=='none'};} /* [แก้ไข 25 พ.ย. 2569] #603 L4: เพิ่มคีย์ puShown (ไฟล์เก่าไม่มีคีย์นี้ → พฤติกรรมเดิม) */ // [แก้ไข 3 ต.ค. 2569 audit] เก็บสถานะผล Sequencing
 var _teSeqShown=false; // [แก้ไข 3 ต.ค. 2569 audit]
 var _tePuShown=false; // [แก้ไข 25 พ.ย. 2569] #603 L4
@@ -2373,13 +2446,13 @@ function recalcAll(){
   T(updateChkProgress); T(runAudit); T(tagFieldKinds);
 }
 function teSaveJSON(){TE_JSON.save('Tool_Compressed_Air_System',teExtra());}
-function teLoadJSON(file){TE_JSON.load(file,recalcAll,teRestoreExtra);}
+function teLoadJSON(file){TE_JSON.load(file,recalcAll,function(x){var e=document.getElementById('a_loadPct');if(e)e.value='';teRestoreExtra(x);});} /* [แก้ไข 25 พ.ย. 2569] #752 F3: ล้างช่องสัดส่วนเวลา load ก่อนใส่ค่าจากไฟล์ — ไฟล์เก่าไม่มีคีย์นี้จึงได้ 50 % (ค่าแนวทาง) พร้อมข้อความแจ้ง · ไฟล์ใหม่ใส่ค่าที่บันทึกไว้ */
 
 /* [แก้ไข 3 ต.ค. 2569] TE_ECM_IO — สร้างรายการมาตรการจาก ECM_LIBRARY + ข้อมูล Tab Audit (ใช้สูตรเดียวกับ runAudit) */
 function teBuildECM(){
   try{recalcAll();}catch(e){}
   const d=caAuditData(); // [แก้ไข 3 ต.ค. 2569 audit] ใช้ข้อมูลชุดเดียวกับ runAudit()
-  if(caAuditInvalid(d).length) return {measures:[],pools:[],site:''};
+  if(caAuditInvalid(d).length||caAuditMissing(d).length) return {measures:[],pools:[],site:''}; // [แก้ไข 25 พ.ย. 2569] #750 F1
   const v=id=>{const e=document.getElementById(id);return e?String(e.value||'').trim():'';};
   const site=[v('projName'),v('machineTag')].filter(Boolean).join(' · ');
   const r2=x=>Math.round(x*100)/100;
@@ -2389,7 +2462,7 @@ function teBuildECM(){
   const pools=hasPool?[{carrier:'air',name:'อากาศอัด '+(site||'ระบบอากาศอัด'),unit:'Nm3',
     baselineQty:Math.round(d.fad*60*d.hours),factor:Math.round(factor*10000)/10000,factorUnit:'kWh/Nm3',drawFrom:'electricity'}]:[];
   const MV={
-    reduce_pressure:{mv:'B',kp:['ความดันจ่าย P_dis (bar g)','กำลังไฟฟ้าเครื่องอัดอากาศ (kW)','ชั่วโมงทำงาน']},
+    reduce_pressure:{mv:'B',kp:['ความดันจ่าย P_dis (bar g)','กำลังไฟฟ้าเครื่องอัดอากาศ (kW)','ชั่วโมงทำงาน','สัดส่วนเวลาที่เครื่องเดิน load (%) — ชั่วโมง load ÷ ชั่วโมงทำงาน']}, // [แก้ไข 25 พ.ย. 2569] #752 F3
     fix_leaks:{mv:'B',kp:['อัตรารั่ว (% FAD) จาก Pressure-drop/Leak survey','FAD (m³/min อ้างอิง)','SEC (kW/(m³/min) อ้างอิง · ฐานกำลังไฟฟ้าเข้า)']},
     vsd:{mv:'B',kp:['กำลังไฟฟ้า (kW) ต่อเนื่อง','FAD/โปรไฟล์ภาระ (m³/min อ้างอิง)','ชั่วโมงทำงาน']},
     inlet_cooling:{mv:'A',kp:['อุณหภูมิอากาศขาเข้า T_intake (°C)','กำลังไฟฟ้า (kW)']},
@@ -2399,6 +2472,7 @@ function teBuildECM(){
   ECM_LIBRARY.forEach(ecm=>{
     let ok=false;try{ok=ecm.condition(d);}catch(e){}
     if(!ok)return;
+    if(ecm.id==='reduce_pressure'&&!(d.loadFrac>0))return; // [แก้ไข 25 พ.ย. 2569] #752 F3
     const kthb=typeof ecm.saving==='function'?ecm.saving(d):0;
     if(!(kthb>0))return;
     const capK=typeof ecm.cost_kthb==='function'?ecm.cost_kthb(d):ecm.cost_kthb;
@@ -2416,7 +2490,7 @@ function teBuildECM(){
       m.primary={electricity_kWh:Math.round(kWh)};
       m.savingTHB=Math.round(kWh*d.rate);
       const H=d.hours.toLocaleString()+' h';
-      const B={reduce_pressure:'ลด set pressure: kW_FL('+d.kwFL+')×4%/bar×ΔP '+Math.min(1,Math.max(0,d.Pdis-d.Pplant-0.3)).toFixed(2)+' bar×'+H+'×0.5 (สัดส่วนเวลา load) · P_dis '+d.Pdis+' / P_plant '+d.Pplant+' bar g',
+      const B={reduce_pressure:'ลด set pressure: kW_FL('+d.kwFL+')×6%/bar×ΔP '+Math.min(1,Math.max(0,d.Pdis-d.Pplant-0.3)).toFixed(2)+' bar×'+H+'×'+d.loadFrac.toFixed(2)+' · สัดส่วนเวลา load '+caLoadTxt(d)+' · P_dis '+d.Pdis+' / P_plant '+d.Pplant+' bar g · 6 %/bar และสัดส่วนเวลา load 0.5 = ค่าแนวทางของเครื่องมือ (มติผู้จัดทำ 25 พ.ย. 2569) · เทียบ DOE/CAC Sourcebook ราว 1 % ต่อ 2 psi (≈ 7 %/bar) ที่ full load', /* [แก้ไข 25 พ.ย. 2569] #752 F3 เดิม ×4%/bar … ×0.5 (สัดส่วนเวลา load) */
         fix_leaks:'ซ่อมรั่ว 70% ของ leak '+(d.leak!=null?d.leak.toFixed(1):'—')+'% FAD',
         vsd:'VSD: kW_FL('+d.kwFL+')×15%×'+H+'×0.6 · No-load/FL = '+(d.kwNL/d.kwFL*100).toFixed(0)+'%',
         inlet_cooling:'ลด T_intake '+d.Tin+'→32°C: kW_FL×(T_in−32)/(T_in+273.15)×'+H+'×0.6',
@@ -2437,7 +2511,7 @@ function teBuildECM(){
 window.teBuildECM=teBuildECM; // [แก้ไข 3 ต.ค. 2569]
 function teExportECM(){var r=teBuildECM();TE_ECM_IO.save('Tool_Compressed_Air_System',r.site,r.measures,r.pools);} // [แก้ไข 3 ต.ค. 2569]
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['eta_motor', 'p_design', 'spc_design', 'pu_V', 'dp_V', 'pd_ID', 'pd_L', 'a_kwNP'], FK_MEAS=['t_amb', 'p_atm', 'rh_amb', 'p_elec', 'p_dis', 'p1_T', 'p1_P', 'p1_val', 'fad_direct', 't_intake', 'rh_intake', 'pd_perf', 'pi_perf', 'pu_t', 'pu_p1', 'pu_p2', 'pu_Tt', 'pu_Patm', 'seq_demand', 'lk_p1', 'lk_T', 'lk_D', 'dp_p1', 'dp_p2', 'dp_t', 'dp_fad', 'pd_Q', 'pd_Pline', 'pd_T', 'a_Tin', 'a_Pdis', 'a_Pplant', 'a_kwFL', 'a_kwNL', 'a_Tac', 'a_dp'], FK_SET=['projName', 'machineTag', 'auditorName', 'testDate', 'p1_mode', 'p2_T', 'p2_P', 'p2_mode', 'p2_val', 'pv_p1', 'pv_p2', 'pv_n', 'pv_k', 'k_perf', 'seq_hours', 'seq_rate', 'seq_leak', 'a_hr_price', 'a_hr_eta', 'lk_geo', 'lk_rate', 'lk_SPC', 'dp_rate', 'pd_eps', 'pd_Leq', 'fault-sel'], FK_CALC=['lk_Cd', 'dp_spc', 'a_spc', 'a_fad', 'a_leak'];
+var FK_DESIGN=['eta_motor', 'p_design', 'spc_design', 'pu_V', 'dp_V', 'pd_ID', 'pd_L', 'a_kwNP'], FK_MEAS=['t_amb', 'p_atm', 'rh_amb', 'p_elec', 'p_dis', 'p1_T', 'p1_P', 'p1_val', 'fad_direct', 't_intake', 'rh_intake', 'pd_perf', 'pi_perf', 'pu_t', 'pu_p1', 'pu_p2', 'pu_Tt', 'pu_Patm', 'seq_demand', 'lk_p1', 'lk_T', 'lk_D', 'dp_p1', 'dp_p2', 'dp_t', 'dp_fad', 'pd_Q', 'pd_Pline', 'pd_T', 'a_Tin', 'a_Pdis', 'a_Pplant', 'a_kwFL', 'a_kwNL', 'a_Tac', 'a_dp', 'a_loadPct'], FK_SET=['projName', 'machineTag', 'auditorName', 'testDate', 'p1_mode', 'p2_T', 'p2_P', 'p2_mode', 'p2_val', 'pv_p1', 'pv_p2', 'pv_n', 'pv_k', 'k_perf', 'seq_hours', 'seq_rate', 'seq_leak', 'a_hr_price', 'a_hr_eta', 'lk_geo', 'lk_rate', 'lk_SPC', 'dp_rate', 'pd_eps', 'pd_Leq', 'fault-sel'], FK_CALC=['lk_Cd', 'dp_spc', 'a_spc', 'a_fad', 'a_leak'];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'}; // [แก้ไข 3 ต.ค. 2569 audit] เพิ่ม a_hr_price/a_hr_eta ใน FK_SET
 function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -2922,23 +2996,23 @@ if(window.TE_I18N)TE_I18N.set({
  "Dry Air Mass Balance Method | วิธีเติมถัง (Pump-up)":"Dry Air Mass Balance Method | receiver pump-up test",
  "วิธี Pressure Decay — วัด % Leak Rate ของทั้งระบบ · ทำได้ทันทีหน้างาน":"Pressure-decay method — measures the whole-system leak rate (%) · can be done on site right away",
  "ใช้ค่าที่วัดได้จากหน้างานโดยตรง | การประเมินหน้างาน ไม่ใช่การทดสอบรับรองตาม ISO 1217":"Uses values measured on site | a field assessment, not an ISO 1217 acceptance test",
- "📊 SEC BENCHMARK (ค่าแนวทางของเครื่องมือ)":"📊 SEC BENCHMARK (tool guide values)",
+ "📊 SEC BENCHMARK (ค่าแนวทางของเครื่องมือ)":"📊 SEC BENCHMARK (tool guideline values)",
  "การคำนวณ (วิธี Pressure Decay):":"Calculation (pressure-decay method):",
- "ช่วงค่าเป็นแนวทางของเครื่องมือ ไม่ใช่เกณฑ์จากมาตรฐาน · Screw 7–10 bar · เทียบกับ SEC ฐานกำลังไฟฟ้าเข้า · จุดอ้างอิง: Compressed Air Challenge Fact Sheet 8 — screw ฉีดน้ำมันชั้นเดียวทั่วไป ≈ 22 bhp/100 acfm ที่ 100 psig (≈ 5.8 kW/(m³/min) ที่เพลา)":"The bands are this tool's guide values, not criteria from a standard · screw 7–10 bar · compared with SEC on the electrical-input basis · reference point: Compressed Air Challenge Fact Sheet 8 — a typical single-stage lubricant-injected screw ≈ 22 bhp/100 acfm at 100 psig (≈ 5.8 kW/(m³/min) at the shaft)"
+ "ช่วงค่าเป็นแนวทางของเครื่องมือ ไม่ใช่เกณฑ์จากมาตรฐาน · Screw 7–10 bar · เทียบกับ SEC ฐานกำลังไฟฟ้าเข้า · จุดอ้างอิง: Compressed Air Challenge Fact Sheet 8 — screw ฉีดน้ำมันชั้นเดียวทั่วไป ≈ 22 bhp/100 acfm ที่ 100 psig (≈ 5.8 kW/(m³/min) ที่เพลา)":"The bands are tool guideline values, not criteria from a standard · screw 7–10 bar · compared with SEC on the electrical-input basis · reference point: Compressed Air Challenge Fact Sheet 8 — a typical single-stage lubricant-injected screw ≈ 22 bhp/100 acfm at 100 psig (≈ 5.8 kW/(m³/min) at the shaft)"
 },[
  [/Nm³\/min \(0 °C, แห้ง\) · = ([\d.]+) m³\/min อ้างอิง/g,"Nm³/min (0 °C, dry) · = $1 m³/min at reference state"],
  [/m³N\/min \(สูตรคู่มือ ผอส\.\) · = ([\d.]+) m³\/min อ้างอิง/g,"m³N/min (PRE handbook formula) · = $1 m³/min at reference state"]
 ]);
 </script>
-<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-16 · R4-10 · C1 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"อุณหภูมิอากาศในระบบ T (°C)": "System air temperature T (°C)", "อุณหภูมิอากาศในถังพัก/ท่อขณะทดสอบ °C · ถ้าไม่ได้วัด ใช้อุณหภูมิแวดล้อม": "Air temperature in the receiver/piping during the test, °C · if not measured, use the ambient temperature", "เร็ว": "Fast", "เร็วเกิน": "Too fast", "จุดวัด": "Measuring point", "ระยะ (m)": "Distance (m)", "ΔP จากต้นทาง (bar)": "ΔP from source (bar)", "✅ ดี": "✅ Good", "⚠ สังเกต": "⚠ Watch", "❌ สูงเกิน": "❌ Too high", "m³/min (อ้างอิง)": "m³/min (reference)"},[[/✅ ΔP < 3% — อยู่ในเกณฑ์ดี/g,"✅ ΔP < 3% — within a good range"],[/⚠️ ΔP 3–6% — ควรตรวจสอบ Fitting/g,"⚠️ ΔP 3–6% — check the fittings"],[/❌ ΔP > 6% — ต้องขยายขนาดท่อหรือลด Fitting/g,"❌ ΔP > 6% — enlarge the pipe or reduce the fittings"],[/ΔP ต้นทาง→ปลายทาง =/g,"ΔP source→end ="],[/จุดที่ Drop สูงสุด:/g,"Largest drop at:"],[/→ ตรวจ Valve \/ Filter \/ Fitting บริเวณนั้น/g,"→ check the valves / filters / fittings around it"],[/❌ ΔP รวม > 0\.5 bar — ต้องปรับปรุงระบบท่อ \(ทุก 0\.1 bar ที่ลด SEC ลดได้ ~0\.5%\)/g,"❌ Total ΔP > 0.5 bar — the piping needs improving (each 0.1 bar removed cuts SEC by ~0.5%)"],[/⚠ ΔP รวม 0\.2–0\.5 bar — ตรวจ Fitting\/Valve/g,"⚠ Total ΔP 0.2–0.5 bar — check fittings/valves"],[/✅ ΔP รวม < 0\.2 bar — ระบบท่ออยู่ในเกณฑ์ดี/g,"✅ Total ΔP < 0.2 bar — piping within a good range"],[/อัตราส่วนงาน isentropic ÷ polytropic/g,"Isentropic ÷ polytropic work ratio"],[/m³\/min \(อ้างอิง\)/g,"m³/min (reference)"],[/ใช้ Ultrasonic Leak Detector/g,"use an ultrasonic leak detector"]]);</script>
-<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-05 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ค่าแนวทางของเครื่องมือ": "tool guide value"},[[/\(ฐานกำลังเพลา\)/g,"(shaft-power basis)"],[/\(ค่าแนวทางของเครื่องมือ\)/g,"(tool guide value)"],[/ค่าแนวทางของเครื่องมือ: ดีมาก <6\.0 \/ ดี 6\.0–6\.5 \/ ยอมรับได้ 6\.5–7\.5 \/ ต้องปรับปรุง >7\.5/g,"Tool guide values: excellent <6.0 / good 6.0–6.5 / acceptable 6.5–7.5 / needs improvement >7.5"]]);</script>
-<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ ทะเบียนเกณฑ์ — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ค่าแนวทางของเครื่องมือ (5 / 10 %)": "tool guide value (5 / 10 %)"},[[/เกณฑ์สถานะ \(ΔP ต่อจุด 0\.1 \/ 0\.3 bar · รวม 0\.2 \/ 0\.5 bar\) เป็นค่าแนวทางของเครื่องมือ/g,"Status limits (ΔP per point 0.1 / 0.3 bar · total 0.2 / 0.5 bar) are tool guide values"],[/เกณฑ์สถานะ \(ความเร็ว 6 \/ 9 m\/s · ΔP 3 \/ 6 %\) เป็นค่าแนวทางของเครื่องมือ/g,"Status limits (velocity 6 / 9 m/s · ΔP 3 / 6 %) are tool guide values"]]);</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-16 · R4-10 · C1 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"อุณหภูมิอากาศในระบบ T (°C)": "System air temperature T (°C)", "อุณหภูมิอากาศในถังพัก/ท่อขณะทดสอบ °C · ถ้าไม่ได้วัด ใช้อุณหภูมิแวดล้อม": "Air temperature in the receiver/piping during the test, °C · if not measured, use the ambient temperature", "เร็ว": "Fast", "เร็วเกิน": "Too fast", "จุดวัด": "Measuring point", "ระยะ (m)": "Distance (m)", "ΔP จากต้นทาง (bar)": "ΔP from source (bar)", "✅ ดี": "✅ Good", "⚠ สังเกต": "⚠ Watch", "❌ สูงเกิน": "❌ Too high", "m³/min (อ้างอิง)": "m³/min (reference)"},[[/✅ ΔP < 3% — อยู่ในเกณฑ์ดี/g,"✅ ΔP < 3% — within a good range"],[/⚠️ ΔP 3–6% — ควรตรวจสอบ Fitting/g,"⚠️ ΔP 3–6% — check the fittings"],[/❌ ΔP > 6% — ต้องขยายขนาดท่อหรือลด Fitting/g,"❌ ΔP > 6% — enlarge the pipe or reduce the fittings"],[/ΔP ต้นทาง→ปลายทาง =/g,"ΔP source→end ="],[/จุดที่ Drop สูงสุด:/g,"Largest drop at:"],[/→ ตรวจ Valve \/ Filter \/ Fitting บริเวณนั้น/g,"→ check the valves / filters / fittings around it"],[/❌ ΔP รวม > 0\.5 bar — ต้องปรับปรุงระบบท่อ \(ทุก 0\.1 bar ที่ลด SEC ลดได้ ~0\.6 % · ค่าแนวทางของเครื่องมือ ชุดเดียวกับมาตรการลด Set Pressure 6 %\/bar\)/g,"❌ Total ΔP > 0.5 bar — the piping needs improving (each 0.1 bar removed cuts SEC by ~0.6 % · tool guideline value, the same set as the Reduce set pressure measure, 6 %/bar)"],[/⚠ ΔP รวม 0\.2–0\.5 bar — ตรวจ Fitting\/Valve/g,"⚠ Total ΔP 0.2–0.5 bar — check fittings/valves"],[/✅ ΔP รวม < 0\.2 bar — ระบบท่ออยู่ในเกณฑ์ดี/g,"✅ Total ΔP < 0.2 bar — piping within a good range"],[/อัตราส่วนงาน isentropic ÷ polytropic/g,"Isentropic ÷ polytropic work ratio"],[/m³\/min \(อ้างอิง\)/g,"m³/min (reference)"],[/ใช้ Ultrasonic Leak Detector/g,"use an ultrasonic leak detector"]]);</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-05 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ค่าแนวทางของเครื่องมือ": "tool guideline value"},[[/\(ฐานกำลังเพลา\)/g,"(shaft-power basis)"],[/\(ค่าแนวทางของเครื่องมือ\)/g,"(tool guideline value)"],[/ค่าแนวทางของเครื่องมือ: ดีมาก <6\.0 \/ ดี 6\.0–6\.5 \/ ยอมรับได้ 6\.5–7\.5 \/ ต้องปรับปรุง >7\.5/g,"Tool guideline values: excellent <6.0 / good 6.0–6.5 / acceptable 6.5–7.5 / needs improvement >7.5"]]);</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ ทะเบียนเกณฑ์ — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ค่าแนวทางของเครื่องมือ (5 / 10 %)": "tool guideline value (5 / 10 %)"},[[/เกณฑ์สถานะ \(ΔP ต่อจุด 0\.1 \/ 0\.3 bar · รวม 0\.2 \/ 0\.5 bar\) เป็นค่าแนวทางของเครื่องมือ/g,"Status limits (ΔP per point 0.1 / 0.3 bar · total 0.2 / 0.5 bar) are tool guideline values"],[/เกณฑ์สถานะ \(ความเร็ว 6 \/ 9 m\/s · ΔP 3 \/ 6 %\) เป็นค่าแนวทางของเครื่องมือ/g,"Status limits (velocity 6 / 9 m/s · ΔP 3 / 6 %) are tool guideline values"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ คู่มือช่วง 1 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/^(\s*)(-?\d[\d,]*\.?\d*)️⃣\s+หยุดผลิต\s+ปิดอุปกรณ์ใช้ลมทุกจุด\s+—\s+วาล์วท่อจ่ายยังเปิด\s+เพื่อทดสอบถัง\s+\+\s+ท่อทั้งระบบ(\s*)$/,"$1$2️⃣ Stop production and shut every air user — keep the header valves open so the receiver + piping are tested together$3"],[/^(\s*)(-?\d[\d,]*\.?\d*)️⃣\s+เดินเครื่องจนความดันถึง\s+P₁\s+\(bar\s+g\)\s+ปกติ\s+แล้วหยุด\s+Compressor\s+ทั้งหมด\s+→\s+บันทึกค่า(\s*)$/,"$1$2️⃣ Run up to normal P₁ (bar g), then stop all compressors → record the value$3"],[/^(\s*)ช่วงที่ความดันตกมากที่สุด:\s*$/,"$1Segment with the largest pressure drop: "],[/^(\s*)\((-?\d[\d,]*\.?\d*)\s+bar\)\s+→\s+ตรวจ\s+Valve\s+\/\s+Filter\s+\/\s+Dryer\s+\/\s+Fitting\s+ในช่วงนั้น(\s*)$/,"$1($2 bar) → check valves / filters / dryer / fittings in that segment$3"]]);</script>
 <script>/* [แก้ไข 17 พ.ย. 2569] คู่คำแปล EN ที่ตกหล่น — โหมด ?lang=en ยังแสดงภาษาไทยใน: แผนผังวิเคราะห์ปัญหา (Fault Diagnosis Tree) ทั้ง 8 อาการ · ผล Field Leak Test (ป้ายสถานะ ⚠/❌ และคำแนะนำ Leak Survey) · มาตรการซ่อมรอยรั่วใน ECM Priority Matrix — พบตอนทำคู่มือฉบับภาษาอังกฤษ · เพิ่มคำแปลอย่างเดียว ไม่แตะสูตร/รหัสช่อง */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"❌ ต้อง Leak Survey ด่วน": "❌ Leak survey needed urgently", "⚠ ยอมรับได้": "⚠ Acceptable", "แนะนำ Leak Survey:": "Leak survey recommended:", "จุดที่ต้องตรวจ: Fitting, Union, Valve Stem, Quick-Coupler, Auto Drain, Filter Bowl": "Points to check: fittings, unions, valve stems, quick couplers, auto drains, filter bowls", "Payback ซ่อม 70% ของจุดรั่ว ≈": "Return from repairing 70% of the leaks ≈", "🔧 ซ่อมรอยรั่ว Leak Rate >5%": "🔧 Repair air leaks — leak rate >5%", "ซ่อมรอยรั่ว Leak Rate >5%": "Repair air leaks — leak rate >5%", "SEC สูงกว่า Design": "SEC above design", "Air Filter อุดตัน — ΔP_intake สูง": "Air filter clogged — high ΔP_intake", "วัด ΔP ที่ Air Filter (ปกติ <50 mbar)": "Measure ΔP across the air filter (normally <50 mbar)", "เปลี่ยนไส้กรอง": "Replace the filter element", "Airend/Screw เสื่อมสภาพ — Volumetric Eff ลด": "Airend/screw worn — volumetric efficiency reduced", "วัด FAD จริงด้วย Pump-Up Test": "Measure the actual FAD with a pump-up test", "เทียบ FAD จริง vs Nameplate — ถ้าต่างกว่า 15% พิจารณา Overhaul": "Compare actual FAD vs nameplate — if the difference exceeds 15%, consider an overhaul", "T_intake สูงเกิน — ลดความหนาแน่นอากาศ": "T_intake too high — lower air density", "วัด T_intake — ควร < Tamb+5°C": "Measure T_intake — should be < Tamb+5°C", "ตรวจสอบ Aftercooler Bypass หรือ Hot air recirculation": "Check for aftercooler bypass or hot-air recirculation", "Pressure Set Point สูงเกินความต้องการ": "Pressure set point higher than required", "สำรวจ P_plant ที่จุดใช้งานต่างๆ": "Survey P_plant at the points of use", "พิจารณาลด Set Point ทีละ 0.5 bar": "Consider lowering the set point in 0.5 bar steps", "อุณหภูมิ Discharge สูง": "High discharge temperature", "Oil Cooler / Aftercooler อุดตัน": "Oil cooler / aftercooler clogged", "ทำความสะอาด Cooler Fin": "Clean the cooler fins", "ตรวจ Cooling Water Flow (ถ้าเป็น Water Cooled)": "Check the cooling water flow (if water-cooled)", "ระดับน้ำมันต่ำ / น้ำมันเสื่อมคุณภาพ": "Low oil level / degraded oil", "ตรวจ Oil Level ที่ Sight Glass": "Check the oil level at the sight glass", "เปลี่ยนถ่ายน้ำมันตาม Schedule": "Change the oil on schedule", "T_amb สูง / Ventilation ไม่พอ": "High T_amb / insufficient ventilation", "วัด T_amb รอบเครื่อง": "Measure T_amb around the machine", "ปรับปรุงระบบ Ventilation ห้อง Compressor": "Improve the compressor-room ventilation", "ความดันจ่ายต่ำกว่า Set Point": "Discharge pressure below set point", "Demand เกิน Capacity — FAD ไม่พอ": "Demand exceeds capacity — insufficient FAD", "Log ดู Load Profile": "Log the load profile", "เปิด Compressor สำรอง หรือเพิ่ม FAD": "Start the standby compressor or add FAD", "Leak Rate สูง — สูญเสียความดัน": "High leak rate — pressure loss", "ทำ Leak Survey ด้วย Ultrasonic Detector": "Do a leak survey with an ultrasonic detector", "ซ่อมรอยรั่วที่พบ": "Repair the leaks found", "Pressure Drop ในระบบท่อสูง": "High pressure drop in the piping", "วัด P ที่หลายจุด — หาว่า Drop มากที่ส่วนไหน": "Measure P at several points — find where the drop is largest", "ตรวจ Valve / Filter ที่อาจอุดตัน": "Check valves / filters that may be clogged", "Leak Rate สูง > 20%": "High leak rate > 20%", "Fitting / Union หลวมหรือชำรุด": "Loose or damaged fittings / unions", "ทำ Leak Survey ด้วย Ultrasonic Detector (ปิดเครื่อง Load ทั้งหมด)": "Do a leak survey with an ultrasonic detector (with all loads shut off)", "ใช้ Soapy Water ตรวจจุดสงสัย": "Use soapy water on suspect points", "Valve Packing / Stem Seal รั่ว": "Leaking valve packing / stem seals", "ตรวจ Valve ทั้งหมดในระบบ": "Check every valve in the system", "เปลี่ยน Seal / Packing ที่พบรั่ว": "Replace leaking seals / packing", "Quick-Coupler / Air Tool Connection รั่ว": "Leaking quick couplers / air-tool connections", "ตรวจ Quick-Coupler ทุกจุด": "Check every quick coupler", "เปลี่ยน Coupler ที่สึกหรอ": "Replace worn couplers", "เครื่อง Unload / Load-Unload ถี่": "Machine unloads often / frequent load-unload", "Receiver Tank เล็กเกินไป": "Receiver tank too small", "คำนวณ V_tank ที่เหมาะสม = (P_range × Q) / (n_cycles × ΔP)": "Calculate a suitable V_tank = (P_range × Q) / (n_cycles × ΔP)", "เพิ่มถังพักลม": "Add receiver capacity", "Demand Fluctuation — ใช้ลมเป็นช่วงๆ": "Demand fluctuation — intermittent air use", "Log ดู Demand Pattern": "Log the demand pattern", "พิจารณา VSD Compressor หรือปรับ Control Pressure Band": "Consider a VSD compressor or adjust the control pressure band", "Unload Power สูง (Fixed Speed)": "High unload power (fixed speed)", "วัด kW_unload — ควร < 25% kW_fullload": "Measure kW_unload — should be < 25% of kW_fullload", "พิจารณาเปลี่ยนเป็น VSD": "Consider changing to VSD", "ความชื้นใน Downstream สูง": "High downstream moisture", "Dryer ทำงานผิดปกติ / Refrigerant รั่ว (สำหรับ Refrigerated Dryer)": "Dryer malfunction / refrigerant leak (refrigerated dryer)", "วัด Dew Point หลัง Dryer (ควร +2 ถึง +10°C PDP)": "Measure the dew point after the dryer (should be +2 to +10°C PDP)", "ตรวจ Refrigerant Charge": "Check the refrigerant charge", "Auto Drain อุดตัน / ไม่ทำงาน": "Auto drain clogged / not working", "ตรวจ Auto Drain ทุกจุด (Aftercooler, Dryer, Filter, Header)": "Check every auto drain (aftercooler, dryer, filter, header)", "เปิด Manual Drain ดู": "Open the manual drain to check", "T_intake สูง → Moisture Load มาก": "High T_intake → large moisture load", "ติดตั้ง Pre-filter / Pre-cooler ก่อน Compressor": "Install a pre-filter / pre-cooler upstream of the compressor", "ลด T_intake": "Lower T_intake", "Vibration / เสียงผิดปกติ": "Vibration / abnormal noise", "Bearing เสื่อม / น้ำมันไม่พอ": "Worn bearings / insufficient oil", "วัด Vibration (ปกติ < 4.5 mm/s RMS)": "Measure vibration (normally < 4.5 mm/s RMS)", "ตรวจ Oil Level และ Oil Pressure": "Check the oil level and oil pressure", "ตรวจ Alignment": "Check the alignment", "ตรวจแรงดึง Belt": "Check the belt tension", "Liquid Carry-over / Oil Flooded ใน Cylinder": "Liquid carry-over / oil flooding in the cylinder", "ตรวจ Oil Separator ทำงานปกติ": "Check that the oil separator works normally", "ตรวจ Oil Return Line": "Check the oil return line", "น้ำมันปนในอากาศ": "Oil carry-over in air", "Oil Separator Element ชำรุด / ใกล้หมดอายุ": "Oil separator element damaged / near end of life", "วัด Oil Carryover (ISO 8573-1 Oil Aerosol)": "Measure oil carryover (ISO 8573-1 oil aerosol)", "เปลี่ยน Separator Element ตาม Interval": "Replace the separator element at the set interval", "ระดับน้ำมันสูงเกิน": "Oil level too high", "ตรวจ Oil Level ที่ Sight Glass — ห้ามเกิน Max": "Check the oil level at the sight glass — must not exceed Max", "ดูดน้ำมันส่วนเกินออก": "Drain off the excess oil"},[[/^(\s*)Leak\s+Rate\s+ที่วัดได้\s+=\s+(-?\d[\d,]*\.?\d*|—)%\s+·\s+เป้าหมาย\s+<5%\s+·\s+ซ่อม\s+70%\s+ของจุดรั่วก่อน\s+·\s+(-?\d[\d,]*\.?\d*)\s+kWh\/ปี\s+\((-?\d[\d,]*\.?\d*)\s+h\)(\s*)$/,"$1Measured leak rate = $2% · target <5% · repair 70% of the leaks first · $3 kWh/yr ($4 h)$5"],[/^(\s*)Leak\s+Rate\s+ที่วัดได้\s+=\s+(-?\d[\d,]*\.?\d*|—)%\s+·\s+เป้าหมาย\s+<5%\s+·\s+ซ่อม\s+70%\s+ของจุดรั่วก่อน(\s*)$/,"$1Measured leak rate = $2% · target <5% · repair 70% of the leaks first$3"]]);</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"อ.หนึ่ง กลับทวี": "Aj. Nueng Klubtavee", "โรงงาน A — ระบบอากาศอัด": "Plant A — compressed air system", "Compressor Outlet (หน้า Receiver)": "Compressor outlet (at receiver)", "Header กลางโรงงาน": "Plant main header", "จุดใช้งาน A (ไกลสุด)": "Point of use A (farthest)"});}</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #334 EN — หมายเหตุอ้างอิงวิธี pressure decay */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"อ้างอิง: Compressed Air Challenge / U.S. DOE, Improving Compressed Air System Performance — Fact Sheet #7 Compressed Air System Leaks (Rev. 1, พ.ค. 2026) หน้า F7-2 วิธี pressure decay (ปริมาตรระบบ × ความดันที่ลด ÷ ความดันบรรยากาศ ÷ เวลา) · แปลงเป็นปริมาตรที่สภาวะอ้างอิงด้วยกฎแก๊สอุดมคติ (อุณหภูมิอากาศในระบบ · ความดันอากาศแห้ง) ฐานเดียวกันทั้ง Compressed Air System และ Flow Converter · CAC คูณ 1.25 เพื่อเทียบที่ความดันใช้งานเมื่อปล่อยให้ความดันลดถึงราวครึ่งหนึ่ง — เครื่องมือไม่คูณ ผลจึงอยู่ด้านต่ำ":"Reference: Compressed Air Challenge / U.S. DOE, Improving Compressed Air System Performance — Fact Sheet #7 Compressed Air System Leaks (Rev. 1, May 2026), p. F7-2, pressure-decay method (system volume × pressure drop ÷ atmospheric pressure ÷ time) · converted to volume at the reference condition with the ideal-gas law (air temperature in the system · dry-air pressure), the same basis in Compressed Air System and Flow Converter · CAC multiplies by 1.25 to express leakage at normal operating pressure when pressure is allowed to fall to about one-half — the tool does not, so the result is on the low side"});</script>
-<script>/* [แก้ไข 18 พ.ย. 2569] #335 EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ช่วง SEC เดียวกันทั้ง Compressed Air System และ Flow Converter (ค่าแนวทางของเครื่องมือ ไม่ใช่เกณฑ์จากมาตรฐาน): สกรูฉีดน้ำมัน ความเร็วคงที่ ที่ 7 bar g — ดีมาก ≤ 6.0 · ดี 6.0–6.5 · ยอมรับได้ 6.5–7.5 · ต้องปรับปรุง > 7.5 kW/(m³/min) (ค่าที่เท่าขอบบนนับเป็นระดับที่ดีกว่า) ฐานกำลังไฟฟ้าเข้าทั้งชุด ÷ FAD อ้างอิง · ความดันอื่นปรับด้วยอัตราส่วนงานอัด isentropic (k = 1.4) · จุดยึด: Compressed Air Challenge / U.S. DOE Fact Sheet #8 Packaged Compressor Efficiency Ratings (Rev. 1, พ.ค. 2026) หน้า F8-1 — สกรูฉีดน้ำมันชั้นเดียวทั่วไป ≈ 22 bhp/100 acfm ที่ 100 psig = 5.8 kW/(m³/min) ที่เพลา ≈ 6.4 kW/(m³/min) กำลังไฟฟ้าเข้าทั้งชุด (สมมุติ η มอเตอร์ 0.95 + พัดลมระบายความร้อน ~4 %) จึงอยู่ในช่วง \"ดี\"":"Same SEC bands in Compressed Air System and Flow Converter (tool guide values, not criteria from a standard): fixed-speed lubricant-injected screw at 7 bar g — excellent ≤ 6.0 · good 6.0–6.5 · acceptable 6.5–7.5 · needs improvement > 7.5 kW/(m³/min) (a value equal to an upper limit counts in the better band), package electrical input ÷ reference FAD · other pressures corrected with the isentropic compression-work ratio (k = 1.4) · anchor: Compressed Air Challenge / U.S. DOE Fact Sheet #8 Packaged Compressor Efficiency Ratings (Rev. 1, May 2026), p. F8-1 — a typical single-stage lubricant-injected screw ≈ 22 bhp/100 acfm at 100 psig = 5.8 kW/(m³/min) at the shaft ≈ 6.4 kW/(m³/min) package electrical input (assuming motor η 0.95 + cooling fan ~4 %), i.e. within the \"good\" band"});</script>
-<script>/* [แก้ไข 18 พ.ย. 2569] #335 EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ค่าแนวทางของเครื่องมือ (ที่ 7 bar g · ช่วงเดียวกับ Flow Converter): ดีมาก ≤6.0 / ดี 6.0–6.5 / ยอมรับได้ 6.5–7.5 / ต้องปรับปรุง >7.5":"Tool guide values (at 7 bar g · same bands as Flow Converter): excellent ≤6.0 / good 6.0–6.5 / acceptable 6.5–7.5 / needs improvement >7.5"});</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #335 EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ช่วง SEC เดียวกันทั้ง Compressed Air System และ Flow Converter (ค่าแนวทางของเครื่องมือ ไม่ใช่เกณฑ์จากมาตรฐาน): สกรูฉีดน้ำมัน ความเร็วคงที่ ที่ 7 bar g — ดีมาก ≤ 6.0 · ดี 6.0–6.5 · ยอมรับได้ 6.5–7.5 · ต้องปรับปรุง > 7.5 kW/(m³/min) (ค่าที่เท่าขอบบนนับเป็นระดับที่ดีกว่า) ฐานกำลังไฟฟ้าเข้าทั้งชุด ÷ FAD อ้างอิง · ความดันอื่นปรับด้วยอัตราส่วนงานอัด isentropic (k = 1.4) · จุดยึด: Compressed Air Challenge / U.S. DOE Fact Sheet #8 Packaged Compressor Efficiency Ratings (Rev. 1, พ.ค. 2026) หน้า F8-1 — สกรูฉีดน้ำมันชั้นเดียวทั่วไป ≈ 22 bhp/100 acfm ที่ 100 psig = 5.8 kW/(m³/min) ที่เพลา ≈ 6.4 kW/(m³/min) กำลังไฟฟ้าเข้าทั้งชุด (สมมุติ η มอเตอร์ 0.95 + พัดลมระบายความร้อน ~4 %) จึงอยู่ในช่วง \"ดี\"":"Same SEC bands in Compressed Air System and Flow Converter (tool guideline values, not criteria from a standard): fixed-speed lubricant-injected screw at 7 bar g — excellent ≤ 6.0 · good 6.0–6.5 · acceptable 6.5–7.5 · needs improvement > 7.5 kW/(m³/min) (a value equal to an upper limit counts in the better band), package electrical input ÷ reference FAD · other pressures corrected with the isentropic compression-work ratio (k = 1.4) · anchor: Compressed Air Challenge / U.S. DOE Fact Sheet #8 Packaged Compressor Efficiency Ratings (Rev. 1, May 2026), p. F8-1 — a typical single-stage lubricant-injected screw ≈ 22 bhp/100 acfm at 100 psig = 5.8 kW/(m³/min) at the shaft ≈ 6.4 kW/(m³/min) package electrical input (assuming motor η 0.95 + cooling fan ~4 %), i.e. within the \"good\" band"});</script>
+<script>/* [แก้ไข 18 พ.ย. 2569] #335 EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ค่าแนวทางของเครื่องมือ (ที่ 7 bar g · ช่วงเดียวกับ Flow Converter): ดีมาก ≤6.0 / ดี 6.0–6.5 / ยอมรับได้ 6.5–7.5 / ต้องปรับปรุง >7.5":"Tool guideline values (at 7 bar g · same bands as Flow Converter): excellent ≤6.0 / good 6.0–6.5 / acceptable 6.5–7.5 / needs improvement >7.5"});</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #381 EN — ปุ่มส่งออก TE_ECM ชี้ MG-ECM-01 (ถ้อยคำเดียวกับ #368) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ส่งออกมาตรการเป็นไฟล์ TE_ECM เพื่อนำเข้า MG-ECM-01 บัญชีมาตรการอนุรักษ์พลังงาน (ระดับ Pro) — Tool_ECM_Portfolio รุ่น Free ย้ายไปเป็น MG-ECM-01 แล้ว": "Export measures as a TE_ECM file for import into MG-ECM-01 ECM Portfolio (Pro tier) — the Free Tool_ECM_Portfolio has moved to MG-ECM-01", "📤 ส่งออก TE_ECM → MG-ECM-01 (Pro)": "📤 Export TE_ECM → MG-ECM-01 (Pro)"});</script>
 <script>/* [แก้ไข 25 พ.ย. 2569] #606 L6 — คู่คำแปล EN ที่ Free ขาด (ยกจากการ์ด Pro EL-AIR-02 · _build_el-air-02/air_en.js ชุด 24 WP-36R ตามตัวอักษร): ข้อความเตือนแท็บ Field Audit · มาตรการ ECM 3 รายการ · คำเตือนค่าที่กรอกเป็นไปไม่ได้ (Performance / Pressure Decay / Audit) · ป้าย "สูง" ของ Compression Ratio */
 if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
@@ -2982,7 +3056,30 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 "ต้องมากกว่า 0":"must be greater than 0",
 "ความดันต่ำกว่าเกณฑ์การไหลแบบ choked — สูตรคู่มือ ผอส. ตั้งบนการไหลแบบ choked ผลจึงสูงกว่าจริง ให้ใช้ลักษณะรูรั่วแบบ Cd แทน":"Pressure is below the choked-flow limit — the PRE handbook formula assumes choked flow, so the result is too high; use a Cd leak geometry instead"
 },[
-[/^(\s*)ค่าแนวทางของเครื่องมือ:\s+กำลังไฟฟ้าเต็มภาระ\s+kW_FL\s+ลด\s+(-?\d[\d,]*\.?\d*)\s+%\s+ต่อ\s+(-?\d[\d,]*\.?\d*)\s+bar\s+ที่ลด\s+คิด\s+(-?\d[\d,]*\.?\d*)\s+%\s+ของชั่วโมงเดินเครื่อง\s+·\s+ตรวจ\s+P_plant\s+ที่จุดใช้งานจริงก่อน\s+·\s+ΔP\s+ลดได้\s+=\s+min\((-?\d[\d,]*\.?\d*)\s+(-?\d[\d,]*\.?\d*)−(-?\d[\d,]*\.?\d*)−(-?\d[\d,]*\.?\d*)\)\s+=\s+(-?\d[\d,]*\.?\d*)\s+bar\s+·\s+(-?\d[\d,]*\.?\d*)\s+kWh\/ปี\s+×\s+(-?\d[\d,]*\.?\d*)\s+บาท\/kWh(\s*)$/,"$1Tool guide value: full-load power kW_FL drops $2 % per $3 bar of reduction, counted over $4 % of the operating hours · check P_plant at the actual point of use first · reducible ΔP = min($5 $6−$7−$8) = $9 bar · $10 kWh/yr × $11 THB/kWh$12"]
 ]);</script>
+<script>/* [แก้ไข 25 พ.ย. 2569] #751 F2: คำอังกฤษของ "ค่าแนวทางของเครื่องมือ" ทั้งไฟล์ใช้ "tool guideline value(s)" แบบเดียว (เดิม tool guide value(s) · this tool's guide values) · #750 F1 · #752 F3 — คู่คำแปล EN ของข้อความใหม่ (กล่องแจ้งช่องว่างแท็บที่เหลือ · ช่องสัดส่วนเวลา load · บรรทัดรายละเอียดมาตรการลด Set Pressure) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"แถวที่": "Row",
+"ต้องอยู่ระหว่าง 0 ถึงน้อยกว่า 100": "must be from 0 to less than 100",
+"(แท็บ Performance ส่วน Sequencing)": "(Performance tab, Sequencing section)",
+"ค่าพลังงานที่สูญเสีย:": "Energy cost lost:",
+"— พัน บาท/ปี": "— k THB/yr",
+"kWh/ปี": "kWh/yr",
+"บาท/ปี": "THB/yr",
+"บาท/kWh": "THB/kWh",
+"ไม่คำนวณมาตรการประหยัดจนกว่าจะกรอกค่าให้ครบ": "Savings measures are not calculated until the fields are complete",
+"สัดส่วนเวลาที่เครื่องเดิน load (%)": "Share of running time on load (%)",
+"เว้นว่าง = 50 % (ค่าแนวทางของเครื่องมือ)": "blank = 50 % (tool guideline value)",
+"= ชั่วโมง load ÷ ชั่วโมงทำงาน × 100 · อ่านจากตัวนับชั่วโมงของเครื่อง (load hours / running hours) หรือบันทึกเดินเครื่อง · รับ 1–100 % · เว้นว่าง = ใช้ค่าแนวทางของเครื่องมือ 50 % · ใช้กับมาตรการลด Set Pressure": "= loaded hours ÷ running hours × 100 · read from the compressor hour counters (load hours / running hours) or the operating log · accepts 1–100 % · blank = uses the tool guideline value of 50 % · used by the Reduce set pressure measure",
+"ต้องอยู่ระหว่าง 1–100 % (เว้นว่าง = ค่าแนวทางของเครื่องมือ 50 %)": "must be between 1–100 % (blank = tool guideline value 50 %)",
+"ไม่คำนวณมาตรการลด Set Pressure": "the Reduce set pressure measure is not calculated",
+"ค่าแนวทางของเครื่องมือ: กำลังไฟฟ้าเต็มภาระ kW_FL ลด 6 % ต่อ 1 bar ที่ลด × สัดส่วนเวลาที่เครื่องเดิน load · ตรวจ P_plant ที่จุดใช้งานจริงก่อน": "Tool guideline value: full-load power kW_FL drops 6 % per 1 bar of reduction × share of running time on load · check P_plant at the actual point of use first",
+"ΔP ลดได้": "reducible ΔP",
+"สัดส่วนเวลา load": "load share",
+"(ค่าที่กรอก)": "(entered value)",
+"(ค่าแนวทางของเครื่องมือ — ไม่ได้กรอก)": "(tool guideline value — not entered)",
+"ไม่ได้กรอกสัดส่วนเวลา load — ใช้ค่าแนวทางของเครื่องมือ 50 %": "Load share not entered — using the tool guideline value of 50 %",
+"6 %/bar และสัดส่วนเวลา load 0.5 = ค่าแนวทางของเครื่องมือ (มติผู้จัดทำ 25 พ.ย. 2569) · เทียบ U.S. DOE/CAC Compressed Air Sourcebook: ราว 1 % ต่อ 2 psi (≈ 7 %/bar) ที่ full load": "6 %/bar and load share 0.5 = tool guideline values (author's decision, 25 Nov 2026) · cf. U.S. DOE/CAC Compressed Air Sourcebook: about 1 % per 2 psi (≈ 7 %/bar) at full load",
+"อ้างอิง: U.S. DOE / Compressed Air Challenge, Improving Compressed Air System Performance: A Sourcebook for Industry (3rd ed.) — Fact Sheet 1 หน้า 22 (ระบบราว 100 psig: ทุก 2 psi ที่เพิ่ม พลังงานเพิ่มราว 1 % ที่อัตราไหลเต็ม) · Fact Sheet 5 หน้า 34 (ทุก 2 psi ที่ลด พลังงานลดราว 1 %)": "Reference: U.S. DOE / Compressed Air Challenge, Improving Compressed Air System Performance: A Sourcebook for Industry (3rd ed.) — Fact Sheet 1 p. 22 (systems around 100 psig: every 2 psi increase raises energy by about 1 % at full output flow) · Fact Sheet 5 p. 34 (every 2 psi decrease lowers energy by about 1 %)"
+},[]);</script>
 </body>
 </html>
