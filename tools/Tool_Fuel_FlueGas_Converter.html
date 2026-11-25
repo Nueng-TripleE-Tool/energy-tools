@@ -443,6 +443,12 @@ const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?'–':Number(v).toFixed
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const money=v=>isFinite(v)?Math.round(v).toLocaleString('th-TH'):'–';
 const num=v=>isFinite(v)?v.toLocaleString('th-TH',{maximumFractionDigits:2}):'–';
+/* [แก้ไข 25 พ.ย. 2569] #711 หลัก "ช่องว่าง ≠ ศูนย์": V() คืน 0 เมื่อช่องว่าง (เดิมราคา/ปริมาณ/ค่าที่วัดได้ว่าง = 0 · η ว่าง = 1 % · O₂ ว่าง = 0 %)
+   → BL(id) ตรวจช่องว่าง · ช่องที่ผลต้องใช้แต่ว่าง แจ้งให้กรอก (MISS) และผลส่วนนั้นแสดง "—" · ค่าที่กรอก (รวม 0) คำนวณเหมือนเดิมทุกตัว */
+const BL=id=>{const e=$(id);return !!e&&String(e.value).trim()==='';};
+const MISSLAB={price:'ราคา',eff:'ประสิทธิภาพอุปกรณ์',hv:'ค่าความร้อน',mmbtuHL:'อัตราส่วน HHV/LHV',hIn:'ค่าตั้งต้น (แท็บ 3)',hH:'ไฮโดรเจน H',hM:'ความชื้น M',hA:'เถ้า A',hON:'ออกซิเจน + ไนโตรเจน O+N',
+  qty:'ปริมาณ',cMeas:'ค่าที่วัดได้',o2m:'O₂ ที่วัดได้',o2r:'O₂ อ้างอิง',gVal:'ค่า (ppm ↔ mg/Nm³)',wVal:'ค่าที่มี (ฐานแห้ง ↔ ฐานเปียก)',wH2O:'ความชื้นในไอเสีย'};
+const MISS=ids=>ids.length?`<div class="note warn" data-miss="1" style="margin-top:12px">⚠ <span>กรุณากรอก</span> ${ids.map(id=>`<b>${MISSLAB[id]||id}</b>`).join(' · ')} — <span>ช่องว่างไม่คิดเป็นศูนย์ ผลที่ต้องใช้ค่านี้แสดง —</span></div>`:'';
 
 /* ── คลังเชื้อเพลิง: hv (MJ/kg ar) หรือ hvVol (MJ/Nm³), rho (kg/L หรือ kg/Nm³) ── */
 /* [แก้ไข 10 ก.ย. 2569] เพิ่ม ult:{H %dry, M %ar, A %dry} ค่าทั่วไป ใช้เติมแท็บ 3 อัตโนมัติ (แก้ไขได้) */
@@ -470,14 +476,22 @@ const PULAB={'THB/kg':'บาท/kg','THB/ton':'บาท/ตัน','THB/L':'�
 let S={};
 /* [แก้ไข 3 ต.ค. 2569 audit] ตัวคูณฐานราคา MMBTU (GCV→LHV) ใช้ร่วมกันทั้งแท็บ 1 และตารางเปรียบเทียบ */
 function mmbtuFac(){ const hl=V('mmbtuHL'); return ($('mmbtuBasis')&&$('mmbtuBasis').value==='ncv')?1:((hl>=1&&hl<=1.3)?hl:1.109); }
+/* [แก้ไข 25 พ.ย. 2569] #711 ราคาฐาน GCV แต่ช่อง HHV/LHV ว่าง → เดิม mmbtuFac() ใช้ 1.109 เงียบ ๆ → แจ้งให้กรอก ราคาที่เป็น บาท/MMBTU แสดง "—" (ค่าที่กรอกนอกช่วง 1–1.3 คงพฤติกรรมเดิม) */
+function hlMiss(){ return !($('mmbtuBasis')&&$('mmbtuBasis').value==='ncv')&&BL('mmbtuHL'); }
 function calc(){
   const srefT=parseFloat($('sref').value);
   $('srefFac').textContent=(273.15/(273.15+srefT)).toFixed(4);
-  const r=priceEngine(V('hv'),$('hvU').value,V('rho'),$('rhoU').value,srefT,V('price'),$('priceU').value,mmbtuFac());
-  const eff=clamp(V('eff'),1,100)/100;
-  const useGJ=r.perGJ===null?null:r.perGJ/eff;
-  const usekWh=r.perkWh===null?null:r.perkWh/eff;
-  S={...r,eff,useGJ,usekWh,srefT};
+  let r=priceEngine(V('hv'),$('hvU').value,V('rho'),$('rhoU').value,srefT,V('price'),$('priceU').value,mmbtuFac());
+  /* [แก้ไข 25 พ.ย. 2569] #711 ราคาว่าง (เดิม = 0 บาท → 0 บาท/GJ) · ราคา บาท/MMBTU ฐาน GCV แต่ HHV/LHV ว่าง → ผลราคาทุกตัวเป็น null ("—") · ค่าความร้อนแต่ละฐานคงเดิม */
+  const miss1=[]; if(BL('price')) miss1.push('price'); if($('priceU').value==='THB/MMBTU'&&hlMiss()) miss1.push('mmbtuHL');
+  if(miss1.length) r={...r,perMJ:null,perGJ:null,perkWh:null,perMMBTU:null};
+  /* [แก้ไข 25 พ.ย. 2569] #711 η ว่าง: เดิม clamp(0,1,100) = 1 % → ต้นทุนความร้อนใช้งาน ×100 (PKS 202.29 → 16,587.68) → แจ้งให้กรอก แสดง "—" */
+  if(BL('eff')) miss1.push('eff');
+  if(BL('hv')&&r.mjKg===null&&r.mjL===null&&r.mjNm3===null) miss1.unshift('hv');
+  const eff=BL('eff')?null:clamp(V('eff'),1,100)/100;
+  const useGJ=(r.perGJ===null||eff===null)?null:r.perGJ/eff;
+  const usekWh=(r.perkWh===null||eff===null)?null:r.perkWh/eff;
+  S={...r,eff,useGJ,usekWh,srefT,miss1};
 
   /* verdict */
   $('vLHV').textContent=fmt(r.mjKg!==null?r.mjKg:(r.mjNm3!==null?r.mjNm3:r.mjL),2);
@@ -487,10 +501,10 @@ function calc(){
   $('vGJ').textContent=r.perGJ===null?'–':num(r.perGJ);
   $('vMJ').textContent=r.perMJ===null?'–':fmt(r.perMJ,4);
   $('vUse').textContent=useGJ===null?'–':num(useGJ);
-  $('vUseb').textContent=`บาท/GJ ที่ประสิทธิภาพ ${fmt(eff*100,0)} %`;
+  $('vUseb').textContent=`บาท/GJ ที่ประสิทธิภาพ ${eff===null?'—':fmt(eff*100,0)} %`;
 
   renderPrice(r,eff,useGJ,usekWh);
-  if($('priceU').value==='THB/MMBTU'){ const po=$('priceOut'); if(po) po.insertAdjacentHTML('afterbegin',`<div class="note warn">ราคา ${num(V('price'))} บาท/MMBTU ฐาน ${mmbtuFac()>1?'GCV แปลงเป็นฐาน LHV ด้วย × HHV/LHV '+fmt(mmbtuFac(),3)+' → ':'NCV/LHV → '}${num(r.perGJ)} บาท/GJ (LHV) — สอดคล้องกับค่าความร้อน LHV และ η ฐาน LHV ที่กรอก</div>`); }   // [แก้ไข 3 ต.ค. 2569 audit]
+  if($('priceU').value==='THB/MMBTU'&&r.perGJ!==null){ const po=$('priceOut'); if(po) po.insertAdjacentHTML('afterbegin',`<div class="note warn">ราคา ${num(V('price'))} บาท/MMBTU ฐาน ${mmbtuFac()>1?'GCV แปลงเป็นฐาน LHV ด้วย × HHV/LHV '+fmt(mmbtuFac(),3)+' → ':'NCV/LHV → '}${num(r.perGJ)} บาท/GJ (LHV) — สอดคล้องกับค่าความร้อน LHV และ η ฐาน LHV ที่กรอก</div>`); }   // [แก้ไข 3 ต.ค. 2569 audit]
   renderAll(r);
   renderCmp();
   /* [แก้ไข 10 ก.ย. 2569] เชื่อมค่าความร้อนแท็บ 1 → ค่าตั้งต้นแท็บ 3 (เฉพาะเมื่อยังไม่ถูกแก้เอง) */
@@ -498,7 +512,11 @@ function calc(){
       /* [แก้ไข 3 ต.ค. 2569 audit] ค่าจากแท็บ 1 เป็น LHV as-received → ตั้งทิศ LHV→HHV และฐาน ar (เดิมค้าง HHV→LHV → หักความร้อนแฝงซ้ำ LHV ต่ำไป ~9 %) — เว้นแต่ผู้ใช้เลือกทิศ/ฐานเอง */
       const hd=$('hDir'), hb=$('hBasis');
       if(hd&&hd.dataset.auto!=='0'){ hd.value='l2h'; hd.dataset.auto='1'; }
-      if(hb&&hb.dataset.auto!=='0'){ hb.value='ar'; hb.dataset.auto='1'; } } }
+      if(hb&&hb.dataset.auto!=='0'){ hb.value='ar'; hb.dataset.auto='1'; } }
+    /* [แก้ไข 25 พ.ย. 2569] #710 แท็บ 1 แปลงเป็น MJ/kg ไม่ได้ (เช่น เลือก "ไฟฟ้า" · ค่าความร้อนว่าง/ศูนย์) แต่ช่องนี้ยังเป็นค่าที่เติมอัตโนมัติ
+       → เดิมค้างค่าของเชื้อเพลิงก่อนหน้า (ก๊าซธรรมชาติ → ไฟฟ้า: 44.391 → HHV 45.777 ในแท็บ 3 และภาพระบบ) → ล้างช่องให้ว่าง ผลแท็บ 3 แสดง "—" และบอกเหตุ
+       (ค่าที่ผู้ใช้พิมพ์เอง data-auto="0" ไม่แตะ · เลือกเชื้อเพลิงที่แปลงได้อีกครั้งจะเติมให้เองเหมือนเดิม) */
+    else if(hi&&hi.dataset.auto==='1'&&!(r.mjKg!==null&&r.mjKg>0)) hi.value=''; }
   renderHV(); renderQty(r); renderO2(); renderGas(); renderWet();
 }
 
@@ -507,7 +525,15 @@ function renderPrice(r,eff,useGJ,usekWh){
   if(r.mjKg===null) missing.push('ค่าความร้อนต่อมวล (MJ/kg)');
   if(r.mjL===null)  missing.push('ค่าความร้อนต่อลิตร หรือความหนาแน่น kg/L');
   if(r.mjNm3===null)missing.push('ค่าความร้อนต่อ Nm³ หรือความหนาแน่น kg/Nm³');
-  $('priceOut').innerHTML=`
+  /* [แก้ไข 25 พ.ย. 2569] #712 เชื้อเพลิง "ไฟฟ้า (เพื่อเปรียบเทียบ)": คลังไม่มีค่าความร้อนต่อมวล/ปริมาตร (hv 0) → เดิมขึ้น "ขาด ค่าความร้อนต่อมวล … ใส่ความหนาแน่นเพิ่ม" ซึ่งทำตามไม่ได้
+     และเมื่อหน่วยราคายังเป็น บาท/ตัน ผลทุกช่องเป็น "–" โดยไม่บอกวิธีคิด → บอกวิธีที่เครื่องมือมีอยู่แล้ว: หน่วยราคา บาท/kWh (priceEngine: บาท/MJ = ราคา ÷ 3.6 · 1 kWh = 3.6 MJ)
+     ไม่เพิ่มวิธีคิดใหม่ · ไม่เปลี่ยนหน่วย/ราคาให้อัตโนมัติ · ราคา บาท/kWh บาท/GJ บาท/MMBTU คำนวณเหมือนเดิม */
+  const isElec=$('fuel').value==='elec'&&r.mjKg===null&&r.mjL===null&&r.mjNm3===null;
+  const pu=$('priceU').value, puEnergy=(pu==='THB/kWh'||pu==='THB/GJ'||pu==='THB/MMBTU');
+  const elecNote=!isElec?'':(puEnergy
+    ?`<div class="note" data-elec="1"><b>ไฟฟ้า</b> — <span>ราคาคิดจากหน่วยพลังงานโดยตรง (1 kWh = 3.6 MJ) ช่องต่อมวลและต่อปริมาตรไม่มีความหมายสำหรับไฟฟ้า (แสดง –)</span></div>`
+    :`<div class="note warn" data-elec="1"><b>ไฟฟ้า</b> — <span>ไม่มีค่าความร้อนต่อมวลหรือต่อปริมาตร จึงคิดราคาจากหน่วยราคานี้ไม่ได้ ให้เลือกหน่วยราคา “บาท/kWh” แล้วกรอกค่าไฟฟ้าเฉลี่ยต่อหน่วย (1 kWh = 3.6 MJ)</span></div>`);
+  $('priceOut').innerHTML=MISS(S.miss1||[])+elecNote+`
    <div class="grid4" style="margin-top:12px">
      <div class="stat"><div class="big">${r.perGJ===null?'–':num(r.perGJ)}</div><div class="bigu">บาท/GJ (ความร้อนที่ซื้อ)</div></div>
      <div class="stat"><div class="big">${r.perMJ===null?'–':fmt(r.perMJ,4)}</div><div class="bigu">บาท/MJ</div></div>
@@ -531,9 +557,9 @@ function renderPrice(r,eff,useGJ,usekWh){
      <tr><td>ราคาต่อ kWh ความร้อน</td><td class="n">${r.perkWh===null?'–':fmt(r.perkWh,3)}</td><td>บาท/kWh</td>
          <td class="legend">1 kWh = 3.6 MJ</td></tr>
      <tr class="hl"><td><b>ต้นทุนความร้อนใช้งานจริง</b></td><td class="n"><b>${useGJ===null?'–':num(useGJ)}</b></td><td>บาท/GJ</td>
-         <td class="legend">หารด้วยประสิทธิภาพ ${fmt(eff*100,0)} % · = ${usekWh===null?'–':fmt(usekWh,3)} บาท/kWh</td></tr>
+         <td class="legend">หารด้วยประสิทธิภาพ ${eff===null?'—':fmt(eff*100,0)} % · = ${usekWh===null?'–':fmt(usekWh,3)} บาท/kWh</td></tr>
    </table></div>
-   ${missing.length?`<div class="note warn"><b>ยังแปลงบางหน่วยไม่ได้</b> — ขาด ${missing.join(' · ')}
+   ${missing.length&&!isElec&&!(S.miss1||[]).includes('hv')?`<div class="note warn"><b>ยังแปลงบางหน่วยไม่ได้</b> — ขาด ${missing.join(' · ')}
      ใส่ความหนาแน่นเพิ่มแล้วช่องที่เป็น “–” จะเติมให้เอง</div>`:''}
    <div class="note">
      <b>ทำไมต้องดูบาทต่อ GJ ไม่ใช่บาทต่อตัน</b> — ราคาต่อตันเทียบข้ามเชื้อเพลิงไม่ได้เลย
@@ -570,10 +596,17 @@ function renderAll(r){
 
 function cmpCalc(r){
   const u=cmpUnits(r[3]);
-  const res=priceEngine(+r[1],u.hvU,+r[4],u.rhoU,parseFloat($('sref').value),+r[2],r[3],mmbtuFac());   // [แก้ไข 3 ต.ค. 2569 audit] ฐานเดียวกัน (LHV)
-  const use=res.perGJ===null?null:res.perGJ/(clamp(+r[5],1,100)/100);
+  let res=priceEngine(+r[1],u.hvU,+r[4],u.rhoU,parseFloat($('sref').value),+r[2],r[3],mmbtuFac());   // [แก้ไข 3 ต.ค. 2569 audit] ฐานเดียวกัน (LHV)
+  /* [แก้ไข 25 พ.ย. 2569] #711 ช่องว่างในตารางเปรียบเทียบ: เดิมราคาว่าง = 0 บาท (ขึ้นอันดับ 1 "ถูกที่สุด" 0 บาท/GJ) · η ว่าง = 1 % (×100)
+     → แถวนั้นแสดง "—" พร้อมเหตุ และไม่นำไปจัดอันดับ · ค่าที่กรอก (รวม 0) คำนวณเหมือนเดิม */
+  const bl=j=>String(r[j]==null?'':r[j]).trim()==='';
+  const pMiss=bl(2)||(r[3]==='THB/MMBTU'&&hlMiss()), eMiss=bl(5);
+  if(pMiss) res={...res,perMJ:null,perGJ:null,perkWh:null,perMMBTU:null};
+  const use=(res.perGJ===null||eMiss)?null:res.perGJ/(clamp(+r[5],1,100)/100);
   let why='';
-  if(res.perGJ===null){
+  if(pMiss) why=bl(2)?'กรุณากรอกราคา (ช่องว่างไม่คิดเป็นศูนย์)':'กรุณากรอกอัตราส่วน HHV/LHV ในแท็บ 1 (ราคา บาท/MMBTU ฐาน GCV)';
+  else if(eMiss&&res.perGJ!==null) why='กรุณากรอกประสิทธิภาพ η (ช่องว่างไม่คิดเป็นศูนย์)';
+  else if(res.perGJ===null){
     if(u.gas) why='คำนวณไม่ได้: ค่าความร้อน (MJ/Nm³) ต้องมากกว่า 0';
     else if(r[3]==='THB/L'||r[3]==='THB/m3') why='คำนวณไม่ได้: ต้องใส่ความหนาแน่น kg/L (> 0) และค่าความร้อน MJ/kg';
     else why='คำนวณไม่ได้: ค่าความร้อน (MJ/kg) ต้องมากกว่า 0';
@@ -659,6 +692,29 @@ function renderCmp(){
 function renderHV(){
   const dir=$('hDir').value, val=V('hIn'), basis=$('hBasis').value;
   const H=V('hH'), M=V('hM'), A=V('hA'), ON=$('hON')?V('hON'):0;
+  /* [แก้ไข 25 พ.ย. 2569] #710 #711 ช่องที่สูตรต้องใช้แต่ว่าง (เดิม = 0 เช่น H ว่าง → HHV 17.201 แทน 18.266) → แจ้งให้กรอก ผลแสดง "—"
+     ต้องใช้เสมอ: ค่าตั้งต้น · H · M · O+N (ผลต่าง HHV − LHV ตาม ISO 1928 Formula 18) · เถ้า A ใช้เฉพาะฐาน daf (ค่าตั้งต้นฐาน daf และแถว Dry ash-free)
+     เชื้อเพลิง "ไฟฟ้า" ไม่มีค่า HHV/LHV (ไม่ใช่เชื้อเพลิงที่เผาไหม้) — ช่องค่าตั้งต้นที่เติมอัตโนมัติถูกล้างใน calc() → แสดง "—" พร้อมเหตุ */
+  const fk0=$('fuel')?$('fuel').value:'';
+  const elecNo=fk0==='elec'&&BL('hIn');
+  const mH=['hIn','hH','hM'].concat($('hON')?['hON']:[]).filter(BL); if(basis==='daf'&&BL('hA')) mH.push('hA');
+  const aMiss=BL('hA');
+  if(mH.length){ const D='—';
+    const lk=$('hvLink'); if(lk){ lk.style.display='block'; lk.innerHTML=`ℹ จากแท็บ 3 (LHV ↔ HHV): HHV<sub>ar</sub> = <b>${D}</b> · LHV<sub>ar</sub> = <b>${D}</b> MJ/kg — ${elecNo?'<span>ไฟฟ้าไม่มีค่า HHV/LHV</span>':'<span>แท็บ 3 ยังขาดข้อมูล</span>'}`; }
+    $('hvOut').innerHTML=(elecNo?`<div class="note warn" data-elec="1" style="margin-top:12px"><b>ไฟฟ้า</b> — <span>ไม่มีค่า HHV/LHV (ไม่ใช่เชื้อเพลิงที่เผาไหม้ ไม่มีน้ำจากการเผาไหม้) แท็บนี้ใช้กับเชื้อเพลิงที่เผาไหม้เท่านั้น · ช่องค่าตั้งต้นจึงว่าง (ไม่ใช้ค่าของเชื้อเพลิงก่อนหน้า)</span></div>`:MISS(mH))+`
+   <div class="grid4" style="margin-top:12px" data-miss3="1">
+     <div class="stat"><div class="big">${D}</div><div class="bigu">HHV as-received · MJ/kg</div></div>
+     <div class="stat"><div class="big s0">${D}</div><div class="bigu">LHV as-received · MJ/kg</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">ผลต่าง · MJ/kg</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">ผลต่างคิดเป็น · % ของ HHV</div></div>
+   </div>
+   <div class="tbl-wrap" style="margin-top:12px"><table>
+     <tr><th>ฐาน</th><th class="n">HHV MJ/kg</th><th class="n">LHV MJ/kg</th></tr>
+     <tr><td>As-received</td><td class="n">${D}</td><td class="n">${D}</td></tr>
+     <tr><td>Dry</td><td class="n">${D}</td><td class="n">${D}</td></tr>
+     <tr><td>Dry ash-free</td><td class="n">${D}</td><td class="n">${D}</td></tr>
+   </table></div>`;
+    return; }
   /* แปลงค่าตั้งต้นเป็นฐาน as-received ก่อน */
   let arVal=val;
   if(basis==='dry') arVal=val*(1-M/100);
@@ -679,12 +735,12 @@ function renderHV(){
   const hiEl=$('hIn'), linkWarn=(hiEl&&hiEl.dataset.auto==='1'&&(dir==='h2l'||basis!=='ar'))?'<div class="note warn">⚠ ค่าตั้งต้นเติมจากแท็บ 1 ซึ่งเป็น <b>LHV as-received</b> แต่เลือกทิศ/ฐานเป็น '+(dir==='h2l'?'HHV → LHV':'')+(basis!=='ar'?' ฐาน '+basis:'')+' — ผลจะหักความร้อนแฝงซ้ำ ให้เลือก LHV → HHV / As-received หรือพิมพ์ค่าแล็บเอง</div>':'';
   /* [แก้ไข 10 ก.ย. 2569] ส่ง HHV/LHV ที่คำนวณได้กลับไปแสดงเป็นบรรทัดข้อมูลในแท็บ 1 (ไม่เขียนทับ input) */
   { const lk=$('hvLink'); if(lk){ lk.style.display='block';
-      lk.innerHTML=`ℹ จากแท็บ 3 (LHV ↔ HHV): HHV<sub>ar</sub> = <b>${fmt(hhv,3)}</b> · LHV<sub>ar</sub> = <b>${fmt(lhv,3)}</b> MJ/kg (H ${fmt(H,1)} % dry · M ${fmt(M,1)} % · A ${fmt(A,1)} % dry) — ค่าอ้างอิง ไม่เขียนทับช่องด้านบน`; } }
+      lk.innerHTML=`ℹ จากแท็บ 3 (LHV ↔ HHV): HHV<sub>ar</sub> = <b>${fmt(hhv,3)}</b> · LHV<sub>ar</sub> = <b>${fmt(lhv,3)}</b> MJ/kg (H ${fmt(H,1)} % dry · M ${fmt(M,1)} % · A ${aMiss?'—':fmt(A,1)} % dry) — ค่าอ้างอิง ไม่เขียนทับช่องด้านบน`; } }
   /* [แก้ไข 16 พ.ย. 2569] เชื้อเพลิงที่เลือกในแท็บ 1 ไม่มีองค์ประกอบในคลัง (ก๊าซ · ไฟฟ้า) — ช่อง H/M/เถ้า/O+N ยังเป็นค่าของเชื้อเพลิงก่อนหน้า เดิมไม่บอก
      หลัก: ผู้ใช้ต้องเข้าใจชัดเจน ผลลัพธ์ปลอดภัย */
   const fk=$('fuel')?$('fuel').value:'', fNo=fk&&fk!=='custom'&&FUELS[fk]&&!FUELS[fk].ult&&['hH','hM','hA','hON'].some(id=>$(id)&&$(id).dataset.auto==='1');
   const ultWarn=fNo?'<div class="note warn">⚠ เชื้อเพลิงที่เลือกในแท็บ 1 ไม่มีค่าไฮโดรเจน · ความชื้น · เถ้า ในคลัง — ช่องด้านบนยังเป็นค่าของเชื้อเพลิงก่อนหน้า ผลด้านล่างใช้ไม่ได้จนกว่าจะกรอกจากผลแล็บ</div>':'';
-  $('hvOut').innerHTML=linkWarn+ultWarn+`
+  $('hvOut').innerHTML=linkWarn+ultWarn+(aMiss?`<div class="note warn" data-miss="1" style="margin-top:12px">⚠ <span>แถว Dry ash-free ต้องใช้</span> <b>${MISSLAB.hA}</b> — <span>ช่องว่างไม่คิดเป็นศูนย์ แถวนั้นแสดง —</span></div>`:'')+`
    <div class="grid4" style="margin-top:12px">
      <div class="stat"><div class="big">${fmt(hhv,3)}</div><div class="bigu">HHV as-received · MJ/kg</div></div>
      <div class="stat"><div class="big s0">${fmt(lhv,3)}</div><div class="bigu">LHV as-received · MJ/kg</div></div>
@@ -695,8 +751,8 @@ function renderHV(){
      <tr><th>ฐาน</th><th class="n">HHV MJ/kg</th><th class="n">LHV MJ/kg</th></tr>
      <tr><td>As-received</td><td class="n">${fmt(hhv,3)}</td><td class="n">${fmt(lhv,3)}</td></tr>
      <tr><td>Dry</td><td class="n">${fmt(dryF>0?hhv/dryF:null,3)}</td><td class="n">${fmt(dryF>0?(lhv+2.443*M/100)/dryF:null,3)}</td></tr>
-     <tr><td>Dry ash-free</td><td class="n">${fmt(dryF>0&&A<100?hhv/dryF/(1-A/100):null,3)}</td>
-         <td class="n">${fmt(dryF>0&&A<100?(lhv+2.443*M/100)/dryF/(1-A/100):null,3)}</td></tr>
+     <tr><td>Dry ash-free</td><td class="n">${aMiss?'—':fmt(dryF>0&&A<100?hhv/dryF/(1-A/100):null,3)}</td>
+         <td class="n">${aMiss?'—':fmt(dryF>0&&A<100?(lhv+2.443*M/100)/dryF/(1-A/100):null,3)}</td></tr>
    </table></div>
    <div class="note">
      <b>สูตร</b> — LHV = HHV − [212.2·H + 0.8·(O + N) + 24.43·M] ÷ 1000 (MJ/kg) เมื่อ H, O, N และ M เป็น % โดยน้ำหนักฐาน as-received — ISO 1928 ค่าความร้อนสุทธิที่ความดันคงที่ สูตรเดียวกับคลังเชื้อเพลิงของเครื่องมือ · พจน์ 212.2·H คือน้ำที่เกิดจากไฮโดรเจนในเชื้อเพลิง · พจน์ 24.43·M คือความชื้นที่ติดมา (ความร้อนแฝง 2.443 MJ/kg น้ำ ที่ 25 °C) · พจน์ 0.8·(O + N) เป็นค่าแก้เล็กน้อย<br>
@@ -719,8 +775,18 @@ function renderQty(r){
   if(u==='Nm3')  MJ=r.mjNm3!==null?q*r.mjNm3:null;
   if(u==='Sm3')  MJ=r.mjSm3!==null?q*r.mjSm3:null;
   const cost=(MJ!==null&&r.perMJ!==null)?MJ*r.perMJ:null;
+  /* [แก้ไข 25 พ.ย. 2569] #711 ปริมาณว่าง: เดิม = 0 → 0 MJ · 0 GJ → แจ้งให้กรอก แสดง "—" (ระยะเวลาว่าง = ไม่คิดอัตรา เหมือนใส่ 0 ตามคำแนะนำของช่อง) */
+  if(BL('qty')){ const D='—'; $('qtyOut').innerHTML=MISS(['qty'])+`<div class="grid4" style="margin-top:12px" data-miss4="1">
+     <div class="stat"><div class="big">${D}</div><div class="bigu">MJ</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">GJ</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">kWh</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">toe</div></div>
+   </div>`; return; }
+  /* [แก้ไข 25 พ.ย. 2569] #710 เชื้อเพลิง "ไฟฟ้า": เดิมบอกให้ "ใส่ความหนาแน่นหรือค่าความร้อน" ซึ่งไม่มีความหมายสำหรับไฟฟ้า → บอกเหตุจริง */
+  const elec4=$('fuel').value==='elec'&&r.mjKg===null&&r.mjL===null&&r.mjNm3===null;
   $('qtyOut').innerHTML=MJ===null
-   ?'<div class="note warn">ยังแปลงหน่วยนี้ไม่ได้ — ต้องใส่ความหนาแน่นหรือค่าความร้อนในฐานที่ตรงกัน (ดูแท็บที่ 1)</div>'
+   ?(elec4?'<div class="note warn" data-elec="1"><b>ไฟฟ้า</b> — <span>แท็บนี้แปลงปริมาณเชื้อเพลิง (kg · ตัน · ลิตร · Nm³ · Sm³ · m³) เป็นพลังงาน ไฟฟ้าไม่มีค่าความร้อนต่อหน่วยเหล่านี้ · พลังงานไฟฟ้า 1 kWh = 3.6 MJ</span></div>'
+     :'<div class="note warn">ยังแปลงหน่วยนี้ไม่ได้ — ต้องใส่ความหนาแน่นหรือค่าความร้อนในฐานที่ตรงกัน (ดูแท็บที่ 1)</div>')
    :`<div class="grid4" style="margin-top:12px">
      <div class="stat"><div class="big">${num(MJ)}</div><div class="bigu">MJ</div></div>
      <div class="stat"><div class="big">${num(MJ/1000)}</div><div class="bigu">GJ</div></div>
@@ -754,6 +820,18 @@ function renderO2(){
      - สูตรแก้ค่า O₂ อ้างอิงใช้ 21 ตามประกาศกระทรวงอุตสาหกรรม (ค่ากฎหมาย ใช้ 21 % โดยนิยาม)
      - อากาศส่วนเกิน/ตัวประกอบเจือจางใช้ 20.9 (O₂ จริงในอากาศแห้ง 20.9 %vol ตาม ASME PTC 4 / BS 845) */
   const O2_REG=21, O2_AIR=20.9;
+  /* [แก้ไข 25 พ.ย. 2569] #711 O₂ ที่วัดได้ / O₂ อ้างอิงว่าง: เดิม = 0 % (O₂ วัดได้ว่าง → ตัวคูณ 0.6667 · ค่าที่แก้ 213.33 · O₂ อ้างอิงว่าง → 707.37) → แจ้งให้กรอก ผลทั้ง 4 ช่อง "—"
+     ค่าที่วัดได้ว่าง: เดิม = 0 → ค่าที่แก้แล้ว 0 → ช่องนั้น "—" (ตัวคูณ · อากาศส่วนเกิน · ตัวประกอบเจือจางไม่ใช้ค่านี้ จึงยังแสดง) */
+  const mO2=['o2m','o2r'].filter(BL), cMiss=BL('cMeas');
+  if(mO2.length){ const D='—';
+    $('o2Out').innerHTML=MISS(cMiss?['cMeas'].concat(mO2):mO2)+`
+   <div class="grid4" style="margin-top:12px" data-miss5="1">
+     <div class="stat"><div class="big">${D}</div><div class="bigu">ค่าที่แก้แล้ว</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">ตัวคูณแก้ค่า</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">อากาศส่วนเกินโดยประมาณ · %</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">ตัวประกอบการเจือจาง</div></div>
+   </div>`;
+    return; }
   /* [แก้ไข 3 ต.ค. 2569 audit] O₂ ≥ 20.9 % = อากาศล้วน (ไม่มีการเผาไหม้/หัววัดรั่ว) → แก้ค่าไม่ได้ ต้องเตือน ไม่แสดงตัวเลขที่ไร้ความหมาย */
   const o2raw=V('o2m');
   if(!(o2raw<O2_AIR) || o2raw<0 || !(V('o2r')<O2_REG) || V('o2r')<0){ /* [แก้ไข 25 พ.ย. 2569] #560 เพิ่มกรณี O₂ อ้างอิงติดลบ (เดิมถูกปรับเป็น 0 % เงียบ ๆ) */
@@ -781,18 +859,18 @@ function renderO2(){
     return;
   }
   const f=(O2_REG-o2r)/(O2_REG-o2m);
-  const cr=c*f;
+  const cr=cMiss?null:c*f;
   const ea=o2m<O2_AIR?o2m/(O2_AIR-o2m)*100:null;
-  $('o2Out').innerHTML=`
+  $('o2Out').innerHTML=MISS(cMiss?['cMeas']:[])+`
    <div class="grid4" style="margin-top:12px">
-     <div class="stat"><div class="big">${num(cr)}</div><div class="bigu">ค่าที่แก้แล้ว</div></div>
+     <div class="stat"><div class="big">${cr===null?'—':num(cr)}</div><div class="bigu">ค่าที่แก้แล้ว</div></div>
      <div class="stat"><div class="big">${fmt(f,4)}</div><div class="bigu">ตัวคูณแก้ค่า</div></div>
      <div class="stat"><div class="big">${fmt(ea,0)}</div><div class="bigu">อากาศส่วนเกินโดยประมาณ · %</div></div>
      <div class="stat"><div class="big">${fmt(o2m<O2_AIR?O2_AIR/(O2_AIR-o2m):null,2)}</div><div class="bigu">ตัวประกอบการเจือจาง</div></div>
    </div>
    <div class="note">
      <b>สูตร</b> — C<sub>ref</sub> = C<sub>วัดได้</sub> × (21 − O₂<sub>อ้างอิง</sub>) / (21 − O₂<sub>วัดได้</sub>)<br>
-     ในเคสนี้ ${num(c)} × (21 − ${fmt(o2r,1)}) / (21 − ${fmt(o2m,1)}) = <b>${num(cr)}</b><br>
+     ในเคสนี้ ${cMiss?'—':num(c)} × (21 − ${fmt(o2r,1)}) / (21 − ${fmt(o2m,1)}) = <b>${cr===null?'—':num(cr)}</b><br>
      <span class="legend">สูตรแก้ค่าใช้ 21 ตามประกาศกระทรวงอุตสาหกรรม · ส่วนอากาศส่วนเกินและตัวประกอบเจือจางใช้ O₂ ในอากาศแห้ง 20.9 %: EA = O₂/(20.9 − O₂)</span>
    </div>
    <div class="note warn">
@@ -809,12 +887,14 @@ function renderO2(){
 /* ── ppm ↔ mg/Nm³ ── */
 function renderGas(){
   const g=GASES[$('gas').value], v=V('gVal'), u=$('gU').value;
+  /* [แก้ไข 25 พ.ย. 2569] #711 ค่าว่าง: เดิม = 0 → 0 ppm = 0 mg/Nm³ → แจ้งให้กรอก แสดง "—" (มวลโมเลกุลยังแสดง) */
+  const gMiss=BL('gVal');
   const ppm=u==='ppm'?v:v*VM/g.mw;
   const mg =u==='ppm'?v*g.mw/VM:v;
-  $('gasOut').innerHTML=`
+  $('gasOut').innerHTML=MISS(gMiss?['gVal']:[])+`
    <div class="grid3" style="margin-top:12px">
-     <div class="stat"><div class="big">${num(ppm)}</div><div class="bigu">ppm โดยปริมาตร</div></div>
-     <div class="stat"><div class="big">${num(mg)}</div><div class="bigu">mg/Nm³</div></div>
+     <div class="stat"><div class="big">${gMiss?'—':num(ppm)}</div><div class="bigu">ppm โดยปริมาตร</div></div>
+     <div class="stat"><div class="big">${gMiss?'—':num(mg)}</div><div class="bigu">mg/Nm³</div></div>
      <div class="stat"><div class="big">${fmt(g.mw,2)}</div><div class="bigu">มวลโมเลกุล · kg/kmol</div></div>
    </div>
    <div class="note">
@@ -829,13 +909,15 @@ function renderGas(){
 /* ── แห้ง ↔ เปียก ── */
 function renderWet(){
   const v=V('wVal'), base=$('wBase').value, h2o=clamp(V('wH2O'),0,60)/100;
+  /* [แก้ไข 25 พ.ย. 2569] #711 ค่าที่มีว่าง (เดิม = 0 → 0 ทั้งสองฐาน) · ความชื้นในไอเสียว่าง (เดิม = 0 % → ฐานแห้ง = ฐานเปียก · ก๊าซแห้ง 100 %) → แจ้งให้กรอก แสดง "—" */
+  const wm=['wVal','wH2O'].filter(BL), hMiss=BL('wH2O');
   const dry=base==='dry'?v:v/(1-h2o);
   const wet=base==='dry'?v*(1-h2o):v;
-  $('wetOut').innerHTML=`
+  $('wetOut').innerHTML=MISS(wm)+`
    <div class="grid3" style="margin-top:12px">
-     <div class="stat"><div class="big">${num(dry)}</div><div class="bigu">ฐานแห้ง (dry)</div></div>
-     <div class="stat"><div class="big">${num(wet)}</div><div class="bigu">ฐานเปียก (wet)</div></div>
-     <div class="stat"><div class="big">${fmt((1-h2o)*100,1)}</div><div class="bigu">สัดส่วนก๊าซแห้ง · %</div></div>
+     <div class="stat"><div class="big">${wm.length?'—':num(dry)}</div><div class="bigu">ฐานแห้ง (dry)</div></div>
+     <div class="stat"><div class="big">${wm.length?'—':num(wet)}</div><div class="bigu">ฐานเปียก (wet)</div></div>
+     <div class="stat"><div class="big">${hMiss?'—':fmt((1-h2o)*100,1)}</div><div class="bigu">สัดส่วนก๊าซแห้ง · %</div></div>
    </div>
    <div class="note">
      <b>สูตร</b> — C<sub>เปียก</sub> = C<sub>แห้ง</sub> × (1 − H₂O) เมื่อ H₂O เป็นสัดส่วนโดยปริมาตร<br>
@@ -1369,5 +1451,32 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"กะลาปาล์ม (PKS)": "Palm kernel shell (PKS)", "ไม้สับ ชื้น 40 %": "Wood chips, 40 % moisture", "แกลบ": "Rice husk", "ถ่านหินบิทูมินัส": "Bituminous coal", "น้ำมันเตา": "Fuel oil", "ไฟฟ้า": "Electricity", "เชื้อเพลิงใหม่": "New fuel"});}</script>
+<script>/* [แก้ไข 25 พ.ย. 2569] #710–#712 EN ข้อความใหม่: ช่องว่าง ≠ ศูนย์ (แจ้งให้กรอก) · เชื้อเพลิงไฟฟ้า (แท็บ 1 · 3 · 4) — คำแปลทั้งข้อความ (DICT ตรวจก่อน regex /ไฟฟ้า/ จึงไม่ถูกแทนกลางประโยค) */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"กรุณากรอก":"Please enter",
+"ช่องว่างไม่คิดเป็นศูนย์ ผลที่ต้องใช้ค่านี้แสดง —":"a blank field is not taken as zero; results that need it show —",
+"แถว Dry ash-free ต้องใช้":"The dry ash-free row needs",
+"ช่องว่างไม่คิดเป็นศูนย์ แถวนั้นแสดง —":"a blank field is not taken as zero; that row shows —",
+"อัตราส่วน HHV/LHV":"HHV/LHV ratio",
+"ค่าตั้งต้น (แท็บ 3)":"Input value (tab 3)",
+"ออกซิเจน + ไนโตรเจน O+N":"Oxygen + nitrogen O+N",
+"ค่า (ppm ↔ mg/Nm³)":"Value (ppm ↔ mg/Nm³)",
+"ค่าที่มี (ฐานแห้ง ↔ ฐานเปียก)":"Known value (dry ↔ wet basis)",
+"ไฟฟ้า":"Electricity",
+"ไม่มีค่าความร้อนต่อมวลหรือต่อปริมาตร จึงคิดราคาจากหน่วยราคานี้ไม่ได้ ให้เลือกหน่วยราคา “บาท/kWh” แล้วกรอกค่าไฟฟ้าเฉลี่ยต่อหน่วย (1 kWh = 3.6 MJ)":"has no heating value per mass or per volume, so a price in this unit cannot be converted — choose the price unit “THB/kWh” and enter the average electricity price per unit (1 kWh = 3.6 MJ)",
+"ราคาคิดจากหน่วยพลังงานโดยตรง (1 kWh = 3.6 MJ) ช่องต่อมวลและต่อปริมาตรไม่มีความหมายสำหรับไฟฟ้า (แสดง –)":"the price is converted directly from its energy unit (1 kWh = 3.6 MJ); per-mass and per-volume cells have no meaning for electricity (shown as –)",
+"ไฟฟ้าไม่มีค่า HHV/LHV":"electricity has no HHV/LHV",
+"แท็บ 3 ยังขาดข้อมูล":"tab 3 is missing inputs",
+"ไม่มีค่า HHV/LHV (ไม่ใช่เชื้อเพลิงที่เผาไหม้ ไม่มีน้ำจากการเผาไหม้) แท็บนี้ใช้กับเชื้อเพลิงที่เผาไหม้เท่านั้น · ช่องค่าตั้งต้นจึงว่าง (ไม่ใช้ค่าของเชื้อเพลิงก่อนหน้า)":"has no HHV/LHV (it is not burned, so no combustion water is formed); this tab applies to combustible fuels only · the input field is therefore blank (the previous fuel’s value is not used)",
+"แท็บนี้แปลงปริมาณเชื้อเพลิง (kg · ตัน · ลิตร · Nm³ · Sm³ · m³) เป็นพลังงาน ไฟฟ้าไม่มีค่าความร้อนต่อหน่วยเหล่านี้ · พลังงานไฟฟ้า 1 kWh = 3.6 MJ":"this tab converts a fuel quantity (kg · t · L · Nm³ · Sm³ · m³) to energy; electricity has no heating value per these units · electrical energy 1 kWh = 3.6 MJ",
+"กรุณากรอกราคา (ช่องว่างไม่คิดเป็นศูนย์)":"Please enter the price (a blank field is not taken as zero)",
+"กรุณากรอกประสิทธิภาพ η (ช่องว่างไม่คิดเป็นศูนย์)":"Please enter the efficiency η (a blank field is not taken as zero)",
+"กรุณากรอกอัตราส่วน HHV/LHV ในแท็บ 1 (ราคา บาท/MMBTU ฐาน GCV)":"Please enter the HHV/LHV ratio in tab 1 (price in THB/MMBTU on a GCV basis)",
+"— บาท/GJ":"— THB/GJ"
+},[
+[/^(\s*)บาท\/GJ\s+ที่ประสิทธิภาพ\s+—\s+%(\s*)$/,"$1THB/GJ at — % efficiency$2"],
+[/^(\s*)หารด้วยประสิทธิภาพ\s+—\s+%\s+·\s+=\s+–\s+บาท\/kWh(\s*)$/,"$1divided by efficiency — % · = – THB/kWh$2"],
+[/^(\s*)ในเคสนี้\s+—\s+×\s+\((-?\d[\d,]*\.?\d*)\s+−\s+(-?\d[\d,]*\.?\d*)\)\s+\/\s+\((-?\d[\d,]*\.?\d*)\s+−\s+(-?\d[\d,]*\.?\d*)\)\s+=(\s*)$/,"$1In this case — × ($2 − $3) / ($4 − $5) =$6"]
+]);</script>
 </body>
 </html>
