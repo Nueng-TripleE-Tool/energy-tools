@@ -3700,8 +3700,16 @@ function recalcAll(){
   try{wCalc();}catch(e){console.warn(e);}
   try{injectHelp(); tagFieldKinds();}catch(e){}
 }
-function teExtra(){ const t=document.querySelector('.tab.active'); return {wst:JSON.parse(JSON.stringify(WST)), tab:t?t.dataset.p:'p1', nohelp:document.body.classList.contains('nohelp')}; }
+/* [แก้ไข 25 พ.ย. 2569] #551 ไฟล์งานเก็บสถานะ "ผู้ใช้แก้เอง" ของ 8 ช่องที่ผูกกับแท็บแปลงหน่วยการไหล (คีย์ใหม่ extra.userEdited)
+   เดิม: ไฟล์งานไม่เก็บ data-auto → เปิดไฟล์แล้ว syncFadFromFlow()/ชั้น R6 เติมค่าจากแท็บ 1 ทับค่าที่ผู้ใช้พิมพ์เองทั้ง 8 ช่อง
+   ใหม่: บันทึก {id:true|false} (true = ผู้ใช้พิมพ์เอง: data-auto เป็น '0' หรือ '') · ตอนเปิดตั้ง data-auto ก่อนเติมค่า (onExtra ทำงานก่อน apply)
+   ไฟล์เก่าที่ไม่มีคีย์นี้ → ไม่แตะ data-auto (พฤติกรรมเดิม) */
+const LINKED_IDS=['cFad','cTamb','cRHamb','sFad','lFad','wFad','wTamb','wRH'];
+function teExtra(){ const t=document.querySelector('.tab.active');
+  const ue={}; LINKED_IDS.forEach(id=>{ const el=$(id); if(el){ const a=el.dataset.auto; ue[id]=(a==='0'||a===''); } });
+  return {wst:JSON.parse(JSON.stringify(WST)), tab:t?t.dataset.p:'p1', nohelp:document.body.classList.contains('nohelp'), userEdited:ue}; }
 function teRestoreExtra(x){ if(!x) return;
+  if(x.userEdited && typeof x.userEdited==='object'){ LINKED_IDS.forEach(id=>{ const el=$(id); if(el && typeof x.userEdited[id]==='boolean') el.dataset.auto = x.userEdited[id]?'0':'1'; }); }
   if(Array.isArray(x.wst)&&x.wst.length){ WST=JSON.parse(JSON.stringify(x.wst)); wRender(); }
   if(x.tab){ const t=document.querySelector('.tab[data-p="'+x.tab+'"]'); if(t) t.click(); } }
 function teSaveJSON(){ TE_JSON.save('Tool_Flow_Unit_Converter',teExtra()); }
