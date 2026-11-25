@@ -386,7 +386,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         <label style="margin-top:6px">Base CDD (°C)</label>
         <input type="number" id="fcBase" value="24" min="-30" max="40" step="1" onchange="renderRain()"><div class="hint">อุณหภูมิฐานสำหรับ CDD พยากรณ์ (°C) · ใช้ค่าเดียวกับที่ใช้ทำ baseline EnPI (ทั่วไป 24)</div></div>
       <div><label>ช่วงที่แสดง (Period)</label>
-        <select id="rainPeriod" onchange="renderRain()">
+        <select id="rainPeriod" onchange="fcPendPeriod=null;renderRain()">
           <option value="c3">3 วันข้างหน้า</option>
           <option value="c5">5 วันข้างหน้า</option>
           <option value="c7" selected>7 วันข้างหน้า</option>
@@ -848,6 +848,11 @@ function saveJSON(){
           R:{base:g('regBase').value,mode:g('modeR').value,sensor:g('sensorR').value}}};
   try{stashReg();}catch(e){}
   ui.regSaved=regSaved;
+  /* [แก้ไข 25 พ.ย. 2569] #580 คีย์ใหม่ (ไฟล์เก่าไม่มี → เปิดได้เหมือนเดิม): ana = ช่วงวิเคราะห์ (แท็บ 2–5 · กำหนดเดือนของ Regression)
+     reg = ผล Regression ที่แสดงอยู่ (ran/model: สมการ · R² · CV(RMSE) · ค่าจำลองรายเดือน) + ช่วง Optimize · fc = การตั้งค่าแท็บพยากรณ์ (ข้อมูลพยากรณ์ไม่บันทึกตามเดิม) */
+  ui.ana={s:ana.s,e:ana.e<0?monthsIdx.length-1:ana.e};
+  ui.reg={v:1,ran:regTried,model:regLast,optMin:g('optMin').value,optMax:g('optMax').value,opt:optLast};
+  ui.fc={metric:g('fcMetric').value,base:g('fcBase').value,period:g('rainPeriod').value,labels:g('rainLabels').checked,drill:g('drillProv')?g('drillProv').value:null};
   const blob=new Blob([JSON.stringify(Object.assign({},state,{_ui:ui}))],{type:"application/json"});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download="CDD_Thailand_data_"+state.meta.start+"_"+state.meta.end+".json";a.click();
@@ -862,6 +867,9 @@ function loadJSON(ev){
     // [แก้ไข 10 ก.ย. 2569] คืนค่า _ui (regSaved/pins/ค่าตั้งรายแท็บ) ถ้ามี — ไฟล์เก่าไม่มีคีย์นี้ก็โหลดได้ตามเดิม
     const ui=(j._ui&&typeof j._ui==='object')?j._ui:null;delete j._ui;
     state=j;buildMonthsIdx();
+    /* [แก้ไข 25 พ.ย. 2569] #580 ช่วงวิเคราะห์ที่บันทึกไว้ (ต้องอยู่ในช่วงเดือนของข้อมูล ไม่งั้นใช้ทั้งหมดตามเดิม) */
+    if(ui&&ui.ana&&Number.isInteger(ui.ana.s)&&Number.isInteger(ui.ana.e)&&ui.ana.s>=0&&ui.ana.e>=ui.ana.s&&ui.ana.e<monthsIdx.length)ana={s:ui.ana.s,e:ui.ana.e};
+    regLast=null;optLast=null;regTried=false;fcPendPeriod=null;   /* ผลของข้อมูลชุดก่อนไม่ใช้กับไฟล์นี้ */
     if(ui){
       const g=id=>document.getElementById(id);
       if(ui.regSaved&&typeof ui.regSaved==='object'){regSaved=ui.regSaved;if(g('regInputTable'))g('regInputTable').innerHTML='';} // ล้างตารางเก่าก่อน ไม่ให้ stashReg() ปนค่าชุดก่อน
@@ -883,9 +891,44 @@ function loadJSON(ev){
       try{renderPins();}catch(e){}
       if(ui.res&&g2('resSel')){g2('resSel').value=ui.res;applyRes();}
       if(ui.daily){const D=ui.daily;if(D.tsrc&&g2('dailyTsrc'))g2('dailyTsrc').value=D.tsrc;if(D.prov&&g2('dailyProv'))g2('dailyProv').value=D.prov;if(D.view&&g2('dailyView'))g2('dailyView').value=D.view;if(D.s&&g2('dailyS'))g2('dailyS').value=D.s;if(D.e&&g2('dailyE'))g2('dailyE').value=D.e;_dailyUserProv=!!D.prov;try{renderDaily();}catch(e){}}   // [แก้ไข 23 ก.ย. 2569]
+      try{restoreRegFc(ui);}catch(e){console.error(e);}   /* [แก้ไข 25 พ.ย. 2569] #580 */
     }
+    if(!ui||!ui.reg)clearRegOut();   /* [แก้ไข 25 พ.ย. 2569] #580 ไฟล์ที่ไม่มีผลบันทึก: ล้างผลของข้อมูลชุดก่อน (หน้าใหม่ว่างอยู่แล้ว ผลเท่าเดิม) */
   }catch(e){alert("อ่านไฟล์ไม่ได้: "+e.message);}};
   rd.readAsText(f);
+}
+/* [แก้ไข 25 พ.ย. 2569] #580 ข8 เปิดไฟล์งานแล้วผล Regression และการตั้งค่าพยากรณ์ไม่ถูกเรียกคืน (ต้องกดคำนวณใหม่)
+   → คืนค่าตั้ง (ช่วง Optimize · แท็บพยากรณ์) แล้วคำนวณ Regression ใหม่ด้วยฟังก์ชันเดิมจากข้อมูล/ค่าตั้งที่อยู่ในไฟล์ (สูตรไม่เปลี่ยน)
+   → เทียบกับสมการที่บันทึกในไฟล์ ถ้าไม่ตรง (เช่น แก้ตารางหลังกดคำนวณแล้วจึงบันทึก) แจ้งบนจอและแสดงผลที่คำนวณใหม่ (ไม่แสดงผลเก่าแทนเงียบ ๆ) */
+function clearRegOut(){['regKPI','regChart','optChart','regResid'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML='';});}
+function regSame(a,b){if(!a||!b||a.two!==b.two||a.n!==b.n)return false;
+  const eq=(x,y)=>(x==null&&y==null)||(isFinite(x)&&isFinite(y)&&Math.abs(x-y)<=1e-9*Math.max(1,Math.abs(x),Math.abs(y)));
+  return ['a','b','c','r2','cvrmse'].every(k=>eq(a[k],b[k]));}
+function restoreRegFc(ui){
+  const g=id=>document.getElementById(id);
+  const F=ui.fc;
+  if(F&&typeof F==='object'){
+    if(F.metric!=null&&g('fcMetric')&&[...g('fcMetric').options].some(o=>o.value===F.metric))g('fcMetric').value=F.metric;
+    if(F.base!=null&&F.base!==''&&isFinite(+F.base))g('fcBase').value=F.base;
+    if(F.period!=null){if([...g('rainPeriod').options].some(o=>o.value===F.period))g('rainPeriod').value=F.period;
+      else if(/^d\d+$/.test(F.period))fcPendPeriod=F.period;}   // ตัวเลือกรายวัน (วันที่ i ของพยากรณ์) มีหลังดึงพยากรณ์ → ตั้งให้ตอนนั้น
+    if(typeof F.labels==='boolean')g('rainLabels').checked=F.labels;
+    if(F.drill&&g('drillProv')&&[...g('drillProv').options].some(o=>o.value===F.drill))g('drillProv').value=F.drill;
+    if(fc)renderRain();}
+  const R=ui.reg;
+  if(!R||typeof R!=='object'){clearRegOut();return;}
+  if(R.optMin!=null&&R.optMin!=='')g('optMin').value=R.optMin;
+  if(R.optMax!=null&&R.optMax!=='')g('optMax').value=R.optMax;
+  clearRegOut();
+  if(!R.ran)return;
+  runReg();
+  if(R.model&&!regSame(R.model,regLast)){
+    const m=R.model,nm=ddLabel(m.mode,m.sensor),f=v=>isFinite(v)?(+v).toFixed(2):'—';
+    const eqs=m.two?('E = '+(+m.a).toFixed(0)+' + '+f(m.b)+'·P + '+f(m.c)+'·'+nm):('E = '+(+m.a).toFixed(0)+' + '+f(m.b)+'·'+nm);
+    g('regKPI').insertAdjacentHTML('afterbegin','<div class="note status-warn" id="regRestoreNote" style="grid-column:1/-1">⚠ สมการที่บันทึกในไฟล์ ('+eqs+' · R² = '+(isFinite(m.r2)?(+m.r2).toFixed(3):'—')+') ต่างจากผลที่คำนวณใหม่จากข้อมูลและค่าตั้งในไฟล์ — มักเกิดจากแก้ตารางหรือค่าตั้งหลังกดคำนวณแล้วจึงบันทึก · ด้านล่างเป็นผลที่คำนวณใหม่</div>');}
+  if(R.opt&&isFinite(+R.opt.min)&&isFinite(+R.opt.max)&&g('modeR').value!=='rh'){
+    const lo=+R.opt.min,hi=+R.opt.max,res=optScan(lo,hi);
+    if(res.length){optLast={min:lo,max:hi};optShow(res,res.reduce((a,x)=>x.r2>a.r2?x:a),lo,hi);}}
 }
 function stullWB(T,RH){ // Stull (2011) wet-bulb approx จาก T(°C), RH(%)
   RH=Math.max(5,Math.min(99,RH));
@@ -1666,6 +1709,7 @@ async function fetchForecast(){
       const o=document.createElement('option');o.value='d'+i;
       o.textContent='รายวัน: '+(i===0?'วันนี้ ':'')+dt.getDate()+' '+TH_MON[dt.getMonth()]+' '+(dt.getFullYear()+543);
       sel.appendChild(o);});
+    if(fcPendPeriod){if([...sel.options].some(o=>o.value===fcPendPeriod))sel.value=fcPendPeriod;fcPendPeriod=null;}   /* [แก้ไข 25 พ.ย. 2569] #580 ช่วงรายวันจากไฟล์งาน */
     st('ได้พยากรณ์ '+dates[0]+' → '+dates[dates.length-1]+' ครบ 77 จังหวัด · ดึงเมื่อ '+fc.at.toLocaleString('th-TH')+' ✓');
     renderRain();
   }catch(e){st('ดึงพยากรณ์ไม่สำเร็จ: '+e.message+' — ตรวจอินเทอร์เน็ตแล้วลองใหม่');}
@@ -1852,6 +1896,8 @@ function regMonths(){
   return anaMonths().slice(-n);
 }
 let regSaved={}; // ค่า kWh/ผลผลิตที่กรอกไว้ จำตามเดือน (y-m) ไม่หายเมื่อเปลี่ยนช่วง
+/* [แก้ไข 25 พ.ย. 2569] #580 ผลสมการล่าสุดที่แสดง (regLast) และช่วง Optimize ที่ใช้ (optLast) — บันทึกลงไฟล์งาน _ui.reg เพื่อเรียกคืนเมื่อเปิดไฟล์ (สูตรไม่เปลี่ยน) */
+let regLast=null,optLast=null,regTried=false,fcPendPeriod=null;   // regTried = กดคำนวณแล้ว (รวมกรณีข้อมูลไม่พอ) · fcPendPeriod = ช่วงรายวันของพยากรณ์ที่รอตัวเลือก (สร้างหลังดึงพยากรณ์)
 function stashReg(){
   const tbl=document.getElementById('regInputTable');
   const rows=[...tbl.querySelectorAll('tr')].slice(1);
@@ -1963,13 +2009,19 @@ function regModel(pairs){ // เลือกแบบจำลองอัตโ
 }
 function runReg(){
   if(!state.meta)return;
+  regTried=true;   /* [แก้ไข 25 พ.ย. 2569] #580 */
   const base=+document.getElementById('regBase').value||24;
   const nm=ddLabel(document.getElementById('modeR').value,document.getElementById('sensorR').value);
   const allPairs=regData(base);
-  if(allPairs.length<6){document.getElementById('regKPI').innerHTML=
+  if(allPairs.length<6){regLast=null;document.getElementById('regKPI').innerHTML=   /* [แก้ไข 25 พ.ย. 2569] #580 ไม่มีผล → ไม่บันทึกสมการ */
     '<div class="note">ต้องมีข้อมูลพลังงานอย่างน้อย 6 เดือน (ตอนนี้ '+allPairs.length+' เดือน)</div>';
     document.getElementById('regChart').innerHTML="";document.getElementById('regResid').innerHTML="";return;}
   const {r,pairs,two}=regModel(allPairs);
+  /* [แก้ไข 25 พ.ย. 2569] #580 บันทึกสมการ/สถิติ/ค่าจำลองรายเดือนของผลที่แสดง (ไว้เก็บในไฟล์งานและตรวจว่าการเปิดไฟล์ได้ผลเดิม) */
+  regLast={two:two,base:base,mode:document.getElementById('modeR').value,sensor:document.getElementById('sensorR').value,
+    prov:document.getElementById('regProv').value,N:document.getElementById('regN').value,
+    a:r.a,b:r.b,c:two?r.c:null,r2:r.r2,adj:two?r.adj:null,n:r.n,cvrmse:r.cvrmse,
+    pred:pairs.map(p=>({m:p.m.y+'-'+p.m.m,y:p.y,e:two?r.pred(p):r.a+r.b*p.x}))};
   const q=r.r2>=0.75?["status-ok","ใช้ได้ดี ✓"]:r.r2>=0.5?["status-warn","พอใช้ — ควรพิจารณาตัวแปรเพิ่ม"]:["status-bad","ต่ำ — DD อาจไม่ใช่ตัวขับหลัก"];
   const fmtN=v=>v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,",");
   if(two){
@@ -2035,16 +2087,25 @@ function optimizeBase(){
   let lo=+document.getElementById('optMin').value,hi=+document.getElementById('optMax').value;
   if(!(hi>lo)){alert("ช่วง Optimize ไม่ถูกต้อง");return;}
   if(hi-lo>60)hi=lo+60;
-  const res=[];
-  for(let b=lo;b<=hi;b+=1){
-    const pairs=regData(b);
-    if(pairs.length>=6)res.push({b,r2:regModel(pairs).r.r2});
-  }
+  const res=optScan(lo,hi);
   if(!res.length){alert("กรอกข้อมูลพลังงานอย่างน้อย 6 เดือนก่อน");return;}
   const best=res.reduce((a,x)=>x.r2>a.r2?x:a);
   document.getElementById('regBase').value=best.b;
   syncFrom('R'); // [แก้ไข 10 ก.ย. 2569] base ที่ optimize ได้ กระจายไปทุกแท็บถ้าเปิดซิงก์
   runReg();
+  optLast={min:lo,max:hi};   /* [แก้ไข 25 พ.ย. 2569] #580 */
+  optShow(res,best,lo,hi);
+}
+/* [แก้ไข 25 พ.ย. 2569] #580 แยกจาก optimizeBase() เดิมตามตัวอักษร: optScan = ไล่ base ทีละ 1 °C หา R² · optShow = วาดกราฟ R² + ข้อความผล */
+function optScan(lo,hi){
+  const res=[];
+  for(let b=lo;b<=hi;b+=1){
+    const pairs=regData(b);
+    if(pairs.length>=6)res.push({b,r2:regModel(pairs).r.r2});
+  }
+  return res;
+}
+function optShow(res,best,lo,hi){
   barGroupChart(document.getElementById('optChart'),res.map(x=>x.b+"°C"),
     [{name:"R² ตาม base temperature",data:res.map(x=>Math.round(x.r2*1000)/1000),color:"#0f2a4a"}]);
   const spread=Math.max(...res.map(x=>x.r2))-Math.min(...res.map(x=>x.r2));
@@ -2995,6 +3056,11 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
    ยังเป็นไทยในโหมด ?lang=en (คำเตือน R² แทบไม่ต่างกันมีคำแปลเดิมแล้ว) · ไม่แตะสูตร รหัสช่อง หรือคีย์ไฟล์งาน */
 if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[
 [/^(\s*)\(R² = (-?[\d.]+)\) — คือ balance point ของอาคารนี้(\s*)$/,'$1(R² = $2) — the balance point of this building$3']
+]);</script>
+<script>/* [แก้ไข 25 พ.ย. 2569] #580 คู่คำแปล EN — ข้อความเตือนเมื่อสมการในไฟล์งานไม่ตรงกับผลคำนวณใหม่ */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+},[
+[/^(\s*)⚠ สมการที่บันทึกในไฟล์ \((.*) · R² = (-?[\d.]+|—)\) ต่างจากผลที่คำนวณใหม่จากข้อมูลและค่าตั้งในไฟล์ — มักเกิดจากแก้ตารางหรือค่าตั้งหลังกดคำนวณแล้วจึงบันทึก · ด้านล่างเป็นผลที่คำนวณใหม่(\s*)$/,'$1⚠ The model saved in the file ($2 · R² = $3) differs from the result recomputed from the data and settings in the file — usually the table or settings were edited after calculating and before saving · the result below is the recomputed one$4']
 ]);</script>
 </body>
 </html>
