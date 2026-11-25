@@ -918,6 +918,7 @@ function renderResult() {
           <div class="label">▶ RESULT · ปริมาณการปล่อย GHG</div>
           <div class="value" id="calcOut">${item.ef.toLocaleString('en-US', {maximumFractionDigits: 4})} ${isMWh ? 'tCO₂eq' : 'kgCO₂eq'}</div>
         </div>
+        <div class="warning" id="adWarn" style="display:none"><div class="label-w">▲ AD ติดลบ</div>ข้อมูลกิจกรรม (AD) ต้องไม่ติดลบ — ไม่คำนวณ GHG · ตรวจค่าที่กรอก</div><!-- [แก้ไข 25 พ.ย. 2569] #563 -->
       </div>
     `;
   }
@@ -950,6 +951,16 @@ function renderResult() {
   if (adInput && item.ef !== null) {
     adInput.addEventListener('input', () => {
       const val = parseFloat(adInput.value) || 0;
+      /* [แก้ไข 25 พ.ย. 2569] #563 AD ติดลบ (เช่น −100 kWh) เดิมคำนวณเป็น GHG ติดลบ (−47.5 kgCO₂eq) → เตือนและไม่คำนวณ (แสดง —)
+         หลักวิทยาศาสตร์/นิยาม: AD คือปริมาณกิจกรรม (การใช้เชื้อเพลิง/ไฟฟ้า/ระยะทาง …) จึงไม่ติดลบ · GHG = AD × EF ของรายการเดี่ยวต้องไม่ติดลบ */
+      const warn = document.getElementById('adWarn');
+      if (val < 0) {
+        adVal.textContent = val;
+        calcOut.textContent = '— ' + (isMWh ? 'tCO₂eq' : 'kgCO₂eq');
+        if (warn) warn.style.display = '';
+        return;
+      }
+      if (warn) warn.style.display = 'none';
       const result = val * item.ef;
       adVal.textContent = val;
       calcOut.textContent = result.toLocaleString('en-US', {maximumFractionDigits: 4}) + (isMWh ? ' tCO₂eq' : ' kgCO₂eq');
@@ -963,6 +974,25 @@ function renderResult() {
 <script src="../lib/te-i18n.js?v=r5"></script>
 <script>
 /* ═════ EN r1 (Free · 5 พ.ย. 2569) ═════ */
+/* [แก้ไข 25 พ.ย. 2569] #564 โหมดอังกฤษ: ปี พ.ศ. แสดงเป็น "Jan 2026 (B.E. 2569)" — ปี ค.ศ. ก่อน ตามด้วยปี พ.ศ. ในวงเล็บ (เดิม "Jan 2569 BE" และบางจุด "Jan 2569" ไม่กำกับ)
+   ค.ศ. = พ.ศ. − 543 · ใช้กับข้อความแปลที่มีปี พ.ศ. ทุกจุด (หัวเรื่อง · ฉบับข้อมูล · ชื่อหมวด · แหล่งอ้างอิง · หมายเหตุ) · ไม่แตะค่า EF / TE_EF / ข้อความโหมดไทย
+   รหัสฉบับ "Update 060769" ของ อบก. เป็นชื่อเอกสาร คงตามต้นฉบับ */
+function efsBE(t){var ce=function(y){return (+y)-543;};
+  return String(t)
+   .replace(/\b(25\d\d)\s*[-–]\s*(25\d\d) BE\b/g,function(m,a,b){return ce(a)+'–'+ce(b)+' (B.E. '+a+'–'+b+')';})
+   .replace(/\b(\d+)\/(25\d\d) and (\d+)\/(25\d\d) \(BE\)/g,function(m,a,y,b,z){return a+'/'+y+' and '+b+'/'+z+' (B.E. '+y+(z!==y?'/'+z:'')+' = '+ce(y)+(z!==y?'/'+ce(z):'')+')';})
+   .replace(/\b(25\d\d) BE\b/g,function(m,y){return ce(y)+' (B.E. '+y+')';})
+   .replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|June|July|August|September|October|November|December) (25\d\d)\b(?! \(B\.E\.)/g,function(m,mo,y){return mo+' '+ce(y)+' (B.E. '+y+')';})
+   .replace(/\bno (25\d\d) edition\b/g,function(m,y){return 'no '+ce(y)+' (B.E. '+y+') edition';})
+   .replace(/ \(BE dates\)/g,'');}
+/* แทนที่แบบ $n ตามกติกา String.replace แล้วแปลงปี พ.ศ. */
+function BEW(r){return function(){var a=arguments,n=a.length-3;
+  return efsBE(r.replace(/\$(\d)(\d?)/g,function(m,d1,d2){var k2=d2?+(d1+d2):0;if(d2&&k2<=n)return a[k2]==null?'':a[k2];var k=+d1;return (k>=1&&k<=n?(a[k]==null?'':a[k]):m.slice(0,2))+d2;}));};}
+window.TE_EFS_BE=efsBE;
+/* หัวป้าย "FY2569" (ข้อความอังกฤษในหน้าไทยด้วย — ตัวแปลไม่แตะ) → โหมดอังกฤษ "FY2026 (B.E. 2569)" · กลับไทยคืนเดิม */
+(function(){function fy(){var en=window.TE_I18N&&TE_I18N.lang==='en';document.querySelectorAll('.header-tag').forEach(function(e){
+  if(e.dataset.fyTh==null)e.dataset.fyTh=e.textContent;e.textContent=en?e.dataset.fyTh.replace(/\bFY(25\d\d)\b/g,function(m,y){return 'FY'+((+y)-543)+' (B.E. '+y+')';}):e.dataset.fyTh;});}
+  document.addEventListener('te-lang',function(){setTimeout(fy,0);});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fy);else fy();})();
 if(window.TE_I18N)TE_I18N.set({
 "กรุณาเลือก Scope และกิจกรรมเพื่อรับค่า EF หรือใช้ Quick Search ด้านบน": "Select a scope and activity to get the EF, or use Quick Search above",
 "· ส่วน CFO/CFP ยังอยู่ที่ thaicarbonlabel.tgo.or.th ตามเดิม": "· CFO/CFP remain at thaicarbonlabel.tgo.or.th as before",
@@ -1119,57 +1149,57 @@ if(window.TE_I18N)TE_I18N.set({
 "DOC - กระดาษ (NEW)": "DOC - paper (NEW)",
 "DOC - เศษไม้ (NEW)": "DOC - wood (NEW)"
 },[
-[/ปิโตรเคมี\/พลาสติก\s+\(CFP\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+Update\s+(-?\d[\d,]*\.?\d*)\s+·\s+บังคับใช้\s+(-?\d[\d,]*\.?\d*)\s+ต\.ค\.\s+(-?\d[\d,]*\.?\d*)\)/g,"Petrochemicals/plastics (CFP Jul $1 BE · Update $2 · effective $3 Oct $4 BE)"],
-[/การเผาไหม้อยู่กับที่\s+\(Stationary\s+Combustion\)\s+·\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)/g,"Stationary combustion · Jan $1 BE"],
-[/การเผาไหม้แบบเคลื่อนที่\s+\(Mobile\s+Combustion\)\s+·\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)/g,"Mobile combustion · Jan $1 BE"],
+[/ปิโตรเคมี\/พลาสติก\s+\(CFP\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+Update\s+(-?\d[\d,]*\.?\d*)\s+·\s+บังคับใช้\s+(-?\d[\d,]*\.?\d*)\s+ต\.ค\.\s+(-?\d[\d,]*\.?\d*)\)/g,BEW("Petrochemicals/plastics (CFP Jul $1 BE · Update $2 · effective $3 Oct $4 BE)")],
+[/การเผาไหม้อยู่กับที่\s+\(Stationary\s+Combustion\)\s+·\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)/g,BEW("Stationary combustion · Jan $1 BE")],
+[/การเผาไหม้แบบเคลื่อนที่\s+\(Mobile\s+Combustion\)\s+·\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)/g,BEW("Mobile combustion · Jan $1 BE")],
 [/ไฟฟ้า\s+\(CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+·\s+LCIA\s+IPCC\s+(-?\d[\d,]*\.?\d*)\s+GWP(-?\d[\d,]*\.?\d*)a\)/g,"Electricity (CFO Scope $1 · LCIA IPCC $2 GWP$3a)"],
 [/Standard\s+T\-VER\s+·\s+EFEG_RE\s+\(พลังงานหมุนเวียน\)/g,"Standard T-VER · EFEG_RE (renewable energy)"],
 [/Standard\s+T\-VER\s+·\s+EFEG_FF\s+\(เชื้อเพลิงฟอสซิล\)/g,"Standard T-VER · EFEG_FF (fossil fuel)"],
 [/เชื้อเพลิง\s+\(อ้างอิง\s+CFO\s+\+\s+Conservativeness\)/g,"Fuel (CFO reference + conservativeness)"],
-[/Premium\s+T\-VER\s+·\s+Below\s+BAU\s+\((-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\)/g,"Premium T-VER · Below BAU ($1 May $2 BE)"],
+[/Premium\s+T\-VER\s+·\s+Below\s+BAU\s+\((-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\)/g,BEW("Premium T-VER · Below BAU ($1 May $2 BE)")],
 [/สารทำความเย็น\s+\(Refrigerants\)\s+·\s+IPCC\s+AR(-?\d[\d,]*\.?\d*)/g,"Refrigerants · IPCC AR$1"],
 [/Cat\s+(-?\d[\d,]*\.?\d*)\s+·\s+Capital\s+Goods\s+\(สินค้าประเภททุน\)/g,"Cat $1 · Capital goods"],
 [/พลังงาน\s+\(CFP\s+basis\s+·\s+Cradle\-to\-Gate\)/g,"Energy (CFP basis · cradle-to-gate)"],
 [/การจัดการขยะ\s+\(T\-VER\s+Waste\s+Tool\s+v\.(-?\d[\d,]*\.?\d*)\)/g,"Waste management (T-VER Waste Tool v.$1)"],
 [/ไอน้ำ\s+\/\s+ความร้อน\s+\/\s+ความเย็น/g,"Steam / heat / cooling"],
 [/คืน\/คน/g,"night/person"],
-[/^(\s*)เครื่องมือเลือก\s+Emission\s+Factor\s+สำหรับ\s+CFO,\s+CFP,\s+T\-VER\s+·\s+ข้อมูลทางการจาก\s+TGO\s+ฉบับล่าสุด\s+—\s+EF\s+CFO\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+EF\s+CFP\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(Update\s+(-?\d[\d,]*\.?\d*)\),\s+EF\s+Electricity\s+T\-VER\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(ฉบับล่าสุด\)\s+พร้อม\s+Quick\s+Search\s+(-?\d[\d,]*\.?\d*)\+\s+รายการ(\s*)$/,"$1Emission factor selector for CFO, CFP, T-VER · official data from the latest TGO releases (BE dates) — EF CFO Jan $2 EF CFP Jul $3 (Update $4), EF Electricity T-VER $5 May $6 (latest) with Quick Search $7+ items$8"],
-[/^(\s*)⚠\s+ชุดเดียวกับ\s+grid\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)\s+ซึ่งใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+ปัจจุบันใช้\s+WTT\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)\s+·\s+ใช้สำหรับการได้มาซึ่งเชื้อเพลิงและการขนส่งที่ใช้ผลิตไฟฟ้า(\s*)$/,"$1⚠ Same set as grid $2$3 ($4), valid until $5 Mar $6 BE · now use WTT $7$8 ($9) · covers extraction and transport of fuels used for power generation$10"],
+[/^(\s*)เครื่องมือเลือก\s+Emission\s+Factor\s+สำหรับ\s+CFO,\s+CFP,\s+T\-VER\s+·\s+ข้อมูลทางการจาก\s+TGO\s+ฉบับล่าสุด\s+—\s+EF\s+CFO\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+EF\s+CFP\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(Update\s+(-?\d[\d,]*\.?\d*)\),\s+EF\s+Electricity\s+T\-VER\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(ฉบับล่าสุด\)\s+พร้อม\s+Quick\s+Search\s+(-?\d[\d,]*\.?\d*)\+\s+รายการ(\s*)$/,BEW("$1Emission factor selector for CFO, CFP, T-VER · official data from the latest TGO releases (BE dates) — EF CFO Jan $2 EF CFP Jul $3 (Update $4), EF Electricity T-VER $5 May $6 (latest) with Quick Search $7+ items$8")],
+[/^(\s*)⚠\s+ชุดเดียวกับ\s+grid\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)\s+ซึ่งใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+ปัจจุบันใช้\s+WTT\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)\s+·\s+ใช้สำหรับการได้มาซึ่งเชื้อเพลิงและการขนส่งที่ใช้ผลิตไฟฟ้า(\s*)$/,BEW("$1⚠ Same set as grid $2$3 ($4), valid until $5 Mar $6 BE · now use WTT $7$8 ($9) · covers extraction and transport of fuels used for power generation$10")],
 [/^(\s*)หน้าดาวน์โหลด\s+T\-VER\s+เดิม\s+\(ghgreduction\.tgo\.or\.th\/th\/download\-tver\.html\)\s+ปิดแล้ว\s+\((-?\d[\d,]*\.?\d*)\)\s+—\s+ระบบ\s+T\-VER\s+ย้ายไปที่(\s*)$/,"$1The old T-VER download page (ghgreduction.tgo.or.th/th/download-tver.html) is closed ($2) — the T-VER system moved to$3"],
 [/^(\s*)⚠\s+ชุดเก่า\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+—\s+ใช้ค่า\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)\s+แทน\s+·\s+CFP\s+ใช้\s+Cradle\-to\-Gate\s+\(รวม\s+Upstream\)\s+·\s+ไม่เท่ากับ\s+CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1⚠ Old $2$3 set — use $4$5 ($6) instead · CFP uses cradle-to-gate (incl. upstream) · not equal to CFO Scope $7$8"],
 [/^(\s*)ค่านี้เป็นเฉพาะ\s+CH₄\s+\+\s+N₂O\s+·\s+CO₂\s+จาก\s+Biofuel\s+ต้องรายงานแยกเป็น\s+Biogenic\s+CO₂\s+ตาม\s+ISO\s+14064-1(\s*)$/,"$1This value is CH₄ + N₂O only · CO₂ from biofuel must be reported separately as biogenic CO₂ per ISO 14064-1$2"], /* [แก้ไข 18 พ.ย. 2569] #182 ตัดเลขภาคผนวกที่อ้างไม่ได้ (ฉบับ 2018 ใช้ภาคผนวกตัวอักษร) */
 [/^(\s*)EF\s+Cat\s+(-?\d[\d,]*\.?\d*)\s+มีรายการเยอะมาก\s+\(วัตถุดิบ,\s+สารเคมี,\s+อุปกรณ์\)\s+สามารถสืบค้นได้จากระบบของ\s+TGO\s+โดยตรง(\s*)$/,"$1Cat $2 EFs are very numerous (raw materials, chemicals, equipment); search them directly in the TGO system$3"],
-[/^(\s*)⚠\s+เลิกใช้แล้ว\s+—\s+ใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+เท่านั้น\s+\(สำหรับปีรายงานเดิม\)\s+·\s+ปัจจุบันใช้ค่า\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1⚠ Retired — valid only until $2 Mar $3 BE (for earlier reporting years) · now use $4$5 ($6)$7"],
+[/^(\s*)⚠\s+เลิกใช้แล้ว\s+—\s+ใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+เท่านั้น\s+\(สำหรับปีรายงานเดิม\)\s+·\s+ปัจจุบันใช้ค่า\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1⚠ Retired — valid only until $2 Mar $3 BE (for earlier reporting years) · now use $4$5 ($6)$7")],
 [/^(\s*)✓\s+ค่าใหม่ใช้แทน\s+(-?\d[\d,]*\.?\d*)\s+·\s+CFP\s+ใช้\s+Cradle\-to\-Gate\s+\(รวม\s+Upstream\)\s+·\s+ไม่เท่ากับ\s+CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1✓ New value replacing $2 · CFP uses cradle-to-gate (incl. upstream) · not equal to CFO Scope $3 ($4)$5"],
-[/^(\s*)\((-?\d[\d,]*\.?\d*)\s+รายการ,\s+แทนฉบับ\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+—\s+ค่าปิโตรเคมีหลักไม่เปลี่ยนจากชุด\s+Update\s+April\s+(-?\d[\d,]*\.?\d*)\),\s+และ(\s*)$/,"$1($2 items, replacing the May $3 BE edition — main petrochemical values unchanged from the Update April $4 set), and$5"],
-[/^(\s*)✓\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+เพิ่มในประกาศ\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(ตรวจ\s+ส\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+—\s+ยังเป็นประกาศล่าสุด\s+ไม่มีฉบับ\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1✓ Year $2 BE added in the $3 May $4 BE notice (checked Aug $5 BE — still the latest, no $6 edition)$7"],
+[/^(\s*)\((-?\d[\d,]*\.?\d*)\s+รายการ,\s+แทนฉบับ\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+—\s+ค่าปิโตรเคมีหลักไม่เปลี่ยนจากชุด\s+Update\s+April\s+(-?\d[\d,]*\.?\d*)\),\s+และ(\s*)$/,BEW("$1($2 items, replacing the May $3 BE edition — main petrochemical values unchanged from the Update April $4 set), and$5")],
+[/^(\s*)✓\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+เพิ่มในประกาศ\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(ตรวจ\s+ส\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+—\s+ยังเป็นประกาศล่าสุด\s+ไม่มีฉบับ\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1✓ Year $2 BE added in the $3 May $4 BE notice (checked Aug $5 BE — still the latest, no $6 edition)$7")],
 [/^(\s*)รายงาน\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+\(CO(-?\d[\d,]*\.?\d*)\s+fossil\s+\+\s+CH(-?\d[\d,]*\.?\d*)\s+\+\s+N(-?\d[\d,]*\.?\d*)O\)\s+·\s+ส่วน\s+CO(-?\d[\d,]*\.?\d*)\s+จาก\s+Biofuel\s+=\s+(-?\d[\d,]*\.?\d*)\s+รายงานแยก(\s*)$/,"$1Report in Scope $2 (CO$3 fossil + CH$4 + N$5O) · biofuel CO$6 portion = $7 reported separately$8"],
 [/^(\s*)WTT\s+ไฟฟ้า\s+Grid\s+Mix\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(Upstream\s+Fuel\)\s+—\s+เลิกใช้\s+\(ใช้คู่กับ\s+(-?\d[\d,]*\.?\d*)\)\s+\(NEW\)(\s*)$/,"$1WTT electricity grid mix $2$3 (upstream fuel) — retired (paired with $4) (NEW)$5"],
-[/^(\s*)Grid\s+Mix\s+ปี\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)\)\s+—\s+เลิกใช้\s+\(ใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\)\s+\(NEW\)(\s*)$/,"$1Grid mix $2$3 (CFO Scope $4) — retired (valid until $5 Mar $6 BE) (NEW)$7"],
-[/^(\s*)EF\s+Selector\s+v(-?\d[\d,]*\.?\d*)\s+·\s+Official\s+TGO\s+Data\s+·\s+ตรวจสอบกับเว็บ\s+TGO\s+(-?\d[\d,]*\.?\d*)\s+ส\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1EF Selector v$2 · Official TGO Data · checked against TGO website $3 Aug $4 BE$5"],
+[/^(\s*)Grid\s+Mix\s+ปี\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)\)\s+—\s+เลิกใช้\s+\(ใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\)\s+\(NEW\)(\s*)$/,BEW("$1Grid mix $2$3 (CFO Scope $4) — retired (valid until $5 Mar $6 BE) (NEW)$7")],
+[/^(\s*)EF\s+Selector\s+v(-?\d[\d,]*\.?\d*)\s+·\s+Official\s+TGO\s+Data\s+·\s+ตรวจสอบกับเว็บ\s+TGO\s+(-?\d[\d,]*\.?\d*)\s+ส\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1EF Selector v$2 · Official TGO Data · checked against TGO website $3 Aug $4 BE$5")],
 [/^(\s*)ไม่พบรายการ\s+—\s+ลอง:\s+ดีเซล,\s+ขยะ,\s+เครื่องบิน,\s+R(-?\d[\d,]*\.?\d*)\s+HDPE,\s+B(-?\d[\d,]*\.?\d*)\s+E(-?\d[\d,]*\.?\d*)\s+ไฟฟ้า(\s*)$/,"$1No match — try: diesel, waste, haul, R$2 HDPE, B$3 E$4 grid$5"],
-[/^(\s*)ปิโตรเคมี\/พลาสติก\s+\(CFP\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+Update\s+(-?\d[\d,]*\.?\d*)\s+·\s+บังคับใช้\s+(-?\d[\d,]*\.?\d*)\s+ต\.ค\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Petrochemicals/plastics (CFP Jul $2 BE · Update $3 · effective $4 Oct $5 BE)$6"],
+[/^(\s*)ปิโตรเคมี\/พลาสติก\s+\(CFP\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+Update\s+(-?\d[\d,]*\.?\d*)\s+·\s+บังคับใช้\s+(-?\d[\d,]*\.?\d*)\s+ต\.ค\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1Petrochemicals/plastics (CFP Jul $2 BE · Update $3 · effective $4 Oct $5 BE)$6")],
 [/^(\s*)WTT\s+ไฟฟ้า\s+Grid\s+Mix\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(Upstream\s+Fuel\)\s+—\s+เลิกใช้\s+\(ใช้คู่กับ\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1WTT electricity grid mix $2$3 (upstream fuel) — retired (paired with $4)$5"],
-[/^(\s*)Grid\s+Mix\s+ปี\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)\)\s+—\s+เลิกใช้\s+\(ใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Grid mix $2$3 (CFO Scope $4) — retired (valid until $5 Mar $6 BE)$7"],
+[/^(\s*)Grid\s+Mix\s+ปี\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)\)\s+—\s+เลิกใช้\s+\(ใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1Grid mix $2$3 (CFO Scope $4) — retired (valid until $5 Mar $6 BE)$7")],
 [/^(\s*)ระวังการนับซ้ำกับ\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+(-?\d[\d,]*\.?\d*)\s+—\s+ต้องชัดเจนว่าใครเป็นผู้รายงาน(\s*)$/,"$1Beware of double counting with Scope $2 $3 — be clear who reports$4"],
 [/^(\s*)WTT\s+ไฟฟ้า\s+Grid\s+Mix\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(Upstream\s+Fuel\)\s+—\s+ค่าปัจจุบัน\s+\(NEW\)(\s*)$/,"$1WTT electricity grid mix $2$3 (upstream fuel) — current value (NEW)$4"],
 [/^(\s*)พิมพ์ชื่อ\s+เช่น\s+ดีเซล\s+กระดาษ\s+ไฟฟ้า\s+R(-?\d[\d,]*\.?\d*)\s+HDPE\s+Diesel\s+B(-?\d[\d,]*\.?\d*)\s+\.\.\.(\s*)$/,"$1Type a name, e.g. diesel, paper, electricity, R$2 HDPE Diesel B$3 ...$4"],
 [/^(\s*)รายงานโดยผู้ให้เช่า\s+—\s+กรณีสินทรัพย์ไม่อยู่ใน\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Reported by the lessor — when the assets are not in Scope $2 $3$4"],
-[/^(\s*)การเผาไหม้อยู่กับที่\s+\(Stationary\s+Combustion\)\s+·\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Stationary combustion · Jan $2 BE$3"],
-[/^(\s*)การเผาไหม้แบบเคลื่อนที่\s+\(Mobile\s+Combustion\)\s+·\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Mobile combustion · Jan $2 BE$3"],
+[/^(\s*)การเผาไหม้อยู่กับที่\s+\(Stationary\s+Combustion\)\s+·\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1Stationary combustion · Jan $2 BE$3")],
+[/^(\s*)การเผาไหม้แบบเคลื่อนที่\s+\(Mobile\s+Combustion\)\s+·\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1Mobile combustion · Jan $2 BE$3")],
 [/^(\s*)WTT\s+ไฟฟ้า\s+Grid\s+Mix\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(Upstream\s+Fuel\)\s+—\s+ค่าปัจจุบัน(\s*)$/,"$1WTT electricity grid mix $2$3 (upstream fuel) — current value$4"],
-[/^(\s*)TGO\s+ระยะที่\s+(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\):\s+สามารถละเว้นได้หากชี้แจงเหตุผล(\s*)$/,"$1TGO phase $2 ($3$4 BE): may be excluded with justification$5"],
+[/^(\s*)TGO\s+ระยะที่\s+(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\):\s+สามารถละเว้นได้หากชี้แจงเหตุผล(\s*)$/,BEW("$1TGO phase $2 ($3$4 BE): may be excluded with justification$5")],
 [/^(\s*)Palm\s+Kernel\s+Shell\s+\(กะลาปาล์ม\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only\s+\(NEW\)(\s*)$/,"$1Palm kernel shell - Scope $2 only (NEW)$3"],
 [/^(\s*)Grid\s+Mix\s+ปี\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)\)\s+—\s+ค่าปัจจุบัน\s+\(NEW\)(\s*)$/,"$1Grid mix $2$3 (CFO Scope $4) — current value (NEW)$5"],
-[/^(\s*)Thai\s+LCI\s+·\s+TGO\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+with\s+TGO\s+electricity\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Thai LCI · TGO Jan $2 BE · with TGO electricity $3$4$5"],
+[/^(\s*)Thai\s+LCI\s+·\s+TGO\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+with\s+TGO\s+electricity\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1Thai LCI · TGO Jan $2 BE · with TGO electricity $3$4$5")],
 [/^(\s*)CH₄\+N₂O\s+เท่านั้น\s+·\s+Biogenic\s+CO₂\s+=\s+(-?\d[\d,]*\.?\d*)\s+\(รายงานแยก\)(\s*)$/,"$1CH₄+N₂O only · biogenic CO₂ = $2 (reported separately)$3"],
-[/^(\s*)\((-?\d[\d,]*\.?\d*)\s+รายการ,\s+ยังเป็นฉบับล่าสุด\s+—\s+ตรวจ\s+(-?\d[\d,]*\.?\d*)\s+ส\.ค\.\s+(-?\d[\d,]*\.?\d*)\),(\s*)$/,"$1($2 items, still the latest edition — checked $3 Aug $4 BE),$5"],
+[/^(\s*)\((-?\d[\d,]*\.?\d*)\s+รายการ,\s+ยังเป็นฉบับล่าสุด\s+—\s+ตรวจ\s+(-?\d[\d,]*\.?\d*)\s+ส\.ค\.\s+(-?\d[\d,]*\.?\d*)\),(\s*)$/,BEW("$1($2 items, still the latest edition — checked $3 Aug $4 BE),$5")],
 [/^(\s*)Palm\s+Kernel\s+Shell\s+\(กะลาปาล์ม\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only(\s*)$/,"$1Palm kernel shell - Scope $2 only$3"],
 [/^(\s*)ไฟฟ้า\s+Grid\s+Mix\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(CFP\)\s+—\s+ค่าปัจจุบัน\s+\(NEW\)(\s*)$/,"$1Electricity grid mix $2$3 (CFP) — current value (NEW)$4"],
 [/^(\s*)Grid\s+Mix\s+ปี\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)\)\s+—\s+ค่าปัจจุบัน(\s*)$/,"$1Grid mix $2$3 (CFO Scope $4) — current value$5"],
-[/^(\s*)\(ตรวจแล้วยังไม่มีประกาศใหม่กว่า\s+ณ\s+ส\.ค\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1(checked: no newer notice as of Aug $2 BE)$3"],
-[/^(\s*)④\s+EF\s+ไฟฟ้า\s+T\-VER\s+\(ประกาศ\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+PDF\)(\s*)$/,"$1④ T-VER electricity EF (notice $2 May $3 BE · PDF)$4"],
-[/^(\s*)✓\s+ค่าใหม่\s+บังคับใช้ตั้งแต่\s+(-?\d[\d,]*\.?\d*)\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+แทน\s+(-?\d[\d,]*\.?\d*)\s+\(ค่าเดิมใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+อบก\.\s+ประกาศ\s+(-?\d[\d,]*\.?\d*)\s+พ\.ย\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1✓ New value, mandatory from $2 Jan $3 BE, replacing $4 (old value usable until $5 Mar $6 BE · TGO announcement $7 Nov $8 BE)$9"],
+[/^(\s*)\(ตรวจแล้วยังไม่มีประกาศใหม่กว่า\s+ณ\s+ส\.ค\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1(checked: no newer notice as of Aug $2 BE)$3")],
+[/^(\s*)④\s+EF\s+ไฟฟ้า\s+T\-VER\s+\(ประกาศ\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+PDF\)(\s*)$/,BEW("$1④ T-VER electricity EF (notice $2 May $3 BE · PDF)$4")],
+[/^(\s*)✓\s+ค่าใหม่\s+บังคับใช้ตั้งแต่\s+(-?\d[\d,]*\.?\d*)\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+แทน\s+(-?\d[\d,]*\.?\d*)\s+\(ค่าเดิมใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+อบก\.\s+ประกาศ\s+(-?\d[\d,]*\.?\d*)\s+พ\.ย\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1✓ New value, mandatory from $2 Jan $3 BE, replacing $4 (old value usable until $5 Mar $6 BE · TGO announcement $7 Nov $8 BE)$9")],
 [/^(\s*)Biogas\s+\(ก๊าซชีวภาพ\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only\s+\(NEW\)(\s*)$/,"$1Biogas - Scope $2 only (NEW)$3"],
 [/^(\s*)สารทำความเย็น\s+\(Refrigerants\)\s+·\s+IPCC\s+AR(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Refrigerants · IPCC AR$2$3"],
 [/^(\s*)ไฟฟ้า\s+\(CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+·\s+LCIA\s+IPCC\s+(-?\d[\d,]*\.?\d*)\s+GWP(-?\d[\d,]*\.?\d*)a\)(\s*)$/,"$1Electricity (CFO Scope $2 · LCIA IPCC $3 GWP$4a)$5"],
@@ -1178,12 +1208,12 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)รายงาน\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+·\s+ส่วน\s+Biogenic\s+CO(-?\d[\d,]*\.?\d*)\s+=\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Report in Scope $2 · biogenic CO$3 portion = $4$5"],
 [/^(\s*)Paddy\s+Husk\s+\(แกลบ\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only\s+\(NEW\)(\s*)$/,"$1Paddy husk - Scope $2 only (NEW)$3"],
 [/^(\s*)Bagasse\s+\(ชานอ้อย\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only\s+\(NEW\)(\s*)$/,"$1Bagasse - Scope $2 only (NEW)$3"],
-[/^(\s*)(-?\d[\d,]*\.?\d*)\s+พฤษภาคม\s+(-?\d[\d,]*\.?\d*)\s+\(ตรวจ\s+ส\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+—\s+ยังล่าสุด\)(\s*)$/,"$1$2 May $3 BE (checked Aug $4 BE — still latest)$5"],
+[/^(\s*)(-?\d[\d,]*\.?\d*)\s+พฤษภาคม\s+(-?\d[\d,]*\.?\d*)\s+\(ตรวจ\s+ส\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+—\s+ยังล่าสุด\)(\s*)$/,BEW("$1$2 May $3 BE (checked Aug $4 BE — still latest)$5")],
 [/^(\s*)ไฟฟ้า\s+Grid\s+Mix\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(CFP\)\s+—\s+ค่าปัจจุบัน(\s*)$/,"$1Electricity grid mix $2$3 (CFP) — current value$4"],
 [/^(\s*)Cob\s+\(ซังข้าวโพด\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only\s+\(NEW\)(\s*)$/,"$1Corn cob - Scope $2 only (NEW)$3"],
 [/^(\s*)รถกระบะส่วนบุคคล\s+(-?\d[\d,]*\.?\d*)\s+ตัน\s+\(Diesel\)\s+\(NEW\)(\s*)$/,"$1Private pickup $2 ton (diesel) (NEW)$3"],
-[/^(\s*)EF\s+Electricity\s+T\-VER\s+ประกาศ\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1EF Electricity T-VER notice $2 May $3 BE$4"],
-[/^(\s*)Premium\s+T\-VER\s+·\s+Below\s+BAU\s+\((-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Premium T-VER · Below BAU ($2 May $3 BE)$4"],
+[/^(\s*)EF\s+Electricity\s+T\-VER\s+ประกาศ\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1EF Electricity T-VER notice $2 May $3 BE$4")],
+[/^(\s*)Premium\s+T\-VER\s+·\s+Below\s+BAU\s+\((-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1Premium T-VER · Below BAU ($2 May $3 BE)$4")],
 [/^(\s*)ฟืน\s+\(Fuel\s+Wood\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only\s+\(NEW\)(\s*)$/,"$1Fuel wood - Scope $2 only (NEW)$3"],
 [/^(\s*)Charcoal\s+\(ถ่าน\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only\s+\(NEW\)(\s*)$/,"$1Charcoal - Scope $2 only (NEW)$3"],
 [/^(\s*)กระดาษไม่เคลือบผิว\s+\/\s+กระดาษ\s+A(-?\d[\d,]*\.?\d*)\s+\(NEW\)(\s*)$/,"$1Uncoated paper / A$2 paper (NEW)$3"],
@@ -1193,19 +1223,19 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)Biogas\s+\(ก๊าซชีวภาพ\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only(\s*)$/,"$1Biogas - Scope $2 only$3"],
 [/^(\s*)น้ำเสีย\s+\-\s+บ่อบำบัดตื้น\s+\(≤(-?\d[\d,]*\.?\d*)m\)\s+\(NEW\)(\s*)$/,"$1Wastewater - shallow lagoon (≤$2m) (NEW)$3"],
 [/^(\s*)เครื่องบิน\s+Long\-haul\s+\(>(-?\d[\d,]*\.?\d*)\s+km\)\s+\(NEW\)(\s*)$/,"$1Air travel long-haul (>$2 km) (NEW)$3"],
-[/^(\s*)TGO\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(สัดส่วน\s+Biodiesel\s+(-?\d[\d,]*\.?\d*)%\)(\s*)$/,"$1TGO Jan $2 BE (biodiesel share $3%)$4"],
+[/^(\s*)TGO\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(สัดส่วน\s+Biodiesel\s+(-?\d[\d,]*\.?\d*)%\)(\s*)$/,BEW("$1TGO Jan $2 BE (biodiesel share $3%)$4")],
 [/^(\s*)ไฟฟ้า\s+Grid\s+Mix\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\(CFP\)\s+—\s+เลิกใช้(\s*)$/,"$1Electricity grid mix $2$3 (CFP) — retired$4"],
 [/^(\s*)น้ำเสีย\s+\-\s+บ่อบำบัดลึก\s+\(>(-?\d[\d,]*\.?\d*)m\)\s+\(NEW\)(\s*)$/,"$1Wastewater - deep lagoon (>$2m) (NEW)$3"],
 [/^(\s*)รถบรรทุก\s+(-?\d[\d,]*\.?\d*)\s+ล้อ\s+\(Downstream\)\s+\(NEW\)(\s*)$/,"$1$2-wheel truck (downstream) (NEW)$3"],
-[/^(\s*)TGO\s+ถาม\-ตอบ\s+ครั้งที่\s+(-?\d[\d,]*\.?\d*)\/(-?\d[\d,]*\.?\d*)\s+และ\s+(-?\d[\d,]*\.?\d*)\/(-?\d[\d,]*\.?\d*)(\s*)$/,"$1TGO Q&A no. $2/$3 and $4/$5 (BE)$6"],
+[/^(\s*)TGO\s+ถาม\-ตอบ\s+ครั้งที่\s+(-?\d[\d,]*\.?\d*)\/(-?\d[\d,]*\.?\d*)\s+และ\s+(-?\d[\d,]*\.?\d*)\/(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1TGO Q&A no. $2/$3 and $4/$5 (BE)$6")],
 [/^(\s*)Paddy\s+Husk\s+\(แกลบ\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only(\s*)$/,"$1Paddy husk - Scope $2 only$3"],
 [/^(\s*)Bagasse\s+\(ชานอ้อย\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only(\s*)$/,"$1Bagasse - Scope $2 only$3"],
 [/^(\s*)MCF\s+\-\s+หลุมฝังกลบตื้น\s+\(<(-?\d[\d,]*\.?\d*)m\)\s+\(NEW\)(\s*)$/,"$1MCF - shallow landfill (<$2m) (NEW)$3"],
-[/^(\s*)กรกฎาคม\s+(-?\d[\d,]*\.?\d*)\s+·\s+Update\s+(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\s+รายการ\)(\s*)$/,"$1July $2 BE · Update $3 ($4 items)$5"],
-[/^(\s*)②\s+EF\s+CFP\s+\(กรกฎาคม\s+(-?\d[\d,]*\.?\d*)\s+·\s+Update\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1② EF CFP (July $2 BE · Update $3)$4"],
-[/^(\s*)▶\s+OFFICIAL\s+·\s+บังคับใช้\s+(-?\d[\d,]*\.?\d*)\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1▶ OFFICIAL · effective $2 Jan $3 BE$4"],
-[/^(\s*)▶\s+OFFICIAL\s+·\s+บังคับใช้\s+(-?\d[\d,]*\.?\d*)\s+ต\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1▶ OFFICIAL · effective $2 Oct $3 BE$4"],
-[/^(\s*)TGO\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(สัดส่วน\s+Ethanol\s+(-?\d[\d,]*\.?\d*)%\)(\s*)$/,"$1TGO Jan $2 BE (ethanol share $3%)$4"],
+[/^(\s*)กรกฎาคม\s+(-?\d[\d,]*\.?\d*)\s+·\s+Update\s+(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\s+รายการ\)(\s*)$/,BEW("$1July $2 BE · Update $3 ($4 items)$5")],
+[/^(\s*)②\s+EF\s+CFP\s+\(กรกฎาคม\s+(-?\d[\d,]*\.?\d*)\s+·\s+Update\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1② EF CFP (July $2 BE · Update $3)$4")],
+[/^(\s*)▶\s+OFFICIAL\s+·\s+บังคับใช้\s+(-?\d[\d,]*\.?\d*)\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1▶ OFFICIAL · effective $2 Jan $3 BE$4")],
+[/^(\s*)▶\s+OFFICIAL\s+·\s+บังคับใช้\s+(-?\d[\d,]*\.?\d*)\s+ต\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1▶ OFFICIAL · effective $2 Oct $3 BE$4")],
+[/^(\s*)TGO\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(สัดส่วน\s+Ethanol\s+(-?\d[\d,]*\.?\d*)%\)(\s*)$/,BEW("$1TGO Jan $2 BE (ethanol share $3%)$4")],
 [/^(\s*)Cob\s+\(ซังข้าวโพด\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only(\s*)$/,"$1Corn cob - Scope $2 only$3"],
 [/^(\s*)รถกระบะส่วนบุคคล\s+(-?\d[\d,]*\.?\d*)\s+ตัน\s+\(Diesel\)(\s*)$/,"$1Private pickup $2 ton (diesel)$3"],
 [/^(\s*)ฟืน\s+\(Fuel\s+Wood\)\s+\-\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+only(\s*)$/,"$1Fuel wood - Scope $2 only$3"],
@@ -1213,40 +1243,48 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)กระดาษไม่เคลือบผิว\s+\/\s+กระดาษ\s+A(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Uncoated paper / A$2 paper$3"],
 [/^(\s*)เครื่องบิน\s+Medium\-haul\s+\((-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+km\)(\s*)$/,"$1Air travel medium-haul ($2$3 km)$4"],
 [/^(\s*)EoL\s+\-\s+โลหะ\s+\(รีไซเคิล\s+(-?\d[\d,]*\.?\d*)%\)\s+\(NEW\)(\s*)$/,"$1EoL - metals ($2% recycled) (NEW)$3"],
-[/^(\s*)EF\s+CFP\s+ฉบับ\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+Update\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1EF CFP Jul $2 BE edition · Update $3$4"],
+[/^(\s*)EF\s+CFP\s+ฉบับ\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+Update\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1EF CFP Jul $2 BE edition · Update $3$4")],
 [/^(\s*)เครื่องบิน\s+Short\-haul\s+\(<(-?\d[\d,]*\.?\d*)\s+km\)(\s*)$/,"$1Air travel short-haul (<$2 km)$3"],
 [/^(\s*)น้ำเสีย\s+\-\s+บ่อบำบัดตื้น\s+\(≤(-?\d[\d,]*\.?\d*)m\)(\s*)$/,"$1Wastewater - shallow lagoon (≤$2m)$3"],
 [/^(\s*)เครื่องบิน\s+Long\-haul\s+\(>(-?\d[\d,]*\.?\d*)\s+km\)(\s*)$/,"$1Air travel long-haul (>$2 km)$3"],
 [/^(\s*)น้ำเสีย\s+\-\s+บ่อบำบัดลึก\s+\(>(-?\d[\d,]*\.?\d*)m\)(\s*)$/,"$1Wastewater - deep lagoon (>$2m)$3"],
 [/^(\s*)รถบรรทุก\s+(-?\d[\d,]*\.?\d*)\s+ล้อ\s+\(Downstream\)(\s*)$/,"$1$2-wheel truck (downstream)$3"],
-[/^(\s*)ลด\s+GHG\s+·\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(ล่าสุด\)(\s*)$/,"$1GHG reduction · $2 May $3 BE (latest)$4"],
+[/^(\s*)ลด\s+GHG\s+·\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(ล่าสุด\)(\s*)$/,BEW("$1GHG reduction · $2 May $3 BE (latest)$4")],
 [/^(\s*)MCF\s+\-\s+หลุมฝังกลบตื้น\s+\(<(-?\d[\d,]*\.?\d*)m\)(\s*)$/,"$1MCF - shallow landfill (<$2m)$3"],
-[/^(\s*)Premium\s+T\-VER\s+·\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+\(NEW\)(\s*)$/,"$1Premium T-VER · year $2 BE (NEW)$3"],
+[/^(\s*)Premium\s+T\-VER\s+·\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+\(NEW\)(\s*)$/,BEW("$1Premium T-VER · year $2 BE (NEW)$3")],
 [/^(\s*)(-?\d[\d,]*\.?\d*)\s+Aug\s+(-?\d[\d,]*\.?\d*)\s+\(ตรวจกับเว็บ\s+TGO\)(\s*)$/,"$1$2 Aug $3 (checked with TGO website)$4"],
-[/^(\s*)มกราคม\s+(-?\d[\d,]*\.?\d*)\s+\(UPDATE\s+ก\.พ\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1January $2 BE (UPDATE Feb $3 BE)$4"],
+[/^(\s*)มกราคม\s+(-?\d[\d,]*\.?\d*)\s+\(UPDATE\s+ก\.พ\.\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1January $2 BE (UPDATE Feb $3 BE)$4")],
 [/^(\s*)อ้างอิงจาก\s+IPCC\s+(-?\d[\d,]*\.?\d*)\s+\+\s+DEDE(\s*)$/,"$1Based on IPCC $2 + DEDE$3"],
 [/^(\s*)EoL\s+\-\s+โลหะ\s+\(รีไซเคิล\s+(-?\d[\d,]*\.?\d*)%\)(\s*)$/,"$1EoL - metals ($2% recycled)$3"],
 [/^(\s*)Biogenic\s+CO₂\s+ส่วน\s+B(-?\d[\d,]*\.?\d*)\s+=\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Biogenic CO₂ for B$2 = $3$4"],
-[/^(\s*)TGO\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(Update\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1TGO Jul $2 BE (Update $3)$4"],
+[/^(\s*)TGO\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+\(Update\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1TGO Jul $2 BE (Update $3)$4")],
 [/^(\s*)CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\s+หมวด\)(\s*)$/,"$1CFO Scope $2 ($3 categories)$4"],
-[/^(\s*)Premium\s+T\-VER\s+·\s+ปี\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Premium T-VER · year $2 BE$3"],
+[/^(\s*)Premium\s+T\-VER\s+·\s+ปี\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1Premium T-VER · year $2 BE$3")],
 [/^(\s*)รถบรรทุก\s+(-?\d[\d,]*\.?\d*)\s+ล้อ\s+\(NEW\)(\s*)$/,"$1$2-wheel truck (NEW)$3"],
-[/^(\s*)①\s+EF\s+CFO\s+\(มกราคม\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1① EF CFO (January $2 BE)$3"],
-[/^(\s*)บังคับใช้\s+(-?\d[\d,]*\.?\d*)\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\+(\s*)$/,"$1Effective $2 Jan $3 BE+$4"],
-[/^(\s*)TGO\s+ประกาศ\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1TGO notice $2 May $3 BE$4"],
-[/^(\s*)EF\s+CFO\s+ฉบับ\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1EF CFO Jan $2 BE edition$3"],
-[/^(\s*)ผลิตภัณฑ์\s+·\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Product · Jul $2 BE$3"],
-[/^(\s*)EFEG_RE\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+\(NEW\)(\s*)$/,"$1EFEG_RE year $2 BE (NEW)$3"],
-[/^(\s*)EFEG_FF\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+\(NEW\)(\s*)$/,"$1EFEG_FF year $2 BE (NEW)$3"],
-[/^(\s*)องค์กร\s+·\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Organization · Jan $2 BE$3"],
-[/^(\s*)EFEC\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+\(NEW\)(\s*)$/,"$1EFEC year $2 BE (NEW)$3"],
-[/^(\s*)v\.(-?\d[\d,]*\.?\d*)\s+·\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\+(\s*)$/,"$1v.$2 · Mar $3 BE+$4"],
+[/^(\s*)①\s+EF\s+CFO\s+\(มกราคม\s+(-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1① EF CFO (January $2 BE)$3")],
+[/^(\s*)บังคับใช้\s+(-?\d[\d,]*\.?\d*)\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)\+(\s*)$/,BEW("$1Effective $2 Jan $3 BE+$4")],
+[/^(\s*)TGO\s+ประกาศ\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1TGO notice $2 May $3 BE$4")],
+[/^(\s*)EF\s+CFO\s+ฉบับ\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1EF CFO Jan $2 BE edition$3")],
+[/^(\s*)ผลิตภัณฑ์\s+·\s+ก\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1Product · Jul $2 BE$3")],
+[/^(\s*)EFEG_RE\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+\(NEW\)(\s*)$/,BEW("$1EFEG_RE year $2 BE (NEW)$3")],
+[/^(\s*)EFEG_FF\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+\(NEW\)(\s*)$/,BEW("$1EFEG_FF year $2 BE (NEW)$3")],
+[/^(\s*)องค์กร\s+·\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1Organization · Jan $2 BE$3")],
+[/^(\s*)EFEC\s+ปี\s+(-?\d[\d,]*\.?\d*)\s+\(NEW\)(\s*)$/,BEW("$1EFEC year $2 BE (NEW)$3")],
+[/^(\s*)v\.(-?\d[\d,]*\.?\d*)\s+·\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\+(\s*)$/,BEW("$1v.$2 · Mar $3 BE+$4")],
 [/^(\s*)รถบรรทุก\s+(-?\d[\d,]*\.?\d*)\s+ล้อ(\s*)$/,"$1$2-wheel truck$3"],
-[/^(\s*)TGO\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1TGO $2 May $3 BE$4"],
-[/^(\s*)EFEG_RE\s+ปี\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1EFEG_RE year $2 BE$3"],
-[/^(\s*)EFEG_FF\s+ปี\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1EFEG_FF year $2 BE$3"],
-[/^(\s*)TGO\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1TGO Jan $2 BE$3"],
-[/^(\s*)EFEC\s+ปี\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1EFEC year $2 BE$3"]
+[/^(\s*)TGO\s+(-?\d[\d,]*\.?\d*)\s+พ\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1TGO $2 May $3 BE$4")],
+[/^(\s*)EFEG_RE\s+ปี\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1EFEG_RE year $2 BE$3")],
+[/^(\s*)EFEG_FF\s+ปี\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1EFEG_FF year $2 BE$3")],
+[/^(\s*)TGO\s+ม\.ค\.\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1TGO Jan $2 BE$3")],
+[/^(\s*)EFEC\s+ปี\s+(-?\d[\d,]*\.?\d*)(\s*)$/,BEW("$1EFEC year $2 BE$3")]
+/* [แก้ไข 25 พ.ย. 2569] #564 แหล่งอ้างอิงในฐาน EF "TGO EF CFO UPDATE ก.พ. 2569 หน้า …" เดิมค้างเป็นไทยในโหมดอังกฤษ (การ์ด Pro MG-EFS-01 เติมไว้ — ย้ายเข้า Free และใช้รูปแบบปี ค.ศ. (B.E.)) */
+,[/^(\s*)TGO EF CFO UPDATE ก\.พ\. (\d+) หน้า ([\d–-]+) · (.+) · สัดส่วน (Biodiesel|Ethanol) (\d+)%(\s*)$/,BEW("$1TGO EF CFO UPDATE Feb $2 BE pp. $3 · $4 · $5 share $6%$7")]
+,[/^(\s*)TGO EF CFO UPDATE ก\.พ\. (\d+) หน้า ([\d–-]+) · ([^\u0E00-\u0E7F]+?)(\s*)$/,BEW("$1TGO EF CFO UPDATE Feb $2 BE pp. $3 · $4$5")]
+,[/^(\s*)TGO EF CFO UPDATE ก\.พ\. (\d+) — (.+) · สัดส่วน Ethanol (\d+)%(\s*)$/,BEW("$1TGO EF CFO UPDATE Feb $2 BE — $3 · Ethanol share $4%$5")]
+,[/^(\s*)TGO EF CFO UPDATE ก\.พ\. (\d+) — ([^\u0E00-\u0E7F]+?)(\s*)$/,BEW("$1TGO EF CFO UPDATE Feb $2 BE — $3$4")]
+/* [แก้ไข 25 พ.ย. 2569] #563 คำเตือน AD ติดลบ */
+,[/^(\s*)▲ AD ติดลบ(\s*)$/,"$1▲ Negative AD$2"]
+,[/^(\s*)ข้อมูลกิจกรรม \(AD\) ต้องไม่ติดลบ — ไม่คำนวณ GHG · ตรวจค่าที่กรอก(\s*)$/,"$1Activity data (AD) must not be negative — GHG not calculated · check the entered value$2"]
 ]);
 </script>
 </body>
