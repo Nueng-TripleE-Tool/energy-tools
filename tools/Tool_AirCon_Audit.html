@@ -621,6 +621,64 @@ canvas{width:100%;display:block;}
 var BTU_PER_KW=TE.ACAUD.BTU_PER_KW,KW_PER_TON=TE.ACAUD.KW_PER_TON,AC_DB=TE.ACAUD.AC_DB,fN=TE.ACAUD.fN,Twb=TE.ACAUD.Twb;
 var __TE_ACAUD=TE.ACAUD.make({GV:GV,GS:GS,SI:SI,SD:SD,G:G});
 var updateACInfo=__TE_ACAUD.updateACInfo,calcNameplate=__TE_ACAUD.calcNameplate,calcCoolingLoad=__TE_ACAUD.calcCoolingLoad,drawPsychroChart=__TE_ACAUD.drawPsychroChart,calcPerf=__TE_ACAUD.calcPerf,drawPerfChart=__TE_ACAUD.drawPerfChart,calcECM=__TE_ACAUD.calcECM;
+/* [แก้ไข 25 พ.ย. 2569] #543–#545 ค1 (WP-40E) — จัดรูปผลที่แสดงหลังสูตร TE.ACAUD (ไลบรารีไม่แตะ · ตัวเลขที่คำนวณไม่เปลี่ยน)
+   #543 ทศนิยมดิบ: ชื่อมาตรการ "ปรับ Thermostat ขึ้น 2.1000000000000014°C" (25 − T_room 22.9) และค่าอื่นที่มีเศษเลขฐานสอง → ตัดเฉพาะเศษเลขฐานสอง
+        (ตัวเลขข้างเคียงเป็นค่าที่กรอกพิมพ์ตามที่กรอก เช่น "22.9→25°C" จึงไม่เติมทศนิยม · ค่าที่ไม่มีเศษแสดงเหมือนเดิม)
+   #544 KPI ซ้ำ: "Cost/RT" = ค่าไฟ/ปี ÷ (RT × เครื่อง) ÷ ชม. และ "Cost/ton-h" = kW × เครื่อง × ชม. × ค่าไฟ ÷ (RT × เครื่อง × ชม.) — สูตรเดียวกัน (= ค่าไฟ × kW ÷ RT)
+        หน่วยคือ บาท ต่อ 1 RT ของขนาดพิกัด ต่อชั่วโมงเดินเครื่อง → คงกล่องเดียว ชื่อ "Cost/RT·h" หน่วย "฿/RT·h" พร้อมนิยาม (ค่าในกล่องคงเดิม)
+   #545 หารด้วยศูนย์: ขนาดพิกัดหรือกำลังไฟฟ้าว่าง/0 → สูตรให้ COP 0 · EER 0 · kW/ton = ∞ และคิดผลประหยัดเท่ากับพลังงานทั้งหมด (EER 0 เทียบเกณฑ์)
+        → แสดง "—" พร้อมบอกว่าขาดค่าใด และไม่แสดงผลประหยัดที่คิดจาก EER 0 · Cost/RT·h เมื่อ RT × เครื่อง × ชม. = 0 → "—" */
+function __acaClean(id,dash){ var el=G(id); if(!el) return; var w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT), n;
+  while((n=w.nextNode())){ if(/\d\.\d*?(?:0{6,}|9{6,})\d/.test(n.nodeValue)) n.nodeValue=n.nodeValue.replace(/-?\d+\.\d*?(?:0{6,}|9{6,})\d+/g,function(m){ return String(+(+m).toPrecision(12)); });
+    if(dash&&/NaN|Infinity|∞/.test(n.nodeValue)) n.nodeValue=n.nodeValue.replace(/[+-]?(?:NaN|Infinity|∞)%?/g,'—'); } } /* dash: ค่าที่คิดไม่ได้ (เช่น COP Deviation เมื่อขนาดพิกัดว่าง 0/0) → "—" — ใช้เฉพาะกล่องผล Performance (แผนภูมิไซโครเมตริกมีป้าย ±∞ ของมาตรวัด SHF ที่ถูกต้อง) */
+/* ชื่อช่องที่ขาด: คัดลอกข้อความป้ายของช่อง (โหนดข้อความแยก ตัวแปลภาษาแปลได้) · รายการย่อยในวงเล็บเหลี่ยม = กรอกช่องใดช่องหนึ่ง */
+function __acaMissFrag(items){ var f=document.createDocumentFragment();
+  items.forEach(function(it,i){ if(i){ var sp=document.createElement('span'); sp.textContent=' · '; f.appendChild(sp); }
+    (Array.isArray(it)?it:[it]).forEach(function(id,j){ if(j){ var o=document.createElement('span'); o.textContent=' หรือ '; f.appendChild(o); }
+      var e=G(id), l=e&&typeof labelOfField==='function'?labelOfField(e):null, bb=document.createElement('b');
+      if(l) l.childNodes.forEach(function(n){ if(n.nodeType===3||(n.nodeType===1&&n.tagName==='SPAN'&&!n.className)) bb.appendChild(n.cloneNode(true)); }); /* ไม่เอาป้ายชนิดค่า (chip) */
+      if(!bb.textContent.trim()) bb.textContent=id; f.appendChild(bb); }); });
+  return f; }
+function __acaSetMiss(el,head,items){ if(!el) return; el.textContent=''; var h=document.createElement('span'); h.textContent=head; el.appendChild(h); el.appendChild(__acaMissFrag(items)); }
+function __acaNA(host,head,items,mark){ var h=G(host); if(!h) return; var o=h.parentNode.querySelector('[data-aca-na="'+mark+'"]'); if(o) o.remove(); if(!head) return;
+  var d=document.createElement('div'); d.className='err-box'; d.setAttribute('data-aca-na',mark); __acaSetMiss(d,head,items); h.parentNode.insertBefore(d,h); }
+var ACA_PW=['actualPowerKW','ratedPowerKW']; /* สูตรใช้กำลังไฟฟ้าวัดจริงถ้า > 0 มิฉะนั้นใช้ค่าพิกัด */
+function __acaTidyPerf(){
+  var p=window._lastPerf; if(!p) return;
+  var okCop=p.capKW>0&&p.pw>0&&isFinite(p.kwton);
+  var miss=[]; if(!(p.capKW>0)) miss.push('ratedCapKW'); if(!(p.pw>0)) miss.push(ACA_PW);
+  var ks=document.querySelectorAll('#PERF_KPIS .kpi');
+  if(!okCop){
+    [0,1,2].forEach(function(i){ var v=ks[i]&&ks[i].querySelector('.kval'); if(v) v.textContent='—'; });
+    document.querySelectorAll('#PERF_TBL tr').forEach(function(tr){ var c=tr.children; if(c.length>1&&/^(COP \(Actual\)|EER \(Actual\)|kW\/ton)$/.test(c[0].textContent.trim())) c[1].textContent='—'; });
+    __acaNA('PERF_KPIS','คิด COP · EER · kW/ton ไม่ได้ (หารด้วยศูนย์) — ขาดค่า: ',miss,'perf');
+  } else __acaNA('PERF_KPIS',null,null,'perf');
+  var ec=G('ENERGY_COST');
+  if(ec){
+    var a=null, b=null;
+    ec.querySelectorAll('.kpi').forEach(function(k){ var l=k.querySelector('.klbl'), t=l?l.textContent.trim():''; if(t==='Cost/RT') a=k; else if(t==='Cost/ton-h') b=k; });
+    if(b) b.remove();
+    if(a){ a.querySelector('.klbl').textContent='Cost/RT·h'; var u=a.querySelector('.kunit'); if(u) u.textContent='฿/RT·h';
+      var s=a.querySelector('.kunit~div'); if(!s){ s=document.createElement('div'); s.style.cssText='font-size:9px;color:var(--text3);margin-top:1px;font-family:var(--mono)'; a.appendChild(s); }
+      var den=p.capRT*p.n*p.opHrs;
+      if(!(den>0)||!isFinite(den)){ a.querySelector('.kval').textContent='—'; var m2=[]; if(!(p.capKW>0)) m2.push('ratedCapKW'); if(!(p.n>0)) m2.push('numUnits'); if(!(p.opHrs>0)) m2.push('opHours'); __acaSetMiss(s,'ขาดค่า: ',m2); }
+      else s.textContent='ค่าไฟ/ปี ÷ (RT พิกัด × จำนวนเครื่อง × ชม./ปี)'; }
+    if(!okCop) ec.querySelectorAll('.ecm').forEach(function(e){ var t=e.querySelector('.ecm-t'); if(t&&/ศักยภาพประหยัดพลังงาน/.test(t.textContent)) __acaSetMiss(e.querySelector('.ecm-b'),'คิดผลประหยัดไม่ได้ — ขาดค่า: ',miss); });
+  }
+  __acaClean('RES_PERF',true);
+}
+function __acaTidyECM(){
+  var pw=GV('actualPowerKW')||GV('ratedPowerKW'), cap=GV('ratedCapKW');
+  if(!(cap>0&&pw>0)){ var miss=[]; if(!(cap>0)) miss.push('ratedCapKW'); if(!(pw>0)) miss.push(ACA_PW);
+    document.querySelectorAll('#RES_ECM .ecm').forEach(function(e){ var t=e.querySelector('.ecm-t'); if(t&&/เปลี่ยนเครื่องประสิทธิภาพสูง/.test(t.textContent)) __acaSetMiss(e.querySelector('.ecm-b'),'คิดผลประหยัดไม่ได้ (EER คิดไม่ได้) — ขาดค่า: ',miss); }); }
+  __acaClean('RES_ECM');
+}
+(function(){ var P=calcPerf, E=calcECM, L=calcCoolingLoad, N=calcNameplate;
+  calcPerf=function(){ var r=P.apply(this,arguments); try{ __acaTidyPerf(); }catch(e){} return r; };
+  calcECM=function(){ var r=E.apply(this,arguments); try{ __acaTidyECM(); }catch(e){} return r; };
+  calcCoolingLoad=function(){ var r=L.apply(this,arguments); try{ __acaClean('RES_LOAD'); }catch(e){} return r; };
+  calcNameplate=function(){ var r=N.apply(this,arguments); try{ __acaClean('RES_NP'); }catch(e){} return r; };
+})();
 
 
 var L_evap  = 2454;    // kJ/kg latent heat @ 24°C
@@ -1262,5 +1320,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>/* [แก้ไข 17 พ.ย. 2569] คำแปล EN ที่ตกหล่น (#89): หัวรายงาน (โครงการ/ผู้ตรวจ/วันที่/ระบบ) · คำอธิบาย ข้อดี ข้อจำกัด ของระบบปรับอากาศ 6 ชนิดที่ไม่ใช่ Chiller ระบายความร้อนด้วยน้ำ (การ์ดข้อมูลระบบ + ป้ายในผัง) · ชื่อ Split Type ในข้อความผล Nameplate/รายงาน ยังเป็นภาษาไทยในโหมด ?lang=en — พบตอนทำคู่มือฉบับภาษาอังกฤษ · เพิ่มคำแปลอย่างเดียว ไม่แตะสูตร/รหัสช่อง */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"เครื่องปรับอากาศขนาดเล็ก ≤ 40,000 Btu/h | FCU ในห้อง + Condensing Unit นอกอาคาร | สารทำความเย็น R-410A, R-32": "Small air conditioners ≤ 40,000 Btu/h | FCU in the room + condensing unit outdoors | refrigerant R-410A, R-32", "ติดตั้งง่าย ราคาถูก ควบคุมแยกห้องได้": "Easy to install, low cost, room-by-room control", "COP ต่ำกว่า Package/Chiller | ทำความสะอาดบ่อย": "Lower COP than package/chiller | needs frequent cleaning", "Supply Air → พื้นที่": "Supply Air → space", "Packaged Air Cooled A/C ≤ 30 RT | ใช้กับอาคารขนาดกลาง | Condenser ระบายความร้อนด้วยอากาศ": "Packaged Air Cooled A/C ≤ 30 RT | for medium-sized buildings | air-cooled condenser", "ติดตั้งง่าย ไม่ต้องใช้น้ำ Cooling Tower": "Easy to install, no cooling-tower water needed", "ประสิทธิภาพต่ำกว่า Water-Cooled ประมาณ 20–30%": "About 20–30% less efficient than water-cooled", "Packaged Water Cooled A/C | ระบายความร้อนด้วยน้ำ | เหมาะกับขนาดใหญ่ ประสิทธิภาพดีกว่า Air-Cooled": "Packaged Water Cooled A/C | water-cooled | suits larger sizes, more efficient than air-cooled", "ประสิทธิภาพสูงกว่า Air-Cooled 20–30%": "20–30% more efficient than air-cooled", "ต้องการ Cooling Tower | บำรุงรักษาระบบน้ำ": "Needs a cooling tower | water-system maintenance", "Air-Cooled Water Chiller ≤ 500 RT | Chilled Water 7°C/12°C | เหมาะกับพื้นที่ไม่มีน้ำเพียงพอ": "Air-Cooled Water Chiller ≤ 500 RT | Chilled Water 7°C/12°C | suits sites without enough water", "ไม่ต้องใช้ Cooling Tower | บำรุงรักษาน้อยกว่า": "No cooling tower needed | less maintenance", "ประสิทธิภาพต่ำกว่า Water-Cooled ~15–20%": "~15–20% less efficient than water-cooled", "1 ODU → หลาย IDU | Inverter": "1 ODU → many IDUs | Inverter", "Variable Refrigerant Flow/Volume | ระบบ Multi-Split | Inverter Compressor | ประหยัดพลังงาน Part-Load ดีมาก": "Variable Refrigerant Flow/Volume | multi-split system | inverter compressor | very good part-load energy saving", "Inverter Control | Part-Load Efficiency ดีเยี่ยม | 1 ODU หลาย IDU": "Inverter control | excellent part-load efficiency | 1 ODU, many IDUs", "ราคาสูง | ซ่อมบำรุงซับซ้อน": "High cost | complex maintenance", "Fan Coil Unit + Air Handling Unit | ระบบกลาง Chilled Water | ควบคุมได้ละเอียด | เหมาะโรงแรม โรงพยาบาล": "Fan Coil Unit + Air Handling Unit | central chilled-water system | fine control | suits hotels, hospitals", "ควบคุมอุณหภูมิ/ความชื้นได้ละเอียด | Central BMS": "Fine temperature/humidity control | central BMS", "ลงทุนสูง | ต้องการ Central Plant": "High investment | needs a central plant", "→ ห้อง": "→ room"},[[/^โครงการ\s*:/m,"Project :"],[/^ผู้ตรวจ\s*:/m,"Auditor :"],[/^วันที่\s*:/m,"Date    :"],[/^ระบบ\s*:/m,"System  :"],[/Split Type — แยกส่วน/g,"Split Type"]]);</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"อ.หนึ่ง กลับทวี": "Aj. Nueng Klubtavee", "อาคารตัวอย่าง — ระบบปรับอากาศ": "Sample building — air-conditioning system"});}</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: สกุลเงินแสดงเป็น THB (เดิม ฿ จากผลมาตรการ/ค่าใช้จ่ายรายปี) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/M฿/g,"M THB"],[/฿(?=\s?[\d(])/g,"THB "],[/฿/g,"THB"]]);</script>
+<script>/* [แก้ไข 25 พ.ย. 2569] #543–#545 (WP-40E) — คู่คำแปล EN ของข้อความใหม่ (ค่าที่คิดไม่ได้ · นิยาม Cost/RT·h) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"คิด COP · EER · kW/ton ไม่ได้ (หารด้วยศูนย์) — ขาดค่า:": "COP · EER · kW/ton cannot be calculated (division by zero) — missing:", "ขาดค่า:": "Missing:", "หรือ": "or", "คิดผลประหยัดไม่ได้ — ขาดค่า:": "Saving cannot be calculated — missing:", "คิดผลประหยัดไม่ได้ (EER คิดไม่ได้) — ขาดค่า:": "Saving cannot be calculated (EER cannot be calculated) — missing:", "ค่าไฟ/ปี ÷ (RT พิกัด × จำนวนเครื่อง × ชม./ปี)": "annual cost ÷ (rated RT × units × h/yr)"});</script>
 </body>
 </html>
