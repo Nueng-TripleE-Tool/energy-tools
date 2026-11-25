@@ -1306,7 +1306,11 @@ function calcCapacity() {
   /* [แก้ไข 25 พ.ย. 2569] #530 แยกเงื่อนไข: Diversity ใช้ Q ODU + IDU · PLR ใช้ค่าท่อ/อุณหภูมิด้วย (เดิมคำนวณได้เสมอเพราะมีค่าแทน) */
   const capBad = !isFinite(diversity);
   let divMsg = capBad?'⚠️ คำนวณไม่ได้ — กรอกพิกัด Outdoor Unit (Q ODU) และ Indoor Unit ให้ครบ':diversity<0.5?'⚠️ Diversity ต่ำเกินไป (Under-designed)':diversity>1.3?'❌ Diversity สูงเกิน 130% — ระบบจะขาด Capacity':'✅ Diversity อยู่ในช่วงปกติ (50–130%)';
-  let plrMsg = !isFinite(plr)?'⚠️ PLR คำนวณไม่ได้ — ตรวจช่องพิกัดเครื่อง':plr>1.1?`❌ PLR = ${fmtN(plr,2)} เกิน 110% — Outdoor Unit ไม่พอ`:`✅ PLR = ${fmtN(plr,2)} — อยู่ในเกณฑ์`;
+  /* [แก้ไข 25 พ.ย. 2569] #700 A1 — เดิม PLR คำนวณไม่ได้ทุกกรณีขึ้น "ตรวจช่องพิกัดเครื่อง" ในกล่องแดง แม้ช่องพิกัด (Q ODU · จำนวน IDU · ขนาด IDU) ครบ และช่องที่ขาดจริงคือความยาวท่อ/ความสูง ODU–IDU/T_outdoor
+     → ช่องพิกัดขาด: ข้อความเดิม · ช่องพิกัดครบแต่ค่าท่อ/อุณหภูมิขาด: บอกชื่อช่องที่ขาดจริง · กล่องเหลือง (ขาดข้อมูล ไม่ใช่ผลเกินเกณฑ์ — ⚠️ คู่กับกล่องเหลืองแบบกล่อง Diversity) · ตัวเลขผลไม่เปลี่ยน */
+  const plrCapMiss = !isFinite(q_out) || !(n>=1) || !isFinite(q_idu_sum);
+  const plrOtherMiss = ['cap_pipe_len','cap_height','cap_tout'].filter(i=>capMiss.indexOf(i)>=0).map(i=>TE_FLD[i][0]);
+  let plrMsg = !isFinite(plr)?(plrCapMiss||!plrOtherMiss.length?'⚠️ PLR คำนวณไม่ได้ — ตรวจช่องพิกัดเครื่อง':'⚠️ PLR คำนวณไม่ได้ — ขาดค่า: '+plrOtherMiss.join(' · ')):plr>1.1?`❌ PLR = ${fmtN(plr,2)} เกิน 110% — Outdoor Unit ไม่พอ`:`✅ PLR = ${fmtN(plr,2)} — อยู่ในเกณฑ์`;
 
   document.getElementById('cap_result_body').innerHTML = `
     <div class="result-grid">
@@ -1318,7 +1322,7 @@ function calcCapacity() {
       <div class="result-item gold"><div class="r-label">ΣQ_IDU</div><div class="r-value gold">${fmtN(q_idu_sum,2)} kW</div><div class="r-unit">${n>=1?n:'—'} เครื่อง</div></div>
     </div>
     <div class="${divOK?'good-box':'warn-box'}">${divMsg}</div>
-    <div class="${plrOK?'good-box':'bad-box'}">${plrMsg}</div>
+    <div class="${plrOK?'good-box':isFinite(plr)?'bad-box':'warn-box'}">${plrMsg}</div>
     ${capMiss.length?`<div class="warn-box">${teMiss(capMiss)}</div>`:''}
     ${teOduNote?`<div class="info-box">ไฟล์งานมีขนาดพิกัด ODU สองค่าไม่ตรงกัน (แท็บ 1 = ${teOduNote[0]} kW · แท็บ 2 = ${teOduNote[1]} kW) — ใช้ค่าแท็บ 1 = ${teOduNote[0]} kW ทั้งสองแท็บ (ค่าที่ใช้คิด COP พิกัดและผลประหยัด)</div>`:''}
     <div class="hint">อ้างอิง: CF_pipe (−0.15 %/m เมื่อท่อเกิน 15 m · −0.3 %/m ของความสูงเมื่อ IDU อยู่สูงกว่า ODU · ต่ำสุด 0.75) · CF_temp (−1.5 %/°C เหนือ 35 °C · ต่ำสุด 0.80) · เกณฑ์ Diversity 0.5–1.3 · PLR ≤ 1.1 = ค่าแนวทางของเครื่องมือ (แบบง่าย — ไม่พบเอกสารต้นทางที่เปิดอ่านได้ · ค่าปรับจริงขึ้นกับรุ่นที่ติดตั้ง)</div>`; /* [แก้ไข 25 พ.ย. 2569] #530 #533 #534 กล่องช่องว่าง/ขนาด ODU/หมายเหตุอ้างอิงอยู่หลังกล่อง Diversity/PLR — กล่องแรกของผลยังเป็นคำตัดสิน Diversity (ภาพการทำงานของการ์ด Pro อ่านสีจากกล่องแรก) */
@@ -2210,6 +2214,18 @@ if(window.TE_I18N)TE_I18N.set({
 [/วัฏจักรสาร \(TE_REFRIG, η=(-?\d[\d,]*\.?\d*) (จาก T_dis|สมมติ)\)/g,function(m,a,b){return 'refrigerant cycle (TE_REFRIG, η='+a+(b==='สมมติ'?' assumed':' from T_dis')+')';}], /* เดิม Free ไม่มีคู่แปลนี้ (การ์ด Pro เติมไว้ใน vrf_en.js) — กรณี T_dis ว่างทำให้พบบ่อยขึ้น */
 [/^(\s*)T₂s = (-?[\d.,]+)°C · T_dis วัด —°C(\s*)$/,"$1T₂s = $2°C · measured T_dis —°C$3"],
 [/💰 กำลังไฟรายปี \(ประมาณ (—|-?[\d.]+) hr\/day × (—|-?[\d.]+) วัน\):/g,"💰 Annual power (approx. $1 hr/day × $2 days):"]
+]);</script>
+<script>/* [แก้ไข 25 พ.ย. 2569] #701 A1 — คู่คำแปล EN ของข้อความ PLR เมื่อขาดค่าท่อ/อุณหภูมิ (ชื่อช่องแปลด้วย TE_FLD ชุดเดียวกับกล่องช่องว่าง)
+   #702 A3 — ย้ายคู่คำแปล EN 6 ข้อความที่การ์ด Pro HV-VRF-01 แปลไว้ใน _build_hv-vrf-01/vrf_en.js (ชุด 21 WP-27F) เข้าเครื่องมือ Free ตามตัวอักษร ให้โหมด EN ของสองฝั่งตรงกัน
+   (เดิม Free โหมด EN ยังแสดงไทย: ✅ สมรรถนะใกล้เคียง Nameplate · ⚠️ Diversity ต่ำเกินไป · SH สูง — … · ❌ T_evap/T_cond อยู่นอกช่วงตาราง … · ❌ T_discharge วัดจริง … ≤ T₂s … · ⚠️ R-… มี Temperature Glide …) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"✅ สมรรถนะใกล้เคียง Nameplate":"✅ Performance close to the nameplate",
+"⚠️ Diversity ต่ำเกินไป (Under-designed)":"⚠️ Diversity too low (under-designed)",
+"SH สูง — สารทำความเย็นอาจน้อย (Undercharge) หรือ EEV ปิดมากเกิน":"High SH — refrigerant may be undercharged or the EEV closed too far",
+"❌ T_evap/T_cond อยู่นอกช่วงตาราง (−50…65 °C) หรือ T_cond ≤ T_evap — ตรวจข้อมูล":"❌ T_evap/T_cond outside the table range (−50…65 °C) or T_cond ≤ T_evap — check the data"
+},[
+[/^(\s*)⚠️ PLR คำนวณไม่ได้ — ขาดค่า: (.+?)(\s*)$/,function(m,a,b,c){var R={};Object.keys(TE_FLD).forEach(function(k){R[TE_FLD[k][0]]=TE_FLD[k][1];});return a+'⚠️ PLR cannot be calculated — missing: '+b.split(' · ').map(function(x){return R[x]||x;}).join(' · ')+c;}],
+[/❌ T_discharge วัดจริง \((-?\d[\d,]*\.?\d*)°C\) ≤ T₂s isentropic \((-?\d[\d,]*\.?\d*)°C\) → η ≥ 100 % เป็นไปไม่ได้ — ตรวจตำแหน่งวัด T_dis \/ ความดัน \/ SH · COP_cycle ใช้ η สมมติ 0\.70/g,"❌ Measured T_discharge ($1°C) ≤ isentropic T₂s ($2°C) → η ≥ 100 % is impossible — check the T_dis measuring point / pressures / SH · COP_cycle uses an assumed η of 0.70"],
+[/⚠️ (R-[0-9A-Za-z]+) มี Temperature Glide (-?\d[\d,]*\.?\d*)°C — ควรวัด T ที่ dew point สำหรับ subcooling/g,"⚠️ $1 has a temperature glide of $2°C — measure T at the dew point for subcooling"]
 ]);</script>
 </body>
 </html>
