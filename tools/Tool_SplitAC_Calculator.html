@@ -113,6 +113,11 @@ header{background:var(--header-grad); /* [ระยะ 4 10 ก.ย. 2569] heade
 @media(max-width:1100px){.grid-4{grid-template-columns:1fr 1fr}}
 @media(max-width:900px){.grid-3{grid-template-columns:1fr 1fr}}
 @media(max-width:640px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+/* [แก้ไข 25 พ.ย. 2569] #722 จอแคบ 390 px หน้ากว้างเกินจอ 608–820 px (C3 · WP-42C): ช่องกริดคอลัมน์ 1fr ขยายตามเนื้อหาที่กว้างที่สุด (ตาราง/แผนภูมิที่เลื่อนในกรอบของตัวเองได้อยู่แล้ว) · หัวหน้าเป็นแถวเดียวไม่ตัดบรรทัด (ป้ายมาตรฐาน · ปุ่ม JSON · ปุ่มคืนค่าตั้งต้น)
+   → ช่องกริดหดได้ (min-width:0) · หัวหน้าตัดบรรทัด · จอแคบหัวหน้าไม่ติดขอบบน (สูงขึ้นเมื่อตัดบรรทัด) แถบแท็บติดขอบบนแทน — จอกว้างเหมือนเดิม */
+@media(max-width:640px){.grid-2>*,.grid-3>*,.grid-4>*{min-width:0}
+  header{flex-wrap:wrap;padding:0 14px;position:static}.hdr-sep{display:none}.hdr-brand{min-width:0}.hdr-brand>div{min-width:0}.hdr-title{font-size:20px}
+  .hdr-badge{margin:0 0 8px}.hdr-right{margin-left:0;padding-bottom:10px}.nav-tabs{top:0}}
 
 /* CARD */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
@@ -493,7 +498,7 @@ ROI = Cost_invest / Annual_save</div>
           </p>
           <div class="btn-group">
             <button class="btn btn-primary" onclick="calcEER()">❄️ คำนวณ EER / COP / SEER</button>
-            <button class="btn btn-secondary" onclick="resetEER()">↺ ล้างค่า</button>
+            <button class="btn btn-secondary" onclick="resetEER()" title="คืนค่าตั้งต้นทุกช่องของแท็บนี้แล้วคำนวณใหม่ — ช่องของแท็บอื่นไม่เปลี่ยน">↺ <span>คืนค่าตั้งต้น</span></button>
           </div>
         </div>
       </div>
@@ -617,7 +622,7 @@ ROI = Cost_invest / Annual_save</div>
           </div>
           <div class="btn-group">
             <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--green),#15803d)" onclick="calcField()">🔬 คำนวณสมรรถนะภาคสนาม</button>
-            <button class="btn btn-secondary" onclick="resetField()">↺ ล้างค่า</button>
+            <button class="btn btn-secondary" onclick="resetField()" title="คืนค่าตั้งต้นทุกช่องของแท็บนี้แล้วคำนวณใหม่ — ช่องของแท็บอื่นไม่เปลี่ยน">↺ <span>คืนค่าตั้งต้น</span></button>
           </div>
         </div>
       </div>
@@ -713,7 +718,7 @@ EER_f  = Q_total×3412 / W_input(W)</div>
           </div>
           <div class="btn-group">
             <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--purple),#5b21b6)" onclick="calcRefrig()">🧊 วิเคราะห์วงจรสาร</button>
-            <button class="btn btn-secondary" onclick="resetRefrig()">↺ ล้างค่า</button>
+            <button class="btn btn-secondary" onclick="resetRefrig()" title="คืนค่าตั้งต้นทุกช่องของแท็บนี้แล้วคำนวณใหม่ — ช่องของแท็บอื่นไม่เปลี่ยน">↺ <span>คืนค่าตั้งต้น</span></button>
           </div>
         </div>
       </div>
@@ -922,7 +927,7 @@ EER_f  = Q_total×3412 / W_input(W)</div>
           </div>
           <div class="btn-group">
             <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--warm),#b34500)" onclick="calcLoad()">🏠 คำนวณ Cooling Load</button>
-            <button class="btn btn-secondary" onclick="resetLoad()">↺ ล้างค่า</button>
+            <button class="btn btn-secondary" onclick="resetLoad()" title="คืนค่าตั้งต้นทุกช่องของแท็บนี้แล้วคำนวณใหม่ — ช่องของแท็บอื่นไม่เปลี่ยน">↺ <span>คืนค่าตั้งต้น</span></button>
           </div>
         </div>
       </div>
@@ -1169,13 +1174,35 @@ document.addEventListener('DOMContentLoaded',function(){ try{renderLabelTable();
 
 
 
-function resetEER(){ document.getElementById('c_btu').value=18000; document.getElementById('c_watt').value=1450; calcEER(); }
+/* [แก้ไข 25 พ.ย. 2569] #720 ปุ่มคืนค่าตั้งต้นรายแท็บ (C1 · WP-42C) — เดิมป้าย "↺ ล้างค่า" แต่แท็บ 1 คืนเฉพาะ c_btu=18000 · c_watt=1450 และแท็บ 2–4 แค่คำนวณซ้ำจากค่าในช่อง
+   → ทุกแท็บทำสิ่งเดียวกันตามป้าย "↺ คืนค่าตั้งต้น" (มติ U5): คืนค่าตั้งต้นของเครื่องมือ (ค่าที่เขียนไว้ใน HTML ชุดเดิม = ค่าที่เห็นตอนเปิดหน้า) ทุกช่องของแท็บนั้น แล้วคำนวณใหม่
+   · ช่องของแท็บอื่นไม่แตะ · ชนิดสารทำความเย็น (c_ref แท็บ 1 ↔ r_ref แท็บ 3 ซิงก์กันเป็นค่าเดียว) ไม่คืน — ถ้าคืนจะเปลี่ยนผลของอีกแท็บทางอ้อม · ไม่แตะสูตร */
+var __SAC_KEEP={c_ref:1,r_ref:1};
+function __sacResetTab(tab){
+  const root=document.getElementById(tab), flip=[]; if(!root) return flip;
+  root.querySelectorAll('input[id],select[id],textarea[id]').forEach(function(e){
+    if(__SAC_KEEP[e.id]||e.type==='file'||e.type==='button') return;
+    if(e.tagName==='SELECT'){ const o=[].find.call(e.options,function(x){return x.defaultSelected;})||e.options[0]; if(o) e.value=o.value; }
+    else if(e.type==='checkbox'||e.type==='radio'){ if(e.checked!==e.defaultChecked){ e.checked=e.defaultChecked; flip.push(e); } }
+    else e.value=e.defaultValue;
+  });
+  return flip;
+}
+var __SAC_TYPE0=null; /* ปุ่มชนิดเครื่องที่เลือกไว้ตอนเปิดหน้า (ค่าตั้งต้น = Inverter) */
+document.addEventListener('DOMContentLoaded',function(){ __SAC_TYPE0=document.querySelector('#ac_type_grid .type-btn.sel'); });
+function resetEER(){
+  __sacResetTab('tab-cop');
+  const bs=document.querySelectorAll('#ac_type_grid .type-btn'), b0=__SAC_TYPE0||bs[0];
+  bs.forEach(function(b){ b.classList.toggle('sel',b===b0); });
+  try{ delete window.TE_acType; }catch(e){ window.TE_acType=undefined; } /* ตอนเปิดหน้ายังไม่ได้ตั้ง → ไฟล์งานบันทึก acType:null เหมือนเปิดหน้าใหม่ */
+  calcEER();
+}
 
 // ════════════════════════════════════════════════
 // TAB 2: FIELD MEASUREMENT (full psychrometric)
 // ════════════════════════════════════════════════
 
-function resetField(){ calcField(); }
+function resetField(){ const f=__sacResetTab('tab-field'); calcField(); f.forEach(function(e){ e.dispatchEvent(new Event('change')); }); } /* #720 ช่องติ๊กของแผนภูมิไซโครเมตริก (psyF_g/psyF_f) คืนแล้ววาดใหม่ */
 
 // ════════════════════════════════════════════════
 // TAB 3: REFRIGERANT (SH/SC/CR)
@@ -1186,7 +1213,7 @@ function resetField(){ calcField(); }
 function psat(k,T,which){ return TE_REFRIG.Psat(k,T,which||'dew'); }
 
 
-function resetRefrig(){ calcRefrig(); }
+function resetRefrig(){ __sacResetTab('tab-refrig'); calcRefrig(); } /* #720 */
 
 // ════════════════════════════════════════════════
 // TAB 4: COOLING LOAD
@@ -1197,7 +1224,7 @@ function resetRefrig(){ calcRefrig(); }
 
 
 
-function resetLoad(){ calcLoad(); }
+function resetLoad(){ __sacResetTab('tab-load'); calcLoad(); } /* #720 */
 
 // ════════════════════════════════════════════════
 // TAB 5: COMPARE & SUMMARY
@@ -1263,7 +1290,7 @@ const TE_HINTS={
   r_tco:'อุณหภูมิอิ่มตัวด้านควบแน่น °C · gauge สูง · ≈ T_outdoor + 10–15 · ทั่วไป 45–52',
   r_tsuc:'อุณหภูมิผิวท่อดูด (ท่อใหญ่) ที่ service valve °C · thermocouple แบบหนีบ · SH ปกติ 5–10 °C',
   r_tliq:'อุณหภูมิผิวท่อน้ำเหลือง (ท่อเล็ก) ก่อน expansion °C · SC ปกติ 3–8 °C',
-  r_tdis:'อุณหภูมิท่อ discharge ออกคอมเพรสเซอร์ (ห่าง 10–15 cm) °C · ปกติ 70–95 · R-32 ไม่ควรเกิน 115',
+  r_tdis:'อุณหภูมิท่อ discharge ออกคอมเพรสเซอร์ (ห่าง 10–15 cm) °C · ปกติเมื่อต่ำกว่าค่าสูงสุดของสารเกิน 15 K (R-32: ต่ำกว่า 100 · ค่าสูงสุด 115)', /* [แก้ไข 25 พ.ย. 2569] #721 เดิม "ปกติ 70–95" ไม่ตรงเกณฑ์ป้ายสถานะ (ปกติ < ค่าสูงสุดของสาร − 15 K) */
   r_plo:'ความดันด้านต่ำ barg จาก manifold gauge (ถ้ามี) · R-32 ≈ 9–11 · R-410A ≈ 8–10 · R-22 ≈ 4.5–6 · ใช้บันทึกอ้างอิง',
   r_phi:'ความดันด้านสูง barg จาก manifold gauge (ถ้ามี) · R-32 ≈ 27–32 · R-410A ≈ 26–30 · R-22 ≈ 16–19',
   l_w:'ความกว้างห้อง m — วัดจากแบบหรือตลับเมตร',
@@ -1437,7 +1464,7 @@ if(window.TE_I18N)TE_I18N.set({
 "แรงดันไฟ V": "Voltage V",
 "รวมทั้งหมด": "Grand total",
 "ห้องประชุม": "Meeting room",
-"↺ ล้างค่า": "↺ Clear",
+"↺ ล้างค่า": "↺ Clear", "อุณหภูมิท่อ discharge ออกคอมเพรสเซอร์ (ห่าง 10–15 cm) °C · ปกติเมื่อต่ำกว่าค่าสูงสุดของสารเกิน 15 K (R-32: ต่ำกว่า 100 · ค่าสูงสุด 115)": "Compressor discharge line temperature (10–15 cm away) °C · normal when more than 15 K below the refrigerant maximum (R-32: below 100 · maximum 115)", "คืนค่าตั้งต้น": "Restore defaults", "คืนค่าตั้งต้นทุกช่องของแท็บนี้แล้วคำนวณใหม่ — ช่องของแท็บอื่นไม่เปลี่ยน": "Restore every field of this tab to its default, then recalculate — fields in other tabs are not changed",
 "ระบบไฟฟ้า": "Power supply",
 "กระแสไฟ I": "Current I",
 "(บาท/kWh)": "(THB/kWh)",
@@ -1656,6 +1683,9 @@ TE_HELP.set({
  ac_cfm:{t:'อัตราลม (CFM หรือ CMH)',w:'vane anemometer กวาดเฉลี่ยทั่วหน้ากากจ่าย × พื้นที่หน้ากาก (m²) — CMH = m/s × m² × 3600',n:'เครื่อง 12,000 BTU ลมราว 400–450 CFM · ลมต่ำกว่าสเปกมาก = กรอง/คอยล์ตัน',f:'ใช้ค่าสเปกลมของรุ่นนั้น × 0.9'},
  ac_sh:{t:'Superheat (K)',w:'T ท่อดูด (โพรบแนบท่อ+ฉนวน) − T อิ่มตัวจากเกจความดันด้านดูด',n:'ระบบ fixed orifice 8–12 · ระบบ TXV/EEV 4–8 · สูงผิดปกติ = สารน้อย · ต่ำมาก = เสี่ยงของเหลวเข้าคอม',f:'วัดไม่ได้ให้ข้ามส่วนวงจรสาร — อย่าเดา'},
  ac_sc:{t:'Subcooling (K)',w:'T อิ่มตัวจากเกจด้านจ่าย − T ท่อน้ำยาเหลว (liquid line)',n:'ปกติ 3–8 · ต่ำ = สารน้อย · สูง = สารเกิน/ท่อตัน',f:'วัดไม่ได้ให้ข้ามส่วนวงจรสาร'},
+ /* [แก้ไข 25 พ.ย. 2569] #721 ⓘ SH/T_dis ของ Split AC ใช้ช่วงเดียวกับป้ายสถานะในแท็บ 3 (TE.SPLITAC stSH/stTD · ไม่เปลี่ยนตัวเลขเกณฑ์) — เดิม ac_sh "fixed orifice 8–12 · TXV/EEV 4–8" · ac_tdis "ปกติ 60–90 · เกิน 100" ไม่ตรงกับเกณฑ์ที่ใช้ตัดสิน (คีย์ ac_sh/ac_tdis เดิมคงไว้) */
+ sac_sh:{t:'Superheat (K)',w:'T ท่อดูด (โพรบแนบท่อ+ฉนวน) − T อิ่มตัวจากเกจความดันด้านดูด',n:'เครื่องมือตัดสิน (ค่าแนวทางของเครื่องมือ ชุดเดียวกับป้ายสถานะ): ปกติ 5–10 · เฝ้าระวัง 3–5 และ 10–15 · ต่ำกว่า 3 หรือสูงกว่า 15 = ผิดปกติ · ถ้ามีค่าเป้าหมายของรุ่นให้ยึดค่านั้น · สูงผิดปกติ = สารน้อย · ต่ำมาก = เสี่ยงของเหลวเข้าคอม',f:'วัดไม่ได้ให้ข้ามส่วนวงจรสาร — อย่าเดา'},
+ sac_tdis:{t:'T_discharge (°C)',w:'โพรบแนบท่อออกคอมเพรสเซอร์ ห่าง ~10 cm',n:'เครื่องมือตัดสินจากค่าสูงสุดของสาร (R-32 115 · R-410A 105 · R-22 105 · R-407C 110 · R-454B 115 °C): ต่ำกว่าค่าสูงสุดเกิน 15 K = ปกติ · ห่างจากค่าสูงสุด 15 K ลงมา = เฝ้าระวัง · ถึงหรือเกินค่าสูงสุด = ผิดปกติ (ค่าแนวทางของเครื่องมือ ชุดเดียวกับป้ายสถานะ) · สูงบ่งความผิดปกติ (สารน้อย/คอนเดนเซอร์สกปรก)',f:'เว้นได้ ใช้เพื่อวินิจฉัยไม่ใช่คิดพลังงาน'},
  ac_tdis:{t:'T_discharge (°C)',w:'โพรบแนบท่อออกคอมเพรสเซอร์ ห่าง ~10 cm',n:'ปกติ 60–90 · เกิน 100 บ่งความผิดปกติ (สารน้อย/คอนเดนเซอร์สกปรก)',f:'เว้นได้ ใช้เพื่อวินิจฉัยไม่ใช่คิดพลังงาน'},
  ac_pgauge:{t:'ความดันเกจ Low/High (barg)',w:'manifold gauge ที่วาล์วบริการ — งานต่อเกจควรทำโดยช่างแอร์',n:'R-32 ที่ 35 °C ข้างนอก: Low ~0.9–1.2 MPa · High ~2.4–3.0 MPa (ดูตารางของสารนั้น)',f:'ใช้อุณหภูมิท่อแทน (วัดภายนอกได้ ไม่ต้องต่อเกจ)'},
  ac_pipe:{t:'ความยาวท่อ/ความต่างระดับ ODU–IDU',w:'วัดตามแนวท่อจริง + ระยะสูงต่างระหว่างเครื่องนอก-ใน',n:'VRF ท่อยาว/ต่างระดับมากทำ capacity ตก — เกิน 90 m equivalent ต้องดูตาราง derate ของผู้ผลิต',f:'ประมาณจากแปลน + บวกข้อศอกละ 0.5 m'},
@@ -1668,7 +1698,7 @@ TE_HELP.auto({c_btu:'ac_plate',c_watt:'ac_plate',c_eer_plate:'ac_plate',c_age:'a
  f_v:'ac_vi',f_i:'ac_vi',f_pf:'ac_vi',f_watt:'ac_watt',f_tariff:'priceE',
  f_radb:'ac_dbwb',f_rawb:'ac_dbwb',f_sadb:'ac_dbwb',f_sawb:'ac_dbwb',
  f_cfm:'ac_cfm',f_cmh:'ac_cfm',f_patm:'patm',
- r_tsuc:'ac_sh',r_tliq:'ac_sc',r_tdis:'ac_tdis',r_plo:'ac_pgauge',r_phi:'ac_pgauge',
+ r_tsuc:'sac_sh',r_tliq:'ac_sc',r_tdis:'sac_tdis',r_plo:'ac_pgauge',r_phi:'ac_pgauge', /* #721 */
  l_w:'ac_load',l_glass:'ac_load',l_occ:'ac_load',l_light:'ac_load',l_equip:'ac_load',l_vent:'ac_load'});
 /* VRV/VRF */
 TE_HELP.auto({c_qrated:'ac_plate',c_wrated:'ac_plate',c_iplv_plate:'ac_iplv',
@@ -1677,6 +1707,10 @@ TE_HELP.auto({c_qrated:'ac_plate',c_wrated:'ac_plate',c_iplv_plate:'ac_iplv',
  f_volt:'ac_vi',f_curr:'ac_vi',f_wdirect:'ac_watt',f_hrs_day:'hrs',
  f_tra_db:'ac_dbwb',f_tra_wb:'ac_dbwb',f_tsa_db:'ac_dbwb',f_tsa_wb:'ac_dbwb',
  r_sh:'ac_sh',r_sc:'ac_sc',r_tdis:'ac_tdis',r_psuct:'ac_pgauge',r_pdisch:'ac_pgauge'});
+/* [แก้ไข 25 พ.ย. 2569] #721 คำแปล EN ของ ⓘ sac_sh/sac_tdis (te-scene อ่าน TE_HELP_EN_CARD ก่อนพจนานุกรมกลาง) */
+window.TE_HELP_EN_CARD=Object.assign(window.TE_HELP_EN_CARD||{},{
+ sac_sh:{t:'Superheat (K)',w:'Suction-line temperature (strap-on probe + insulation) − saturation temperature from the suction gauge',n:'Tool verdict (tool guideline values, the same set as the status labels): normal 5–10 · watch 3–5 and 10–15 · below 3 or above 15 = abnormal · if the model’s target value is known, use it · abnormally high = low charge · very low = liquid floodback risk',f:'If it cannot be measured skip the refrigerant-circuit section — do not guess'},
+ sac_tdis:{t:'T_discharge (°C)',w:'Strap-on probe on the compressor discharge pipe ~10 cm out',n:'Judged against the refrigerant maximum (R-32 115 · R-410A 105 · R-22 105 · R-407C 110 · R-454B 115 °C): more than 15 K below the maximum = normal · within 15 K of the maximum = watch · at or above the maximum = abnormal (tool guideline values, the same set as the status labels) · high values indicate a fault (low charge / dirty condenser)',f:'May be left blank — used for diagnosis, not the energy calculation'}});
 })();
 
 </script>
@@ -1770,7 +1804,7 @@ if(window.TE_I18N)TE_I18N.set({
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-02 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ยังเทียบไม่ได้": "Not yet comparable", "กรอก SEER ที่ฉลาก": "Enter the label SEER"},[[/น้ำหนักที่เครื่องมือใช้ประมาณ:/g,"Weights used by the tool estimate:"],[/ไม่ใช่ SEER ตาม มอก\. 2714 เล่ม 1 และไม่ใช้ตัดสินระดับฉลากเบอร์ 5/g,"not the SEER of TIS 2714 Part 1 and not used to judge the Label No.5 level"],[/ยังเทียบระดับฉลากไม่ได้ \((.+?)\) — กรอก "SEER ที่ฉลาก" · ค่า SEER \(Thai Est\.\) เป็นค่าประมาณของเครื่องมือ ไม่ใช่ SEER ตาม มอก\. 2714 เล่ม 1-2558 จึงไม่ใช้ตัดสินระดับฉลาก/g,"Label level cannot be assessed yet ($1) — enter the “label SEER” · SEER (Thai Est.) is the tool’s own estimate, not the SEER of TIS 2714 Part 1-2558, so it is not used to judge the label level"],[/น้ำหนัก 0\.15\/0\.40\/0\.30\/0\.15 เป็นค่าประมาณของเครื่องมือ ไม่ใช่วิธีของ มอก\. 2714 หรือ ASHRAE 116 — ใช้เป็นข้อมูลประกอบ ไม่ใช้ตัดสินระดับฉลาก/g,"The 0.15/0.40/0.30/0.15 weights are the tool’s own estimate, not the method of TIS 2714 or ASHRAE 116 — for information only, not used to judge the label level"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-02 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/ยังเทียบระดับฉลากไม่ได้ — กรอก SEER ที่ฉลากในแท็บ 1 \(ค่า SEER ที่เครื่องมือประมาณไม่ใช้ตัดสินระดับฉลาก\)/g,"Label level cannot be assessed yet — enter the label SEER in tab 1 (the tool’s SEER estimate is not used to judge the label level)"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-02 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/ยังเทียบไม่ได้/g,"not yet comparable"]]);</script>
-<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ ทะเบียนเกณฑ์ — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/\(ช่วง 0\.9–1\.3 เป็นค่าแนวทางของเครื่องมือ\)/g,"(the 0.9–1.3 range is a tool guide value)"]]);</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ ทะเบียนเกณฑ์ — คู่คำแปล EN · [แก้ไข 25 พ.ย. 2569] #725 "tool guide value" → "tool guideline value(s)" (คำเดียวทั้งเครื่องมือ) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/\(ช่วง 0\.9–1\.3 เป็นค่าแนวทางของเครื่องมือ\)/g,"(the 0.9–1.3 range is a tool guideline value)"]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-18 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/ขนาด AC:/g,"AC size:"],[/✅ ขนาดเหมาะสม/g,"✅ properly sized"],[/⚠️ Over-sized — พิจารณาลดขนาด/g,"⚠️ Over-sized — consider a smaller unit"],[/❌ Under-sized — ระบบทำงานหนักเกิน/g,"❌ Under-sized — the unit is overworked"]]);</script>
 <script>/* [แก้ไข 17 พ.ย. 2569] คำแปล EN ที่ตกหล่น (#88): แท็บ Compare (สรุปการเสื่อม COP · วงจรสาร · ต้นทุน/ประหยัดได้ · คำแนะนำ) ป้ายสถานะ Field/Refrigerant และข้อความตรวจวินิจฉัย/ขั้นตอนคำนวณ ยังเป็นภาษาไทยในโหมด ?lang=en — พบตอนทำคู่มือฉบับภาษาอังกฤษ (แบบฝึก + what-if) · เพิ่มคำแปลอย่างเดียว ไม่แตะสูตร/รหัสช่อง */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"❌ ลดมาก — ต้องบำรุงรักษา": "❌ Large drop — maintenance needed", "⚠️ ลดพอสมควร — แนะนำ Maintenance": "⚠️ Moderate drop — maintenance recommended", "⚠️ ประหยัดได้": "⚠️ Possible saving", "ถ้าปรับ COP กลับมาเท่า Nameplate": "if COP is brought back to the nameplate value", "คำนวณ Tab 2 (Field) เพื่อดูการวิเคราะห์ต้นทุน": "Calculate Tab 2 (Field) to see the cost analysis", "ค่าไฟ Nameplate (est.)": "Electricity cost at nameplate (est.)", "SH ต่ำมาก — เสี่ยง Liquid Back": "SH very low — risk of liquid back", "ตรวจสอบ Expansion Valve (EEV) และปริมาณน้ำยา — อาจมีน้ำยาเกิน": "Check the expansion valve (EEV) and the refrigerant charge — may be overcharged", "SH สูง — น้ำยาน้อย": "SH high — refrigerant low", "ตรวจสอบการรั่วของน้ำยา / เติมน้ำยา / ปรับ EEV": "Check for refrigerant leaks / top up refrigerant / adjust the EEV", "SC น้อย — Flash Gas ในท่อน้ำเหลือง": "SC low — flash gas in the liquid line", "ตรวจสอบ Filter Drier และปริมาณน้ำยา": "Check the filter drier and the refrigerant charge", "Compression Ratio สูง": "High compression ratio", "ทำความสะอาด Condenser Coil / ตรวจสอบ Fan Motor และ Airflow ของ ODU": "Clean the condenser coil / check the ODU fan motor and airflow", "T_discharge เกินค่าสูงสุด": "T_discharge above maximum", "COP ต่ำมาก (< 2.5)": "COP very low (< 2.5)", "ล้างทำความสะอาด Coil ทั้ง Evap และ Condenser, ตรวจน้ำยา, ตรวจ Fan": "Clean both evaporator and condenser coils, check refrigerant, check fans", "แนะนำ Preventive Maintenance: ล้าง Filter, ล้าง Evap Coil, ตรวจน้ำยา": "Preventive maintenance recommended: clean filters, clean the evaporator coil, check refrigerant", "เครื่องใหญ่เกินไป (Over-sized)": "Unit too large (over-sized)", "ลอง Short Cycle ทำให้ Humidity control ไม่ดี — พิจารณาเปลี่ยนขนาดหรือใช้ Inverter": "Short cycling gives poor humidity control — consider resizing or an inverter unit", "เครื่องเล็กเกินไป (Under-sized)": "Unit too small (under-sized)", "ระบบทำงานหนัก 100% ตลอด — อายุสั้น, ห้องไม่เย็น — เพิ่มขนาด AC": "Runs at 100% all the time — short life, room not cool — increase the AC size", "(จาก gauge)": "(from gauge)", "· CR ใช้ความดันสัมบูรณ์ (abs)": "· CR uses absolute pressure (abs)", "✅ ΔT ปกติ": "✅ ΔT normal", "❌ T_evap/T_cond อยู่นอกช่วงตาราง (−50…65 °C) หรือ T_cond ≤ T_evap — ตรวจข้อมูล": "❌ T_evap/T_cond outside the table range (−50…65 °C) or T_cond ≤ T_evap — check the data", "SC < 2°C: มี Flash Gas; SC > 12°C: Overcharge / Condenser fouled": "SC < 2°C: flash gas; SC > 12°C: overcharge / condenser fouled", "SH < 3°C: Liquid Back; SH > 15°C: Undercharge / EEV ปิดเกิน": "SH < 3°C: liquid back; SH > 15°C: undercharge / EEV closed too far", "T_dis สูง: น้ำยาน้อย / Condenser fouled / CR สูง": "High T_dis: refrigerant low / condenser fouled / high CR", "W = ค่าจาก Wattmeter": "W = wattmeter reading", "คำนวณจาก V, I, PF": "calculated from V, I, PF", "อากาศนอกร้อนกว่าพิกัด COP_field จะต่ำกว่า nameplate ส่วนหนึ่งตามสภาพอากาศ ไม่ใช่การเสื่อมทั้งหมด": "Outdoor air hotter than the rating condition: COP_field reads below nameplate partly because of the weather — not all of it is degradation", "อากาศนอกเย็นกว่าพิกัด COP_field อาจสูงกว่าค่าพิกัด": "Outdoor air cooler than the rating condition: COP_field may read above the rated value", "เปรียบเทียบกับ Nameplate ใน Tab 5": "Compare with the nameplate in Tab 5", "ใกล้เงื่อนไขพิกัด เทียบกับ nameplate ได้ตรง": "Close to the rating condition — directly comparable with the nameplate", "ใช้ค่า Wattmeter โดยตรง": "Wattmeter value used directly", "⚠️ SC > 12°C — น้ำยาอาจมากเกิน (Overcharge) หรือ Condenser ระบายไม่ดี": "⚠️ SC > 12°C — possibly overcharged, or the condenser is not rejecting heat well", "⚠️ SH > 15°C — น้ำยาอาจน้อย (Undercharge) หรือ EEV ปิดมาก — Q_cool ลดลง": "⚠️ SH > 15°C — possibly undercharged, or the EEV is closed too far — Q_cool reduced", "⚠️ ΔT น้อย — Airflow มากเกิน หรือ Coil สกปรก": "⚠️ ΔT low — too much airflow, or a dirty coil", "⚠️ ΔT มาก — Airflow น้อย": "⚠️ ΔT high — airflow low", "⚠️ ตรวจสอบ": "⚠️ Check", "⚠️ น้อย": "⚠️ Low", "⚠️ สูง": "⚠️ High", "❌ CR > 5 — Compression Ratio สูงมาก — ตรวจ Condenser fouling หรือ T_outdoor สูง": "❌ CR > 5 — compression ratio very high — check condenser fouling or a high T_outdoor", "❌ SC < 1°C — มี Flash Gas ในท่อน้ำเหลือง — ตรวจน้ำยา / Filter Drier": "❌ SC < 1°C — flash gas in the liquid line — check refrigerant / filter drier", "❌ SH < 3°C — เสี่ยง Liquid Back กลับ Compressor — ตรวจ EEV/Expansion valve": "❌ SH < 3°C — risk of liquid back to the compressor — check the EEV/expansion valve", "❌ ต่ำ": "❌ Low", "❌ สูง": "❌ High", "❌ สูงมาก": "❌ Very high", "❌ เกิน Max": "❌ Above max"},[[/^(\s*)(-?\d[\d,]*) บาท\/ปี(\s*)$/,"$1$2 THB/yr$3"],[/^(\s*)บาท\/ปี \((\d[\d,.]*) hr\)(\s*)$/,"$1THB/yr ($2 h)$3"],[/^(\s*)วงจรสาร: SH=/,"$1Refrigerant circuit: SH="],[/^(\s*)หยุดใช้งานทันที — T_dis=(-?[\d.]+)°C เกิน Max \((-?[\d.]+)°C\)(\s*)$/,"$1Stop the unit now — T_dis=$2°C above max ($3°C)$4"],[/^(\s*)COP ตก (-?[\d,.]+)% จาก Rated(\s*)$/,"$1COP down $2% from rated$3"],[/^(\s*)⚠️ (\S+) มี Temperature Glide (-?[\d.]+)°C — ควรอ่าน Pressure ที่ dew point(\s*)$/,"$1⚠️ $2 has a temperature glide of $3°C — read the pressure at the dew point$4"],[/^(\s*)⚠️ T_sat จาก gauge \(([^)]*)\) ต่างจากค่าที่กรอก \(([^)]*)\) เกิน 2 K — ใช้ค่าจาก gauge ในการคำนวณ SH\/SC\/CR(\s*)$/,"$1⚠️ T_sat from the gauge ($2) differs from the entered values ($3) by more than 2 K — gauge values used for SH/SC/CR$4"],[/^(\s*)W = (-?\d[\d,.]*) \(วัดตรง\)(\s*)$/,"$1W = $2 (measured directly)$3"],[/^(\s*)ทิศ (\S+): SHGF=/,"$1Orientation $2: SHGF="],[/^(\s*)⚠️ Cooling Load ใกล้ขีดจำกัด — แนะนำขนาด (\S+) BTU(\s*)$/,"$1⚠️ Cooling load near the limit — recommended size $2 BTU$3"],[/^(\s*)⚠️ ขนาด (\S+) BTU อาจใหญ่เกินไป \(Over-sized (-?[\d,.]+)%\) — ลองขนาด (\S+) BTU(\s*)$/,"$1⚠️ A $2 BTU unit may be too large (over-sized $3%) — try $4 BTU$5"],[/^(\s*)❌ T_discharge=(-?[\d.]+)°C เกิน Max \((-?[\d.]+)°C\) — อันตราย หยุดใช้งานและตรวจสอบ(\s*)$/,"$1❌ T_discharge=$2°C above max ($3°C) — dangerous, stop the unit and inspect it$4"]]);</script>
 <script>/* [แก้ไข 25 พ.ย. 2569] #540–#542 (WP-40E) — คู่คำแปล EN ของข้อความใหม่: แจ้งช่องที่ต้องกรอก · ค่าที่คิดไม่ได้ · ค่าไฟประมาณการ · เกณฑ์ที่ใช้ในแท็บ (ค่าแนวทางของเครื่องมือ) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"เกณฑ์ที่ใช้ในแท็บนี้: EER ที่คำนวณต่างจาก EER ที่ป้ายเกิน 5 % → ให้ตรวจข้อมูล Nameplate · อายุเครื่องเกิน 10 ปี → เตือน — เป็นค่าแนวทางของเครื่องมือ (ไม่มีเอกสารต้นทาง) · ระดับฉลากเบอร์ 5 ตัดสินตามตารางเกณฑ์ด้านบน": "Criteria used in this tab: calculated EER differing from the nameplate EER by more than 5 % → check the nameplate data · unit age over 10 years → warning — tool guideline values (no source document) · the Label No.5 level is judged by the criteria table above", "เกณฑ์ที่ใช้ในแท็บนี้: COP_field ≥ 2.8 · SHR 0.65–0.92 · ΔT ลมกลับ − ลมจ่าย 8–16 °C · T_outdoor 34–36 °C ถือว่าใกล้เงื่อนไขพิกัด 35 °C — เป็นค่าแนวทางของเครื่องมือ (ไม่มีเอกสารต้นทาง) ใช้คัดกรองเบื้องต้น ไม่ใช่เกณฑ์ผ่าน/ไม่ผ่านตามมาตรฐาน": "Criteria used in this tab: COP_field ≥ 2.8 · SHR 0.65–0.92 · ΔT return − supply air 8–16 °C · T_outdoor 34–36 °C counts as close to the 35 °C rating condition — tool guideline values (no source document) for initial screening, not pass/fail criteria of a standard", "เกณฑ์ที่ใช้ในแท็บนี้: SH ปกติ 5–10 K (เฝ้าระวัง 3–5 และ 10–15) · SC ปกติ 3–8 K (เฝ้าระวัง 1–3 และ 8–12) · CR ≤ 4 ปกติ (≤ 5 เฝ้าระวัง) · T_discharge สูงสุดตามชนิดสาร R-32 115 · R-410A 105 · R-22 105 · R-407C 110 · R-454B 115 °C (เฝ้าระวังเมื่อห่างจากค่าสูงสุดไม่ถึง 15 K) — เป็นค่าแนวทางของเครื่องมือ · วิธีตรวจปริมาณสารทำความเย็นภาคสนามที่เปิดอ่านได้ (California Title 24 Reference Appendices RA3.2 ตาราง RA3.2-1) เทียบ SH/SC กับค่าเป้าหมายของผู้ผลิตแต่ละรุ่น ± ช่วงยอมรับ ไม่ใช่ช่วงตายตัว — ถ้ามีค่าเป้าหมายของรุ่นให้ยึดค่านั้น": "Criteria used in this tab: SH normal 5–10 K (watch 3–5 and 10–15) · SC normal 3–8 K (watch 1–3 and 8–12) · CR ≤ 4 normal (≤ 5 watch) · maximum T_discharge by refrigerant R-32 115 · R-410A 105 · R-22 105 · R-407C 110 · R-454B 115 °C (watch when within 15 K of the maximum) — tool guideline values · the public field method for refrigerant charge (California Title 24 Reference Appendices RA3.2, Table RA3.2-1) compares SH/SC with the target value of each model ± a tolerance, not a fixed range — if the model target is known, use it", "ค่าในแบบจำลองภาระความเย็นอย่างง่ายของแท็บนี้: CLTD ผนัง = ΔT + 2 K · หลังคา = ΔT + 4 K · U หลังคา 1.0 W/m²K · SHGF ทิศ W/E 235 · S 120 · N 70 W/m² · CLF กระจก 0.78 · ความร้อนจากคน 60 % สัมผัส / 40 % แฝง · CLF แสงสว่าง 0.9 · อุปกรณ์ 80 % · ρ อากาศนอก 1.17 kg/m³ · Δω อากาศใหม่ 0.012 kg/kg · ขนาดแนะนำ: ใช้งานต่ำกว่า 70 % = ใหญ่เกิน · เกิน 95 % = ใกล้ขีดจำกัด — เป็นค่าแนวทางของเครื่องมือ (ไม่ได้ยกจากตารางของมาตรฐาน) ใช้ประมาณการเบื้องต้น งานออกแบบให้คำนวณตามวิธีของมาตรฐาน": "Values in this tab’s simplified cooling-load model: wall CLTD = ΔT + 2 K · roof = ΔT + 4 K · roof U 1.0 W/m²K · SHGF W/E 235 · S 120 · N 70 W/m² · glass CLF 0.78 · occupant heat 60 % sensible / 40 % latent · lighting CLF 0.9 · equipment 80 % · outdoor air ρ 1.17 kg/m³ · fresh-air Δω 0.012 kg/kg · recommended size: utilisation below 70 % = oversized · above 95 % = near the limit — tool guideline values (not taken from a standard’s tables) for preliminary estimates; for design, calculate by the method of the standard", "เกณฑ์ที่ใช้ในแท็บนี้: COP ลดจากพิกัด ≤ 10 % ดี · 10–20 % แนะนำบำรุงรักษา · เกิน 20 % ลดมาก · ข้อเสนอแนะเมื่อ COP ตกเกิน 15 % · COP_field ต่ำกว่า 2.5 · SC ต่ำกว่า 2 K · ขนาดเครื่อง ÷ ภาระ เกิน 1.4 (ใหญ่เกิน) หรือต่ำกว่า 0.85 (เล็กเกิน) · รอบบำรุงรักษาทั่วไป — เป็นค่าแนวทางของเครื่องมือ (ไม่มีเอกสารต้นทาง)": "Criteria used in this tab: COP drop from rated ≤ 10 % good · 10–20 % maintenance recommended · above 20 % large drop · recommendations when COP drops more than 15 % · COP_field below 2.5 · SC below 2 K · unit size ÷ load above 1.4 (oversized) or below 0.85 (undersized) · general maintenance intervals — tool guideline values (no source document)", "⚠️ ยังคำนวณส่วนนี้ไม่ได้ — ข้อมูลไม่ครบหรือไม่ถูกต้อง (เครื่องมือไม่ใช้ค่าตั้งต้นแทนให้):": "⚠️ This part cannot be calculated yet — data missing or invalid (the tool does not substitute default values):", "ยังไม่ได้กรอก": "not entered", "ต้องมากกว่า 0": "must be greater than 0", "ต้องมากกว่า 0 หรือเว้นว่าง": "must be greater than 0, or leave blank", "ยังไม่ได้กรอก (ใช้คิดกำลังไฟฟ้าเมื่อไม่ได้กรอก W_input วัดตรง)": "not entered (used for the power input when the measured W_input is blank)", "ต้องมากกว่า 0 (ใช้คิดกำลังไฟฟ้าเมื่อไม่ได้กรอก W_input วัดตรง)": "must be greater than 0 (used for the power input when the measured W_input is blank)", "ยังไม่ได้กรอก (กรอก CFM หรือ m³/hr อย่างน้อยหนึ่งช่อง)": "not entered (enter CFM or m³/hr — at least one of the two)", "Q_total ≤ 0 — เอนทาลปีลมจ่าย (SA) ไม่ต่ำกว่าลมกลับ (RA) จึงคิด COP_field · EER_field · SHR ไม่ได้ — ตรวจค่า DB/WB ของลมกลับและลมจ่าย": "Q_total ≤ 0 — the supply-air (SA) enthalpy is not below the return air (RA), so COP_field · EER_field · SHR cannot be calculated — check the DB/WB of the return and supply air", "ภาระความเย็นรวม ≤ 0 จึงคิดขนาดเครื่องและสัดส่วนไม่ได้ — ตรวจอุณหภูมิภายนอก/ภายในและข้อมูลห้อง": "Total cooling load ≤ 0, so unit size and ratio cannot be calculated — check the outdoor/indoor temperatures and the room data", "กรอกค่าไฟฟ้า (แท็บ 2)": "Enter the electricity tariff (tab 2)", "— = คิดค่าไม่ได้จากข้อมูลที่กรอก (ค่าอยู่นอกช่วงของสูตร/ตาราง หรือหารด้วยศูนย์) — ตรวจข้อมูลที่กรอก": "— = cannot be calculated from the data entered (value outside the range of the formula/table, or division by zero) — check the data entered"},[[/^(\s*)\(แท็บ (\d)\)(\s*)$/,"$1(tab $2)$3"],[/^(\s*)บาท\/ปี \((\d[\d,.]*) hr · (-?[\d.]+) บาท\/kWh\)(\s*)$/,"$1THB/yr ($2 h · $3 THB/kWh)$4"]]);</script>
