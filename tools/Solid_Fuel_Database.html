@@ -181,7 +181,9 @@ a{color:var(--teal)}
         &nbsp;&nbsp;<span style="font-size:11px">เกณฑ์ข้างต้นเป็นแบบระมัดระวัง (อิงช่วงถ่านหินที่ B/A 0.4–0.7 ให้จุดหลอมเถ้าต่ำสุด) · งานวิจัยชีวมวลมักใช้ &lt;0.5 ต่ำ · 0.5–1.0 ปานกลาง · &gt;1.0 สูง (เช่น Pronobis 2005; Vassilev et al. 2014) — ใช้ร่วมกับ AI และ AFT</span><br><br>
         <b>Alkali Index</b> = ASH% × (K₂O+Na₂O)% ÷ (10 × HHV)&nbsp;[kg/GJ]<br>
         &nbsp;&nbsp;&lt;0.17 ต่ำ · 0.17–0.34 น่าจะ foul · &gt;0.34 foul แน่ (Miles et al.)<br><br>
-        <b>Silica ratio</b> = SiO₂ ÷ (SiO₂+Fe₂O₃+CaO+MgO) × 100
+        <b>Silica ratio</b> = SiO₂ ÷ (SiO₂+Fe₂O₃+CaO+MgO) × 100<br><br>
+        <!-- [แก้ไข 25 พ.ย. 2569] #590 ข9: เงื่อนไขการคิดดัชนีเมื่อออกไซด์ไม่ครบ (เหตุผลทางวิศวกรรม: ค่าว่างแทนด้วยศูนย์ทำให้ตัวเศษ/ตัวส่วนผิด เช่น ขาด SiO₂ → B/A สูงเกินจริง · ขาดออกไซด์ด่าง → B/A ต่ำเกินจริง) -->
+        <span style="font-size:11px">ดัชนีคิดเฉพาะเมื่อฐานข้อมูลรายงานออกไซด์ในสูตรครบทุกตัว — ขาดตัวใด แสดง "ออกไซด์ไม่ครบ" แทนตัวเลขและคำตัดสิน เพราะการนับค่าว่างเป็นศูนย์ทำให้ดัชนีเพี้ยน (เช่น ขาด SiO₂ ทำให้ B/A สูงเกินจริง)</span>
       </div>
     </div>
     <div class="pane">
@@ -190,6 +192,8 @@ a{color:var(--teal)}
         • ช่องว่าง = ฐานข้อมูลไม่รายงาน ไม่ใช่ศูนย์<br>
         • เชื้อเพลิงชื่อเดียวกันจากคนละแหล่งต่างกันได้มาก ให้ดูช่วง min–max<br>
         • บางรายการมี C/H/O = 0 ตามที่ต้นทางบันทึก ควรตรวจหน้าต้นทางก่อนใช้<br>
+        <!-- [แก้ไข 25 พ.ย. 2569] #591 ง1: ชื่อที่แสดงของ 65 รายการตัดชื่อยี่ห้อ/บริษัท/โรงงาน/เหมืองออก (รายการชื่อเดิมอยู่ในชุดสร้างการ์ด Pro ไม่ขึ้นเว็บ) · เลข ID = เลขรายการของฐานข้อมูลต้นทาง -->
+        • ชื่อบางรายการตัดชื่อยี่ห้อ บริษัท โรงงาน หรือเหมืองออก เหลือชื่อสามัญของเชื้อเพลิง — เลข ID คือเลขรายการของฐานข้อมูลต้นทาง ใช้ลิงก์ "เปิดหน้าต้นทาง" เพื่อสืบกลับ<br>
         • ใช้เป็นค่าอ้างอิงเบื้องต้น งานออกแบบจริงควรใช้ผลวิเคราะห์เชื้อเพลิงของไซต์
       </div>
     </div>
@@ -361,11 +365,19 @@ function detail(r){
   const oxSum=OX.reduce((s,k)=>s+(r[k]||0),0);
   const base=(r.Fe2O3||0)+(r.CaO||0)+(r.MgO||0)+(r.K2O||0)+(r.Na2O||0);
   const acid=(r.SiO2||0)+(r.Al2O3||0)+(r.TiO2||0);
-  const ba=acid>0?base/acid:null;
-  const ai=(ash!==null&&r.HHV&&(r.K2O!==null||r.Na2O!==null))? ash*((r.K2O||0)+(r.Na2O||0))/10/r.HHV : null;
+  /* [แก้ไข 25 พ.ย. 2569] #590 ข9: ออกไซด์ที่สูตรใช้ แต่ฐานข้อมูลไม่รายงาน (ค่าว่าง) เดิมถูกนับเป็น 0 → ดัชนีเพี้ยน
+     (เช่น #92 ขาด SiO₂/TiO₂ → B/A 78.41 · #1282 ขาดออกไซด์ด่างทั้งหมด → B/A 0.00 "เสี่ยงต่ำ") — หลัก "ช่องว่าง ≠ ศูนย์":
+     ขาดตัวใดตัวหนึ่ง → ไม่คิดดัชนีนั้น แสดงป้าย "ออกไซด์ไม่ครบ" + บอกออกไซด์ที่ขาด · รายการที่ออกไซด์ครบ ผลเท่าเดิมทุกตัว · ไม่แก้ค่าในฐานข้อมูล */
+  const lack=ks=>ks.filter(k=>r[k]===null);
+  const mBA=lack(['Fe2O3','CaO','MgO','K2O','Na2O','SiO2','Al2O3','TiO2']), mAI=lack(['K2O','Na2O']), mSR=lack(['SiO2','Fe2O3','CaO','MgO']);
+  const ba=(!mBA.length&&acid>0)?base/acid:null;
+  const ai=(!mAI.length&&ash!==null&&r.HHV)? ash*(r.K2O+r.Na2O)/10/r.HHV : null;
   const srDen=(r.SiO2||0)+(r.Fe2O3||0)+(r.CaO||0)+(r.MgO||0);
-  const sr=srDen>0&&r.SiO2!==null? r.SiO2/srDen*100 : null;
+  const sr=(!mSR.length&&srDen>0)? r.SiO2/srDen*100 : null;
   const rb=riskBA(ba), ra=riskAI(ai);
+  const OXN={SiO2:'SiO₂',Al2O3:'Al₂O₃',TiO2:'TiO₂',Fe2O3:'Fe₂O₃',CaO:'CaO',MgO:'MgO',Na2O:'Na₂O',K2O:'K₂O'};
+  const MISS='<span class="risk r-na" data-ox="miss">ออกไซด์ไม่ครบ — ดัชนีนี้ใช้ตัดสินไม่ได้</span>';
+  const missList=[['B/A',mBA],['Alkali Index',mAI],['Silica ratio',mSR]].filter(x=>x[1].length).map(x=>x[0]+' — '+x[1].map(k=>OXN[k]).join(', ')).join(' · ');
   let panes='';
   panes+=`<div class="pane"><h3>ข้อมูลทั่วไป</h3>
     <div class="kv"><span>หมวดหลัก</span><span style="font-family:inherit">${r.g1}</span></div>
@@ -398,10 +410,11 @@ function detail(r){
       ${OX.map(k=>kv(k,r[k],'%')).join('')}
       <div class="note" style="margin-top:6px">ผลรวมที่รายงาน ${fmt(oxSum,1)}%</div></div>`;
     panes+=`<div class="pane"><h3>ดัชนีความเสี่ยง</h3>
-      <div class="kv"><span>B/A ratio</span><span>${ba===null?'—':fmt(ba,2)} <span class="risk ${rb[1]}">${rb[0]}</span></span></div>
-      <div class="kv"><span>Alkali Index</span><span>${ai===null?'—':fmt(ai,3)} <span class="unit">kg/GJ</span> <span class="risk ${ra[1]}">${ra[0]}</span></span></div>
-      <div class="kv"><span>Silica ratio</span><span>${sr===null?'—':fmt(sr,1)} <span class="unit">%</span></span></div>
-      <div class="note" style="margin-top:6px">${ai===null?'Alkali Index ต้องมีทั้ง ASH, HHV และ K₂O/Na₂O จึงคำนวณได้':''}</div></div>`;
+      <div class="kv"><span>B/A ratio</span><span>${mBA.length?'— '+MISS:`${ba===null?'—':fmt(ba,2)} <span class="risk ${rb[1]}">${rb[0]}</span>`}</span></div>
+      <div class="kv"><span>Alkali Index</span><span>${mAI.length?'— <span class="unit">kg/GJ</span> '+MISS:`${ai===null?'—':fmt(ai,3)} <span class="unit">kg/GJ</span> <span class="risk ${ra[1]}">${ra[0]}</span>`}</span></div>
+      <div class="kv"><span>Silica ratio</span><span>${mSR.length?'— <span class="unit">%</span> '+MISS:`${sr===null?'—':fmt(sr,1)} <span class="unit">%</span>`}</span></div>
+      <div class="note" style="margin-top:6px">${ai===null&&!mAI.length?'Alkali Index ต้องมีทั้ง ASH, HHV และ K₂O/Na₂O จึงคำนวณได้':''}</div>
+      ${missList?`<div class="note" style="margin-top:4px" data-ox="list"><span>ฐานข้อมูลไม่รายงานออกไซด์ที่สูตรใช้ (ค่าว่างไม่ใช่ศูนย์ — เครื่องมือไม่คิดดัชนีนั้น):</span> ${missList}</div>`:''}</div>`;
   }
   $('dGrid').innerHTML=panes;
   $('dNote').textContent='ค่า daf และ ar เป็นค่าที่เครื่องมือคำนวณต่อจากค่าฐานแห้งของฐานข้อมูลต้นทาง — LHV(ar) ใช้ค่าประมาณโดยหักความร้อนแฝงของความชื้น 2.443 MJ/kg';
@@ -544,7 +557,13 @@ if(window.TE_I18N)TE_I18N.set({
 "foul แน่นอน": "Certain fouling",
 "เสี่ยงต่ำ": "Low risk",
 "ปานกลาง": "Medium",
-"น่าจะ foul": "Likely fouling"
+"น่าจะ foul": "Likely fouling",
+/* [แก้ไข 25 พ.ย. 2569] #591 ง1 คู่แปลข้อความใหม่ */
+"• ชื่อบางรายการตัดชื่อยี่ห้อ บริษัท โรงงาน หรือเหมืองออก เหลือชื่อสามัญของเชื้อเพลิง — เลข ID คือเลขรายการของฐานข้อมูลต้นทาง ใช้ลิงก์ \"เปิดหน้าต้นทาง\" เพื่อสืบกลับ": "• Some record names have brand, company, plant or mine names removed, leaving the common fuel name — the ID is the source database record number; use the \"Open source page\" link to trace back",
+/* [แก้ไข 25 พ.ย. 2569] #590 ข9 คู่แปลข้อความใหม่ */
+"ออกไซด์ไม่ครบ — ดัชนีนี้ใช้ตัดสินไม่ได้": "Oxides incomplete — index cannot be used for assessment",
+"ฐานข้อมูลไม่รายงานออกไซด์ที่สูตรใช้ (ค่าว่างไม่ใช่ศูนย์ — เครื่องมือไม่คิดดัชนีนั้น):": "Oxides used in the formula not reported by the database (blank is not zero — the tool does not compute that index):",
+"ดัชนีคิดเฉพาะเมื่อฐานข้อมูลรายงานออกไซด์ในสูตรครบทุกตัว — ขาดตัวใด แสดง \"ออกไซด์ไม่ครบ\" แทนตัวเลขและคำตัดสิน เพราะการนับค่าว่างเป็นศูนย์ทำให้ดัชนีเพี้ยน (เช่น ขาด SiO₂ ทำให้ B/A สูงเกินจริง)": "An index is computed only when the database reports every oxide in its formula — if any is missing, \"Oxides incomplete\" is shown instead of a number and verdict, because counting blanks as zero distorts the index (e.g. missing SiO₂ makes B/A too high)"
 },[
 [/^(\s*)เกณฑ์ข้างต้นเป็นแบบระมัดระวัง\s+\(อิงช่วงถ่านหินที่\s+B\/A\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+ให้จุดหลอมเถ้าต่ำสุด\)\s+·\s+งานวิจัยชีวมวลมักใช้\s+<(-?\d[\d,]*\.?\d*)\s+ต่ำ\s+·\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+ปานกลาง\s+·\s+>(-?\d[\d,]*\.?\d*)\s+สูง\s+\(เช่น\s+Pronobis\s+(-?\d[\d,]*\.?\d*);\s+Vassilev\s+et\s+al\.\s+(-?\d[\d,]*\.?\d*)\)\s+—\s+ใช้ร่วมกับ\s+AI\s+และ\s+AFT(\s*)$/,"$1The criteria above are conservative (based on the coal range where B/A $2–$3 gives the lowest ash fusion point) · biomass studies often use <$4 low · $5–$6 medium · >$7 high (e.g. Pronobis $8; Vassilev et al. $9) — use together with AI and AFT$10"],
 [/^(\s*)ค่า\s+daf\s+และ\s+ar\s+เป็นค่าที่เครื่องมือคำนวณต่อจากค่าฐานแห้งของฐานข้อมูลต้นทาง\s+—\s+LHV\(ar\)\s+ใช้ค่าประมาณโดยหักความร้อนแฝงของความชื้น\s+(-?\d[\d,]*\.?\d*)\s+MJ\/kg(\s*)$/,"$1daf and ar values are computed by the tool from the source database's dry-basis values — LHV(ar) is approximated by deducting the latent heat of moisture $2 MJ/kg$3"],
