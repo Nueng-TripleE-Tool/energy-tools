@@ -481,7 +481,9 @@ function calc(){
 
   /* verdict */
   $('vLHV').textContent=fmt(r.mjKg!==null?r.mjKg:(r.mjNm3!==null?r.mjNm3:r.mjL),2);
-  $('vLHVb').textContent=r.mjKg!==null?'MJ/kg':(r.mjNm3!==null?'MJ/Nm³':'MJ/L');
+  /* [แก้ไข 25 พ.ย. 2569] #561 เชื้อเพลิง "ไฟฟ้า" (ค่าความร้อนในคลัง = 0 → แปลงไม่ได้ทุกฐาน) เดิมหน่วยใต้ตัวเลขตกไปกรณีสุดท้าย MJ/L → MJ/kWh (1 kWh = 3.6 MJ)
+     ถ้าผู้ใช้กรอกค่าความร้อนเองจนแปลงได้ หน่วยตามฐานที่คำนวณได้เหมือนเดิม */
+  $('vLHVb').textContent=r.mjKg!==null?'MJ/kg':(r.mjNm3!==null?'MJ/Nm³':(r.mjL===null&&$('fuel').value==='elec'?'MJ/kWh':'MJ/L'));
   $('vGJ').textContent=r.perGJ===null?'–':num(r.perGJ);
   $('vMJ').textContent=r.perMJ===null?'–':fmt(r.perMJ,4);
   $('vUse').textContent=useGJ===null?'–':num(useGJ);
@@ -745,15 +747,37 @@ function renderQty(r){
 
 /* ── O₂ correction ── */
 function renderO2(){
-  const c=V('cMeas'), o2m=clamp(V('o2m'),0,20.8), o2r=clamp(V('o2r'),0,20.8);
+  /* [แก้ไข 25 พ.ย. 2569] #560 เดิม o2m=clamp(V('o2m'),0,20.8) · o2r=clamp(V('o2r'),0,20.8) ปรับค่าเงียบ ๆ (เช่น O₂ 20.85 % คิดเป็น 20.8 % · O₂ อ้างอิง −1 % คิดเป็น 0 %)
+     → ใช้ค่าที่กรอกจริง: O₂ อ้างอิงติดลบ = เตือน ⛔ และไม่คำนวณ · O₂ ที่วัดได้ใกล้อากาศ = เตือน ⚠ และแสดง "—" (ดู O2_NEAR ด้านล่าง) */
+  const c=V('cMeas'), o2m=V('o2m'), o2r=V('o2r');
   /* [แก้ไข 10 ก.ย. 2569] ค่าคงที่สองตัวต่างกันโดยตั้งใจ:
      - สูตรแก้ค่า O₂ อ้างอิงใช้ 21 ตามประกาศกระทรวงอุตสาหกรรม (ค่ากฎหมาย ใช้ 21 % โดยนิยาม)
      - อากาศส่วนเกิน/ตัวประกอบเจือจางใช้ 20.9 (O₂ จริงในอากาศแห้ง 20.9 %vol ตาม ASME PTC 4 / BS 845) */
   const O2_REG=21, O2_AIR=20.9;
   /* [แก้ไข 3 ต.ค. 2569 audit] O₂ ≥ 20.9 % = อากาศล้วน (ไม่มีการเผาไหม้/หัววัดรั่ว) → แก้ค่าไม่ได้ ต้องเตือน ไม่แสดงตัวเลขที่ไร้ความหมาย */
   const o2raw=V('o2m');
-  if(!(o2raw<O2_AIR) || o2raw<0 || !(V('o2r')<O2_REG)){
-    $('o2Out').innerHTML=`<div class="note warn" style="margin-top:12px">⛔ O₂ ที่วัดได้ = ${fmt(o2raw,1)} % ${o2raw>=O2_AIR?'≥ 20.9 % (เท่ากับอากาศ) — ไม่มีการเผาไหม้ หรือหัววัดดูดอากาศรั่ว/อ่านค่าผิด':(o2raw<0?'ติดลบ — ค่าไม่ถูกต้อง':'')} ${V('o2r')>=O2_REG?'· O₂ อ้างอิงต้องน้อยกว่า 21 %':''} — แก้ค่าที่ O₂ อ้างอิงไม่ได้ (ตัวคูณ → ∞) ตรวจเครื่องวัดและจุดเก็บตัวอย่างก่อน</div>`;
+  if(!(o2raw<O2_AIR) || o2raw<0 || !(V('o2r')<O2_REG) || V('o2r')<0){ /* [แก้ไข 25 พ.ย. 2569] #560 เพิ่มกรณี O₂ อ้างอิงติดลบ (เดิมถูกปรับเป็น 0 % เงียบ ๆ) */
+    $('o2Out').innerHTML=`<div class="note warn" style="margin-top:12px">⛔ O₂ ที่วัดได้ = ${fmt(o2raw,1)} % ${o2raw>=O2_AIR?'≥ 20.9 % (เท่ากับอากาศ) — ไม่มีการเผาไหม้ หรือหัววัดดูดอากาศรั่ว/อ่านค่าผิด':(o2raw<0?'ติดลบ — ค่าไม่ถูกต้อง':'')} ${V('o2r')>=O2_REG?'· O₂ อ้างอิงต้องน้อยกว่า 21 %':''}${V('o2r')<0?'· O₂ อ้างอิงติดลบ — ค่าไม่ถูกต้อง':''} — แก้ค่าที่ O₂ อ้างอิงไม่ได้ (ตัวคูณ → ∞) ตรวจเครื่องวัดและจุดเก็บตัวอย่างก่อน</div>`;
+    return;
+  }
+  /* [แก้ไข 25 พ.ย. 2569] #560 O₂ ใกล้อากาศ: 20.9 − O₂ ≤ 0.1 %vol (O₂ ≥ 20.8 %) → เตือน ⚠ และไม่แสดงตัวเลข (เดิมปรับเป็น 20.8 % เงียบ ๆ แล้วแสดง EA 20,800 % · ตัวคูณ 70)
+     เกณฑ์ = ค่าแนวทางของเครื่องมือ · เหตุผลทางวิศวกรรม: EA = O₂/(20.9 − O₂) และตัวประกอบเจือจาง 20.9/(20.9 − O₂) มีตัวหารเข้าใกล้ศูนย์
+     ความไว dEA/dO₂ = 20.9/(20.9 − O₂)² — ที่ช่องห่าง 0.1 % ค่าอ่านคลาดเพียง 0.1 % (= ความละเอียดของช่องกรอก step 0.1 และความละเอียดการอ่านค่า O₂ ที่ใช้ทั่วไป)
+     ทำให้ตัวหารเป็นศูนย์ (EA → ∞) · ตัวคูณแก้ค่า (21 − O₂อ้างอิง)/(21 − O₂) ≥ 70 เท่า ขยายความคลาดเคลื่อนของค่าความเข้มข้นตามไปด้วย
+     ไอเสียที่ O₂ ใกล้ 20.9 % คืออากาศเกือบล้วน (การเผาไหม้น้อยมาก หรืออากาศรั่วเข้าหัววัด/ท่อเก็บตัวอย่าง) ผลจึงใช้ตัดสินไม่ได้ */
+  const O2_NEAR=0.1;
+  if(O2_AIR-o2m<=O2_NEAR+1e-9){
+    const D='—';
+    $('o2Out').innerHTML=`
+   <div class="grid4" style="margin-top:12px" data-o2near="1">
+     <div class="stat"><div class="big">${D}</div><div class="bigu">ค่าที่แก้แล้ว</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">ตัวคูณแก้ค่า</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">อากาศส่วนเกินโดยประมาณ · %</div></div>
+     <div class="stat"><div class="big">${D}</div><div class="bigu">ตัวประกอบการเจือจาง</div></div>
+   </div>
+   <div class="note warn">⚠ O₂ ที่วัดได้ = ${fmt(o2m,2)} % ใกล้ O₂ ในอากาศ (20.9 %) — ห่างไม่เกิน ${fmt(O2_NEAR,1)} % ผลอากาศส่วนเกิน ตัวประกอบเจือจาง และค่าที่แก้ที่ O₂ อ้างอิง คำนวณไม่ได้ (แสดง —)<br>
+     สูตร EA = O₂/(20.9 − O₂) มีตัวหารเข้าใกล้ศูนย์ ค่าอ่านคลาดเพียง ${fmt(O2_NEAR,1)} % ทำให้ผลเปลี่ยนจากหลักหมื่นเปอร์เซ็นต์เป็นอนันต์ — ไอเสียนี้คืออากาศเกือบล้วน ตรวจอากาศรั่วเข้าหัววัด/ท่อเก็บตัวอย่าง และสภาวะการเผาไหม้ แล้ววัดซ้ำ<br>
+     <span class="legend">เกณฑ์เตือน O₂ ≥ ${fmt(O2_AIR-O2_NEAR,1)} % (ห่างจาก 20.9 % ไม่เกิน ${fmt(O2_NEAR,1)} % = ความละเอียดของช่องกรอก) เป็นค่าแนวทางของเครื่องมือ</span></div>`;
     return;
   }
   const f=(O2_REG-o2r)/(O2_REG-o2m);
@@ -874,6 +898,13 @@ function loadFuel(k){
   /* [แก้ไข 10 ก.ย. 2569] เติม H/M/A ในแท็บ 3 จากคลังเชื้อเพลิง เฉพาะช่องที่ว่างหรือยังไม่ถูกแก้เอง (data-auto) */
   if(f.ult){ [['hH',f.ult.H],['hM',f.ult.M],['hA',f.ult.A],['hON',f.ult.ON!=null?f.ult.ON:0]].forEach(([id,v])=>{
     const el=$(id); if(el&&(el.value===''||el.dataset.auto==='1')){ el.value=v; el.dataset.auto='1'; } }); }
+  showFuelSrc(k);
+}
+/* [แก้ไข 25 พ.ย. 2569] #562 แยกส่วนแสดงที่มาของค่า + ตาราง GCV/NCV ออกจาก loadFuel — เรียกซ้ำหลังเปิดไฟล์งานได้โดยไม่เติมค่าคลังทับค่าที่โหลด
+   (เดิมเปิดไฟล์งานแล้ว #fuelSrc และ #fuelInfo ยังเป็นของเชื้อเพลิงก่อนเปิด เพราะ TE_JSON ตั้งค่า select โดยไม่ยิง change) */
+function showFuelSrc(k){
+  const f=FUELS[k];
+  if(!f||k==='custom'){ const fs=$('fuelSrc'); if(fs) fs.textContent=''; const fi=$('fuelInfo'); if(fi) fi.innerHTML=''; return; }
   /* [แก้ไข 10 พ.ย. 2569] แสดงที่มาของค่า (คลังกลาง TE.FUEL ปรับความชื้น) */
   const fs=$('fuelSrc'); if(fs){ const en=(window.TE_I18N&&(typeof TE_I18N.lang==='function'?TE_I18N.lang():TE_I18N.lang))==='en'; fs.textContent=f.src?((en?'Source: ':'ที่มา: ')+f.src):''; }
   /* [แก้ไข 11 พ.ย. 2569] ตาราง GCV/NCV หลายฐาน หลายหน่วยของเชื้อเพลิงจากคลังกลาง */
@@ -897,7 +928,7 @@ function teRestoreExtra(x){ if(!x) return;
   if(x.auto){ Object.keys(x.auto).forEach(function(id){var el=$(id); if(el) el.dataset.auto=x.auto[id];}); }
   if(x.tab){ var t=document.querySelector('.tab[data-t="'+x.tab+'"]'); if(t) t.click(); } }
 function teSaveJSON(){ TE_JSON.save('Tool_Fuel_FlueGas_Converter',teExtra()); }
-function teLoadJSON(file){ TE_JSON.load(file,recalcAll,teRestoreExtra); }
+function teLoadJSON(file){ TE_JSON.load(file,function(){ try{ showFuelSrc($('fuel').value); }catch(e){} recalcAll(); },teRestoreExtra); } /* [แก้ไข 25 พ.ย. 2569] #562 อัปเดตที่มาของค่า/ตาราง GCV/NCV ตามเชื้อเพลิงในไฟล์งาน */
 document.addEventListener('DOMContentLoaded',init);
 </script>
 <!-- [แก้ไข 4 ต.ค. 2569] ก้อน 0A: สถิติการใช้งาน -->
@@ -1225,6 +1256,7 @@ if(window.TE_I18N)TE_I18N.set({
 ,[/ ฐาน (ar|dry|daf)\b/g," basis $1"]
 ,[/⛔ O₂ ที่วัดได้ =/g,"⛔ Measured O₂ ="]
 ,[/\(เท่ากับอากาศ\) — ไม่มีการเผาไหม้ หรือหัววัดดูดอากาศรั่ว\/อ่านค่าผิด/g,"(same as air) — no combustion, or the probe is drawing in leak air/misreading"]
+,[/· O₂ อ้างอิงติดลบ — ค่าไม่ถูกต้อง/g,"· reference O₂ is negative — invalid value"] /* [แก้ไข 25 พ.ย. 2569] #560 */
 ,[/ติดลบ — ค่าไม่ถูกต้อง/g,"negative — invalid value"]
 ,[/· O₂ อ้างอิงต้องน้อยกว่า 21 %/g,"· reference O₂ must be below 21 %"]
 ,[/— แก้ค่าที่ O₂ อ้างอิงไม่ได้ \(ตัวคูณ → ∞\) ตรวจเครื่องวัดและจุดเก็บตัวอย่างก่อน/g,"— cannot correct to reference O₂ (factor → ∞); check the analyzer and sampling point first"]
@@ -1232,6 +1264,10 @@ if(window.TE_I18N)TE_I18N.set({
 ,[/คำนวณไม่ได้: ต้องใส่ความหนาแน่น kg\/L \(> 0\) และค่าความร้อน MJ\/kg/g,"Cannot calculate: enter density kg/L (> 0) and heating value MJ/kg"]
 ,[/คำนวณไม่ได้: ค่าความร้อน \(MJ\/kg\) ต้องมากกว่า 0/g,"Cannot calculate: heating value (MJ/kg) must be > 0"]
 ,[/ ตัน\/h/g," t/h"]
+/* [แก้ไข 25 พ.ย. 2569] #560 คำเตือน O₂ ใกล้อากาศ */
+,[/^(\s*)⚠ O₂ ที่วัดได้ = (-?\d[\d,]*\.?\d*) % ใกล้ O₂ ในอากาศ \((-?\d[\d,]*\.?\d*) %\) — ห่างไม่เกิน (-?\d[\d,]*\.?\d*) % ผลอากาศส่วนเกิน ตัวประกอบเจือจาง และค่าที่แก้ที่ O₂ อ้างอิง คำนวณไม่ได้ \(แสดง —\)(\s*)$/,"$1⚠ Measured O₂ = $2 % is close to O₂ in air ($3 %) — within $4 %; excess air, dilution factor and the value corrected to reference O₂ cannot be calculated (shown as —)$5"]
+,[/^(\s*)สูตร EA = O₂\/\((-?\d[\d,]*\.?\d*) − O₂\) มีตัวหารเข้าใกล้ศูนย์ ค่าอ่านคลาดเพียง (-?\d[\d,]*\.?\d*) % ทำให้ผลเปลี่ยนจากหลักหมื่นเปอร์เซ็นต์เป็นอนันต์ — ไอเสียนี้คืออากาศเกือบล้วน ตรวจอากาศรั่วเข้าหัววัด\/ท่อเก็บตัวอย่าง และสภาวะการเผาไหม้ แล้ววัดซ้ำ(\s*)$/,"$1The formula EA = O₂/($2 − O₂) has a denominator close to zero; a reading error of only $3 % moves the result from tens of thousands of percent to infinity — this flue gas is almost pure air: check for air leaking into the probe/sample line and the combustion condition, then measure again$4"]
+,[/^(\s*)เกณฑ์เตือน O₂ ≥ (-?\d[\d,]*\.?\d*) % \(ห่างจาก (-?\d[\d,]*\.?\d*) % ไม่เกิน (-?\d[\d,]*\.?\d*) % = ความละเอียดของช่องกรอก\) เป็นค่าแนวทางของเครื่องมือ(\s*)$/,"$1Warning threshold O₂ ≥ $2 % (within $4 % of $3 % = the input resolution) is a tool guideline value$5"]
 ]);
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
