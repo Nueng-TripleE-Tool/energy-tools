@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EF Selector v4.1 — เครื่องมือเลือกค่า Emission Factor (Official TGO Data) | TripleE Technology</title>
+<title>EF Selector v4.2 — เครื่องมือเลือกค่า Emission Factor (Official TGO Data) | TripleE Technology</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&display=swap" rel="stylesheet">
@@ -313,6 +313,11 @@
     font-family: 'Fraunces', serif; font-size: 24px;
     font-weight: 700; color: var(--text-bright);
   }
+  /* [แก้ไข 25 พ.ย. 2569] #991 บรรทัด CO₂ ชีวภาพ (รายงานแยก ไม่รวมในยอด) — กรอบเส้นประ สีจาง แยกจากผล GHG */
+  .calc-bio { margin-top: 10px; padding: 12px 16px; border: 1px dashed var(--border); border-left: 3px dashed var(--text-dim); border-radius: 0 4px 4px 0; }
+  .calc-bio .label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.06em; margin-bottom: 4px; font-weight: 600; }
+  .calc-bio .value { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 700; color: var(--text); }
+  .calc-bio .bio-f { font-size: 12px; color: var(--text-dim); margin-top: 4px; line-height: 1.5; overflow-wrap: anywhere; }
   .stats-grid {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px;
   }
@@ -393,13 +398,13 @@
   <div class="header-grid">
     <div>
       <div class="header-tag">EMISSION FACTOR SELECTOR · OFFICIAL TGO DATA · FY2569</div>
-      <h1>เลือกค่า EF<br><em>จากข้อมูลทางการ</em><span class="version-badge">v4.1</span><span class="official-badge">OFFICIAL</span></h1>
+      <h1>เลือกค่า EF<br><em>จากข้อมูลทางการ</em><span class="version-badge">v4.2</span><span class="official-badge">OFFICIAL</span></h1>
       <p class="subtitle">เครื่องมือเลือก Emission Factor สำหรับ CFO, CFP, T-VER · ข้อมูลทางการจาก TGO ฉบับล่าสุด — EF CFO ม.ค. 2569, EF CFP ก.ค. 2569 (Update 060769), EF Electricity T-VER 28 พ.ค. 2568 (ฉบับล่าสุด) พร้อม Quick Search 130+ รายการ</p>
     </div>
     <div class="header-meta">
       <div><span class="label">PREPARED FOR</span> <span class="value">Aj. Nueng Klubtavee</span></div>
       <div><span class="label">ORG</span> <span class="value">Triple E Technology</span></div>
-      <div><span class="label">VERSION</span> <span class="value">4.1 / Official Data · 2026.08</span></div>
+      <div><span class="label">VERSION</span> <span class="value">4.2 / Official Data · 2026.08</span></div>
       <div><span class="label">DATA SYNCED</span> <span class="value">25 Aug 2026 (ตรวจกับเว็บ TGO)</span></div>
     </div>
   </div>
@@ -572,7 +577,7 @@
 
 <footer>
   <div>
-    <span class="dim">//</span> EF Selector v4.1 · Official TGO Data · ตรวจสอบกับเว็บ TGO 25 ส.ค. 2569
+    <span class="dim">//</span> EF Selector v4.2 · Official TGO Data · ตรวจสอบกับเว็บ TGO 25 ส.ค. 2569
   </div>
   <div>
     <span class="dim">//</span> ที่มา: <a href="https://thaicarbonlabel.tgo.or.th" target="_blank">thaicarbonlabel.tgo.or.th</a> (CFO/CFP) · <a href="https://tver.tgo.or.th" target="_blank">tver.tgo.or.th</a> (T-VER · เว็บใหม่)
@@ -895,6 +900,19 @@ function renderResult() {
     warningHtml += `<div class="info-block"><div class="label-i">◆ BIOGENIC CARBON</div>ค่านี้เป็นเฉพาะ CH₄ + N₂O · CO₂ จาก Biofuel ต้องรายงานแยกเป็น Biogenic CO₂ ตาม ISO 14064-1</div>`;
   }
 
+  /* [แก้ไข 25 พ.ย. 2569] #991 (WP-45P) CO₂ ชีวภาพ = AD × bioco2 เป็นบรรทัดแยกใต้ผล GHG — ไม่รวมในยอด (ตาราง อบก. แยกแถว "Report in Biogenic CO2 emissions" · นับเฉพาะ CO2 จาก biofuel)
+     ใช้ค่า bioco2 ของรายการในฐาน TE.EF เท่านั้น · รายการ biogenic ที่ไม่มี bioco2 → แจ้งว่าฐานไม่มีค่า ไม่เดา (ค่าในข้อความหมายเหตุไม่นำมาคำนวณ) */
+  const hasBio = typeof item.bioco2 === 'number' && isFinite(item.bioco2);
+  const bioU = isMWh ? 'tCO₂' : 'kgCO₂';
+  let bioHtml = '';
+  if (hasBio) {
+    bioHtml = `<div class="calc-bio" id="bioBox"><div class="label">▷ CO₂ ชีวภาพ (รายงานแยก ไม่รวมในยอด)</div>
+          <div class="value" id="bioOut">${item.bioco2.toLocaleString('en-US', {maximumFractionDigits: 4})} ${bioU}</div>
+          <div class="bio-f">= AD × ${item.bioco2} ${isMWh ? 'tCO₂/MWh' : 'kgCO₂/' + item.unit} · ตาราง อบก.: Report in Biogenic CO₂ emissions</div></div>`;
+  } else if (item.biogenic) {
+    bioHtml = `<div class="calc-bio" id="bioBox"><div class="label">▷ CO₂ ชีวภาพ (รายงานแยก ไม่รวมในยอด)</div><div class="bio-f">ฐานข้อมูลไม่มีค่า CO₂ ชีวภาพของรายการนี้</div></div>`;
+  }
+
   let calcHtml = '';
   if (item.ef !== null && !isFraction) {
     calcHtml = `
@@ -918,6 +936,7 @@ function renderResult() {
           <div class="label">▶ RESULT · ปริมาณการปล่อย GHG</div>
           <div class="value" id="calcOut">${item.ef.toLocaleString('en-US', {maximumFractionDigits: 4})} ${isMWh ? 'tCO₂eq' : 'kgCO₂eq'}</div>
         </div>
+        ${bioHtml}
         <div class="warning" id="adWarn" style="display:none"><div class="label-w">▲ AD ติดลบ</div>ข้อมูลกิจกรรม (AD) ต้องไม่ติดลบ — ไม่คำนวณ GHG · ตรวจค่าที่กรอก</div><!-- [แก้ไข 25 พ.ย. 2569] #563 -->
       </div>
     `;
@@ -954,9 +973,11 @@ function renderResult() {
       /* [แก้ไข 25 พ.ย. 2569] #563 AD ติดลบ (เช่น −100 kWh) เดิมคำนวณเป็น GHG ติดลบ (−47.5 kgCO₂eq) → เตือนและไม่คำนวณ (แสดง —)
          หลักวิทยาศาสตร์/นิยาม: AD คือปริมาณกิจกรรม (การใช้เชื้อเพลิง/ไฟฟ้า/ระยะทาง …) จึงไม่ติดลบ · GHG = AD × EF ของรายการเดี่ยวต้องไม่ติดลบ */
       const warn = document.getElementById('adWarn');
+      const bioOut = document.getElementById('bioOut');   /* [แก้ไข 25 พ.ย. 2569] #991 */
       if (val < 0) {
         adVal.textContent = val;
         calcOut.textContent = '— ' + (isMWh ? 'tCO₂eq' : 'kgCO₂eq');
+        if (bioOut) bioOut.textContent = '— ' + bioU;
         if (warn) warn.style.display = '';
         return;
       }
@@ -964,6 +985,7 @@ function renderResult() {
       const result = val * item.ef;
       adVal.textContent = val;
       calcOut.textContent = result.toLocaleString('en-US', {maximumFractionDigits: 4}) + (isMWh ? ' tCO₂eq' : ' kgCO₂eq');
+      if (bioOut) bioOut.textContent = (val * item.bioco2).toLocaleString('en-US', {maximumFractionDigits: 4}) + ' ' + bioU;
     });
   }
 }
@@ -1167,6 +1189,11 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)⚠\s+ชุดเดียวกับ\s+grid\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)\s+ซึ่งใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+·\s+ปัจจุบันใช้\s+WTT\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)\s+·\s+ใช้สำหรับการได้มาซึ่งเชื้อเพลิงและการขนส่งที่ใช้ผลิตไฟฟ้า(\s*)$/,BEW("$1⚠ Same set as grid $2$3 ($4), valid until $5 Mar $6 BE · now use WTT $7$8 ($9) · covers extraction and transport of fuels used for power generation$10")],
 [/^(\s*)หน้าดาวน์โหลด\s+T\-VER\s+เดิม\s+\(ghgreduction\.tgo\.or\.th\/th\/download\-tver\.html\)\s+ปิดแล้ว\s+\((-?\d[\d,]*\.?\d*)\)\s+—\s+ระบบ\s+T\-VER\s+ย้ายไปที่(\s*)$/,"$1The old T-VER download page (ghgreduction.tgo.or.th/th/download-tver.html) is closed ($2) — the T-VER system moved to$3"],
 [/^(\s*)⚠\s+ชุดเก่า\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+—\s+ใช้ค่า\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)\s+แทน\s+·\s+CFP\s+ใช้\s+Cradle\-to\-Gate\s+\(รวม\s+Upstream\)\s+·\s+ไม่เท่ากับ\s+CFO\s+Scope\s+(-?\d[\d,]*\.?\d*)(\s*)$/,"$1⚠ Old $2$3 set — use $4$5 ($6) instead · CFP uses cradle-to-gate (incl. upstream) · not equal to CFO Scope $7$8"],
+[/^(\s*)▷ CO₂ ชีวภาพ \(รายงานแยก ไม่รวมในยอด\)(\s*)$/,"$1▷ Biogenic CO₂ (reported separately, not in the total)$2"], /* [แก้ไข 25 พ.ย. 2569] #991 (WP-45P) บรรทัด CO₂ ชีวภาพ */
+[/^(\s*)= AD × ([\d.]+) (kgCO₂\/\S+|tCO₂\/MWh) · ตาราง อบก\.: Report in Biogenic CO₂ emissions(\s*)$/,"$1= AD × $2 $3 · TGO table: Report in Biogenic CO₂ emissions$4"],
+[/^(\s*)ฐานข้อมูลไม่มีค่า CO₂ ชีวภาพของรายการนี้(\s*)$/,"$1The database has no biogenic CO₂ value for this item$2"],
+[/^(\s*)รายงาน Scope 1 \(CH₄ \+ N₂O\) · ค่า EF \(CH₄ \+ N₂O\) คำนวณจากแถวของ อบก\.: Total ([\d.]+) − CO₂ ชีวภาพ ([\d.]+) = ([\d.]+)( \(ตารางใส่ CH₄\/N₂O = "-"\))? · อบก\. พิมพ์แถวนี้เป็นค่ารวม · Biogenic CO₂ = ([\d.]+) \(รายงานแยก\)(\s*)$/,
+  function(m,a,t,c,e,d,b,z){return a+'Report in Scope 1 (CH₄ + N₂O) · EF (CH₄ + N₂O) derived from the TGO row: Total '+t+' − biogenic CO₂ '+c+' = '+e+(d?' (table gives CH₄/N₂O = "-")':'')+' · TGO prints this row as a combined total · biogenic CO₂ = '+b+' (reported separately)'+z;}],
 [/^(\s*)ค่านี้เป็นเฉพาะ\s+CH₄\s+\+\s+N₂O\s+·\s+CO₂\s+จาก\s+Biofuel\s+ต้องรายงานแยกเป็น\s+Biogenic\s+CO₂\s+ตาม\s+ISO\s+14064-1(\s*)$/,"$1This value is CH₄ + N₂O only · CO₂ from biofuel must be reported separately as biogenic CO₂ per ISO 14064-1$2"], /* [แก้ไข 18 พ.ย. 2569] #182 ตัดเลขภาคผนวกที่อ้างไม่ได้ (ฉบับ 2018 ใช้ภาคผนวกตัวอักษร) */
 [/^(\s*)EF\s+Cat\s+(-?\d[\d,]*\.?\d*)\s+มีรายการเยอะมาก\s+\(วัตถุดิบ,\s+สารเคมี,\s+อุปกรณ์\)\s+สามารถสืบค้นได้จากระบบของ\s+TGO\s+โดยตรง(\s*)$/,"$1Cat $2 EFs are very numerous (raw materials, chemicals, equipment); search them directly in the TGO system$3"],
 [/^(\s*)⚠\s+เลิกใช้แล้ว\s+—\s+ใช้ได้ถึง\s+(-?\d[\d,]*\.?\d*)\s+มี\.ค\.\s+(-?\d[\d,]*\.?\d*)\s+เท่านั้น\s+\(สำหรับปีรายงานเดิม\)\s+·\s+ปัจจุบันใช้ค่า\s+(-?\d[\d,]*\.?\d*)(-?\d[\d,]*\.?\d*)\s+\((-?\d[\d,]*\.?\d*)\)(\s*)$/,BEW("$1⚠ Retired — valid only until $2 Mar $3 BE (for earlier reporting years) · now use $4$5 ($6)$7")],
