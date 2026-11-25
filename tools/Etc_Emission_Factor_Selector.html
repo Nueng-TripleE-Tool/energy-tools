@@ -883,8 +883,12 @@ function renderResult() {
   const isMWh = item.unit === 'MWh';
   const isFraction = item.unit === 'fraction' || item.unit === '%';
 
+  /* [แก้ไข 25 พ.ย. 2569] #997 (WP-45Q) รายการที่ไม่มีค่า EF (ef = null) แต่ฐานมีค่า CO₂ ชีวภาพ (bioco2) — เช่น B100/E100 off-road ที่ตาราง อบก. ใส่ CH₄/N₂O = "-"
+     ไม่มีค่า ≠ ศูนย์: ผล GHG แสดง "—" พร้อมเหตุ · เครื่องคิดเลขยังเปิดเพื่อคำนวณบรรทัด CO₂ ชีวภาพ (รายงานแยก) = AD × bioco2 */
+  const noEFbio = item.ef === null && typeof item.bioco2 === 'number' && isFinite(item.bioco2) && !isFraction;
   let efDisplayFinal;
-  if (item.ef === null) efDisplayFinal = `<span style="font-size:24px;color:var(--text-dim)">— ดูแหล่งอ้างอิง —</span>`;
+  if (noEFbio) efDisplayFinal = `<span style="font-size:24px;color:var(--text-dim)">— ไม่มีค่า (CH₄ + N₂O) —</span>`;
+  else if (item.ef === null) efDisplayFinal = `<span style="font-size:24px;color:var(--text-dim)">— ดูแหล่งอ้างอิง —</span>`;
   else if (isMWh) efDisplayFinal = `${item.ef}<span class="unit">tCO₂eq / MWh</span>`;
   else if (isFraction) efDisplayFinal = `${item.ef}<span class="unit">${item.unit}</span>`;
   else efDisplayFinal = `${item.ef.toLocaleString('en-US', {maximumFractionDigits: 6})}<span class="unit">kgCO₂eq / ${item.unit}</span>`;
@@ -914,7 +918,7 @@ function renderResult() {
   }
 
   let calcHtml = '';
-  if (item.ef !== null && !isFraction) {
+  if ((item.ef !== null || noEFbio) && !isFraction) {
     calcHtml = `
       <div class="calc-section">
         <div class="step-label"><span class="num">▸</span> CALCULATOR · คำนวณการปล่อย GHG</div>
@@ -930,12 +934,13 @@ function renderResult() {
         </div>
         <div class="formula-box">
           GHG <span class="op">=</span> AD <span class="op">×</span> EF<br>
-          <span style="color:var(--text-dim)">    =</span> <span class="x" id="adVal">1</span> ${item.unit} <span class="op">×</span> <span class="x">${item.ef}</span> ${isMWh ? 'tCO₂eq/MWh' : 'kgCO₂eq/'+item.unit}
+          <span style="color:var(--text-dim)">    =</span> <span class="x" id="adVal">1</span> ${item.unit} <span class="op">×</span> <span class="x">${noEFbio ? '—' : item.ef}</span> ${isMWh ? 'tCO₂eq/MWh' : 'kgCO₂eq/'+item.unit}
         </div>
         <div class="calc-result">
           <div class="label">▶ RESULT · ปริมาณการปล่อย GHG</div>
-          <div class="value" id="calcOut">${item.ef.toLocaleString('en-US', {maximumFractionDigits: 4})} ${isMWh ? 'tCO₂eq' : 'kgCO₂eq'}</div>
+          <div class="value" id="calcOut">${noEFbio ? '—' : item.ef.toLocaleString('en-US', {maximumFractionDigits: 4})} ${isMWh ? 'tCO₂eq' : 'kgCO₂eq'}</div>
         </div>
+        ${noEFbio ? '<div class="warning" id="noEfWarn"><div class="label-w">▲ ไม่มีค่า EF (CH₄ + N₂O)</div>ตาราง อบก. ไม่ให้ค่า CH₄/N₂O ของรายการนี้ — ไม่คำนวณ GHG ส่วน Scope 1 (ไม่มีค่า ไม่ใช่ศูนย์) · CO₂ ชีวภาพคำนวณได้ด้านล่าง</div>' : ''}
         ${bioHtml}
         <div class="warning" id="adWarn" style="display:none"><div class="label-w">▲ AD ติดลบ</div>ข้อมูลกิจกรรม (AD) ต้องไม่ติดลบ — ไม่คำนวณ GHG · ตรวจค่าที่กรอก</div><!-- [แก้ไข 25 พ.ย. 2569] #563 -->
       </div>
@@ -967,7 +972,7 @@ function renderResult() {
   const adInput = document.getElementById('adInput');
   const adVal = document.getElementById('adVal');
   const calcOut = document.getElementById('calcOut');
-  if (adInput && item.ef !== null) {
+  if (adInput && (item.ef !== null || noEFbio)) {
     adInput.addEventListener('input', () => {
       const val = parseFloat(adInput.value) || 0;
       /* [แก้ไข 25 พ.ย. 2569] #563 AD ติดลบ (เช่น −100 kWh) เดิมคำนวณเป็น GHG ติดลบ (−47.5 kgCO₂eq) → เตือนและไม่คำนวณ (แสดง —)
@@ -982,9 +987,9 @@ function renderResult() {
         return;
       }
       if (warn) warn.style.display = 'none';
-      const result = val * item.ef;
       adVal.textContent = val;
-      calcOut.textContent = result.toLocaleString('en-US', {maximumFractionDigits: 4}) + (isMWh ? ' tCO₂eq' : ' kgCO₂eq');
+      if (noEFbio) calcOut.textContent = '— ' + (isMWh ? 'tCO₂eq' : 'kgCO₂eq');   /* [แก้ไข 25 พ.ย. 2569] #997 (WP-45Q) ไม่มีค่า EF → ไม่คำนวณ GHG */
+      else calcOut.textContent = (val * item.ef).toLocaleString('en-US', {maximumFractionDigits: 4}) + (isMWh ? ' tCO₂eq' : ' kgCO₂eq');
       if (bioOut) bioOut.textContent = (val * item.bioco2).toLocaleString('en-US', {maximumFractionDigits: 4}) + ' ' + bioU;
     });
   }
@@ -1192,6 +1197,13 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)▷ CO₂ ชีวภาพ \(รายงานแยก ไม่รวมในยอด\)(\s*)$/,"$1▷ Biogenic CO₂ (reported separately, not in the total)$2"], /* [แก้ไข 25 พ.ย. 2569] #991 (WP-45P) บรรทัด CO₂ ชีวภาพ */
 [/^(\s*)= AD × ([\d.]+) (kgCO₂\/\S+|tCO₂\/MWh) · ตาราง อบก\.: Report in Biogenic CO₂ emissions(\s*)$/,"$1= AD × $2 $3 · TGO table: Report in Biogenic CO₂ emissions$4"],
 [/^(\s*)ฐานข้อมูลไม่มีค่า CO₂ ชีวภาพของรายการนี้(\s*)$/,"$1The database has no biogenic CO₂ value for this item$2"],
+/* [แก้ไข 25 พ.ย. 2569] #997 (WP-45Q) ไม่มีค่า EF (CH₄ + N₂O) · หมายเหตุ off-road ใหม่ · หมายเหตุ B7 off-road และ "Biogenic CO₂ = x (รายงานแยก)" ที่โหมดอังกฤษยังค้างไทย (คู่แปลเดียวกับการ์ด Pro efs_en.js) */
+[/^(\s*)— ไม่มีค่า \(CH₄ \+ N₂O\) —(\s*)$/,"$1— no value (CH₄ + N₂O) —$2"],
+[/^(\s*)▲ ไม่มีค่า EF \(CH₄ \+ N₂O\)(\s*)$/,"$1▲ No EF value (CH₄ + N₂O)$2"],
+[/^(\s*)ตาราง อบก\. ไม่ให้ค่า CH₄\/N₂O ของรายการนี้ — ไม่คำนวณ GHG ส่วน Scope 1 \(ไม่มีค่า ไม่ใช่ศูนย์\) · CO₂ ชีวภาพคำนวณได้ด้านล่าง(\s*)$/,"$1The TGO table gives no CH₄/N₂O value for this item — the Scope 1 GHG is not calculated (no value, not zero) · biogenic CO₂ is calculated below$2"],
+[/^(\s*)รายงาน Scope 1 \(CH₄ \+ N₂O\) · ค่า EF \(CH₄ \+ N₂O\) คำนวณจากแถวของ อบก\.: Total ([\d.]+) = CO₂ ชีวภาพ ([\d.]+) ทั้งหมด · ตาราง อบก\. ไม่ให้ค่า CH₄\/N₂O \("-"\) สำหรับ off-road ของเชื้อเพลิงนี้ → ไม่มีค่า EF \(CH₄ \+ N₂O\) ไม่คำนวณ GHG ส่วน Scope 1 · Biogenic CO₂ = ([\d.]+) \(รายงานแยก\)(\s*)$/,"$1Report in Scope 1 (CH₄ + N₂O) · EF (CH₄ + N₂O) from the TGO row: Total $2 = biogenic CO₂ $3 in full · the TGO table gives no CH₄/N₂O value (\"-\") for this fuel off-road → no EF (CH₄ + N₂O), the Scope 1 GHG is not calculated · biogenic CO₂ = $4 (reported separately)$5"],
+[/^(\s*)รายงาน Scope 1 \((.+)\) · Biogenic CO₂ ส่วน B(\d+) = ([\d.]+) \(รายงานแยก\)(\s*)$/,"$1Reported in Scope 1 ($2) · Biogenic CO₂ for B$3 = $4 (reported separately)$5"],
+[/^(\s*)Biogenic CO₂ = ([\d.]+) \(รายงานแยก\)(\s*)$/,"$1Biogenic CO₂ = $2 (reported separately)$3"],
 [/^(\s*)รายงาน Scope 1 \(CH₄ \+ N₂O\) · ค่า EF \(CH₄ \+ N₂O\) คำนวณจากแถวของ อบก\.: Total ([\d.]+) − CO₂ ชีวภาพ ([\d.]+) = ([\d.]+)( \(ตารางใส่ CH₄\/N₂O = "-"\))? · อบก\. พิมพ์แถวนี้เป็นค่ารวม · Biogenic CO₂ = ([\d.]+) \(รายงานแยก\)(\s*)$/,
   function(m,a,t,c,e,d,b,z){return a+'Report in Scope 1 (CH₄ + N₂O) · EF (CH₄ + N₂O) derived from the TGO row: Total '+t+' − biogenic CO₂ '+c+' = '+e+(d?' (table gives CH₄/N₂O = "-")':'')+' · TGO prints this row as a combined total · biogenic CO₂ = '+b+' (reported separately)'+z;}],
 [/^(\s*)ค่านี้เป็นเฉพาะ\s+CH₄\s+\+\s+N₂O\s+·\s+CO₂\s+จาก\s+Biofuel\s+ต้องรายงานแยกเป็น\s+Biogenic\s+CO₂\s+ตาม\s+ISO\s+14064-1(\s*)$/,"$1This value is CH₄ + N₂O only · CO₂ from biofuel must be reported separately as biogenic CO₂ per ISO 14064-1$2"], /* [แก้ไข 18 พ.ย. 2569] #182 ตัดเลขภาคผนวกที่อ้างไม่ได้ (ฉบับ 2018 ใช้ภาคผนวกตัวอักษร) */
