@@ -2185,7 +2185,8 @@ function updateFuelProps() {
   document.getElementById('w_cpfg').value = fuel.cpfg;
   // อัปเดต label หน่วยเชื้อเพลิง
   document.getElementById('g_fuel_unit_display').textContent = fuel.fuelUnit;
-  document.getElementById('g_flow_label').textContent = fuel.flowLabel || 'อัตราการไหลเชื้อเพลิง';
+  { const fl = document.getElementById('g_flow_label'), ch = fl.querySelector('.fchip'); // [แก้ไข 25 พ.ย. 2569] #620 คงป้ายชนิดค่า (วัดจริง) ไว้ — เดิม textContent ลบป้ายทิ้งตอนเปิดหน้า/เปลี่ยนเชื้อเพลิง
+    fl.textContent = fuel.flowLabel || 'อัตราการไหลเชื้อเพลิง'; if (ch) fl.appendChild(ch); }
   // แสดง badge สถานะเชื้อเพลิง
   const phaseBadge = { gas:'⛽ Gas', liquid:'🛢️ Liquid', solid:'🪵 Solid' };
   document.getElementById('g_phase_badge').textContent = phaseBadge[fuel.phase] || fuel.phase;
@@ -2282,7 +2283,7 @@ function oilCpSuggest(kind, Tmean, t1, t2) {
   return null; // custom → ไม่เปลี่ยน
 }
 
-function setOilFluid() {
+function setOilFluid(keepCp) { // [แก้ไข 25 พ.ย. 2569] #620 keepCp = true: ปรับเฉพาะข้อความเสนอ Cp (ใช้หลังเปิดไฟล์งาน — คง Cp ที่บันทึกไว้)
   const kind = document.getElementById('oil_fluid').value;
   const tin  = parseFloat(document.getElementById('oil_tin').value);
   const tout = parseFloat(document.getElementById('oil_tout').value);
@@ -2290,7 +2291,7 @@ function setOilFluid() {
   const cp = oilCpSuggest(kind, tmean, tin, tout);
   const hint = document.getElementById('oil_cp_hint');
   if (cp !== null) {
-    document.getElementById('oil_cp').value = cp.toFixed(3);
+    if (!keepCp) document.getElementById('oil_cp').value = cp.toFixed(3);
     if (hint) hint.textContent = `Cp @ ${fmtN(tmean,0)}°C ≈ ${cp.toFixed(3)} kJ/(kg·K)` + (kind === 'mineral' ? ` (Cragoe NBS 1929 · SG ${OIL_SG_MINERAL})` : kind === 'synthetic' ? ' (ค่าแนวทางของเครื่องมือ)' : ' (IAPWS-IF97)'); // [แก้ไข 19 พ.ย. 2569] #497
   } else {
     if (hint) hint.textContent = 'โหมด Custom — กรอก Cp เองตาม data sheet';
@@ -2532,10 +2533,21 @@ function teRestoreSelections(){
   Object.keys(x.hxSel||{}).forEach(pid=>{const b=document.getElementById('hxbtn_'+pid+'_'+x.hxSel[pid]);if(b&&!b.classList.contains('selected'))b.click();});
   Object.keys(x.fan||{}).forEach(id=>{const e=document.getElementById(id);if(e){e.value=x.fan[id];e.dispatchEvent(new Event('input'));}});
 }
+/* [แก้ไข 25 พ.ย. 2569] #620 หลังเปิดไฟล์งาน: ป้าย/ข้อความแสดงผลที่ปกติปรับตอนผู้ใช้เปลี่ยนตัวเลือก ให้ตรงกับค่าที่โหลด
+   (เดิมค้างค่าตอนเปิดหน้า: Cp/ความหนาแน่นโลหะ = เหล็ก · ป้าย % ประสิทธิภาพตู้อบ = 70% · ข้อความเสนอ Cp น้ำมันร้อน = น้ำมันแร่ · ป้ายชนิดค่าของช่องราคา/NCV หายหลังสร้างสรุปรวม)
+   แสดงผลอย่างเดียว — ไม่เขียนช่องกรอกใด (m_cp · oil_cp · d_eta คงค่าที่โหลด ผลคำนวณเท่าเดิม) */
+function teSyncLoadedLabels(){
+  const mt = METALS[(document.getElementById('m_type')||{}).value];
+  if (mt) { document.getElementById('m_cp_disp').textContent = mt.cp; document.getElementById('m_rho_disp').textContent = mt.rho; }
+  const de = document.getElementById('d_eta'), dv = document.getElementById('d_eta_val'); if (de && dv) dv.textContent = de.value + '%';
+  try { setOilFluid(true); } catch(e) {}
+  try { tagFieldKinds(); } catch(e) {}
+}
 function teSaveJSON(){TE_JSON.save('Tool_WHR_Calculator',teCollectExtra());}
 function teLoadJSON(file){
   TE_JSON.load(file,function(){recalcAll();teRestoreSelections();
     if(_teExtra&&_teExtra.pUser){['p_ncv','p_ef'].forEach(id=>{const e=document.getElementById(id);if(e){if(_teExtra.pUser[id])e.dataset.user='1';else delete e.dataset.user;}});try{buildSummary();}catch(e){}} // [แก้ไข 3 ต.ค. 2569 audit]
+    teSyncLoadedLabels(); // [แก้ไข 25 พ.ย. 2569] #620
   },function(x){
     _teExtra=x;
     if(x.recupStage)setRecupStage(+x.recupStage);
