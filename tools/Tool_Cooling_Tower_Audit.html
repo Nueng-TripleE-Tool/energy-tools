@@ -1273,7 +1273,23 @@ function drawPerfChart(r){
 // ═══════════════════════════════════════════════════════
 // L/G RATIO — VERIFY & COMPUTE (Air–Water Mass Balance)
 // ═══════════════════════════════════════════════════════
-function calcLG(){
+// [แก้ไข 25 พ.ย. 2569] #923 สถานะ L/G ที่ไฟล์งานเก็บ/คืนได้ — _lgRan = แท็บ L/G แสดงผลแล้ว (กดปุ่ม หรือเปิดไฟล์ที่บันทึกหลังกด)
+//   ช่อง lgRatio: dataset.auto='1' = ค่าในช่องเติมจาก L/G วัดจริง (Flow) · dataset.reported = L/G ที่โรงงาน/Design แจ้งเดิม (ใช้ในส่วนวินิจฉัย)
+var _lgRan=false;
+function lgStateGet(){
+  var el=G('lgRatio'), a=!!(el && el.dataset.auto==='1');
+  return {auto:a?'1':'0', reported:a?String(el.dataset.reported||''):'', ran:!!_lgRan};
+}
+function lgStateSet(st){
+  var el=G('lgRatio'), hh=G('lgRatioHint'), a=!!(st && st.auto==='1');
+  if(el){ el.dataset.auto=a?'1':'0'; el.dataset.reported=a?String(st.reported==null?'':st.reported):''; }
+  if(hh){ if(a){ hh.textContent='\u26A1 จาก L/G วัดจริง'; hh.style.display='inline'; } else hh.style.display='none'; }
+  _lgRan=!!(st && st.ran);
+}
+// [แก้ไข 25 พ.ย. 2569] #923 calcLG({view:true}) = แสดงผลแท็บ L/G อย่างเดียว ไม่เขียนค่าลงช่อง lgRatio และไม่คำนวณ Performance ซ้ำ (ใช้ตอนเปิดไฟล์งาน/พิมพ์) · ปุ่มเรียก calcLG() แบบเดิม
+function calcLG(opt){
+  var _view=!!(opt && opt.view===true);
+  _lgRan=true;
   try{
     var qW   = GV('qWater');                 // m³/h water (circulating)
     var tHot = GV('tHot'), tCold = GV('tCold'), tWB = GV('tWB');
@@ -1384,7 +1400,7 @@ function calcLG(){
     SI('RES_LG', h + t + d + lgStepsHtml);
     SD('RES_LG','block');
     // [แก้ไข 10 ก.ย. 2569] เขียน L/G วัดจริงกลับเข้าช่อง lgRatio (แก้เองได้) แล้วคำนวณ Performance/NTU ใหม่ให้สอดคล้อง
-    if(isFinite(lg_meas) && lg_meas>=0.05 && lg_meas<=30 && _lgEl){
+    if(!_view && isFinite(lg_meas) && lg_meas>=0.05 && lg_meas<=30 && _lgEl){ // [แก้ไข 25 พ.ย. 2569] #923 โหมดแสดงผลอย่างเดียวไม่เขียนกลับ
       if(_lgEl.dataset.auto!=='1') _lgEl.dataset.reported = String(GV('lgRatio'));
       _lgEl.dataset.auto = '1';
       _lgEl.value = lg_meas.toFixed(2);
@@ -1742,12 +1758,13 @@ function estimateCap(){
 function exportJSON(){
   var data = {
     _tool:  'Cooling Tower Audit Tool — Triple E Technology',
-    _ver:   '1.1',
+    _ver:   '1.2', // [แก้ไข 25 พ.ย. 2569] #920 1.1 → 1.2 เพิ่มคีย์ lgState (คีย์เดิมไม่เปลี่ยน)
     _saved: new Date().toISOString(),
     inputs: {},      // ค่าทุกช่องใน sidebar + เกณฑ์การประเมิน (key = id ของช่อง)
     meas:   [],      // ค่าที่วัดในตาราง "บันทึกค่าที่วัดได้ภาคสนาม" (เรียงตามแถว)
     measCrit: [],    // เกณฑ์ควบคุมรายพารามิเตอร์ที่โรงงานแก้ไว้ (เรียงตามแถว)
-    checklist: []    // สถานะติ๊ก checklist (เรียงตามลำดับรายการ)
+    checklist: [],   // สถานะติ๊ก checklist (เรียงตามลำดับรายการ)
+    lgState: lgStateGet() // [แก้ไข 25 พ.ย. 2569] #920 สถานะช่อง L/G Ratio {auto, reported, ran} — เปิดไฟล์แล้วค่า L/G Ratio · NTU · ผลแท็บ L/G เท่าตอนบันทึก
   };
   var els = document.querySelectorAll('.sidebar input[id], .sidebar select[id], #CRIT_CARD input[id]');
   for(var i=0;i<els.length;i++){ data.inputs[els[i].id] = els[i].value; }
@@ -1802,15 +1819,21 @@ function importJSON(fileInput){
         }
         updateCkProg();
       }
+      // [แก้ไข 25 พ.ย. 2569] #921 คืนสถานะช่อง L/G Ratio จากไฟล์ (ไฟล์รุ่นก่อน 1.2 ไม่มี lgState → ถือค่าในช่องเป็นค่าที่แจ้ง ไม่ตรวจ L/G ให้อัตโนมัติ)
+      var _lgS = (data.lgState && typeof data.lgState==='object') ? data.lgState : null;
+      lgStateSet(_lgS || {auto:'0', reported:'', ran:false});
       updateCTInfo();
       updateCapConv();
       // คำนวณผลใหม่อัตโนมัติจากข้อมูลที่โหลด
       try{ calcBasic(); }catch(e){}
       try{ calcPerf(); }catch(e){}
-      try{ calcLG(); }catch(e){}     // [แก้ไข 10 ก.ย. 2569] ให้ importJSON คำนวณครบชุดเดียวกับ printAll()
+      // [แก้ไข 25 พ.ย. 2569] #921 เดิมเรียก calcLG() ซึ่งเขียน L/G จาก Flow ทับช่อง lgRatio แล้วคำนวณ NTU ใหม่ → ค่าไม่เท่าตอนบันทึก (ค่าตั้งต้น: NTU 1.8144 → 1.8291)
+      //   ตอนนี้แสดงผลแท็บ L/G เฉพาะเมื่อไฟล์บันทึกหลังกดตรวจ L/G และแสดงอย่างเดียว ไม่เขียนทับช่อง
+      if(_lgS && _lgS.ran){ try{ calcLG({view:true}); }catch(e){} } else { SI('RES_LG',''); SD('RES_LG','none'); }
       try{ calcWater(); }catch(e){}
       try{ calcECM(); }catch(e){}    // [แก้ไข 10 ก.ย. 2569]
-      alertBox('&#10003; โหลดข้อมูลจากไฟล์ "'+file.name+'" สำเร็จ (บันทึกเมื่อ '+(data._saved?data._saved.substring(0,10):'-')+') และคำนวณผลใหม่แล้ว','ok');
+      alertBox('&#10003; โหลดข้อมูลจากไฟล์ "'+file.name+'" สำเร็จ (บันทึกเมื่อ '+(data._saved?data._saved.substring(0,10):'-')+') และคำนวณผลใหม่แล้ว'
+        +(_lgS?'':'<br><span>ไฟล์รุ่นก่อนไม่ได้เก็บสถานะ L/G จึงไม่ตรวจ L/G ให้อัตโนมัติ (ค่า L/G Ratio และ NTU เท่าตอนบันทึก) · ถ้าเคยกดตรวจ L/G ก่อนบันทึก ค่าในช่อง L/G Ratio อาจเป็นค่าจาก Flow ไม่ใช่ค่าที่แจ้ง · กดตรวจ L/G อีกครั้งได้ในแท็บ L/G</span>'),'ok'); // [แก้ไข 25 พ.ย. 2569] #921
     }catch(err){
       alertBox('&#9940; โหลดไฟล์ไม่สำเร็จ: '+err.message,'err');
     }
@@ -1838,7 +1861,11 @@ function printAll(){
   // 1) คำนวณทุกส่วนให้ผลลัพธ์ครบก่อนพิมพ์
   try{ calcBasic(); }catch(e){}
   try{ calcPerf(); }catch(e){}
-  try{ calcLG(); }catch(e){}
+  // [แก้ไข 25 พ.ย. 2569] #922 เดิมเรียก calcLG() ก่อนพิมพ์ → ช่อง lgRatio ถูกเขียนทับและ NTU บนจอเปลี่ยน (ค่าตั้งต้น: L/G 1.2 → 1.21 · NTU 1.8144 → 1.8291)
+  //   ตอนนี้: เคยกดตรวจ L/G แล้ว → แสดงผลแท็บ L/G ใหม่อย่างเดียว · ยังไม่เคยกด → พิมพ์ข้อความ "ยังไม่ได้คำนวณ" (คืนสภาพจอหลังพิมพ์)
+  var _lgPh=false;
+  if(_lgRan){ try{ calcLG({view:true}); }catch(e){} }
+  else { SI('RES_LG','<div class="info-box">L/G: ยังไม่ได้คำนวณ — กดปุ่ม “ตรวจสอบ &amp; คำนวณ L/G” ในแท็บนี้ก่อนพิมพ์ ถ้าต้องการผลส่วนนี้ (ตอนพิมพ์เครื่องมือไม่คำนวณให้เอง เพื่อไม่ให้ค่า L/G Ratio และ NTU เปลี่ยน)</div>'); SD('RES_LG','block'); _lgPh=true; }
   try{ calcWater(); }catch(e){}
   try{ calcECM(); }catch(e){}
   try{ makeReport(); }catch(e){}
@@ -1860,6 +1887,7 @@ function printAll(){
       var dts2=document.querySelectorAll('details.steps');
       for(var i=0;i<dts2.length;i++){ if(i<dState.length) dts2[i].open=dState[i]; }
       goTab(active);
+      if(_lgPh && !_lgRan){ SI('RES_LG',''); SD('RES_LG','none'); } // [แก้ไข 25 พ.ย. 2569] #922 คืนสภาพแท็บ L/G
     },150);
   },120);
 }
@@ -2216,7 +2244,7 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)ตาราง\s+Psychrometric\s+ที่สภาวะอากาศขาออก\s+—\s+อากาศอิ่มตัว\s+\~(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)°C\s+≈\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+\|(\s*)$/,"$1Psychrometric table at outlet air conditions — saturated air ~$2–$3°C ≈ $4–$5 |$6"],
 [/^(\s*)ดี\s+≤\s+(-?\d[\d,]*\.?\d*)°C\s+\|\s+ยอมรับได้\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)°C\s+\|\s+>\s+(-?\d[\d,]*\.?\d*)°C\s+ผิดปกติ\s+\(ต่ำสุดเชิงเศรษฐกิจ\s+\~(-?\d[\d,]*\.?\d*)°C\)(\s*)$/,"$1Good ≤ $2°C | acceptable $3–$4°C | > $5°C abnormal (economic minimum ~$6°C)$7"],
 [/^(\s*)✓\s+L\/G\s+ที่แจ้ง\s+=\s+(-?\d[\d,]*\.?\d*)\s+kg\/kg\s+อยู่ในช่วงเชิงมวลที่สมเหตุผล\s+\((-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\)\s+—\s+ใช้ได้(\s*)$/,"$1✓ Given L/G = $2 kg/kg is within the reasonable mass range ($3–$4) — OK to use$5"],
-[/^(\s*)NTU\s+เป้าหมาย\s+ทั่วไป\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+\|\s+ต่ำกว่า\s+(-?\d[\d,]*\.?\d*)\s+=\s+Fill\s+เสื่อม\s+หรือ\s+Flow\s+มากเกิน\s+\(ค่าแนวทางของเครื่องมือ\)(\s*)$/,"$1Target NTU typically $2–$3 | below $4 = degraded fill or excessive flow (tool guide value)$5"],
+[/^(\s*)NTU\s+เป้าหมาย\s+ทั่วไป\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+\|\s+ต่ำกว่า\s+(-?\d[\d,]*\.?\d*)\s+=\s+Fill\s+เสื่อม\s+หรือ\s+Flow\s+มากเกิน\s+\(ค่าแนวทางของเครื่องมือ\)(\s*)$/,"$1Target NTU typically $2–$3 | below $4 = degraded fill or excessive flow (tool guideline value)$5"],
 [/^(\s*)⚠\s+Efficiency\s+=\s+(-?\d[\d,]*\.?\d*)%\s+ต่ำกว่าเกณฑ์\s+\((-?\d[\d,]*\.?\d*)%\)\s+—\s+ตรวจ\s+Fill\s+Fouling\/Broken(\s*)$/,"$1⚠ Efficiency = $2% below limit ($3%) — check fill fouling/broken fill$4"],
 [/^(\s*)ตารางอินทิเกรต\s+NTU\s+แบ่ง\s+(-?\d[\d,]*\.?\d*)\s+ช่วง\s+—\s+NTU\s+=\s+Σ\s+Cp_w·ΔT\/\(h_sat−h_air\)(\s*)$/,"$1NTU integration table in $2 steps — NTU = Σ Cp_w·ΔT/(h_sat−h_air)$3"],
 [/^(\s*)เงื่อนไขอุณหภูมิที่ผู้ผลิตออกแบบไว้\s+\(เช่น\s+(-?\d[\d,]*\.?\d*)\/(-?\d[\d,]*\.?\d*)\s+°C\s+@\s+T_wb\s+(-?\d[\d,]*\.?\d*)\s+°C\)(\s*)$/,"$1Manufacturer's design temperature conditions (e.g., $2/$3 °C @ T_wb $4 °C)$5"],
@@ -2373,11 +2401,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   if(window.TE_I18N) TE_I18N.set({'↺ คืนค่าตั้งต้น':'↺ Reset to defaults','คืนทุกช่องเป็นค่าตั้งต้นของเครื่องมือ':'Reset every field to the tool defaults','คืนค่าตั้งต้นของเครื่องมือทุกช่อง? ค่าที่กรอกไว้จะหาย — บันทึก JSON ไว้ก่อนถ้ายังต้องใช้':'Reset every field to the tool defaults? Your entries will be lost — save a JSON file first if you still need them'});
 })();
 </script>
-<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-16 · R4-14 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"วิธีทดสอบ": "Test method", "(ค่าแนวทางของเครื่องมือ)": "(tool guide value)", "NTU Target (ค่าแนวทางของเครื่องมือ)": "NTU target (tool guide value)", "ค่าแนวทางของเครื่องมือ (วิธีทดสอบ: CTI ATC-105)": "Tool guide value (test method: CTI ATC-105)", "ค่าแนวทางของเครื่องมือ (ทฤษฎี Merkel)": "Tool guide value (Merkel theory)", "Makeup ปัจจุบัน": "Current makeup", "Makeup เป้าหมาย": "Target makeup", "ประหยัดน้ำ": "Water saving", "ประหยัดค่าน้ำ": "Water cost saving", "บาท/y": "THB/y", "COC ≥ เป้าหมายแล้ว": "COC already ≥ target", "Makeup รายปี = M×ชั่วโมงทำงาน": "Annual makeup = M × operating hours", "ค่าน้ำรายปี = M_yr×ราคาน้ำ": "Annual water cost = M_yr × water price", "ประหยัดน้ำ = (M − M_opt)×ชม.": "Water saving = (M − M_opt) × h", "ดัชนีตะกรันอย่างง่าย (ไม่ใช่ Langelier LSI — ต้องใช้ Ca, alkalinity, TDS, T)": "Simplified scaling index (not the Langelier LSI — that needs Ca, alkalinity, TDS, T)"},[[/อากาศ Q_air \((\w+)\)/g,"Air Q_air ($1)"],[/\(เกณฑ์ /g,"(limit "],[/^(\s*)เกณฑ์ (?=[\d<>≤≥])/,"$1Limit "],[/(\d) บาท\/y/g,"$1 THB/y"],[/B ที่ COC=(\S+) = E ÷ \((\S+)−1\)/g,"B at COC=$1 = E ÷ ($2−1)"],[/📑 รายการคำนวณ — (.+?) \(คลิกเปิดดู\)/g,"📑 Calculation steps — $1 (click to open)"],[/เพิ่ม COC จาก (\S+) → (\S+)/g,"Raise COC from $1 → $2"],[/ปรับ Blowdown Controller ให้ตัดที่ Conductivity (\S+) µS\/cm/g,"Set the blowdown controller to cut in at conductivity $1 µS/cm"],[/ประหยัดน้ำ (\S+) m³\/y =/g,"Water saving $1 m³/y ="]]);</script>
+<script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-16 · R4-14 — คู่คำแปล EN · [แก้ไข 25 พ.ย. 2569] #925 คำแปล EN ของ "ค่าแนวทางของเครื่องมือ" ใช้ "tool guideline value" แบบเดียวทั้งไฟล์ (เดิม 4 จุดขาดคำ guideline · รวมรูปแบบ NTU เป้าหมาย) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"วิธีทดสอบ": "Test method", "(ค่าแนวทางของเครื่องมือ)": "(tool guideline value)", "NTU Target (ค่าแนวทางของเครื่องมือ)": "NTU target (tool guideline value)", "ค่าแนวทางของเครื่องมือ (วิธีทดสอบ: CTI ATC-105)": "Tool guideline value (test method: CTI ATC-105)", "ค่าแนวทางของเครื่องมือ (ทฤษฎี Merkel)": "Tool guideline value (Merkel theory)", "Makeup ปัจจุบัน": "Current makeup", "Makeup เป้าหมาย": "Target makeup", "ประหยัดน้ำ": "Water saving", "ประหยัดค่าน้ำ": "Water cost saving", "บาท/y": "THB/y", "COC ≥ เป้าหมายแล้ว": "COC already ≥ target", "Makeup รายปี = M×ชั่วโมงทำงาน": "Annual makeup = M × operating hours", "ค่าน้ำรายปี = M_yr×ราคาน้ำ": "Annual water cost = M_yr × water price", "ประหยัดน้ำ = (M − M_opt)×ชม.": "Water saving = (M − M_opt) × h", "ดัชนีตะกรันอย่างง่าย (ไม่ใช่ Langelier LSI — ต้องใช้ Ca, alkalinity, TDS, T)": "Simplified scaling index (not the Langelier LSI — that needs Ca, alkalinity, TDS, T)"},[[/อากาศ Q_air \((\w+)\)/g,"Air Q_air ($1)"],[/\(เกณฑ์ /g,"(limit "],[/^(\s*)เกณฑ์ (?=[\d<>≤≥])/,"$1Limit "],[/(\d) บาท\/y/g,"$1 THB/y"],[/B ที่ COC=(\S+) = E ÷ \((\S+)−1\)/g,"B at COC=$1 = E ÷ ($2−1)"],[/📑 รายการคำนวณ — (.+?) \(คลิกเปิดดู\)/g,"📑 Calculation steps — $1 (click to open)"],[/เพิ่ม COC จาก (\S+) → (\S+)/g,"Raise COC from $1 → $2"],[/ปรับ Blowdown Controller ให้ตัดที่ Conductivity (\S+) µS\/cm/g,"Set the blowdown controller to cut in at conductivity $1 µS/cm"],[/ประหยัดน้ำ (\S+) m³\/y =/g,"Water saving $1 m³/y ="]]);</script>
 <script>/* [แก้ไข 16 พ.ย. 2569] ผลตรวจรอบ 4 ข้อ R4-18 — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/ผ่านเกณฑ์ \((\S+)\) สำหรับ /g,"meets the limit ($1) for "]]);</script>
 <script>/* [แก้ไข 17 พ.ย. 2569] คำแปล EN ที่ตกหล่น (#91): ข้อความ "COC ปัจจุบัน … ≥ เป้าหมาย" (แท็บน้ำ — โหมด EN ไม่แสดงป้ายการแก้ท้ายข้อความ) · การ์ด ECM "เพิ่ม COC" เมื่อ COC ต่ำกว่าเกณฑ์ · กล่องเตือน L/G ที่แจ้งเกินค่าสูงสุดทางทฤษฎี · kW/RT "⚠ เกินเกณฑ์" */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"💦 เพิ่ม Cycle of Concentration (COC)": "💦 Raise the cycles of concentration (COC)", "ปรับ Conductivity Controller → Blowdown น้อยลง": "Adjust the conductivity controller → less blowdown"},[[/^(\s*)✓ COC ปัจจุบัน (-?\d[\d,]*\.?\d*) สูงกว่า\/เท่ากับเป้าหมาย (-?\d[\d,]*\.?\d*) แล้ว — ไม่มีผลประหยัดจากการเพิ่ม COC \(ตรวจความเสี่ยงตะกรัน\/LSI แทน\)(?: \[แก้ไข[^\]]*\])?\s*$/,"$1✓ Current COC $2 is already at or above the target $3 — no saving from raising COC (check scaling risk/LSI instead)"],[/ — ⚠ เกินเกณฑ์\)/," — ⚠ exceeds limit)"],[/^(\s*)COC ปัจจุบัน = (-?\d[\d,]*\.?\d*) ต่ำกว่าเกณฑ์ \((-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1Current COC = $2, below the limit ($3)$4"],[/^(\s*)เพิ่ม COC (-?\d[\d,]*\.?\d*) → (-?\d[\d,]*\.?\d*) \(×1\.5\): ประหยัดน้ำ Makeup ~(-?\d[\d,]*\.?\d*)% = (-?\d[\d,]*\.?\d*) m³\/ปี( =)?(\s*)$/,"$1Raise COC $2 → $3 (×1.5): makeup-water saving ~$4% = $5 m³/yr$6$7"],[/^(\s*)สูตร: 1 − /,"$1Formula: 1 − "],[/^(\s*)L\/G ที่แจ้ง = (-?\d[\d,]*\.?\d*) เป็นไปไม่ได้เชิงมวล(\s*)$/,"$1Stated L/G = $2 is impossible on a mass basis$3"],[/^(\s*)\(สูงสุดทางทฤษฎี ≈ (-?\d[\d,]*\.?\d*)\)(\s*)$/,"$1(theoretical maximum ≈ $2)$3"],[/^(\s*)หอจริงต้องสมดุลพลังงาน: ความร้อนจากน้ำ = ความร้อนที่อากาศรับ → L\/G ≤ ~2\.5(\s*)$/,"$1A real tower must balance energy: heat from the water = heat taken up by the air → L/G ≤ ~2.5$2"],[/^(\s*)สาเหตุที่เป็นไปได้สูงสุด — หารปริมาตรผิดหน่วย:(\s*)$/,"$1Most likely cause — volumes divided in the wrong units:$2"],[/ ← น่าจะใช่(\s*)$/," ← most likely$1"],[/^(\s*)←\s*น่าจะใช่(\s*)$/,"$1← most likely$2"],[/^(\s*)กฎแปลงเร็ว:(\s*)$/,"$1Quick conversion rule:$2"],[/^(\s*)ถ้าตัวเลขนั้นมาจาก Q_water\[m³\/h\] ÷ Q_air\[m³\/s\] → L\/G เชิงมวลจริง ≈ ค่านั้น × 1000\/\(3600×ρ\) = × (-?\d[\d,]*\.?\d*) → (-?\d[\d,]*\.?\d*) kg\/kg(\s*)$/,"$1If that number came from Q_water[m³/h] ÷ Q_air[m³/s] → true mass-basis L/G ≈ that value × 1000/(3600×ρ) = × $2 → $3 kg/kg$4"],[/^(\s*)✅ ค่าที่ถูกต้องเชิงมวล \(จาก Flow ที่กรอก\) = (-?\d[\d,]*\.?\d*) kg\/kg(\s*)$/,"$1✅ Correct mass-basis value (from the flows entered) = $2 kg/kg$3"],[/^(\s*)แนะนำ: ขอ Q_air เป็น kg\/s หรือ m³\/s ที่ปากพัดลม \(×จำนวน cell\) แล้วคำนวณ L\/G = (.+?) ใหม่(\s*)$/,"$1Recommendation: get Q_air in kg/s or m³/s at the fan stack (× number of cells), then recalculate L/G = $2$3"]]);</script>
 <script>/* [แก้ไข 17 พ.ย. 2569] คำแปล EN กล่องเตือน L/G จาก Flow เกินค่าสูงสุดทางทฤษฎี (แท็บ L/G) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"— อากาศไม่พอรับความร้อนตาม Range ที่วัด เป็นไปไม่ได้ทางฟิสิกส์ · ตรวจ Q_air (หน่วย, จำนวน cell, พัดลมหยุด), ρ_air, Q_water หรือ T_wb · NTU ในแท็บ Performance จะถูกทำเครื่องหมายว่าใช้ไม่ได้":"— the air cannot absorb the heat for the measured range, which is physically impossible · check Q_air (units, number of cells, fans stopped), ρ_air, Q_water or T_wb · NTU in the Performance tab will be marked invalid"},[[/^(\s*)L\/G จาก Flow = (-?\d[\d,]*\.?\d*) เกินค่าสูงสุดทางทฤษฎี (-?\d[\d,]*\.?\d*)(\s*)$/,"$1L/G from flow = $2 exceeds the theoretical maximum $3$4"]]);</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"อ.หนึ่ง กลับทวี": "Aj. Nueng Klubtavee", "โรงงานตัวอย่าง — Cooling Tower CT-101": "Sample plant — Cooling Tower CT-101", "เทียบ Design T_hot": "vs design T_hot", "เทียบ Design T_cold": "vs design T_cold", "ตามสภาพอากาศ ณ วันตรวจ": "Per weather on audit day", "≤ พิกัดมอเตอร์": "≤ motor rating", "ISO 10816: ≤4.5 ดี | >7.1 เตือน + ดูแนวโน้ม": "ISO 10816: ≤4.5 good | >7.1 alert + watch trend", "< 2,000 หรือตาม vendor": "< 2,000 or per vendor", "ตามแหล่งน้ำ": "Depends on water source", "≈1.5–2.5% ของ Circulation": "≈1.5–2.5% of circulation", "ตาม COC เป้าหมาย": "per target COC", "เทียบ Design RPM — ตกลง = Belt Slip": "vs design RPM — drop = belt slip", "Baseline โรงงาน — บันทึกแนวโน้ม": "Plant baseline — record the trend", "เฝ้าระวัง 20–45°C (ช่วง Legionella โต)": "Watch 20–45°C (Legionella growth range)", "< 85 dB(A) (กม.ความปลอดภัย)": "< 85 dB(A) (safety regulation)"});}</script>
+<script>/* [แก้ไข 25 พ.ย. 2569] #924 คู่คำแปล EN ของข้อความเปิดไฟล์งาน/พิมพ์ (#921 #922) · ข้อความ "โหลดข้อมูลจากไฟล์ … สำเร็จ" เดิมไม่มีคำแปล (ขึ้นเป็นไทยในโหมด EN) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ไฟล์รุ่นก่อนไม่ได้เก็บสถานะ L/G จึงไม่ตรวจ L/G ให้อัตโนมัติ (ค่า L/G Ratio และ NTU เท่าตอนบันทึก) · ถ้าเคยกดตรวจ L/G ก่อนบันทึก ค่าในช่อง L/G Ratio อาจเป็นค่าจาก Flow ไม่ใช่ค่าที่แจ้ง · กดตรวจ L/G อีกครั้งได้ในแท็บ L/G":"This file is from an earlier version and does not store the L/G state, so the L/G check was not run automatically (L/G ratio and NTU are as saved) · if the L/G check was run before saving, the L/G ratio field may hold the value from flow rather than the stated value · you can run the L/G check again in the L/G tab","L/G: ยังไม่ได้คำนวณ — กดปุ่ม “ตรวจสอบ & คำนวณ L/G” ในแท็บนี้ก่อนพิมพ์ ถ้าต้องการผลส่วนนี้ (ตอนพิมพ์เครื่องมือไม่คำนวณให้เอง เพื่อไม่ให้ค่า L/G Ratio และ NTU เปลี่ยน)":"L/G: not calculated — press “Check & calculate L/G” in this tab before printing if you need this section (the tool does not calculate it for you when printing, so the L/G ratio and NTU do not change)"},[[/^(\s*)✓ โหลดข้อมูลจากไฟล์ "(.*)" สำเร็จ \(บันทึกเมื่อ (\S+)\) และคำนวณผลใหม่แล้ว(\s*)$/,"$1✓ Loaded the file \"$2\" (saved $3) and recalculated the results$4"]]);</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: สกุลเงินแสดงเป็น THB (เดิม "cost … ฿" ในการ์ด Makeup/Year) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/M฿/g,"M THB"],[/฿(?=\s?[\d(])/g,"THB "],[/฿/g,"THB"]]);</script>
 </body>
 </html>
