@@ -363,13 +363,13 @@ function riskAI(v){ if(v===null)return['—','r-na']; if(v<0.17)return['เส�
    ไม่ใช่ค่าก่อนปัด (เดิม #568 แสดง "≤ 0.40" ป้าย "เสี่ยงต่ำ" · #2766 แสดง 0.170 ป้าย "เสี่ยงต่ำ" ขัดกับเกณฑ์ 0.4–0.7 / 0.17–0.34 ที่เขียนในแผงสูตร) · เกณฑ์ไม่เปลี่ยน */
 function rnd(v,d){ return v===null||v===undefined?null:Number(v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:false})); }
 
-function detail(r){
-  if(!r) return;
-  $('detailCard').classList.remove('hide');
-  $('dTitle').textContent=`#${r.id} — ${r.mat}`;
-  curId=r.id; setCmpBtn();
+/* [แก้ไข 26 พ.ย. 2569] #1565 (WP-50C) แยกการคิดค่าฐาน daf/ar และดัชนี B/A · Alkali Index · Silica ratio ออกจาก detail() เป็นฟังก์ชันเดียว fuelIdx(r)
+   ให้การ์ดรายละเอียดของหน้านี้และชั้น Pro (ส่งออก CSV / หน้าพิมพ์ของรายการที่เลือก) เรียกร่วมกัน — สูตร เงื่อนไข และลำดับการคิดยกมาจาก detail() เดิมทุกตัวอักษร
+   (#590 ออกไซด์ไม่ครบไม่คิด · #593 ขาดเฉพาะ TiO₂ → "≤" · #770 ป้ายความเสี่ยงตัดสินจากค่าที่ปัดตามที่แสดง) · ไม่มีสูตร/เกณฑ์ใหม่ · ผลบนจอเท่าเดิมทุกค่า
+   คืนค่า: ash · hhvDaf · lhvDaf · lhvAr (null เมื่อไม่มี M หรือ LHV) · vmDaf · fcDaf · oxSum · ba · baTi (ขาดเฉพาะ TiO₂ · ค่า ≤) · mBA · rb (ป้าย B/A [ข้อความ, class])
+           ai · mAI · ra · sr · mSR · ค่าเป็นเลขดิบ (ไม่ปัด) · ช่องที่คิดไม่ได้ = null */
+function fuelIdx(r){
   const ash=r.ASH;
-  const kv=(k,v,u,d)=> v===null||v===undefined?'':`<div class="kv"><span>${k}</span><span>${fmt(v,d===undefined?2:d)} <span class="unit">${u||''}</span></span></div>`;
   const oxSum=OX.reduce((s,k)=>s+(r[k]||0),0);
   const base=(r.Fe2O3||0)+(r.CaO||0)+(r.MgO||0)+(r.K2O||0)+(r.Na2O||0);
   const acid=(r.SiO2||0)+(r.Al2O3||0)+(r.TiO2||0);
@@ -388,6 +388,19 @@ function detail(r){
   const srDen=(r.SiO2||0)+(r.Fe2O3||0)+(r.CaO||0)+(r.MgO||0);
   const sr=(!mSR.length&&srDen>0)? r.SiO2/srDen*100 : null;
   const rb=riskBA(rnd(ba,2)), ra=riskAI(rnd(ai,3)); /* [แก้ไข 25 พ.ย. 2569] #770 H1: ตำแหน่งทศนิยมเท่าที่แสดง (fmt(ba,2) · fmt(ai,3)) */
+  return {ash:ash,oxSum:oxSum,mBA:mBA,mAI:mAI,mSR:mSR,tiOnly:tiOnly,ba:ba,ai:ai,sr:sr,rb:rb,ra:ra,
+    hhvDaf:daf(r.HHV,ash),lhvDaf:daf(r.LHV,ash),vmDaf:daf(r.VM,ash),fcDaf:daf(r.FC,ash),
+    lhvAr:(r.M!==null&&r.LHV!==null)?r.LHV*(1-r.M/100)-2.443*r.M/100:null};
+}
+
+function detail(r){
+  if(!r) return;
+  $('detailCard').classList.remove('hide');
+  $('dTitle').textContent=`#${r.id} — ${r.mat}`;
+  curId=r.id; setCmpBtn();
+  const kv=(k,v,u,d)=> v===null||v===undefined?'':`<div class="kv"><span>${k}</span><span>${fmt(v,d===undefined?2:d)} <span class="unit">${u||''}</span></span></div>`;
+  /* [แก้ไข 26 พ.ย. 2569] #1565 (WP-50C) ค่าที่คิดมาจาก fuelIdx(r) (ฟังก์ชันร่วมกับชั้น Pro) — ชื่อตัวแปรเดิม · ผลเท่าเดิม */
+  const X=fuelIdx(r),ash=X.ash,oxSum=X.oxSum,mBA=X.mBA,mAI=X.mAI,mSR=X.mSR,tiOnly=X.tiOnly,ba=X.ba,ai=X.ai,sr=X.sr,rb=X.rb,ra=X.ra;
   const OXN={SiO2:'SiO₂',Al2O3:'Al₂O₃',TiO2:'TiO₂',Fe2O3:'Fe₂O₃',CaO:'CaO',MgO:'MgO',Na2O:'Na₂O',K2O:'K₂O'};
   const MISS='<span class="risk r-na" data-ox="miss">ออกไซด์ไม่ครบ — ดัชนีนี้ใช้ตัดสินไม่ได้</span>';
   const missList=[['B/A',tiOnly?[]:mBA],['Alkali Index',mAI],['Silica ratio',mSR]].filter(x=>x[1].length).map(x=>x[0]+' — '+x[1].map(k=>OXN[k]).join(', ')).join(' · ');
@@ -402,15 +415,15 @@ function detail(r){
     panes+=`<div class="pane"><h3>ค่าความร้อน</h3>
       ${r.HHV!==null?`<div class="big">${fmt(r.HHV,2)} <span class="unit">MJ/kg HHV, dry</span></div>`:''}
       ${kv('LHV (dry)',r.LHV,'MJ/kg')}
-      ${kv('HHV (daf)',daf(r.HHV,ash),'MJ/kg')}
-      ${kv('LHV (daf)',daf(r.LHV,ash),'MJ/kg')}
-      ${r.M!==null&&r.LHV!==null?kv('LHV (ar, ประมาณ)',r.LHV*(1-r.M/100)-2.443*r.M/100,'MJ/kg'):''}
+      ${kv('HHV (daf)',X.hhvDaf,'MJ/kg')}
+      ${kv('LHV (daf)',X.lhvDaf,'MJ/kg')}
+      ${X.lhvAr!==null?kv('LHV (ar, ประมาณ)',X.lhvAr,'MJ/kg'):''}
       </div>`;
   }
   if(r.hasP) panes+=`<div class="pane"><h3>Proximate</h3>
     ${kv('ความชื้น M (ar)',r.M,'wt%')}${kv('เถ้า ASH (dry)',r.ASH,'wt%')}
     ${kv('สารระเหย VM (dry)',r.VM,'wt%')}${kv('คาร์บอนคงตัว FC (dry)',r.FC,'wt%')}
-    ${kv('VM (daf)',daf(r.VM,ash),'wt%')}${kv('FC (daf)',daf(r.FC,ash),'wt%')}</div>`;
+    ${kv('VM (daf)',X.vmDaf,'wt%')}${kv('FC (daf)',X.fcDaf,'wt%')}</div>`;
   if(r.hasU) panes+=`<div class="pane"><h3>Ultimate (dry)</h3>
     ${kv('คาร์บอน C',r.C,'wt%')}${kv('ไฮโดรเจน H',r.H,'wt%')}${kv('ออกซิเจน O',r.O,'wt%')}
     ${kv('ไนโตรเจน N',r.N,'wt%')}${kv('กำมะถัน S',r.S,'wt%')}${kv('คลอรีน Cl',r.CL,'mg/kg',0)}</div>`;
