@@ -1379,6 +1379,10 @@ function updateUI(){
   setH('r_eta_th2',f(r.eta_th_field*100));setH('r_hr2',f(r.HR_field,0));
 
   // ── P3 Comparison ──
+  /* [แก้ไข 26 พ.ย. 2569] #1555 ชุด 29 WP-50B ช่องค่าพิกัดว่าง/0 → ไม่เทียบแถวนั้น (เดิม vn() = 0 → ส่วนต่าง η เทียบ 0 เช่น +34.2 จุด · กำลัง/Heat Rate หารด้วย 0 = Infinity และป้าย devSt(NaN) = "ตรวจสอบค่า")
+     → แถวที่ไม่มีพิกัด: Design / Deviation "—" · Status "ไม่เทียบ" · กล่องแจ้งชื่อช่องที่ต้องกรอก · ป้าย "ตรวจสอบค่า" นับเฉพาะแถวที่เทียบได้ · ค่ากรอกครบผลเท่าเดิมทุกค่า */
+  const gtbRated=id=>{const t=String(v(id)).trim(),x=parseFloat(t);return t!==''&&isFinite(x)&&x>0;};
+  const rk={eth:gtbRated('ratedEff'),pow:gtbRated('ratedPow'),hr:gtbRated('ratedHR')};
   const dev_eth = (r.eta_th_field*100 - r.ratedEff*100);
   const dev_pow = ((r.P_display - r.ratedPow)/r.ratedPow)*100;
   const dev_hr  = ((r.HR_field - r.ratedHR)/r.ratedHR)*100;
@@ -1388,9 +1392,9 @@ function updateUI(){
      ส่วนต่างขนาดนั้นมักมาจากการวัด (กำลัง/อัตราไหลเชื้อเพลิง) ค่าความร้อนเชื้อเพลิง (ฐาน LHV/HHV) หรือสภาวะอ้างอิงไม่ตรงกัน
      ขนาดเกณฑ์คงเดิม (ค่าแนวทางของเครื่องมือ): η_th 2 / 5 จุด · กำลัง 5 / 15 % · Heat Rate 2 / 5 % */
   function devSt(dev,t1,t2,worseIsHigh){ const a=Math.abs(dev); if(a<t1) return 'good'; const worse=worseIsHigh?dev>0:dev<0; return a<t2?'warn':(worse?'bad':'verify'); }
-  const st_eth  = devSt(dev_eth,2,5,false);
-  const st_pow  = devSt(dev_pow,5,15,false);
-  const st_hr   = devSt(dev_hr,2,5,true);
+  const st_eth  = rk.eth?devSt(dev_eth,2,5,false):'none';   /* [แก้ไข 26 พ.ย. 2569] #1555 */
+  const st_pow  = rk.pow?devSt(dev_pow,5,15,false):'none';
+  const st_hr   = rk.hr?devSt(dev_hr,2,5,true):'none';
   setH('ct_eth_des',f(r.ratedEff*100)+'%');setH('ct_eth_act',f(r.eta_th_field*100)+'%');
   setH('ct_eth_dev',(dev_eth>=0?'+':'')+f(dev_eth)+' <span>จุด</span>'); /* [แก้ไข 25 พ.ย. 2569] #504 ผลต่างของร้อยละ = จุด (EN pts) ไม่ใช่ % */
   setH('ct_eth_st', (r.plaus&&r.plaus.length)?'<span class="badge bb">⛔ ตรวจสอบ</span>':badge(st_eth,'GOOD','CHECK','LOW')); /* [แก้ไข 3 ต.ค. 2569 audit] ไม่ติด GOOD เมื่อค่าเป็นไปไม่ได้ */
@@ -1400,6 +1404,16 @@ function updateUI(){
   setH('ct_hr_des',f(r.ratedHR,0));setH('ct_hr_act',f(r.HR_field,0));
   setH('ct_hr_dev',(dev_hr>=0?'+':'')+f(dev_hr,1)+'%');
   setH('ct_hr_st', badge(st_hr,'GOOD','CHECK','HIGH'));
+  { /* [แก้ไข 26 พ.ย. 2569] #1555 แถวที่ไม่มีพิกัด: ไม่เทียบ + บอกชื่อช่อง (ค่าจริงที่คำนวณยังแสดงในคอลัมน์ Actual) */
+    const NA='<span class="badge bl">ไม่เทียบ</span>',miss=[];
+    if(!rk.eth){setH('ct_eth_des','—');setH('ct_eth_dev','—');if(!(r.plaus&&r.plaus.length))setH('ct_eth_st',NA);miss.push('ratedEff');}
+    if(!rk.pow){setH('ct_pow_des','—');setH('ct_pow_dev','—');setH('ct_pow_st',NA);miss.push('ratedPow');}
+    if(!rk.hr){setH('ct_hr_des','—');setH('ct_hr_dev','—');setH('ct_hr_st',NA);miss.push('ratedHR');}
+    let nb=document.getElementById('ct_rated_need');
+    if(!nb){const vn0=document.getElementById('ct_verify_note');if(vn0){nb=document.createElement('div');nb.id='ct_rated_need';nb.className='hint te';nb.style.cssText='display:none;margin-top:6px;color:#9a3412;font-weight:600';vn0.parentNode.insertBefore(nb,vn0);}}
+    if(nb){const LB={ratedEff:'ประสิทธิภาพ Design η_th (%)',ratedPow:'กำลังพิกัด Nameplate (kW)',ratedHR:'Heat Rate พิกัด (kJ/kWh)'};
+      nb.innerHTML=miss.length?'⚠ <span>ไม่เทียบกับพิกัด — ช่องค่าพิกัดว่างหรือไม่มากกว่า 0 (ช่องว่างไม่คิดเป็น 0):</span> '+miss.map(id=>'<b>'+LB[id]+'</b>').join(' · ')+' <span>— กรอกในแถบด้านซ้ายหมวดค่าพิกัด</span>':'';
+      nb.style.display=miss.length?'block':'none';} }
   { const pl=(r.plaus&&r.plaus.length); const vn_=document.getElementById('ct_verify_note'); /* [แก้ไข 25 พ.ย. 2569] #500 คำอธิบายป้าย "ตรวจสอบค่า" */
     if(vn_) vn_.style.display=(!pl&&(st_eth==='verify'||st_pow==='verify'||st_hr==='verify'))?'block':'none'; } /* ผลเป็นไปไม่ได้ (r.plaus) มีกล่องเตือน ⛔ อยู่แล้ว — ไม่แสดงซ้ำ */
   setH('ct_t4_des','—');setH('ct_t4_act',f(r.T4_C)+'°C');
@@ -1788,11 +1802,11 @@ function fillVarsFromCalc(){
   set('v_etat', r.eta_t*100,1);
   set('v_pgross', r.P_display,0);
   const rated = vn('log_rated')>0 ? vn('log_rated') : r.ratedPow;
-  if(rated>0) set('v_load', r.P_display/rated*100,1);
+  if(rated>0) set('v_load', r.P_display/rated*100,1); else gv('v_load','');   /* [แก้ไข 26 พ.ย. 2569] #1556 */
   set('v_hr', r.HR_field,0);
   set('v_eta', r.eta_th_field*100,2);
-  if(r.ratedHR>0) set('v_hrdev', (r.HR_field-r.ratedHR)/r.ratedHR*100,2);
-  if(rated>0) set('v_pdev', (r.P_display-rated)/rated*100,2);
+  if(r.ratedHR>0) set('v_hrdev', (r.HR_field-r.ratedHR)/r.ratedHR*100,2); else gv('v_hrdev','');   /* [แก้ไข 26 พ.ย. 2569] #1556 พิกัดว่าง → ล้างค่าเดิม (ไม่ค้างค่ารอบก่อน) */
+  if(rated>0) set('v_pdev', (r.P_display-rated)/rated*100,2); else gv('v_pdev','');
   checkAllVars();
   const box=document.getElementById('vars_summary');
   if(box) box.insertAdjacentHTML('afterbegin',`<div class="hint" style="margin-bottom:6px;color:#92400e">ℹ เติมค่าจากผลคำนวณ (T_amb, P_baro, RH, T_wb, ΔP_in, CTIM, CDP, CDT, η_c, LHV, Fuel flow, T₄, ΔP_exh, TIT, η_t, P_gross, Load, HR, η_th, ค่าเบี่ยงเบน) — CTIM = T₁ ของ Sidebar เสมอ; ถ้าเลือกมี Inlet Cooling จะไม่เติม T_amb/T_wb ให้ (กรอกอุณหภูมิภายนอกเอง) | ค่าที่เหลือ (IGV, Wash hours, Fuel gas T/P, Wobbe, O₂/NOx/CO, Spread, Aux, PF, Hz, ชั่วโมงเดิน) ให้กรอกจาก DCS</div>`);
@@ -2465,5 +2479,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>/* [แก้ไข 25 พ.ย. 2569] #501 ก6 ตัดชื่อผู้ผลิตและคำเรียกชั้นเครื่องเฉพาะ — คู่คำแปล EN ของข้อความใหม่ (รายการคำแปลเก่าที่มี GE GER / SGT / Frame ถอดออกแล้ว: ไม่มีข้อความไทยจับคู่) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ตัวแปรภายนอกที่กระทบมากที่สุด: +1 °C → กำลังลด ~0.5–0.9 %, HR เพิ่ม ≈ 0.3 % (ค่าแนวทางของเครื่องมือ — มติผู้จัดทำ 25 พ.ย. 2569) · heavy-duty ไวกว่า aeroderivative; 15→35 °C กำลังหายได้ 12–18 %": "The most influential external variable: +1 °C → power down ~0.5–0.9 %, HR up ≈ 0.3 % (tool guideline value — author's decision, 25 Nov 2026) · heavy-duty more sensitive than aeroderivative; 15→35 °C can lose 12–18 % power", "Base load ตาม OEM: heavy-duty ชั้น E 10–13 | ชั้น F 15–18 | aeroderivative 18–30 (ลดลงตามอากาศร้อน)": "Base load per OEM: heavy-duty E-class 10–13 | F-class 15–18 | aeroderivative 18–30 (drops in hot weather)", "Base load = เปิดสุดตาม OEM (เช่น 84–86°) | Part load ปิดลง (57–60°) เพื่อรักษา T₄ ให้ HRSG": "Base load = fully open per OEM (e.g. 84–86°) | Part load closes (57–60°) to hold T₄ for the HRSG", "ไม่มี Heater 25–50 | มี Performance Heater 150–200 (เครื่องชั้น F บางรุ่น ~185)": "No heater 25–50 | with performance heater 150–200 (some F-class units ~185)", "ต้อง > CDP + 8–12 bar: heavy-duty 20–30 | aeroderivative 35–50 | ตาม OEM": "Must be > CDP + 8–12 bar: heavy-duty 20–30 | aeroderivative 35–50 | per OEM", "heavy-duty 500–600 | aeroderivative 450–520 | ต้องตรงกับ Exhaust Temp Control Curve ของ OEM ที่ CDP นั้น": "heavy-duty 500–600 | aeroderivative 450–520 | Must match the OEM Exhaust Temp Control Curve at that CDP", "ชั้น E 1,100–1,250 | ชั้น F 1,300–1,450 | ชั้น H/J 1,500–1,650 | ไม่วัดตรง — DCS แสดงค่าคำนวณ": "E-class 1,100–1,250 | F-class 1,300–1,450 | H/J-class 1,500–1,650 | not measured directly — DCS shows a calculated value", "50 ± 0.5 (Grid code) | heavy-duty เพลาเดียว 3,000 rpm | aeroderivative ผ่าน Gearbox": "50 ± 0.5 (Grid code) | single-shaft heavy-duty 3,000 rpm | aeroderivative via gearbox", "HGP 24,000 h หรือ 900–1,200 Starts (ชั้น E) | ชั้น F / aeroderivative ตาม OEM (Factored hours)": "HGP 24,000 h or 900–1,200 starts (E-class) | F-class / aeroderivative per OEM (factored hours)", "Simple Cycle ที่ 30 °C: heavy-duty ชั้น E 10,800–11,800 | ชั้น F 9,800–10,800 | aeroderivative 9,000–10,000 (ISO ต่ำกว่า ~3–5 %)": "Simple Cycle at 30 °C: heavy-duty E-class 10,800–11,800 | F-class 9,800–10,800 | aeroderivative 9,000–10,000 (ISO lower by ~3–5 %)", "Simple Cycle ที่ 30 °C: heavy-duty ชั้น E 30–33 | ชั้น F 33–37 | aeroderivative 36–40": "Simple Cycle at 30 °C: heavy-duty E-class 30–33 | F-class 33–37 | aeroderivative 36–40", "η_th ออกแบบฐาน LHV ที่ ISO (15 °C) จาก datasheet · heavy-duty ชั้น E/F 33–38 % · aeroderivative 38–42 %": "Design η_th on LHV basis at ISO (15 °C) from datasheet · heavy-duty E/F-class 33–38 % · aeroderivative 38–42 %", "คำเรียกชั้นเครื่องในตาราง: heavy-duty = กังหันงานหนัก (heavy-duty) ชั้น E / ชั้น F / ชั้น H/J · aeroderivative = กังหันแบบ aeroderivative (ดัดแปลงจากเครื่องยนต์อากาศยาน)": "Machine classes in the table: heavy-duty = heavy-duty gas turbine, E-class / F-class / H/J-class · aeroderivative = aeroderivative gas turbine (derived from an aircraft engine)"});</script>
 <script>/* [แก้ไข 25 พ.ย. 2569] #507 หมายเหตุค่า Sensitivity — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ค่า Sensitivity ในตารางเป็นค่าแนวทางของเครื่องมือ — ยึด correction curve ของรุ่นเครื่องเป็นหลัก · ตรวจเทียบเอกสารที่เปิดได้ (อ้างอิง: U.S. EPA, Catalog of CHP Technologies, Section 3 Combustion Turbines, 2015 ข้อ 3.4.4.1 หน้า 3-10: เครื่องตัวอย่างที่ 37.8 °C กำลังเหลือ 80 % ของค่าที่ 15 °C ≈ −0.9 %/°C สอดคล้องกับแถวอุณหภูมิอากาศ · ข้อ 3.4.4.2 หน้า 3-12: ความดันบรรยากาศต่ำลง กำลังลดตามความหนาแน่นอากาศ ประสิทธิภาพแทบไม่เปลี่ยน)": "Sensitivity values in the table are tool guideline values — the machine model's correction curves take precedence · checked against an openly available document (Reference: U.S. EPA, Catalog of CHP Technologies, Section 3 Combustion Turbines (2015) §3.4.4.1 p. 3-10: example unit at 37.8 °C delivers 80 % of its 15 °C output ≈ −0.9 %/°C, consistent with the ambient temperature row · §3.4.4.2 p. 3-12: lower ambient pressure reduces output with air density, efficiency barely changes)", "+10 mbar (≈ 4 inH₂O) → กำลัง −1.4 %, HR +0.45 %, T₄ +1 °C (ค่าแนวทางของเครื่องมือ) — ไส้กรองตันเป็น Loss ที่ \"กู้คืนได้\" ราคาถูกที่สุด": "+10 mbar (≈ 4 inH₂O) → power −1.4 %, HR +0.45 %, T₄ +1 °C (tool guideline value) — a clogged filter is the cheapest \"recoverable\" loss", "+10 mbar → กำลัง −0.42 %, HR +0.42 %, T₄ +1 °C (ค่าแนวทางของเครื่องมือ)": "+10 mbar → power −0.42 %, HR +0.42 %, T₄ +1 °C (tool guideline value)"},[[/^(\s*)\|\s+ปุ่ม\s+"ดึงค่าจากผลคำนวณ"\s+เติมเฉพาะช่องที่คำนวณได้จากแท็บอื่น\s+ช่องที่เหลือกรอกเอง(\s*)$/,"$1| The \"Pull from calculation\" button fills only fields computed in other tabs; enter the rest$2"]]);</script>
 <script>/* [แก้ไข 25 พ.ย. 2569] #781 บรรทัดความไว Heat Rate — คู่คำแปล EN */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"Heat Rate ต่ออุณหภูมิอากาศเข้า: ใช้ ≈ 0.3 %/°C เป็นค่าแนวทางของเครื่องมือ (มติผู้จัดทำ 25 พ.ย. 2569) — เทียบเอกสาร EPA เดียวกัน ข้อ 3.4.4.1 หน้า 3-10: เครื่องตัวอย่างประสิทธิภาพลดลง 8 % ที่ 37.8 °C (คิดเป็น Heat Rate ≈ +8.7 % หรือ ≈ +0.38 %/°C จาก 15 °C) และเพิ่มขึ้น 2 % ที่ 4.4 °C (Heat Rate ≈ −2.0 % หรือ ≈ 0.19 %/°C) · เอกสารไม่ได้ให้ค่า Heat Rate โดยตรง — ตัวเลข Heat Rate คิดจาก HR ∝ 1/η": "Heat rate vs inlet air temperature: ≈ 0.3 %/°C is used as a tool guideline value (author's decision, 25 Nov 2026) — compared with the same EPA document, §3.4.4.1 p. 3-10: the example unit's efficiency is down 8 % at 37.8 °C (heat rate ≈ +8.7 %, i.e. ≈ +0.38 %/°C from 15 °C) and up 2 % at 4.4 °C (heat rate ≈ −2.0 %, i.e. ≈ 0.19 %/°C) · the document gives no heat rate figures directly — heat rate is derived from HR ∝ 1/η"});</script>
+<script>/* [แก้ไข 26 พ.ย. 2569] #1557 ชุด 29 WP-50B คู่คำแปล EN ของแถวไม่เทียบพิกัด (#1555) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ไม่เทียบ": "Not compared", "ไม่เทียบกับพิกัด — ช่องค่าพิกัดว่างหรือไม่มากกว่า 0 (ช่องว่างไม่คิดเป็น 0):": "Not compared with the rating — rating field blank or not greater than 0 (a blank field is not taken as 0):", "— กรอกในแถบด้านซ้ายหมวดค่าพิกัด": "— enter it in the ratings section of the left panel"});</script>
 </body>
 </html>

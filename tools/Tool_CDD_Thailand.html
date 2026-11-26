@@ -526,7 +526,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       <div><label>จำนวนเดือนล่าสุด</label>
         <select id="regN" onchange="buildRegTable()">
           <option value="12">12 เดือน</option><option value="24">24 เดือน</option>
-          <option value="36" selected>36 เดือน</option></select><div class="hint">จำนวนเดือนล่าสุดที่ใช้ทำ baseline · ควรครอบคลุม ≥ 12 เดือน (ครบทุกฤดู · ค่าแนวทางของเครื่องมือ) · 24–36 เดือนถ้าการผลิตคงที่</div></div>
+          <option value="36" selected>36 เดือน</option></select><label style="display:flex;gap:6px;align-items:center;font-weight:400;margin-top:4px"><input type="checkbox" id="regPartial" onchange="runReg()" style="width:auto;margin:0"><span>รวมเดือนที่ข้อมูลไม่ครบทุกวัน</span></label><!-- [แก้ไข 26 พ.ย. 2569] #1548 ค่าเริ่ม = ไม่รวม --><div class="hint">จำนวนเดือนล่าสุดที่ใช้ทำ baseline · ควรครอบคลุม ≥ 12 เดือน (ครบทุกฤดู · ค่าแนวทางของเครื่องมือ) · 24–36 เดือนถ้าการผลิตคงที่</div></div>
       <div><label>ชนิด DD</label><select id="modeR" onchange="syncFrom('R');runReg()">
         <option value="cdd">CDD</option><option value="hdd">HDD</option><option value="rh">%RH</option></select><div class="hint">ชนิด DD ที่เป็นตัวแปรต้น — อาคารปรับอากาศ/chiller ใช้ CDD · งานอบแห้ง/ความชื้นใช้ RH̄</div></div>
       <div><label>Sensor</label><select id="sensorR" onchange="syncFrom('R');runReg()">
@@ -855,7 +855,7 @@ function saveJSON(){
   /* [แก้ไข 25 พ.ย. 2569] #580 คีย์ใหม่ (ไฟล์เก่าไม่มี → เปิดได้เหมือนเดิม): ana = ช่วงวิเคราะห์ (แท็บ 2–5 · กำหนดเดือนของ Regression)
      reg = ผล Regression ที่แสดงอยู่ (ran/model: สมการ · R² · CV(RMSE) · ค่าจำลองรายเดือน) + ช่วง Optimize · fc = การตั้งค่าแท็บพยากรณ์ (ข้อมูลพยากรณ์ไม่บันทึกตามเดิม) */
   ui.ana={s:ana.s,e:ana.e<0?monthsIdx.length-1:ana.e};
-  ui.reg={v:1,ran:regTried,model:regLast,optMin:g('optMin').value,optMax:g('optMax').value,opt:optLast};
+  ui.reg={v:1,ran:regTried,model:regLast,optMin:g('optMin').value,optMax:g('optMax').value,opt:optLast,partial:!!(g('regPartial')&&g('regPartial').checked)};   /* [แก้ไข 26 พ.ย. 2569] #1548 คีย์ใหม่ partial (ไฟล์เก่าไม่มี = ไม่รวมเดือนไม่ครบ) */
   ui.fc={metric:g('fcMetric').value,base:g('fcBase').value,period:g('rainPeriod').value,labels:g('rainLabels').checked,drill:g('drillProv')?g('drillProv').value:null};
   const blob=new Blob([JSON.stringify(Object.assign({},state,{_ui:ui}))],{type:"application/json"});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -923,6 +923,7 @@ function restoreRegFc(ui){
   if(!R||typeof R!=='object'){clearRegOut();return;}
   if(R.optMin!=null&&R.optMin!=='')g('optMin').value=R.optMin;
   if(R.optMax!=null&&R.optMax!=='')g('optMax').value=R.optMax;
+  if(g('regPartial'))g('regPartial').checked=R.partial===true;   /* [แก้ไข 26 พ.ย. 2569] #1548 */
   clearRegOut();
   if(!R.ran)return;
   runReg();
@@ -954,7 +955,18 @@ function chkMode(selId){ // %RH ต้องมีข้อมูลความ
     alert("ชุดข้อมูลนี้ไม่มีความชื้นสัมพัทธ์ — กดดึงข้อมูลใหม่ในแท็บ 1 เพื่อใช้ %RH");sel.value="cdd";}
   return sel.value;
 }
+/* [แก้ไข 26 พ.ย. 2569] #1545 ชุด 29 WP-50B ช่องว่าง/เดือนไม่มีข้อมูลไม่ใช่ 0
+   (ก) ddMonthly: เดือนที่ไม่มีข้อมูลอุณหภูมิ (หรือ %RH) เลย → cdd = null (เดิม 0) · aggDD รวมเฉพาะเดือนที่มีข้อมูล (DD รวมเท่าเดิม · %RH เฉลี่ยไม่นับเดือนว่างเป็น 0)
+       · ตารางแท็บ 2 แสดง "ไม่มีข้อมูล" · KPI รวมปีนับเฉพาะปีที่มีข้อมูลครบ 12 เดือน · Regression ไม่ใช้เดือนนั้น
+   (ข) ช่อง Base temperature ว่าง → ไม่คำนวณส่วนนั้นและบอกชื่อช่อง (เดิม +value||24 = ใช้ 24 เงียบ ๆ และกรอก 0 ก็กลายเป็น 24) · %RH ไม่ใช้ base
+   (ค) Regression: เดือนที่ข้อมูลไม่ครบทุกวันไม่เข้าแบบจำลอง (ติ๊ก "รวมเดือนที่ข้อมูลไม่ครบ" เพื่อรวม — มีคำเตือน) · แจ้งเดือนที่ไม่ใช้พร้อมจำนวนวันที่มีข้อมูล */
+const CDD_BASE_LBL={baseNum1:'Base temperature (°C) — แท็บ 1',regBase:'Base temperature (°C) — แท็บ 5 Regression',fcBase:'Base temperature (°C) — แท็บพยากรณ์',
+  optMin:'ช่วง Optimize จาก (°C)',optMax:'ถึง (°C)'};
+function cddNum(id){const e=document.getElementById(id);if(!e)return NaN;const t=String(e.value==null?'':e.value).trim();if(t==='')return NaN;const v=+t;return isFinite(v)?v:NaN;}
+function cddNeed(ids){return '<div class="note status-warn" data-cdd-need="1" style="grid-column:1/-1">⚠ <span>ยังคำนวณส่วนนี้ไม่ได้ — ช่องที่ต้องกรอก:</span> '+ids.map(id=>'<b>'+CDD_BASE_LBL[id]+'</b>').join(' · ')+' <span>(ช่องว่างไม่คิดเป็นค่าตั้งต้น 24 °C)</span></div>';}
+function cddNeedMsg(ids){return 'ยังคำนวณ/ส่งออกไม่ได้ — กรอกช่อง: '+ids.map(id=>CDD_BASE_LBL[id]).join(' · ');}
 function aggDD(mode,arr){ // รวมค่ารายเดือนเป็นค่าช่วง: DD = ผลรวม, %RH = ค่าเฉลี่ย
+  arr=arr.filter(x=>x!=null);   /* [แก้ไข 26 พ.ย. 2569] #1545 เดือนไม่มีข้อมูล (null) ไม่เข้าผลรวม/ค่าเฉลี่ย */
   if(!arr.length)return null;
   const s=arr.reduce((a,x)=>a+x,0);
   return mode==="rh"?s/arr.length:s;
@@ -966,7 +978,7 @@ function ddMonthly(k,base,mode,sensor){
     return anaMonths().map(mo=>{
       let n=0,sum=0,tn=0,tsum=0;
       mo.ids.forEach(i=>{if(ra[i]!=null){n++;sum+=ra[i];}if(tt[i]!=null){tn++;tsum+=tt[i];}});
-      return {y:mo.y,m:mo.m,label:mo.label,cdd:n?Math.round(sum/n*10)/10:0,days:n,tot:mo.ids.length,
+      return {y:mo.y,m:mo.m,label:mo.label,cdd:n?Math.round(sum/n*10)/10:null,days:n,tot:mo.ids.length,   /* [แก้ไข 26 พ.ย. 2569] #1545 เดิม n=0 → 0 */
         avgT:tn?Math.round(tsum/tn*10)/10:null,avgRH:n?Math.round(sum/n):null};});
   }
   const t=(sensor==="wb")?(state.wb?state.wb[k]:null):state.temps[k];
@@ -977,7 +989,7 @@ function ddMonthly(k,base,mode,sensor){
       if(mode==="hdd"){if(v<base)dd+=base-v;}else{if(v>base)dd+=v-base;}}});
     let rn=0,rsum=0;const ra=state.rh?state.rh[k]:null;
     if(ra)mo.ids.forEach(i=>{if(ra[i]!=null){rn++;rsum+=ra[i];}});
-    return {y:mo.y,m:mo.m,label:mo.label,cdd:Math.round(dd*10)/10,days:n,tot:mo.ids.length,
+    return {y:mo.y,m:mo.m,label:mo.label,cdd:n?Math.round(dd*10)/10:null,days:n,tot:mo.ids.length,   /* [แก้ไข 26 พ.ย. 2569] #1545 เดิม n=0 → 0 */
       avgT:n?Math.round(sum/n*10)/10:null,avgRH:rn?Math.round(rsum/rn):null};
   });
 }
@@ -986,8 +998,9 @@ function dl(name,text){const a=document.createElement('a');
   a.download=name;a.click();}
 function exportAllCSV(){
   if(!state.meta){alert("ยังไม่มีข้อมูล");return;}
-  const base=+document.getElementById('baseNum1').value||24;
+  let base=cddNum('baseNum1');   /* [แก้ไข 26 พ.ย. 2569] #1546 เดิม +value||24 */
   const mode=document.getElementById('mode1').value,sensor=chkWB('sensor1'),nm=ddLabel(mode,sensor);
+  if(isNaN(base)){if(mode!=='rh'){alert(cddNeedMsg(['baseNum1']));return;}base='—';}   /* %RH ไม่ใช้ base */
   // [แก้ไข 10 ก.ย. 2569] ระบุค่าตั้งที่ใช้คำนวณไว้ในหัวไฟล์ CSV (ค่ามาจากแท็บ 1 / ซิงก์ทุกแท็บถ้าเปิดไว้)
   const res=getRes();   // [แก้ไข 23 ก.ย. 2569] รายวัน/รายสัปดาห์/รายเดือน ตามตัวเลือกกลาง (หัวคอลัมน์ใช้ช่วงวิเคราะห์เดียวกับค่า — เดิมหัวใช้ทุกเดือนแต่ค่าใช้ช่วงวิเคราะห์ ทำให้คอลัมน์เคลื่อนเมื่อย่อช่วง)
   const hdr='"# settings: resolution='+res+' | base='+base+' C | DD='+nm+' ('+(mode==='rh'?'%RH':mode.toUpperCase())+') | sensor='+(sensor==='wb'?'wet-bulb':'dry-bulb')+(state.meta.wbSource==='api'?' (WB from API)':'')+' | source=tab1'+(syncOn()?' (synced all tabs)':' (per-tab, sync OFF)')+' | unit='+unitOf(mode)+(res==='week'?' | week=ISO 8601 Mon-Sun':'')+'"';
@@ -1008,8 +1021,9 @@ function exportAllCSV(){
   dl(nm+"_all_provinces_"+res+"_base"+base+".csv",rows.join("\n"));
 }
 function exportProvCSV(){
-  const k=document.getElementById('provSel').value,base=+document.getElementById('baseNum1').value;
+  const k=document.getElementById('provSel').value;let base=cddNum('baseNum1');   /* [แก้ไข 26 พ.ย. 2569] #1546 เดิม +value (ว่าง → 0 ในไฟล์) */
   const mode=document.getElementById('mode1').value,sensor=chkWB('sensor1'),nm=ddLabel(mode,sensor);
+  if(isNaN(base)){if(mode!=='rh'){alert(cddNeedMsg(['baseNum1']));return;}base='—';}
   const res=getRes();   // [แก้ไข 23 ก.ย. 2569]
   const p=PROVINCES.find(x=>x.k===k),c=ddByPeriod(k,base,mode,sensor,res);
   const col=nm.toLowerCase().replace('̄','')+"_base"+base;
@@ -1063,7 +1077,7 @@ function syncFrom(src){
   const g=id=>document.getElementById(id);
   const S=SYNC_SETS[src];if(!S)return;
   const base=+g(S.base).value,mode=g(S.mode).value,sensor=g(S.sensor).value;
-  if(!isFinite(base))return;
+  if(!isFinite(base)||String(g(S.base).value).trim()==='')return;   /* [แก้ไข 26 พ.ย. 2569] #1546 ช่องว่างไม่ซิงก์เป็น 0 ไปแท็บอื่น */
   const clamp=v=>Math.min(35,Math.max(-25,Math.round(v)));
   Object.keys(SYNC_SETS).forEach(k=>{
     if(String(k)===String(src))return;
@@ -1149,24 +1163,25 @@ function barGroupChart(el,labels,series){ // grouped bars: labels=categories
 function renderProv(){
   if(!state.meta)return;
   const k=document.getElementById('provSel').value;
-  const base=+document.getElementById('baseNum1').value||24;
+  let base=cddNum('baseNum1');   /* [แก้ไข 26 พ.ย. 2569] #1546 เดิม +value||24 */
   const mode=chkMode('mode1'),sensor=chkWB('sensor1'),nm=ddLabel(mode,sensor),isRH=mode==='rh';
-  document.getElementById('baseSlider1').value=Math.min(35,Math.max(-25,base));
-  document.getElementById('baseVal1').textContent=base;
+  if(isNaN(base)){if(!isRH){document.getElementById('provKPI').innerHTML=cddNeed(['baseNum1']);document.getElementById('provChart').innerHTML='';document.getElementById('provTable').innerHTML='';return;}base='—';}
+  else{document.getElementById('baseSlider1').value=Math.min(35,Math.max(-25,base));
+  document.getElementById('baseVal1').textContent=base;}
   const p=PROVINCES.find(x=>x.k===k);
   if(getRes()!=='month'){renderProvRes(p,base,mode,sensor,nm,isRH);return;}   // [แก้ไข 23 ก.ย. 2569] รายสัปดาห์/รายวัน
   const c=ddMonthly(k,base,mode,sensor);
   if(!c.length){document.getElementById('provKPI').innerHTML="";return;}
   const years=[...new Set(c.map(x=>x.y))];
   // KPI
-  const full=y=>c.filter(x=>x.y===y).length===12;
+  const full=y=>c.filter(x=>x.y===y&&x.cdd!=null).length===12;   /* [แก้ไข 26 พ.ย. 2569] #1545 ปีที่มีเดือนไม่มีข้อมูลไม่แสดงเป็น "รวมปี" */
   const aggWord=isRH?"เฉลี่ยปี":"รวมปี";
   const kpis=years.filter(full).map(y=>{
     const s=aggDD(mode,c.filter(x=>x.y===y).map(x=>x.cdd));
     return '<div class="kpi"><div class="v">'+Math.round(s).toLocaleString()+'</div><div class="l">'+nm+' '+aggWord+' พ.ศ. '+(y+543)+' ('+unitOf(mode)+')</div></div>';}).join("");
-  const last12=aggDD(mode,c.slice(-12).map(x=>x.cdd));
+  const last12=aggDD(mode,c.slice(-12).map(x=>x.cdd)),n12=c.slice(-12).filter(x=>x.cdd!=null).length;   /* [แก้ไข 26 พ.ย. 2569] #1545 */
   document.getElementById('provKPI').innerHTML=kpis+
-    '<div class="kpi"><div class="v">'+Math.round(last12).toLocaleString()+'</div><div class="l">'+nm+' '+(isRH?"เฉลี่ย":"รวม")+' 12 เดือนล่าสุด ('+unitOf(mode)+')</div></div>'+
+    '<div class="kpi"><div class="v">'+(last12==null?'–':Math.round(last12).toLocaleString())+'</div><div class="l">'+nm+' '+(isRH?"เฉลี่ย":"รวม")+' 12 เดือนล่าสุด ('+unitOf(mode)+')'+(n12<Math.min(12,c.length)?' <span class="status-warn">(มีข้อมูล '+n12+' เดือน)</span>':'')+'</div></div>'+
     (isRH?'':'<div class="kpi"><div class="v">'+base+'</div><div class="l">Base temperature (°C)</div></div>');
   // chart: month 1..12, series per year
   const series=years.map((y,i)=>({name:"พ.ศ. "+(y+543),
@@ -1180,14 +1195,14 @@ function renderProv(){
   h+="</tr>";
   for(let m=1;m<=12;m++){h+="<tr><td>"+TH_MON[m-1]+"</td>";
     years.forEach(y=>{const f=c.find(x=>x.y===y&&x.m===m);
-      h+='<td class="num">'+(f?f.cdd.toLocaleString()+(f.days<f.tot?" <span class='status-warn'>("+f.days+"วัน)</span>":""):"–")+'</td>'+
+      h+='<td class="num">'+(f?(f.cdd==null?"<span class='status-warn'>ไม่มีข้อมูล</span>":f.cdd.toLocaleString()+(f.days<f.tot?" <span class='status-warn'>("+f.days+"วัน)</span>":"")):"–")+'</td>'+   /* [แก้ไข 26 พ.ย. 2569] #1545 */
          '<td class="num" style="color:var(--muted)">'+(f&&f.avgT!=null?f.avgT:"–")+'</td>'+
          (hasRH?'<td class="num" style="color:var(--muted)">'+(f&&f.avgRH!=null?f.avgRH:"–")+'</td>':'');});
     h+="</tr>";}
   h+="<tr><th>"+(isRH?"เฉลี่ยทั้งปี":"รวมทั้งปี")+"</th>";
   years.forEach(y=>{const s=aggDD(mode,c.filter(x=>x.y===y).map(x=>x.cdd));
-    const n=c.filter(x=>x.y===y).length;
-    h+='<th class="num">'+Math.round(s).toLocaleString()+(n<12?" ("+n+" เดือน)":"")+'</th><th></th>'+(hasRH?'<th></th>':'');});
+    const n=c.filter(x=>x.y===y&&x.cdd!=null).length;   /* [แก้ไข 26 พ.ย. 2569] #1545 นับเฉพาะเดือนที่มีข้อมูล */
+    h+='<th class="num">'+(s==null?'–':Math.round(s).toLocaleString())+(n<12?" ("+n+" เดือน)":"")+'</th><th></th>'+(hasRH?'<th></th>':'');});
   h+="</tr></table>";
   document.getElementById('provTable').innerHTML="<h3>"+p.th+" ("+p.en+") — ภาค"+RG[p.rg]+" · พิกัด "+p.lat+"°N, "+p.lon+"°E</h3>"+h;
 }
@@ -1309,7 +1324,8 @@ function renderDaily(){
   if(!state.meta)return;
   const g=id=>document.getElementById(id);
   const k=g('dailyProv').value||g('provSel').value;
-  const base=+g('baseNum1').value||24, mode=chkMode('mode1'), sensor=chkWB('sensor1'), nm=ddLabel(mode,sensor), isRH=mode==='rh';
+  let base=cddNum('baseNum1');const mode=chkMode('mode1'), sensor=chkWB('sensor1'), nm=ddLabel(mode,sensor), isRH=mode==='rh';   /* [แก้ไข 26 พ.ย. 2569] #1546 เดิม +value||24 */
+  if(isNaN(base)){if(!isRH){g('dailyKPI').innerHTML=cddNeed(['baseNum1']);g('dailyChart').innerHTML='';g('dailyTable').innerHTML='';return;}base='—';}
   g('dailySettingInfo').textContent=nm+(isRH?'':' · base '+base+' °C')+' · '+(sensor==='wb'?'กระเปาะเปียก'+(state.meta.wbSource==='api'?' (API)':' (Stull)'):'กระเปาะแห้ง'+(dailyTsrc()==='mm'?' · T̄ = (Tmax+Tmin)/2':' · T̄ = ค่าเฉลี่ย 24 ชม.'));
   { const opt=g('dailyTsrc').options[1];opt.disabled=!(exHas('tmax')&&exHas('tmin'));if(opt.disabled&&g('dailyTsrc').value==='mm')g('dailyTsrc').value='mean';
     const have=EX_DEFS.filter(d=>exHas(d.key)&&d.key!=='tmin').map(d=>'<span class="expill">'+(d.key==='tmax'?'Tmax/Tmin':d.th)+' ('+d.unit+')</span>').join('');
@@ -1367,7 +1383,8 @@ function renderDaily(){
 function exportDailyCSV(){
   if(!state.meta){alert("ยังไม่มีข้อมูล");return;}
   const g=id=>document.getElementById(id);
-  const k=g('dailyProv').value,base=+g('baseNum1').value||24,mode=g('mode1').value,sensor=chkWB('sensor1'),nm=ddLabel(mode,sensor);
+  const k=g('dailyProv').value,mode=g('mode1').value,sensor=chkWB('sensor1'),nm=ddLabel(mode,sensor);let base=cddNum('baseNum1');   /* [แก้ไข 26 พ.ย. 2569] #1546 */
+  if(isNaN(base)){if(mode!=='rh'){alert(cddNeedMsg(['baseNum1']));return;}base='—';}
   const p=PROVINCES.find(x=>x.k===k);
   const rows=dailyRows(k,base,mode,sensor,g('dailyS').value,g('dailyE').value);
   const hasRH=!!state.rh,hasWB=!!state.wb;
@@ -1437,7 +1454,7 @@ function renderCmp(){
     const years=[...new Set(am.map(m=>m.y))].filter(y=>am.filter(m=>m.y===y).length===12);
     barGroupChart(document.getElementById('cmpChart'),years.map(y=>"พ.ศ. "+(y+543)),
       data.map((d,i)=>({name:d.p.th,color:SERIES_COLORS[i],
-        data:years.map(y=>Math.round(aggDD(mode,d.c.filter(x=>x.y===y).map(x=>x.cdd))))})));
+        data:years.map(y=>{const v=aggDD(mode,d.c.filter(x=>x.y===y).map(x=>x.cdd));return v==null?null:Math.round(v);})})));   /* [แก้ไข 26 พ.ย. 2569] #1545 */
   }
   // annual summary table
   const years=[...new Set(am.map(m=>m.y))];
@@ -1446,9 +1463,9 @@ function renderCmp(){
     h+='<th class="num">พ.ศ. '+(y+543)+(n<12?" ("+n+"ด.)":"")+'</th>';});
   h+='<th class="num">เฉลี่ย/เดือน</th></tr>';
   data.forEach(d=>{h+="<tr><td>"+d.p.th+"</td>";
-    years.forEach(y=>{const s=aggDD(mode,d.c.filter(x=>x.y===y).map(x=>x.cdd));
-      h+='<td class="num">'+Math.round(s).toLocaleString()+'</td>';});
-    h+='<td class="num">'+Math.round(d.c.reduce((a,x)=>a+x.cdd,0)/d.c.length).toLocaleString()+'</td></tr>';});
+    years.forEach(y=>{const s=aggDD(mode,d.c.filter(x=>x.y===y).map(x=>x.cdd)),nm0=d.c.filter(x=>x.y===y&&x.cdd==null).length;   /* [แก้ไข 26 พ.ย. 2569] #1545 */
+      h+='<td class="num">'+(s==null?'<span class="status-warn">ไม่มีข้อมูล</span>':Math.round(s).toLocaleString()+(nm0?' <span class="status-warn">(ขาด '+nm0+' เดือน)</span>':''))+'</td>';});
+    {const v=d.c.filter(x=>x.cdd!=null);h+='<td class="num">'+(v.length?Math.round(v.reduce((a,x)=>a+x.cdd,0)/v.length).toLocaleString():'–')+'</td></tr>';}});
   h+="</table><p class='assump'>"+nm+(mode==="rh"?" · ค่ารายปี = ค่าเฉลี่ย":" · Base temperature = "+base+" °C")+" · หน่วย "+unitOf(mode)+"</p>";
   document.getElementById('cmpTable').innerHTML=h;
 }
@@ -1574,7 +1591,8 @@ async function drillGo(){
 function renderDrill(){
   if(!drill)return;
   const met=document.getElementById('fcMetric').value;
-  const base=+document.getElementById('fcBase').value||24;
+  const base=cddNum('fcBase');   /* [แก้ไข 26 พ.ย. 2569] #1547 เดิม +value||24 */
+  if(met==='cdd'&&isNaN(base)){alert(cddNeedMsg(['fcBase']));return;}
   const M={rain:{th:'ฝนสะสม',u:'มม.'},cdd:{th:'CDD สะสมคาดการณ์',u:'°C·day'},
            temp:{th:'อุณหภูมิเฉลี่ย',u:'°C'},rh:{th:'ความชื้นเฉลี่ย',u:'%'}}[met];
   const pv=document.getElementById('rainPeriod').value;
@@ -1654,7 +1672,7 @@ async function fetchPins(){
 function renderPins(){
   const el=document.getElementById('pinTable');if(!el)return;
   if(!pins.length){el.innerHTML='<p class="assump">ยังไม่มีหมุด — เพิ่มพิกัดโรงงาน/ไซต์ลูกค้าแล้วกดดึงพยากรณ์</p>';return;}
-  const base=+document.getElementById('fcBase').value||24;
+  const base=cddNum('fcBase');   /* [แก้ไข 26 พ.ย. 2569] #1547 เดิม +value||24 → ว่าง = คอลัมน์ CDD 7 วัน "–" + บอกช่อง */
   let ht='<table><tr><th>ไซต์งาน</th><th class="num">พิกัด</th><th class="num">ฝน 3 วัน (มม.)</th><th class="num">ฝน 7 วัน</th><th class="num">ฝน 14 วัน</th><th class="num">CDD 7 วัน</th><th class="num">T̄ 7 วัน (°C)</th><th class="num">RH̄ 7 วัน (%)</th><th class="num">โอกาสฝน 7 วัน</th><th class="no-print"></th></tr>';
   pins.forEach(function(p,i){
     let c='<td class="num" colspan="7" style="color:var(--muted)">กด "ดึงพยากรณ์ทุกหมุด"</td>';
@@ -1666,12 +1684,12 @@ function renderPins(){
       const h7=fcAgg('rh',I7,base,pinFc.rain[i],pinFc.tmp[i],pinFc.rh[i]);
       const pb=pinFc.prob[i]?Math.max.apply(null,I7.map(function(x){return pinFc.prob[i][x]??0;})):null;
       c='<td class="num">'+r3.toFixed(0)+'</td><td class="num">'+r7.toFixed(0)+'</td><td class="num">'+r14.toFixed(0)+
-        '</td><td class="num">'+cd.toFixed(1)+'</td><td class="num">'+t7.toFixed(1)+'</td><td class="num">'+h7.toFixed(0)+
+        '</td><td class="num">'+(isNaN(base)?'–':cd.toFixed(1))+'</td><td class="num">'+t7.toFixed(1)+'</td><td class="num">'+h7.toFixed(0)+
         '</td><td class="num">'+(pb!=null?pb+'%':'–')+'</td>';
     }
     ht+='<tr><td>'+p.name+'</td><td class="num" style="font-size:.8rem">'+p.lat.toFixed(4)+', '+p.lon.toFixed(4)+'</td>'+c+
         '<td class="no-print"><button class="danger" style="padding:3px 9px;margin:0" onclick="delPin('+i+')">ลบ</button></td></tr>';});
-  ht+='</table><p class="assump">CDD 7 วันใช้ base จากช่องด้านบน ('+base+' °C)</p>';
+  ht+='</table>'+(isNaN(base)?cddNeed(['fcBase']):'<p class="assump">CDD 7 วันใช้ base จากช่องด้านบน ('+base+' °C)</p>');
   el.innerHTML=ht;
 }
 async function fetchForecast(){
@@ -1734,7 +1752,8 @@ function renderRain(){
   if(!fc){return;}
   const pv=document.getElementById('rainPeriod').value;
   const met=document.getElementById('fcMetric').value;
-  const base=+document.getElementById('fcBase').value||24;
+  const base=cddNum('fcBase');   /* [แก้ไข 26 พ.ย. 2569] #1547 เดิม +value||24 */
+  if(met==='cdd'&&isNaN(base)){alert(cddNeedMsg(['fcBase']));return;}
   const showLb=document.getElementById('rainLabels').checked;
   const M={rain:{th:'ฝนสะสม',u:'มม.'},cdd:{th:'CDD สะสมคาดการณ์',u:'°C·day'},
            temp:{th:'อุณหภูมิเฉลี่ย',u:'°C'},rh:{th:'ความชื้นเฉลี่ย',u:'%'}}[met];
@@ -1931,10 +1950,16 @@ function pasteCol(ev,cls,start){
   const inputs=[...document.querySelectorAll('.'+cls)];
   vals.forEach((v,j)=>{if(inputs[start+j])inputs[start+j].value=v.replace(/[, ]/g,"");});
 }
+let regSkip={none:[],part:[],incl:[]};   /* [แก้ไข 26 พ.ย. 2569] #1548 เดือนที่ไม่ใช้/ใช้แบบข้อมูลไม่ครบ ของการคำนวณ Regression ล่าสุด */
 function regData(base){
   const k=document.getElementById('regProv').value,mos=regMonths();
   const mode=chkMode('modeR'),sensor=chkWB('sensorR');
-  const all=ddMonthly(k,base,mode,sensor),dd=mos.map(m=>{const f=all.find(x=>x.y===m.y&&x.m===m.m);return f?f.cdd:null;});
+  const inclPart=!!(document.getElementById('regPartial')&&document.getElementById('regPartial').checked);   /* [แก้ไข 26 พ.ย. 2569] #1548 */
+  const all=ddMonthly(k,base,mode,sensor),dd=mos.map(m=>{const f=all.find(x=>x.y===m.y&&x.m===m.m);
+    return f?((f.cdd==null||(f.days<f.tot&&!inclPart))?null:f.cdd):null;});
+  regSkip={none:[],part:[],incl:[]};
+  mos.forEach(m=>{const f=all.find(x=>x.y===m.y&&x.m===m.m);if(!f)return;
+    if(f.cdd==null)regSkip.none.push(m);else if(f.days<f.tot)(inclPart?regSkip.incl:regSkip.part).push({m,days:f.days,tot:f.tot});});
   const E=[...document.querySelectorAll('.regE')].map(x=>parseFloat((x.value||"").replace(/,/g,"")));
   const P=[...document.querySelectorAll('.regP')].map(x=>parseFloat((x.value||"").replace(/,/g,"")));
   const pairs=[];
@@ -2011,14 +2036,24 @@ function regModel(pairs){ // เลือกแบบจำลองอัตโ
   if(withP.length>=6){const r=mols(withP);if(r)return {r,pairs:withP,two:true};}
   return {r:ols(pairs),pairs,two:false};
 }
+/* [แก้ไข 26 พ.ย. 2569] #1548 ข้อความเดือนที่ไม่เข้า Regression (ไม่มีข้อมูล / ข้อมูลไม่ครบทุกวัน) และเดือนไม่ครบที่ผู้ใช้เลือกรวม */
+function regSkipNote(){const S=regSkip;if(!S.none.length&&!S.part.length&&!S.incl.length)return '';
+  const L=a=>a.map(x=>fmtBEfull(x.y,x.m)).join(', '),D=a=>a.map(x=>fmtBEfull(x.m.y,x.m.m)+' ('+x.days+'/'+x.tot+' วัน)').join(', ');
+  return '<div class="note status-warn" data-cdd-skip="1" style="grid-column:1/-1">'+
+    (S.none.length?'<div>⚠ <span>ไม่ใช้ในแบบจำลอง — เดือนที่ไม่มีข้อมูลอุณหภูมิ:</span> <span>'+L(S.none)+'</span></div>':'')+
+    (S.part.length?'<div>⚠ <span>ไม่ใช้ในแบบจำลอง — เดือนที่ข้อมูลไม่ครบทุกวัน (DD ต่ำกว่าจริง):</span> '+'<span>'+D(S.part)+'</span> <span>· ติ๊ก "รวมเดือนที่ข้อมูลไม่ครบทุกวัน" ถ้าต้องการรวม</span></div>':'')+
+    (S.incl.length?'<div>⚠ <span>รวมเดือนที่ข้อมูลไม่ครบตามที่เลือก — DD ของเดือนเหล่านี้คิดจากวันที่มีข้อมูลเท่านั้น (ต่ำกว่าจริง) ควรระบุในรายงาน:</span> <span>'+D(S.incl)+'</span></div>':'')+'</div>';}
 function runReg(){
   if(!state.meta)return;
   regTried=true;   /* [แก้ไข 25 พ.ย. 2569] #580 */
-  const base=+document.getElementById('regBase').value||24;
+  let base=cddNum('regBase');   /* [แก้ไข 26 พ.ย. 2569] #1546 เดิม +value||24 (ว่าง/0 → 24 เงียบ ๆ) */
+  if(document.getElementById('modeR').value==='rh'&&isNaN(base))base='—';   /* %RH ไม่ใช้ base */
+  if(document.getElementById('modeR').value!=='rh'&&isNaN(base)){regLast=null;document.getElementById('regKPI').innerHTML=cddNeed(['regBase']);
+    ['regChart','regResid','optChart'].forEach(id=>{document.getElementById(id).innerHTML='';});return;}
   const nm=ddLabel(document.getElementById('modeR').value,document.getElementById('sensorR').value);
   const allPairs=regData(base);
   if(allPairs.length<6){regLast=null;document.getElementById('regKPI').innerHTML=   /* [แก้ไข 25 พ.ย. 2569] #580 ไม่มีผล → ไม่บันทึกสมการ */
-    '<div class="note">ต้องมีข้อมูลพลังงานอย่างน้อย 6 เดือน (ตอนนี้ '+allPairs.length+' เดือน)</div>';
+    '<div class="note">ต้องมีข้อมูลพลังงานอย่างน้อย 6 เดือน (ตอนนี้ '+allPairs.length+' เดือน)</div>'+regSkipNote();
     document.getElementById('regChart').innerHTML="";document.getElementById('regResid').innerHTML="";return;}
   const {r,pairs,two}=regModel(allPairs);
   /* [แก้ไข 25 พ.ย. 2569] #580 บันทึกสมการ/สถิติ/ค่าจำลองรายเดือนของผลที่แสดง (ไว้เก็บในไฟล์งานและตรวจว่าการเปิดไฟล์ได้ผลเดิม) */
@@ -2046,7 +2081,7 @@ function runReg(){
       g14CvKpi(r.cvrmse)+
       '<div class="kpi"><div class="v" style="font-size:1.1rem;padding-top:8px">E = '+r.a.toFixed(0)+' + '+r.b.toFixed(2)+'·'+nm+'</div><div class="l">สมการ Baseline (base '+base+' °C, n = '+r.n+')</div></div>';
   }
-  document.getElementById('regKPI').insertAdjacentHTML('beforeend',g14CvNote(r.cvrmse));   /* [แก้ไข 18 พ.ย. 2569] #291 ตารางเกณฑ์ CV(RMSE) 3 ระดับ */
+  document.getElementById('regKPI').insertAdjacentHTML('beforeend',regSkipNote()+g14CvNote(r.cvrmse));   /* [แก้ไข 26 พ.ย. 2569] #1548 แจ้งเดือนที่ไม่ใช้ */   /* [แก้ไข 18 พ.ย. 2569] #291 ตารางเกณฑ์ CV(RMSE) 3 ระดับ */
   // chart: 1 ตัวแปร = DD vs kWh + เส้นถดถอย · 2 ตัวแปร = actual vs predicted + เส้น 45°
   const predFn=two?r.pred:(qq=>r.a+r.b*qq.x);
   const W=640,H=360,L=70,R2=16,T=30,B=48; /* [แก้ไข 18 พ.ย. 2569] #110 เว้นขอบบน 30 px ให้ชื่อแกน y ไม่ทับตัวเลขบนสุด (เดิม T=16 ชื่อแกนกับตัวเลขอยู่บรรทัดเดียวกัน) */
@@ -2089,6 +2124,7 @@ function optimizeBase(){
   if(document.getElementById('modeR').value==="rh"){
     alert("%RH ไม่มี base temperature ให้ optimize — กดคำนวณ Regression ได้เลย");return;}
   let lo=+document.getElementById('optMin').value,hi=+document.getElementById('optMax').value;
+  {const miss=['optMin','optMax'].filter(id=>isNaN(cddNum(id)));if(miss.length){alert(cddNeedMsg(miss));return;}}   /* [แก้ไข 26 พ.ย. 2569] #1549 เดิมช่องว่าง = 0 */
   if(!(hi>lo)){alert("ช่วง Optimize ไม่ถูกต้อง");return;}
   if(hi-lo>60)hi=lo+60;
   const res=optScan(lo,hi);
@@ -3102,5 +3138,7 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 [/^(\s*)(HDD-WB|CDD-WB|HDD) เฉลี่ย\/วัน(\s*)$/,"$1Mean $2/day$3"],
 [/^(\s*)เฉลี่ยช่วง\s+\((-?\d[\d,]*\.?\d*)\s+สัปดาห์\)(\s*)$/,"$1Range mean ($2 weeks)$3"]
 ]);</script>
+<script>/* [แก้ไข 26 พ.ย. 2569] #1550 ชุด 29 WP-50B คู่คำแปล EN ของข้อความช่อง base ว่าง · เดือนไม่มีข้อมูล/ข้อมูลไม่ครบ (#1545–#1549) */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ยังคำนวณส่วนนี้ไม่ได้ — ช่องที่ต้องกรอก:": "This part cannot be calculated yet — field to enter:", "(ช่องว่างไม่คิดเป็นค่าตั้งต้น 24 °C)": "(a blank field is not replaced by the default 24 °C)", "Base temperature (°C) — แท็บ 1": "Base temperature (°C) — tab 1", "Base temperature (°C) — แท็บ 5 Regression": "Base temperature (°C) — tab 5 Regression", "Base temperature (°C) — แท็บพยากรณ์": "Base temperature (°C) — forecast tab", "ช่วง Optimize จาก (°C)": "Optimize range from (°C)", "ถึง (°C)": "to (°C)", "รวมเดือนที่ข้อมูลไม่ครบทุกวัน": "Include months with incomplete daily data", "ไม่ใช้ในแบบจำลอง — เดือนที่ไม่มีข้อมูลอุณหภูมิ:": "Not used in the model — months with no temperature data:", "ไม่ใช้ในแบบจำลอง — เดือนที่ข้อมูลไม่ครบทุกวัน (DD ต่ำกว่าจริง):": "Not used in the model — months without data for every day (DD understated):", "· ติ๊ก \"รวมเดือนที่ข้อมูลไม่ครบทุกวัน\" ถ้าต้องการรวม": "· tick \"Include months with incomplete daily data\" to include them", "รวมเดือนที่ข้อมูลไม่ครบตามที่เลือก — DD ของเดือนเหล่านี้คิดจากวันที่มีข้อมูลเท่านั้น (ต่ำกว่าจริง) ควรระบุในรายงาน:": "Months with incomplete data included as selected — their DD counts only the days with data (understated); state this in the report:"},[[/\(มีข้อมูล (\d+) เดือน\)/g,"(data for $1 months)"],[/\(ขาด (\d+) เดือน\)/g,"($1 months missing)"],[/\((\d+)\/(\d+) วัน\)/g,"($1/$2 days)"],[/^ยังคำนวณ\/ส่งออกไม่ได้ — กรอกช่อง: (.*)$/,function(m,a){return "Cannot calculate/export yet — enter: "+a.replace("Base temperature (°C) — แท็บ 1","Base temperature (°C) — tab 1").replace("Base temperature (°C) — แท็บพยากรณ์","Base temperature (°C) — forecast tab").replace("ช่วง Optimize จาก (°C)","Optimize range from (°C)").replace("ถึง (°C)","to (°C)");}]]);</script>
 </body>
 </html>
