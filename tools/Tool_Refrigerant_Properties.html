@@ -92,39 +92,49 @@ function Pa(id,uid){var p=+$(id).value,u=$(uid).value;return u==='g'?p+ATM:u==='
 var M_RNG='นอกช่วงโมเดล (−50 … 65 °C) — ไม่แสดงค่า เพราะนอกช่วงนี้ตัวเลขไม่น่าเชื่อถือ',M_P0='ความดันสัมบูรณ์ต้องมากกว่า 0 — ตรวจค่าและหน่วย (bar g / bar a)';
 function W(m){return '<div class="warn" style="grid-column:1/-1">'+m+'</div>';}   /* กว้างเต็มการ์ดเมื่ออยู่ในตารางช่องผล */
 function inT(T){return isFinite(T)&&T>=R.Tmin&&T<=R.Tmax;}
+/* [แก้ไข 26 พ.ย. 2569] #1215 (WP-48A) หลัก "ช่องว่าง ≠ ศูนย์": เดิม +$(id).value คิดช่องว่างเป็น 0 เงียบ ๆ
+   (อุณหภูมิว่าง → ค่าของ 0 °C · ความดันว่าง + bar g → ค่าของ 1.01325 bar a · T ท่อว่าง → Superheat/Subcooling เทียบ 0 °C · ตาราง "จาก" ว่าง → เริ่มที่ 0 · "ขั้น" ว่าง → 5 °C)
+   → ช่องที่ผลต้องใช้แต่ว่าง: ไม่คำนวณส่วนนั้นและบอกชื่อช่องที่ว่าง (MISS · แบบเดียวกับชุด 26 ของ Fuel/Flue Gas) · ค่าที่กรอก (รวม 0) คำนวณเหมือนเดิมทุกตัว · ไม่แตะสูตร TE_REFRIG
+   ⑤ ขั้นที่กรอกใช้ไม่ได้ (≤ 0 หรือ < 1): ตัวเลขตารางเท่าเดิม (ใช้ max(1, ขั้น || 5) ตามเดิม) แต่บอกบนจอว่าใช้ขั้นเท่าใด */
+function BL(id){var e=$(id);return !!e&&String(e.value).trim()==='';}
+var MISSLAB={rt:'อุณหภูมิ (°C)',rp:'ความดัน',sh_p:'ความดันด้านดูด',sh_t:'T ท่อดูดวัดจริง (°C)',sc_p:'ความดันด้านส่ง',sc_t:'T ท่อ liquid วัดจริง (°C)',pt_a:'จาก (°C)',pt_b:'ถึง (°C)',pt_s:'ขั้น (°C)'};
+function MISS(ids){return ids.length?'<div class="warn" data-miss="1" style="grid-column:1/-1">⚠ <span>กรุณากรอก</span> '+ids.map(function(id){return '<b>'+(MISSLAB[id]||id)+'</b>';}).join(' · ')+' — <span>ช่องว่างไม่คิดเป็นศูนย์ ผลที่ต้องใช้ค่านี้แสดง –</span></div>':'';}
+function blanks(ids){return ids.filter(BL);}
 function go(){
  var f=$('rf').value,inf=R.info(f),mix=!!inf.mix;
  $('rf_info').innerHTML=K('Safety',inf.safety,'',0,'#8e44ad')+K('GWP (AR5)',inf.gwp,'',0,'#8e44ad')+K('T วิกฤต',inf.Tc,'°C',1,'#8e44ad')+K('Glide',inf.glide0||0,'K',1,'#8e44ad');
  $('rf_mix').innerHTML=mix?W('สารผสมมี glide — ที่ความดันเดียวกัน จุด bubble (เริ่มเดือด) ต่ำกว่าจุด dew (เริ่มกลั่นตัว) · Superheat คิดจาก dew · Subcooling คิดจาก bubble'):'';
  try{var t1=+$('rt').value;
-  if(!inT(t1))$('rt_out').innerHTML=W(M_RNG);
+  if(BL('rt'))$('rt_out').innerHTML=MISS(['rt']);else if(!inT(t1))$('rt_out').innerHTML=W(M_RNG);
   else{var s=R.sat(f,t1);
   $('rt_out').innerHTML=(mix?K('P dew',s.P,'bar a',3)+K('P dew',s.P-ATM,'bar g',3)+K('P bubble',s.Pb,'bar a',3)+K('P bubble',s.Pb-ATM,'bar g',3):K('P อิ่มตัว',s.P,'bar a',3)+K('P อิ่มตัว',s.P-ATM,'bar g',3))+K('h_f',s.hf,'kJ/kg',1)+K('h_g',s.hg,'kJ/kg',1)+K('h_fg',s.hfg,'kJ/kg',1)+K('ρ ของเหลว',s.rhof,'kg/m³',0)+K('ρ ไอ',s.rhog,'kg/m³',2);}}catch(e){$('rt_out').innerHTML=W(e.message);}
  try{var P=Pa('rp','rp_u');
-  if(!(P>0))$('rp_out').innerHTML=W(M_P0);
+  if(BL('rp'))$('rp_out').innerHTML=MISS(['rp']);else if(!(P>0))$('rp_out').innerHTML=W(M_P0);
   else{var T=R.Tsat(f,P),Tb=mix?R.Tsat(f,P,'bub'):T;
   if(!inT(T)||!inT(Tb))$('rp_out').innerHTML=W(M_RNG);
   else{var s2=R.sat(f,T);
   $('rp_out').innerHTML=(mix?K('T dew',T,'°C',2)+K('T bubble',Tb,'°C',2):K('T อิ่มตัว',T,'°C',2))+K('P',P,'bar a',3)+K('h_f',s2.hf,'kJ/kg',1)+K('h_g',s2.hg,'kJ/kg',1)+K('h_fg',s2.hfg,'kJ/kg',1);}}}catch(e){$('rp_out').innerHTML=W(e.message);}
- try{var Ps=Pa('sh_p','sh_u');
-  if(!(Ps>0))$('sh_out').innerHTML=W(M_P0);
+ try{var Ps=Pa('sh_p','sh_u'),b3=blanks(['sh_p','sh_t']);
+  if(b3.length)$('sh_out').innerHTML=MISS(b3);else if(!(Ps>0))$('sh_out').innerHTML=W(M_P0);
   else{var Tds=R.Tsat(f,Ps);
   if(!inT(Tds))$('sh_out').innerHTML=W(M_RNG);
   else{var SH=(+$('sh_t').value)-Tds;
   $('sh_out').innerHTML=K(mix?'T dew @P':'T อิ่มตัว @P',Tds,'°C',2)+K('Superheat',SH,'K',1,SH<2?'#d1495b':SH>12?'#e08a00':'#1e9e5a')
    +(SH<0?W('Superheat ติดลบ — อุณหภูมิท่อดูดต่ำกว่าจุดอิ่มตัว เป็นไปไม่ได้สำหรับไอล้วน: ตรวจชนิดสาร · หน่วยความดัน · จุดวัดอุณหภูมิ'):'');}}}catch(e){$('sh_out').innerHTML=W(e.message);}
- try{var Pc=Pa('sc_p','sc_u');
-  if(!(Pc>0))$('sc_out').innerHTML=W(M_P0);
+ try{var Pc=Pa('sc_p','sc_u'),b4=blanks(['sc_p','sc_t']);
+  if(b4.length)$('sc_out').innerHTML=MISS(b4);else if(!(Pc>0))$('sc_out').innerHTML=W(M_P0);
   else{var Tdc=R.Tsat(f,Pc,mix?'bub':undefined);
   if(!inT(Tdc))$('sc_out').innerHTML=W(M_RNG);
   else{var SC=Tdc-(+$('sc_t').value);
   $('sc_out').innerHTML=K(mix?'T bubble @P':'T อิ่มตัว @P',Tdc,'°C',2)+K('Subcooling',SC,'K',1,SC<1?'#d1495b':SC>10?'#e08a00':'#1e9e5a')
    +(SC<0?W('Subcooling ติดลบ — ท่อ liquid ร้อนกว่าจุดอิ่มตัว: มีไอปนในท่อ liquid หรือค่าวัด · หน่วย · ชนิดสารผิด'):'');}}}catch(e){$('sc_out').innerHTML=W(e.message);}
- try{var a=+$('pt_a').value,b=+$('pt_b').value,st=Math.max(1,+$('pt_s').value||5),rows='',n=0,skip=0,cap=false;
+ try{var a=+$('pt_a').value,b=+$('pt_b').value,st=Math.max(1,+$('pt_s').value||5),rows='',n=0,skip=0,cap=false,b5=blanks(['pt_a','pt_b','pt_s']),s5=+$('pt_s').value;
+  if(b5.length)$('pt_out').innerHTML=MISS(b5);else{
   for(var t=a;t<=b+1e-9;t+=st){if(!inT(t)){skip++;if(skip>2000)break;continue;}if(n>=80){cap=true;break;}
    var ss=R.sat(f,t);rows+='<tr><td class="r">'+fx(t,0)+'</td><td class="r">'+fx(ss.P,3)+'</td><td class="r">'+fx(ss.P-ATM,3)+'</td>'+(mix?'<td class="r">'+fx(ss.Pb-ATM,3)+'</td>':'')+'<td class="r">'+fx(ss.hfg,1)+'</td><td class="r">'+fx(ss.rhog,2)+'</td></tr>';n++;}
   $('pt_out').innerHTML=(a>b?W('ค่า "จาก" ต้องไม่มากกว่า "ถึง"'):'')+(skip?W('ข้ามอุณหภูมิที่อยู่นอกช่วงโมเดล (−50 … 65 °C)'):'')+(cap?W('แสดง 80 แถวแรก — เพิ่มค่า "ขั้น" เพื่อดูช่วงที่เหลือ'):'')
-   +'<table><tr><th class="r">T °C</th><th class="r">'+(mix?'P dew bar a':'P bar a')+'</th><th class="r">'+(mix?'P dew bar g':'P bar g')+'</th>'+(mix?'<th class="r">P bubble bar g</th>':'')+'<th class="r">h_fg kJ/kg</th><th class="r">ρ ไอ kg/m³</th></tr>'+rows+'</table>';}catch(e){$('pt_out').innerHTML=W(e.message);}
+   +(st!==s5?'<div class="warn" data-step="1"><span>ค่า "ขั้น" ที่กรอกใช้ไม่ได้ (ต้องมากกว่า 0 · ขั้นเล็กสุด 1 °C) — ตารางใช้ขั้น</span> <b>'+st+'</b> <span>°C</span></div>':'')
+   +'<table><tr><th class="r">T °C</th><th class="r">'+(mix?'P dew bar a':'P bar a')+'</th><th class="r">'+(mix?'P dew bar g':'P bar g')+'</th>'+(mix?'<th class="r">P bubble bar g</th>':'')+'<th class="r">h_fg kJ/kg</th><th class="r">ρ ไอ kg/m³</th></tr>'+rows+'</table>';}}catch(e){$('pt_out').innerHTML=W(e.message);}
 }
 document.addEventListener('input',go);document.addEventListener('change',go);go();
 
@@ -180,6 +190,13 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)R(-?\d[\d,]*\.?\d*)C\s+\(ผสม\)(\s*)$/,"$1R$2C (blend)$3"],
 [/^(\s*)R(-?\d[\d,]*\.?\d*)B\s+\(ผสม\)(\s*)$/,"$1R$2B (blend)$3"]
 ]);
+</script>
+<script>/* [แก้ไข 26 พ.ย. 2569] #1215 (WP-48A) EN ข้อความใหม่: ช่องว่าง ≠ ศูนย์ (แจ้งชื่อช่องที่ว่าง) · ขั้นตารางที่ใช้จริง — ชื่อช่องใช้คู่แปลของป้ายเดิม */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"กรุณากรอก":"Please enter",
+"ช่องว่างไม่คิดเป็นศูนย์ ผลที่ต้องใช้ค่านี้แสดง –":"a blank field is not taken as zero; results that need it show –",
+"ค่า \"ขั้น\" ที่กรอกใช้ไม่ได้ (ต้องมากกว่า 0 · ขั้นเล็กสุด 1 °C) — ตารางใช้ขั้น":"The \"Step\" entered cannot be used (it must be greater than 0 · smallest step 1 °C) — the table uses a step of"
+});
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
 <script src="../lib/te-scene.js?v=r8"></script>
