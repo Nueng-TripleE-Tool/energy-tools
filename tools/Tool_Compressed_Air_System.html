@@ -210,6 +210,8 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
   .g2,.g3,.g4{grid-template-columns:1fr;}
   .kpi-grid{grid-template-columns:repeat(2,1fr);}
 }
+/* [แก้ไข 26 พ.ย. 2569] #1103 กราฟ 2 ภาพของแท็บ Performance (ลำดับเดินเครื่อง) วางคู่กันเฉพาะจอกว้าง > 1100 px — เดิมจอ 800–1100 px แถบข้าง 300 px + 2 คอลัมน์ บีบกราฟเหลือ 181–293 px อ่านแกนไม่ได้ → เรียงคอลัมน์เดียว · จอ ≥ 1101 px เหมือนเดิม */
+@media(max-width:1100px){.ca-seqg{grid-template-columns:minmax(0,1fr)}}
 /* [ระยะ 4 10 ก.ย. 2569] JSON control + ป้ายชนิดค่า + hint */
 .te-json{display:inline-flex;gap:6px;margin-left:8px}.te-json button,.te-json label{cursor:pointer;font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
 .fchip{display:inline-block;font:600 9.5px/1.4 'IBM Plex Sans Thai',sans-serif;letter-spacing:.02em;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;border:1px solid transparent}
@@ -1382,7 +1384,7 @@ function calcSeq() {
     <div class="info-box" style="margin-top:6px;font-size:12px">กรณีปัจจุบัน (demand ${demand} m³/min รวมรั่ว): <b>${simNow.totalKW.toFixed(1)} kW</b> · SEC <b>${isFinite(spcNow)?spcNow.toFixed(2):'—'}</b> kW/(m³/min) · ค่าไฟ <b>${Math.round(simNow.totalKW*hours*rate/1000).toLocaleString()}</b> พัน บาท/ปี<br>
     ลดรั่ว ${leakPct}% → ลดลง <b>${(simNow.totalKW-sim.totalKW).toFixed(1)} kW</b> ≈ <b>${Math.round((simNow.totalKW-sim.totalKW)*hours*rate/1000).toLocaleString()}</b> พัน บาท/ปี (${hours.toLocaleString()} h × ${rate} บาท/kWh)</div>
     ${demand > capTot ? `<div class="warn-box" style="margin-top:6px">⚠️ Demand ${demand} m³/min เกินกำลังผลิตรวม ${capTot.toFixed(1)} m³/min — ผลจำลองไม่ครอบคลุมส่วนเกิน ตรวจสอบค่า demand/FAD</div>` : ''}
-    <div class="g2" style="margin-top:14px;gap:12px">
+    <div class="g2 ca-seqg" style="margin-top:14px;gap:12px">
       <div class="canvas-wrap">
         <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;font-family:var(--mono);letter-spacing:.05em">POWER BREAKDOWN — CURRENT DEMAND</div>
         <canvas id="seq-bar-canvas" height="220"></canvas>
@@ -1776,9 +1778,17 @@ function updateChkProgress() {
 // ══════════════════════════════════════════════════════════════
 //  SEQUENCING CHARTS
 // ══════════════════════════════════════════════════════════════
+/* [แก้ไข 26 พ.ย. 2569] #1102 กราฟลำดับเดินเครื่อง 2 ภาพวาดใหม่เมื่อกล่องเปลี่ยนขนาด (ย่อ/ขยายหน้าต่าง) — เดิมวาดครั้งเดียวตามความกว้างตอนวาด ย่อจอแล้วภาพถูกบีบ/ยืด
+   เรียกฟังก์ชันวาดเดิมซ้ำด้วยข้อมูลชุดเดียวกับที่คำนวณล่าสุด (ไม่แตะสูตร) ผ่านตัวช่วย TE_I18N.redrawOnResize ของ te-i18n.js (#1023) · canvas ถูกสร้างใหม่ทุกครั้งที่คำนวณ → ยกเลิกตัวรับของ canvas ชุดก่อน · ไม่มีตัวช่วย = พฤติกรรมเดิม */
+let caSeqRd = [];
 function drawSeqCharts(comps, demand, leakPct, simResult, effectiveDemand) {
   drawSeqBarChart(comps, simResult);
   drawSeqLineChart(comps, demand, leakPct);
+  if (window.TE_I18N && TE_I18N.redrawOnResize) {
+    caSeqRd.forEach(h => { try { h.disconnect(); } catch (e) {} });
+    caSeqRd = [TE_I18N.redrawOnResize('seq-bar-canvas', () => drawSeqBarChart(comps, simResult)),
+               TE_I18N.redrawOnResize('seq-line-canvas', () => drawSeqLineChart(comps, demand, leakPct))].filter(Boolean);
+  }
 }
 
 function drawSeqBarChart(comps, sim) {
