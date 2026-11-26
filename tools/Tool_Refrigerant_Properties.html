@@ -113,7 +113,13 @@ function go(){
   else{var T=R.Tsat(f,P),Tb=mix?R.Tsat(f,P,'bub'):T;
   if(!inT(T)||!inT(Tb))$('rp_out').innerHTML=W(M_RNG);
   else{var s2=R.sat(f,T);
-  $('rp_out').innerHTML=(mix?K('T dew',T,'°C',2)+K('T bubble',Tb,'°C',2):K('T อิ่มตัว',T,'°C',2))+K('P',P,'bar a',3)+K('h_f',s2.hf,'kJ/kg',1)+K('h_g',s2.hg,'kJ/kg',1)+K('h_fg',s2.hfg,'kJ/kg',1);}}}catch(e){$('rp_out').innerHTML=W(e.message);}
+  /* [แก้ไข 26 พ.ย. 2569] #1220 (WP-48A) สารผสม (glide): ป้าย/คำอธิบายให้ตรงกับค่าที่คิดจริง (ไม่แตะสูตร TE_REFRIG · ตัวเลขเท่าเดิมทุกตัว)
+     ทวนกับ TE_REFRIG (core/modules/TE_REFPROP.js): Tsat(k,P) = จุด dew (ค่าตั้งต้น) · sat(k,T) อ่านตารางที่อุณหภูมิ T: hf = ของเหลวอิ่มตัว (bubble) ที่ T ซึ่งอยู่ที่ความดัน Pb(T) ·
+     hg = ไออิ่มตัว (dew) ที่ T ซึ่งอยู่ที่ความดัน P(T) · hfg = hg − hf ที่ T เดียวกัน → การ์ดนี้ s2 = sat(f, T dew): h_g = ไออิ่มตัวที่ความดันที่กรอก (Pdew(T dew) = P)
+     แต่ h_f = ของเหลวอิ่มตัวที่อุณหภูมิ T dew (ความดัน Pb(T dew) > P — ไม่ใช่ของเหลวอิ่มตัวที่ความดันนี้ ซึ่งอยู่ที่ T bubble) และ h_fg ไม่ใช่ความร้อนแฝงที่ความดันคงที่
+     เดิมป้าย "h_f" "h_fg" เหมือนสารบริสุทธิ์ → ป้ายบอก "ที่ T dew" + บรรทัดอธิบาย (class hint ไม่ใช่ข้อเตือน) · สารบริสุทธิ์ไม่เปลี่ยน */
+  $('rp_out').innerHTML=(mix?K('T dew',T,'°C',2)+K('T bubble',Tb,'°C',2):K('T อิ่มตัว',T,'°C',2))+K('P',P,'bar a',3)+K(mix?'h_f (ที่ T dew)':'h_f',s2.hf,'kJ/kg',1)+K('h_g',s2.hg,'kJ/kg',1)+K(mix?'h_fg (ที่ T dew)':'h_fg',s2.hfg,'kJ/kg',1)
+   +(mix?'<div class="hint" data-mixnote="1" style="grid-column:1/-1;margin-top:6px">สารผสม: ค่าในการ์ดนี้อ่านที่อุณหภูมิ T dew ของความดันที่กรอก — h_g = ไออิ่มตัว (dew) ที่ความดันนี้ · h_f = ของเหลวอิ่มตัวที่อุณหภูมิ T dew ซึ่งอยู่ที่ความดัน bubble ของอุณหภูมินั้น (สูงกว่าความดันที่กรอก) จึงไม่ใช่ของเหลวอิ่มตัวที่ความดันนี้ · h_fg = h_g − h_f ที่อุณหภูมิเดียวกัน ไม่ใช่ความร้อนแฝงที่ความดันคงที่ · ของเหลวอิ่มตัวที่ความดันนี้อยู่ที่ T bubble — ดู h_f ได้ที่การ์ด ① โดยกรอกอุณหภูมิ = T bubble</div>':'');}}}catch(e){$('rp_out').innerHTML=W(e.message);}
  try{var Ps=Pa('sh_p','sh_u'),b3=blanks(['sh_p','sh_t']);
   if(b3.length)$('sh_out').innerHTML=MISS(b3);else if(!(Ps>0))$('sh_out').innerHTML=W(M_P0);
   else{var Tds=R.Tsat(f,Ps);
@@ -196,6 +202,12 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 "กรุณากรอก":"Please enter",
 "ช่องว่างไม่คิดเป็นศูนย์ ผลที่ต้องใช้ค่านี้แสดง –":"a blank field is not taken as zero; results that need it show –",
 "ค่า \"ขั้น\" ที่กรอกใช้ไม่ได้ (ต้องมากกว่า 0 · ขั้นเล็กสุด 1 °C) — ตารางใช้ขั้น":"The \"Step\" entered cannot be used (it must be greater than 0 · smallest step 1 °C) — the table uses a step of"
+});
+/* [แก้ไข 26 พ.ย. 2569] #1220 (WP-48A) EN ป้าย/คำอธิบายสารผสมของการ์ด ② */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"h_f (ที่ T dew)":"h_f (at T dew)",
+"h_fg (ที่ T dew)":"h_fg (at T dew)",
+"สารผสม: ค่าในการ์ดนี้อ่านที่อุณหภูมิ T dew ของความดันที่กรอก — h_g = ไออิ่มตัว (dew) ที่ความดันนี้ · h_f = ของเหลวอิ่มตัวที่อุณหภูมิ T dew ซึ่งอยู่ที่ความดัน bubble ของอุณหภูมินั้น (สูงกว่าความดันที่กรอก) จึงไม่ใช่ของเหลวอิ่มตัวที่ความดันนี้ · h_fg = h_g − h_f ที่อุณหภูมิเดียวกัน ไม่ใช่ความร้อนแฝงที่ความดันคงที่ · ของเหลวอิ่มตัวที่ความดันนี้อยู่ที่ T bubble — ดู h_f ได้ที่การ์ด ① โดยกรอกอุณหภูมิ = T bubble":"Blend: this card reads its values at the dew temperature (T dew) of the pressure entered — h_g = saturated vapour (dew) at this pressure · h_f = saturated liquid at the temperature T dew, which lies at the bubble pressure of that temperature (higher than the pressure entered), so it is not the saturated liquid at this pressure · h_fg = h_g − h_f at the same temperature, not the latent heat at constant pressure · the saturated liquid at this pressure is at T bubble — read its h_f in card ① by entering the temperature = T bubble"
 });
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
