@@ -107,19 +107,39 @@ function go(){
  try{var t1=+$('rt').value;
   if(BL('rt'))$('rt_out').innerHTML=MISS(['rt']);else if(!inT(t1))$('rt_out').innerHTML=W(M_RNG);
   else{var s=R.sat(f,t1);
-  $('rt_out').innerHTML=(mix?K('P dew',s.P,'bar a',3)+K('P dew',s.P-ATM,'bar g',3)+K('P bubble',s.Pb,'bar a',3)+K('P bubble',s.Pb-ATM,'bar g',3):K('P อิ่มตัว',s.P,'bar a',3)+K('P อิ่มตัว',s.P-ATM,'bar g',3))+K('h_f',s.hf,'kJ/kg',1)+K('h_g',s.hg,'kJ/kg',1)+K('h_fg',s.hfg,'kJ/kg',1)+K('ρ ของเหลว',s.rhof,'kg/m³',0)+K('ρ ไอ',s.rhog,'kg/m³',2);}}catch(e){$('rt_out').innerHTML=W(e.message);}
+  /* [แก้ไข 26 พ.ย. 2569] #1281 (WP-48D) การ์ด ① สารผสม (glide): เดิม h_fg = s.hfg = h_g(ไอที่ T บนเส้น dew · ความดัน P dew) − h_f(ของเหลวที่ T บนเส้น bubble · ความดัน P bubble)
+     คร่อมสองความดัน (R-407C ที่ 5 °C: P dew 5.36 · P bubble 6.53 bar a) → ไม่ใช่ความร้อนแฝงที่ความดันคงที่ และไม่มีกระบวนการในเครื่องระเหย/ควบแน่นที่ตรงกับค่านี้
+     แก้ (มติผู้รวมชุด 26 พ.ย. ลำดับตัดสิน "วิทยาศาสตร์" — สมดุลเฟสของสารผสมซีโอโทรปิก: ที่ความดันหนึ่ง ของเหลวอิ่มตัวอยู่ที่ T bubble ไออิ่มตัวอยู่ที่ T dew):
+     แยกแสดงความร้อนแฝงที่ความดันคงที่ 2 ค่า ของสองความดันที่การ์ดแสดงอยู่แล้ว (ใช้ sat()/Tsat() เดิมของ TE_REFRIG — ไม่แตะโมดูล)
+       h_fg ที่ P dew    = h_g(T) − h_f(T bubble ของ P dew)    · ไออิ่มตัวที่ P dew อยู่ที่ T เอง (T = T dew ของ P dew)
+       h_fg ที่ P bubble = h_g(T dew ของ P bubble) − h_f(T)    · ของเหลวอิ่มตัวที่ P bubble อยู่ที่ T เอง (T = T bubble ของ P bubble)
+     อุณหภูมิอีกปลายของ glide นอกช่วงโมเดล → ช่องนั้นแสดง – พร้อมบรรทัดบอก (class hint ไม่ใช่ข้อเตือน · ค่าอื่นของการ์ดยังใช้ได้)
+     h_f · h_g · ρ · P dew · P bubble ค่าเท่าเดิม (ป้าย h_f/h_g บอกความดันของสถานะนั้น) · สารบริสุทธิ์และ R-410A/R-404A (info().mix = false) ไม่เปลี่ยนทุกค่า */
+  var hfgD=null,hfgB=null,oor1=false;
+  if(mix){var Tbd=R.Tsat(f,s.P,'bub'),Tdb=R.Tsat(f,s.Pb,'dew');
+   if(inT(Tbd))hfgD=s.hg-R.sat(f,Tbd).hf;else oor1=true;
+   if(inT(Tdb))hfgB=R.sat(f,Tdb).hg-s.hf;else oor1=true;}
+  $('rt_out').innerHTML=(mix?K('P dew',s.P,'bar a',3)+K('P dew',s.P-ATM,'bar g',3)+K('P bubble',s.Pb,'bar a',3)+K('P bubble',s.Pb-ATM,'bar g',3):K('P อิ่มตัว',s.P,'bar a',3)+K('P อิ่มตัว',s.P-ATM,'bar g',3))
+   +(mix?K('h_f (ที่ P bubble)',s.hf,'kJ/kg',1)+K('h_g (ที่ P dew)',s.hg,'kJ/kg',1)+K('h_fg ที่ P dew',hfgD,'kJ/kg',1)+K('h_fg ที่ P bubble',hfgB,'kJ/kg',1)
+        :K('h_f',s.hf,'kJ/kg',1)+K('h_g',s.hg,'kJ/kg',1)+K('h_fg',s.hfg,'kJ/kg',1))+K('ρ ของเหลว',s.rhof,'kg/m³',0)+K('ρ ไอ',s.rhog,'kg/m³',2)
+   +(mix?'<div class="hint" data-mixnote="1" style="grid-column:1/-1;margin-top:6px">สารผสม — นิยามค่าในการ์ดนี้ (T = อุณหภูมิที่กรอก): P bubble = ความดันที่ของเหลวเริ่มเดือดที่อุณหภูมินี้ · P dew = ความดันที่ไอเริ่มกลั่นตัวที่อุณหภูมินี้ · h_f และ ρ ของเหลว = ของเหลวอิ่มตัวที่ T และ P bubble · h_g และ ρ ไอ = ไออิ่มตัวที่ T และ P dew · สองสถานะนี้อยู่คนละความดัน ผลต่าง h_g − h_f ที่อุณหภูมิเดียวกันจึงไม่ใช่ความร้อนแฝงที่ความดันคงที่ (การ์ดไม่แสดงค่านี้) · h_fg ที่ P dew = h_g ไออิ่มตัวที่ P dew (อยู่ที่ T) − h_f ของเหลวอิ่มตัวที่ P dew (อยู่ที่ T bubble ของ P dew ซึ่งต่ำกว่า T) · h_fg ที่ P bubble = h_g ไออิ่มตัวที่ P bubble (อยู่ที่ T dew ของ P bubble ซึ่งสูงกว่า T) − h_f ของเหลวอิ่มตัวที่ P bubble (อยู่ที่ T) · สองค่านี้คือความร้อนที่ใช้เปลี่ยนของเหลวอิ่มตัวเป็นไออิ่มตัวทั้งหมดที่ความดันคงที่ของแต่ละความดัน</div>'
+     +(oor1?'<div class="hint" data-oor="1" style="grid-column:1/-1">h_fg ที่แสดง – : อุณหภูมิอีกปลายของ glide อยู่นอกช่วงโมเดล (−50 … 65 °C) — ไม่แสดงค่า</div>':''):'');}}catch(e){$('rt_out').innerHTML=W(e.message);}
  try{var P=Pa('rp','rp_u');
   if(BL('rp'))$('rp_out').innerHTML=MISS(['rp']);else if(!(P>0))$('rp_out').innerHTML=W(M_P0);
   else{var T=R.Tsat(f,P),Tb=mix?R.Tsat(f,P,'bub'):T;
   if(!inT(T)||!inT(Tb))$('rp_out').innerHTML=W(M_RNG);
   else{var s2=R.sat(f,T);
-  /* [แก้ไข 26 พ.ย. 2569] #1220 (WP-48A) สารผสม (glide): ป้าย/คำอธิบายให้ตรงกับค่าที่คิดจริง (ไม่แตะสูตร TE_REFRIG · ตัวเลขเท่าเดิมทุกตัว)
-     ทวนกับ TE_REFRIG (core/modules/TE_REFPROP.js): Tsat(k,P) = จุด dew (ค่าตั้งต้น) · sat(k,T) อ่านตารางที่อุณหภูมิ T: hf = ของเหลวอิ่มตัว (bubble) ที่ T ซึ่งอยู่ที่ความดัน Pb(T) ·
-     hg = ไออิ่มตัว (dew) ที่ T ซึ่งอยู่ที่ความดัน P(T) · hfg = hg − hf ที่ T เดียวกัน → การ์ดนี้ s2 = sat(f, T dew): h_g = ไออิ่มตัวที่ความดันที่กรอก (Pdew(T dew) = P)
-     แต่ h_f = ของเหลวอิ่มตัวที่อุณหภูมิ T dew (ความดัน Pb(T dew) > P — ไม่ใช่ของเหลวอิ่มตัวที่ความดันนี้ ซึ่งอยู่ที่ T bubble) และ h_fg ไม่ใช่ความร้อนแฝงที่ความดันคงที่
-     เดิมป้าย "h_f" "h_fg" เหมือนสารบริสุทธิ์ → ป้ายบอก "ที่ T dew" + บรรทัดอธิบาย (class hint ไม่ใช่ข้อเตือน) · สารบริสุทธิ์ไม่เปลี่ยน */
-  $('rp_out').innerHTML=(mix?K('T dew',T,'°C',2)+K('T bubble',Tb,'°C',2):K('T อิ่มตัว',T,'°C',2))+K('P',P,'bar a',3)+K(mix?'h_f (ที่ T dew)':'h_f',s2.hf,'kJ/kg',1)+K('h_g',s2.hg,'kJ/kg',1)+K(mix?'h_fg (ที่ T dew)':'h_fg',s2.hfg,'kJ/kg',1)
-   +(mix?'<div class="hint" data-mixnote="1" style="grid-column:1/-1;margin-top:6px">สารผสม: ค่าในการ์ดนี้อ่านที่อุณหภูมิ T dew ของความดันที่กรอก — h_g = ไออิ่มตัว (dew) ที่ความดันนี้ · h_f = ของเหลวอิ่มตัวที่อุณหภูมิ T dew ซึ่งอยู่ที่ความดัน bubble ของอุณหภูมินั้น (สูงกว่าความดันที่กรอก) จึงไม่ใช่ของเหลวอิ่มตัวที่ความดันนี้ · h_fg = h_g − h_f ที่อุณหภูมิเดียวกัน ไม่ใช่ความร้อนแฝงที่ความดันคงที่ · ของเหลวอิ่มตัวที่ความดันนี้อยู่ที่ T bubble — ดู h_f ได้ที่การ์ด ① โดยกรอกอุณหภูมิ = T bubble</div>':'');}}}catch(e){$('rp_out').innerHTML=W(e.message);}
+  /* [แก้ไข 26 พ.ย. 2569] #1280 (WP-48D) สารผสม (glide) — คิดให้ถูกหลักสมดุลเฟส (มติผู้รวมชุด 26 พ.ย. ลำดับตัดสิน "วิทยาศาสตร์": ที่ความดันที่กรอก ของเหลวอิ่มตัวอยู่ที่ T bubble และไออิ่มตัวอยู่ที่ T dew)
+     เดิม (#1220 WP-48A · ฐาน bf0d68b): s2 = sat(f, T dew) ทั้งหมด → h_f = ของเหลวที่อุณหภูมิ T dew ซึ่งอยู่ที่ความดัน bubble ของอุณหภูมินั้น (สูงกว่า P ที่กรอก) · h_fg = h_g − h_f ที่ T เดียวกัน (คร่อมสองความดัน)
+     ใหม่: h_f = sat(f, T bubble).hf — ของเหลวบนเส้น bubble ที่ T bubble ซึ่งความดัน Pb(T bubble) = P (Tsat(f,P,'bub') กลับค่าตาราง Pb ของ TE_REFRIG)
+           h_g = sat(f, T dew).hg (เท่าเดิม) — ไอบนเส้น dew ที่ T dew ซึ่ง Pdew(T dew) = P
+           h_fg = h_g − h_f ที่ความดันเดียวกัน = ความร้อนที่ใช้เปลี่ยนของเหลวอิ่มตัวเป็นไออิ่มตัวทั้งหมดที่ความดันคงที่ · Glide = T dew − T bubble (ค่าที่ยังไม่ปัด)
+     ข้อมูลพอ: ตาราง sat ของ TE_REFRIG มีเส้น P (dew) และ Pb (bubble) แยกกัน · hf ในตาราง = ของเหลวบนเส้น bubble (คอมเมนต์ hLiq ของโมดูล) · ทวนอิสระกับ CoolProp 8.1 HEOS (ส่วนผสมจริง) ในรายงาน WP-48D
+     ตัวอย่าง R-407C 8.5 bar g: T bubble 16.93 · T dew 22.61 · h_f 233.1 → 224.6 · h_g 419.3 (เท่าเดิม) · h_fg 186.2 → 194.7 kJ/kg · ไม่แตะ TE_REFRIG · สารบริสุทธิ์และ R-410A/R-404A (info().mix = false) ไม่เปลี่ยนทุกค่า */
+  if(mix){var sb=R.sat(f,Tb),hf2=sb.hf,hg2=s2.hg;
+  $('rp_out').innerHTML=K('T dew',T,'°C',2)+K('T bubble',Tb,'°C',2)+K('Glide',T-Tb,'K',2)+K('P',P,'bar a',3)+K('h_f (ที่ T bubble)',hf2,'kJ/kg',1)+K('h_g (ที่ T dew)',hg2,'kJ/kg',1)+K('h_fg (ที่ความดันนี้)',hg2-hf2,'kJ/kg',1)
+   +'<div class="hint" data-mixnote="1" style="grid-column:1/-1;margin-top:6px">สารผสม — นิยามค่าในการ์ดนี้ (ทุกค่าอยู่ที่ความดัน P ที่กรอก): T bubble = อุณหภูมิที่ของเหลวเริ่มเดือด · T dew = อุณหภูมิที่ไอเริ่มกลั่นตัว (หรือของเหลวกลายเป็นไอหมด) · Glide = T dew − T bubble · h_f = เอนทัลปีของเหลวอิ่มตัวที่ P (อยู่ที่ T bubble) · h_g = เอนทัลปีไออิ่มตัวที่ P (อยู่ที่ T dew) · h_fg = h_g − h_f = ความร้อนที่ใช้เปลี่ยนของเหลวอิ่มตัวเป็นไออิ่มตัวทั้งหมดที่ความดันคงที่ ระหว่างเปลี่ยนเฟสอุณหภูมิเลื่อนจาก T bubble ถึง T dew</div>';}
+  else $('rp_out').innerHTML=K('T อิ่มตัว',T,'°C',2)+K('P',P,'bar a',3)+K('h_f',s2.hf,'kJ/kg',1)+K('h_g',s2.hg,'kJ/kg',1)+K('h_fg',s2.hfg,'kJ/kg',1);}}}catch(e){$('rp_out').innerHTML=W(e.message);}
  try{var Ps=Pa('sh_p','sh_u'),b3=blanks(['sh_p','sh_t']);
   if(b3.length)$('sh_out').innerHTML=MISS(b3);else if(!(Ps>0))$('sh_out').innerHTML=W(M_P0);
   else{var Tds=R.Tsat(f,Ps);
@@ -140,7 +160,10 @@ function go(){
    var ss=R.sat(f,t);rows+='<tr><td class="r">'+fx(t,0)+'</td><td class="r">'+fx(ss.P,3)+'</td><td class="r">'+fx(ss.P-ATM,3)+'</td>'+(mix?'<td class="r">'+fx(ss.Pb-ATM,3)+'</td>':'')+'<td class="r">'+fx(ss.hfg,1)+'</td><td class="r">'+fx(ss.rhog,2)+'</td></tr>';n++;}
   $('pt_out').innerHTML=(a>b?W('ค่า "จาก" ต้องไม่มากกว่า "ถึง"'):'')+(skip?W('ข้ามอุณหภูมิที่อยู่นอกช่วงโมเดล (−50 … 65 °C)'):'')+(cap?W('แสดง 80 แถวแรก — เพิ่มค่า "ขั้น" เพื่อดูช่วงที่เหลือ'):'')
    +(st!==s5?'<div class="warn" data-step="1"><span>ค่า "ขั้น" ที่กรอกใช้ไม่ได้ (ต้องมากกว่า 0 · ขั้นเล็กสุด 1 °C) — ตารางใช้ขั้น</span> <b>'+st+'</b> <span>°C</span></div>':'')
-   +'<table><tr><th class="r">T °C</th><th class="r">'+(mix?'P dew bar a':'P bar a')+'</th><th class="r">'+(mix?'P dew bar g':'P bar g')+'</th>'+(mix?'<th class="r">P bubble bar g</th>':'')+'<th class="r">h_fg kJ/kg</th><th class="r">ρ ไอ kg/m³</th></tr>'+rows+'</table>';}}catch(e){$('pt_out').innerHTML=W(e.message);}
+   +'<table><tr><th class="r">T °C</th><th class="r">'+(mix?'P dew bar a':'P bar a')+'</th><th class="r">'+(mix?'P dew bar g':'P bar g')+'</th>'+(mix?'<th class="r">P bubble bar g</th>':'')+'<th class="r">'+(mix?'h_g − h_f @T kJ/kg':'h_fg kJ/kg')+'</th><th class="r">ρ ไอ kg/m³</th></tr>'+rows+'</table>'
+   /* [แก้ไข 26 พ.ย. 2569] #1282 (WP-48D) ⑤ สารผสม: คอลัมน์ "h_fg" = sat(T).hfg = h_g (ที่ P dew) − h_f (ที่ P bubble) ที่อุณหภูมิเดียวกัน (คร่อมสองความดัน) → ป้ายหัวคอลัมน์บอกตามที่คิด + บรรทัดนิยาม
+      ตัวเลขทุกช่องเท่าเดิม (การเปลี่ยนค่าในตาราง ⑤ อยู่นอกขอบเขตใบงาน — ยกให้เจ้าของงานตัดสินในรายงาน) · สารบริสุทธิ์ไม่เปลี่ยน */
+   +(mix?'<div class="hint" data-mixnote="1" style="margin-top:6px">สารผสม — นิยามคอลัมน์: P dew = ความดันที่ไอเริ่มกลั่นตัวที่อุณหภูมิในแถว · P bubble = ความดันที่ของเหลวเริ่มเดือดที่อุณหภูมิในแถว · h_g − h_f @T = เอนทัลปีไออิ่มตัว (ที่ P dew) ลบเอนทัลปีของเหลวอิ่มตัว (ที่ P bubble) ที่อุณหภูมิเดียวกัน — คร่อมสองความดัน จึงไม่ใช่ความร้อนแฝงที่ความดันคงที่ (ค่าที่ความดันคงที่ดูที่การ์ด ② หรือ ①) · ρ ไอ = ไออิ่มตัวที่ P dew</div>':'');}}catch(e){$('pt_out').innerHTML=W(e.message);}
 }
 document.addEventListener('input',go);document.addEventListener('change',go);go();
 
@@ -203,7 +226,21 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 "ช่องว่างไม่คิดเป็นศูนย์ ผลที่ต้องใช้ค่านี้แสดง –":"a blank field is not taken as zero; results that need it show –",
 "ค่า \"ขั้น\" ที่กรอกใช้ไม่ได้ (ต้องมากกว่า 0 · ขั้นเล็กสุด 1 °C) — ตารางใช้ขั้น":"The \"Step\" entered cannot be used (it must be greater than 0 · smallest step 1 °C) — the table uses a step of"
 });
-/* [แก้ไข 26 พ.ย. 2569] #1220 (WP-48A) EN ป้าย/คำอธิบายสารผสมของการ์ด ② */
+/* [แก้ไข 26 พ.ย. 2569] #1283 (WP-48D) EN ป้าย/นิยามสารผสมของการ์ด ① ② ⑤ (ฉบับคิดตามสมดุลเฟส) */
+if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
+"h_f (ที่ P bubble)":"h_f (at P bubble)",
+"h_g (ที่ P dew)":"h_g (at P dew)",
+"h_fg ที่ P dew":"h_fg at P dew",
+"h_fg ที่ P bubble":"h_fg at P bubble",
+"h_f (ที่ T bubble)":"h_f (at T bubble)",
+"h_g (ที่ T dew)":"h_g (at T dew)",
+"h_fg (ที่ความดันนี้)":"h_fg (at this pressure)",
+"สารผสม — นิยามค่าในการ์ดนี้ (T = อุณหภูมิที่กรอก): P bubble = ความดันที่ของเหลวเริ่มเดือดที่อุณหภูมินี้ · P dew = ความดันที่ไอเริ่มกลั่นตัวที่อุณหภูมินี้ · h_f และ ρ ของเหลว = ของเหลวอิ่มตัวที่ T และ P bubble · h_g และ ρ ไอ = ไออิ่มตัวที่ T และ P dew · สองสถานะนี้อยู่คนละความดัน ผลต่าง h_g − h_f ที่อุณหภูมิเดียวกันจึงไม่ใช่ความร้อนแฝงที่ความดันคงที่ (การ์ดไม่แสดงค่านี้) · h_fg ที่ P dew = h_g ไออิ่มตัวที่ P dew (อยู่ที่ T) − h_f ของเหลวอิ่มตัวที่ P dew (อยู่ที่ T bubble ของ P dew ซึ่งต่ำกว่า T) · h_fg ที่ P bubble = h_g ไออิ่มตัวที่ P bubble (อยู่ที่ T dew ของ P bubble ซึ่งสูงกว่า T) − h_f ของเหลวอิ่มตัวที่ P bubble (อยู่ที่ T) · สองค่านี้คือความร้อนที่ใช้เปลี่ยนของเหลวอิ่มตัวเป็นไออิ่มตัวทั้งหมดที่ความดันคงที่ของแต่ละความดัน":"Blend — definitions in this card (T = the temperature entered): P bubble = the pressure at which the liquid starts to boil at this temperature · P dew = the pressure at which the vapour starts to condense at this temperature · h_f and ρ liquid = saturated liquid at T and P bubble · h_g and ρ vapour = saturated vapour at T and P dew · these two states are at different pressures, so h_g − h_f at the same temperature is not the latent heat at constant pressure (the card does not show it) · h_fg at P dew = h_g of saturated vapour at P dew (at T) − h_f of saturated liquid at P dew (at the T bubble of P dew, below T) · h_fg at P bubble = h_g of saturated vapour at P bubble (at the T dew of P bubble, above T) − h_f of saturated liquid at P bubble (at T) · these two values are the heat needed to turn saturated liquid fully into saturated vapour at the constant pressure of each",
+"h_fg ที่แสดง – : อุณหภูมิอีกปลายของ glide อยู่นอกช่วงโมเดล (−50 … 65 °C) — ไม่แสดงค่า":"h_fg shown as – : the temperature at the other end of the glide is outside the model range (−50 … 65 °C) — no value shown",
+"สารผสม — นิยามค่าในการ์ดนี้ (ทุกค่าอยู่ที่ความดัน P ที่กรอก): T bubble = อุณหภูมิที่ของเหลวเริ่มเดือด · T dew = อุณหภูมิที่ไอเริ่มกลั่นตัว (หรือของเหลวกลายเป็นไอหมด) · Glide = T dew − T bubble · h_f = เอนทัลปีของเหลวอิ่มตัวที่ P (อยู่ที่ T bubble) · h_g = เอนทัลปีไออิ่มตัวที่ P (อยู่ที่ T dew) · h_fg = h_g − h_f = ความร้อนที่ใช้เปลี่ยนของเหลวอิ่มตัวเป็นไออิ่มตัวทั้งหมดที่ความดันคงที่ ระหว่างเปลี่ยนเฟสอุณหภูมิเลื่อนจาก T bubble ถึง T dew":"Blend — definitions in this card (all values at the pressure P entered): T bubble = the temperature at which the liquid starts to boil · T dew = the temperature at which the vapour starts to condense (or the liquid has fully evaporated) · Glide = T dew − T bubble · h_f = enthalpy of saturated liquid at P (at T bubble) · h_g = enthalpy of saturated vapour at P (at T dew) · h_fg = h_g − h_f = the heat needed to turn saturated liquid fully into saturated vapour at constant pressure; during the phase change the temperature glides from T bubble to T dew",
+"สารผสม — นิยามคอลัมน์: P dew = ความดันที่ไอเริ่มกลั่นตัวที่อุณหภูมิในแถว · P bubble = ความดันที่ของเหลวเริ่มเดือดที่อุณหภูมิในแถว · h_g − h_f @T = เอนทัลปีไออิ่มตัว (ที่ P dew) ลบเอนทัลปีของเหลวอิ่มตัว (ที่ P bubble) ที่อุณหภูมิเดียวกัน — คร่อมสองความดัน จึงไม่ใช่ความร้อนแฝงที่ความดันคงที่ (ค่าที่ความดันคงที่ดูที่การ์ด ② หรือ ①) · ρ ไอ = ไออิ่มตัวที่ P dew":"Blend — column definitions: P dew = the pressure at which the vapour starts to condense at the row temperature · P bubble = the pressure at which the liquid starts to boil at the row temperature · h_g − h_f @T = enthalpy of saturated vapour (at P dew) minus enthalpy of saturated liquid (at P bubble) at the same temperature — it spans two pressures, so it is not the latent heat at constant pressure (for constant-pressure values see card ② or ①) · ρ vapour = saturated vapour at P dew"
+});
+/* [แก้ไข 26 พ.ย. 2569] #1220 (WP-48A) EN ป้าย/คำอธิบายสารผสมของการ์ด ② — คงไว้ (ไฟล์คำแปลเดิม · ข้อความไทยนี้ไม่ขึ้นจอแล้วตั้งแต่ #1280) */
 if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 "h_f (ที่ T dew)":"h_f (at T dew)",
 "h_fg (ที่ T dew)":"h_fg (at T dew)",
