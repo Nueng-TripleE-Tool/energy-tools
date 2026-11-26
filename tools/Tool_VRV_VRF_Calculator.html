@@ -452,8 +452,8 @@ PLR = Q_actual / Q_rated</div>
       <div style="font-weight:700;font-size:14px;margin-bottom:6px">3. Field Measurement</div>
       <div style="font-size:12px;color:var(--text2);line-height:1.5">คำนวณสมรรถนะจากค่าวัดภาคสนาม: กระแส/แรงดัน, อุณหภูมิจ่าย/กลับ, อัตราการไหลอากาศ</div>
       <div class="formula-box" style="margin-top:8px;font-size:10px">Q_sens = ṁ × [h(T_RA,ω_SA) − h_SA]
-Q_lat  = ṁ × [h_RA − h(T_RA,ω_SA)]
-W_comp = √3 × V × I × PF</div>
+Q_lat  = Q_total − Q_sens
+W_comp = √3 × V × I × PF</div><!-- [แก้ไข 26 พ.ย. 2569] #1364 (WP-49H) Q_lat = Q_total − Q_sens (Q_total ตามสมการ 43) -->
     </div>
     <div class="mode-card" onclick="switchTabById('refrig')" style="border-top-color:var(--purple)">
       <div style="font-size:28px;margin-bottom:8px">🧊</div>
@@ -845,11 +845,11 @@ v_da = 0.287042·(T + 273.15)·(1 + 1.607858·ω) / P_atm   [m³/kg_da]
 ṁ_da = Q_v / v_da   [kg/s]
 
 Q_sens = ṁ·[h(T_RA, ω_SA) − h_SA]   (x = (T, ω_SA) on the chart)
-Q_lat  = ṁ·[h_RA − h(T_RA, ω_SA)]
-Q_total = ṁ·(h_RA − h_SA) = Q_sens + Q_lat   [kW]
-SHR = Q_sens / Q_total</div>
+Q_total = ṁ·[(h_RA − h_SA) − (ω_RA − ω_SA)·h_w]   h_w = 4.186·T_SA [kJ/kg_w]   (ω_RA ≤ ω_SA → Q_total = ṁ·(h_RA − h_SA))   [kW]
+Q_lat  = Q_total − Q_sens
+SHR = Q_sens / Q_total</div><!-- [แก้ไข 26 พ.ย. 2569] #1363 (WP-49H) สูตรตามสมการ (43) เหมือนกล่องสูตรของ Split AC -->
           <!-- [แก้ไข 25 พ.ย. 2569] #795 (WP-42J J7 · J9) ที่อยู่ของสูตรไซโครเมตริก (ผลทวนกับเล่มจริง wp42r2 ข้อ 8a–8c · 9 · 10 · N7) · สูตรและค่าที่ใช้ไม่เปลี่ยน -->
-          <div class="vrf-ref" style="font-size:11px;color:var(--text3);line-height:1.7;margin-top:8px">อ้างอิง: ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 — P_ws สมการ (5)–(6) หน้า 1.8 (Hyland–Wexler) · ค่า 0.621945 สมการ (8) หน้า 1.8 · ω จาก WB สมการ (33) หน้า 1.9 (ต่ำกว่า 0 °C สมการ (35) หน้า 1.10) · h และ v_da หน้า 1.9 · การแยก Q_sens/Q_lat ตามเส้น ω คงที่ สอดคล้องกับสมการ (41) หน้า 1.12</div>
+          <div class="vrf-ref" style="font-size:11px;color:var(--text3);line-height:1.7;margin-top:8px">อ้างอิง: ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 — P_ws สมการ (5)–(6) หน้า 1.8 (Hyland–Wexler) · ค่า 0.621945 สมการ (8) หน้า 1.8 · ω จาก WB สมการ (33) หน้า 1.9 (ต่ำกว่า 0 °C สมการ (35) หน้า 1.10) · h และ v_da หน้า 1.9 · การแยก Q_sens/Q_lat ตามเส้น ω คงที่ สอดคล้องกับสมการ (41) หน้า 1.12 · Q_total หักเอนทัลปีน้ำกลั่นตัวตามสมการ (43) หน้า 1.13 (h_w ≈ 4.186·t สมการ (32) หน้า 1.9)</div><!-- [แก้ไข 26 พ.ย. 2569] #1363 (WP-49H) ถ้อยคำเดียวกับบรรทัดอ้างอิงของ Split AC -->
         </div>
       </div>
 
@@ -1444,8 +1444,16 @@ function calcField() {
      → Q_s + Q_l = Q_total พอดี (เดิม ṁ·1.006·ΔT และ ṁ·Δω·2501 ทำให้ SHR ต่ำไป ~1–2 %) */
   const h_x = 1.006*Tra_db + w_sa*(2501+1.86*Tra_db);
   const q_sens = m_air * (h_x - h_sa);   // kW
-  const q_lat  = m_air * (h_ra - h_x);   // kW
-  const q_total = m_air * (h_ra - h_sa); // kW = q_sens + q_lat
+  /* [แก้ไข 26 พ.ย. 2569] #1360 (WP-49H) Q_total = ṁ·[(h_RA − h_SA) − (ω_RA − ω_SA)·h_w2] — ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13
+     (ความร้อนที่คอยล์ดึงออกขณะทำความเย็นและลดความชื้น · น้ำกลั่นตัวออกจากคอยล์ที่อุณหภูมิอากาศออก t2 → h_w2 = 4.186·T_SA ตามสมการ (32) หน้า 1.9)
+     · สมการและเงื่อนไขเดียวกับ TE_SPLITAC r2 (WP-42K K4 #811): หักเฉพาะเมื่อ ω_RA > ω_SA · คอยล์แห้ง (ω_SA ≥ ω_RA) → Q_total = ṁ·Δh เหมือนเดิม
+     · Q_sens คงตามสมการ (41) (แยกตามเส้น ω คงที่) · Q_lat = Q_total − Q_sens · SHR = Q_sens/Q_total · COP_field และแท็บ 5 ใช้ Q_total ใหม่
+     · เดิม Q_total = ṁ·Δh (สูงกว่าราว 0.5–0.7 % ที่ค่าตั้งต้น/เคสทั่วไป) · Q_lat เดิม = ṁ·[h_RA − h(T_RA, ω_SA)] */
+  const h_w2 = 4.186*Tsa_db;              // kJ/kg_w
+  const q_cond = (w_ra>w_sa) ? m_air*(w_ra-w_sa)*h_w2 : 0; // kW พจน์น้ำกลั่นตัว
+  const q_tot0 = m_air * (h_ra - h_sa);   // kW = ṁ·Δh (นิยามรุ่นก่อน)
+  const q_total = q_tot0 - q_cond;        // kW สมการ (43)
+  const q_lat  = q_total - q_sens;        // kW
 
   const shr = q_sens / q_total;
   const cop_field = q_total / w_kw;
@@ -1457,7 +1465,7 @@ function calcField() {
 
   S.field = { done:true, w_kw, q_total, q_sens, q_lat, cop_field, shr,
     m_air, h_ra, h_sa, w_ra, w_sa, tariff, rho_ra,
-    e_yr, cost_yr, hrsDay, days_yr, cfm, cmh };
+    e_yr, cost_yr, hrsDay, days_yr, cfm, cmh, q_tot0, q_cond, h_w2 }; // #1360 q_tot0 · q_cond · h_w2 (คีย์ใหม่ของสถานะในหน้า — ไม่อยู่ในไฟล์งาน)
 
   // KPI
   document.getElementById('fk_w').textContent = fmtN(w_kw,2);
@@ -1476,7 +1484,7 @@ function calcField() {
       <div class="result-item"><div class="r-label">W_input (kW)</div><div class="r-value">${fmtN(w_kw,2)}</div><div class="r-unit">${phase===3?'√3×V×I×PF':'V×I×PF'} ÷ 1000</div></div>
       <div class="result-item warm"><div class="r-label">Q_total (kW)</div><div class="r-value warm">${fmtN(q_total,2)}</div><div class="r-unit">${fmtN(q_kW_ton,2)} RT (Tons of Refrig.)</div></div>
       <div class="result-item"><div class="r-label">Q_sensible (kW)</div><div class="r-value">${fmtN(q_sens,2)}</div><div class="r-unit">ṁ × (1.006 + 1.86ω_SA) × ΔT</div></div>
-      <div class="result-item purple"><div class="r-label">Q_latent (kW)</div><div class="r-value purple">${fmtN(q_lat,2)}</div><div class="r-unit">ṁ × Δω × (2501 + 1.86T_RA)</div></div>
+      <div class="result-item purple"><div class="r-label">Q_latent (kW)</div><div class="r-value purple">${fmtN(q_lat,2)}</div><div class="r-unit">Q_total − Q_sensible</div></div>
       <div class="result-item ${copNA?'':copOK?'green':'red'}"><div class="r-label">COP_field</div><div class="r-value ${copNA?'':copOK?'green':'red'}">${fmtN(cop_field,3)}</div><div class="r-unit">${copNA?'—':copOK?'✅ ≥ 2.5':'❌ < 2.5 ต่ำ'}</div></div>
       <div class="result-item ${shrNA?'':shrOK?'gold':'warn'}"><div class="r-label">SHR</div><div class="r-value gold">${fmtN(shr,3)}</div><div class="r-unit">${shrNA?'—':shrOK?'✅ ปกติ':'⚠️ ตรวจสอบ'}</div></div>
     </div>
@@ -1486,6 +1494,7 @@ function calcField() {
       💧 Humidity Ratio: Return = ${fmtN(w_ra*1000,1)} g/kg | Supply = ${fmtN(w_sa*1000,1)} g/kg
       &nbsp;|&nbsp; ṁ_air = ${fmtN(m_air,3)} kg/s &nbsp;|&nbsp; ρ = ${fmtN(rho_ra,3)} kg/m³
     </div>
+    <div class="info-box" data-vrf-qt="1">🧮 Q_total ตาม ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13 = ṁ·Δh − ṁ·(ω_RA − ω_SA)·h_w = ${fmtN(q_tot0,3)} − ${fmtN(q_cond,3)} = ${fmtN(q_total,3)} kW (h_w = 4.186 × ${fmtN(Tsa_db,1)} °C = ${fmtN(h_w2,1)} kJ/kg)${q_cond>0?` — ต่ำกว่า ṁ·Δh ที่รุ่นก่อนใช้ ${fmtN(q_cond/q_tot0*100,2)} %`:' — ไม่มีน้ำกลั่นตัว (ω_SA ≥ ω_RA) จึงเท่ากับ ṁ·Δh'}</div><!-- [แก้ไข 26 พ.ย. 2569] #1361 (WP-49H) ข้อความเดียวกับ Split AC (TE_SPLITAC r2 data-sac-qt) -->
     <div class="info-box">
       💰 กำลังไฟรายปี (ประมาณ ${teRv(hrsDay)} hr/day × ${teRv(days_yr)} วัน): <strong>${fmtN(e_yr,0)} kWh/yr</strong>
       &nbsp;|&nbsp; ค่าไฟ: <strong>${fmtN(cost_yr,0)} บาท/ปี</strong>
@@ -1510,8 +1519,8 @@ function calcField() {
      sub:`v_da = ${fmtN(airOK?TE_PSY.Vda(Tra_db,w_ra,patm):NaN,4)} m³/kg_da\nQ_v = ${fmtN(cmh,0)} m³/hr ÷ 3600 = ${fmtN(qv,4)} m³/s\nṁ = ${fmtN(qv,4)} ÷ ${fmtN(airOK?TE_PSY.Vda(Tra_db,w_ra,patm):NaN,4)}`,
      result:`ṁ_air = ${fmtN(m_air,4)} kg/s`,note:`= ${fmtN(cfm,0)} CFM = ${fmtN(cmh,0)} m³/hr`},
     {num:5,col:'green',title:'Q_sens, Q_lat, Q_total',
-     formula:'Q_sens = ṁ × [h(T_RA, ω_SA) − h_SA]\nQ_lat  = ṁ × [h_RA − h(T_RA, ω_SA)]\nQ_total= ṁ × Δh = Q_sens + Q_lat   [x = (T_RA, ω_SA) · Q_sens/Q_lat split along constant ω: ASHRAE Handbook—Fundamentals (SI) 2017 Ch.1 Eq. (41), p.1.12]', /* [แก้ไข 25 พ.ย. 2569] #795 (WP-42J J7) คำอ้าง ASHRAE ผูกเฉพาะการแยกตามเส้น ω คงที่ (สมการ 41) · Q_total = ṁ·Δh ไม่หักพจน์น้ำกลั่นตัวของสมการ 43 จึงไม่อ้าง (สูตรไม่แตะ) · ขั้น ω เติมสมการ (33) */
-     sub:`h(T_RA, ω_SA) = ${fmtN(h_x,3)} kJ/kg\nQ_sens = ${fmtN(m_air,4)}×(${fmtN(h_x,3)}−${fmtN(h_sa,3)}) = ${fmtN(q_sens,3)}\nQ_lat  = ${fmtN(m_air,4)}×(${fmtN(h_ra,3)}−${fmtN(h_x,3)}) = ${fmtN(q_lat,3)}\nQ_total= ${fmtN(m_air,4)}×${fmtN(h_ra-h_sa,3)} = ${fmtN(q_total,3)}`,
+     formula:'Q_sens = ṁ × [h(T_RA, ω_SA) − h_SA]   [x = (T_RA, ω_SA) · ASHRAE Handbook—Fundamentals (SI) 2017 Ch.1 Eq. (41), p.1.12]\nQ_total= ṁ × [(h_RA − h_SA) − (ω_RA − ω_SA)·h_w]   h_w = 4.186·T_SA  [Eq. (43), p.1.13 · Eq. (32), p.1.9 · ω_RA ≤ ω_SA → Q_total = ṁ × Δh]\nQ_lat  = Q_total − Q_sens', /* [แก้ไข 25 พ.ย. 2569] #795 (WP-42J J7) คำอ้าง ASHRAE ผูกเฉพาะการแยกตามเส้น ω คงที่ (สมการ 41) · ขั้น ω เติมสมการ (33) · [แก้ไข 26 พ.ย. 2569] #1362 (WP-49H) Q_total หักพจน์น้ำกลั่นตัวตามสมการ (43) แล้ว จึงอ้างสมการ (43)/(32) · Q_lat = Q_total − Q_sens (แบบ TE_SPLITAC r2) */
+     sub:`h(T_RA, ω_SA) = ${fmtN(h_x,3)} kJ/kg | h_w = ${fmtN(h_w2,2)} kJ/kg\nQ_sens = ${fmtN(m_air,4)}×(${fmtN(h_x,3)}−${fmtN(h_sa,3)}) = ${fmtN(q_sens,3)}\nQ_total= ${fmtN(m_air,4)}×[(${fmtN(h_ra,3)}−${fmtN(h_sa,3)})−${fmtN(Math.max(0,w_ra-w_sa),5)}×${fmtN(h_w2,2)}] = ${fmtN(q_total,3)}\nQ_lat  = ${fmtN(q_total,3)}−${fmtN(q_sens,3)} = ${fmtN(q_lat,3)}`,
      result:`Q_total = ${fmtN(q_total,3)} kW | SHR = ${fmtN(shr,4)}`,note:''},
     {num:6,col:'purple',title:'COP ภาคสนาม',
      formula:'COP_field = Q_total / W_input',
@@ -2268,6 +2277,7 @@ if(window.TE_I18N)TE_I18N.set({
 },[
 [/^(\s*)T_discharge ใกล้ค่าสูงสุดของสาร \((-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)°C\) — ให้หาสาเหตุ(\s*)$/,"$1T_discharge near the refrigerant maximum ($2–$3°C) — find the cause$4"]
 ]);</script>
-<script>/* [แก้ไข 25 พ.ย. 2569] #795 (WP-42J J7) — คู่คำแปล EN ของบรรทัดอ้างอิงสูตรไซโครเมตริก */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"อ้างอิง: ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 — P_ws สมการ (5)–(6) หน้า 1.8 (Hyland–Wexler) · ค่า 0.621945 สมการ (8) หน้า 1.8 · ω จาก WB สมการ (33) หน้า 1.9 (ต่ำกว่า 0 °C สมการ (35) หน้า 1.10) · h และ v_da หน้า 1.9 · การแยก Q_sens/Q_lat ตามเส้น ω คงที่ สอดคล้องกับสมการ (41) หน้า 1.12": "References: ASHRAE Handbook—Fundamentals (SI) 2017 Ch.1 — P_ws Eqs. (5)–(6), p.1.8 (Hyland–Wexler) · constant 0.621945 Eq. (8), p.1.8 · ω from WB Eq. (33), p.1.9 (below 0 °C Eq. (35), p.1.10) · h and v_da p.1.9 · the Q_sens/Q_lat split along constant ω is consistent with Eq. (41), p.1.12"});</script>
+<script>/* [แก้ไข 25 พ.ย. 2569] #795 (WP-42J J7) — คู่คำแปล EN ของบรรทัดอ้างอิงสูตรไซโครเมตริก */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"อ้างอิง: ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 — P_ws สมการ (5)–(6) หน้า 1.8 (Hyland–Wexler) · ค่า 0.621945 สมการ (8) หน้า 1.8 · ω จาก WB สมการ (33) หน้า 1.9 (ต่ำกว่า 0 °C สมการ (35) หน้า 1.10) · h และ v_da หน้า 1.9 · การแยก Q_sens/Q_lat ตามเส้น ω คงที่ สอดคล้องกับสมการ (41) หน้า 1.12 · Q_total หักเอนทัลปีน้ำกลั่นตัวตามสมการ (43) หน้า 1.13 (h_w ≈ 4.186·t สมการ (32) หน้า 1.9)": "References: ASHRAE Handbook—Fundamentals (SI) 2017 Ch.1 — P_ws Eqs. (5)–(6), p.1.8 (Hyland–Wexler) · constant 0.621945 Eq. (8), p.1.8 · ω from WB Eq. (33), p.1.9 (below 0 °C Eq. (35), p.1.10) · h and v_da p.1.9 · the Q_sens/Q_lat split along constant ω is consistent with Eq. (41), p.1.12 · Q_total subtracts the condensate enthalpy per Eq. (43), p.1.13 (h_w ≈ 4.186·t, Eq. (32), p.1.9)"});</script>
+<script>/* [แก้ไข 26 พ.ย. 2569] #1365 (WP-49H) — คู่คำแปล EN ของกล่อง 🧮 Q_total สมการ (43) (แบบเดียวกับ Split AC · TE_SPLITAC r2) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/^🧮 Q_total ตาม ASHRAE Handbook—Fundamentals \(SI\) 2017 บทที่ 1 สมการ \(43\) หน้า 1\.13 = (.+?) kW \(h_w = 4\.186 × (\S+) °C = (\S+) kJ\/kg\) — ต่ำกว่า ṁ·Δh ที่รุ่นก่อนใช้ (\S+) %$/g,"🧮 Q_total per ASHRAE Handbook—Fundamentals (SI) 2017 Ch.1 Eq. (43), p.1.13 = $1 kW (h_w = 4.186 × $2 °C = $3 kJ/kg) — $4 % lower than ṁ·Δh used by the previous version"],[/^🧮 Q_total ตาม ASHRAE Handbook—Fundamentals \(SI\) 2017 บทที่ 1 สมการ \(43\) หน้า 1\.13 = (.+?) kW \(h_w = 4\.186 × (\S+) °C = (\S+) kJ\/kg\) — ไม่มีน้ำกลั่นตัว \(ω_SA ≥ ω_RA\) จึงเท่ากับ ṁ·Δh$/g,"🧮 Q_total per ASHRAE Handbook—Fundamentals (SI) 2017 Ch.1 Eq. (43), p.1.13 = $1 kW (h_w = 4.186 × $2 °C = $3 kJ/kg) — no condensate (ω_SA ≥ ω_RA), so it equals ṁ·Δh"]]);</script>
 </body>
 </html>
