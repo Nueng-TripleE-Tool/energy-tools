@@ -103,7 +103,9 @@ tr.hl td{background:var(--conv-light);font-weight:600}
 .badge.warn{background:#fff4e0;color:#9a6100}
 .badge.danger{background:#fdecee;color:#9c2331}
 .chartbox{position:relative;overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px}
-svg{display:block;width:100%;min-width:720px;height:auto;font-family:"IBM Plex Mono",monospace}
+svg{display:block;width:100%;height:auto;font-family:"IBM Plex Mono",monospace}
+/* [แก้ไข 26 พ.ย. 2569] #1040 แผนภูมิไม่ย่อตามจอ: เดิม min-width:720px ทุกขนาดจอ → ที่จอ 800 แผนภูมิค้าง 720 ในกล่อง 710 (เลื่อนในกล่อง) · ย้ายเข้า ≤640 px (โหมดเลื่อนบนมือถือคงเดิม) · จอ ≥641 px ย่อตามกล่อง (ภาพที่ 1280 เท่าเดิม: แผนภูมิกว้างกว่า 720 อยู่แล้ว) */
+@media(max-width:640px){svg{min-width:720px}}
 #tip{position:absolute;pointer-events:none;background:rgba(15,42,74,.94);color:#fff;font-size:.74rem;
   padding:6px 9px;border-radius:7px;display:none;white-space:pre;line-height:1.45;z-index:5}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:var(--muted);margin-top:8px}
@@ -154,7 +156,14 @@ details.tpl-det>summary::before{content:'▸ ';}details.tpl-det[open]>summary::b
 @media(max-width:760px){.grid2,.grid3,.grid4{grid-template-columns:1fr}
   .wrap{padding:0 10px}.card{padding:16px}}
 /* [แก้ไข 12 พ.ย. 2569 v2.1] แท็บแผนภูมิอ่านค่าครบทุกแกน (ฝึก/สอบ) */
-#chart5{font-family:"IBM Plex Sans Thai",sans-serif;min-width:900px}
+#chart5{font-family:"IBM Plex Sans Thai",sans-serif}
+/* [แก้ไข 26 พ.ย. 2569] #1041 แผนภูมิอ่านค่า (ฝึก/สอบ): เดิม min-width:900px ทุกขนาดจอ และไม่มีเพดาน → จอ 1845 สูง 868 px (เกิน 90 % ของจอ 950) · จอ 800 ค้าง 900 ในกล่อง 710
+   (1) กรอบแผนภูมิกว้างไม่เกินขนาดจริงของภาพ 1120 px (viewBox 1120×790 + ขอบใน 6 px×2 + เส้นขอบ 1 px×2 = 1134) จัดกลาง → ที่ 1845 แผนภูมิ 1120×790 ไม่สูงเกินจอ · ค่าตามเมาส์/จุดที่ปักยังตรง (ใช้ตำแหน่งของกล่อง svg) · ที่ 1280 กว้าง 1090 < 1120 = เท่าเดิม
+   (2) min-width:900px เฉพาะจอ ≤640 px (โหมดเลื่อนบนมือถือคงเดิม) และเมื่อกดปุ่ม "ขยายแผนภูมิ" (มีเฉพาะจอ 641–989 px ที่แผนภูมิถูกย่อต่ำกว่า 900 px จนตัวเลขบนแกนเล็ก — จอ ≥990 px แผนภูมิกว้าง ≥900 อยู่แล้ว ไม่มีปุ่ม · ภาพที่ 1280 ไม่เปลี่ยน) */
+#xChartCard .chartbox{max-width:1134px;margin-left:auto;margin-right:auto}
+@media(max-width:640px){#chart5{min-width:900px}}
+.x-zbar{display:none}
+@media(min-width:641px) and (max-width:989px){.x-zbar{display:flex;justify-content:flex-end;margin:0 0 6px}#xChartCard .chartbox.x-zoom #chart5{min-width:900px}}
 #xTbl input.xa{width:86px;padding:5px 7px;text-align:right}
 #xTbl td.xg{background:#eef2f7;font-weight:700}
 #xTbl input.ok{background:#e7f6ec;border-color:#1e9e5a}
@@ -605,7 +614,8 @@ button.xrb.on{background:#7b3fa0;color:#fff;border-color:#7b3fa0}
       </div>
       <p class="hint" id="xToolHint"></p>
       </div>
-      <div class="chartbox">
+      <div class="x-zbar noprint"><button type="button" class="xt" id="xZoomBtn" onclick="xZoom()" aria-pressed="false">🔍 ขยายแผนภูมิ</button></div><!-- [แก้ไข 26 พ.ย. 2569] #1041 -->
+      <div class="chartbox" id="xChartBox">
         <svg id="chart5" viewBox="0 0 1120 790" preserveAspectRatio="xMidYMid meet"></svg>
         <div id="tip5" class="tipbox"></div>
       </div>
@@ -2147,6 +2157,10 @@ function xPrint(kind){
     XNOSOL=false; $('xMode').value=prev; XSEL=sel; xRedraw(); },600);
 }
 function xFn(ext){ return 'Psychrometric_Chart_'+xF(xP(),3).replace('.','_')+'kPa_'+$('xRange').value.split(',').slice(0,2).join('to')+'C_'+new Date().toISOString().slice(0,10)+'.'+ext; }
+/* [แก้ไข 26 พ.ย. 2569] #1041 ปุ่มขยาย/พอดีกรอบของแผนภูมิอ่านค่า (จอ 641–989 px): ขยาย = กว้างอย่างน้อย 900 px แล้วเลื่อนซ้าย–ขวาในกรอบ (ขนาดเดิมก่อนแก้) · พอดีกรอบ = ย่อตามกรอบ · ไม่แตะการคำนวณ/ค่าที่อ่าน */
+function xZoomPaint(){ var b=$('xZoomBtn'), z=$('xChartBox'); if(!b||!z) return; var on=z.classList.contains('x-zoom'); b.textContent=on?xL('↔ พอดีกรอบ','↔ Fit to box'):xL('🔍 ขยายแผนภูมิ','🔍 Enlarge chart'); b.setAttribute('aria-pressed',on?'true':'false'); }
+function xZoom(){ var z=$('xChartBox'); if(!z) return; z.classList.toggle('x-zoom'); xZoomPaint(); }
+document.addEventListener('te-lang',function(){ setTimeout(xZoomPaint,0); });
 function xSVG(){ TE_PSYCHART.downloadSVG($('chart5'),xFn('svg')); }
 function xPNG(){ TE_PSYCHART.downloadPNG($('chart5'),xFn('png'),3); }
 
@@ -2859,6 +2873,7 @@ if(window.TE_I18N)TE_I18N.set({
 "✖ ลบทีละชิ้น": "✖ Delete one",
 "↩ ย้อนกลับ": "↩ Undo",
 "🗑 ล้างเส้นร่าง": "🗑 Clear sketch",
+"🔍 ขยายแผนภูมิ": "🔍 Enlarge chart", "↔ พอดีกรอบ": "↔ Fit to box", /* [แก้ไข 26 พ.ย. 2569] #1041 */
 "ดูดเข้าจุดตัด / จุดที่ปัก": "Snap to intersections / points",
 "ต่อเส้นตรงให้ยาวตลอดแผนภูมิ": "Extend straight lines across the chart",
 "ทำบนจอ": "On screen",
