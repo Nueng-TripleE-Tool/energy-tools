@@ -77,6 +77,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
 @media(max-width:1100px){.grid-2{grid-template-columns:1fr;}.grid-3{grid-template-columns:1fr 1fr;}.grid-4{grid-template-columns:1fr 1fr;}.grid-5{grid-template-columns:repeat(3,1fr);}}
 @media(max-width:700px){.grid-3,.grid-4,.grid-5{grid-template-columns:1fr 1fr;}}
+/* [แก้ไข 26 พ.ย. 2569] #1105 จอ ≤ 1100 px (.grid-2 เรียงคอลัมน์เดียว): คอลัมน์ไม่ขยายตามเนื้อหากว้าง (ตาราง Loss · กราฟ VFD กว้างตามป้าย 480) — เดิมที่จอ 390 คอลัมน์กว้าง 481 px ทั้งหน้ากว้าง 513 และส่วนเกินถูก body{overflow-x:hidden} ตัดทิ้ง (คอลัมน์ขวาของตารางมองไม่เห็น) · ตาราง Loss อยู่ในกรอบเลื่อนแนวนอน · จอ > 1100 px เหมือนเดิม */
+@media(max-width:1100px){.grid-2>*{min-width:0;}}
+.mtr-tscroll{overflow-x:auto;}
 
 /* FORM */
 .form-group{margin-bottom:14px;}
@@ -307,10 +310,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
           <div class="loss-bar-wrap" id="lossBar"></div>
           <div id="lossLegend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:10px;font-family:var(--mono);"></div>
         </div>
+        <div class="mtr-tscroll"><!-- [แก้ไข 26 พ.ย. 2569] #1105 กรอบเลื่อนแนวนอนของตาราง Loss (จอแคบ) — จอกว้างตารางพอดีกรอบ ไม่มีแถบเลื่อน หน้าตาเหมือนเดิม -->
         <table class="data-table" id="lossTable">
           <thead><tr><th>Loss Component</th><th>Value (W)</th><th>% of P_in</th><th>Description</th></tr></thead>
           <tbody id="lossBody"></tbody>
         </table>
+        </div>
         <hr class="divider">
         <div id="formulaSteps" style="font-size:12px;line-height:2;"></div>
       </div>
@@ -1812,7 +1817,15 @@ function buildAffinityTable() {
 
 
 
+/* [แก้ไข 26 พ.ย. 2569] #1104 กราฟ VFD วาดใหม่เมื่อกล่องเปลี่ยนขนาด (ย่อ/ขยายหน้าต่าง) — เดิมวาดครั้งเดียวตามความกว้างตอนวาด ย่อจอแล้วภาพยืด/เบลอ (จอ 1024: 910×493 จากภาพ 480 เดิม)
+   จำค่าที่ส่งเข้ามาครั้งล่าสุด แล้วเรียกฟังก์ชันนี้ซ้ำด้วยค่าชุดเดียวกัน (ไม่แตะสูตร) ผ่านตัวช่วย TE_I18N.redrawOnResize ของ te-i18n.js (#1023) · ไม่มีตัวช่วย = พฤติกรรมเดิม */
+var __vfdChartArgs = null;
+document.addEventListener('DOMContentLoaded', function(){
+  if (!window.TE_I18N || !TE_I18N.redrawOnResize) return;
+  TE_I18N.redrawOnResize('vfdChart', function(){ if (__vfdChartArgs) drawVFDChart.apply(null, __vfdChartArgs); });
+});
 function drawVFDChart(N1, P1, ratio, loadType) {
+  __vfdChartArgs = [N1, P1, ratio, loadType]; /* [แก้ไข 26 พ.ย. 2569] #1104 */
   const canvas = document.getElementById('vfdChart');
   const ctx = canvas.getContext('2d');
   const W = canvas.offsetWidth||480, H = 260;
