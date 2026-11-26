@@ -267,7 +267,11 @@ canvas{width:100%;display:block;}
     <input type="number" id="rhRoom" value="55" min="20" max="80" step="1">
     <div class="hint">เป้าหมาย: 20–75% RH</div>
     <label>T_outdoor — อุณหภูมิภายนอก (°C)</label>
-    <input type="number" id="tOutdoor" value="35" min="25" max="45" step="0.5">
+    <input type="number" id="tOutdoor" value="36.4" min="25" max="45" step="0.1"><!-- [แก้ไข 26 พ.ย. 2569] #1334 (WP-49G) ค่าตั้งต้น 35 → 36.4 °C = กรุงเทพ (BANGKOK INTL) Cooling DB 1 % — ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 14 ภาคผนวก Design Conditions (PDF หน้า 346) ชุดเดียวกับ Split AC/Cooling Load (WP-42K K1) · step 0.5 → 0.1 ให้กรอก 36.4 / 37.2 / 35.8 ได้ตรง -->
+    <label>T_wb,outdoor — อุณหภูมิกระเปาะเปียกภายนอก (°C)</label>
+    <!-- [แก้ไข 26 พ.ย. 2569] #1350 (WP-49G รอบสอง · มติผู้รวมชุด) ช่องใหม่ tWbOutdoor แทน RH ภายนอก 60 % ที่สมมุติไว้ · ค่าตั้งต้น 26.4 °C = MCWB คู่กับ 36.4 °C DB ระดับ 1 % (BANGKOK INTL) — ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 14 ภาคผนวก Design Conditions (PDF หน้า 346) · ไฟล์งานรุ่นเดิมไม่มีช่องนี้ → 26.4 พร้อมข้อความแจ้ง -->
+    <input type="number" id="tWbOutdoor" value="26.4" min="5" max="40" step="0.1">
+    <div id="tWbNote" style="display:none;font-size:11px;line-height:1.5;color:#7a4a00;background:#fff6e0;border:1px solid #f5c060;border-radius:6px;padding:4px 7px;margin:2px 0 6px"></div>
     <label>T_supply — อุณหภูมิลมเย็นจ่าย (°C)</label>
     <input type="number" id="tSupply" value="13" min="8" max="20" step="0.5">
     <div class="hint">ทั่วไป: 11–14°C | Chilled Water: 7°C</div>
@@ -287,6 +291,18 @@ canvas{width:100%;display:block;}
     <input type="number" id="roomHeight" value="3.0" min="2" max="6" step="0.1">
     <label>จำนวนคน (คน)</label>
     <input type="number" id="numPeople" value="300" min="0" step="5">
+    <label>ประเภทกิจกรรมของคน</label>
+    <!-- [แก้ไข 26 พ.ย. 2569] #1330 (WP-49G) ช่องใหม่ occAct — ความร้อนจากคน สัมผัส + แฝง ตามแถวของ ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 18 ตาราง 1 หน้า 18.4 (ห้อง 24 °C)
+         ชุดตัวเลือก/รหัสแถวเดียวกับ Split AC (TE.SPLITAC.ACT · WP-42K K2) · เดิมเครื่องมือคิดคงที่ 73 + 45 W/คน · ไฟล์งานรุ่นเดิมไม่มีช่องนี้ → "งานสำนักงาน" พร้อมข้อความแจ้ง -->
+    <select id="occAct">
+      <option value="theater">นั่งนิ่ง — ชมการแสดง (70 + 35 = 105 W/คน)</option>
+      <option value="office" selected>งานสำนักงาน (75 + 55 = 130 W/คน)</option>
+      <option value="walk">ยืนทำงานเบา/เดิน — ร้านค้า (75 + 55 = 130 W/คน)</option>
+      <option value="rest">นั่งทำงาน — ร้านอาหาร รวมความร้อนจากอาหาร (80 + 80 = 160 W/คน)</option>
+      <option value="walk48">เดิน 4.8 km/h · งานเครื่องจักรเบา — โรงงาน (110 + 185 = 295 W/คน)</option>
+      <option value="heavy">งานหนัก — โรงงาน (170 + 255 = 425 W/คน)</option>
+    </select>
+    <div id="occActNote" style="display:none;font-size:11px;line-height:1.5;color:#7a4a00;background:#fff6e0;border:1px solid #f5c060;border-radius:6px;padding:4px 7px;margin:2px 0 6px"></div>
     <label>Load ไฟฟ้าภายใน (kW)</label>
     <input type="number" id="internalElec" value="140" min="0" step="5">
     <div class="hint">แสงสว่าง + คอมพิวเตอร์ + อุปกรณ์</div>
@@ -295,7 +311,7 @@ canvas{width:100%;display:block;}
     <div class="hint">ผนัง + หลังคา + หน้าต่าง (Solar)</div>
     <label>Fresh Air Ventilation (m³/h)</label>
     <input type="number" id="freshAir" value="10800" min="0" step="100">
-    <div class="hint">ASHRAE 62.1: ~10 L/s/person</div>
+    <div class="hint">ราว 10 L/s ต่อคน (= 36 m³/h/คน) เป็นแนวทางทั่วไปสำหรับสำนักงาน (ASHRAE Handbook—Fundamentals 2017 หน้า 16.11) · ASHRAE 62.1 คิดแบบต่อคน + ต่อพื้นที่: สำนักงาน 2.5 L/s·คน + 0.3 L/s·m² (Fundamentals 2017 หน้า 16.32 อ้าง 62.1-2010)</div><!-- [แก้ไข 26 พ.ย. 2569] #1335 (WP-49G) เดิม "ASHRAE 62.1: ~10 L/s/person" — 10 L/s/คนไม่ใช่ค่าของ 62.1 (62.1 ใช้ Rp + Ra) · ข้อความชุดเดียวกับ Split AC (WP-42J J1) · ค่าที่ใช้คำนวณ (ช่อง freshAir) ไม่เปลี่ยน -->
     <label>Safety Factor (%)</label>
     <input type="number" id="safetyFactor" value="10" min="0" max="30" step="1">
   </div>
@@ -510,10 +526,11 @@ canvas{width:100%;display:block;}
 <div id="P1" class="panel">
   <div class="card">
     <div class="ctitle">&#10052; Cooling Load Calculation &amp; Psychrometrics</div>
-    <div class="csub">อ้างอิง: ASHRAE Fundamentals | Pita (2002) | Arora Chapter 14</div>
+    <div class="csub">อ้างอิง: ASHRAE Handbook—Fundamentals (SI) 2017 | Pita (2002) | Arora Chapter 14</div><!-- [แก้ไข 26 พ.ย. 2569] #1336 (WP-49G) ระบุฉบับของ ASHRAE ที่เครื่องมืออ้าง -->
     <div class="info-box" style="margin-bottom:10px">
       &#8505;&#65039; <b>Comfort Zone (ค่าแนวทางของเครื่องมือ):</b> T = 22–27°C, RH = 20–75% | ทั่วไปออกแบบที่ 24°C / 55%RH<br>
-      &#8505;&#65039; <b>Cooling Load Components:</b> Sensible Heat (SHF) + Latent Heat | SHR = Q_sensible/Q_total
+      &#8505;&#65039; <b>Cooling Load Components:</b> Sensible Heat (SHF) + Latent Heat | SHR = Q_sensible/Q_total<br>
+      <span id="acaLoadRef">&#128214; ที่มาของค่า (ASHRAE Handbook—Fundamentals (SI) 2017 · ชุดเดียวกับ Split AC): ความร้อนจากคน สัมผัส + แฝง ตามแถวของตาราง 18-1 หน้า 18.4 · อากาศบริสุทธิ์ q_s = 1.23·Q·Δt และ q_l = 3010·Q·ΔW บทที่ 18 สมการ (9)–(10) หน้า 18.15 (Q หน่วย L/s = m³/h ÷ 3.6 · ค่าคงที่ระดับน้ำทะเล ใช้ได้ถึงราว 300 m) · ลมจ่าย = q_s ÷ [1.23·(T_room − T_supply)] · อากาศภายนอกตั้งต้น 36.4 °C DB / 26.4 °C WB = คู่ค่าออกแบบกรุงเทพ ระดับ 1 % (บทที่ 14 — ผู้ใช้ควรแทนด้วยค่าวัดจริงเมื่อมี) · W และ h ของอากาศจาก DB/WB: บทที่ 1 (Hyland–Wexler) · RH ลมจ่าย 92 % = ค่าแนวทางของเครื่องมือ</span><!-- [แก้ไข 26 พ.ย. 2569] #1336 (WP-49G) -->
     </div>
     <button class="btn-calc" onclick="calcCoolingLoad()">&#10052; คำนวณ Cooling Load &amp; Psychrometrics</button>
     <div id="LOAD_ERR" style="display:none"></div>
@@ -680,7 +697,7 @@ function __acaTidyECM(){
      ช่องที่ 0 มีความหมาย (จำนวนคน · ไฟฟ้าภายใน · Envelope · อากาศใหม่ · Safety Factor · ราคาไฟ · อุณหภูมิ) กรอก 0 ใช้ 0 ตามเดิม
      ผลรองที่ขาดค่าเฉพาะตัว (CW Flow ← T_cw_in/T_cw_out · Area Load Index ← พื้นที่ · พลังงาน/ค่าไฟต่อปี ← จำนวนชุด/ชั่วโมง/ราคาไฟ) แสดง "—" + บอกค่าที่ขาด ส่วนอื่นคำนวณตามเดิม
      ช่องเลือกได้คงเดิม: actualPowerKW (ว่าง = ใช้ค่าพิกัด) · pumpFanKW (ว่าง = ไม่ประเมิน VFD) · seerPlate · ขนาด/กำลังไฟฟ้าในแท็บ Performance/ECM ใช้กล่อง "—" ของ #545 เดิม */
-var ACA_MSG={empty:'ยังไม่ได้กรอก',pos:'ต้องมากกว่า 0'};
+var ACA_MSG={empty:'ยังไม่ได้กรอก',pos:'ต้องมากกว่า 0',wbdb:'ต้องไม่เกินอุณหภูมิภายนอก (กระเปาะแห้ง)'}; /* [แก้ไข 26 พ.ย. 2569] #1352 (WP-49G) wbdb */
 function __acaRaw(id){ var e=G(id); return e?String(e.value).trim():''; }
 /* L = [[id,'pos'|'any'],…] → ปัญหา [{id,k}] */
 function __acaProb(L){ var P=[]; L.forEach(function(q){ var raw=__acaRaw(q[0]), v=parseFloat(raw);
@@ -694,7 +711,7 @@ function __acaNeedBox(P){ var box=document.createElement('div'); box.className='
 function __acaShowNeed(host,P){ var h=G(host); if(!h) return; h.innerHTML=''; h.appendChild(__acaNeedBox(P)); SD(host,'block'); }
 var ACA_REQ={
   np:[['ratedCapKW','pos'],['ratedPowerKW','pos'],['numUnits','pos']],
-  load:[['numPeople','any'],['internalElec','any'],['envelopeGain','any'],['freshAir','any'],['safetyFactor','any'],['tRoom','any'],['rhRoom','pos'],['tOutdoor','any'],['tSupply','any']],
+  load:[['numPeople','any'],['internalElec','any'],['envelopeGain','any'],['freshAir','any'],['safetyFactor','any'],['tRoom','any'],['rhRoom','pos'],['tOutdoor','any'],['tWbOutdoor','any'],['tSupply','any']], /* [แก้ไข 26 พ.ย. 2569] #1352 (WP-49G) + tWbOutdoor */
   cost:[['numUnits','pos'],['opHours','pos'],['elecPrice','any']],
   ecm:[['numUnits','pos'],['opHours','pos'],['elecPrice','any'],['tRoom','any'],['tSupply','any']]};
 /* ภาระความเย็น: ผลรองที่ขาดค่าเฉพาะตัว → "—" */
@@ -721,6 +738,7 @@ function __acaTidyCost(){
     if(Q.length){ __acaShowNeed('RES_ECM',Q); return; }
     var r=E.apply(this,arguments); try{ __acaTidyECM(); }catch(e){} return r; };
   calcCoolingLoad=function(){ var Q=__acaProb(ACA_REQ.load);
+    if(!Q.length&&parseFloat(__acaRaw('tWbOutdoor'))>parseFloat(__acaRaw('tOutdoor'))) Q.push({id:'tWbOutdoor',k:'wbdb'}); /* [แก้ไข 26 พ.ย. 2569] #1352 (WP-49G) WB > DB เป็นไปไม่ได้ → ไม่คำนวณ บอกชื่อช่อง */
     if(Q.length){ window._lastLoad=null; SD('RES_LOAD','none'); __acaShowNeed('LOAD_ERR',Q); return; }
     SD('LOAD_ERR','none');
     var r=L.apply(this,arguments); try{ __acaTidyLoad(); __acaClean('RES_LOAD'); }catch(e){} return r; };
@@ -995,7 +1013,15 @@ function recalcAll(){
   T(updateCkProg); T(tagFieldKinds);
 }
 function teSaveJSON(){ TE_JSON.save('Tool_AirCon_Audit', teExtra()); }
-function teLoadJSON(file){ TE_JSON.load(file, recalcAll, teRestoreExtra); }
+/* [แก้ไข 26 พ.ย. 2569] #1337 (WP-49G) ไฟล์งานรุ่นเดิมไม่มีช่อง occAct (ประเภทกิจกรรมของคน) → ตั้ง "งานสำนักงาน" (ค่าตั้งต้น) ก่อนใส่ค่าที่บันทึก และแจ้งบนจอว่ารุ่นก่อนคิดความร้อนจากคน/อากาศบริสุทธิ์ด้วยค่าคงที่ชุดเดิม
+   (ไฟล์ที่มี occAct → ใช้ค่าที่บันทึก ไม่มีข้อความ) · คีย์เดิมทุกตัวไม่เปลี่ยน */
+function __acaWbNote(){ var n=G('tWbNote'); if(!n) return; if(window.__acaWbLeg){ n.textContent='ℹ️ ไฟล์งานรุ่นก่อนไม่มีช่องอุณหภูมิกระเปาะเปียกภายนอก — ใช้ค่าออกแบบ 26.4 °C (กรุงเทพ ระดับ 1 % · ASHRAE Handbook—Fundamentals 2017 บทที่ 14) · รุ่นก่อนสมมุติ RH ภายนอก 60 % ภาระแฝงจากอากาศบริสุทธิ์จึงต่างจากรุ่นก่อน · มีค่าวัดจริงให้แทนด้วยค่าวัด'; n.style.display='block'; } else { n.textContent=''; n.style.display='none'; } } /* [แก้ไข 26 พ.ย. 2569] #1353 (WP-49G) */
+function __acaOccNote(){ var n=G('occActNote'); if(!n) return; if(window.__acaOccLeg){ n.textContent='ℹ️ ไฟล์งานรุ่นก่อนไม่มีช่องประเภทกิจกรรม — ใช้ “งานสำนักงาน” (75 + 55 W/คน ตาม ASHRAE Handbook—Fundamentals 2017 ตาราง 18-1) · รุ่นก่อนคิดคงที่ 73 + 45 W/คน และอากาศบริสุทธิ์ด้วย 1.2 × 1.006 ผลภาระจึงต่างจากรุ่นก่อน'; n.style.display='block'; } else { n.textContent=''; n.style.display='none'; } }
+function teLoadJSON(file){ if(!file) return; var fr=new FileReader(); fr.onload=function(){ var leg=false; try{ var d=JSON.parse(fr.result), inp=d&&(d.inputs||d); leg=!!(inp&&typeof inp==='object'&&!('occAct' in inp)); }catch(e){}
+  window.__acaOccLeg=leg; if(leg&&G('occAct')) G('occAct').value='office'; __acaOccNote();
+  var lw=false; try{ var d2=JSON.parse(fr.result), i2=d2&&(d2.inputs||d2); lw=!!(i2&&typeof i2==='object'&&!('tWbOutdoor' in i2)); }catch(e){} window.__acaWbLeg=lw; if(lw&&G('tWbOutdoor')) G('tWbOutdoor').value='26.4'; __acaWbNote(); /* [แก้ไข 26 พ.ย. 2569] #1353 */
+  TE_JSON.load(file, recalcAll, teRestoreExtra); }; fr.readAsText(file); }
+document.addEventListener('change',function(e){ if(e.target&&e.target.id==='occAct'&&window.__acaOccLeg){ window.__acaOccLeg=false; __acaOccNote(); } if(e.target&&e.target.id==='tWbOutdoor'&&window.__acaWbLeg){ window.__acaWbLeg=false; __acaWbNote(); } },true);
 var TE_HINTS={
   projName:'ชื่ออาคาร/โรงงานและระบบที่ตรวจ — แสดงหัวรายงาน',
   auditor:'ชื่อผู้ตรวจวัด — แสดงในรายงาน',
@@ -1010,16 +1036,18 @@ var TE_HINTS={
   elecPrice:'ค่าไฟฟ้าเฉลี่ย บาท/kWh · โรงงาน TOU 3.8–4.3 · อาคาร 4.2–4.7 · จากบิลค่าไฟ (ยอดจ่าย ÷ หน่วย)',
   tRoom:'อุณหภูมิห้องที่ต้องการควบคุม °C · comfort ไทย 24–26 · วัดจริงด้วย thermo-hygrometer กลางห้อง',
   rhRoom:'ความชื้นสัมพัทธ์ห้อง % · เป้าหมาย 50–60 · thermo-hygrometer',
-  tOutdoor:'อุณหภูมิอากาศภายนอกขณะตรวจ °C (โปรแกรมสมมุติ RH 60 %) · ไทยช่วงบ่าย 33–38 · วัดในที่ร่มใกล้ condensing unit',
+  tOutdoor:'อุณหภูมิอากาศภายนอก (กระเปาะแห้ง) ที่ใช้คิดภาระ °C · ค่าตั้งต้น 36.4 = ค่าออกแบบกรุงเทพ (สถานี BANGKOK INTL) ระดับ 1 %: 37.2 °C ที่ 0.4 % · 36.4 °C ที่ 1 % · 35.8 °C ที่ 2 % (ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 14 ภาคผนวก Design Conditions) · ร้อยละ = ความถี่สะสมรายปีที่อุณหภูมิเท่าหรือสูงกว่าค่านี้ (1 % ≈ 88 ชม./ปี · บทที่ 14 หน้า 14.2) · ประเมินสภาพขณะตรวจ: แทนด้วยค่าที่วัดในที่ร่มใกล้ condensing unit (ไทยช่วงบ่าย 33–38 = ค่าแนวทางของเครื่องมือ) · กรอกคู่กับกระเปาะเปียกภายนอก', /* [แก้ไข 26 พ.ย. 2569] #1334 · #1351 (WP-49G รอบสอง) ถอด "โปรแกรมสมมุติ RH 60 %" */
+  tWbOutdoor:'อุณหภูมิกระเปาะเปียกภายนอก °C — ใช้หาความชื้นของอากาศบริสุทธิ์ · ค่าตั้งต้น 26.4 = ค่าออกแบบ MCWB ที่คู่กับ 36.4 °C ระดับ 1 % ของกรุงเทพ (BANGKOK INTL · ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 14 ภาคผนวก Design Conditions) · ระดับ 0.4 % คู่ 37.2/26.3 · 2 % คู่ 35.8/26.4 · มีค่าวัดจริงให้แทนด้วยค่าวัด (psychrometer ในที่ร่ม) · ต้องไม่เกินอุณหภูมิภายนอก · RH และ W ภายนอกที่คำนวณได้แสดงในตาราง Psychrometric States', /* [แก้ไข 26 พ.ย. 2569] #1350 */
   tSupply:'อุณหภูมิลมจ่ายที่หัวจ่าย/coil ออก °C · ทั่วไป 11–14 · วัดด้วย probe ที่ช่องลมจ่าย',
   tCWin:'อุณหภูมิน้ำเย็นเข้า coil/AHU °C · design 12 (ΔT 5) · gauge/thermometer ท่อ return',
   tCWout:'อุณหภูมิน้ำเย็นออก chiller/เข้า AHU °C · design 7 · gauge ท่อ supply',
   floorArea:'พื้นที่ปรับอากาศรวม m² · จากแบบแปลน · ใช้หา W/m² (สำนักงานไทย 120–180 W/m²)',
   roomHeight:'ความสูงพื้นถึงฝ้า m · ทั่วไป 2.6–3.0 · ใช้คิดปริมาตรห้อง',
-  numPeople:'จำนวนคนสูงสุดในพื้นที่ · สำนักงาน ≈1 คน/10 m² · ประชุม ≈1 คน/2 m² (73 W sensible + 45 W latent/คน)',
+  numPeople:'จำนวนคนสูงสุดในพื้นที่ · สำนักงาน ≈1 คน/10 m² · ประชุม ≈1 คน/2 m² (ค่าแนวทางของเครื่องมือ) · ความร้อนต่อคนตามช่อง “ประเภทกิจกรรมของคน”', /* [แก้ไข 26 พ.ย. 2569] #1330 (WP-49G) เดิม (73 W sensible + 45 W latent/คน) */
+  occAct:'ความร้อนจากคนต่อคน = สัมผัส + แฝง ตาม ASHRAE Handbook—Fundamentals (SI) 2017 ตาราง 18-1 หน้า 18.4 (ห้อง 24 °C · ห้อง 27 °C ความร้อนรวมเท่าเดิม แต่ส่วนสัมผัสลดราว 20 %) · สำนักงานทั่วไปเลือก “งานสำนักงาน” 130 W/คน · ชุดเดียวกับ Split AC',
   internalElec:'โหลดไฟฟ้าภายในทั้งหมด kW = แสงสว่าง + คอมพิวเตอร์ + อุปกรณ์ · สำนักงาน 15–30 W/m² · จาก kWh meter/nameplate',
   envelopeGain:'ความร้อนผ่านผนัง/หลังคา/กระจก kW · ประมาณ 20–60 W/m² ตามทิศและฉนวน · จากการคำนวณ CLTD หรือเครื่องมือ Cooling Load Selector',
-  freshAir:'อากาศบริสุทธิ์ที่เติม m³/h · ASHRAE 62.1 ≈ 36 m³/h/คน (10 L/s) · จาก damper/pre-cool unit',
+  freshAir:'อากาศบริสุทธิ์ที่เติม m³/h · ราว 36 m³/h/คน (10 L/s) เป็นแนวทางทั่วไปสำหรับสำนักงาน (ASHRAE Handbook—Fundamentals 2017 หน้า 16.11) · จาก damper/pre-cool unit', /* [แก้ไข 26 พ.ย. 2569] #1335 (WP-49G) (คำอธิบายนี้ไม่แสดงเพราะช่องมี hint คงที่อยู่แล้ว — แก้ให้ตรงกัน) */
   safetyFactor:'ตัวเผื่อความไม่แน่นอน % · ทั่วไป 10 · ห้อง critical 15 · อย่าเผื่อซ้อนหลายชั้น',
   stdRef:'เลือกเกณฑ์ benchmark ที่ใช้เทียบ · ฉลากเบอร์ 5 กฟผ. (เกณฑ์ 2567) ใช้กับ split ไม่เกิน 18,000 W และ VRF ไม่เกิน 29,308 W — chiller ให้เลือกเกณฑ์ BEC พ.ศ. 2564 ตามชนิดเครื่องอัด',
   acComp:'ชนิดคอมเพรสเซอร์ของเครื่อง split — fixed speed กับ inverter ใช้เกณฑ์ SEER ของฉลากเบอร์ 5 คนละชุด (VRF ใช้ตารางของ VRF อัตโนมัติ)',
@@ -1029,7 +1057,7 @@ var TE_HINTS={
 };
 function teInjectHints(){ Object.keys(TE_HINTS).forEach(function(id){ var e=G(id); if(!e) return; var n=e.nextElementSibling; if(n&&n.classList&&n.classList.contains('hint')) return; var d=document.createElement('div'); d.className='hint te'; d.textContent=TE_HINTS[id]; e.insertAdjacentElement('afterend',d); }); }
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['acComp', 'seerPlate', 'acType', 'refrigerant', 'ratedCapKW', 'ratedPowerKW', 'numUnits', 'tCWin', 'tCWout', 'floorArea', 'roomHeight', 'numPeople', 'internalElec', 'envelopeGain', 'freshAir'], FK_MEAS=['actualPowerKW', 'tRoom', 'rhRoom', 'tOutdoor', 'tSupply'], FK_SET=['projName', 'auditor', 'testDate', 'opHours', 'elecPrice', 'safetyFactor', 'stdRef', 'vfdSavePct'], FK_MEAS2=['pumpFanKW'], FK_CALC=[];
+var FK_DESIGN=['acComp', 'seerPlate', 'acType', 'refrigerant', 'ratedCapKW', 'ratedPowerKW', 'numUnits', 'tCWin', 'tCWout', 'floorArea', 'roomHeight', 'numPeople', 'occAct', 'internalElec', 'envelopeGain', 'freshAir'], FK_MEAS=['actualPowerKW', 'tRoom', 'rhRoom', 'tSupply'], FK_SET=['tOutdoor', 'tWbOutdoor', 'projName', 'auditor', 'testDate', 'opHours', 'elecPrice', 'safetyFactor', 'stdRef', 'vfdSavePct'], FK_MEAS2=['pumpFanKW'], FK_CALC=[];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0||FK_MEAS2.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -1227,7 +1255,7 @@ if(window.TE_I18N)TE_I18N.set({
  [/ต่ำกว่าเกณฑ์เบอร์ 5/g,"below Label No.5"],
  [/ — จาก SEER ที่ฉลาก ([\d.,]+) Btu\/h\/W/g," — from the label SEER $1 Btu/h/W"],
  [/ — เทียบจาก EER หน้างาน ([\d.,]+) Btu\/h\/W แบบชี้แนว — ฉลากตัดสินด้วย SEER ที่ทดสอบตาม มอก\. 2714 เล่ม 1-2558 กรอก "SEER ที่ฉลาก" เพื่อผลที่ตรงกับฉลากจริง/g," — indicative, from field EER $1 Btu/h/W — the label is judged by SEER tested per TIS 2714 Part 1-2558; enter the \"Label SEER\" for a result that matches the actual label"],
- [/⚠️ เลือกเกณฑ์ฉลากเบอร์ 5 แต่ฉลากไม่ครอบคลุมระบบ\/ขนาดนี้ — จึงยังไม่เทียบ benchmark และไม่คิดผลประหยัด ให้เลือกเกณฑ์อื่นในช่อง "มาตรฐานประสิทธิภาพอ้างอิง" \(chiller: เกณฑ์ BEC พ\.ศ\. 2564 ตามชนิดเครื่อง\) · kW\/RT ปัจจุบัน /g,"⚠️ Label No.5 is selected but does not cover this system/size — no benchmark comparison or saving is computed. Pick another criterion under \"Reference efficiency standard\" (chiller: the Thai BEC B.E. 2564 criterion for the compressor type) · current kW/RT "],
+ [/⚠️ เลือกเกณฑ์ฉลากเบอร์ 5 แต่ฉลากไม่ครอบคลุมระบบ\/ขนาดนี้ — จึงยังไม่เทียบ benchmark และไม่คิดผลประหยัด ให้เลือกเกณฑ์อื่นในช่อง "มาตรฐานประสิทธิภาพอ้างอิง" \(chiller: เกณฑ์ (?:BEC พ\.ศ\.|Thai BEC B\.E\.) 2564 ตามชนิดเครื่อง\) · kW\/RT ปัจจุบัน /g,"⚠️ Label No.5 is selected but does not cover this system/size — no benchmark comparison or saving is computed. Pick another criterion under \"Reference efficiency standard\" (chiller: the Thai BEC B.E. 2564 criterion for the compressor type) · current kW/RT "],
  [/เกณฑ์ SEER: /g,"SEER criterion: "],
  [/Bench: เกณฑ์ฉลากเป็น SEER/g,"Bench: the label criterion is SEER"],
  [/EER ปัจจุบัน ([\d.,]+) → SEER ตามเกณฑ์ ([\d.,]+)/g,"Current EER $1 → criterion SEER $2"],
@@ -1252,12 +1280,12 @@ if(window.TE_I18N)TE_I18N.set({
 </script>
 <!-- [R0 7 พ.ย. 2569] เปิดชั้น UI กลาง: ⓘ ตามป้าย + แถบเปิดครั้งแรก -->
 <script>/* [แก้ไข 12 พ.ย. 2569] แผนภูมิไซโครเมตริกครบทุกแกน (TE_PSYCHART) แทนแผนภูมิอย่างง่าย — ใช้สภาวะจากการคำนวณภาระ (window._lastLoad)
-   M = จุดผสมตามสัดส่วนอากาศภายนอก/ลมจ่าย (โดยปริมาตร ≈ โดยมวล) · OA ใช้ RH 60 % และ SA ใช้ RH 92 % ตามสมมติฐานเดิมของเครื่องมือ */
+   M = จุดผสมตามสัดส่วนอากาศภายนอก/ลมจ่าย (โดยปริมาตร ≈ โดยมวล) · OA จาก DB/WB ที่กรอก (#1350 · เดิม RH 60 %) และ SA ใช้ RH 92 % ตามสมมติฐานเดิมของเครื่องมือ */
 (function(){
   var P=null;
   function run(){
     var r=window._lastLoad, el=document.getElementById('PSYCHRO_FULL'); if(!r||!el||!window.TE_PSYCHART||!window.TE_PSY) return;
-    if(!P) P=TE_PSYCHART.panel(el,{id:'psyAC',file:'AirCon_Load_Psychro',note:['ชี้เมาส์บนแผนภูมิเพื่ออ่านค่า · เส้นประ OA–RA = เส้นผสม · M→SA = คอยล์เย็น · SA→RA = เส้นภาระห้อง (SHR) · อากาศภายนอกใช้ RH 60 % และลมจ่าย RH 92 % ตามสมมติฐานของการคำนวณภาระ','Hover to read values · dashed OA–RA = mixing line · M→SA = cooling coil · SA→RA = room load line (SHR) · outdoor air RH 60 % and supply RH 92 % as assumed by the load calculation']});
+    if(!P) P=TE_PSYCHART.panel(el,{id:'psyAC',file:'AirCon_Load_Psychro',note:['ชี้เมาส์บนแผนภูมิเพื่ออ่านค่า · เส้นประ OA–RA = เส้นผสม · M→SA = คอยล์เย็น · SA→RA = เส้นภาระห้อง (SHR) · อากาศภายนอกจาก DB/WB ที่กรอก และลมจ่าย RH 92 % (ค่าแนวทางของเครื่องมือ) ตามการคำนวณภาระ','Hover to read values · dashed OA–RA = mixing line · M→SA = cooling coil · SA→RA = room load line (SHR) · outdoor air from the entered DB/WB and supply RH 92 % (tool guideline value) as used by the load calculation']});
     var p=101.325, S=function(t,W){ return TE_PSY.state(t,W,p); }, oa=S(r.tOut,r.W_out), ra=S(r.tRoom,r.W_room), sa=S(r.tSup,r.W_sup);
     var pts=[{t:oa.t,W:oa.W,label:'OA',color:'#b45309'},{t:ra.t,W:ra.W,label:'RA'},{t:sa.t,W:sa.W,label:'SA',color:'#1d4ed8'}], lines=[{a:oa,b:ra,color:'#b45309',width:1.6,dash:'6 4'}];
     var f=(r.m_sa>0&&r.fa>0)?Math.min(1,r.fa/r.m_sa):0;
@@ -1376,6 +1404,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: ค่าตัวอย่างในช่องข้อความเป็นภาษาอังกฤษ (เฉพาะช่องที่ยังเป็นค่าตั้งต้น — ไม่แตะค่าที่ผู้ใช้กรอก/ไฟล์ที่โหลด) */ if(window.TE_I18N&&TE_I18N.vals){TE_I18N.vals({"อ.หนึ่ง กลับทวี": "Aj. Nueng Klubtavee", "อาคารตัวอย่าง — ระบบปรับอากาศ": "Sample building — air-conditioning system"});}</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: สกุลเงินแสดงเป็น THB (เดิม ฿ จากผลมาตรการ/ค่าใช้จ่ายรายปี) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/M฿/g,"M THB"],[/฿(?=\s?[\d(])/g,"THB "],[/฿/g,"THB"]]);</script>
 <script>/* [แก้ไข 25 พ.ย. 2569] #543–#545 (WP-40E) — คู่คำแปล EN ของข้อความใหม่ (ค่าที่คิดไม่ได้ · นิยาม Cost/RT·h) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"คิด COP · EER · kW/ton ไม่ได้ (หารด้วยศูนย์) — ขาดค่า:": "COP · EER · kW/ton cannot be calculated (division by zero) — missing:", "ขาดค่า:": "Missing:", "หรือ": "or", "คิดผลประหยัดไม่ได้ — ขาดค่า:": "Saving cannot be calculated — missing:", "คิดผลประหยัดไม่ได้ (EER คิดไม่ได้) — ขาดค่า:": "Saving cannot be calculated (EER cannot be calculated) — missing:", "ค่าไฟ/ปี ÷ (RT พิกัด × จำนวนเครื่อง × ชม./ปี)": "annual cost ÷ (rated RT × units × h/yr)"});</script>
+<script>/* [แก้ไข 26 พ.ย. 2569] #1338 (WP-49G) คู่คำแปล EN ของข้อความใหม่: ช่องประเภทกิจกรรมของคน (ตาราง 18-1 — คำแปลชุดเดียวกับ Split AC) · คำอธิบายช่อง tOutdoor/numPeople/freshAir · ที่มาของค่าในแท็บ Cooling Load · ป้าย RH ค่าแนวทาง · ข้อความไฟล์งานรุ่นเดิม
+   · #1339 ข้อความเตือน "เลือกเกณฑ์ฉลากเบอร์ 5 แต่ฉลากไม่ครอบคลุม…" ค้างเป็นไทยในโหมด EN เพราะคู่ /BEC พ.ศ. 2564/ (ลำดับก่อน) แปลคำ BEC ในประโยคไปก่อน — แก้คู่ของประโยคนั้นให้รับทั้งสองแบบ (แบบเดียวกับการ์ด Pro aca_en.js) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ประเภทกิจกรรมของคน": "Occupant activity", "นั่งนิ่ง — ชมการแสดง (70 + 35 = 105 W/คน)": "Seated at theater (70 + 35 = 105 W/person)", "งานสำนักงาน (75 + 55 = 130 W/คน)": "Moderately active office work (75 + 55 = 130 W/person)", "ยืนทำงานเบา/เดิน — ร้านค้า (75 + 55 = 130 W/คน)": "Standing, light work; walking — store (75 + 55 = 130 W/person)", "นั่งทำงาน — ร้านอาหาร รวมความร้อนจากอาหาร (80 + 80 = 160 W/คน)": "Sedentary work — restaurant, incl. food heat (80 + 80 = 160 W/person)", "เดิน 4.8 km/h · งานเครื่องจักรเบา — โรงงาน (110 + 185 = 295 W/คน)": "Walking 4.8 km/h; light machine work — factory (110 + 185 = 295 W/person)", "งานหนัก — โรงงาน (170 + 255 = 425 W/คน)": "Heavy work — factory (170 + 255 = 425 W/person)", "ความร้อนจากคนต่อคน = สัมผัส + แฝง ตาม ASHRAE Handbook—Fundamentals (SI) 2017 ตาราง 18-1 หน้า 18.4 (ห้อง 24 °C · ห้อง 27 °C ความร้อนรวมเท่าเดิม แต่ส่วนสัมผัสลดราว 20 %) · สำนักงานทั่วไปเลือก “งานสำนักงาน” 130 W/คน · ชุดเดียวกับ Split AC": "Heat per occupant = sensible + latent per ASHRAE Handbook—Fundamentals (SI) 2017 Table 18-1, p.18.4 (24 °C room · in a 27 °C room the total stays the same but the sensible part drops by about 20 %) · for a typical office choose “Moderately active office work” 130 W/person · same set as Split AC", "จำนวนคนสูงสุดในพื้นที่ · สำนักงาน ≈1 คน/10 m² · ประชุม ≈1 คน/2 m² (ค่าแนวทางของเครื่องมือ) · ความร้อนต่อคนตามช่อง “ประเภทกิจกรรมของคน”": "Peak occupancy · office ≈1 person/10 m² · meeting ≈1 person/2 m² (tool guideline values) · heat per person follows the “Occupant activity” field", "อุณหภูมิอากาศภายนอก (กระเปาะแห้ง) ที่ใช้คิดภาระ °C · ค่าตั้งต้น 36.4 = ค่าออกแบบกรุงเทพ (สถานี BANGKOK INTL) ระดับ 1 %: 37.2 °C ที่ 0.4 % · 36.4 °C ที่ 1 % · 35.8 °C ที่ 2 % (ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 14 ภาคผนวก Design Conditions) · ร้อยละ = ความถี่สะสมรายปีที่อุณหภูมิเท่าหรือสูงกว่าค่านี้ (1 % ≈ 88 ชม./ปี · บทที่ 14 หน้า 14.2) · ประเมินสภาพขณะตรวจ: แทนด้วยค่าที่วัดในที่ร่มใกล้ condensing unit (ไทยช่วงบ่าย 33–38 = ค่าแนวทางของเครื่องมือ) · กรอกคู่กับกระเปาะเปียกภายนอก": "Outdoor (dry-bulb) temperature used for the load, °C · default 36.4 = Bangkok design value (BANGKOK INTL station) at the 1 % level: 37.2 °C at 0.4 % · 36.4 °C at 1 % · 35.8 °C at 2 % (ASHRAE Handbook—Fundamentals (SI) 2017 Ch.14 appendix, Design Conditions) · percent = annual cumulative frequency at or above this value (1 % ≈ 88 h/yr · Ch.14 p.14.2) · to assess conditions during the audit, replace with the value measured in shade near the condensing unit (Thai afternoons 33–38 = tool guideline value) · enter together with the outdoor wet-bulb", "อุณหภูมิกระเปาะเปียกภายนอก °C — ใช้หาความชื้นของอากาศบริสุทธิ์ · ค่าตั้งต้น 26.4 = ค่าออกแบบ MCWB ที่คู่กับ 36.4 °C ระดับ 1 % ของกรุงเทพ (BANGKOK INTL · ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 14 ภาคผนวก Design Conditions) · ระดับ 0.4 % คู่ 37.2/26.3 · 2 % คู่ 35.8/26.4 · มีค่าวัดจริงให้แทนด้วยค่าวัด (psychrometer ในที่ร่ม) · ต้องไม่เกินอุณหภูมิภายนอก · RH และ W ภายนอกที่คำนวณได้แสดงในตาราง Psychrometric States": "Outdoor wet-bulb temperature, °C — sets the humidity of the fresh air · default 26.4 = design MCWB coincident with 36.4 °C at the 1 % level for Bangkok (BANGKOK INTL · ASHRAE Handbook—Fundamentals (SI) 2017 Ch.14 appendix, Design Conditions) · 0.4 % pair 37.2/26.3 · 2 % pair 35.8/26.4 · replace with a measured value when available (psychrometer in shade) · must not exceed the outdoor temperature · the calculated outdoor RH and W are shown in the Psychrometric States table", "T_wb,outdoor — อุณหภูมิกระเปาะเปียกภายนอก (°C)": "T_wb,outdoor — outdoor wet-bulb temperature (°C)", "ต้องไม่เกินอุณหภูมิภายนอก (กระเปาะแห้ง)": "must not exceed the outdoor (dry-bulb) temperature", "ℹ️ ไฟล์งานรุ่นก่อนไม่มีช่องอุณหภูมิกระเปาะเปียกภายนอก — ใช้ค่าออกแบบ 26.4 °C (กรุงเทพ ระดับ 1 % · ASHRAE Handbook—Fundamentals 2017 บทที่ 14) · รุ่นก่อนสมมุติ RH ภายนอก 60 % ภาระแฝงจากอากาศบริสุทธิ์จึงต่างจากรุ่นก่อน · มีค่าวัดจริงให้แทนด้วยค่าวัด": "ℹ️ This job file is from an older version and has no outdoor wet-bulb field — the design value 26.4 °C is used (Bangkok at the 1 % level · ASHRAE Handbook—Fundamentals 2017 Ch.14) · the older version assumed an outdoor RH of 60 %, so the fresh-air latent load differs from the older version · replace with a measured value when available", "ราว 10 L/s ต่อคน (= 36 m³/h/คน) เป็นแนวทางทั่วไปสำหรับสำนักงาน (ASHRAE Handbook—Fundamentals 2017 หน้า 16.11) · ASHRAE 62.1 คิดแบบต่อคน + ต่อพื้นที่: สำนักงาน 2.5 L/s·คน + 0.3 L/s·m² (Fundamentals 2017 หน้า 16.32 อ้าง 62.1-2010)": "About 10 L/s per person (= 36 m³/h per person) is general guidance for offices (ASHRAE Handbook—Fundamentals 2017 p.16.11) · ASHRAE 62.1 uses a per-person + per-area rate: office 2.5 L/s·person + 0.3 L/s·m² (Fundamentals 2017 p.16.32, citing 62.1-2010)", "อากาศบริสุทธิ์ที่เติม m³/h · ราว 36 m³/h/คน (10 L/s) เป็นแนวทางทั่วไปสำหรับสำนักงาน (ASHRAE Handbook—Fundamentals 2017 หน้า 16.11) · จาก damper/pre-cool unit": "Fresh air added, m³/h · about 36 m³/h per person (10 L/s) is general guidance for offices (ASHRAE Handbook—Fundamentals 2017 p.16.11) · from the damper/pre-cool unit", "อ้างอิง: ASHRAE Handbook—Fundamentals (SI) 2017 | Pita (2002) | Arora Chapter 14": "Ref.: ASHRAE Handbook—Fundamentals (SI) 2017 | Pita (2002) | Arora Chapter 14", "📖 ที่มาของค่า (ASHRAE Handbook—Fundamentals (SI) 2017 · ชุดเดียวกับ Split AC): ความร้อนจากคน สัมผัส + แฝง ตามแถวของตาราง 18-1 หน้า 18.4 · อากาศบริสุทธิ์ q_s = 1.23·Q·Δt และ q_l = 3010·Q·ΔW บทที่ 18 สมการ (9)–(10) หน้า 18.15 (Q หน่วย L/s = m³/h ÷ 3.6 · ค่าคงที่ระดับน้ำทะเล ใช้ได้ถึงราว 300 m) · ลมจ่าย = q_s ÷ [1.23·(T_room − T_supply)] · อากาศภายนอกตั้งต้น 36.4 °C DB / 26.4 °C WB = คู่ค่าออกแบบกรุงเทพ ระดับ 1 % (บทที่ 14 — ผู้ใช้ควรแทนด้วยค่าวัดจริงเมื่อมี) · W และ h ของอากาศจาก DB/WB: บทที่ 1 (Hyland–Wexler) · RH ลมจ่าย 92 % = ค่าแนวทางของเครื่องมือ": "📖 Source of values (ASHRAE Handbook—Fundamentals (SI) 2017 · same set as Split AC): occupant sensible + latent heat per the row of Table 18-1, p.18.4 · fresh air q_s = 1.23·Q·Δt and q_l = 3010·Q·ΔW, Ch.18 Eqs. (9)–(10), p.18.15 (Q in L/s = m³/h ÷ 3.6 · sea-level constants, valid up to about 300 m) · supply air = q_s ÷ [1.23·(T_room − T_supply)] · default outdoor air 36.4 °C DB / 26.4 °C WB = Bangkok design pair at the 1 % level (Ch.14 — replace with measured values when available) · air W and h from DB/WB: Ch.1 (Hyland–Wexler) · supply RH 92 % = tool guideline value", "ℹ️ ไฟล์งานรุ่นก่อนไม่มีช่องประเภทกิจกรรม — ใช้ “งานสำนักงาน” (75 + 55 W/คน ตาม ASHRAE Handbook—Fundamentals 2017 ตาราง 18-1) · รุ่นก่อนคิดคงที่ 73 + 45 W/คน และอากาศบริสุทธิ์ด้วย 1.2 × 1.006 ผลภาระจึงต่างจากรุ่นก่อน": "ℹ️ This job file is from an older version and has no activity field — “Moderately active office work” is used (75 + 55 W/person per ASHRAE Handbook—Fundamentals 2017 Table 18-1) · the older version used a fixed 73 + 45 W/person and fresh air with 1.2 × 1.006, so the load differs from the older version"},[[/°C \/ 60% RH \(ค่าแนวทางของเครื่องมือ\)/g,"°C / 60% RH (tool guideline value)"],[/°C \/ ~92% RH \(ค่าแนวทางของเครื่องมือ\)/g,"°C / ~92% RH (tool guideline value)"]]);</script>
 <script>/* [แก้ไข 25 พ.ย. 2569] #723 (WP-42C) คู่คำแปล EN ของข้อความแจ้งช่องที่ต้องกรอก · #724 ข้อความจากสูตร TE.ACAUD "กรุณากรอกขนาดและกำลังไฟฟ้า" (ไลบรารีไม่มีคู่คำแปล — แปลที่หน้าเครื่องมือ) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"⚠️ ยังคำนวณส่วนนี้ไม่ได้ — ข้อมูลไม่ครบหรือไม่ถูกต้อง (เครื่องมือไม่ใช้ค่าตั้งต้นแทนให้):": "⚠️ This part cannot be calculated yet — data missing or invalid (the tool does not substitute default values):", "ยังไม่ได้กรอก": "not entered", "ต้องมากกว่า 0": "must be greater than 0", "— · ขาดค่า:": "— · missing:", "คิดพลังงานและค่าไฟต่อปีไม่ได้ — ขาดค่า:": "Annual energy and cost cannot be calculated — missing:", "กรุณากรอกขนาดและกำลังไฟฟ้า": "Please enter the rated capacity and power input"});</script>
 </body>
 </html>
