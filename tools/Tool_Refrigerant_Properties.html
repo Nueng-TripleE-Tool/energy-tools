@@ -74,6 +74,7 @@ footer{max-width:1180px;margin:0 auto 26px;padding:0 18px;font-size:.78em;color:
 
 var $=function(i){return document.getElementById(i)},ATM=TE.UNITS.P_ATM,R=TE.REFPROP.TE_REFRIG;
 function fx(v,d){return (v==null||!isFinite(v))?'–':Number(v).toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function r2(v){return Number(Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false}));}   /* [แก้ไข 26 พ.ย. 2569] #1561 (WP-50C) ปัด 2 ตำแหน่งแบบเดียวกับ fx() เพื่อให้ Glide = ผลต่างของค่าที่แสดง */
 function K(l,v,u,d,c){return '<div class="k"'+(c?' style="border-top-color:'+c+'"':'')+'><div class="l">'+l+'</div><span class="v">'+(typeof v==='string'?v:fx(v,d))+'</span><span class="u">'+(u||'')+'</span></div>';}
 R.list.forEach(function(k){var o=document.createElement('option');o.value=k;var inf=R.info(k);o.text=inf.name+(inf.mix?' (ผสม)':'');$('rf').add(o);});
 $('rf').value='R32';
@@ -102,8 +103,14 @@ function MISS(ids){return ids.length?'<div class="warn" data-miss="1" style="gri
 function blanks(ids){return ids.filter(BL);}
 function go(){
  var f=$('rf').value,inf=R.info(f),mix=!!inf.mix;
- $('rf_info').innerHTML=K('Safety',inf.safety,'',0,'#8e44ad')+K('GWP (AR5)',inf.gwp,'',0,'#8e44ad')+K('T วิกฤต',inf.Tc,'°C',1,'#8e44ad')+K('Glide',inf.glide0||0,'K',1,'#8e44ad');
- $('rf_mix').innerHTML=mix?W('สารผสมมี glide — ที่ความดันเดียวกัน จุด bubble (เริ่มเดือด) ต่ำกว่าจุด dew (เริ่มกลั่นตัว) · Superheat คิดจาก dew · Subcooling คิดจาก bubble'):'';
+ /* [แก้ไข 26 พ.ย. 2569] #1560 (WP-50C) ช่อง "Glide" ในข้อมูลสาร (info().glide0 — ค่าคงที่ของตาราง TE_REFRIG) ไม่บอกว่าเป็น glide ที่สภาวะใด
+    ตรวจจากข้อมูลของตารางเอง (sat()/Tsat() เดิม · ไม่แตะ TE_REFRIG): glide0 = T dew − T bubble ที่ความดันอิ่มตัวซึ่ง T dew = 0 °C
+      R-407C: P dew(0 °C) 4.6071 bar a → T bubble −6.2687 °C → 6.2687 ≈ 6.27 (glide0 6.27 ✓) · R-454B: 7.3242 bar a → 1.4598 ≈ 1.46 (glide0 1.46 ✓)
+      นิยามอื่นไม่ตรง: ที่ความดันซึ่ง T bubble = 0 °C ได้ 6.124 / 1.466 · ที่ 1 atm ได้ 6.998 / 1.216
+    → สารผสม (info().mix): ป้ายช่องบอกเงื่อนไข "Glide (ที่ T dew 0 °C)" + ประโยคนิยามในกล่อง rf_mix · ตัวเลขเท่าเดิม · สารที่ไม่ใช่สารผสม ป้าย/ค่าเท่าเดิม */
+ $('rf_info').innerHTML=K('Safety',inf.safety,'',0,'#8e44ad')+K('GWP (AR5)',inf.gwp,'',0,'#8e44ad')+K('T วิกฤต',inf.Tc,'°C',1,'#8e44ad')+K(mix?'Glide (ที่ T dew 0 °C)':'Glide',inf.glide0||0,'K',1,'#8e44ad');
+ $('rf_mix').innerHTML=mix?W('สารผสมมี glide — ที่ความดันเดียวกัน จุด bubble (เริ่มเดือด) ต่ำกว่าจุด dew (เริ่มกลั่นตัว) · Superheat คิดจาก dew · Subcooling คิดจาก bubble')
+   +'<div class="hint" data-glide0="1" style="grid-column:1/-1">Glide ในข้อมูลสาร = T dew − T bubble ที่ความดันอิ่มตัวซึ่ง T dew = 0 °C · glide เปลี่ยนตามความดัน — glide ที่ความดันใช้งานดูการ์ด ②</div>':'';
  try{var t1=+$('rt').value;
   if(BL('rt'))$('rt_out').innerHTML=MISS(['rt']);else if(!inT(t1))$('rt_out').innerHTML=W(M_RNG);
   else{var s=R.sat(f,t1);
@@ -136,8 +143,11 @@ function go(){
            h_fg = h_g − h_f ที่ความดันเดียวกัน = ความร้อนที่ใช้เปลี่ยนของเหลวอิ่มตัวเป็นไออิ่มตัวทั้งหมดที่ความดันคงที่ · Glide = T dew − T bubble (ค่าที่ยังไม่ปัด)
      ข้อมูลพอ: ตาราง sat ของ TE_REFRIG มีเส้น P (dew) และ Pb (bubble) แยกกัน · hf ในตาราง = ของเหลวบนเส้น bubble (คอมเมนต์ hLiq ของโมดูล) · ทวนอิสระกับ CoolProp 8.1 HEOS (ส่วนผสมจริง) ในรายงาน WP-48D
      ตัวอย่าง R-407C 8.5 bar g: T bubble 16.93 · T dew 22.61 · h_f 233.1 → 224.6 · h_g 419.3 (เท่าเดิม) · h_fg 186.2 → 194.7 kJ/kg · ไม่แตะ TE_REFRIG · สารบริสุทธิ์และ R-410A/R-404A (info().mix = false) ไม่เปลี่ยนทุกค่า */
+  /* [แก้ไข 26 พ.ย. 2569] #1561 (WP-50C) Glide ที่แสดงต้องเท่ากับผลต่างของ T dew − T bubble ที่แสดง: เดิม K('Glide',T-Tb) ปัดผลต่างของค่าที่ยังไม่ปัด
+     → ต่างจากผลลบของค่าบนจอได้ 0.01 (R-454B 26 bar g: 47.98 − 46.56 = 1.42 แต่แสดง 1.41) · ใหม่ = r2(T) − r2(Tb) โดย r2 ปัด 2 ตำแหน่งแบบเดียวกับ fx()
+     (Intl · ค่าเดียวกับตัวเลขบนจอ) · T dew · T bubble · h_f · h_g · h_fg ไม่เปลี่ยน · การคำนวณอื่นไม่ได้ใช้ค่านี้ */
   if(mix){var sb=R.sat(f,Tb),hf2=sb.hf,hg2=s2.hg;
-  $('rp_out').innerHTML=K('T dew',T,'°C',2)+K('T bubble',Tb,'°C',2)+K('Glide',T-Tb,'K',2)+K('P',P,'bar a',3)+K('h_f (ที่ T bubble)',hf2,'kJ/kg',1)+K('h_g (ที่ T dew)',hg2,'kJ/kg',1)+K('h_fg (ที่ความดันนี้)',hg2-hf2,'kJ/kg',1)
+  $('rp_out').innerHTML=K('T dew',T,'°C',2)+K('T bubble',Tb,'°C',2)+K('Glide',r2(T)-r2(Tb),'K',2)+K('P',P,'bar a',3)+K('h_f (ที่ T bubble)',hf2,'kJ/kg',1)+K('h_g (ที่ T dew)',hg2,'kJ/kg',1)+K('h_fg (ที่ความดันนี้)',hg2-hf2,'kJ/kg',1)
    +'<div class="hint" data-mixnote="1" style="grid-column:1/-1;margin-top:6px">สารผสม — นิยามค่าในการ์ดนี้ (ทุกค่าอยู่ที่ความดัน P ที่กรอก): T bubble = อุณหภูมิที่ของเหลวเริ่มเดือด · T dew = อุณหภูมิที่ไอเริ่มกลั่นตัว (หรือของเหลวกลายเป็นไอหมด) · Glide = T dew − T bubble · h_f = เอนทัลปีของเหลวอิ่มตัวที่ P (อยู่ที่ T bubble) · h_g = เอนทัลปีไออิ่มตัวที่ P (อยู่ที่ T dew) · h_fg = h_g − h_f = ความร้อนที่ใช้เปลี่ยนของเหลวอิ่มตัวเป็นไออิ่มตัวทั้งหมดที่ความดันคงที่ ระหว่างเปลี่ยนเฟสอุณหภูมิเลื่อนจาก T bubble ถึง T dew</div>';}
   else $('rp_out').innerHTML=K('T อิ่มตัว',T,'°C',2)+K('P',P,'bar a',3)+K('h_f',s2.hf,'kJ/kg',1)+K('h_g',s2.hg,'kJ/kg',1)+K('h_fg',s2.hfg,'kJ/kg',1);}}}catch(e){$('rp_out').innerHTML=W(e.message);}
  try{var Ps=Pa('sh_p','sh_u'),b3=blanks(['sh_p','sh_t']);
@@ -235,6 +245,9 @@ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({
 "h_f (ที่ T bubble)":"h_f (at T bubble)",
 "h_g (ที่ T dew)":"h_g (at T dew)",
 "h_fg (ที่ความดันนี้)":"h_fg (at this pressure)",
+/* [แก้ไข 26 พ.ย. 2569] #1560 (WP-50C) EN ป้ายเงื่อนไข Glide ในข้อมูลสาร */
+"Glide (ที่ T dew 0 °C)":"Glide (at T dew 0 °C)",
+"Glide ในข้อมูลสาร = T dew − T bubble ที่ความดันอิ่มตัวซึ่ง T dew = 0 °C · glide เปลี่ยนตามความดัน — glide ที่ความดันใช้งานดูการ์ด ②":"Glide in the refrigerant data = T dew − T bubble at the saturation pressure where T dew = 0 °C · glide changes with pressure — for the glide at the operating pressure see card ②",
 "สารผสม — นิยามค่าในการ์ดนี้ (T = อุณหภูมิที่กรอก): P bubble = ความดันที่ของเหลวเริ่มเดือดที่อุณหภูมินี้ · P dew = ความดันที่ไอเริ่มกลั่นตัวที่อุณหภูมินี้ · h_f และ ρ ของเหลว = ของเหลวอิ่มตัวที่ T และ P bubble · h_g และ ρ ไอ = ไออิ่มตัวที่ T และ P dew · สองสถานะนี้อยู่คนละความดัน ผลต่าง h_g − h_f ที่อุณหภูมิเดียวกันจึงไม่ใช่ความร้อนแฝงที่ความดันคงที่ (การ์ดไม่แสดงค่านี้) · h_fg ที่ P dew = h_g ไออิ่มตัวที่ P dew (อยู่ที่ T) − h_f ของเหลวอิ่มตัวที่ P dew (อยู่ที่ T bubble ของ P dew ซึ่งต่ำกว่า T) · h_fg ที่ P bubble = h_g ไออิ่มตัวที่ P bubble (อยู่ที่ T dew ของ P bubble ซึ่งสูงกว่า T) − h_f ของเหลวอิ่มตัวที่ P bubble (อยู่ที่ T) · สองค่านี้คือความร้อนที่ใช้เปลี่ยนของเหลวอิ่มตัวเป็นไออิ่มตัวทั้งหมดที่ความดันคงที่ของแต่ละความดัน":"Blend — definitions in this card (T = the temperature entered): P bubble = the pressure at which the liquid starts to boil at this temperature · P dew = the pressure at which the vapour starts to condense at this temperature · h_f and ρ liquid = saturated liquid at T and P bubble · h_g and ρ vapour = saturated vapour at T and P dew · these two states are at different pressures, so h_g − h_f at the same temperature is not the latent heat at constant pressure (the card does not show it) · h_fg at P dew = h_g of saturated vapour at P dew (at T) − h_f of saturated liquid at P dew (at the T bubble of P dew, below T) · h_fg at P bubble = h_g of saturated vapour at P bubble (at the T dew of P bubble, above T) − h_f of saturated liquid at P bubble (at T) · these two values are the heat needed to turn saturated liquid fully into saturated vapour at the constant pressure of each",
 "h_fg ที่แสดง – : อุณหภูมิอีกปลายของ glide อยู่นอกช่วงโมเดล (−50 … 65 °C) — ไม่แสดงค่า":"h_fg shown as – : the temperature at the other end of the glide is outside the model range (−50 … 65 °C) — no value shown",
 "สารผสม — นิยามค่าในการ์ดนี้ (ทุกค่าอยู่ที่ความดัน P ที่กรอก): T bubble = อุณหภูมิที่ของเหลวเริ่มเดือด · T dew = อุณหภูมิที่ไอเริ่มกลั่นตัว (หรือของเหลวกลายเป็นไอหมด) · Glide = T dew − T bubble · h_f = เอนทัลปีของเหลวอิ่มตัวที่ P (อยู่ที่ T bubble) · h_g = เอนทัลปีไออิ่มตัวที่ P (อยู่ที่ T dew) · h_fg = h_g − h_f = ความร้อนที่ใช้เปลี่ยนของเหลวอิ่มตัวเป็นไออิ่มตัวทั้งหมดที่ความดันคงที่ ระหว่างเปลี่ยนเฟสอุณหภูมิเลื่อนจาก T bubble ถึง T dew":"Blend — definitions in this card (all values at the pressure P entered): T bubble = the temperature at which the liquid starts to boil · T dew = the temperature at which the vapour starts to condense (or the liquid has fully evaporated) · Glide = T dew − T bubble · h_f = enthalpy of saturated liquid at P (at T bubble) · h_g = enthalpy of saturated vapour at P (at T dew) · h_fg = h_g − h_f = the heat needed to turn saturated liquid fully into saturated vapour at constant pressure; during the phase change the temperature glides from T bubble to T dew",
