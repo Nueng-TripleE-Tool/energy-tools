@@ -218,7 +218,7 @@ button.xrb.on{background:#7b3fa0;color:#fff;border-color:#7b3fa0}
 <body>
 <header>
   <div class="brand">Triple E Technology Co., Ltd.</div>
-  <h1>Psychrometric Chart &amp; Air Properties <span style="font-size:.9rem;opacity:.75">v2.3</span></h1>
+  <h1>Psychrometric Chart &amp; Air Properties <span style="font-size:.9rem;opacity:.75">v2.4</span></h1><!-- [แก้ไข 26 พ.ย. 2569] #1446 (WP-48B) v2.3 → v2.4: Q_total คอยล์เย็นที่มีน้ำกลั่นตัวตามสมการ (43) -->
   <p>คุณสมบัติอากาศชื้นและแผนภูมิไซโครเมตริก — ASHRAE Fundamentals · รองรับความสูงเหนือระดับน้ำทะเล</p>
   <!-- [ระยะ 4 10 ก.ย. 2569] บันทึก/โหลด JSON ทุกแท็บ -->
   <span class="te-json">
@@ -514,7 +514,8 @@ button.xrb.on{background:#7b3fa0;color:#fff;border-color:#7b3fa0}
         กระเปาะเปียก (t* &lt; 0 °C) : W = [(2830 − 0.24 t*)W<sub>s</sub>* − 1.006(t − t*)] / (2830 + 1.86 t − 2.1 t*)<br>
         ระดับความอิ่มตัว &nbsp;&nbsp;&nbsp; μ = W / W<sub>s</sub>(t) &nbsp;;&nbsp; จุดน้ำค้าง : แก้สมการย้อน p<sub>ws</sub>(T<sub>dp</sub>) = p<sub>w</sub><br><br>
         <b>โหลดความร้อน</b> &nbsp; ṁ<sub>da</sub> = V̇ / v &nbsp;[kg อากาศแห้ง/s]<br>
-        Q<sub>total</sub> = ṁ<sub>da</sub> (h₁ − h₂) &nbsp;;&nbsp;
+        Q<sub>total</sub> = ṁ<sub>da</sub> (h₁ − h₂) &nbsp;;&nbsp;<!-- [แก้ไข 26 พ.ย. 2569] #1442 (WP-48B) เพิ่มบรรทัดคอยล์เย็นที่มีน้ำกลั่นตัว (สมการ 43) -->
+        <span>คอยล์เย็นที่มีน้ำกลั่นตัว (W₁ &gt; W₂): Q<sub>total</sub> = ṁ<sub>da</sub> [(h₁ − h₂) − (W₁ − W₂) h<sub>w2</sub>] , h<sub>w2</sub> = 4.186 t₂ [ASHRAE Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13 · (32) หน้า 1.9]</span> &nbsp;;&nbsp;
         Q<sub>sensible</sub> = ṁ<sub>da</sub> (1.006 + 1.86 W̄)(t₁ − t₂) &nbsp;;&nbsp;
         Q<sub>latent</sub> = Q<sub>total</sub> − Q<sub>sensible</sub><br>
         SHR = Q<sub>sensible</sub> / Q<sub>total</sub> &nbsp;;&nbsp;
@@ -691,7 +692,7 @@ button.xrb.on{background:#7b3fa0;color:#fff;border-color:#7b3fa0}
     <div id="xKeyPages" class="print-only"></div>
   </div>
 
-  <footer>© Triple E Technology Co., Ltd. — Energy Engineering Tools · ASHRAE Fundamentals (Hyland–Wexler) · v2.3 (12 พ.ย. 2569)</footer>
+  <footer>© Triple E Technology Co., Ltd. — Energy Engineering Tools · ASHRAE Fundamentals (Hyland–Wexler) · v2.4 (26 พ.ย. 2569)</footer>
   <div class="print-only">ฉบับฟรี — Triple E Energy Tools · tripleeenergytools.com · ผลคำนวณขึ้นกับค่าที่ผู้ใช้ป้อน ผู้จัดทำรับผิดชอบข้อมูลนำเข้า</div>
 </div>
 
@@ -1075,7 +1076,16 @@ function calcP(){
   /* [แก้ไข 3 ต.ค. 2569 audit] การผสมอากาศ 2 สายเป็นกระบวนการอะเดียแบติก (สมดุลมวล+พลังงาน) — ไม่มีภาระความร้อน/น้ำระเหย
      เดิมคิด (ṁ1+ṁ2)(h1 − h_mix) แสดงเป็น "ภาระทำความร้อน 19.5 kW / น้ำระเหย 20.3 kg/h" ซึ่งไม่มีจริง */
   const isMix = pr==='mix';
-  const Qt = isMix ? 0 : mT*(s1.h-s2.h);       // kW (บวก = อากาศคายความร้อน = ภาระคอยล์เย็น)
+  /* [แก้ไข 26 พ.ย. 2569] #1440 (WP-48B) คอยล์เย็นที่มีน้ำกลั่นตัว: Q_total = ṁ_da·[(h₁ − h₂) − (W₁ − W₂)·h_w2] — ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13
+     (ความร้อนที่คอยล์ดึงออกขณะทำความเย็นและลดความชื้น · หน้า 1.13 สมมุติว่าน้ำกลั่นตัวถูกทำให้เย็นถึงอุณหภูมิอากาศออก t₂ ก่อนไหลออก → h_w2 = 4.186·t₂ ตามสมการ (32) หน้า 1.9)
+     สมการ เงื่อนไข และค่า h_w2 เดียวกับ TE_SPLITAC r2 (#811 WP-42K K4) · หักเฉพาะกระบวนการคอยล์เย็นเมื่อ W₁ > W₂ (มีน้ำกลั่นตัว)
+     · คอยล์ที่ไม่ลดความชื้น และกระบวนการอื่น (ให้ความร้อน · ผสม · ระเหย · ฉีดไอน้ำ · อบแห้ง — ไม่มีน้ำกลั่นตัวออกจากระบบ) → Q_total = ṁ_da·Δh เท่าเดิมทุกค่า
+     · Q_sensible คงสูตรเดิม · Q_latent = Q_total − Q_sensible · SHR = Q_sensible/Q_total · TR = Q_total/3.51685 · น้ำกลั่นตัว ṁ_w = ṁ_da(W₁ − W₂) สมการ (42) ไม่เปลี่ยน
+     · เดิม Q_total = ṁ_da·Δh (สูงกว่าค่าตามสมการ 43 ราว 0.5–1 % ที่สภาวะคอยล์ทั่วไป) */
+  const Qa = isMix ? 0 : mT*(s1.h-s2.h);       // kW ṁ_da·Δh (บวก = อากาศคายความร้อน = ภาระคอยล์เย็น)
+  const hw2 = 4.186*s2.t;                       // kJ/kg น้ำกลั่นตัวที่ t₂ — สมการ (32) หน้า 1.9
+  const Qw = (pr==='coil' && s1.W>s2.W) ? mT*(s1.W-s2.W)*hw2 : 0;   // kW เอนทัลปีของน้ำกลั่นตัวที่ออกจากคอยล์
+  const Qt = Qa - Qw;                           // kW สมการ (43) · ไม่มีน้ำกลั่นตัว → = ṁ_da·Δh
   const Qs = isMix ? 0 : mT*cp*(s1.t-s2.t);
   const Ql = Qt-Qs;
   const adia = Math.abs(Qt) < 0.06*Math.max(Math.abs(Qs),Math.abs(Ql),1e-9);
@@ -1111,7 +1121,8 @@ function calcP(){
     R('อัตราการไหลเชิงปริมาตร', (isMix?m1:mT)*s1.v*3600, mT*s2.v*3600,'m³/h',0);
 
   $('asmP').innerHTML = `<b>วิธีคำนวณ:</b> ṁ<sub>da</sub> = V̇/v = ${fmtA(q1)} m³/s ÷ ${fmt(s1.v,4)} m³/kg = ${fmt(m1,4)} kg/s
-    &nbsp;·&nbsp; Q<sub>total</sub> = ṁ<sub>da</sub>·Δh &nbsp;·&nbsp; Q<sub>sensible</sub> = ṁ<sub>da</sub>·(1.006+1.86W̄)·Δt (c<sub>p</sub> = ${fmt(cp,4)} kJ/kg·K)<br>
+    &nbsp;·&nbsp; Q<sub>total</sub> = ṁ<sub>da</sub>·Δh${pr==='coil'?' − ṁ<sub>da</sub>(W₁ − W₂)·h<sub>w2</sub>':''} &nbsp;·&nbsp; Q<sub>sensible</sub> = ṁ<sub>da</sub>·(1.006+1.86W̄)·Δt (c<sub>p</sub> = ${fmt(cp,4)} kJ/kg·K)<br>
+    ${pr==='coil' ? (Qw>0 ? `<b>Q<sub>total</sub> คอยล์เย็น (สมการ 43):</b> <span>ṁ<sub>da</sub>·Δh − ṁ<sub>da</sub>(W₁ − W₂)·h<sub>w2</sub> = </span><span>${fmt(Qa,3)} − ${fmt(Qw,3)} = ${fmt(Qt,3)}</span><span> kW · h<sub>w2</sub> = 4.186 × t₂ = </span><span>${fmt(hw2,1)}</span><span> kJ/kg · </span><span>ต่ำกว่า ṁ<sub>da</sub>·Δh</span><span> ${fmt(Qw/Qa*100,2)} % · </span><span>ความร้อนที่คอยล์ดึงออก = ภาระของอากาศหักเอนทัลปีของน้ำกลั่นตัวที่ไหลออกที่อุณหภูมิอากาศออก — ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13 · สมการ (32) หน้า 1.9</span><br>` : `<b>Q<sub>total</sub> คอยล์เย็น (สมการ 43):</b> <span>ไม่มีน้ำกลั่นตัว (W₂ ≥ W₁) จึงเท่ากับ ṁ<sub>da</sub>·Δh — ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13 · สมการ (32) หน้า 1.9</span><br>`) : ''}<!-- [แก้ไข 26 พ.ย. 2569] #1441 (WP-48B) บรรทัดสมการ (43) เฉพาะคอยล์เย็น · กระบวนการอื่นข้อความเท่าเดิม -->
     ${extra? '<b>รายละเอียด:</b> '+extra+'<br>':''}
     ${isMix? '<b>การผสม:</b> สภาวะผสมได้จาก W<sub>mix</sub> = Σṁ·W/Σṁ และ h<sub>mix</sub> = Σṁ·h/Σṁ — เป็นกระบวนการอะเดียแบติก ภาระความร้อนและน้ำ = 0 ใช้เฉพาะสภาวะผสม (จุด 2) ไปคำนวณคอยล์ขั้นต่อไป<br>':''}<!-- [แก้ไข 3 ต.ค. 2569 audit] -->
     ${pr==='coil' ? `<b>ตรวจสอบ:</b> SHR ของคอยล์เย็นทั่วไปอยู่ที่ 0.65–0.80 (ค่าแนวทางของเครื่องมือ) — ถ้าต่ำกว่า 0.6 แสดงว่าภาระความชื้นสูงมาก
@@ -1336,12 +1347,17 @@ function sysProc(pr,R,p){
   if(pr.type!=='mix'){
     var sg = pr.type==='room' ? -1 : 1, cp=CP_DA+CP_V*(s1.W+out.W)/2;
     res.dh=sg*(s1.h-out.h); res.dt=out.t-s1.t; res.dW=out.W-s1.W;
+    /* [แก้ไข 26 พ.ย. 2569] #1443 (WP-48B) คอยล์เย็นที่มีน้ำกลั่นตัว (W เข้า > W ออก): Q_รวม = ṁ_da·[Δh − (W₁ − W₂)·h_w] · h_w = 4.186·t_ออก — ASHRAE Handbook—Fundamentals (SI) 2017
+       บทที่ 1 สมการ (43) หน้า 1.13 · สมการ (32) หน้า 1.9 (เดียวกับ TE_SPLITAC r2 และแท็บกระบวนการเดียว #1440) · กระบวนการอื่น qw = 0 → ค่าเท่าเดิมทุกตัว
+       res.qw = เอนทัลปีของน้ำกลั่นตัวต่อ kg อากาศแห้ง · res.Qa = ṁ·Δh · res.Qw = ṁ·qw (แสดงในรายละเอียดของแถวและงบภาระ) */
+    var qw=(pr.type==='coil' && s1.W>out.W) ? (s1.W-out.W)*4.186*out.t : 0; res.qw=qw;
     if(m!=null){
-      res.Qt=m*res.dh; res.Qs=sg*m*cp*(s1.t-out.t); res.Ql=res.Qt-res.Qs;
+      res.Qa=m*res.dh; res.Qw=m*qw;
+      res.Qt=res.Qa-res.Qw; res.Qs=sg*m*cp*(s1.t-out.t); res.Ql=res.Qt-res.Qs;
       res.water=m*(s1.W-out.W)*3600;                                  // kg/h บวก = กลั่นตัว
       res.shr=Math.abs(res.Qt)>1e-6 && Math.abs(res.Qt)>0.06*Math.max(Math.abs(res.Qs),Math.abs(res.Ql)) ? res.Qs/res.Qt : NaN;
     } else {
-      var qs1=sg*cp*(s1.t-out.t); res.shr=Math.abs(res.dh)>1e-6?qs1/res.dh:NaN;
+      var qs1=sg*cp*(s1.t-out.t); res.shr=Math.abs(res.dh)>1e-6?qs1/(res.dh-qw):NaN;   // [แก้ไข 26 พ.ย. 2569] #1443 ต่อ kg: q คอยล์ = Δh − qw (qw = 0 นอกจากคอยล์ที่มีน้ำกลั่นตัว)
     }
     if(!(res.shr>=-1e-9 && res.shr<=1.0001)) res.shr=NaN;               // SHR นอก 0–1 ไม่มีความหมาย (เช่น อบแห้ง/ภาระกลับทิศ)
     if(pr.type==='room'){ var ra=lineADP(out,s1,p); if(ra){ x.radp=ra.t; x.radpW=ra.W; } }
@@ -1383,17 +1399,19 @@ function sysObserve(R,p){
     if(pr.type==='room' && isFinite(r.shr) && r.shr<0.65) O.push(['info',pr.name+': RSHR '+fmt(r.shr,2)+' — ภาระแฝงในห้องสูง (คนหนาแน่น/อากาศรั่ว) คอยล์ต้องมี ADP ต่ำ หรือต้องมีระบบลดความชื้นเสริม']);
   });
   /* สรุปสมดุลภาระทั้งวงจร */
-  var cool=0, heat=0, room=0, vent=0, nCool=0, nRoom=0, nVent=0, cond=0;
+  var cool=0, heat=0, room=0, vent=0, nCool=0, nRoom=0, nVent=0, cond=0, condQ=0;
   SYS.prs.forEach(function(pr){ var r=R.pr[pr.id]; if(!r) return;
-    if(pr.type==='coil' && r.Qt!=null){ cool+=r.Qt; nCool++; cond+=r.water||0; }
+    if(pr.type==='coil' && r.Qt!=null){ cool+=r.Qt; nCool++; cond+=r.water||0; condQ+=r.Qw||0; }   // [แก้ไข 26 พ.ย. 2569] #1444 condQ = Σ เอนทัลปีน้ำกลั่นตัว (สมการ 43)
     if((pr.type==='sens'||pr.type==='steam') && r.Qt!=null && r.Qt<0) heat+=-r.Qt;
     if(pr.type==='room' && r.Qt!=null){ room+=r.Qt; nRoom++; }
     if(pr.type==='mix' && r.x && r.x.qVent!=null){ vent+=r.x.qVent; nVent++; }
   });
-  R.sum={cool:cool,heat:heat,room:room,vent:vent,nCool:nCool,nRoom:nRoom,nVent:nVent,cond:cond};
+  R.sum={cool:cool,heat:heat,room:room,vent:vent,nCool:nCool,nRoom:nRoom,nVent:nVent,cond:cond,condQ:condQ};
   if(nCool && nRoom){
-    var other=cool-room-vent;
-    O.push(['ok','งบภาระ: คอยล์ '+fmt(UC.Q(cool),UC.qd())+' = ห้อง '+fmt(UC.Q(room),UC.qd())+(nVent?' + ลมภายนอก '+fmt(UC.Q(vent),UC.qd()):'')+' + อื่น ๆ (พัดลม/reheat/ส่วนต่าง) '+fmt(UC.Q(other),UC.qd())+' '+UC.qu()]);
+    /* [แก้ไข 26 พ.ย. 2569] #1444 (WP-48B) ภาระคอยล์ตามสมการ (43) ไม่รวมเอนทัลปีของน้ำกลั่นตัวที่ไหลออก → งบภาระด้านอากาศ: คอยล์ + น้ำกลั่นตัว = ห้อง + ลมภายนอก + อื่น ๆ
+       ("อื่น ๆ" คงค่าและความหมายเดิม = พัดลม/reheat/ส่วนต่าง) · ไม่มีน้ำกลั่นตัว → ข้อความเท่าเดิม */
+    var other=cool+condQ-room-vent;
+    O.push(['ok','งบภาระ: คอยล์ '+fmt(UC.Q(cool),UC.qd())+(condQ>0?' + น้ำกลั่นตัวที่ไหลออก '+fmt(UC.Q(condQ),UC.qd()):'')+' = ห้อง '+fmt(UC.Q(room),UC.qd())+(nVent?' + ลมภายนอก '+fmt(UC.Q(vent),UC.qd()):'')+' + อื่น ๆ (พัดลม/reheat/ส่วนต่าง) '+fmt(UC.Q(other),UC.qd())+' '+UC.qu()]);
   }
 }
 
@@ -1432,6 +1450,8 @@ function sysTables(){
     if(x.fracT!=null) det.push('จาก T '+fmt(x.fracT*100,1)+' % / จาก W '+fmt(x.fracW*100,1)+' %');
     if(x.qVent!=null) det.push('ภาระลมสาย 2 '+fmt(UC.Q(x.qVent),qd)+' '+qu);
     if(x.note) det.push(x.note);
+    if(r.Qw>0) det.push('<span>ṁ·Δh </span>'+fmt(UC.Q(r.Qa),qd)+'<span> − น้ำกลั่นตัว </span>'+fmt(UC.Q(r.Qw),qd)+' '+qu+'<span> (สมการ 43)</span>');   // [แก้ไข 26 พ.ย. 2569] #1443 (WP-48B)
+    else if(r.Qt==null && r.qw>0) det.push('<span>q คอยล์ = Δh − ΔW·h<sub>w</sub> </span>'+fmt(ipOn()?(r.dh-r.qw)/2.326:(r.dh-r.qw),2)+' '+UC.hu()+'<span> (สมการ 43)</span>');
     if(pr.type==='mix') return row+'<td class="num">'+fmtFlow(r.m,r.s2.v)+'</td><td class="num" colspan="6" style="text-align:center">ผสมอะเดียแบติก — ไม่มีภาระ</td><td class="small">'+det.join('<br>')+'</td></tr>';
     var has=r.Qt!=null;
     return row+'<td class="num">'+fmtFlow(r.m,r.s1.v)+'</td><td class="num">'+(has?fmt(UC.Q(r.Qt),qd):'–')+'</td><td class="num">'+(has?fmt(UC.Q(r.Qs),qd):'–')+'</td><td class="num">'+(has?fmt(UC.Q(r.Ql),qd):'–')+'</td><td class="num">'+(has?fmt(r.Qt/KW_TR,2):'–')+'</td><td class="num">'+(isFinite(r.shr)?fmt(r.shr,3):'–')+'</td><td class="num">'+(has?fmt(UC.M(r.water),2):'–')+'</td><td class="small">'+det.join('<br>')+(has?'':'<br>ต่อ kg อากาศแห้ง: Δh '+fmt(ipOn()?r.dh/2.326:r.dh,2)+' '+UC.hu())+'</td></tr>';
@@ -1455,6 +1475,7 @@ function sysTables(){
   R.obs.forEach(function(o){ li.push('<li class="o-'+o[0]+'">'+(o[0]==='warn'?'△ ':o[0]==='ok'?'✓ ':'ℹ ')+esc(o[1])+'</li>'); });
   $('sysObs').innerHTML=li.join('')||'<li class="o-ok">✓ ไม่พบข้อผิดพลาดของสมดุลมวล</li>';
   $('sysAsm').innerHTML='<b>วิธีคำนวณ:</b> ṁ<sub>da</sub> = V̇ / v ที่จุดที่กำหนดอัตราลม แล้วส่งต่อคงที่ตลอดเส้นทาง (ผสม = ผลรวมสองสาย) · Q<sub>รวม</sub> = ṁ<sub>da</sub>Δh · Q<sub>สัมผัส</sub> = ṁ<sub>da</sub>(1.006 + 1.86W̄)Δt · Q<sub>แฝง</sub> = Q<sub>รวม</sub> − Q<sub>สัมผัส</sub> · น้ำ = ṁ<sub>da</sub>ΔW<br>'+
+    '<b>คอยล์เย็นที่มีน้ำกลั่นตัว:</b> Q<sub>รวม</sub> = ṁ<sub>da</sub>(Δh − ΔW·h<sub>w</sub>) <span>เมื่อ ΔW = W<sub>เข้า</sub> − W<sub>ออก</sub> &gt; 0 · h<sub>w</sub> = 4.186 t<sub>ออก</sub> (น้ำกลั่นตัวไหลออกที่อุณหภูมิอากาศออก) — ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13 · สมการ (32) หน้า 1.9</span> · <span>กระบวนการอื่น Q<sub>รวม</sub> = ṁ<sub>da</sub>Δh</span><br>'+   /* [แก้ไข 26 พ.ย. 2569] #1443 (WP-48B) */
     '<b>ADP / Bypass factor:</b> ต่อเส้นตรงขาเข้า→ขาออกบนพิกัด t–W ไปตัดเส้นอิ่มตัว · BF = (t<sub>ออก</sub> − ADP)/(t<sub>เข้า</sub> − ADP) · <b>RSHR</b> = Q<sub>สัมผัสห้อง</sub>/Q<sub>รวมห้อง</sub> · <b>GSHR</b> = SHR ของคอยล์ · ภาระลมภายนอก = ṁ<sub>สาย 2</sub>(h<sub>สาย 2</sub> − h<sub>สาย 1</sub>)<br>'+
     '<b>ที่มา:</b> ASHRAE Handbook — Fundamentals Ch.1 (Hyland–Wexler, TE_PSY) · ความดัน '+fmt(R.p,3)+' kPa · IP: h<sub>IP</sub> = h<sub>SI</sub>/2.326 + 7.689 (ฐาน 0 °F) · ภาระคิดที่อากาศเท่านั้น ไม่รวมความร้อนท่อลม/การรั่ว เว้นแต่ใส่เป็นกระบวนการ';
   var hd='<b>'+esc(($('sysProj')||{}).value||'โครงการ —')+'</b> · ผู้คำนวณ '+esc(($('sysBy')||{}).value||'—')+' · '+thaiDate()+' · ระบบหน่วย '+(ipOn()?'IP':'SI');
@@ -2879,7 +2900,7 @@ if(window.TE_I18N)TE_I18N.set({
 "ทำบนจอ": "On screen",
 "— เลือกเส้นตามแกน 2 ชนิดจากค่าที่โจทย์กำหนด (เช่น │ DB กับ ⌒ RH) วงกลมสีม่วงคือจุดตัด = จุดสภาวะ · จากนั้นลากเส้นตามแกนอื่นผ่านจุดตัดเพื่ออ่านค่าที่สเกล · เส้น SHF: ใช้ 📏 ลากจากจุดศูนย์กลางไม้โปรแทรกเตอร์ผ่านค่า SHF แล้วใช้ ✋ ลากกลางเส้นไปผ่านจุดสภาวะ": "— pick two axis lines from the given values (e.g. │ DB and ⌒ RH); the purple ring is their intersection = the state point · then run other axis lines through it to read the scales · SHF line: use 📏 from the protractor centre through the SHF value, then ✋ drag the middle of the line through the state point",
 "ค่าเฉลยคำนวณจากค่าที่กำหนด (หลังปัดแล้ว) ด้วยสมการ ASHRAE ชุดเดียวกับแท็บแรก · WB = กระเปาะเปียกเทอร์โมไดนามิกส์ · DP ต่ำกว่า 0 °C คิดเหนือน้ำแข็ง (frost point) ตามแผนภูมิ ASHRAE": "Answers are computed from the given (rounded) values with the same ASHRAE equations as the first tab · WB = thermodynamic wet bulb · DP below 0 °C is over ice (frost point), as on the ASHRAE chart",
-"© Triple E Technology Co., Ltd. — Energy Engineering Tools · ASHRAE Fundamentals (Hyland–Wexler) · v2.3 (12 พ.ย. 2569)": "© Triple E Technology Co., Ltd. — Energy Engineering Tools · ASHRAE Fundamentals (Hyland–Wexler) · v2.3 (12 Nov 2026)",
+"© Triple E Technology Co., Ltd. — Energy Engineering Tools · ASHRAE Fundamentals (Hyland–Wexler) · v2.4 (26 พ.ย. 2569)": "© Triple E Technology Co., Ltd. — Energy Engineering Tools · ASHRAE Fundamentals (Hyland–Wexler) · v2.4 (26 Nov 2026)",
 "ชนิดโจทย์": "Question type",
 "อ่านค่าสภาวะ (กำหนด 2 ค่า หา 5 ค่า)": "State reading (2 given, find 5)",
 "กระบวนการปรับอากาศ": "Air-conditioning processes",
@@ -2969,5 +2990,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 [/^ไฟล์ JSON ไม่ถูกต้อง:(.*)$/,"Invalid JSON file:$1"]
 ]);</script>
 <script>/* [แก้ไข 17 พ.ย. 2569] คำแปล EN ที่ตกหล่น (#90): ชื่อกระบวนการตั้งต้นของแม่แบบ (คอยล์เย็น · ฮีตเตอร์ · ภาระห้อง ฯลฯ) ที่นำหน้าข้อสังเกตในแท็บระบบ เช่น "△ คอยล์เย็น: SHR … low" · ข้อความ Process "…" · "จาก …/ส่งต่อจาก …" ในตารางจุด · "% โดยมวล" เมื่อไม่มีภาระลมภายนอก — ชื่อที่ผู้ใช้ตั้งเองไม่แปล */ if(window.TE_I18N&&TE_I18N.set)(function(){var N={"คอยล์เย็น":"Cooling coil","คอยล์ลดความชื้น":"Dehumidifying coil","ความร้อนพัดลม":"Fan heat","ภาระห้อง (ประมาณ)":"Room load (estimated)","ภาระห้อง":"Room load","อุ่นซ้ำ (reheat)":"Reheat","ฮีตเตอร์":"Heater","ห้องอบ (รับความชื้น)":"Drying chamber (moisture pick-up)","ผสม (ค่าวัด)":"Mix (measured)","ผสม":"Mix","ระเหย":"Evaporative","ฉีดไอน้ำ":"Steam injection","อบแห้ง":"Drying"};var A="(คอยล์เย็น|คอยล์ลดความชื้น|ความร้อนพัดลม|ภาระห้อง \\(ประมาณ\\)|ภาระห้อง|อุ่นซ้ำ \\(reheat\\)|ฮีตเตอร์|ห้องอบ \\(รับความชื้น\\)|ผสม \\(ค่าวัด\\)|ผสม (\\d+)% RM|ผสม|ระเหย|ฉีดไอน้ำ|อบแห้ง)";var f=function(m,a,b,c,d){return a+(c!=null&&/^ผสม \d/.test(b)?"Mix "+c+"% RM":(N[b]||b))+(typeof d==="string"?d:"");};var nm=function(b,c){return c!=null&&/^ผสม \d/.test(b)?"Mix "+c+"% RM":(N[b]||b);};var g=function(pre){return function(m,a,b,c){return a+pre+nm(b,c);};};TE_I18N.set({"% โดยมวล":"% by mass"},[[new RegExp("^(\\s*[△✓ℹ⚠]\\s+)"+A+"(?=:)"),f],[new RegExp("(Process \")"+A+"(\")"),f],[new RegExp("^(\\s*)ส่งต่อจาก "+A+"$"),g("Passed on from ")],[new RegExp("^(\\s*)จาก "+A+"$"),g("from ")]]);})();</script>
+<script>/* [แก้ไข 26 พ.ย. 2569] #1445 (WP-48B) คำแปล EN ของข้อความสมการ (43) ภาระคอยล์เย็นที่มีน้ำกลั่นตัว (แท็บกระบวนการเดียว · วงจรหลายจุด · สูตรอ้างอิง) + งบภาระที่มีพจน์น้ำกลั่นตัว */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"คอยล์เย็น (สมการ 43):": "cooling coil (Eq. 43):", "ต่ำกว่า ṁ": "lower than ṁ", "ความร้อนที่คอยล์ดึงออก = ภาระของอากาศหักเอนทัลปีของน้ำกลั่นตัวที่ไหลออกที่อุณหภูมิอากาศออก — ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13 · สมการ (32) หน้า 1.9": "heat removed by the coil = air-side load less the enthalpy of the condensate leaving at the leaving-air temperature — ASHRAE Handbook—Fundamentals (SI) 2017 Ch. 1 Eq. (43) p. 1.13 · Eq. (32) p. 1.9", "ไม่มีน้ำกลั่นตัว (W₂ ≥ W₁) จึงเท่ากับ ṁ": "no condensate (W₂ ≥ W₁), so it equals ṁ", "·Δh — ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13 · สมการ (32) หน้า 1.9": "·Δh — ASHRAE Handbook—Fundamentals (SI) 2017 Ch. 1 Eq. (43) p. 1.13 · Eq. (32) p. 1.9", "คอยล์เย็นที่มีน้ำกลั่นตัว (W₁ > W₂): Q": "Cooling coil with condensate (W₁ > W₂): Q", "= 4.186 t₂ [ASHRAE Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13 · (32) หน้า 1.9]": "= 4.186 t₂ [ASHRAE Fundamentals (SI) 2017 Ch. 1 Eq. (43) p. 1.13 · (32) p. 1.9]", "คอยล์เย็นที่มีน้ำกลั่นตัว:": "Cooling coil with condensate:", "เมื่อ ΔW = W": "where ΔW = W", "(น้ำกลั่นตัวไหลออกที่อุณหภูมิอากาศออก) — ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13 · สมการ (32) หน้า 1.9": "(condensate leaves at the leaving-air temperature) — ASHRAE Handbook—Fundamentals (SI) 2017 Ch. 1 Eq. (43) p. 1.13 · Eq. (32) p. 1.9", "กระบวนการอื่น Q": "other processes: Q", "− น้ำกลั่นตัว": "− condensate", "(สมการ 43)": "(Eq. 43)", "q คอยล์ = Δh − ΔW·h": "q coil = Δh − ΔW·h"},[[/^(\s*)✓\s+งบภาระ:\s+คอยล์\s+(-?\d[\d,]*\.?\d*)\s+\+\s+น้ำกลั่นตัวที่ไหลออก\s+(-?\d[\d,]*\.?\d*)\s+=\s+ห้อง\s+(-?\d[\d,]*\.?\d*)(?:\s+\+\s+ลมภายนอก\s+(-?\d[\d,]*\.?\d*))?\s+\+\s+อื่น\s+ๆ\s+\(พัดลม\/reheat\/ส่วนต่าง\)\s+(-?\d[\d,]*\.?\d*)\s+(kW|Btu\/h)(\s*)$/,function(m,a,c,w,r,v,o,u,z){return a+"✓ Load balance: coil "+c+" + condensate leaving "+w+" = room "+r+(v!=null?" + outdoor air "+v:"")+" + other (fan/reheat/difference) "+o+" "+u+z;}]]);</script>
 </body>
 </html>
