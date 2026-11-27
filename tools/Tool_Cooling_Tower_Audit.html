@@ -361,6 +361,11 @@ body.print-all .content{overflow:visible;}
       <div class="src"><b>ที่มา:</b> วัดขนาดตัวหอหน้างาน (ด้านในขอบ Casing) กว้าง &#215; ยาว ต่อ Cell แล้วคูณจำนวน Cell</div>
       <label>Water Loading (m&#179;/h&#183;m&#178;)</label>
       <input type="number" id="waterLoading" value="10" min="4" max="20" step="0.5">
+      <!-- [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 3 Range 5 °C ที่ตัวช่วยใช้เมื่อ Design T_hot/T_cold ไม่ครบ ไม่มีป้ายที่มา · ค้นเอกสารในเครื่อง (KM · คู่มือที่การ์ดอ้าง) ไม่พบเอกสารต้นทางที่ให้ Range ออกแบบ 5 °C ที่เปิดอ่านได้
+           → ติดป้าย "ค่าแนวทางของเครื่องมือ" และให้ผู้ใช้แก้ในช่องใหม่ #estRange (ค่าตั้งต้น 5 = เท่าเดิม · ช่องว่าง = ไม่ใช้ค่าสำรอง ไม่คิดเป็น 0) · id เดิมไม่เปลี่ยน -->
+      <label>Range สำรอง (°C) — ใช้เมื่อ Design T_hot/T_cold ไม่ครบ</label>
+      <input type="number" id="estRange" value="5" min="0.5" max="20" step="0.5">
+      <div class="src">ค่าแนวทางของเครื่องมือ — ไม่มีเอกสารต้นทางที่เปิดอ่านได้ · แก้ได้ · ช่องว่าง = ไม่ใช้ค่าสำรอง (ต้องกรอก Design T_hot/T_cold)</div>
       <div class="src"><b>ข้อมูล:</b> ความหนาแน่นการจ่ายน้ำต่อพื้นที่ Fill — หอ Film Fill ทั่วไป <b>6–15</b> (ไม่ทราบใช้ 10) <b>ที่มา:</b> เกณฑ์ออกแบบมาตรฐาน (BEE Ch.7 / Stanford)</div>
       <button class="btn-sm" style="width:100%;margin-top:6px" onclick="estimateCap()">&#9889; คำนวณจาก Water Loading &#8594; เติมค่า</button>
       <div class="hint" id="estCapOut" style="margin-top:4px"></div>
@@ -1807,17 +1812,20 @@ function updateCapConv(){
 }
 function estimateCap(){
   var area = GV('fillArea'), wl = GV('waterLoading');
-  var rng  = GV('designTHot') - GV('designTCold');
+  var rng  = GVn('designTHot') - GVn('designTCold');  /* [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 3 เดิม GV() = ช่องว่างเป็น 0 → T_cold ว่าง ได้ Range = T_hot − 0 (เช่น 37 °C) · ตอนนี้ช่องว่าง = NaN → ใช้ Range สำรอง */
   if(area<=0 || wl<=0){ SI('estCapOut','&#9888; กรอกพื้นที่ Fill และ Water Loading ก่อน'); return; }
-  var note='';
-  if(rng<=0){ rng=5; note=' (Design Range ไม่ครบ ใช้ 5°C)'; }
+  var note='', en=window.TE_I18N&&TE_I18N.lang==='en';
+  if(!(rng>0)){ /* [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 3 เดิม rng=5 ตายตัว ไม่มีที่มา → ใช้ช่อง #estRange (ค่าแนวทางของเครื่องมือ แก้ได้) · ว่าง/≤0 = ไม่ใช้ */
+    var r2=GVn('estRange');
+    if(!(r2>0)){ SI('estCapOut',en?'&#9888; Design T_hot/T_cold incomplete and the fallback range field is empty — enter either one':'&#9888; Design T_hot/T_cold ไม่ครบ และช่อง Range สำรองว่าง — กรอกอย่างใดอย่างหนึ่ง'); return; }
+    rng=r2; note=en?' (design range incomplete — fallback range '+fN(rng,1)+' °C, tool guideline value)':' (Design Range ไม่ครบ ใช้ Range สำรอง '+fN(rng,1)+' °C — ค่าแนวทางของเครื่องมือ)'; }
   var flow = area * wl;                            // m³/h (design flow โดยประมาณ)
   var kW   = flow * rho_w * Cp_w * rng / 3600;     // kW
   var u    = G('designCapUnit') ? G('designCapUnit').value : 'RT';
   var val  = kW / (CAP_UNITS[u]||CAP_UNITS.RT).toKW;
   G('designCapRT').value = Math.round(val);
   updateCapConv();
-  SI('estCapOut','Flow &#8776; '+fN(flow,0)+' m³/h &#215; Range '+fN(rng,1)+'°C'+note+' &#8594; <b>'+fN(kW,0)+' kW &#8776; '+fN(kW/3.517,0)+' RT</b> — เติมค่าให้แล้ว (ค่าประมาณ ควรไขว้ตรวจกับภาระ Chiller/Process)');
+  SI('estCapOut','Flow &#8776; '+fN(flow,0)+' m³/h &#215; Range '+fN(rng,1)+'°C'+note+' &#8594; <b>'+fN(kW,0)+' kW &#8776; '+fN(kW/3.517,0)+' RT</b> — '+(en?'value filled in (estimate — cross-check against the chiller/process load)':'เติมค่าให้แล้ว (ค่าประมาณ ควรไขว้ตรวจกับภาระ Chiller/Process)')); /* [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 3 คำแปล EN ของบรรทัดผล (เดิมเป็นไทยในโหมด EN) */
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1826,7 +1834,7 @@ function estimateCap(){
 function exportJSON(){
   var data = {
     _tool:  'Cooling Tower Audit Tool — Triple E Technology',
-    _ver:   '1.2', // [แก้ไข 25 พ.ย. 2569] #920 1.1 → 1.2 เพิ่มคีย์ lgState (คีย์เดิมไม่เปลี่ยน)
+    _ver:   '1.3', // [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 3 1.2 → 1.3 เพิ่มคีย์ inputs.estRange (Range สำรองของตัวช่วยประมาณ Design Capacity · ไฟล์เดิมไม่มีคีย์นี้ = คงค่าตั้งต้น 5) · [แก้ไข 25 พ.ย. 2569] #920 1.1 → 1.2 เพิ่มคีย์ lgState (คีย์เดิมไม่เปลี่ยน)
     _saved: new Date().toISOString(),
     inputs: {},      // ค่าทุกช่องใน sidebar + เกณฑ์การประเมิน (key = id ของช่อง)
     meas:   [],      // ค่าที่วัดในตาราง "บันทึกค่าที่วัดได้ภาคสนาม" (เรียงตามแถว)
@@ -1977,11 +1985,11 @@ var TE_HINTS={
   auditor:'ชื่อผู้ตรวจวัด — แสดงในรายงานสรุป',
   lgRatio:'อัตราส่วนมวลน้ำ/มวลอากาศ kg/kg · counterflow ทั่วไป 0.8–1.5 · crossflow 1.2–2.0 · จาก datasheet หรือค่า back-calc จากแท็บ L/G (เติมอัตโนมัติ)',
   designTHot:'อุณหภูมิน้ำร้อนเข้าหอตามออกแบบ °C · ไทยทั่วไป 37 °C · จาก datasheet/nameplate',
-  designTCold:'อุณหภูมิน้ำเย็นออกตามออกแบบ °C · ทั่วไป 32 °C (Range 5 °C) · จาก datasheet'
+  designTCold:'อุณหภูมิน้ำเย็นออกตามออกแบบ °C · ทั่วไป 32 °C (Range 5 °C — ค่าแนวทางของเครื่องมือ) · จาก datasheet' /* [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 3 ติดป้าย */
 };
 function teInjectHints(){Object.keys(TE_HINTS).forEach(function(id){var e=G(id);if(!e||(e.nextElementSibling&&e.nextElementSibling.classList.contains('hint')&&e.nextElementSibling.classList.contains('te')))return;var d=document.createElement('div');d.className='hint te';d.textContent=TE_HINTS[id];e.insertAdjacentElement('afterend',d);});}
 /* [ระยะ 4 10 ก.ย. 2569] ป้ายชนิดค่า: ออกแบบ/วัดจริง/ตั้งค่า/คำนวณ — กันสับสนระหว่าง nameplate กับค่าที่วัดได้ */
-var FK_DESIGN=['ctType', 'fillType', 'numFan', 'fanPowerPerUnit', 'fanPowerRated', 'designCapRT', 'designCapUnit', 'fillArea', 'waterLoading', 'designTHot', 'designTCold', 'designTWB', 'lgRatio'], FK_MEAS=['tHot', 'tCold', 'tWB', 'tDB', 'qWater', 'qAir', 'qAirUnit', 'tWBout', 'fanPowerActual', 'pumpPower', 'condCirc', 'condMakeup', 'pH', 'hardness'], FK_SET=['projName', 'ctTag', 'auditor', 'testDate', 'rhoAir', 'opHours', 'elecPrice', 'waterPrice', 'critEffMin', 'critApproachWarn', 'critKwRT', 'critCocMin', 'critCocMax', 'critCondMax', 'critPhMin', 'critPhMax', 'critHardMax'], FK_CALC=[];
+var FK_DESIGN=['ctType', 'fillType', 'numFan', 'fanPowerPerUnit', 'fanPowerRated', 'designCapRT', 'designCapUnit', 'fillArea', 'waterLoading', 'estRange', 'designTHot', 'designTCold', 'designTWB', 'lgRatio'], FK_MEAS=['tHot', 'tCold', 'tWB', 'tDB', 'qWater', 'qAir', 'qAirUnit', 'tWBout', 'fanPowerActual', 'pumpPower', 'condCirc', 'condMakeup', 'pH', 'hardness'], FK_SET=['projName', 'ctTag', 'auditor', 'testDate', 'rhoAir', 'opHours', 'elecPrice', 'waterPrice', 'critEffMin', 'critApproachWarn', 'critKwRT', 'critCocMin', 'critCocMax', 'critCondMax', 'critPhMin', 'critPhMax', 'critHardMax'], FK_CALC=[];
 var FK_TXT={design:'ออกแบบ',meas:'วัดจริง',set:'ตั้งค่า',calc:'คำนวณ'};
 function fieldKind(id){if(FK_CALC.indexOf(id)>=0)return'calc';if(FK_MEAS.indexOf(id)>=0)return'meas';if(FK_DESIGN.indexOf(id)>=0)return'design';if(FK_SET.indexOf(id)>=0)return'set';return null;}
 function labelOfField(e){var l=null;if(e.id)l=document.querySelector('label[for="'+e.id+'"]');if(l)return l;var s=e.previousElementSibling;while(s&&s.tagName!=='LABEL'&&s.tagName!=='INPUT'&&s.tagName!=='SELECT'&&s.tagName!=='TEXTAREA')s=s.previousElementSibling;if(s&&s.tagName==='LABEL')return s;var p=e.parentElement;for(var k=0;k<3&&p&&!l;k++){l=p.querySelector('label');if(!l)p=p.parentElement;}return l;}
@@ -2306,7 +2314,7 @@ if(window.TE_I18N)TE_I18N.set({
 [/^(\s*)ฝ่ายวิศวกรรมโรงงาน\s+\/\s+Design\s+Data\s+ผู้ผลิตหอ\s+\|\s+ช่วงปกติ\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*),\s+Induced\s+Draft\s+\~(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)(\s*)$/,"$1Plant engineering / tower manufacturer design data | normal range $2–$3, induced draft ~$4–$5$6"],
 [/^(\s*)อุณหภูมิน้ำร้อนเข้าหอตามออกแบบ\s+°C\s+·\s+ไทยทั่วไป\s+(-?\d[\d,]*\.?\d*)\s+°C\s+·\s+จาก\s+datasheet\/nameplate(\s*)$/,"$1Design hot water inlet temperature °C · typical in Thailand $2 °C · from datasheet/nameplate$3"],
 [/^(\s*)วัดด้วย\s+Power\s+Meter\s+\/\s+Clamp\s+Meter\s+ที่ตู้\s+MCC\s+ทีละวงจร\s+\((-?\d[\d,]*\.?\d*)\s+เฟส\s+พร้อม\s+PF\)\s+แล้ว(\s*)$/,"$1Measure with a power meter / clamp meter at the MCC, circuit by circuit ($2 phase with PF), then$3"],
-[/^(\s*)อุณหภูมิน้ำเย็นออกตามออกแบบ\s+°C\s+·\s+ทั่วไป\s+(-?\d[\d,]*\.?\d*)\s+°C\s+\(Range\s+(-?\d[\d,]*\.?\d*)\s+°C\)\s+·\s+จาก\s+datasheet(\s*)$/,"$1Design cold water outlet temperature °C · typical $2 °C (range $3 °C) · from datasheet$4"],
+[/^(\s*)อุณหภูมิน้ำเย็นออกตามออกแบบ\s+°C\s+·\s+ทั่วไป\s+(-?\d[\d,]*\.?\d*)\s+°C\s+\(Range\s+(-?\d[\d,]*\.?\d*)\s+°C\s+—\s+ค่าแนวทางของเครื่องมือ\)\s+·\s+จาก\s+datasheet(\s*)$/,"$1Design cold water outlet temperature °C · typical $2 °C (range $3 °C — tool guideline value) · from datasheet$4"],
 [/^(\s*)ระดับพื้นแทน\s+—\s+V\s+เฉลี่ยแบบ\s+grid\s+×\s+พื้นที่\s+Louver\s+×\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+\(หักการบัง\)\s+②\s+วัด(\s*)$/,"$1at ground level instead — grid-average V × louver area × $2–$3 (blockage deduction) ② measure$4"],
 [/^(\s*)Induced\s+Draft\s+Counterflow\s+\|\s+อ้างอิง\s+CTI\s+ATC(-?\d[\d,]*\.?\d*)\s+\/\s+BS\s+(-?\d[\d,]*\.?\d*)\s+\/\s+ASHRAE\s+Handbook(\s*)$/,"$1Induced draft counterflow | ref. CTI ATC$2 / BS $3 / ASHRAE Handbook$4"],
 [/^(\s*)ตาราง\s+Psychrometric\s+ที่สภาวะอากาศขาออก\s+—\s+อากาศอิ่มตัว\s+\~(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)°C\s+≈\s+(-?\d[\d,]*\.?\d*)–(-?\d[\d,]*\.?\d*)\s+\|(\s*)$/,"$1Psychrometric table at outlet air conditions — saturated air ~$2–$3°C ≈ $4–$5 |$6"],
@@ -2477,5 +2485,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>/* [แก้ไข 25 พ.ย. 2569] #924 คู่คำแปล EN ของข้อความเปิดไฟล์งาน/พิมพ์ (#921 #922) · ข้อความ "โหลดข้อมูลจากไฟล์ … สำเร็จ" เดิมไม่มีคำแปล (ขึ้นเป็นไทยในโหมด EN) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"ไฟล์รุ่นก่อนไม่ได้เก็บสถานะ L/G จึงไม่ตรวจ L/G ให้อัตโนมัติ (ค่า L/G Ratio และ NTU เท่าตอนบันทึก) · ถ้าเคยกดตรวจ L/G ก่อนบันทึก ค่าในช่อง L/G Ratio อาจเป็นค่าจาก Flow ไม่ใช่ค่าที่แจ้ง · กดตรวจ L/G อีกครั้งได้ในแท็บ L/G":"This file is from an earlier version and does not store the L/G state, so the L/G check was not run automatically (L/G ratio and NTU are as saved) · if the L/G check was run before saving, the L/G ratio field may hold the value from flow rather than the stated value · you can run the L/G check again in the L/G tab","L/G: ยังไม่ได้คำนวณ — กดปุ่ม “ตรวจสอบ & คำนวณ L/G” ในแท็บนี้ก่อนพิมพ์ ถ้าต้องการผลส่วนนี้ (ตอนพิมพ์เครื่องมือไม่คำนวณให้เอง เพื่อไม่ให้ค่า L/G Ratio และ NTU เปลี่ยน)":"L/G: not calculated — press “Check & calculate L/G” in this tab before printing if you need this section (the tool does not calculate it for you when printing, so the L/G ratio and NTU do not change)"},[[/^(\s*)✓ โหลดข้อมูลจากไฟล์ "(.*)" สำเร็จ \(บันทึกเมื่อ (\S+)\) และคำนวณผลใหม่แล้ว(\s*)$/,"$1✓ Loaded the file \"$2\" (saved $3) and recalculated the results$4"]]);</script>
 <script>/* [แก้ไข 26 พ.ย. 2569] #1541 ชุด 29 WP-50B คู่คำแปล EN ของข้อความแจ้งช่องจำเป็นว่าง/ผลรองที่คิดไม่ได้ (#1530–#1539) · ชื่อช่องที่มีคู่แปลเดิมแล้วใช้คู่แปลเดิม (ไม่เขียนทับ) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"⚠️ ยังคำนวณส่วนนี้ไม่ได้ — ช่องที่จำเป็นยังว่างหรือไม่ถูกต้อง (ช่องว่างไม่คิดเป็น 0 · เครื่องมือไม่ใช้ค่าตั้งต้นแทนให้):": "⚠️ This part cannot be calculated yet — required fields are blank or invalid (a blank field is not taken as 0 · the tool does not substitute default values):", "กรอกช่องในแถบด้านซ้ายแล้วกดคำนวณอีกครั้ง": "Fill in the fields in the left panel and press calculate again", "ยังไม่ได้กรอก": "not entered", "ต้องมากกว่า 0": "must be greater than 0", "ขาดค่า:": "Missing:", "เกณฑ์": "limit", "T_wb — กระเปาะเปียกอากาศเข้า (°C)": "T_wb — inlet-air wet bulb (°C)", "Q_air — อัตราไหลอากาศ": "Q_air — air flow", "ρ_air — ความหนาแน่นอากาศ (kg/m³)": "ρ_air — air density (kg/m³)", "④ กำลังไฟฟ้าพัดลมจริง รวมทุกชุด (kW)": "④ measured fan power, all units (kW)", "คิดกำลังไฟฟ้ารวม · kW/RT · พลังงานต่อปี ไม่ได้ — ขาดค่า:": "Total power · kW/RT · annual energy cannot be calculated — missing:", "คิดพลังงานต่อปี (MWh/y) ไม่ได้ — ขาดค่า:": "Annual energy (MWh/y) cannot be calculated — missing:", "คิดน้ำเติม/ค่าน้ำต่อปีและผลประหยัดไม่ได้ — ขาดค่า:": "Annual makeup water/cost and savings cannot be calculated — missing:", "ประเมินมาตรการนี้ไม่ได้ — ขาดค่า:": "This measure cannot be assessed — missing:", "ประเมินมาตรการนี้ไม่ได้ — ช่องที่ต้องกรอก:": "This measure cannot be assessed — fields to enter:", "คิดเป็นบาท/ปีไม่ได้ — ขาดค่า:": "THB/year cannot be calculated — missing:", "คิดปริมาณ/ค่าน้ำที่ประหยัดไม่ครบ — ขาดค่า:": "Water/cost savings cannot be fully calculated — missing:"},[[/— บาท\/y/g,"— THB/y"],[/— บาท\/ปี/g,"— THB/yr"]]);</script>
 <script>/* [แก้ไข 18 พ.ย. 2569] #330 โหมด en: สกุลเงินแสดงเป็น THB (เดิม "cost … ฿" ในการ์ด Makeup/Year) */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({},[[/M฿/g,"M THB"],[/฿(?=\s?[\d(])/g,"THB "],[/฿/g,"THB"]]);</script>
+<script>/* [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 3 EN — ช่อง Range สำรองของตัวช่วยประมาณ Design Capacity */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"Range สำรอง (°C) — ใช้เมื่อ Design T_hot/T_cold ไม่ครบ":"Fallback range (°C) — used when design T_hot/T_cold is incomplete","ค่าแนวทางของเครื่องมือ — ไม่มีเอกสารต้นทางที่เปิดอ่านได้ · แก้ได้ · ช่องว่าง = ไม่ใช้ค่าสำรอง (ต้องกรอก Design T_hot/T_cold)":"Tool guideline value — no source document available to open · editable · empty field = no fallback (enter design T_hot/T_cold)"});</script>
 </body>
 </html>
