@@ -19,7 +19,7 @@
          คอยล์แห้ง (ADP ≥ Tdp ของลมเข้า): T_CL = ADP + BF·(T_MA − ADP) , W_CL = W_MA  (sensible cooling)
          ถ้าจุดเลยเส้นอิ่มตัว → หมอก (fog) ตรึงจุดไว้บนเส้นอิ่มตัวที่ h เดิม
        • Reheat: T_SA = T_CL + ΔT , W คงที่ (เส้นแนวนอน)
-       • พลังงาน: Q_coil = ṁ_da·(h_MA − h_CL) [ละเทอม ṁw·hw ของน้ำกลั่น < 1%] · Q_reheat = ṁ_da·(h_SA − h_CL)
+       • พลังงาน: Q_coil = ṁ_da·[(h_MA − h_CL) − (W_MA − W_CL)·h_w2] , h_w2 = 4.186·T_CL (ASHRAE Fundamentals 2017 Ch.1 Eq. 43) · Q_reheat = ṁ_da·(h_SA − h_CL)  [[แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 4 เดิมละเทอมน้ำกลั่น]
          น้ำกลั่น = ṁ_da·(W_MA − W_CL)·3600 kg/h · 1 TR = 3.517 kW
        • สภาวะห้อง (steady state, ลมกลับคงที่ตามค่าด่าน): h_R = h_SA + (Qs+Ql)/ṁ_da , W_R = W_SA + Ql/(ṁ_da·2501)
        • ลมใหม่ขั้นต่ำ ASHRAE 62.1 (ห้องเรียน อายุ 9+): Vbz = Rp·Pz + Ra·Az = 5 L/s·คน × 41 + 0.6 L/s·m² × 70 ; Ez = 1.0 -->
@@ -419,10 +419,11 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
         <tbody id="tblBody"></tbody>
       </table>
       <div id="energy">
-        <div><small>คอยล์เย็น</small><b id="eCoil">—</b><small id="eCoilTR">—</small></div>
+        <div><small>คอยล์เย็น</small><b id="eCoil">—</b><small id="eCoilTR">—</small></div><!-- [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 4 หมายเหตุสมการภาระคอยล์ใต้กล่องพลังงาน -->
         <div><small>Reheat</small><b id="eRh">—</b><small id="eRhPct">—</small></div>
         <div class="tot"><small>รวม</small><b id="eTot">—</b><small id="eCond">—</small></div>
       </div>
+      <div class="sub" id="coilEqNote" style="font-size:11px;opacity:.8;margin:4px 0 2px;line-height:1.45">คอยล์เย็นที่มีน้ำกลั่น: Q = ṁ·[(h_MA − h_CL) − (W_MA − W_CL)·h_w] · h_w = 4.186 × T ลมออกคอยล์ (ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43))</div>
       <div id="starGoal">—</div>
       <div class="sld" id="oaBox">
         <div class="lab"><span>🌤 ลมใหม่ (Outdoor air)</span><span class="v" id="oaVal">0%</span></div>
@@ -568,7 +569,10 @@ function core(L,x,adp,dT){
   var hc2=TE_PSY.Hda(Tc,Wc), Ts=Tc+dT, hs=TE_PSY.Hda(Ts,Wc);
   var m=L.m, hR=hs+(L.qs+L.ql)/m, WR=Wc+L.ql/(m*2501), TR=TfromHW(hR,WR);
   var rhR=100*TE_PSY.RH_W(TR,WR,P_ATM);
-  var qc=m*(hm-hc2), qr=m*(hs-hc2);
+  /* [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 4 ภาระคอยล์เปียกหักพลังงานน้ำกลั่น: Q_coil = ṁ_da·[(h_MA − h_CL) − (W_MA − W_CL)·h_w2] · h_w2 = 4.186·T_CL
+     (ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43) หน้า 1.13 · h_w ตามสมการ (32) หน้า 1.9 — แหล่งและวิธีเดียวกับ TE_SPLITAC r2 ชุด 29) · เดิม ṁ·Δh (ละเทอม) · คอยล์แห้ง (W_CL = W_MA) เท่าเดิม */
+  var hw2=4.186*Tc, qw=(Wm>Wc)?m*(Wm-Wc)*hw2:0;
+  var qc=m*(hm-hc2)-qw, qr=m*(hs-hc2);
   return {Tm:Tm,Wm:Wm,hm:hm,Tc:Tc,Wc:Wc,hc:hc2,Ts:Ts,hs:hs,TR:TR,WR:WR,rhR:rhR,
           qc:qc,qr:qr,qt:qc+qr,cond:m*(Wm-Wc)*3600,wet:wet,fog:fog,off:off,adp:adp};
 }
@@ -1324,5 +1328,6 @@ if(window.TE_I18N)TE_I18N.set({
 ]);
 if(window.TE_I18N&&TE_I18N.lang==="en")document.title="Psychro Quest — Energy Skills Lab";
 </script>
+<script>/* [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 4 EN — หมายเหตุสมการภาระคอยล์ */ if(window.TE_I18N&&TE_I18N.set)TE_I18N.set({"คอยล์เย็นที่มีน้ำกลั่น: Q = ṁ·[(h_MA − h_CL) − (W_MA − W_CL)·h_w] · h_w = 4.186 × T ลมออกคอยล์ (ASHRAE Handbook—Fundamentals (SI) 2017 บทที่ 1 สมการ (43))":"Wet cooling coil: Q = ṁ·[(h_MA − h_CL) − (W_MA − W_CL)·h_w] · h_w = 4.186 × coil leaving-air T (ASHRAE Handbook—Fundamentals (SI) 2017 Ch.1 Eq. (43))"});</script>
 </body>
 </html>

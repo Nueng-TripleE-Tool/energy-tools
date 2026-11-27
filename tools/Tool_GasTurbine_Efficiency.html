@@ -1204,7 +1204,30 @@ return {make:make,_h:h,_s0:s0,_cp:cp,_Rm:Rm,_humidAir:humidAir,_prod:prod,_solve
 /* [แก้ไข 17 พ.ย. 2569] R5-10 หน้านี้คำนวณด้วย GTV (สมบัติก๊าซแปรตามอุณหภูมิ) แทน TE.GTEFF ใน te-core ซึ่งใช้ c_p คงที่ — TE.GTEFF คงไว้ไม่แก้ */
 var Cp_a=TE.GTEFF.Cp_a,Cp_g=TE.GTEFF.Cp_g,wetBulbStull=TE.GTEFF.wetBulbStull;
 function __gtEnv(){return {v:v,vn:vn,f:f,setH:setH,toBarA:toBarA,p1CompAbs:p1CompAbs,currentRp:currentRp};}
-function calcAll(){var r=GTV.make(__gtEnv()).calcAll();if(r===undefined)return;RES=r;updateUI();}
+/* [แก้ไข 27 พ.ย. 2569] ชุด 31 WP-61A ข้อ 2 ช่องกายภาพว่าง = ยังไม่กรอก (ไม่คิดเป็น 0) — เดิม vn() = parseFloat()||0 ทำให้ช่องว่างกลายเป็น 0 เงียบ ๆ
+   (ṁ_air · LHV · η · ว่าง → 0 แล้วขึ้นเตือน "เป็นไปไม่ได้" · T₁/T₃ ว่าง → 0 °C · ΔP ว่าง → 0 mbar · RH ว่าง → NaN) → ตรวจก่อนคำนวณ:
+   ช่องที่จำเป็นต่อผลว่าง/ไม่ใช่ตัวเลข → ไม่คำนวณ ล้างผลเดิมเป็น "—" และบอกชื่อช่องที่ต้องกรอก (ไทย/อังกฤษ) · ช่องตามเงื่อนไข: P₂ (โหมด CDP) หรือ rₚ (โหมดกรอกตรง) ·
+   ṁ_spray เฉพาะ Evaporative/Fogging · ε_regen เฉพาะเมื่อมี Regenerator · ช่องวัดเสริม (P_elec วัดได้ · ṁ_fuel/ṁ_exh วัดได้) ว่างได้ตามเดิม · สูตร GTV ไม่แตะ */
+var GT_NEED=[['t1','อุณหภูมิอากาศขาเข้า T₁ (°C)','Inlet air temperature T₁ (°C)'],['p1','ความดันบรรยากาศ P₁','Ambient pressure P₁'],['dpInlet','ΔP_inlet (mbar)','ΔP_inlet (mbar)'],
+ ['rh','ความชื้นสัมพัทธ์ RH (%)','Relative humidity RH (%)'],['mspray','ṁ_spray (kg/s)','ṁ_spray (kg/s)'],['p2meas','P₂ — CDP','P₂ — CDP'],['pr','Pressure Ratio rₚ','Pressure ratio rₚ'],
+ ['eta_c','η_c (%)','η_c (%)'],['mair','อัตราไหลอากาศ ṁ_a (kg/s)','Air mass flow ṁ_a (kg/s)'],['t3','TIT / T₃ (°C)','TIT / T₃ (°C)'],['eta_cc','η_cc (%)','η_cc (%)'],
+ ['lhv','ค่าความร้อน LHV (kJ/kg)','Fuel LHV (kJ/kg)'],['eta_t','η_t (%)','η_t (%)'],['eta_mech','η_mech (%)','η_mech (%)'],['eta_gen','η_gen (%)','η_gen (%)'],
+ ['dpExh','ΔP_exhaust (mbar)','ΔP_exhaust (mbar)'],['eps_regen','ε_regen (%)','ε_regen (%)']];
+var GT_MISS=[];
+function gtMissing(){var c=v('inletCool')||'none',m=v('prMode'),o=[];GT_NEED.forEach(function(r){var id=r[0],el=document.getElementById(id);if(!el)return;
+  if(id==='mspray'&&!(c==='evap'||c==='fog'))return;if(id==='eps_regen'&&v('hasRegen')!=='1')return;if(id==='p2meas'&&m!=='p2')return;if(id==='pr'&&m==='p2')return;
+  var t=String(el.value).trim();if(t===''||!isFinite(parseFloat(t)))o.push(r);});return o;}
+function gtNeedMsg(){var en=window.TE_I18N&&TE_I18N.lang==='en';return (en?'⚠ Not calculated — these fields are empty (an empty field is not taken as 0): ':'⚠ ยังไม่คำนวณ — ช่องต่อไปนี้ว่าง (ช่องว่างไม่คิดเป็น 0): ')
+  +GT_MISS.map(function(r){return '<b>'+(en?r[2]:r[1])+'</b>';}).join(' · ')+(en?' — enter them in the left sidebar, then press Calculate':' — กรอกในแถบด้านซ้าย แล้วกดคำนวณ');}
+function gtNeedShow(){var b=document.getElementById('gt_need_box'),btn=document.getElementById('calcBtn');
+  if(!b&&btn&&btn.parentNode){b=document.createElement('div');b.id='gt_need_box';b.className='err-box warn-box';b.style.cssText='display:none;margin:6px 0;font-size:.82rem';btn.parentNode.insertBefore(b,btn.nextSibling);}
+  var on=GT_MISS.length>0,h=on?gtNeedMsg():'';if(b){b.innerHTML=h;b.style.display=on?'block':'none';}
+  if(on){var sb=document.getElementById('sum_result_box');if(sb)sb.innerHTML='<div class="err-box warn-box">'+h+'</div>';setH('calc_steps_text',h.replace(/<[^>]+>/g,''));
+    ['eth','pow','hr','t4','bwr'].forEach(function(k){setH('ct_'+k+'_des','—');setH('ct_'+k+'_dev','—');setH('ct_'+k+'_st','—');});
+    ['ct_rated_need','ct_verify_note','gt_plaus_warn'].forEach(function(i){var e=document.getElementById(i);if(e)e.style.display='none';});}}
+document.addEventListener('te-lang',function(){try{if(GT_MISS.length)gtNeedShow();}catch(e){}});
+function calcAll(){GT_MISS=gtMissing();if(GT_MISS.length){RES={};try{updateUI();}catch(e){}gtNeedShow();try{clearStale();}catch(e){}return;}gtNeedShow();
+  var r=GTV.make(__gtEnv()).calcAll();if(r===undefined)return;RES=r;updateUI();}
 function buildCalcSteps(...a){return GTV.make(__gtEnv()).buildCalcSteps(...a);}
 function thermoPerKg(...a){return GTV.make(__gtEnv()).thermoPerKg(...a);}
 function logRowCalc(...a){return GTV.make(__gtEnv()).logRowCalc(...a);}
